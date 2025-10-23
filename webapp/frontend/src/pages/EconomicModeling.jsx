@@ -12,8 +12,6 @@ import {
   Grid,
   IconButton,
   LinearProgress,
-  Tab,
-  Tabs,
   Typography,
   Table,
   TableBody,
@@ -21,13 +19,11 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  useTheme,
 } from "@mui/material";
 import {
   TrendingUp,
   TrendingDown,
-  Analytics,
-  Assessment,
-  ShowChart,
   Refresh,
   TrendingFlat,
 } from "@mui/icons-material";
@@ -40,22 +36,11 @@ import {
   CartesianGrid,
   ResponsiveContainer,
   Tooltip,
-  Legend,
+  ReferenceLine,
+  Area,
+  AreaChart,
 } from "recharts";
 
-function TabPanel({ children, value, index, ...other }) {
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`economic-tabpanel-${index}`}
-      aria-labelledby={`economic-tab-${index}`}
-      {...other}
-    >
-      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
-    </div>
-  );
-}
 
 // Safe formatting helpers
 const formatPercent = (value, fallback = "N/A") => {
@@ -82,8 +67,44 @@ const getRiskColor = (riskLevel) => {
   }
 };
 
+// Subtle dot component for charts
+const SubtleDot = (props, theme, color) => {
+  const { cx, cy } = props;
+  if (cx === undefined || cy === undefined) return null;
+
+  return (
+    <circle
+      cx={cx}
+      cy={cy}
+      r={2.5}
+      fill={color}
+      stroke="white"
+      strokeWidth={1}
+      opacity={0.8}
+    />
+  );
+};
+
+// Subtle dot for yield curve
+const SubtleYieldDot = (props, theme, color) => {
+  const { cx, cy } = props;
+  if (cx === undefined || cy === undefined) return null;
+
+  return (
+    <circle
+      cx={cx}
+      cy={cy}
+      r={3}
+      fill={color}
+      stroke="white"
+      strokeWidth={1}
+      opacity={0.85}
+    />
+  );
+};
+
 const EconomicModeling = () => {
-  const [tabValue, setTabValue] = useState(0);
+  const theme = useTheme();
   const [economicData, setEconomicData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -107,7 +128,7 @@ const EconomicModeling = () => {
       const [
         recessionForecast,
         leadingIndicators,
-        sectoralAnalysis,
+        _sectoralAnalysis,
         creditSpreads,
       ] = results.map((result) => (result.status === "fulfilled" ? result.value : null));
 
@@ -190,10 +211,6 @@ const EconomicModeling = () => {
   useEffect(() => {
     fetchEconomicData();
   }, []);
-
-  const handleTabChange = (event, newValue) => {
-    setTabValue(newValue);
-  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -379,23 +396,11 @@ const EconomicModeling = () => {
             </Grid>
           </Grid>
 
-          {/* Tabs */}
-          <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
-            <Tabs
-              value={tabValue}
-              onChange={handleTabChange}
-              variant="scrollable"
-              scrollButtons="auto"
-            >
-              <Tab value={0} label="Recession Model" icon={<Assessment />} />
-              <Tab value={1} label="Leading Indicators" icon={<Analytics />} />
-              <Tab value={2} label="Yield Curve" icon={<ShowChart />} />
-              <Tab value={3} label="Credit Spreads" icon={<TrendingDown />} />
-            </Tabs>
-          </Box>
-
-          {/* TAB 0: Recession Model */}
-          <TabPanel value={tabValue} index={0}>
+          {/* SECTION: Recession Model */}
+          <Box sx={{ mt: 6, mb: 4 }}>
+            <Typography variant="h4" sx={{ fontWeight: 600, mb: 3, display: "flex", alignItems: "center", gap: 1 }}>
+              📊 Recession Model
+            </Typography>
             <Grid container spacing={3}>
               <Grid item xs={12} md={8}>
                 <Card>
@@ -491,192 +496,263 @@ const EconomicModeling = () => {
                 </Grid>
               </Grid>
             </Grid>
-          </TabPanel>
+          </Box>
 
-          {/* TAB 1: Leading Indicators */}
-          <TabPanel value={tabValue} index={1}>
-            <Grid container spacing={3}>
-              {economicData.leadingIndicators?.map((indicator, idx) => (
-                <Grid item xs={12} sm={6} md={4} lg={3} key={idx}>
-                  <Card
-                    sx={{
-                      height: "100%",
-                      display: "flex",
-                      flexDirection: "column",
-                      backgroundColor:
-                        indicator.signal === "Positive"
-                          ? "rgba(76, 175, 80, 0.05)"
-                          : indicator.signal === "Negative"
-                            ? "rgba(244, 67, 54, 0.05)"
-                            : "rgba(255, 152, 0, 0.05)",
-                      borderLeft:
-                        indicator.signal === "Positive"
-                          ? "4px solid #4caf50"
-                          : indicator.signal === "Negative"
-                            ? "4px solid #f44336"
-                            : "4px solid #ff9800",
-                    }}
-                  >
-                    <CardContent sx={{ pb: 0 }}>
-                      <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                        {indicator.name}
-                      </Typography>
-
-                      {/* Current Value */}
-                      <Box display="flex" alignItems="baseline" gap={1} mb={2}>
-                        <Typography
-                          variant="h4"
-                          sx={{
-                            fontWeight: "bold",
-                            color:
-                              indicator.signal === "Positive"
-                                ? "success.main"
-                                : indicator.signal === "Negative"
-                                  ? "error.main"
-                                  : "warning.main",
-                          }}
-                        >
-                          {indicator.value}
-                        </Typography>
-                      </Box>
-
-                      {/* Trend Indicator */}
-                      <Box display="flex" alignItems="center" gap={1} mb={2}>
-                        {indicator.trend === "up" ? (
-                          <TrendingUp sx={{ color: "success.main", fontSize: 20 }} />
-                        ) : indicator.trend === "down" ? (
-                          <TrendingDown sx={{ color: "error.main", fontSize: 20 }} />
-                        ) : (
-                          <TrendingFlat sx={{ color: "warning.main", fontSize: 20 }} />
-                        )}
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            fontWeight: "bold",
-                            color:
-                              indicator.trend === "up"
-                                ? "success.main"
-                                : indicator.trend === "down"
-                                  ? "error.main"
-                                  : "warning.main",
-                          }}
-                        >
-                          {Math.abs(indicator.change)}%{" "}
-                          {indicator.trend === "up" ? "↑" : indicator.trend === "down" ? "↓" : "→"}
-                        </Typography>
-                      </Box>
-
-                      {/* Sparkline Chart */}
-                      {indicator.history && indicator.history.length > 1 && (
-                        <ResponsiveContainer width="100%" height={60} margin={{ top: 5, right: 0, bottom: 0, left: 0 }}>
-                          <LineChart data={indicator.history}>
-                            <Line
-                              type="monotone"
-                              dataKey="value"
-                              stroke={
+          {/* SECTION: Leading Indicators */}
+          <Box sx={{ mt: 6, mb: 4 }}>
+            <Card>
+              <CardHeader
+                title="Leading Economic Indicators"
+                subheader="Real-time economic momentum analysis"
+                action={
+                  <Chip
+                    label={`${economicData.leadingIndicators?.length || 0} indicators`}
+                    color="primary"
+                    variant="outlined"
+                  />
+                }
+              />
+              <CardContent>
+                <Grid container spacing={3}>
+                  {economicData.leadingIndicators?.map((indicator, idx) => (
+                    <Grid item xs={12} md={6} key={idx}>
+                      <Card variant="outlined">
+                        <CardContent>
+                          {/* Header: Icon + Name + Signal */}
+                          <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+                            <Box display="flex" alignItems="center" gap={1}>
+                              {indicator.trend === "up" ? (
+                                <TrendingUp sx={{ color: "success.main", fontSize: 24 }} />
+                              ) : indicator.trend === "down" ? (
+                                <TrendingDown sx={{ color: "error.main", fontSize: 24 }} />
+                              ) : (
+                                <TrendingFlat sx={{ color: "warning.main", fontSize: 24 }} />
+                              )}
+                              <Typography variant="h6">{indicator.name}</Typography>
+                            </Box>
+                            <Chip
+                              label={indicator.signal}
+                              color={
                                 indicator.signal === "Positive"
-                                  ? "#4caf50"
+                                  ? "success"
                                   : indicator.signal === "Negative"
-                                    ? "#f44336"
-                                    : "#ff9800"
+                                    ? "error"
+                                    : "default"
                               }
-                              dot={false}
-                              isAnimationActive={false}
+                              size="small"
                             />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      )}
+                          </Box>
 
-                      {/* Signal & Description */}
-                      <Box mt={2}>
-                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                          <Typography variant="caption" color="text.secondary">
-                            Signal
-                          </Typography>
-                          <Chip
-                            label={indicator.signal}
-                            size="small"
-                            color={
-                              indicator.signal === "Positive"
-                                ? "success"
-                                : indicator.signal === "Negative"
-                                  ? "error"
-                                  : "default"
-                            }
-                          />
-                        </Box>
-                        <Typography variant="caption" color="text.secondary" display="block">
-                          {indicator.description}
-                        </Typography>
-                        {indicator.date && (
-                          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
-                            Last updated: {new Date(indicator.date).toLocaleDateString()}
-                          </Typography>
-                        )}
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
+                          {/* Value + Change */}
+                          <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+                            <Typography variant="h4" color="primary">
+                              {indicator.value}
+                            </Typography>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                fontWeight: "bold",
+                                color:
+                                  indicator.change > 0
+                                    ? "success.main"
+                                    : indicator.change < 0
+                                      ? "error.main"
+                                      : "text.secondary",
+                              }}
+                            >
+                              {indicator.change > 0 ? "+" : ""}
+                              {Math.abs(indicator.change)}%
+                            </Typography>
+                          </Box>
 
-              <Grid item xs={12}>
-                <Card>
-                  <CardHeader title="📅 Upcoming Economic Events" />
-                  <CardContent>
-                    <TableContainer>
-                      <Table>
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Date</TableCell>
-                            <TableCell>Event</TableCell>
-                            <TableCell>Category</TableCell>
-                            <TableCell>Importance</TableCell>
-                            <TableCell>Forecast</TableCell>
-                            <TableCell>Previous</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {economicData.upcomingEvents?.length > 0 ? (
-                            economicData.upcomingEvents.map((event, idx) => (
-                              <TableRow key={idx}>
-                                <TableCell>{event.date}</TableCell>
-                                <TableCell>{event.event}</TableCell>
-                                <TableCell>{event.category}</TableCell>
-                                <TableCell>
-                                  <Chip
-                                    label={event.importance}
-                                    color={
-                                      event.importance === "high"
-                                        ? "error"
-                                        : event.importance === "medium"
-                                          ? "warning"
-                                          : "default"
+                          {/* Description */}
+                          <Typography variant="body2" color="text.secondary" mb={2}>
+                            {indicator.description}
+                          </Typography>
+
+                          {/* Chart: Sparkline for most indicators, Full chart for GDP quarterly data */}
+                          {indicator.history && indicator.history.length > 1 && (
+                            <ResponsiveContainer
+                              width="100%"
+                              height={indicator.name === "GDP Growth" ? 280 : 100}
+                            >
+                              <AreaChart
+                                data={indicator.history}
+                                margin={indicator.name === "GDP Growth" ? { top: 10, right: 30, bottom: 30, left: 60 } : { top: 5, right: 10, bottom: 5, left: 10 }}
+                              >
+                                <defs>
+                                  <linearGradient id={`grad-${indicator.name}`} x1="0" y1="0" x2="0" y2="1">
+                                    <stop
+                                      offset="0%"
+                                      stopColor={
+                                        indicator.signal === "Positive"
+                                          ? theme.palette.success.main
+                                          : indicator.signal === "Negative"
+                                            ? theme.palette.error.main
+                                            : theme.palette.warning.main
+                                      }
+                                      stopOpacity={0.12}
+                                    />
+                                    <stop
+                                      offset="100%"
+                                      stopColor={
+                                        indicator.signal === "Positive"
+                                          ? theme.palette.success.main
+                                          : indicator.signal === "Negative"
+                                            ? theme.palette.error.main
+                                            : theme.palette.warning.main
+                                      }
+                                      stopOpacity={0}
+                                    />
+                                  </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="2 2" stroke="rgba(0,0,0,0.05)" vertical={false} />
+                                <XAxis
+                                  dataKey="date"
+                                  hide={indicator.name !== "GDP Growth"}
+                                  tick={{ fontSize: 11, fill: "#666" }}
+                                  angle={indicator.name === "GDP Growth" ? -45 : 0}
+                                  textAnchor={indicator.name === "GDP Growth" ? "end" : "middle"}
+                                  height={indicator.name === "GDP Growth" ? 60 : 30}
+                                  tickFormatter={(date) => {
+                                    if (indicator.name === "GDP Growth") {
+                                      const d = new Date(date);
+                                      return `${d.getFullYear()}-Q${Math.floor(d.getMonth() / 3) + 1}`;
                                     }
-                                    size="small"
-                                  />
-                                </TableCell>
-                                <TableCell>{event.forecast}</TableCell>
-                                <TableCell>{event.previous}</TableCell>
-                              </TableRow>
-                            ))
-                          ) : (
-                            <TableRow>
-                              <TableCell colSpan={6} align="center">
-                                No upcoming events
-                              </TableCell>
-                            </TableRow>
+                                    return "";
+                                  }}
+                                />
+                                <YAxis
+                                  hide={indicator.name !== "GDP Growth"}
+                                  tick={{ fontSize: 11, fill: "#666" }}
+                                  label={indicator.name === "GDP Growth" ? { value: "Billions $", angle: -90, position: "insideLeft" } : undefined}
+                                  width={indicator.name === "GDP Growth" ? 70 : 0}
+                                />
+                                <Tooltip
+                                  formatter={(value) => {
+                                    if (indicator.name === "GDP Growth") {
+                                      return [
+                                        `$${(value / 1000).toFixed(2)}T`,
+                                        "GDP (Billions)"
+                                      ];
+                                    }
+                                    return [formatPercent(value, "N/A"), "Value"];
+                                  }}
+                                  labelFormatter={(label) => {
+                                    if (indicator.name === "GDP Growth") {
+                                      const d = new Date(label);
+                                      return `${d.getFullYear()}-Q${Math.floor(d.getMonth() / 3) + 1}`;
+                                    }
+                                    return new Date(label).toLocaleDateString();
+                                  }}
+                                  contentStyle={{
+                                    backgroundColor: "rgba(255,255,255,0.97)",
+                                    border: "1px solid rgba(0,0,0,0.15)",
+                                    borderRadius: "6px",
+                                    boxShadow: "0 2px 8px rgba(0,0,0,0.12)"
+                                  }}
+                                  cursor={{ fill: "rgba(0,0,0,0.05)" }}
+                                />
+                                <Area
+                                  type="monotone"
+                                  dataKey="value"
+                                  stroke={
+                                    indicator.signal === "Positive"
+                                      ? theme.palette.success.main
+                                      : indicator.signal === "Negative"
+                                        ? theme.palette.error.main
+                                        : theme.palette.warning.main
+                                  }
+                                  strokeWidth={2}
+                                  fill={`url(#grad-${indicator.name})`}
+                                  dot={(props) => SubtleDot(props, theme, indicator.signal === "Positive" ? theme.palette.success.main : indicator.signal === "Negative" ? theme.palette.error.main : theme.palette.warning.main)}
+                                  isAnimationActive={true}
+                                />
+                              </AreaChart>
+                            </ResponsiveContainer>
                           )}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </TabPanel>
 
-          {/* TAB 2: Yield Curve */}
-          <TabPanel value={tabValue} index={2}>
+                          {/* Last Updated & Data Frequency */}
+                          {indicator.date && (
+                            <>
+                              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 2 }}>
+                                Last updated: {new Date(indicator.date).toLocaleDateString()}
+                              </Typography>
+                              {indicator.name === "GDP Growth" && (
+                                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                                  📊 {indicator.history?.length || 0} quarterly data points ({((indicator.history?.length || 0) / 4).toFixed(1)} years)
+                                </Typography>
+                              )}
+                            </>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+
+                  <Grid item xs={12}>
+                    <Card>
+                      <CardHeader title="📅 Upcoming Economic Events" />
+                      <CardContent>
+                        <TableContainer>
+                          <Table>
+                            <TableHead>
+                              <TableRow>
+                                <TableCell>Date</TableCell>
+                                <TableCell>Event</TableCell>
+                                <TableCell>Category</TableCell>
+                                <TableCell>Importance</TableCell>
+                                <TableCell>Forecast</TableCell>
+                                <TableCell>Previous</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {economicData.upcomingEvents?.length > 0 ? (
+                                economicData.upcomingEvents.map((event, idx) => (
+                                  <TableRow key={idx}>
+                                    <TableCell>{event.date}</TableCell>
+                                    <TableCell>{event.event}</TableCell>
+                                    <TableCell>{event.category}</TableCell>
+                                    <TableCell>
+                                      <Chip
+                                        label={event.importance}
+                                        color={
+                                          event.importance === "high"
+                                            ? "error"
+                                            : event.importance === "medium"
+                                              ? "warning"
+                                              : "default"
+                                        }
+                                        size="small"
+                                      />
+                                    </TableCell>
+                                    <TableCell>{event.forecast}</TableCell>
+                                    <TableCell>{event.previous}</TableCell>
+                                  </TableRow>
+                                ))
+                              ) : (
+                                <TableRow>
+                                  <TableCell colSpan={6} align="center">
+                                    No upcoming events
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          </Box>
+
+          {/* SECTION: Yield Curve */}
+          <Box sx={{ mt: 6, mb: 4 }}>
+            <Typography variant="h4" sx={{ fontWeight: 600, mb: 3, display: "flex", alignItems: "center", gap: 1 }}>
+              📊 Yield Curve Analysis
+            </Typography>
             <Grid container spacing={3}>
               <Grid item xs={12}>
                 <Card>
@@ -690,13 +766,69 @@ const EconomicModeling = () => {
                   />
                   <CardContent>
                     {economicData.yieldCurveData?.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={400}>
-                        <LineChart data={economicData.yieldCurveData}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="maturity" />
-                          <YAxis />
-                          <Tooltip formatter={(value) => `${value}%`} />
-                          <Line type="monotone" dataKey="yield" stroke="#1976d2" strokeWidth={2} />
+                      <ResponsiveContainer width="100%" height={500}>
+                        <LineChart data={economicData.yieldCurveData} margin={{ top: 10, right: 30, left: 0, bottom: 40 }}>
+                          <defs>
+                            <linearGradient id="yieldGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#1976d2" stopOpacity={0.15}/>
+                              <stop offset="100%" stopColor="#1976d2" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="2 2" stroke="rgba(0,0,0,0.08)" vertical={true} />
+                          <XAxis
+                            dataKey="maturity"
+                            tick={{ fontSize: 12, fill: "#666" }}
+                            label={{ value: "Maturity (3M → 30Y)", position: "insideBottomRight", offset: -10, fontSize: 13, fontWeight: 500 }}
+                            angle={-45}
+                            textAnchor="end"
+                            height={80}
+                          />
+                          <YAxis
+                            tick={{ fontSize: 12, fill: "#666" }}
+                            label={{ value: "Yield (%)", angle: -90, position: "insideLeft", offset: 10, fontSize: 13, fontWeight: 500 }}
+                            width={60}
+                            domain={[0, 'auto']}
+                          />
+                          <Tooltip
+                            formatter={(value) => {
+                              const numVal = parseFloat(value);
+                              return [`${numVal?.toFixed(3) || 0}%`, "Yield"];
+                            }}
+                            contentStyle={{
+                              backgroundColor: "rgba(255,255,255,0.99)",
+                              border: "1px solid rgba(0,0,0,0.2)",
+                              borderRadius: "8px",
+                              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                              padding: "12px 14px",
+                              fontSize: 13
+                            }}
+                            labelFormatter={(value) => `Maturity: ${value}`}
+                            cursor={{ fill: "rgba(25, 118, 210, 0.1)" }}
+                          />
+                          <ReferenceLine
+                            y={0}
+                            stroke="rgba(200,0,0,0.3)"
+                            strokeDasharray="4 4"
+                            opacity={0.6}
+                            label={{ value: "Zero Yield", position: "insideTopRight", offset: -5, fill: "#c00", fontSize: 11 }}
+                          />
+                          {/* Reference line for 2% (typical neutral rate) */}
+                          <ReferenceLine
+                            y={2}
+                            stroke="rgba(100,150,200,0.3)"
+                            strokeDasharray="4 4"
+                            opacity={0.5}
+                            label={{ value: "2% Level", position: "insideTopRight", offset: -20, fill: "#666", fontSize: 11 }}
+                          />
+                          <Line
+                            type="linear"
+                            dataKey="yield"
+                            stroke="#1976d2"
+                            strokeWidth={3.5}
+                            dot={(props) => SubtleYieldDot(props, theme, "#1976d2")}
+                            isAnimationActive={true}
+                            name="Yield Curve"
+                          />
                         </LineChart>
                       </ResponsiveContainer>
                     ) : (
@@ -706,42 +838,133 @@ const EconomicModeling = () => {
                 </Card>
               </Grid>
 
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12}>
                 <Card>
-                  <CardHeader title="Yield Curve Analysis" />
+                  <CardHeader
+                    title="Yield Curve Summary"
+                    subheader={`Updated: ${economicData.yieldCurve ? "Today" : "N/A"}`}
+                  />
                   <CardContent>
-                    <Typography variant="body2" paragraph>
-                      <strong>2y10y Spread:</strong> {formatBasisPoints(economicData.yieldCurve?.spread2y10y)} bps
-                    </Typography>
-                    <Typography variant="body2" paragraph>
-                      <strong>3m10y Spread:</strong> {formatBasisPoints(economicData.yieldCurve?.spread3m10y)} bps
-                    </Typography>
-                    <Typography variant="body2" paragraph>
-                      <strong>Inversion Status:</strong> {economicData.yieldCurve?.isInverted ? "🔴 INVERTED" : "🟢 NORMAL"}
-                    </Typography>
-                    <Typography variant="body2" paragraph>
-                      <strong>Historical Accuracy:</strong> {economicData.yieldCurve?.historicalAccuracy}%
-                    </Typography>
-                    <Typography variant="body2">
-                      <strong>Average Lead Time:</strong> {economicData.yieldCurve?.averageLeadTime} months
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
+                    <Grid container spacing={3}>
+                      {/* Status and Interpretation */}
+                      <Grid item xs={12} md={6}>
+                        <Box sx={{ mb: 2 }}>
+                          <Typography variant="subtitle2" color="textSecondary" sx={{ mb: 1, fontWeight: 600 }}>
+                            Current Status
+                          </Typography>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 2 }}>
+                            {economicData.yieldCurve?.isInverted ? (
+                              <>
+                                <Box sx={{ fontSize: 28 }}>🔴</Box>
+                                <Box>
+                                  <Typography variant="h6" sx={{ color: "error.main", fontWeight: 600 }}>
+                                    INVERTED CURVE
+                                  </Typography>
+                                  <Typography variant="body2" color="error">
+                                    Historically precedes recession by ~{economicData.yieldCurve?.averageLeadTime || 12} months
+                                  </Typography>
+                                </Box>
+                              </>
+                            ) : (
+                              <>
+                                <Box sx={{ fontSize: 28 }}>🟢</Box>
+                                <Box>
+                                  <Typography variant="h6" sx={{ color: "success.main", fontWeight: 600 }}>
+                                    NORMAL CURVE
+                                  </Typography>
+                                  <Typography variant="body2" color="success">
+                                    Indicates healthy economic conditions
+                                  </Typography>
+                                </Box>
+                              </>
+                            )}
+                          </Box>
+                        </Box>
 
-              <Grid item xs={12} md={6}>
-                <Card>
-                  <CardHeader title="Interpretation" />
-                  <CardContent>
-                    <Typography variant="body2">{economicData.yieldCurve?.interpretation}</Typography>
+                        <Divider sx={{ my: 2 }} />
+
+                        <Typography variant="body2" sx={{ lineHeight: 1.7 }}>
+                          <strong>Interpretation:</strong> {economicData.yieldCurve?.interpretation}
+                        </Typography>
+                      </Grid>
+
+                      {/* Key Metrics */}
+                      <Grid item xs={12} md={6}>
+                        <Box sx={{ mb: 2 }}>
+                          <Typography variant="subtitle2" color="textSecondary" sx={{ mb: 2, fontWeight: 600 }}>
+                            Key Spreads & Metrics
+                          </Typography>
+
+                          <Box sx={{ mb: 2.5 }}>
+                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
+                              <Typography variant="body2">
+                                <strong>2Y-10Y Spread:</strong>
+                              </Typography>
+                              <Typography
+                                variant="h6"
+                                sx={{
+                                  color: economicData.yieldCurve?.spread2y10y < 0 ? "error.main" : "success.main",
+                                  fontWeight: 700
+                                }}
+                              >
+                                {formatBasisPoints(economicData.yieldCurve?.spread2y10y)} bps
+                              </Typography>
+                            </Box>
+                            <Typography variant="caption" color="textSecondary">
+                              Most watched recession indicator
+                            </Typography>
+                          </Box>
+
+                          <Box sx={{ mb: 2.5 }}>
+                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
+                              <Typography variant="body2">
+                                <strong>3M-10Y Spread:</strong>
+                              </Typography>
+                              <Typography
+                                variant="h6"
+                                sx={{
+                                  color: economicData.yieldCurve?.spread3m10y < 0 ? "error.main" : "success.main",
+                                  fontWeight: 700
+                                }}
+                              >
+                                {formatBasisPoints(economicData.yieldCurve?.spread3m10y)} bps
+                              </Typography>
+                            </Box>
+                            <Typography variant="caption" color="textSecondary">
+                              Measures near-term vs. long-term expectations
+                            </Typography>
+                          </Box>
+
+                          <Divider sx={{ my: 2 }} />
+
+                          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1.5 }}>
+                            <Typography variant="body2">
+                              <strong>Historical Accuracy:</strong>
+                            </Typography>
+                            <Chip
+                              label={`${economicData.yieldCurve?.historicalAccuracy}%`}
+                              color={economicData.yieldCurve?.historicalAccuracy > 75 ? "success" : "warning"}
+                              variant="outlined"
+                              size="small"
+                            />
+                          </Box>
+                          <Typography variant="caption" color="textSecondary">
+                            Accuracy rate for this curve's signal in predicting economic turns
+                          </Typography>
+                        </Box>
+                      </Grid>
+                    </Grid>
                   </CardContent>
                 </Card>
               </Grid>
             </Grid>
-          </TabPanel>
+          </Box>
 
-          {/* TAB 3: Credit Spreads */}
-          <TabPanel value={tabValue} index={3}>
+          {/* SECTION: Credit Spreads */}
+          <Box sx={{ mt: 6, mb: 4 }}>
+            <Typography variant="h4" sx={{ fontWeight: 600, mb: 3, display: "flex", alignItems: "center", gap: 1 }}>
+              💰 Credit Spreads & Financial Conditions
+            </Typography>
             <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
                 <Card>
@@ -811,7 +1034,7 @@ const EconomicModeling = () => {
                 </Card>
               </Grid>
             </Grid>
-          </TabPanel>
+          </Box>
 
         </>
       )}
