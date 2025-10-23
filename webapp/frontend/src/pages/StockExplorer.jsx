@@ -437,7 +437,11 @@ function StockExplorer() {
   stocksList = Array.from(uniqueStocksMap.values());
 
   // Log deduplication info for debugging
-  const originalCount = stocksData?.data?.length || 0;
+  // Handle both data: [...] and data: { stocks: [...] } response structures
+  const dataArray = Array.isArray(stocksData?.data)
+    ? stocksData?.data
+    : stocksData?.data?.stocks || [];
+  const originalCount = dataArray.length;
   const deduplicatedCount = stocksList.length;
   if (originalCount > deduplicatedCount) {
     const duplicatesRemoved = originalCount - deduplicatedCount;

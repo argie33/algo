@@ -33,49 +33,6 @@ const SentimentChartsReimag = ({
 }) => {
   const theme = useTheme();
 
-  // Mock/Sample data for demonstration when databases are empty
-  const mockAAIIData = [
-    { date: "2025-10-15", bullish: 38.5, neutral: 32.2, bearish: 29.3 },
-    { date: "2025-10-16", bullish: 39.2, neutral: 31.8, bearish: 29.0 },
-    { date: "2025-10-17", bullish: 41.1, neutral: 30.5, bearish: 28.4 },
-    { date: "2025-10-18", bullish: 42.8, neutral: 29.9, bearish: 27.3 },
-    { date: "2025-10-19", bullish: 44.3, neutral: 29.1, bearish: 26.6 },
-    { date: "2025-10-20", bullish: 45.6, neutral: 28.4, bearish: 26.0 },
-    { date: "2025-10-21", bullish: 46.2, neutral: 28.0, bearish: 25.8 },
-    { date: "2025-10-22", bullish: 45.9, neutral: 28.2, bearish: 25.9 },
-    { date: "2025-10-23", bullish: 44.7, neutral: 29.5, bearish: 25.8 },
-  ];
-
-  const mockFearGreedData = [
-    { date: "2025-10-15", value: 62, classification: "Greed" },
-    { date: "2025-10-16", value: 64, classification: "Greed" },
-    { date: "2025-10-17", value: 68, classification: "Greed" },
-    { date: "2025-10-18", value: 71, classification: "Greed" },
-    { date: "2025-10-19", value: 73, classification: "Extreme Greed" },
-    { date: "2025-10-20", value: 72, classification: "Greed" },
-    { date: "2025-10-21", value: 70, classification: "Greed" },
-    { date: "2025-10-22", value: 68, classification: "Greed" },
-    { date: "2025-10-23", value: 65, classification: "Greed" },
-  ];
-
-  const mockNAAIMData = [
-    { date: "2025-10-15", exposure_index: 62.3 },
-    { date: "2025-10-16", exposure_index: 63.1 },
-    { date: "2025-10-17", exposure_index: 64.8 },
-    { date: "2025-10-18", exposure_index: 66.2 },
-    { date: "2025-10-19", exposure_index: 67.5 },
-    { date: "2025-10-20", exposure_index: 66.9 },
-    { date: "2025-10-21", exposure_index: 65.4 },
-    { date: "2025-10-22", exposure_index: 64.1 },
-    { date: "2025-10-23", exposure_index: 63.7 },
-  ];
-
-  // Use mock data if actual data is not available
-  const aaiiDataToUse = aaii_data?.length ? aaii_data : mockAAIIData;
-  const fearGreedDataToUse = fearGreed_data?.length ? fearGreed_data : mockFearGreedData;
-  const naamDataToUse = naaim_data?.length ? naaim_data : mockNAAIMData;
-  const isMockData = !aaii_data?.length || !fearGreed_data?.length || !naaim_data?.length;
-
   // Professional color palette matching site style
   const chartColors = {
     bullish: "#10b981",      // Green
@@ -109,8 +66,8 @@ const SentimentChartsReimag = ({
 
   // Process and clean AAII data (handle gaps)
   const processedAAIIData = useMemo(() => {
-    if (!aaiiDataToUse?.length) return [];
-    return aaiiDataToUse
+    if (!aaii_data?.length) return [];
+    return aaii_data
       .map(item => ({
         ...item,
         date: item.date || item.timestamp,
@@ -120,12 +77,12 @@ const SentimentChartsReimag = ({
       }))
       .filter(item => item.aaii_bullish !== null || item.aaii_neutral !== null || item.aaii_bearish !== null)
       .sort((a, b) => new Date(a.date) - new Date(b.date));
-  }, [aaiiDataToUse]);
+  }, [aaii_data]);
 
   // Process Fear & Greed data
   const processedFearGreedData = useMemo(() => {
-    if (!fearGreedDataToUse?.length) return [];
-    return fearGreedDataToUse
+    if (!fearGreed_data?.length) return [];
+    return fearGreed_data
       .map(item => ({
         ...item,
         date: item.date || item.timestamp,
@@ -133,12 +90,12 @@ const SentimentChartsReimag = ({
       }))
       .filter(item => item.fear_greed !== null)
       .sort((a, b) => new Date(a.date) - new Date(b.date));
-  }, [fearGreedDataToUse]);
+  }, [fearGreed_data]);
 
   // Process NAAIM data
   const processedNAAIMData = useMemo(() => {
-    if (!naamDataToUse?.length) return [];
-    return naamDataToUse
+    if (!naaim_data?.length) return [];
+    return naaim_data
       .map(item => ({
         ...item,
         date: item.date || item.timestamp,
@@ -146,7 +103,7 @@ const SentimentChartsReimag = ({
       }))
       .filter(item => item.naaim !== null)
       .sort((a, b) => new Date(a.date) - new Date(b.date));
-  }, [naamDataToUse]);
+  }, [naaim_data]);
 
   // Get latest values for summary cards
   const latestAAII = processedAAIIData[processedAAIIData.length - 1];
@@ -253,27 +210,8 @@ const SentimentChartsReimag = ({
     );
   }
 
-  // Badge showing when mock data is in use
-  const MockDataBadge = () =>
-    isMockData ? (
-      <Chip
-        icon={<ShowChart />}
-        label="Demo Data"
-        size="small"
-        sx={{
-          mb: 2,
-          background: alpha(theme.palette.info.main, 0.15),
-          color: theme.palette.info.main,
-          fontWeight: 600,
-        }}
-        variant="outlined"
-      />
-    ) : null;
-
   return (
     <Box sx={{ width: "100%" }}>
-      {/* Show demo data badge if using mock data */}
-      <MockDataBadge />
 
       {/* AAII Historical Trends Chart - 3 Line Chart */}
       {processedAAIIData.length > 0 && (

@@ -2055,14 +2055,15 @@ export const screenStocks = async (params) => {
 
     console.log(`✅ [API] Success with scores endpoint:`, response?.data);
 
-    // Backend returns: { success: true, data: [...], total: ..., pagination: {...} }
-    if (
-      response?.data &&
-      response?.data.success &&
-      Array.isArray(response?.data.data)
-    ) {
-      console.log("✅ [API] Using backend response structure:", response?.data);
-      return response?.data;
+    // Backend returns: { success: true, data: { stocks: [...] }, total: ..., pagination: {...} }
+    // or { success: true, data: [...], total: ..., pagination: {...} }
+    if (response?.data && response?.data.success) {
+      const dataField = response?.data.data;
+      // Check if it's directly an array or if it has a stocks property
+      if (Array.isArray(dataField) || (dataField && Array.isArray(dataField.stocks))) {
+        console.log("✅ [API] Using backend response structure:", response?.data);
+        return response?.data;
+      }
     }
 
     // Fallback to normalized response

@@ -1351,8 +1351,9 @@ const SectorAnalysis = () => {
                 const sectorIndustries = (industryData?.data?.industries || []).filter(
                   (ind) => {
                     // Filter industries that belong to this sector using sector field from API
+                    // Normalize BOTH sides to ensure proper matching across API naming conventions
                     const indSector = ind.sector || ind.sector_name || '';
-                    return normalizeSectorName(indSector) === sectorName;
+                    return normalizeSectorName(indSector) === normalizeSectorName(sectorName);
                   }
                 );
 
