@@ -53,7 +53,6 @@ import {
   getMarketBreadth,
   getSeasonalityData,
   getDistributionDays,
-  getYieldCurveData,
   getMcClellanOscillator,
   getSentimentDivergence,
 } from "../services/api";
@@ -66,7 +65,6 @@ import {
 import { createComponentLogger } from "../utils/errorLogger";
 import SectorSeasonalityTable from "../components/SectorSeasonalityTable";
 import SentimentChartsReimag from "../components/SentimentChartsReimag";
-import YieldCurveCard from "../components/YieldCurveCard";
 import McClellanOscillatorChart from "../components/McClellanOscillatorChart";
 import SentimentDivergenceChart from "../components/SentimentDivergenceChart";
 
@@ -365,18 +363,6 @@ const fetchSeasonalityData = async () => {
   }
 };
 
-const fetchYieldCurveData = async () => {
-  try {
-    console.log("📈 Fetching yield curve data...");
-    const response = await getYieldCurveData();
-    console.log("📈 Yield curve response:", response);
-    return response;
-  } catch (error) {
-    _logger.error("Yield curve error:", error.message || error.toString());
-    throw error;
-  }
-};
-
 const fetchMcClellanOscillator = async () => {
   try {
     console.log("📊 Fetching McClellan Oscillator...");
@@ -451,13 +437,6 @@ function MarketOverview() {
     queryFn: fetchSeasonalityData,
     enabled: tabValue === 2,
     staleTime: 30000,
-  });
-
-  const { data: yieldCurveData, isLoading: yieldCurveLoading } = useQuery({
-    queryKey: ["yield-curve"],
-    queryFn: fetchYieldCurveData,
-    staleTime: 60000,
-    refetchInterval: 60000,
   });
 
   const { data: mcOscillatorData, isLoading: mcOscillatorLoading } = useQuery({
@@ -848,16 +827,8 @@ function MarketOverview() {
 
       {/* Enhanced Market Indicators - Yield Curve, McClellan Oscillator, Sentiment Divergence */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        {/* Yield Curve Card */}
-        <Grid item xs={12} md={4}>
-          <YieldCurveCard
-            data={yieldCurveData?.data}
-            isLoading={yieldCurveLoading}
-          />
-        </Grid>
-
         {/* McClellan Oscillator Chart */}
-        <Grid item xs={12} md={8}>
+        <Grid item xs={12}>
           <McClellanOscillatorChart
             data={mcOscillatorData?.data}
             isLoading={mcOscillatorLoading}
