@@ -490,26 +490,12 @@ const SectorAnalysis = () => {
       );
     }
 
-    // Use API data if available, otherwise fall back to summary data (same as mini charts)
-    let history = (trendData?.trendData && trendData.trendData.length > 0)
-      ? trendData.trendData.map(row => ({
-          date: row.date,
-          label: row.label,
-          rank: row.rank
-        }))
-      : type === "sector"
-        ? [
-            { period: "12W", rank: sectorOrIndustry.rank_12w_ago !== null && sectorOrIndustry.rank_12w_ago !== undefined ? sectorOrIndustry.rank_12w_ago : null },
-            { period: "4W", rank: sectorOrIndustry.rank_4w_ago !== null && sectorOrIndustry.rank_4w_ago !== undefined ? sectorOrIndustry.rank_4w_ago : null },
-            { period: "1W", rank: sectorOrIndustry.rank_1w_ago !== null && sectorOrIndustry.rank_1w_ago !== undefined ? sectorOrIndustry.rank_1w_ago : null },
-            { period: "Now", rank: sectorOrIndustry.current_rank || sectorOrIndustry.overall_rank },
-          ].filter(d => d.rank !== null)
-        : [
-            { period: "8W", rank: sectorOrIndustry.rank_8w_ago !== null && sectorOrIndustry.rank_8w_ago !== undefined ? sectorOrIndustry.rank_8w_ago : null },
-            { period: "4W", rank: sectorOrIndustry.rank_4w_ago !== null && sectorOrIndustry.rank_4w_ago !== undefined ? sectorOrIndustry.rank_4w_ago : null },
-            { period: "1W", rank: sectorOrIndustry.rank_1w_ago !== null && sectorOrIndustry.rank_1w_ago !== undefined ? sectorOrIndustry.rank_1w_ago : null },
-            { period: "Now", rank: sectorOrIndustry.current_rank },
-          ].filter(d => d.rank !== null);
+    // Use only real API data (no fallback)
+    let history = trendData?.trendData.map(row => ({
+      date: row.date,
+      label: row.label,
+      rank: row.rank
+    }));
 
     // Filter to last 3 months only (same as mini trend charts)
     if (history.length > 0 && history[0].date) {
