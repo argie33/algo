@@ -1228,11 +1228,9 @@ const SectorAnalysis = () => {
 
                 const sectorIndustries = (industryData?.data?.industries || []).filter(
                   (ind) => {
-                    // Use comprehensive industry-to-sector mapping for accurate sector assignment
-                    // This overrides any incorrect sector data from the API
-                    const mappedSector = industryToSectorMapping[ind.industry] || normalizeSectorName(ind.sector || ind.sector_name || '');
-                    const match = mappedSector === sectorName;
-                    return match;
+                    // Filter industries that belong to this sector using sector field from API
+                    const indSector = ind.sector || ind.sector_name || '';
+                    return normalizeSectorName(indSector) === sectorName;
                   }
                 );
 

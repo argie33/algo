@@ -414,6 +414,9 @@ function StockExplorer() {
   if (stocksData) {
     if (Array.isArray(stocksData?.data)) {
       stocksList = stocksData?.data;
+    } else if (stocksData?.data && Array.isArray(stocksData?.data.stocks)) {
+      // Handle { data: { stocks: [...] } } response structure
+      stocksList = stocksData?.data.stocks;
     } else if (stocksData?.data && Array.isArray(stocksData?.data.results)) {
       stocksList = stocksData?.data.results;
     } else if (stocksData?.data && Array.isArray(stocksData?.data.data)) {
