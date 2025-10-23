@@ -446,6 +446,140 @@ const SectorAnalysis = () => {
     return weeklyData.length > 0 ? weeklyData : dailyData;
   };
 
+  // Detailed ranking trend chart showing rank changes over time
+  const DetailedTrendChart = ({ sectorOrIndustry, type = "sector" }) => {
+    const { data: trendData, isLoading } = useQuery({
+      queryKey: [
+        `detailed-trend-${type}`,
+        type === "sector" ? (sectorOrIndustry.sector_name || sectorOrIndustry.sector) : sectorOrIndustry.industry
+      ],
+      queryFn: async () => {
+        try {
+          const name = type === "sector" ? (sectorOrIndustry.sector_name || sectorOrIndustry.sector) : sectorOrIndustry.industry;
+          const response = await api.get(
+            `/api/sectors/trend/${type}/${encodeURIComponent(name)}`
+          );
+          return response.data;
+        } catch (error) {
+          console.error(`Failed to fetch ${type} trend:`, error);
+          return null;
+        }
+      },
+      staleTime: 300000, // 5 minutes
+      enabled: !!(type === "sector" ? (sectorOrIndustry.sector_name || sectorOrIndustry.sector) : sectorOrIndustry.industry),
+      retry: false,
+    });
+
+    if (isLoading) {
+      return (
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight={300}>
+          <LinearProgress sx={{ width: "50%" }} />
+        </Box>
+      );
+    }
+
+    if (!trendData?.trendData || trendData.trendData.length === 0) {
+      return (
+        <Typography variant="body2" color="text.secondary" align="center">
+          No ranking trend data available
+        </Typography>
+      );
+    }
+
+    const history = trendData.trendData || [];
+
+    // Format date for x-axis display
+    const formatXAxisDate = (dateString) => {
+      if (!dateString) return "";
+      try {
+        const date = new Date(dateString);
+        return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      } catch {
+        return dateString;
+      }
+    };
+
+    // Find min and max ranks for better visualization
+    const ranks = history.map(h => h.rank).filter(r => r !== null && r !== undefined);
+    const minRank = Math.min(...ranks);
+    const maxRank = Math.max(...ranks);
+
+    return (
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        {/* Ranking Summary */}
+        <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 1 }}>
+          <Box sx={{ p: 1.5, backgroundColor: "grey.50", borderRadius: 1 }}>
+            <Typography variant="caption" color="text.secondary" fontWeight="bold">
+              Current Rank
+            </Typography>
+            <Typography variant="body2">
+              #{history[history.length - 1]?.rank || "N/A"}
+            </Typography>
+          </Box>
+          <Box sx={{ p: 1.5, backgroundColor: "grey.50", borderRadius: 1 }}>
+            <Typography variant="caption" color="text.secondary" fontWeight="bold">
+              Best Rank
+            </Typography>
+            <Typography variant="body2">
+              #{minRank || "N/A"}
+            </Typography>
+          </Box>
+          <Box sx={{ p: 1.5, backgroundColor: "grey.50", borderRadius: 1 }}>
+            <Typography variant="caption" color="text.secondary" fontWeight="bold">
+              Worst Rank
+            </Typography>
+            <Typography variant="body2">
+              #{maxRank || "N/A"}
+            </Typography>
+          </Box>
+          <Box sx={{ p: 1.5, backgroundColor: "grey.50", borderRadius: 1 }}>
+            <Typography variant="caption" color="text.secondary" fontWeight="bold">
+              Data Points
+            </Typography>
+            <Typography variant="body2">
+              {history.length} days
+            </Typography>
+          </Box>
+        </Box>
+
+        {/* Ranking Trend Chart */}
+        <Box sx={{ width: "100%", height: 300, minHeight: 300 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={history} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 12 }}
+                interval={Math.floor(history.length / 8)}
+                tickFormatter={formatXAxisDate}
+              />
+              <YAxis
+                width={50}
+                tick={{ fontSize: 12 }}
+                reversed={true}
+                label={{ value: 'Rank (Lower is Better)', angle: -90, position: 'insideLeft' }}
+              />
+              <Tooltip
+                formatter={(value) => value ? `#${value}` : "N/A"}
+                labelFormatter={(label) => `Date: ${formatXAxisDate(label)}`}
+              />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="rank"
+                stroke="#2196F3"
+                name="Ranking"
+                dot={false}
+                strokeWidth={2}
+                isAnimationActive={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </Box>
+      </Box>
+    );
+  };
+
   // Detailed technical analysis chart with moving averages
   const DetailedTechnicalChart = ({ sectorOrIndustry, type = "sector" }) => {
     const { data: technicalData, isLoading } = useQuery({
@@ -1191,12 +1325,12 @@ const SectorAnalysis = () => {
                           </Box>
                         </Box>
 
-                        {/* Technical Analysis Section */}
+                        {/* Ranking Trend Section */}
                         <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2 }}>
                           <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-                            📈 Technical Analysis (200-Day History with Moving Averages)
+                            📊 Ranking Trend (Historical)
                           </Typography>
-                          <DetailedTechnicalChart sectorOrIndustry={sector} type="sector" />
+                          <DetailedTrendChart sectorOrIndustry={sector} type="sector" />
                         </Box>
 
                         {/* Industries Section */}
