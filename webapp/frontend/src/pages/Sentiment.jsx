@@ -1219,8 +1219,80 @@ function Sentiment() {
           </Grid>
         </Grid>
 
+        {/* Analyst Consensus Overview */}
+        <Card sx={{ mt: 3, mb: 3 }}>
+          <CardHeader
+            title="Analyst Consensus Overview"
+            subtitle="Overall analyst ratings distribution across tracked stocks"
+          />
+          <CardContent>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  Rating Distribution
+                </Typography>
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <Typography variant="body2">Strong Buy / Buy:</Typography>
+                    <Chip
+                      label={`${((stocksList.filter(s => s.latestAnalyst?.sentiment_score > 0.3).length / Math.max(stocksList.length, 1)) * 100).toFixed(0)}%`}
+                      color="success"
+                      size="small"
+                    />
+                  </Box>
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <Typography variant="body2">Hold:</Typography>
+                    <Chip
+                      label={`${((stocksList.filter(s => (s.latestAnalyst?.sentiment_score || 0) >= -0.2 && (s.latestAnalyst?.sentiment_score || 0) <= 0.3).length / Math.max(stocksList.length, 1)) * 100).toFixed(0)}%`}
+                      color="default"
+                      size="small"
+                    />
+                  </Box>
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <Typography variant="body2">Sell / Strong Sell:</Typography>
+                    <Chip
+                      label={`${((stocksList.filter(s => s.latestAnalyst?.sentiment_score < -0.2).length / Math.max(stocksList.length, 1)) * 100).toFixed(0)}%`}
+                      color="error"
+                      size="small"
+                    />
+                  </Box>
+                </Box>
+              </Grid>
+
+              <Grid item xs={12} md={6}>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  Analyst Trend Indicators
+                </Typography>
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <Typography variant="body2">Stocks with Improving Sentiment:</Typography>
+                    <Chip
+                      label={`${stocksList.filter(s => s.latestAnalyst?.sentiment_score > 0.2).length} stocks`}
+                      variant="outlined"
+                      size="small"
+                      sx={{ color: "success.main", borderColor: "success.main" }}
+                    />
+                  </Box>
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <Typography variant="body2">Stocks with Deteriorating Sentiment:</Typography>
+                    <Chip
+                      label={`${stocksList.filter(s => s.latestAnalyst?.sentiment_score < -0.2).length} stocks`}
+                      variant="outlined"
+                      size="small"
+                      sx={{ color: "error.main", borderColor: "error.main" }}
+                    />
+                  </Box>
+                  <Typography variant="caption" color="textSecondary" sx={{ mt: 1 }}>
+                    📈 Data from real-time analyst sentiment tracking
+                  </Typography>
+                </Box>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+
         {/* Additional Market Insights */}
-        <Card sx={{ mt: 3 }}>
+        <Card sx={{ mt: 0 }}>
           <CardContent>
             <Typography variant="h6" gutterBottom>
               Market Sentiment Summary
