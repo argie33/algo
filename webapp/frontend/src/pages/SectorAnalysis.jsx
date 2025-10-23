@@ -488,6 +488,20 @@ const SectorAnalysis = () => {
 
     let history = trendData.trendData || [];
 
+    // Filter to last 3 months only (same as mini trend charts)
+    if (history.length > 0 && history[0].date) {
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+      history = history.filter(row => {
+        try {
+          const rowDate = new Date(row.date);
+          return rowDate >= threeMonthsAgo;
+        } catch {
+          return true;
+        }
+      });
+    }
+
     // Smooth out data by aggregating to weekly (like the small trend charts)
     history = aggregateToWeekly(history);
 
