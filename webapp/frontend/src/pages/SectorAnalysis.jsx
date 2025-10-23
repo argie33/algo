@@ -496,7 +496,7 @@ const SectorAnalysis = () => {
       date: row.date,
       label: row.label,
       rank: row.rank,
-      momentumScore: row.momentumScore
+      momentumScore: parseFloat(row.momentumScore || row.momentum || 0)
     }));
 
     // Filter to last 3 months only (same as mini trend charts)
