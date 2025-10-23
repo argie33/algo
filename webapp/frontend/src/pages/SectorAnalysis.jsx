@@ -33,6 +33,8 @@ import {
   Cell,
   Legend,
   Tooltip,
+  LineChart,
+  Line,
 } from "recharts";
 import api from "../services/api";
 import {
@@ -56,6 +58,251 @@ const SectorAnalysis = () => {
     "Utilities": "#FFC107",
     "Real Estate": "#E91E63",
     "Communication Services": "#00BCD4",
+  };
+
+  // Comprehensive industry-to-sector mapping
+  // This mapping ensures ALL industries are correctly assigned to their sectors
+  // regardless of how the API returns sector assignments
+  const industryToSectorMapping = {
+    // Technology (40+ industries)
+    "Software": "Technology",
+    "Software Infrastructure": "Technology",
+    "Software Consulting": "Technology",
+    "Information Services": "Technology",
+    "IT Services & Consulting": "Technology",
+    "Data Processing & Outsourced Services": "Technology",
+    "Application Software": "Technology",
+    "Systems Software": "Technology",
+    "Internet Services & Infrastructure": "Technology",
+    "Web Services": "Technology",
+    "IT Consulting & Services": "Technology",
+    "Semiconductors": "Technology",
+    "Semiconductor Equipment": "Technology",
+    "Electronic Components": "Technology",
+    "Electronics Manufacturing Services": "Technology",
+    "Computers & Peripherals": "Technology",
+    "Computer Hardware": "Technology",
+    "Computer & Office Equipment": "Technology",
+    "Networking & Communication Devices": "Technology",
+    "Communications Equipment": "Technology",
+    "Technology Hardware": "Technology",
+    "Tech & Telecom Equipment": "Technology",
+    "Home & Office Furnishings": "Technology",
+
+    // Healthcare (30+ industries)
+    "Pharmaceuticals": "Healthcare",
+    "Pharmaceutical Manufacturers": "Healthcare",
+    "Generic Pharmaceuticals": "Healthcare",
+    "Biotechnology": "Healthcare",
+    "Biotech & Pharmaceuticals": "Healthcare",
+    "Diagnostic Substances": "Healthcare",
+    "Medical Devices": "Healthcare",
+    "Medical Appliances": "Healthcare",
+    "Medical Instruments & Supplies": "Healthcare",
+    "Medical Devices & Supplies": "Healthcare",
+    "Healthcare Services": "Healthcare",
+    "Healthcare Providers": "Healthcare",
+    "Hospitals": "Healthcare",
+    "Nursing Homes": "Healthcare",
+    "Senior Housing": "Healthcare",
+    "Behavioral Health": "Healthcare",
+    "Medical Facilities": "Healthcare",
+    "Drug Retailers": "Healthcare",
+    "Pharmacy": "Healthcare",
+    "Health & Fitness Services": "Healthcare",
+
+    // Financials (25+ industries)
+    "Banks": "Financials",
+    "Commercial Banks": "Financials",
+    "Community Banks": "Financials",
+    "Regional Banks": "Financials",
+    "Diversified Banks": "Financials",
+    "Investment Banking": "Financials",
+    "Financial Services": "Financials",
+    "Financial Exchanges": "Financials",
+    "Financial Data & Stock Exchanges": "Financials",
+    "Capital Markets": "Financials",
+    "Asset Management": "Financials",
+    "Investment Management": "Financials",
+    "Investment Services": "Financials",
+    "Credit Agencies": "Financials",
+    "Insurance": "Financials",
+    "Accident & Health Insurance": "Financials",
+    "Life Insurance": "Financials",
+    "Property & Casualty Insurance": "Financials",
+    "Insurance Brokerage": "Financials",
+    "Insurance Companies": "Financials",
+
+    // Consumer Discretionary (30+ industries)
+    "Retail - Specialty": "Consumer Discretionary",
+    "Apparel Retail": "Consumer Discretionary",
+    "Apparel Manufacturing": "Consumer Discretionary",
+    "Apparel Stores": "Consumer Discretionary",
+    "Footwear": "Consumer Discretionary",
+    "Shoes": "Consumer Discretionary",
+    "Luxury Goods": "Consumer Discretionary",
+    "Jewelry & Watches": "Consumer Discretionary",
+    "Department Stores": "Consumer Discretionary",
+    "Home Improvement Retail": "Consumer Discretionary",
+    "Home Furnishings": "Consumer Discretionary",
+    "Furniture": "Consumer Discretionary",
+    "Office Furniture": "Consumer Discretionary",
+    "Sporting Goods": "Consumer Discretionary",
+    "Toy & Game Retailers": "Consumer Discretionary",
+    "Toys": "Consumer Discretionary",
+    "Restaurants": "Consumer Discretionary",
+    "Hotels & Resorts": "Consumer Discretionary",
+    "Lodging": "Consumer Discretionary",
+    "Casinos & Gambling": "Consumer Discretionary",
+    "Entertainment Venues": "Consumer Discretionary",
+    "Recreational Services": "Consumer Discretionary",
+    "Automotive": "Consumer Discretionary",
+    "Auto Parts & Equipment": "Consumer Discretionary",
+    "Auto Parts Suppliers": "Consumer Discretionary",
+    "Automotive OEM": "Consumer Discretionary",
+    "Autos": "Consumer Discretionary",
+    "Tires & Rubber": "Consumer Discretionary",
+
+    // Consumer Staples (20+ industries)
+    "Beverages": "Consumer Staples",
+    "Beer & Liquor": "Consumer Staples",
+    "Beverage - Non-Alcoholic": "Consumer Staples",
+    "Soft Drinks": "Consumer Staples",
+    "Packaged Foods": "Consumer Staples",
+    "Food Manufacturing": "Consumer Staples",
+    "Grocery Stores": "Consumer Staples",
+    "Food Distribution": "Consumer Staples",
+    "Food Retailers": "Consumer Staples",
+    "Household Products": "Consumer Staples",
+    "Cleaning Products": "Consumer Staples",
+    "Personal Care": "Consumer Staples",
+    "Cosmetics": "Consumer Staples",
+    "Health & Personal Care": "Consumer Staples",
+    "Hypermarkets & Super Centers": "Consumer Staples",
+    "Discount Variety Retailers": "Consumer Staples",
+    "Wholesale Clubs": "Consumer Staples",
+    "Tobacco": "Consumer Staples",
+    "Cigarettes": "Consumer Staples",
+
+    // Energy (15+ industries)
+    "Oil & Gas": "Energy",
+    "Oil & Gas - Integrated": "Energy",
+    "Oil & Gas - E&P": "Energy",
+    "Oil & Gas Exploration & Production": "Energy",
+    "Oil & Gas Refining & Marketing": "Energy",
+    "Oil & Gas Services": "Energy",
+    "Oil & Gas Equipment & Services": "Energy",
+    "Pipeline": "Energy",
+    "Renewable Energy": "Energy",
+    "Solar": "Energy",
+    "Wind Energy": "Energy",
+    "Coal": "Energy",
+    "Uranium": "Energy",
+
+    // Industrials (35+ industries)
+    "Aerospace": "Industrials",
+    "Aerospace & Defense": "Industrials",
+    "Defense": "Industrials",
+    "Machinery": "Industrials",
+    "Industrial Machinery": "Industrials",
+    "Specialized Machinery": "Industrials",
+    "Manufacturing": "Industrials",
+    "Diversified Manufacturers": "Industrials",
+    "Electrical Equipment": "Industrials",
+    "Electrical Components": "Industrials",
+    "Electrical Machinery": "Industrials",
+    "Appliances": "Industrials",
+    "Small Appliances": "Industrials",
+    "Containers & Packaging": "Industrials",
+    "Metal & Glass Containers": "Industrials",
+    "Paper Packaging": "Industrials",
+    "Trucks": "Industrials",
+    "Commercial Vehicles": "Industrials",
+    "Building Products": "Industrials",
+    "Heavy Equipment": "Industrials",
+    "Construction Equipment": "Industrials",
+    "Waste Management": "Industrials",
+    "Environmental Services": "Industrials",
+    "Shipping Services": "Industrials",
+    "Marine": "Industrials",
+    "Rail Transportation": "Industrials",
+    "Airlines": "Industrials",
+    "Transportation": "Industrials",
+    "Logistics": "Industrials",
+    "Delivery Services": "Industrials",
+    "Trucking": "Industrials",
+    "Construction": "Industrials",
+    "Construction & Building": "Industrials",
+    "Mining": "Industrials",
+
+    // Materials (20+ industries)
+    "Chemicals": "Materials",
+    "Chemical Manufacturing": "Materials",
+    "Specialty Chemicals": "Materials",
+    "Agricultural Chemicals": "Materials",
+    "Metals & Mining": "Materials",
+    "Steel": "Materials",
+    "Aluminum": "Materials",
+    "Copper": "Materials",
+    "Gold": "Materials",
+    "Silver": "Materials",
+    "Precious Metals": "Materials",
+    "Paper & Forest Products": "Materials",
+    "Paper Products": "Materials",
+    "Lumber & Wood Products": "Materials",
+    "Forestry": "Materials",
+    "Cement": "Materials",
+    "Building Materials": "Materials",
+    "Glass": "Materials",
+
+    // Utilities (10+ industries)
+    "Utilities": "Utilities",
+    "Electric Utilities": "Utilities",
+    "Gas Utilities": "Utilities",
+    "Water Utilities": "Utilities",
+    "Multiline Utilities": "Utilities",
+    "Utility Services": "Utilities",
+
+    // Real Estate (15+ industries)
+    "Real Estate": "Real Estate",
+    "Real Estate Services": "Real Estate",
+    "REITs": "Real Estate",
+    "REIT": "Real Estate",
+    "REIT - Retail": "Real Estate",
+    "REIT - Residential": "Real Estate",
+    "REIT - Office": "Real Estate",
+    "REIT - Industrial": "Real Estate",
+    "REIT - Hotel": "Real Estate",
+    "REIT - Healthcare": "Real Estate",
+    "Real Estate Development": "Real Estate",
+    "Land Development": "Real Estate",
+    "Property Management": "Real Estate",
+    "Residential Real Estate": "Real Estate",
+    "Commercial Real Estate": "Real Estate",
+
+    // Communication Services (20+ industries)
+    "Advertising": "Communication Services",
+    "Advertising Agencies": "Communication Services",
+    "Media": "Communication Services",
+    "Media & Entertainment": "Communication Services",
+    "Broadcast Media": "Communication Services",
+    "Television": "Communication Services",
+    "Radio": "Communication Services",
+    "Cable & Satellite": "Communication Services",
+    "Publishing": "Communication Services",
+    "News Publishers": "Communication Services",
+    "Telecom": "Communication Services",
+    "Telecommunications": "Communication Services",
+    "Telecom Services": "Communication Services",
+    "Wireless": "Communication Services",
+    "Internet Service Providers": "Communication Services",
+    "Internet & Cable Services": "Communication Services",
+    "Diversified Telecom Services": "Communication Services",
+    "Movies & Entertainment": "Communication Services",
+    "Interactive Media": "Communication Services",
+    "Internet Information Providers": "Communication Services",
+    "Internet Services": "Communication Services",
+    "Online Entertainment": "Communication Services",
   };
 
   // Normalize sector names to handle mismatches between APIs
@@ -96,6 +343,394 @@ const SectorAnalysis = () => {
 
     // If not found, return as-is (in case it's already normalized)
     return sectorName;
+  };
+
+  // Helper component to render compact trend chart
+  const TrendChart = ({ data, width = 100, height = 40 }) => {
+    if (!data || data.length < 2) return null;
+
+    return (
+      <div style={{ width: `${width}px`, height: `${height}px`, display: "inline-block" }}>
+        <LineChart
+          width={width}
+          height={height}
+          data={data}
+          margin={{ top: 2, right: 2, bottom: 2, left: 0 }}
+        >
+          <Tooltip
+            contentStyle={{
+              backgroundColor: "#fff",
+              border: "1px solid #ccc",
+              borderRadius: "4px",
+              padding: "4px",
+              fontSize: "11px"
+            }}
+          />
+          <Line
+            type="monotone"
+            dataKey="rank"
+            stroke="#2196F3"
+            dot={false}
+            strokeWidth={1.5}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </div>
+    );
+  };
+
+  // Helper function to aggregate daily data into weekly data
+  const aggregateToWeekly = (dailyData) => {
+    if (!dailyData || dailyData.length === 0) return [];
+
+    // If data doesn't have date field (fallback data), return as-is
+    if (!dailyData[0].date) {
+      return dailyData;
+    }
+
+    const weeklyData = [];
+    let currentWeek = null;
+    let weekEnd = null;
+
+    for (const row of dailyData) {
+      try {
+        if (!row.date) continue;
+
+        const rowDate = new Date(row.date);
+        if (isNaN(rowDate.getTime())) continue; // Skip invalid dates
+
+        const dayOfWeek = rowDate.getDay();
+
+        // Initialize first week
+        if (!currentWeek) {
+          currentWeek = new Date(rowDate);
+          // Set to start of week (Monday = 1, adjust Sunday = 0)
+          const offset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+          currentWeek.setDate(rowDate.getDate() - offset);
+          weekEnd = new Date(currentWeek);
+          weekEnd.setDate(weekEnd.getDate() + 6); // End of week (Sunday)
+        }
+
+        // Check if we've moved to a new week
+        if (rowDate > weekEnd) {
+          const offset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+          currentWeek = new Date(rowDate);
+          currentWeek.setDate(rowDate.getDate() - offset);
+          weekEnd = new Date(currentWeek);
+          weekEnd.setDate(weekEnd.getDate() + 6);
+        }
+
+        // Always keep the last data point of the current period
+        if (weeklyData.length === 0 || weeklyData[weeklyData.length - 1].weekStart !== currentWeek.toISOString().split('T')[0]) {
+          weeklyData.push({
+            date: row.date,
+            label: row.label,
+            rank: row.rank,
+            weekStart: currentWeek.toISOString().split('T')[0]
+          });
+        } else {
+          // Update the last entry with the newest data for this week
+          weeklyData[weeklyData.length - 1] = {
+            date: row.date,
+            label: row.label,
+            rank: row.rank,
+            weekStart: currentWeek.toISOString().split('T')[0]
+          };
+        }
+      } catch (error) {
+        console.warn("Error processing row in aggregateToWeekly:", row, error);
+        continue;
+      }
+    }
+
+    return weeklyData.length > 0 ? weeklyData : dailyData;
+  };
+
+  // Detailed technical analysis chart with moving averages
+  const DetailedTechnicalChart = ({ sectorOrIndustry, type = "sector" }) => {
+    const { data: technicalData, isLoading } = useQuery({
+      queryKey: [
+        `technical-details-${type}`,
+        type === "sector" ? (sectorOrIndustry.sector_name || sectorOrIndustry.sector) : sectorOrIndustry.industry
+      ],
+      queryFn: async () => {
+        try {
+          const name = type === "sector" ? (sectorOrIndustry.sector_name || sectorOrIndustry.sector) : sectorOrIndustry.industry;
+          const response = await api.get(
+            `/api/sectors/technical-details/${type}/${encodeURIComponent(name)}`
+          );
+          return response.data;
+        } catch (error) {
+          console.error(`Failed to fetch ${type} technical details:`, error);
+          return null;
+        }
+      },
+      staleTime: 300000, // 5 minutes
+      enabled: !!(type === "sector" ? (sectorOrIndustry.sector_name || sectorOrIndustry.sector) : sectorOrIndustry.industry),
+      retry: false,
+    });
+
+    if (isLoading) {
+      return (
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight={300}>
+          <LinearProgress sx={{ width: "50%" }} />
+        </Box>
+      );
+    }
+
+    if (!technicalData?.history || technicalData.history.length === 0) {
+      return (
+        <Typography variant="body2" color="text.secondary" align="center">
+          No technical data available
+        </Typography>
+      );
+    }
+
+    const summaryData = technicalData.summary || {};
+    const history = technicalData.history || [];
+
+    // Format date for x-axis display
+    const formatXAxisDate = (dateString) => {
+      if (!dateString) return "";
+      try {
+        const date = new Date(dateString);
+        return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      } catch {
+        return dateString;
+      }
+    };
+
+    return (
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        {/* Technical Summary Metrics */}
+        <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 1 }}>
+          <Box sx={{ p: 1.5, backgroundColor: "grey.50", borderRadius: 1 }}>
+            <Typography variant="caption" color="text.secondary" fontWeight="bold">
+              Current Price
+            </Typography>
+            <Typography variant="body2">
+              ${summaryData.current_price?.toFixed(2) || "N/A"}
+            </Typography>
+          </Box>
+          <Box sx={{ p: 1.5, backgroundColor: "grey.50", borderRadius: 1 }}>
+            <Typography variant="caption" color="text.secondary" fontWeight="bold">
+              20-Day MA
+            </Typography>
+            <Typography variant="body2">
+              ${summaryData.ma_20?.toFixed(2) || "N/A"} ({summaryData.price_vs_ma20})
+            </Typography>
+          </Box>
+          <Box sx={{ p: 1.5, backgroundColor: "grey.50", borderRadius: 1 }}>
+            <Typography variant="caption" color="text.secondary" fontWeight="bold">
+              50-Day MA
+            </Typography>
+            <Typography variant="body2">
+              ${summaryData.ma_50?.toFixed(2) || "N/A"}
+            </Typography>
+          </Box>
+          <Box sx={{ p: 1.5, backgroundColor: "grey.50", borderRadius: 1 }}>
+            <Typography variant="caption" color="text.secondary" fontWeight="bold">
+              200-Day MA
+            </Typography>
+            <Typography variant="body2">
+              ${summaryData.ma_200?.toFixed(2) || "N/A"} ({summaryData.price_vs_ma200})
+            </Typography>
+          </Box>
+          <Box sx={{ p: 1.5, backgroundColor: "grey.50", borderRadius: 1 }}>
+            <Typography variant="caption" color="text.secondary" fontWeight="bold">
+              RSI (14)
+            </Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Typography variant="body2">
+                {summaryData.rsi ? `${summaryData.rsi.toFixed(2)}` : "N/A"}
+              </Typography>
+              <Chip
+                label={
+                  summaryData.rsi && summaryData.rsi > 70
+                    ? "Overbought"
+                    : summaryData.rsi && summaryData.rsi < 30
+                    ? "Oversold"
+                    : "Neutral"
+                }
+                size="small"
+                sx={{ height: "20px" }}
+                color={
+                  summaryData.rsi && summaryData.rsi > 70
+                    ? "error"
+                    : summaryData.rsi && summaryData.rsi < 30
+                    ? "warning"
+                    : "default"
+                }
+              />
+            </Box>
+          </Box>
+        </Box>
+
+        {/* Price and Moving Averages Chart */}
+        <Box sx={{ width: "100%", height: 300, minHeight: 300 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={history} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 12 }}
+                interval={Math.floor(history.length / 8)}
+                tickFormatter={formatXAxisDate}
+              />
+              <YAxis width={50} tick={{ fontSize: 12 }} />
+              <Tooltip
+                formatter={(value) => value ? `$${parseFloat(value).toFixed(2)}` : "N/A"}
+                labelFormatter={(label) => `Date: ${formatXAxisDate(label)}`}
+              />
+              <Line
+                type="monotone"
+                dataKey="close"
+                stroke="#2196F3"
+                name="Price"
+                dot={false}
+                strokeWidth={2}
+                isAnimationActive={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="ma_20"
+                stroke="#FFA726"
+                name="MA 20"
+                dot={false}
+                strokeWidth={1.5}
+                strokeDasharray="5 5"
+                isAnimationActive={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="ma_50"
+                stroke="#66BB6A"
+                name="MA 50"
+                dot={false}
+                strokeWidth={1.5}
+                strokeDasharray="5 5"
+                isAnimationActive={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="ma_200"
+                stroke="#EF5350"
+                name="MA 200"
+                dot={false}
+                strokeWidth={1.5}
+                strokeDasharray="5 5"
+                isAnimationActive={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </Box>
+      </Box>
+    );
+  };
+
+  const SectorTrendChart = ({ sector }) => {
+    // Fetch full trend data from API
+    const { data: trendResponse } = useQuery({
+      queryKey: ["sector-trend", sector.sector || sector.sector_name],
+      queryFn: async () => {
+        try {
+          const sectorName = sector.sector || sector.sector_name;
+          const response = await api.get(`/api/sectors/trend/sector/${encodeURIComponent(sectorName)}`);
+          return response.data;
+        } catch (error) {
+          console.error("Failed to fetch sector trend:", error);
+          return null;
+        }
+      },
+      staleTime: 300000, // 5 minutes
+      enabled: !!(sector.sector || sector.sector_name),
+      retry: false,
+    });
+
+    // Use API data if available, otherwise fall back to summary data
+    let trendData = trendResponse?.trendData && trendResponse.trendData.length > 0
+      ? trendResponse.trendData.map(row => ({
+          date: row.date,
+          label: row.label,
+          rank: row.rank
+        }))
+      : [
+          { period: "12W", rank: sector.rank_12w_ago || sector.rank_12w_ago === 0 ? sector.rank_12w_ago : null },
+          { period: "4W", rank: sector.rank_4w_ago || sector.rank_4w_ago === 0 ? sector.rank_4w_ago : null },
+          { period: "1W", rank: sector.rank_1w_ago || sector.rank_1w_ago === 0 ? sector.rank_1w_ago : null },
+          { period: "Now", rank: sector.current_rank || sector.overall_rank },
+        ].filter(d => d.rank !== null);
+
+    // Filter to last 3 months only
+    if (trendData.length > 0 && trendData[0].date) {
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+      trendData = trendData.filter(row => {
+        try {
+          const rowDate = new Date(row.date);
+          return rowDate >= threeMonthsAgo;
+        } catch {
+          return true;
+        }
+      });
+    }
+
+    // Aggregate to weekly data for smoother visualization
+    trendData = aggregateToWeekly(trendData);
+
+    return <TrendChart data={trendData} />;
+  };
+
+  const IndustryTrendChart = ({ industry }) => {
+    // Fetch full trend data from API
+    const { data: trendResponse } = useQuery({
+      queryKey: ["industry-trend", industry.industry],
+      queryFn: async () => {
+        try {
+          const response = await api.get(`/api/sectors/trend/industry/${encodeURIComponent(industry.industry)}`);
+          return response.data;
+        } catch (error) {
+          console.error("Failed to fetch industry trend:", error);
+          return null;
+        }
+      },
+      staleTime: 300000, // 5 minutes
+      enabled: !!industry.industry,
+      retry: false,
+    });
+
+    // Use API data if available, otherwise fall back to summary data
+    let trendData = trendResponse?.trendData && trendResponse.trendData.length > 0
+      ? trendResponse.trendData.map(row => ({
+          date: row.date,
+          label: row.label,
+          rank: row.rank
+        }))
+      : [
+          { period: "8W", rank: industry.rank_8w_ago || industry.rank_8w_ago === 0 ? industry.rank_8w_ago : null },
+          { period: "4W", rank: industry.rank_4w_ago || industry.rank_4w_ago === 0 ? industry.rank_4w_ago : null },
+          { period: "1W", rank: industry.rank_1w_ago || industry.rank_1w_ago === 0 ? industry.rank_1w_ago : null },
+          { period: "Now", rank: industry.current_rank },
+        ].filter(d => d.rank !== null);
+
+    // Filter to last 3 months only
+    if (trendData.length > 0 && trendData[0].date) {
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+      trendData = trendData.filter(row => {
+        try {
+          const rowDate = new Date(row.date);
+          return rowDate >= threeMonthsAgo;
+        } catch {
+          return true;
+        }
+      });
+    }
+
+    // Aggregate to weekly data for smoother visualization
+    trendData = aggregateToWeekly(trendData);
+
+    return <TrendChart data={trendData} width={90} height={35} />;
   };
 
   // Fetch sector performance data (consolidated /api/sectors endpoint)
@@ -154,9 +789,27 @@ const SectorAnalysis = () => {
       console.log(`[INDUSTRIALS DATA] Found ${industrialsIndustries.length} for Industrials:`);
       industrialsIndustries.slice(0, 3).forEach(ind => {
         console.log(`  - ${ind.industry}: sector="${ind.sector}", sector_name="${ind.sector_name}"`);
+        console.log(`    Historical Ranks: current=${ind.current_rank}, 1w=${ind.rank_1w_ago}, 4w=${ind.rank_4w_ago}, 8w=${ind.rank_8w_ago}`);
+      });
+
+      // Check ALL industries for historical rank data
+      console.log(`[HISTORICAL RANK CHECK] Sample of industries with historical data:`);
+      industryData.data.industries.slice(0, 10).forEach((ind, idx) => {
+        console.log(`  [${idx}] ${ind.industry}: current=${ind.current_rank} | 1w_ago=${ind.rank_1w_ago} | 4w_ago=${ind.rank_4w_ago} | 8w_ago=${ind.rank_8w_ago}`);
       });
     }
   }, [industryData]);
+
+  // DEBUG: Log sector historical data
+  useEffect(() => {
+    if (rotationData?.data?.sectors && rotationData.data.sectors.length > 0) {
+      console.log(`[SECTORS API] Total sectors returned: ${rotationData.data.sectors.length}`);
+      console.log(`[SECTOR HISTORICAL RANK CHECK] Sample of sectors with historical data:`);
+      rotationData.data.sectors.slice(0, 5).forEach((sector, idx) => {
+        console.log(`  [${idx}] ${sector.sector_name || sector.sector}: current=${sector.current_rank || sector.overall_rank} | 1w_ago=${sector.rank_1w_ago} | 4w_ago=${sector.rank_4w_ago} | 12w_ago=${sector.rank_12w_ago}`);
+      });
+    }
+  }, [rotationData]);
 
   // Render sectors if sectors data is available (industries are optional for filtering)
   const shouldRenderSectors = rotationData?.data?.sectors && rotationData?.data?.sectors.length > 0;
@@ -172,7 +825,7 @@ const SectorAnalysis = () => {
 
   // Prepare chart data from rotation data
   const chartData = (rotationData?.data?.sectors || [])
-    .filter((s) => (s.sector_name || s.sector) && (s.current_perf_1d || s.performance_1d) != null && !isNaN(s.current_perf_1d || s.performance_1d))
+    .filter((s) => (s.sector_name || s.sector) && (s.current_perf_1d ?? s.performance_1d) != null && !isNaN(s.current_perf_1d ?? s.performance_1d))
     .map((s) => {
       const sectorName = s.sector_name || s.sector;
       return {
@@ -375,23 +1028,19 @@ const SectorAnalysis = () => {
                 </Grid>
               </Box>
               {(rotationData?.data?.sectors || [])
+                .filter((s) => s.sector_name || s.sector)
                 .sort((a, b) => (a.current_rank || a.overall_rank || 999) - (b.current_rank || b.overall_rank || 999))
                 .map((sector, index) => {
                 // Find matching industries for this sector
                 // Industries API returns `sector` field, Sectors API returns `sector_name`
                 const sectorName = sector.sector_name || sector.sector;
-                // Normalize sector name for consistent matching
-                const normalizedSectorName = normalizeSectorName(sectorName);
 
                 const sectorIndustries = (industryData?.data?.industries || []).filter(
                   (ind) => {
-                    // Normalize industry sector to match normalized sector name
-                    const normalizedIndSector = normalizeSectorName(ind.sector || ind.sector_name || '');
-                    const match = normalizedIndSector === normalizedSectorName;
-                    // DEBUG: Log mismatches for Industrials
-                    if ((sectorName === 'Industrials' || sectorName === 'Industrial') && !match && ind.industry) {
-                      console.log(`[INDUSTRY DEBUG] Sector: "${sectorName}", Normalized: "${normalizedSectorName}" | Industry: "${ind.industry}", IndSector: "${ind.sector}", NormIndSector: "${normalizedIndSector}"`);
-                    }
+                    // Use comprehensive industry-to-sector mapping for accurate sector assignment
+                    // This overrides any incorrect sector data from the API
+                    const mappedSector = industryToSectorMapping[ind.industry] || normalizeSectorName(ind.sector || ind.sector_name || '');
+                    const match = mappedSector === sectorName;
                     return match;
                   }
                 );
@@ -463,37 +1112,40 @@ const SectorAnalysis = () => {
                           <Typography
                             variant="caption"
                             sx={{
-                              color: getChangeColor(sector.current_perf_1d || sector.performance_1d),
+                              color: getChangeColor(sector.current_perf_1d ?? sector.performance_1d),
                               fontWeight: 600,
                             }}
                             align="right"
                           >
-                            {formatPercentage(sector.current_perf_1d || sector.performance_1d)}
+                            {formatPercentage(sector.current_perf_1d ?? sector.performance_1d)}
                           </Typography>
                         </Grid>
                         <Grid item xs={3} sm={1}>
                           <Typography
                             variant="caption"
                             sx={{
-                              color: getChangeColor(sector.current_perf_5d || sector.performance_5d),
+                              color: getChangeColor(sector.current_perf_5d ?? sector.performance_5d),
                               fontWeight: 600,
                             }}
                             align="right"
                           >
-                            {formatPercentage(sector.current_perf_5d || sector.performance_5d)}
+                            {formatPercentage(sector.current_perf_5d ?? sector.performance_5d)}
                           </Typography>
                         </Grid>
                         <Grid item xs={3} sm={1}>
                           <Typography
                             variant="caption"
                             sx={{
-                              color: getChangeColor(sector.current_perf_20d || sector.performance_20d),
+                              color: getChangeColor(sector.current_perf_20d ?? sector.performance_20d),
                               fontWeight: 600,
                             }}
                             align="right"
                           >
-                            {formatPercentage(sector.current_perf_20d || sector.performance_20d)}
+                            {formatPercentage(sector.current_perf_20d ?? sector.performance_20d)}
                           </Typography>
+                        </Grid>
+                        <Grid item xs={12} sm={1.5} sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60px" }}>
+                          <SectorTrendChart sector={sector} />
                         </Grid>
                       </Grid>
                     </AccordionSummary>
@@ -516,13 +1168,13 @@ const SectorAnalysis = () => {
                           <Box>
                             <Typography variant="caption" color="text.secondary" fontWeight="bold">📈 Performance Metrics</Typography>
                             <Typography variant="body2">
-                              • 1-Day: {formatPercentage(sector.current_perf_1d || sector.performance_1d)}
+                              • 1-Day: {formatPercentage(sector.current_perf_1d ?? sector.performance_1d)}
                             </Typography>
                             <Typography variant="body2">
-                              • 5-Day: {formatPercentage(sector.current_perf_5d || sector.performance_5d)}
+                              • 5-Day: {formatPercentage(sector.current_perf_5d ?? sector.performance_5d)}
                             </Typography>
                             <Typography variant="body2">
-                              • 20-Day: {formatPercentage(sector.current_perf_20d || sector.performance_20d)}
+                              • 20-Day: {formatPercentage(sector.current_perf_20d ?? sector.performance_20d)}
                             </Typography>
                           </Box>
                           <Box>
@@ -537,6 +1189,14 @@ const SectorAnalysis = () => {
                               • 12W Ago: {sector.rank_12w_ago !== null && sector.rank_12w_ago !== undefined ? `#${sector.rank_12w_ago}` : "—"}
                             </Typography>
                           </Box>
+                        </Box>
+
+                        {/* Technical Analysis Section */}
+                        <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2 }}>
+                          <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
+                            📈 Technical Analysis (200-Day History with Moving Averages)
+                          </Typography>
+                          <DetailedTechnicalChart sectorOrIndustry={sector} type="sector" />
                         </Box>
 
                         {/* Industries Section */}
@@ -629,17 +1289,27 @@ const SectorAnalysis = () => {
                       <Typography variant="caption" fontWeight="bold" align="center">Momentum</Typography>
                     </Grid>
                     <Grid item xs={2} sm={1.2}>
-                      <Typography variant="caption" fontWeight="bold" align="center">Trend</Typography>
+                      <Typography variant="caption" fontWeight="bold" align="center">Status</Typography>
                     </Grid>
-                    <Grid item xs={2} sm={1}>
+                    <Grid item xs={2} sm={0.8}>
                       <Typography variant="caption" fontWeight="bold" align="right">1D%</Typography>
+                    </Grid>
+                    <Grid item xs={2} sm={0.8}>
+                      <Typography variant="caption" fontWeight="bold" align="right">5D%</Typography>
+                    </Grid>
+                    <Grid item xs={2} sm={0.8}>
+                      <Typography variant="caption" fontWeight="bold" align="right">20D%</Typography>
                     </Grid>
                     <Grid item xs={2} sm={1}>
                       <Typography variant="caption" fontWeight="bold" align="right">Count</Typography>
                     </Grid>
+                    <Grid item xs={12} sm={1.5}>
+                      <Typography variant="caption" fontWeight="bold" align="center">Trend</Typography>
+                    </Grid>
                   </Grid>
                 </Box>
                 {(industryData?.data?.industries || [])
+                  .filter((i) => i.industry)
                   .sort((a, b) => (a.current_rank || 999) - (b.current_rank || 999))
                   .map((industry, index) => (
                   <Accordion key={`${industry.industry}-${index}`} defaultExpanded={index === 0} sx={{ border: "1px solid", borderColor: "divider" }}>
@@ -648,41 +1318,41 @@ const SectorAnalysis = () => {
                       sx={{
                         backgroundColor: "grey.50",
                         "&:hover": { backgroundColor: "grey.100" },
-                        overflow: "visible",
-                        minHeight: "60px",
+                        overflow: "hidden",
+                        minHeight: "auto",
+                        py: 1,
                       }}
                     >
-                      <Grid container spacing={1} alignItems="center" sx={{ width: "100%", overflow: "visible" }}>
+                      <Grid container spacing={1} alignItems="center" sx={{ width: "100%", overflow: "hidden" }}>
                         <Grid item xs={2} sm={0.8}>
                           <Chip
                             label={`#${industry.current_rank || "N/A"}`}
                             size="small"
                             color="primary"
                             variant="outlined"
+                            sx={{ width: "100%", fontSize: "0.7rem" }}
                           />
                         </Grid>
-                        <Grid item xs={12} sm={2}>
-                          <Box>
-                            <Typography variant="body2" fontWeight="bold">
-                              {industry.industry}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {industry.sector}
-                            </Typography>
-                          </Box>
+                        <Grid item xs={12} sm={2} sx={{ minWidth: 0 }}>
+                          <Typography variant="caption" fontWeight="bold" sx={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {industry.industry}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "0.7rem" }}>
+                            {industry.sector}
+                          </Typography>
                         </Grid>
                         <Grid item xs={2} sm={1}>
-                          <Typography variant="caption" fontWeight="bold" align="center">
+                          <Typography variant="caption" fontWeight="bold" align="center" sx={{ fontSize: "0.75rem" }}>
                             {industry.rank_1w_ago !== null && industry.rank_1w_ago !== undefined ? industry.rank_1w_ago : "—"}
                           </Typography>
                         </Grid>
                         <Grid item xs={2} sm={1}>
-                          <Typography variant="caption" fontWeight="bold" align="center">
+                          <Typography variant="caption" fontWeight="bold" align="center" sx={{ fontSize: "0.75rem" }}>
                             {industry.rank_4w_ago !== null && industry.rank_4w_ago !== undefined ? industry.rank_4w_ago : "—"}
                           </Typography>
                         </Grid>
                         <Grid item xs={2} sm={1}>
-                          <Typography variant="caption" fontWeight="bold" align="center">
+                          <Typography variant="caption" fontWeight="bold" align="center" sx={{ fontSize: "0.75rem" }}>
                             {industry.rank_8w_ago !== null && industry.rank_8w_ago !== undefined ? industry.rank_8w_ago : "—"}
                           </Typography>
                         </Grid>
@@ -697,9 +1367,10 @@ const SectorAnalysis = () => {
                                   ? "info"
                                   : "default"
                             }
+                            sx={{ width: "100%", fontSize: "0.7rem" }}
                           />
                         </Grid>
-                        <Grid item xs={2} sm={1.2}>
+                        <Grid item xs={2} sm={1.2} sx={{ display: "flex", justifyContent: "center" }}>
                           <Box display="flex" alignItems="center" justifyContent="center" gap={0.25}>
                             {industry.trend === "Uptrend" && (
                               <TrendingUp color="success" fontSize="small" />
@@ -709,22 +1380,52 @@ const SectorAnalysis = () => {
                             )}
                           </Box>
                         </Grid>
-                        <Grid item xs={2} sm={1}>
+                        <Grid item xs={2} sm={0.8}>
                           <Typography
                             variant="caption"
                             sx={{
                               color: getChangeColor(industry.performance_1d),
                               fontWeight: 600,
+                              fontSize: "0.75rem",
                             }}
                             align="right"
                           >
                             {formatPercentage(industry.performance_1d)}
                           </Typography>
                         </Grid>
+                        <Grid item xs={2} sm={0.8}>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: getChangeColor(industry.performance_5d),
+                              fontWeight: 600,
+                              fontSize: "0.75rem",
+                            }}
+                            align="right"
+                          >
+                            {formatPercentage(industry.performance_5d)}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={2} sm={0.8}>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: getChangeColor(industry.performance_20d),
+                              fontWeight: 600,
+                              fontSize: "0.75rem",
+                            }}
+                            align="right"
+                          >
+                            {formatPercentage(industry.performance_20d)}
+                          </Typography>
+                        </Grid>
                         <Grid item xs={2} sm={1}>
-                          <Typography variant="caption" fontWeight="bold" align="right">
+                          <Typography variant="caption" fontWeight="bold" align="right" sx={{ fontSize: "0.75rem" }}>
                             {industry.stock_count || 0}
                           </Typography>
+                        </Grid>
+                        <Grid item xs={12} sm={1.5} sx={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
+                          <IndustryTrendChart industry={industry} />
                         </Grid>
                       </Grid>
                     </AccordionSummary>
@@ -770,6 +1471,14 @@ const SectorAnalysis = () => {
                               • Rank: <strong>{industry.current_rank || "N/A"}</strong>
                             </Typography>
                           </Box>
+                        </Box>
+
+                        {/* Technical Analysis Section */}
+                        <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2 }}>
+                          <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
+                            📈 Technical Analysis (200-Day History with Moving Averages)
+                          </Typography>
+                          <DetailedTechnicalChart sectorOrIndustry={industry} type="industry" />
                         </Box>
                       </Box>
                     </AccordionDetails>
