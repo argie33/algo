@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Container,
   Typography,
@@ -22,6 +22,14 @@ import {
   AccordionSummary,
   AccordionDetails,
   InputAdornment,
+  Tab,
+  Tabs,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  useTheme,
+  alpha,
 } from "@mui/material";
 import {
   TrendingUp,
@@ -33,11 +41,74 @@ import {
   Newspaper,
   TrendingUpRounded,
   ExpandMore,
+  Info as InfoIcon,
 } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, AreaChart, Area, XAxis, YAxis, CartesianGrid, Legend, LineChart, Line } from "recharts";
 
-const API_BASE = window.CONFIG?.API_URL || "http://localhost:3001";
+const API_BASE = (import.meta.env && import.meta.env.VITE_API_URL) || "http://localhost:3001";
+
+// Market Sentiment Gauge Component
+const SentimentGauge = ({ label, value, min = -1, max = 1, format = "decimal" }) => {
+  const theme = useTheme();
+
+  // Handle undefined/null values
+  const safeValue = value ?? 0;
+  const percentage = ((safeValue - min) / (max - min)) * 100;
+
+  let color = theme.palette.warning.main;
+  let sentiment = "Neutral";
+
+  if (format === "percentage") {
+    if (safeValue > 60) {
+      color = theme.palette.success.main;
+      sentiment = "Very Bullish";
+    } else if (safeValue > 45) {
+      color = theme.palette.success.light;
+      sentiment = "Bullish";
+    } else if (safeValue > 35) {
+      color = theme.palette.warning.main;
+      sentiment = "Neutral";
+    } else if (safeValue > 20) {
+      color = theme.palette.warning.light;
+      sentiment = "Bearish";
+    } else {
+      color = theme.palette.error.main;
+      sentiment = "Very Bearish";
+    }
+  } else {
+    if (safeValue > 0.5) {
+      color = theme.palette.success.main;
+      sentiment = "Very Bullish";
+    } else if (safeValue > 0.2) {
+      color = theme.palette.success.light;
+      sentiment = "Bullish";
+    } else if (safeValue > -0.2) {
+      color = theme.palette.warning.main;
+      sentiment = "Neutral";
+    } else if (safeValue > -0.5) {
+      color = theme.palette.warning.light;
+      sentiment = "Bearish";
+    } else {
+      color = theme.palette.error.main;
+      sentiment = "Very Bearish";
+    }
+  }
+
+  return (
+    <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <CardContent sx={{ textAlign: "center", flex: 1 }}>
+        <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600, color: "textSecondary" }}>
+          {label}
+        </Typography>
+        <Typography variant="h4" sx={{ fontWeight: 700, color: color, mb: 1 }}>
+          {value === null || value === undefined ? "Loading..." : format === "percentage" ? `${safeValue.toFixed(1)}%` : safeValue.toFixed(2)}
+        </Typography>
+        <Chip label={sentiment} size="small" sx={{ bgcolor: alpha(color, 0.2), color: color }} />
+      </CardContent>
+    </Card>
+  );
+};
 
 // Composite sentiment scoring algorithm
 const calculateCompositeSentiment = (newsScore, analystScore, socialScore) => {
@@ -73,9 +144,240 @@ const getSentimentLabel = (score) => {
   return { label: "Neutral", color: "warning", icon: <TrendingFlat /> };
 };
 
+// Detect sentiment divergence (when sources disagree significantly)
+const detectSentimentDivergence = (newsScore, analystScore, socialScore) => {
+  const scores = [newsScore, analystScore, socialScore].filter(s => s !== null && s !== undefined);
+  if (scores.length < 2) return null;
+
+  const maxScore = Math.max(...scores);
+  const minScore = Math.min(...scores);
+  const divergence = maxScore - minScore;
+
+  // Significant divergence threshold
+  if (divergence > 0.6) {
+    return {
+      isDiverged: true,
+      severity: divergence > 1 ? "critical" : "moderate",
+      message: `Sources disagree significantly (${(divergence * 100).toFixed(0)}% spread)`
+    };
+  }
+
+  return { isDiverged: false };
+};
+
+// Analyst Trend Card Component
+const AnalystTrendCard = ({ symbol }) => {
+  const theme = useTheme();
+  const [trendData, setTrendData] = React.useState(null);
+  const [chartData, setChartData] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(null);
+
+  React.useEffect(() => {
+    const fetchTrendData = async () => {
+      try {
+        setLoading(true);
+        const [momentumRes, trendRes] = await Promise.all([
+          fetch(`${API_BASE}/api/analysts/${symbol}/analyst-momentum`),
+          fetch(`${API_BASE}/api/analysts/${symbol}/sentiment-trend`)
+        ]);
+
+        if (!momentumRes.ok || !trendRes.ok) {
+          setError("Failed to fetch analyst trend data");
+          setTrendData(null);
+          setChartData(null);
+          return;
+        }
+
+        const momentumData = await momentumRes.json();
+        const trendDataRaw = await trendRes.json();
+
+        setTrendData(momentumData.data);
+        setChartData(trendDataRaw.data?.chartData || []);
+        setError(null);
+      } catch (err) {
+        console.error("Error fetching analyst trends:", err);
+        setError("Unable to fetch analyst trends");
+        setTrendData(null);
+        setChartData(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTrendData();
+  }, [symbol]);
+
+  if (loading) {
+    return (
+      <Card variant="outlined">
+        <CardContent sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 200 }}>
+          <CircularProgress size={30} />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card variant="outlined">
+        <CardContent>
+          <Box display="flex" alignItems="center" gap={1} mb={2}>
+            <TrendingUpRounded />
+            <Typography variant="h6">Analyst Trends</Typography>
+          </Box>
+          <Typography variant="body2" color="textSecondary">
+            {error}
+          </Typography>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!trendData) {
+    return (
+      <Card variant="outlined">
+        <CardContent>
+          <Box display="flex" alignItems="center" gap={1} mb={2}>
+            <TrendingUpRounded />
+            <Typography variant="h6">Analyst Trends</Typography>
+          </Box>
+          <Typography variant="body2" color="textSecondary">
+            No analyst trend data available for {symbol}
+          </Typography>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const getMomentumColor = (velocity) => {
+    if (velocity?.includes("↗️")) return theme.palette.success.main;
+    if (velocity?.includes("↘️")) return theme.palette.error.main;
+    return theme.palette.warning.main;
+  };
+
+  return (
+    <>
+      {/* Analyst Momentum Card */}
+      <Card variant="outlined">
+        <CardContent>
+          <Box display="flex" alignItems="center" gap={1} mb={2}>
+            <TrendingUpRounded />
+            <Typography variant="h6">Analyst Momentum</Typography>
+          </Box>
+
+          {/* Sentiment Score */}
+          <Box display="flex" justifyContent="space-between" mb={2}>
+            <Typography variant="body2">Sentiment Score:</Typography>
+            <Chip
+              label={`${trendData.sentimentScore?.toFixed(1) || 0}%`}
+              color={trendData.sentimentScore > 60 ? "success" : trendData.sentimentScore > 40 ? "warning" : "error"}
+            />
+          </Box>
+
+          {/* Momentum Velocity */}
+          <Box display="flex" justifyContent="space-between" mb={2}>
+            <Typography variant="body2">Trend Direction:</Typography>
+            <Chip
+              label={trendData.ratingChangeVelocity || "Stable"}
+              sx={{
+                bgcolor: alpha(getMomentumColor(trendData.ratingChangeVelocity), 0.2),
+                color: getMomentumColor(trendData.ratingChangeVelocity)
+              }}
+            />
+          </Box>
+
+          {/* Analyst Coverage */}
+          <Box display="flex" justifyContent="space-between" mb={2}>
+            <Typography variant="body2">Analyst Coverage:</Typography>
+            <Chip label={`${trendData.analystCount || 0} analysts`} variant="outlined" />
+          </Box>
+
+          {/* Rating Distribution */}
+          <Divider sx={{ my: 2 }} />
+          <Typography variant="caption" color="textSecondary" sx={{ display: "block", mb: 1 }}>
+            Current Rating Distribution:
+          </Typography>
+          <Box display="flex" gap={0.5} flexWrap="wrap">
+            <Chip label={`Bullish: ${trendData.bullishPercentage?.toFixed(1) || 0}%`} size="small" color="success" variant="outlined" />
+            <Chip label={`Neutral: ${trendData.neutralPercentage?.toFixed(1) || 0}%`} size="small" color="default" variant="outlined" />
+            <Chip label={`Bearish: ${trendData.bearishPercentage?.toFixed(1) || 0}%`} size="small" color="error" variant="outlined" />
+          </Box>
+
+          {/* EPS Revision Momentum */}
+          {trendData.revisionMomentum && (
+            <>
+              <Divider sx={{ my: 2 }} />
+              <Typography variant="caption" color="textSecondary" sx={{ display: "block", mb: 1 }}>
+                EPS Revision Momentum (30d):
+              </Typography>
+              <Box display="flex" gap={1}>
+                <Chip label={`↑ ${trendData.revisionMomentum.up || 0}`} size="small" color="success" variant="outlined" />
+                <Chip label={`↓ ${trendData.revisionMomentum.down || 0}`} size="small" color="error" variant="outlined" />
+              </Box>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Sentiment Trend Chart */}
+      {chartData && chartData.length > 0 && (
+        <Card variant="outlined" sx={{ mt: 2 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              90-Day Rating Trend
+            </Typography>
+            <ResponsiveContainer width="100%" height={250}>
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis domain={[1, 5]} label={{ value: "Rating (1=Buy, 5=Sell)", angle: -90, position: "insideLeft" }} />
+                <RechartsTooltip
+                  formatter={(value) => {
+                    const ratingLabels = { 1: "Strong Buy", 2: "Buy", 3: "Hold", 4: "Sell", 5: "Strong Sell" };
+                    return ratingLabels[Math.round(value)] || value.toFixed(2);
+                  }}
+                />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="recommendationMean"
+                  stroke={theme.palette.primary.main}
+                  dot={false}
+                  name="Average Rating"
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+    </>
+  );
+};
+
+function TabPanel(props) {
+  const { children, value, index, ...other } = props;
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`sentiment-tabpanel-${index}`}
+      aria-labelledby={`sentiment-tab-${index}`}
+      {...other}
+    >
+      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
+    </div>
+  );
+}
+
 function Sentiment() {
+  const theme = useTheme();
   const [expandedSymbol, setExpandedSymbol] = useState(null);
   const [searchFilter, setSearchFilter] = useState("");
+  const [tabValue, setTabValue] = useState(0);
+  const [sortBy, setSortBy] = useState("composite");
+  const [filterSentiment, setFilterSentiment] = useState("all");
   const [marketSentiment, setMarketSentiment] = useState({
     fearGreedIndex: null,
     naamExposure: null,
@@ -187,19 +489,58 @@ function Sentiment() {
     };
   });
 
-  // Filter by search
-  const filteredStocks = stocksList.filter(stock =>
-    stock.symbol.toLowerCase().includes(searchFilter.toLowerCase())
-  );
+  // Enhanced filtering and sorting with divergence detection
+  const filteredAndSortedStocks = useMemo(() => {
+    let stocks = stocksList
+      .map(stock => ({
+        ...stock,
+        divergence: detectSentimentDivergence(
+          stock.latestNews?.sentiment_score,
+          stock.latestAnalyst?.sentiment_score,
+          stock.latestSocial?.sentiment_score
+        ),
+      }))
+      .filter(stock => {
+        const matchesSearch = stock.symbol.toLowerCase().includes(searchFilter.toLowerCase());
 
-  // Sort by composite score (descending)
-  filteredStocks.sort((a, b) => (b.compositeScore || -999) - (a.compositeScore || -999));
+        if (filterSentiment === "all") return matchesSearch;
+        if (filterSentiment === "bullish") return matchesSearch && stock.compositeScore > 0.3;
+        if (filterSentiment === "bearish") return matchesSearch && stock.compositeScore < -0.3;
+        if (filterSentiment === "neutral") return matchesSearch && stock.compositeScore >= -0.3 && stock.compositeScore <= 0.3;
+
+        return matchesSearch;
+      });
+
+    // Sort based on selected criteria
+    stocks.sort((a, b) => {
+      switch (sortBy) {
+        case "composite":
+          return (b.compositeScore || -999) - (a.compositeScore || -999);
+        case "news":
+          return (b.latestNews?.sentiment_score || -999) - (a.latestNews?.sentiment_score || -999);
+        case "analyst":
+          return (b.latestAnalyst?.sentiment_score || -999) - (a.latestAnalyst?.sentiment_score || -999);
+        case "social":
+          return (b.latestSocial?.sentiment_score || -999) - (a.latestSocial?.sentiment_score || -999);
+        case "symbol":
+          return a.symbol.localeCompare(b.symbol);
+        default:
+          return 0;
+      }
+    });
+
+    return stocks;
+  }, [stocksList, searchFilter, sortBy, filterSentiment]);
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
   // Handle accordion toggle
   const handleAccordionToggle = (symbol) => {
     setExpandedSymbol(expandedSymbol === symbol ? null : symbol);
+  };
+
+  const handleTabChange = (event, newValue) => {
+    setTabValue(newValue);
   };
 
   return (
@@ -227,7 +568,7 @@ function Sentiment() {
                 Fear & Greed Index
               </Typography>
               <Typography variant="h5" sx={{ mb: 1 }}>
-                {marketSentiment.fearGreedIndex !== null ? marketSentiment.fearGreedIndex.toFixed(2) : 'Loading...'}
+                {marketSentiment.fearGreedIndex !== null && marketSentiment.fearGreedIndex !== undefined ? marketSentiment.fearGreedIndex.toFixed(2) : 'Loading...'}
               </Typography>
               <Typography variant="body2" color="textSecondary">
                 Scale: 0 (Extreme Fear) - 100 (Extreme Greed)
@@ -252,12 +593,12 @@ function Sentiment() {
                 NAAIM Exposure
               </Typography>
               <Typography variant="h5" sx={{ mb: 1 }}>
-                {marketSentiment.naamExposure !== null ? marketSentiment.naamExposure.toFixed(2) : 'Loading...'}
+                {marketSentiment.naamExposure !== null && marketSentiment.naamExposure !== undefined ? marketSentiment.naamExposure.toFixed(2) : 'Loading...'}
               </Typography>
               <Typography variant="body2" color="textSecondary">
                 Mean Exposure (0=out, 100=in)
               </Typography>
-              {marketSentiment.naamExposure !== null && (
+              {marketSentiment.naamExposure !== null && marketSentiment.naamExposure !== undefined && (
                 <Chip
                   label={marketSentiment.naamExposure > 60 ? 'Bullish' : marketSentiment.naamExposure < 40 ? 'Bearish' : 'Neutral'}
                   size="small"
@@ -318,55 +659,107 @@ function Sentiment() {
         </Grid>
       </Grid>
 
-      {/* Search Bar */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <TextField
-            fullWidth
-            label="Search Symbols"
-            placeholder="Filter by symbol (e.g., AAPL, GOOGL)"
-            value={searchFilter}
-            onChange={(e) => setSearchFilter(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Search />
-                </InputAdornment>
-              ),
-            }}
-          />
-          {filteredStocks.length > 0 && (
-            <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: "block" }}>
-              Showing {filteredStocks.length} symbol{filteredStocks.length !== 1 ? "s" : ""} with sentiment data
-            </Typography>
-          )}
-        </CardContent>
-      </Card>
+      {/* Tabs */}
+      <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
+        <Tabs
+          value={tabValue}
+          onChange={handleTabChange}
+          aria-label="sentiment views"
+          variant="scrollable"
+          scrollButtons="auto"
+        >
+          <Tab label="Stock Analysis" id="sentiment-tab-0" aria-controls="sentiment-tabpanel-0" />
+          <Tab label="Comparative View" id="sentiment-tab-1" aria-controls="sentiment-tabpanel-1" />
+          <Tab label="Market Metrics" id="sentiment-tab-2" aria-controls="sentiment-tabpanel-2" />
+        </Tabs>
+      </Box>
 
-      {/* Loading State */}
-      {isLoading && (
-        <Box display="flex" justifyContent="center" py={4}>
-          <CircularProgress />
-        </Box>
-      )}
+      {/* Controls for Stock Analysis Tab */}
+      <TabPanel value={tabValue} index={0}>
+        {/* Search and Filter Bar */}
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Grid container spacing={2} alignItems="flex-end">
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Search Symbols"
+                  placeholder="Filter by symbol (e.g., AAPL, GOOGL)"
+                  value={searchFilter}
+                  onChange={(e) => setSearchFilter(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Search />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Sentiment</InputLabel>
+                  <Select
+                    value={filterSentiment}
+                    onChange={(e) => setFilterSentiment(e.target.value)}
+                    label="Sentiment"
+                  >
+                    <MenuItem value="all">All</MenuItem>
+                    <MenuItem value="bullish">Bullish</MenuItem>
+                    <MenuItem value="neutral">Neutral</MenuItem>
+                    <MenuItem value="bearish">Bearish</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Sort By</InputLabel>
+                  <Select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    label="Sort By"
+                  >
+                    <MenuItem value="composite">Composite Score</MenuItem>
+                    <MenuItem value="news">News Sentiment</MenuItem>
+                    <MenuItem value="analyst">Analyst Rating</MenuItem>
+                    <MenuItem value="social">Social Media</MenuItem>
+                    <MenuItem value="symbol">Symbol A-Z</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+            </Grid>
+            {filteredAndSortedStocks.length > 0 && (
+              <Typography variant="caption" color="textSecondary" sx={{ mt: 2, display: "block" }}>
+                Showing {filteredAndSortedStocks.length} symbol{filteredAndSortedStocks.length !== 1 ? "s" : ""} with sentiment data
+              </Typography>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Error State */}
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          Failed to load sentiment data: {error.message}
-        </Alert>
-      )}
+        {/* Loading State */}
+        {isLoading && (
+          <Box display="flex" justifyContent="center" py={4}>
+            <CircularProgress />
+          </Box>
+        )}
 
-      {/* Accordion List */}
-      {!isLoading && !error && (
-        <>
-          {filteredStocks.length === 0 ? (
-            <Alert severity="info">
-              {searchFilter ? `No symbols match "${searchFilter}"` : "No sentiment data available"}
-            </Alert>
-          ) : (
-            <Box>
-              {filteredStocks.map((stock) => {
+        {/* Error State */}
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            Failed to load sentiment data: {error.message}
+          </Alert>
+        )}
+
+        {/* Accordion List */}
+        {!isLoading && !error && (
+          <>
+            {filteredAndSortedStocks.length === 0 ? (
+              <Alert severity="info">
+                {searchFilter ? `No symbols match "${searchFilter}"` : "No sentiment data available"}
+              </Alert>
+            ) : (
+              <Box>
+                {filteredAndSortedStocks.map((stock) => {
                 const componentData = [
                   { name: "News", value: stock.latestNews?.sentiment_score || 0, weight: 40 },
                   { name: "Analyst", value: stock.latestAnalyst?.sentiment_score || 0, weight: 35 },
@@ -383,14 +776,29 @@ function Sentiment() {
                     <AccordionSummary
                       expandIcon={<ExpandMore />}
                       sx={{
-                        backgroundColor: "grey.50",
+                        backgroundColor: stock.divergence?.isDiverged
+                          ? alpha(theme.palette.warning.main, 0.1)
+                          : "grey.50",
                         "&:hover": { backgroundColor: "grey.100" },
+                        borderLeft: stock.divergence?.isDiverged
+                          ? `3px solid ${theme.palette.warning.main}`
+                          : "none",
                       }}
                     >
-                      <Grid container alignItems="center" spacing={2}>
+                      <Grid container alignItems="center" spacing={2} sx={{ width: "100%" }}>
                         <Grid item xs={2}>
                           <Typography variant="h6" fontWeight="bold">
                             {stock.symbol}
+                            {stock.divergence?.isDiverged && (
+                              <InfoIcon
+                                sx={{
+                                  fontSize: 16,
+                                  ml: 0.5,
+                                  color: "warning.main",
+                                  verticalAlign: "middle"
+                                }}
+                              />
+                            )}
                           </Typography>
                         </Grid>
                         <Grid item xs={3}>
@@ -449,6 +857,16 @@ function Sentiment() {
                     </AccordionSummary>
 
                     <AccordionDetails>
+                      {stock.divergence?.isDiverged && (
+                        <Alert severity={stock.divergence.severity === "critical" ? "error" : "warning"} sx={{ mb: 3, width: "100%" }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                            ⚠️ Source Divergence Detected
+                          </Typography>
+                          <Typography variant="body2" sx={{ mt: 1 }}>
+                            {stock.divergence.message}. News, analyst, and social media sources show significantly different sentiment. Consider reviewing the individual source scores below.
+                          </Typography>
+                        </Alert>
+                      )}
                       <Grid container spacing={3}>
                         {/* Composite Score Card */}
                         <Grid item xs={12} md={4}>
@@ -618,41 +1036,10 @@ function Sentiment() {
                           </Grid>
                         )}
 
-                        {/* Analyst Sentiment Details */}
-                        {stock.analyst.length > 0 && (
-                          <Grid item xs={12} md={4}>
-                            <Card variant="outlined">
-                              <CardContent>
-                                <Box display="flex" alignItems="center" gap={1} mb={2}>
-                                  <TrendingUpRounded />
-                                  <Typography variant="h6">Analyst Ratings</Typography>
-                                </Box>
-                                <Box display="flex" justifyContent="space-between" mb={1}>
-                                  <Typography variant="body2">Score:</Typography>
-                                  <Typography variant="body2" fontWeight="600">
-                                    {stock.latestAnalyst?.sentiment_score?.toFixed(2) || "N/A"}
-                                  </Typography>
-                                </Box>
-                                <Box display="flex" justifyContent="space-between" mb={1}>
-                                  <Typography variant="body2">Buy:</Typography>
-                                  <Chip label={stock.latestAnalyst?.positive_mentions || 0} size="small" color="success" variant="outlined" />
-                                </Box>
-                                <Box display="flex" justifyContent="space-between" mb={1}>
-                                  <Typography variant="body2">Hold:</Typography>
-                                  <Chip label={stock.latestAnalyst?.neutral_mentions || 0} size="small" color="default" variant="outlined" />
-                                </Box>
-                                <Box display="flex" justifyContent="space-between" mb={1}>
-                                  <Typography variant="body2">Sell:</Typography>
-                                  <Chip label={stock.latestAnalyst?.negative_mentions || 0} size="small" color="error" variant="outlined" />
-                                </Box>
-                                <Box display="flex" justifyContent="space-between">
-                                  <Typography variant="body2">Total Analysts:</Typography>
-                                  <Typography variant="body2" fontWeight="600">{stock.latestAnalyst?.total_mentions || 0}</Typography>
-                                </Box>
-                              </CardContent>
-                            </Card>
-                          </Grid>
-                        )}
+                        {/* Analyst Sentiment Details with Trend */}
+                        <Grid item xs={12} md={6}>
+                          <AnalystTrendCard symbol={stock.symbol} />
+                        </Grid>
 
                         {/* Historical Sentiment Table */}
                         <Grid item xs={12}>
@@ -707,6 +1094,173 @@ function Sentiment() {
           )}
         </>
       )}
+      </TabPanel>
+
+      {/* Tab 2: Comparative View */}
+      <TabPanel value={tabValue} index={1}>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Sentiment Distribution by Source
+            </Typography>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={stocksList.slice(0, 10).map(s => ({
+                    symbol: s.symbol,
+                    news: s.latestNews?.sentiment_score || 0,
+                    analyst: s.latestAnalyst?.sentiment_score || 0,
+                    social: s.latestSocial?.sentiment_score || 0,
+                  }))}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="symbol" />
+                    <YAxis domain={[-1, 1]} />
+                    <Legend />
+                    <RechartsTooltip />
+                    <Line type="monotone" dataKey="news" stroke="#0088FE" name="News" />
+                    <Line type="monotone" dataKey="analyst" stroke="#00C49F" name="Analyst" />
+                    <Line type="monotone" dataKey="social" stroke="#FFBB28" name="Social" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Typography variant="body2" color="textSecondary" paragraph>
+                  Composite Sentiment Distribution:
+                </Typography>
+                <ResponsiveContainer width="100%" height={300}>
+                  <AreaChart data={stocksList.map((s, i) => ({
+                    index: i,
+                    score: s.compositeScore || 0,
+                  }))}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="index" />
+                    <YAxis domain={[-1, 1]} />
+                    <RechartsTooltip />
+                    <Area type="monotone" dataKey="score" stroke={theme.palette.primary.main} fill={alpha(theme.palette.primary.main, 0.3)} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+      </TabPanel>
+
+      {/* Tab 3: Market Metrics */}
+      <TabPanel value={tabValue} index={2}>
+        <Grid container spacing={3}>
+          <Grid item xs={12} sm={6} md={3}>
+            <SentimentGauge label="Fear & Greed" value={marketSentiment.fearGreedIndex || 0} min={0} max={100} format="percentage" />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <SentimentGauge label="NAAIM Exposure" value={marketSentiment.naamExposure || 0} min={0} max={100} format="percentage" />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <SentimentGauge label="AAII Bullish" value={marketSentiment.aaiiSentiment?.bullish ? parseFloat(marketSentiment.aaiiSentiment.bullish) * 100 : 0} min={0} max={100} format="percentage" />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent sx={{ textAlign: "center" }}>
+                <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600, color: "textSecondary" }}>
+                  Avg Composite Score
+                </Typography>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: "primary.main", mb: 1 }}>
+                  {stocksList && stocksList.length > 0 ? ((stocksList.reduce((sum, s) => sum + (s.compositeScore || 0), 0) / stocksList.length) || 0).toFixed(2) : "N/A"}
+                </Typography>
+                <Chip label="Data Summary" size="small" />
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Analyst Sentiment Metrics */}
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent sx={{ textAlign: "center" }}>
+                <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600, color: "textSecondary" }}>
+                  Stocks with Better Analyst Sentiment
+                </Typography>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: "success.main", mb: 1 }}>
+                  {stocksList && stocksList.length > 0 ? stocksList.filter(s => s.latestAnalyst?.sentiment_score > 0.2).length : 0}
+                </Typography>
+                <Typography variant="caption" color="textSecondary">
+                  out of {stocksList?.length || 0} stocks
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent sx={{ textAlign: "center" }}>
+                <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600, color: "textSecondary" }}>
+                  Neutral Analyst Rating
+                </Typography>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: "warning.main", mb: 1 }}>
+                  {stocksList && stocksList.length > 0 ? stocksList.filter(s => (s.latestAnalyst?.sentiment_score || 0) >= -0.2 && (s.latestAnalyst?.sentiment_score || 0) <= 0.2).length : 0}
+                </Typography>
+                <Typography variant="caption" color="textSecondary">
+                  out of {stocksList?.length || 0} stocks
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent sx={{ textAlign: "center" }}>
+                <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600, color: "textSecondary" }}>
+                  Stocks with Worse Analyst Sentiment
+                </Typography>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: "error.main", mb: 1 }}>
+                  {stocksList && stocksList.length > 0 ? stocksList.filter(s => s.latestAnalyst?.sentiment_score < -0.2).length : 0}
+                </Typography>
+                <Typography variant="caption" color="textSecondary">
+                  out of {stocksList?.length || 0} stocks
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+
+        {/* Additional Market Insights */}
+        <Card sx={{ mt: 3 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Market Sentiment Summary
+            </Typography>
+            <Divider sx={{ my: 2 }} />
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={4}>
+                <Box>
+                  <Typography variant="caption" color="textSecondary">
+                    Bullish Stocks
+                  </Typography>
+                  <Typography variant="h5" sx={{ color: "success.main", fontWeight: "bold" }}>
+                    {stocksList.filter(s => s.compositeScore > 0.3).length}
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Box>
+                  <Typography variant="caption" color="textSecondary">
+                    Neutral Stocks
+                  </Typography>
+                  <Typography variant="h5" sx={{ color: "warning.main", fontWeight: "bold" }}>
+                    {stocksList.filter(s => s.compositeScore >= -0.3 && s.compositeScore <= 0.3).length}
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Box>
+                  <Typography variant="caption" color="textSecondary">
+                    Bearish Stocks
+                  </Typography>
+                  <Typography variant="h5" sx={{ color: "error.main", fontWeight: "bold" }}>
+                    {stocksList.filter(s => s.compositeScore < -0.3).length}
+                  </Typography>
+                </Box>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+      </TabPanel>
     </Container>
   );
 }

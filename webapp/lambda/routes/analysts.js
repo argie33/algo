@@ -653,4 +653,328 @@ router.get("/:symbol", async (req, res) => {
   }
 });
 
+// ============================================
+// ANALYST TREND ANALYSIS ENDPOINTS
+// ============================================
+
+// GET /:symbol/sentiment-trend - Historical sentiment data for charting
+router.get("/:symbol/sentiment-trend", async (req, res) => {
+  try {
+    const symbol = req.params.symbol.toUpperCase();
+    const daysBack = parseInt(req.query.days, 10) || 90; // Default 90 days
+
+    const result = await query(`
+      SELECT
+        date,
+        strong_buy_count,
+        buy_count,
+        hold_count,
+        sell_count,
+        strong_sell_count,
+        total_analysts,
+        recommendation_mean,
+        avg_price_target,
+        price_target_vs_current,
+        upgrades_last_30d,
+        downgrades_last_30d,
+        eps_revisions_up_last_30d,
+        eps_revisions_down_last_30d
+      FROM analyst_sentiment_analysis
+      WHERE UPPER(symbol) = $1
+        AND date >= CURRENT_DATE - INTERVAL '1 day' * $2
+      ORDER BY date ASC
+    `, [symbol, daysBack]);
+
+    // Calculate trend metrics
+    const data = result.rows;
+    let sentimentTrend = null;
+    let ratingMomentum = null;
+    let analystCoverageTrend = null;
+
+    if (data.length >= 2) {
+      const firstDay = data[0];
+      const lastDay = data[data.length - 1];
+
+      // Sentiment trend: how recommendation_mean is changing
+      const ratingChange = lastDay.recommendation_mean - firstDay.recommendation_mean;
+      const ratingChangePercent = (ratingChange / firstDay.recommendation_mean) * 100;
+      sentimentTrend = {
+        current: parseFloat(lastDay.recommendation_mean) || null,
+        previous: parseFloat(firstDay.recommendation_mean) || null,
+        change: ratingChange,
+        changePercent: ratingChangePercent,
+        direction: ratingChange < -0.1 ? "improving" : ratingChange > 0.1 ? "deteriorating" : "stable",
+        interpretation: ratingChange < -0.1 ? "More bullish ↗️" : ratingChange > 0.1 ? "More bearish ↘️" : "Stable →"
+      };
+
+      // Analyst coverage trend
+      const coverageChange = lastDay.total_analysts - firstDay.total_analysts;
+      const coverageChangePercent = (coverageChange / firstDay.total_analysts) * 100;
+      analystCoverageTrend = {
+        current: lastDay.total_analysts,
+        previous: firstDay.total_analysts,
+        change: coverageChange,
+        changePercent: coverageChangePercent,
+        interpretation: coverageChange > 0 ? `+${coverageChange} analysts (${coverageChangePercent.toFixed(1)}%)` : `${coverageChange} analysts (${coverageChangePercent.toFixed(1)}%)`
+      };
+
+      // Rating distribution trend
+      const getPercentage = (count, total) => total > 0 ? (count / total) * 100 : 0;
+
+      sentimentTrend.distributionCurrent = {
+        strongBuy: getPercentage(lastDay.strong_buy_count, lastDay.total_analysts),
+        buy: getPercentage(lastDay.buy_count, lastDay.total_analysts),
+        hold: getPercentage(lastDay.hold_count, lastDay.total_analysts),
+        sell: getPercentage(lastDay.sell_count, lastDay.total_analysts),
+        strongSell: getPercentage(lastDay.strong_sell_count, lastDay.total_analysts)
+      };
+
+      sentimentTrend.distributionPrevious = {
+        strongBuy: getPercentage(firstDay.strong_buy_count, firstDay.total_analysts),
+        buy: getPercentage(firstDay.buy_count, firstDay.total_analysts),
+        hold: getPercentage(firstDay.hold_count, firstDay.total_analysts),
+        sell: getPercentage(firstDay.sell_count, firstDay.total_analysts),
+        strongSell: getPercentage(firstDay.strong_sell_count, firstDay.total_analysts)
+      };
+
+      // Rating momentum: calculate slope of recommendation_mean
+      const xValues = data.map((_, i) => i);
+      const yValues = data.map(d => parseFloat(d.recommendation_mean) || 0);
+
+      const meanX = xValues.reduce((a, b) => a + b, 0) / xValues.length;
+      const meanY = yValues.reduce((a, b) => a + b, 0) / yValues.length;
+
+      const numerator = xValues.reduce((sum, x, i) => sum + (x - meanX) * (yValues[i] - meanY), 0);
+      const denominator = xValues.reduce((sum, x) => sum + Math.pow(x - meanX, 2), 0);
+      const slope = denominator !== 0 ? numerator / denominator : 0;
+
+      ratingMomentum = {
+        slope: slope,
+        velocity: slope < -0.001 ? "Improving rapidly ↗️" : slope < 0 ? "Improving →" : slope > 0.001 ? "Deteriorating rapidly ↘️" : slope > 0 ? "Deteriorating →" : "Stable →",
+        momentum: Math.abs(slope) > 0.001 ? "Strong" : Math.abs(slope) > 0.0001 ? "Moderate" : "Weak"
+      };
+    }
+
+    res.json({
+      success: true,
+      symbol,
+      days: daysBack,
+      dataPoints: data.length,
+      chartData: data.map(d => ({
+        date: d.date,
+        ratingMean: parseFloat(d.recommendation_mean),
+        totalAnalysts: d.total_analysts,
+        strongBuy: d.strong_buy_count,
+        buy: d.buy_count,
+        hold: d.hold_count,
+        sell: d.sell_count,
+        strongSell: d.strong_sell_count,
+        priceTarget: parseFloat(d.avg_price_target),
+        epsUpRevisions: d.eps_revisions_up_last_30d,
+        epsDownRevisions: d.eps_revisions_down_last_30d
+      })),
+      trends: {
+        sentimentTrend,
+        ratingMomentum,
+        analystCoverageTrend
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error(`Sentiment trend error for ${req.params.symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch sentiment trend data",
+      details: error.message
+    });
+  }
+});
+
+// GET /:symbol/analyst-momentum - Quick momentum metrics
+router.get("/:symbol/analyst-momentum", async (req, res) => {
+  try {
+    const symbol = req.params.symbol.toUpperCase();
+
+    const result = await query(`
+      SELECT
+        date,
+        strong_buy_count,
+        buy_count,
+        hold_count,
+        sell_count,
+        strong_sell_count,
+        total_analysts,
+        recommendation_mean,
+        upgrades_last_30d,
+        downgrades_last_30d,
+        eps_revisions_up_last_30d,
+        eps_revisions_down_last_30d
+      FROM analyst_sentiment_analysis
+      WHERE UPPER(symbol) = $1
+        AND date >= CURRENT_DATE - INTERVAL '90 days'
+      ORDER BY date ASC
+    `, [symbol]);
+
+    if (result.rows.length === 0) {
+      return res.json({
+        success: true,
+        symbol,
+        momentum: null,
+        message: "No analyst data available for this symbol"
+      });
+    }
+
+    const data = result.rows;
+    const latest = data[data.length - 1];
+    const thirtyDaysAgo = data[Math.max(0, data.length - 30)];
+
+    // Calculate momentum scores (0-100, higher = more bullish)
+    const bullishRatio = latest.total_analysts > 0
+      ? ((latest.strong_buy_count + latest.buy_count) / latest.total_analysts) * 100
+      : 0;
+
+    const bearishRatio = latest.total_analysts > 0
+      ? ((latest.sell_count + latest.strong_sell_count) / latest.total_analysts) * 100
+      : 0;
+
+    const sentimentScore = 50 + (bullishRatio - bearishRatio) / 2;
+
+    // Revision momentum
+    const netEpsRevisions = latest.eps_revisions_up_last_30d - latest.eps_revisions_down_last_30d;
+    const revisionMomentum = latest.eps_revisions_up_last_30d + latest.eps_revisions_down_last_30d > 0
+      ? (netEpsRevisions / (latest.eps_revisions_up_last_30d + latest.eps_revisions_down_last_30d)) * 100
+      : 0;
+
+    // Trend velocity
+    const ratingChangeVelocity = thirtyDaysAgo.recommendation_mean - latest.recommendation_mean;
+
+    res.json({
+      success: true,
+      symbol,
+      momentum: {
+        sentimentScore: Math.max(0, Math.min(100, sentimentScore)),
+        bullishPercentage: bullishRatio.toFixed(1),
+        bearishPercentage: bearishRatio.toFixed(1),
+        neutralPercentage: (100 - bullishRatio - bearishRatio).toFixed(1),
+        analystCount: latest.total_analysts,
+        averageRating: latest.recommendation_mean.toFixed(2),
+        rating1To5Scale: {
+          1: "Strong Buy",
+          2: "Buy",
+          3: "Hold",
+          4: "Sell",
+          5: "Strong Sell"
+        }
+      },
+      revisions: {
+        epsUpLast30d: latest.eps_revisions_up_last_30d,
+        epsDownLast30d: latest.eps_revisions_down_last_30d,
+        netMomentum: netEpsRevisions,
+        momentumPercent: revisionMomentum.toFixed(1),
+        interpretation: netEpsRevisions > 0 ? "Positive (more ups)" : netEpsRevisions < 0 ? "Negative (more downs)" : "Neutral"
+      },
+      trend: {
+        ratingChangeVelocity: ratingChangeVelocity.toFixed(3),
+        direction: ratingChangeVelocity < -0.01 ? "Improving (more bullish)" : ratingChangeVelocity > 0.01 ? "Deteriorating (more bearish)" : "Stable",
+        interpretation: ratingChangeVelocity < -0.05 ? "Rapidly improving ↗️" : ratingChangeVelocity < 0 ? "Slowly improving →" : ratingChangeVelocity > 0.05 ? "Rapidly deteriorating ↘️" : ratingChangeVelocity > 0 ? "Slowly deteriorating →" : "Stable"
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error(`Analyst momentum error for ${req.params.symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to calculate analyst momentum",
+      details: error.message
+    });
+  }
+});
+
+// GET /:symbol/sentiment-shift - Compare recent sentiment vs longer-term trend
+router.get("/:symbol/sentiment-shift", async (req, res) => {
+  try {
+    const symbol = req.params.symbol.toUpperCase();
+
+    const result = await query(`
+      SELECT
+        date,
+        recommendation_mean,
+        total_analysts,
+        strong_buy_count,
+        buy_count,
+        hold_count,
+        sell_count,
+        strong_sell_count,
+        upgrades_last_30d,
+        downgrades_last_30d
+      FROM analyst_sentiment_analysis
+      WHERE UPPER(symbol) = $1
+        AND date >= CURRENT_DATE - INTERVAL '180 days'
+      ORDER BY date ASC
+    `, [symbol]);
+
+    if (result.rows.length === 0) {
+      return res.json({
+        success: true,
+        symbol,
+        shift: null,
+        message: "No analyst data available"
+      });
+    }
+
+    const data = result.rows;
+    const latest = data[data.length - 1];
+    const sixMonthsAgo = data[0];
+    const threeMonthsAgo = data[Math.floor(data.length * 0.5)];
+    const oneMonthAgo = data[Math.max(0, data.length - 30)];
+
+    const getDistribution = (record) => ({
+      strongBuy: (record.strong_buy_count / record.total_analysts * 100).toFixed(1),
+      buy: (record.buy_count / record.total_analysts * 100).toFixed(1),
+      hold: (record.hold_count / record.total_analysts * 100).toFixed(1),
+      sell: (record.sell_count / record.total_analysts * 100).toFixed(1),
+      strongSell: (record.strong_sell_count / record.total_analysts * 100).toFixed(1)
+    });
+
+    res.json({
+      success: true,
+      symbol,
+      shift: {
+        sixMonthTrend: {
+          startDate: sixMonthsAgo.date,
+          startRating: sixMonthsAgo.recommendation_mean.toFixed(2),
+          startDistribution: getDistribution(sixMonthsAgo),
+          endRating: latest.recommendation_mean.toFixed(2),
+          endDistribution: getDistribution(latest),
+          change: (latest.recommendation_mean - sixMonthsAgo.recommendation_mean).toFixed(3),
+          interpretation: (latest.recommendation_mean - sixMonthsAgo.recommendation_mean) < -0.1 ? "Analysts becoming more bullish" : (latest.recommendation_mean - sixMonthsAgo.recommendation_mean) > 0.1 ? "Analysts becoming more bearish" : "No significant shift"
+        },
+        threeMonthTrend: {
+          startDate: threeMonthsAgo.date,
+          startRating: threeMonthsAgo.recommendation_mean.toFixed(2),
+          endRating: latest.recommendation_mean.toFixed(2),
+          change: (latest.recommendation_mean - threeMonthsAgo.recommendation_mean).toFixed(3),
+          velocity: Math.abs(latest.recommendation_mean - threeMonthsAgo.recommendation_mean) > 0.2 ? "Fast" : "Slow"
+        },
+        recentActivity: {
+          lastMonth: {
+            upgradesCount: latest.upgrades_last_30d,
+            downgradesCount: latest.downgrades_last_30d,
+            netMomentum: latest.upgrades_last_30d - latest.downgrades_last_30d,
+            interpretation: latest.upgrades_last_30d > latest.downgrades_last_30d ? "More upgrades than downgrades" : latest.upgrades_last_30d < latest.downgrades_last_30d ? "More downgrades than upgrades" : "Balanced activity"
+          }
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error(`Sentiment shift error for ${req.params.symbol}:`, error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to calculate sentiment shift",
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;
