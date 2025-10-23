@@ -1943,25 +1943,24 @@ function MarketOverview() {
                             </TableHead>
                             <TableBody>
                               {(seasonalityData?.data.holidayEffects || []).map(
-                                (holiday, index) => (
-                                  <TableRow key={index}>
-                                    <TableCell>{holiday.holiday}</TableCell>
-                                    <TableCell>{holiday.dates}</TableCell>
-                                    <TableCell
-                                      align="right"
-                                      sx={{
-                                        color: getChangeColor(
-                                          parseFloat(
-                                            holiday.effect.replace("%", "")
-                                          )
-                                        ),
-                                        fontWeight: 600,
-                                      }}
-                                    >
-                                      {holiday.effect}
-                                    </TableCell>
-                                  </TableRow>
-                                )
+                                (holiday, index) => {
+                                  const effectValue = holiday.effect ? parseFloat(holiday.effect.replace("%", "")) : 0;
+                                  return (
+                                    <TableRow key={index}>
+                                      <TableCell>{holiday.holiday}</TableCell>
+                                      <TableCell>{holiday.dates}</TableCell>
+                                      <TableCell
+                                        align="right"
+                                        sx={{
+                                          color: getChangeColor(effectValue),
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        {holiday.effect || "N/A"}
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                }
                               )}
                             </TableBody>
                           </Table>

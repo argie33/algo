@@ -924,6 +924,128 @@ const SectorAnalysis = () => {
     return <TrendChart data={trendData} width={90} height={35} />;
   };
 
+  // Component to render industry cards grid with proper state management
+  const IndustryCardsGrid = ({ industries }) => {
+    const [expandedIndustries, setExpandedIndustries] = useState({});
+    const [companiesCache, setCompaniesCache] = useState({});
+    const [loadingIndustries, setLoadingIndustries] = useState({});
+
+    const handleToggleIndustry = async (industryName) => {
+      const isCurrentlyExpanded = expandedIndustries[industryName];
+
+      if (isCurrentlyExpanded) {
+        // Collapse industry
+        setExpandedIndustries(prev => ({
+          ...prev,
+          [industryName]: false
+        }));
+      } else {
+        // Expand industry and fetch companies if not cached
+        setExpandedIndustries(prev => ({
+          ...prev,
+          [industryName]: true
+        }));
+
+        if (!companiesCache[industryName]) {
+          setLoadingIndustries(prev => ({
+            ...prev,
+            [industryName]: true
+          }));
+
+          try {
+            const response = await api.get(`/api/stocks?industry=${encodeURIComponent(industryName)}&limit=5`);
+            setCompaniesCache(prev => ({
+              ...prev,
+              [industryName]: response.data?.data || []
+            }));
+          } catch (err) {
+            console.error(`Failed to fetch companies for ${industryName}:`, err);
+            setCompaniesCache(prev => ({
+              ...prev,
+              [industryName]: []
+            }));
+          } finally {
+            setLoadingIndustries(prev => ({
+              ...prev,
+              [industryName]: false
+            }));
+          }
+        }
+      }
+    };
+
+    return (
+      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 1 }}>
+        {industries
+          .sort((a, b) => {
+            const rankA = a.current_rank || 9999;
+            const rankB = b.current_rank || 9999;
+            return rankA - rankB;
+          })
+          .map((industry) => {
+            const isExpanded = expandedIndustries[industry.industry];
+            const topCompanies = companiesCache[industry.industry] || [];
+            const isLoading = loadingIndustries[industry.industry];
+
+            return (
+              <Box
+                key={industry.industry}
+                sx={{
+                  p: 1.5,
+                  backgroundColor: "background.paper",
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 1,
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                  "&:hover": {
+                    boxShadow: 1,
+                    borderColor: "primary.main",
+                  },
+                }}
+                onClick={() => handleToggleIndustry(industry.industry)}
+              >
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="caption" fontWeight="600" display="block">
+                      #{industry.current_rank || "N/A"}: {industry.industry}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25 }}>
+                      {formatPercentage(industry.performance_1d)} (1D) | {industry.stock_count} stocks
+                    </Typography>
+                  </Box>
+                  <Typography variant="caption" sx={{ ml: 1, color: "primary.main", fontWeight: "bold" }}>
+                    {isExpanded ? "−" : "+"}
+                  </Typography>
+                </Box>
+
+                {isExpanded && (
+                  <Box sx={{ mt: 1.5, pt: 1.5, borderTop: "1px solid", borderColor: "divider" }}>
+                    <Typography variant="caption" fontWeight="bold" display="block" sx={{ mb: 1 }}>
+                      Top Companies:
+                    </Typography>
+                    {isLoading ? (
+                      <Typography variant="caption" color="text.secondary">Loading...</Typography>
+                    ) : topCompanies.length > 0 ? (
+                      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+                        {topCompanies.map((company) => (
+                          <Typography key={company.ticker} variant="caption" color="text.secondary" display="block">
+                            {company.symbol} - {company.fullName?.substring(0, 30)}
+                          </Typography>
+                        ))}
+                      </Box>
+                    ) : (
+                      <Typography variant="caption" color="text.secondary">No companies found</Typography>
+                    )}
+                  </Box>
+                )}
+              </Box>
+            );
+          })}
+      </Box>
+    );
+  };
+
   // Fetch sector performance data (consolidated /api/sectors endpoint)
   const { data: rotationData, isLoading: rotationLoading, error: rotationError } = useQuery({
     queryKey: ["sector-performance"],
@@ -1394,97 +1516,7 @@ const SectorAnalysis = () => {
                             📁 Industries ({sectorIndustries.length})
                           </Typography>
                           {sectorIndustries.length > 0 ? (
-                            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 1 }}>
-                              {sectorIndustries
-                                .sort((a, b) => {
-                                  // Sort by current_rank numerically, NULL values go to the end
-                                  const rankA = a.current_rank || 9999;
-                                  const rankB = b.current_rank || 9999;
-                                  return rankA - rankB;
-                                })
-                                .map((industry, idx) => {
-                                  const [expandedIndustry, setExpandedIndustry] = useState(null);
-                                  const [topCompanies, setTopCompanies] = useState([]);
-                                  const [loadingCompanies, setLoadingCompanies] = useState(false);
-
-                                  const handleToggleCompanies = async () => {
-                                    if (expandedIndustry === industry.industry) {
-                                      setExpandedIndustry(null);
-                                    } else {
-                                      setExpandedIndustry(industry.industry);
-                                      if (topCompanies.length === 0) {
-                                        // Fetch top companies for this industry
-                                        setLoadingCompanies(true);
-                                        try {
-                                          const response = await api.get(`/api/stocks?industry=${encodeURIComponent(industry.industry)}&limit=5`);
-                                          setTopCompanies(response.data?.data || []);
-                                        } catch (err) {
-                                          console.error(`Failed to fetch companies for ${industry.industry}:`, err);
-                                          setTopCompanies([]);
-                                        }
-                                        setLoadingCompanies(false);
-                                      }
-                                    }
-                                  };
-
-                                  const isExpanded = expandedIndustry === industry.industry;
-
-                                  return (
-                                    <Box
-                                      key={idx}
-                                      sx={{
-                                        p: 1.5,
-                                        backgroundColor: "background.paper",
-                                        border: "1px solid",
-                                        borderColor: "divider",
-                                        borderRadius: 1,
-                                        cursor: "pointer",
-                                        transition: "all 0.2s",
-                                        "&:hover": {
-                                          boxShadow: 1,
-                                          borderColor: "primary.main",
-                                        },
-                                      }}
-                                      onClick={handleToggleCompanies}
-                                    >
-                                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                                        <Box sx={{ flex: 1 }}>
-                                          <Typography variant="caption" fontWeight="600" display="block">
-                                            #{industry.current_rank || "N/A"}: {industry.industry}
-                                          </Typography>
-                                          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25 }}>
-                                            {formatPercentage(industry.performance_1d)} (1D) | {industry.stock_count} stocks
-                                          </Typography>
-                                        </Box>
-                                        <Typography variant="caption" sx={{ ml: 1, color: "primary.main", fontWeight: "bold" }}>
-                                          {isExpanded ? "−" : "+"}
-                                        </Typography>
-                                      </Box>
-
-                                      {isExpanded && (
-                                        <Box sx={{ mt: 1.5, pt: 1.5, borderTop: "1px solid", borderColor: "divider" }}>
-                                          <Typography variant="caption" fontWeight="bold" display="block" sx={{ mb: 1 }}>
-                                            Top Companies:
-                                          </Typography>
-                                          {loadingCompanies ? (
-                                            <Typography variant="caption" color="text.secondary">Loading...</Typography>
-                                          ) : topCompanies.length > 0 ? (
-                                            <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-                                              {topCompanies.map((company) => (
-                                                <Typography key={company.ticker} variant="caption" color="text.secondary" display="block">
-                                                  {company.symbol} - {company.fullName?.substring(0, 30)}
-                                                </Typography>
-                                              ))}
-                                            </Box>
-                                          ) : (
-                                            <Typography variant="caption" color="text.secondary">No companies found</Typography>
-                                          )}
-                                        </Box>
-                                      )}
-                                    </Box>
-                                  );
-                                })}
-                            </Box>
+                            <IndustryCardsGrid industries={sectorIndustries} />
                           ) : (
                             <Typography variant="caption" color="text.secondary">
                               No industries available
