@@ -2214,6 +2214,8 @@ router.get("/trend/sector/:sectorName", async (req, res) => {
       `SELECT
         date,
         current_rank as rank,
+        momentum_score,
+        trend,
         TO_CHAR(date, 'MM/DD') as label
       FROM sector_ranking
       WHERE LOWER(sector) = LOWER($1)
@@ -2234,6 +2236,8 @@ router.get("/trend/sector/:sectorName", async (req, res) => {
       trendData: trendData.rows.map(row => ({
         date: row.date,
         rank: row.rank,
+        momentumScore: row.momentum_score,
+        trend: row.trend,
         label: row.label
       }))
     });

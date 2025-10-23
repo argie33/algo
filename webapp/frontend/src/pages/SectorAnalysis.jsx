@@ -34,6 +34,7 @@ import {
   Legend,
   Tooltip,
   LineChart,
+  ComposedChart,
   Line,
 } from "recharts";
 import api from "../services/api";
@@ -490,11 +491,12 @@ const SectorAnalysis = () => {
       );
     }
 
-    // Use only real API data (no fallback)
+    // Use only real API data (no fallback) - include both rank and momentum score
     let history = trendData?.trendData.map(row => ({
       date: row.date,
       label: row.label,
-      rank: row.rank
+      rank: row.rank,
+      momentumScore: row.momentumScore
     }));
 
     // Filter to last 3 months only (same as mini trend charts)
@@ -568,10 +570,10 @@ const SectorAnalysis = () => {
           </Box>
         </Box>
 
-        {/* Ranking Trend Chart */}
+        {/* Ranking Trend Chart - Dual axes for rank vs momentum score */}
         <Box sx={{ width: "100%", height: 300, minHeight: 300 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={history} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+            <ComposedChart data={history} margin={{ top: 5, right: 80, left: 0, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 dataKey="date"
@@ -579,18 +581,36 @@ const SectorAnalysis = () => {
                 interval={Math.floor(history.length / 8)}
                 tickFormatter={formatXAxisDate}
               />
+              {/* Left Y-axis for Rank */}
               <YAxis
+                yAxisId="left"
                 width={50}
                 tick={{ fontSize: 12 }}
                 reversed={true}
                 label={{ value: 'Rank (Lower is Better)', angle: -90, position: 'insideLeft' }}
               />
+              {/* Right Y-axis for Momentum Score */}
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                width={70}
+                tick={{ fontSize: 12 }}
+                label={{ value: 'Momentum Score', angle: 90, position: 'insideRight' }}
+              />
               <Tooltip
-                formatter={(value) => value ? `#${value}` : "N/A"}
+                contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', border: '1px solid #ccc' }}
+                formatter={(value, name) => {
+                  if (name === 'Ranking') {
+                    return [`#${value}`, name];
+                  }
+                  return [value?.toFixed(2), name];
+                }}
                 labelFormatter={(label) => `Date: ${formatXAxisDate(label)}`}
               />
               <Legend />
+              {/* Rank line (left axis, blue) */}
               <Line
+                yAxisId="left"
                 type="monotone"
                 dataKey="rank"
                 stroke="#2196F3"
@@ -599,7 +619,18 @@ const SectorAnalysis = () => {
                 strokeWidth={2}
                 isAnimationActive={false}
               />
-            </LineChart>
+              {/* Momentum Score line (right axis, orange) */}
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="momentumScore"
+                stroke="#FF9800"
+                name="Momentum Score"
+                dot={false}
+                strokeWidth={2}
+                isAnimationActive={false}
+              />
+            </ComposedChart>
           </ResponsiveContainer>
         </Box>
       </Box>

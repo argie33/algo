@@ -832,11 +832,11 @@ const EconomicModeling = () => {
                   <CardContent>
                     {economicData.yieldCurveData?.length > 0 ? (
                       <ResponsiveContainer width="100%" height={500}>
-                        <LineChart data={economicData.yieldCurveData} margin={{ top: 10, right: 30, left: 0, bottom: 40 }}>
+                        <AreaChart data={economicData.yieldCurveData} margin={{ top: 10, right: 30, left: 0, bottom: 40 }}>
                           <defs>
                             <linearGradient id="yieldGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#1976d2" stopOpacity={0.15}/>
-                              <stop offset="100%" stopColor="#1976d2" stopOpacity={0}/>
+                              <stop offset="0%" stopColor="#1976d2" stopOpacity={0.35}/>
+                              <stop offset="100%" stopColor="#1976d2" stopOpacity={0.02}/>
                             </linearGradient>
                           </defs>
                           <XAxis
@@ -884,16 +884,17 @@ const EconomicModeling = () => {
                             opacity={0.5}
                             label={{ value: "2% Level", position: "insideTopRight", offset: -20, fill: "#666", fontSize: 11 }}
                           />
-                          <Line
-                            type="linear"
+                          <Area
+                            type="monotone"
                             dataKey="yield"
                             stroke="#1976d2"
                             strokeWidth={3.5}
+                            fill="url(#yieldGradient)"
                             dot={(props) => SubtleYieldDot(props, theme, "#1976d2")}
                             isAnimationActive={true}
                             name="Yield Curve"
                           />
-                        </LineChart>
+                        </AreaChart>
                       </ResponsiveContainer>
                     ) : (
                       <Alert severity="warning">No yield curve data available</Alert>
