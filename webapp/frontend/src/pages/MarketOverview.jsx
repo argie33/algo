@@ -1099,15 +1099,15 @@ function MarketOverview() {
                         const getSignalColor = (signal) => {
                           switch (signal) {
                             case "NORMAL":
-                              return "success.main";
+                              return theme.palette.success.main;
                             case "ELEVATED":
-                              return "warning.main";
+                              return theme.palette.warning.main;
                             case "CAUTION":
-                              return "warning.dark";
+                              return theme.palette.warning.dark;
                             case "UNDER_PRESSURE":
-                              return "error.main";
+                              return theme.palette.error.main;
                             default:
-                              return "text.secondary";
+                              return theme.palette.text.secondary;
                           }
                         };
 
@@ -1137,7 +1137,7 @@ function MarketOverview() {
                             case "UNDER_PRESSURE":
                               return alpha(theme.palette.error.main, 0.10);
                             default:
-                              return "grey.50";
+                              return theme.palette.grey[50];
                           }
                         };
 
@@ -1152,7 +1152,9 @@ function MarketOverview() {
                               p: 1,
                               borderRadius: 1,
                               backgroundColor: getBackgroundColor(data.signal),
-                              border: `1px solid ${alpha(getSignalColor(data.signal), 0.2)}`,
+                              borderWidth: 1,
+                              borderStyle: "solid",
+                              borderColor: alpha(getSignalColor(data.signal), 0.3),
                             }}
                           >
                             <Box>
