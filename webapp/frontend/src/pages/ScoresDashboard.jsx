@@ -905,11 +905,11 @@ const ScoresDashboard = () => {
                               borderRadius: 1,
                               backgroundColor: alpha(theme.palette.action.disabled, 0.1),
                               "& .MuiLinearProgress-bar": {
-                                backgroundColor: (stock.quality_score ?? 0) >= 80
-                                  ? theme.palette.success.main
-                                  : (stock.quality_score ?? 0) >= 60
+                                backgroundColor: (stock.quality_score ?? 0) < 60
+                                  ? theme.palette.error.main
+                                  : (stock.quality_score ?? 0) < 80
                                   ? theme.palette.warning.main
-                                  : theme.palette.error.main,
+                                  : theme.palette.success.main,
                                 borderRadius: 1,
                               },
                             }}
@@ -936,11 +936,11 @@ const ScoresDashboard = () => {
                               borderRadius: 1,
                               backgroundColor: alpha(theme.palette.action.disabled, 0.1),
                               "& .MuiLinearProgress-bar": {
-                                backgroundColor: (stock.momentum_score ?? 0) >= 80
-                                  ? theme.palette.success.main
-                                  : (stock.momentum_score ?? 0) >= 60
+                                backgroundColor: (stock.momentum_score ?? 0) < 60
+                                  ? theme.palette.error.main
+                                  : (stock.momentum_score ?? 0) < 80
                                   ? theme.palette.warning.main
-                                  : theme.palette.error.main,
+                                  : theme.palette.success.main,
                                 borderRadius: 1,
                               },
                             }}
@@ -968,11 +968,11 @@ const ScoresDashboard = () => {
                                 borderRadius: 1,
                                 backgroundColor: alpha(theme.palette.action.disabled, 0.1),
                                 "& .MuiLinearProgress-bar": {
-                                  backgroundColor: stock.value_score >= 80
-                                    ? theme.palette.success.main
-                                    : stock.value_score >= 60
+                                  backgroundColor: stock.value_score < 60
+                                    ? theme.palette.error.main
+                                    : stock.value_score < 80
                                     ? theme.palette.warning.main
-                                    : theme.palette.error.main,
+                                    : theme.palette.success.main,
                                   borderRadius: 1,
                                 },
                               }}
@@ -1000,11 +1000,11 @@ const ScoresDashboard = () => {
                               borderRadius: 1,
                               backgroundColor: alpha(theme.palette.action.disabled, 0.1),
                               "& .MuiLinearProgress-bar": {
-                                backgroundColor: (stock.growth_score ?? 0) >= 80
-                                  ? theme.palette.success.main
-                                  : (stock.growth_score ?? 0) >= 60
+                                backgroundColor: (stock.growth_score ?? 0) < 60
+                                  ? theme.palette.error.main
+                                  : (stock.growth_score ?? 0) < 80
                                   ? theme.palette.warning.main
-                                  : theme.palette.error.main,
+                                  : theme.palette.success.main,
                                 borderRadius: 1,
                               },
                             }}
@@ -1032,11 +1032,11 @@ const ScoresDashboard = () => {
                                 borderRadius: 1,
                                 backgroundColor: alpha(theme.palette.action.disabled, 0.1),
                                 "& .MuiLinearProgress-bar": {
-                                  backgroundColor: stock.positioning_score >= 80
-                                    ? theme.palette.success.main
-                                    : stock.positioning_score >= 60
+                                  backgroundColor: stock.positioning_score < 60
+                                    ? theme.palette.error.main
+                                    : stock.positioning_score < 80
                                     ? theme.palette.warning.main
-                                    : theme.palette.error.main,
+                                    : theme.palette.success.main,
                                   borderRadius: 1,
                                 },
                               }}
@@ -1095,13 +1095,11 @@ const ScoresDashboard = () => {
                               borderRadius: 1,
                               backgroundColor: alpha(theme.palette.action.disabled, 0.1),
                               "& .MuiLinearProgress-bar": {
-                                backgroundColor: (stock.stability_score || 0) < 30
-                                  ? theme.palette.success.main
-                                  : (stock.stability_score || 0) < 50
-                                  ? theme.palette.warning.main
-                                  : (stock.stability_score || 0) < 70
+                                backgroundColor: (stock.stability_score || 0) < 60
                                   ? theme.palette.error.main
-                                  : theme.palette.error.main,
+                                  : (stock.stability_score || 0) < 80
+                                  ? theme.palette.warning.main
+                                  : theme.palette.success.main,
                                 borderRadius: 1,
                               },
                             }}
@@ -1551,7 +1549,7 @@ const ScoresDashboard = () => {
                                 <Typography variant="h6">Stability Factor Analysis</Typography>
                                 <Chip
                                   label={(stock.stability_score || 0).toFixed(1)}
-                                  color={(stock.stability_score || 0) < 30 ? "success" : (stock.stability_score || 0) < 50 ? "warning" : "error"}
+                                  color={(stock.stability_score || 0) < 60 ? "error" : (stock.stability_score || 0) < 80 ? "warning" : "success"}
                                   size="small"
                                 />
                               </Box>
@@ -1590,7 +1588,7 @@ const ScoresDashboard = () => {
                                     <RechartsTooltip />
                                     <Bar dataKey="value" name="Stability Score">
                                       {[
-                                        <Cell key="stock" fill={(stock.stability_score || 0) < 30 ? theme.palette.success.main : (stock.stability_score || 0) < 50 ? theme.palette.warning.main : theme.palette.error.main} />,
+                                        <Cell key="stock" fill={(stock.stability_score || 0) < 60 ? theme.palette.error.main : (stock.stability_score || 0) < 80 ? theme.palette.warning.main : theme.palette.success.main} />,
                                         <Cell key="sector" fill={theme.palette.primary.main} />,
                                         <Cell key="market" fill={theme.palette.info.light} />
                                       ]}
@@ -2326,7 +2324,7 @@ const ScoresDashboard = () => {
                             <Chip
                               label={stock.composite_score.toFixed(1)}
                               size="small"
-                              color={stock.composite_score >= 80 ? "success" : stock.composite_score >= 60 ? "warning" : "error"}
+                              color={stock.composite_score < 60 ? "error" : stock.composite_score < 80 ? "warning" : "success"}
                             />
                           </TableCell>
                         </TableRow>

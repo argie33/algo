@@ -574,11 +574,11 @@ const EconomicModeling = () => {
                           {indicator.history && indicator.history.length > 1 && (
                             <ResponsiveContainer
                               width="100%"
-                              height={indicator.name === "GDP Growth" ? 280 : 100}
+                              height={indicator.name === "GDP Growth" ? 280 : 120}
                             >
                               <AreaChart
                                 data={indicator.history}
-                                margin={indicator.name === "GDP Growth" ? { top: 10, right: 30, bottom: 30, left: 60 } : { top: 5, right: 10, bottom: 5, left: 10 }}
+                                margin={indicator.name === "GDP Growth" ? { top: 10, right: 30, bottom: 30, left: 60 } : { top: 5, right: 15, bottom: 5, left: 50 }}
                               >
                                 <defs>
                                   <linearGradient id={`grad-${indicator.name}`} x1="0" y1="0" x2="0" y2="1">
@@ -606,7 +606,6 @@ const EconomicModeling = () => {
                                     />
                                   </linearGradient>
                                 </defs>
-                                <CartesianGrid strokeDasharray="2 2" stroke="rgba(0,0,0,0.05)" vertical={false} />
                                 <XAxis
                                   dataKey="date"
                                   hide={indicator.name !== "GDP Growth"}
@@ -622,12 +621,7 @@ const EconomicModeling = () => {
                                     return "";
                                   }}
                                 />
-                                <YAxis
-                                  hide={indicator.name !== "GDP Growth"}
-                                  tick={{ fontSize: 11, fill: "#666" }}
-                                  label={indicator.name === "GDP Growth" ? { value: "Billions $", angle: -90, position: "insideLeft" } : undefined}
-                                  width={indicator.name === "GDP Growth" ? 70 : 0}
-                                />
+                                <YAxis hide />
                                 <Tooltip
                                   formatter={(value) => {
                                     if (indicator.name === "GDP Growth") {
@@ -671,6 +665,77 @@ const EconomicModeling = () => {
                               </AreaChart>
                             </ResponsiveContainer>
                           )}
+
+                          {/* Axis Summary - Show value range and trend */}
+                          {indicator.history && indicator.history.length > 0 && (() => {
+                            const values = indicator.history
+                              .map(h => h.value)
+                              .filter(v => v !== null && !isNaN(v));
+                            if (values.length === 0) return null;
+
+                            const minVal = Math.min(...values);
+                            const maxVal = Math.max(...values);
+                            const currentVal = indicator.rawValue || indicator.value;
+                            const isUp = indicator.history[0]?.value > indicator.history[indicator.history.length - 1]?.value;
+
+                            // Get the unit and formatter
+                            const getUnit = () => {
+                              if (indicator.unit) return indicator.unit;
+                              if (indicator.name.includes("GDP")) return "Billions $";
+                              if (indicator.name.includes("%") || indicator.name.includes("Rate")) return "%";
+                              if (indicator.name.includes("Payroll") || indicator.name.includes("Housing") || indicator.name.includes("Jobless")) return "Thousands";
+                              return "Index";
+                            };
+
+                            const formatValue = (val, unit) => {
+                              if (!val && val !== 0) return "N/A";
+                              if (unit === "%") return `${Number(val).toFixed(2)}%`;
+                              if (unit === "Billions $") return `$${Number(val).toFixed(0)}B`;
+                              if (unit === "Thousands") return `${(Number(val) / 1000).toFixed(1)}K`;
+                              return Number(val).toFixed(2);
+                            };
+
+                            const unit = getUnit();
+
+                            return (
+                              <Box sx={{ mt: 3, p: 2, backgroundColor: "rgba(0,0,0,0.02)", borderRadius: 1 }}>
+                                <Grid container spacing={2}>
+                                  <Grid item xs={6} sm={3}>
+                                    <Typography variant="caption" color="text.secondary" display="block">
+                                      Current
+                                    </Typography>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                                      {formatValue(currentVal, unit)}
+                                    </Typography>
+                                  </Grid>
+                                  <Grid item xs={6} sm={3}>
+                                    <Typography variant="caption" color="text.secondary" display="block">
+                                      Min
+                                    </Typography>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                                      {formatValue(minVal, unit)}
+                                    </Typography>
+                                  </Grid>
+                                  <Grid item xs={6} sm={3}>
+                                    <Typography variant="caption" color="text.secondary" display="block">
+                                      Max
+                                    </Typography>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                                      {formatValue(maxVal, unit)}
+                                    </Typography>
+                                  </Grid>
+                                  <Grid item xs={6} sm={3}>
+                                    <Typography variant="caption" color="text.secondary" display="block">
+                                      Trend
+                                    </Typography>
+                                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: isUp ? theme.palette.success.main : theme.palette.error.main }}>
+                                      {isUp ? "📈 Up" : "📉 Down"}
+                                    </Typography>
+                                  </Grid>
+                                </Grid>
+                              </Box>
+                            );
+                          })()}
 
                           {/* Last Updated & Data Frequency */}
                           {indicator.date && (
@@ -774,7 +839,6 @@ const EconomicModeling = () => {
                               <stop offset="100%" stopColor="#1976d2" stopOpacity={0}/>
                             </linearGradient>
                           </defs>
-                          <CartesianGrid strokeDasharray="2 2" stroke="rgba(0,0,0,0.08)" vertical={true} />
                           <XAxis
                             dataKey="maturity"
                             tick={{ fontSize: 12, fill: "#666" }}
@@ -949,7 +1013,7 @@ const EconomicModeling = () => {
                             />
                           </Box>
                           <Typography variant="caption" color="textSecondary">
-                            Accuracy rate for this curve's signal in predicting economic turns
+                            Accuracy rate for this curve&apos;s signal in predicting economic turns
                           </Typography>
                         </Box>
                       </Grid>

@@ -555,7 +555,12 @@ def process_symbol(symbol, conn_pool):
         # Clean data
         df = df.replace([np.inf, -np.inf], np.nan)
 
+        # Remove duplicate dates (keep the latest/last one)
+        # This prevents "ON CONFLICT DO UPDATE command cannot affect row a second time" error
+        df = df.reset_index().drop_duplicates(subset=['date'], keep='last').set_index('date')
+
         # Prepare batch data efficiently
+        # Use UPSERT to handle any duplicate data gracefully
         insert_q = """
         INSERT INTO technical_data_daily (
           symbol, date,
@@ -567,7 +572,41 @@ def process_symbol(symbol, conn_pool):
           bbands_lower, bbands_middle, bbands_upper,
           pivot_high, pivot_low, pivot_high_triggered, pivot_low_triggered,
           fetched_at
-        ) VALUES %s;
+        ) VALUES %s
+        ON CONFLICT (symbol, date) DO UPDATE SET
+          rsi = EXCLUDED.rsi,
+          macd = EXCLUDED.macd,
+          macd_signal = EXCLUDED.macd_signal,
+          macd_hist = EXCLUDED.macd_hist,
+          mom = EXCLUDED.mom,
+          roc = EXCLUDED.roc,
+          adx = EXCLUDED.adx,
+          plus_di = EXCLUDED.plus_di,
+          minus_di = EXCLUDED.minus_di,
+          atr = EXCLUDED.atr,
+          ad = EXCLUDED.ad,
+          cmf = EXCLUDED.cmf,
+          mfi = EXCLUDED.mfi,
+          td_sequential = EXCLUDED.td_sequential,
+          td_combo = EXCLUDED.td_combo,
+          marketwatch = EXCLUDED.marketwatch,
+          dm = EXCLUDED.dm,
+          sma_10 = EXCLUDED.sma_10,
+          sma_20 = EXCLUDED.sma_20,
+          sma_50 = EXCLUDED.sma_50,
+          sma_150 = EXCLUDED.sma_150,
+          sma_200 = EXCLUDED.sma_200,
+          ema_4 = EXCLUDED.ema_4,
+          ema_9 = EXCLUDED.ema_9,
+          ema_21 = EXCLUDED.ema_21,
+          bbands_lower = EXCLUDED.bbands_lower,
+          bbands_middle = EXCLUDED.bbands_middle,
+          bbands_upper = EXCLUDED.bbands_upper,
+          pivot_high = EXCLUDED.pivot_high,
+          pivot_low = EXCLUDED.pivot_low,
+          pivot_high_triggered = EXCLUDED.pivot_high_triggered,
+          pivot_low_triggered = EXCLUDED.pivot_low_triggered,
+          fetched_at = EXCLUDED.fetched_at;
         """
 
         # Prepare data for bulk insertion

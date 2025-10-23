@@ -1791,10 +1791,12 @@ router.get("/distribution-days", async (req, res) => {
     }
 
     // Get distribution days for major indices
+    // Use MAX(running_count) to get the current running count (since last follow-through day)
+    // This is the proper IBD metric, not total count
     const distributionQuery = `
       SELECT
         symbol,
-        COUNT(*) as count,
+        MAX(running_count) as count,
         json_agg(
           json_build_object(
             'date', date,
@@ -1802,7 +1804,8 @@ router.get("/distribution-days", async (req, res) => {
             'change_pct', change_pct,
             'volume', volume,
             'volume_ratio', volume_ratio,
-            'days_ago', days_ago
+            'days_ago', days_ago,
+            'running_count', running_count
           ) ORDER BY date DESC
         ) as days
       FROM distribution_days
@@ -1829,12 +1832,14 @@ router.get("/distribution-days", async (req, res) => {
       "^DJI": "Dow Jones Industrial Average",
     };
 
-    // Determine signal based on count of distribution days
+    // Determine signal based on RUNNING count of distribution days
+    // This is the IBD methodology - count resets on follow-through days
     const getSignalFromCount = (count) => {
-      if (count <= 2) return "NORMAL";
-      if (count <= 4) return "ELEVATED";
-      if (count <= 5) return "CAUTION";
-      return "UNDER_PRESSURE";
+      if (count <= 2) return "NORMAL";        // 0-2 days: Normal market
+      if (count <= 4) return "WATCH";         // 3-4 days: Watch for weakness
+      if (count <= 7) return "CAUTION";       // 5-7 days: Cautious
+      if (count <= 10) return "WARNING";      // 8-10 days: Market warning
+      return "URGENT";                        // 11+ days: Critical alert
     };
 
     const distributionData = {};
@@ -3843,9 +3848,9 @@ router.get("/leading-indicators", async (req, res) => {
         previous_value
       FROM economic_calendar
       WHERE event_date >= CURRENT_DATE
-        AND event_date <= CURRENT_DATE + INTERVAL '30 days'
+        AND event_date <= CURRENT_DATE + INTERVAL '120 days'
       ORDER BY event_date, event_time
-      LIMIT 20
+      LIMIT 100
     `;
 
     // Execute both queries in parallel
@@ -3856,29 +3861,67 @@ router.get("/leading-indicators", async (req, res) => {
 
     const indicators = {};
     const historicalData = {}; // Store historical data for trends
+    const seriesCount = {};
 
     console.log(`📊 Leading indicators query returned ${result.rows?.length || 0} data points`);
     console.log(`📅 Economic calendar events found: ${calendarResult?.rows?.length || 0}`);
 
-    // Parse the results - organize by series and keep last 20 values for trend analysis
+    // Parse results - group by series and collect historical values
+    // Data-driven limits based on frequency and available data:
+    // - Quarterly (GDP): All points for long history
+    // - Monthly indicators: All/most available points
+    // - Weekly/Daily: Balance between detail and readability
+    const maxHistoricalPoints = {
+      // Quarterly Data (Low frequency = Keep all)
+      'GDPC1': 50,        // GDP: All quarterly releases (~2+ years)
+
+      // Monthly Data (Keep all for trend analysis)
+      'UNRATE': 50,       // Unemployment: ~4+ years available
+      'FEDFUNDS': 50,     // Fed Funds: ~4+ years available
+      'CPIAUCSL': 30,     // CPI: ~2.5 years available
+      'PAYEMS': 30,       // Payroll: ~2+ years available
+      'INDPRO': 25,       // Industrial Production: Recent data only
+      'HOUST': 20,        // Housing Starts: Recent data only
+      'MICH': 20,         // Michigan Sentiment: ~1 year available
+
+      // Weekly/Daily Data (Cap for chart readability)
+      'ICSA': 60,         // Initial Claims: ~1+ year recent
+      'SP500': 50,        // Stock prices: ~1 year daily
+      'VIXCLS': 60,       // VIX: ~10 months daily
+
+      // Yield Curve (Daily data, recent focus)
+      'DGS10': 30,        // 10-Year Treasury: Recent only
+      'DGS2': 30,         // 2-Year Treasury: Recent only
+      'DGS3MO': 30,       // 3-Month Treasury: Recent only
+      'T10Y2Y': 30,       // 2y10y Spread: Derived, recent
+    };
+
     result.rows.forEach((row) => {
-      if (!historicalData[row.series_id]) {
-        historicalData[row.series_id] = [];
+      const sid = row.series_id;
+      const maxPoints = maxHistoricalPoints[sid] || 20;
+
+      // Initialize series if not seen before
+      if (!historicalData[sid]) {
+        historicalData[sid] = [];
+        seriesCount[sid] = 0;
       }
-      // Keep only the last 20 data points for each series
-      if (historicalData[row.series_id].length < 20) {
-        historicalData[row.series_id].push({
-          value: parseFloat(row.value),
-          date: row.date,
-        });
-      }
-      // Latest value (first one since we ordered by date DESC)
-      if (row.rn === 1) {
-        indicators[row.series_id] = {
+
+      // Keep the first occurrence as the latest value
+      if (seriesCount[sid] === 0) {
+        indicators[sid] = {
           value: parseFloat(row.value),
           date: row.date,
         };
-        console.log(`  ✓ ${row.series_id}: ${row.value} (${row.date})`);
+        console.log(`  ✓ ${sid}: ${row.value} (${row.date})`);
+      }
+
+      // Collect historical data points - use series-specific max
+      if (seriesCount[sid] < maxPoints) {
+        historicalData[sid].push({
+          value: parseFloat(row.value),
+          date: row.date,
+        });
+        seriesCount[sid]++;
       }
     });
 

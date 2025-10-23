@@ -220,9 +220,10 @@ router.get("/:sector/stocks", async (req, res) => {
 router.use((req, res, next) => {
   // Skip auth for public endpoints - sectors are PUBLIC DATA
   const publicEndpoints = ["/health", "/", "/performance", "/leaders", "/rotation", "/analysis", "/ranking-history", "/industries/ranking-history", "/sectors-with-history", "/industries-with-history", "/allocation"];
-  const sectorDetailPattern = /^\/[^/]+\/(stocks|details)$/; // matches /:sector/stocks and /:sector/details
+  const sectorDetailPattern = /^\/[^/]+\/(stocks|details|technical-details)$/; // matches /:sector/stocks, /:sector/details, /:sector/technical-details
+  const technicalDetailsPattern = /^\/technical-details\//; // matches /technical-details/sector/... and /technical-details/industry/...
 
-  if (publicEndpoints.includes(req.path) || sectorDetailPattern.test(req.path)) {
+  if (publicEndpoints.includes(req.path) || sectorDetailPattern.test(req.path) || technicalDetailsPattern.test(req.path)) {
     return next();
   }
   // Apply auth to all other routes
@@ -1398,7 +1399,71 @@ router.get("/sectors-with-history", async (req, res) => {
     console.log(`📊 Fetching sectors with history (limit: ${limit})`);
 
     // Query sectors with historical data from the consolidated rankings table + performance metrics
+    // Strategy: Get the most recent date that has the best historical data availability
     const sectorsQuery = `
+      WITH latest_data AS (
+        -- Get the most recent date with actual historical data (not all NULLs)
+        SELECT sr.date,
+               SUM(CASE WHEN sr.rank_1w_ago IS NOT NULL OR sr.rank_4w_ago IS NOT NULL OR sr.rank_12w_ago IS NOT NULL THEN 1 ELSE 0 END) as ranks_with_history
+        FROM sector_ranking sr
+        GROUP BY sr.date
+        ORDER BY ranks_with_history DESC, sr.date DESC
+        LIMIT 1
+      ),
+      sector_prices AS (
+        -- Calculate current sector average prices for latest available date
+        SELECT
+          cp.sector,
+          AVG(pd.close) as avg_close,
+          MAX(pd.date) as latest_date
+        FROM company_profile cp
+        JOIN price_daily pd ON cp.ticker = pd.symbol
+        WHERE cp.sector IS NOT NULL AND cp.sector != ''
+          AND pd.date = (SELECT MAX(date) FROM price_daily)
+        GROUP BY cp.sector
+      ),
+      calculated_performance AS (
+        -- Calculate 1D, 5D, 20D percentages from price data
+        SELECT
+          sp.sector,
+          CASE
+            WHEN pd_1d.avg_close > 0 THEN
+              ((sp.avg_close - pd_1d.avg_close) / pd_1d.avg_close * 100)
+            ELSE NULL
+          END as perf_1d,
+          CASE
+            WHEN pd_5d.avg_close > 0 THEN
+              ((sp.avg_close - pd_5d.avg_close) / pd_5d.avg_close * 100)
+            ELSE NULL
+          END as perf_5d,
+          CASE
+            WHEN pd_20d.avg_close > 0 THEN
+              ((sp.avg_close - pd_20d.avg_close) / pd_20d.avg_close * 100)
+            ELSE NULL
+          END as perf_20d
+        FROM sector_prices sp
+        LEFT JOIN (
+          SELECT cp.sector, AVG(pd.close) as avg_close
+          FROM company_profile cp
+          JOIN price_daily pd ON cp.ticker = pd.symbol
+          WHERE pd.date = (SELECT MAX(date) FROM price_daily) - INTERVAL '1 day'
+          GROUP BY cp.sector
+        ) pd_1d ON sp.sector = pd_1d.sector
+        LEFT JOIN (
+          SELECT cp.sector, AVG(pd.close) as avg_close
+          FROM company_profile cp
+          JOIN price_daily pd ON cp.ticker = pd.symbol
+          WHERE pd.date = (SELECT MAX(date) FROM price_daily) - INTERVAL '5 days'
+          GROUP BY cp.sector
+        ) pd_5d ON sp.sector = pd_5d.sector
+        LEFT JOIN (
+          SELECT cp.sector, AVG(pd.close) as avg_close
+          FROM company_profile cp
+          JOIN price_daily pd ON cp.ticker = pd.symbol
+          WHERE pd.date = (SELECT MAX(date) FROM price_daily) - INTERVAL '20 days'
+          GROUP BY cp.sector
+        ) pd_20d ON sp.sector = pd_20d.sector
+      )
       SELECT DISTINCT ON (sr.sector)
         sr.sector as sector_name,
         sr.current_rank,
@@ -1407,9 +1472,10 @@ router.get("/sectors-with-history", async (req, res) => {
         sr.rank_12w_ago,
         sr.momentum_score as current_momentum,
         sr.trend as current_trend,
-        CAST(sp.performance_1d AS FLOAT) as current_perf_1d,
-        CAST(sp.performance_5d AS FLOAT) as current_perf_5d,
-        CAST(sp.performance_20d AS FLOAT) as current_perf_20d
+        COALESCE(CAST(sp.performance_1d AS FLOAT), CAST(cp.perf_1d AS FLOAT), 0) as current_perf_1d,
+        COALESCE(CAST(sp.performance_5d AS FLOAT), CAST(cp.perf_5d AS FLOAT), 0) as current_perf_5d,
+        COALESCE(CAST(sp.performance_20d AS FLOAT), CAST(cp.perf_20d AS FLOAT), 0) as current_perf_20d,
+        sr.date
       FROM sector_ranking sr
       LEFT JOIN (
         SELECT DISTINCT ON (sector_name)
@@ -1421,6 +1487,9 @@ router.get("/sectors-with-history", async (req, res) => {
         FROM sector_performance
         ORDER BY sector_name, fetched_at DESC
       ) sp ON LOWER(sr.sector) = LOWER(sp.sector_name)
+      LEFT JOIN calculated_performance cp ON sr.sector = cp.sector,
+      latest_data ld
+      WHERE sr.date = ld.date
       ORDER BY sr.sector, sr.date DESC
       LIMIT $1
     `;
@@ -1491,7 +1560,9 @@ router.get("/sectors-with-history", async (req, res) => {
     res.json({
       success: true,
       data: {
-        sectors: result.rows.map(row => {
+        sectors: result.rows
+          .filter(row => row.sector_name && row.sector_name.trim())
+          .map(row => {
           // Convert trend numeric value to text
           let trend = row.current_trend;
           if (typeof trend === 'string' && !isNaN(trend)) {
@@ -1543,11 +1614,75 @@ router.get("/industries-with-history", async (req, res) => {
       });
     }
 
-    const { limit = 50, sortBy = "current_rank" } = req.query;
+    const { limit = 500, sortBy = "current_rank" } = req.query;
     console.log(`🏭 Fetching industries with history (limit: ${limit})`);
 
     // Query industries with historical data + sector mapping + performance metrics
+    // Strategy: Get the most recent date that has the best historical data availability
     const industriesQuery = `
+      WITH latest_data AS (
+        -- Get the most recent date with actual historical data (not all NULLs)
+        SELECT ir.date,
+               SUM(CASE WHEN ir.rank_1w_ago IS NOT NULL OR ir.rank_4w_ago IS NOT NULL OR ir.rank_8w_ago IS NOT NULL THEN 1 ELSE 0 END) as ranks_with_history
+        FROM industry_ranking ir
+        GROUP BY ir.date
+        ORDER BY ranks_with_history DESC, ir.date DESC
+        LIMIT 1
+      ),
+      industry_prices AS (
+        -- Calculate current industry average prices for latest available date
+        SELECT
+          cp.industry,
+          AVG(pd.close) as avg_close,
+          MAX(pd.date) as latest_date
+        FROM company_profile cp
+        JOIN price_daily pd ON cp.ticker = pd.symbol
+        WHERE cp.industry IS NOT NULL AND cp.industry != ''
+          AND pd.date = (SELECT MAX(date) FROM price_daily)
+        GROUP BY cp.industry
+      ),
+      calculated_performance AS (
+        -- Calculate 1D, 5D, 20D percentages from price data
+        SELECT
+          ip.industry,
+          CASE
+            WHEN pd_1d.avg_close > 0 THEN
+              ((ip.avg_close - pd_1d.avg_close) / pd_1d.avg_close * 100)
+            ELSE NULL
+          END as perf_1d,
+          CASE
+            WHEN pd_5d.avg_close > 0 THEN
+              ((ip.avg_close - pd_5d.avg_close) / pd_5d.avg_close * 100)
+            ELSE NULL
+          END as perf_5d,
+          CASE
+            WHEN pd_20d.avg_close > 0 THEN
+              ((ip.avg_close - pd_20d.avg_close) / pd_20d.avg_close * 100)
+            ELSE NULL
+          END as perf_20d
+        FROM industry_prices ip
+        LEFT JOIN (
+          SELECT cp.industry, AVG(pd.close) as avg_close
+          FROM company_profile cp
+          JOIN price_daily pd ON cp.ticker = pd.symbol
+          WHERE pd.date = (SELECT MAX(date) FROM price_daily) - INTERVAL '1 day'
+          GROUP BY cp.industry
+        ) pd_1d ON ip.industry = pd_1d.industry
+        LEFT JOIN (
+          SELECT cp.industry, AVG(pd.close) as avg_close
+          FROM company_profile cp
+          JOIN price_daily pd ON cp.ticker = pd.symbol
+          WHERE pd.date = (SELECT MAX(date) FROM price_daily) - INTERVAL '5 days'
+          GROUP BY cp.industry
+        ) pd_5d ON ip.industry = pd_5d.industry
+        LEFT JOIN (
+          SELECT cp.industry, AVG(pd.close) as avg_close
+          FROM company_profile cp
+          JOIN price_daily pd ON cp.ticker = pd.symbol
+          WHERE pd.date = (SELECT MAX(date) FROM price_daily) - INTERVAL '20 days'
+          GROUP BY cp.industry
+        ) pd_20d ON ip.industry = pd_20d.industry
+      )
       SELECT DISTINCT ON (ir.industry)
         ir.industry,
         COALESCE(cp.sector, 'Unknown') as sector,
@@ -1558,9 +1693,10 @@ router.get("/industries-with-history", async (req, res) => {
         ir.momentum_score as momentum,
         ir.trend,
         ir.stock_count,
-        CAST(ip.performance_1d AS FLOAT) as performance_1d,
-        CAST(ip.performance_5d AS FLOAT) as performance_5d,
-        CAST(ip.performance_20d AS FLOAT) as performance_20d
+        COALESCE(CAST(ip.performance_1d AS FLOAT), CAST(cp_calc.perf_1d AS FLOAT), 0) as performance_1d,
+        COALESCE(CAST(ip.performance_5d AS FLOAT), CAST(cp_calc.perf_5d AS FLOAT), 0) as performance_5d,
+        COALESCE(CAST(ip.performance_20d AS FLOAT), CAST(cp_calc.perf_20d AS FLOAT), 0) as performance_20d,
+        ir.date
       FROM industry_ranking ir
       LEFT JOIN (
         SELECT DISTINCT sector, industry FROM company_profile
@@ -1576,6 +1712,9 @@ router.get("/industries-with-history", async (req, res) => {
         FROM industry_performance
         ORDER BY industry, fetched_at DESC
       ) ip ON LOWER(ir.industry) = LOWER(ip.industry)
+      LEFT JOIN calculated_performance cp_calc ON ir.industry = cp_calc.industry,
+      latest_data ld
+      WHERE ir.date = ld.date
       ORDER BY ir.industry, ir.date DESC
       LIMIT $1
     `;
@@ -1641,7 +1780,9 @@ router.get("/industries-with-history", async (req, res) => {
     res.json({
       success: true,
       data: {
-        industries: result.rows.map(row => ({
+        industries: result.rows
+          .filter(row => row.industry && row.industry.trim())
+          .map(row => ({
           industry: row.industry,
           sector: row.sector,
           current_rank: row.current_rank,
@@ -1660,7 +1801,7 @@ router.get("/industries-with-history", async (req, res) => {
           perf_20d_1w_ago: row.perf_20d_1w_ago,
         })),
         summary: {
-          total_industries: result.rows.length
+          total_industries: result.rows.filter(row => row.industry && row.industry.trim()).length
         }
       },
       timestamp: new Date().toISOString(),
@@ -2055,5 +2196,274 @@ function formatRankingResponse(rankingsByPeriod, type) {
     };
   });
 }
+
+// Trend Data Endpoints - Return historical rankings for charting
+router.get("/trend/sector/:sectorName", async (req, res) => {
+  try {
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service unavailable"
+      });
+    }
+
+    const { sectorName } = req.params;
+
+    // Get all historical rankings for this sector, ordered by date
+    const trendData = await query(
+      `SELECT
+        date,
+        current_rank as rank,
+        TO_CHAR(date, 'MM/DD') as label
+      FROM sector_ranking
+      WHERE LOWER(sector) = LOWER($1)
+      ORDER BY date ASC`,
+      [sectorName]
+    );
+
+    if (!trendData.rows.length) {
+      return res.status(404).json({
+        success: false,
+        error: "Sector not found or no trend data available"
+      });
+    }
+
+    res.json({
+      success: true,
+      sector: sectorName,
+      trendData: trendData.rows.map(row => ({
+        date: row.date,
+        rank: row.rank,
+        label: row.label
+      }))
+    });
+  } catch (error) {
+    console.error("Sector trend endpoint error:", error.message);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch sector trend data",
+      details: error.message
+    });
+  }
+});
+
+router.get("/trend/industry/:industryName", async (req, res) => {
+  try {
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service unavailable"
+      });
+    }
+
+    const { industryName } = req.params;
+
+    // Get all historical rankings for this industry, ordered by date
+    const trendData = await query(
+      `SELECT
+        date,
+        current_rank as rank,
+        TO_CHAR(date, 'MM/DD') as label
+      FROM industry_ranking
+      WHERE LOWER(industry) = LOWER($1)
+      ORDER BY date ASC`,
+      [industryName]
+    );
+
+    if (!trendData.rows.length) {
+      return res.status(404).json({
+        success: false,
+        error: "Industry not found or no trend data available"
+      });
+    }
+
+    res.json({
+      success: true,
+      industry: industryName,
+      trendData: trendData.rows.map(row => ({
+        date: row.date,
+        rank: row.rank,
+        label: row.label
+      }))
+    });
+  } catch (error) {
+    console.error("Industry trend endpoint error:", error.message);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch industry trend data",
+      details: error.message
+    });
+  }
+});
+
+/**
+ * GET /technical-details/sector/:sectorName
+ * Get detailed technical analysis with moving averages for a sector
+ * Returns 200 days of price history with calculated MAs and technical indicators
+ */
+router.get("/technical-details/sector/:sectorName", async (req, res) => {
+  try {
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service unavailable"
+      });
+    }
+
+    const { sectorName } = req.params;
+    console.log(`📈 Fetching technical details for sector: ${sectorName}`);
+
+    // Query pre-calculated technical data from database
+    // Get the most recent 200 records by ordering DESC and reversing for chronological display
+    const priceHistoryQuery = `
+      SELECT
+        TO_CHAR(date, 'YYYY-MM-DD') as date,
+        ROUND(CAST(close_price AS NUMERIC), 2) as close,
+        ROUND(CAST(ma_20 AS NUMERIC), 2) as ma_20,
+        ROUND(CAST(ma_50 AS NUMERIC), 2) as ma_50,
+        ROUND(CAST(ma_200 AS NUMERIC), 2) as ma_200,
+        ROUND(CAST(volume AS NUMERIC), 0) as volume,
+        rsi
+      FROM sector_technical_data
+      WHERE sector = $1
+      ORDER BY date DESC
+      LIMIT 200
+    `;
+
+    const priceData = await query(priceHistoryQuery, [sectorName]);
+    // Reverse to get chronological order (oldest to newest left to right)
+    priceData.rows.reverse();
+
+    if (!priceData.rows.length) {
+      return res.status(404).json({
+        success: false,
+        error: "No technical data available for sector"
+      });
+    }
+
+    // Get summary metrics from latest data
+    const latestData = priceData.rows[priceData.rows.length - 1];
+    const currentPrice = parseFloat(latestData.close);
+    const ma20 = latestData.ma_20 ? parseFloat(latestData.ma_20) : currentPrice;
+    const ma50 = latestData.ma_50 ? parseFloat(latestData.ma_50) : currentPrice;
+    const ma200 = latestData.ma_200 ? parseFloat(latestData.ma_200) : currentPrice;
+    const rsi = latestData.rsi ? parseFloat(latestData.rsi) : null;
+
+    res.json({
+      success: true,
+      sector: sectorName,
+      summary: {
+        current_price: currentPrice,
+        ma_20: ma20,
+        ma_50: ma50,
+        ma_200: ma200,
+        rsi: rsi ? Math.round(rsi * 100) / 100 : null,
+        price_vs_ma20: currentPrice > ma20 ? 'Above' : currentPrice < ma20 ? 'Below' : 'At',
+        price_vs_ma200: currentPrice > ma200 ? 'Above' : currentPrice < ma200 ? 'Below' : 'At'
+      },
+      history: priceData.rows.map(row => ({
+        date: row.date,
+        close: parseFloat(row.close),
+        ma_20: row.ma_20 ? parseFloat(row.ma_20) : null,
+        ma_50: row.ma_50 ? parseFloat(row.ma_50) : null,
+        ma_200: row.ma_200 ? parseFloat(row.ma_200) : null,
+        volume: parseInt(row.volume)
+      })),
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Sector technical details error:", error.message);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch technical details",
+      details: error.message
+    });
+  }
+});
+
+/**
+ * GET /technical-details/industry/:industryName
+ * Get detailed technical analysis with moving averages for an industry
+ * Returns 200 days of price history with calculated MAs
+ */
+router.get("/technical-details/industry/:industryName", async (req, res) => {
+  try {
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service unavailable"
+      });
+    }
+
+    const { industryName } = req.params;
+    console.log(`📈 Fetching technical details for industry: ${industryName}`);
+
+    // Query pre-calculated technical data from database
+    // Get the most recent 200 records by ordering DESC and reversing for chronological display
+    const priceHistoryQuery = `
+      SELECT
+        TO_CHAR(date, 'YYYY-MM-DD') as date,
+        ROUND(CAST(close_price AS NUMERIC), 2) as close,
+        ROUND(CAST(ma_20 AS NUMERIC), 2) as ma_20,
+        ROUND(CAST(ma_50 AS NUMERIC), 2) as ma_50,
+        ROUND(CAST(ma_200 AS NUMERIC), 2) as ma_200,
+        ROUND(CAST(volume AS NUMERIC), 0) as volume,
+        rsi
+      FROM industry_technical_data
+      WHERE industry = $1
+      ORDER BY date DESC
+      LIMIT 200
+    `;
+
+    const priceData = await query(priceHistoryQuery, [industryName]);
+    // Reverse to get chronological order (oldest to newest left to right)
+    priceData.rows.reverse();
+
+    if (!priceData.rows.length) {
+      return res.status(404).json({
+        success: false,
+        error: "No technical data available for industry"
+      });
+    }
+
+    // Get summary metrics from latest data
+    const latestData = priceData.rows[priceData.rows.length - 1];
+    const currentPrice = parseFloat(latestData.close);
+    const ma20 = latestData.ma_20 ? parseFloat(latestData.ma_20) : currentPrice;
+    const ma50 = latestData.ma_50 ? parseFloat(latestData.ma_50) : currentPrice;
+    const ma200 = latestData.ma_200 ? parseFloat(latestData.ma_200) : currentPrice;
+    const rsi = latestData.rsi ? parseFloat(latestData.rsi) : null;
+
+    res.json({
+      success: true,
+      industry: industryName,
+      summary: {
+        current_price: currentPrice,
+        ma_20: ma20,
+        ma_50: ma50,
+        ma_200: ma200,
+        rsi: rsi ? Math.round(rsi * 100) / 100 : null,
+        price_vs_ma20: currentPrice > ma20 ? 'Above' : currentPrice < ma20 ? 'Below' : 'At',
+        price_vs_ma200: currentPrice > ma200 ? 'Above' : currentPrice < ma200 ? 'Below' : 'At'
+      },
+      history: priceData.rows.map(row => ({
+        date: row.date,
+        close: parseFloat(row.close),
+        ma_20: row.ma_20 ? parseFloat(row.ma_20) : null,
+        ma_50: row.ma_50 ? parseFloat(row.ma_50) : null,
+        ma_200: row.ma_200 ? parseFloat(row.ma_200) : null,
+        volume: parseInt(row.volume)
+      })),
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Industry technical details error:", error.message);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch technical details",
+      details: error.message
+    });
+  }
+});
 
 module.exports = router;

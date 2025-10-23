@@ -357,6 +357,10 @@ const SectorAnalysis = () => {
           data={data}
           margin={{ top: 2, right: 2, bottom: 2, left: 0 }}
         >
+          <YAxis
+            hide={true}
+            reversed={true}
+          />
           <Tooltip
             contentStyle={{
               backgroundColor: "#fff",

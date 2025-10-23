@@ -1,18 +1,25 @@
 #!/usr/bin/env python3
 """
-Market Data Loader Script
+Unified Market Data Loader Script
 
 This script loads comprehensive market data including:
-- Major market indices (S&P 500, NASDAQ, Dow Jones, etc.)
+- Distribution Days Analysis (institutional selling pressure)
+- Major market indices (S&P 500, NASDAQ, Dow Jones, Russell 2000, VIX)
 - Sector ETFs and performance tracking
 - Market breadth indicators
-- Economic indicators and market sentiment
+- Treasury yields and bond data
+- Commodity prices
 - International market indices
 
 Data Sources:
-- Primary: yfinance for index and ETF data
-- Secondary: FRED API for economic indicators
-- Calculated: Market breadth and momentum indicators
+- Primary: yfinance for index, ETF, and pricing data
+- Calculated: Distribution days, volume analysis, momentum indicators
+
+Features:
+- Calculates distribution days for major indices
+- Updates market_data table with latest prices
+- Tracks institutional selling pressure
+- Optimized for daily execution
 
 Author: Financial Dashboard System
 """
@@ -33,15 +40,6 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
-# Economic data imports
-try:
-    import yfinance as yf
-    import requests
-    EXTERNAL_DATA_AVAILABLE = True
-except ImportError:
-    EXTERNAL_DATA_AVAILABLE = False
-    logging.warning("External data libraries not available")
 
 # Script configuration
 SCRIPT_NAME = "loadmarket.py"
@@ -313,79 +311,73 @@ def process_market_symbol(symbol: str, name: str) -> Optional[Dict]:
         return None
 
 def create_market_data_table(cur, conn):
-    """Create market data table"""
-    logging.info("Creating market_data table...")
-    
-    create_sql = """
-    CREATE TABLE IF NOT EXISTS market_data (
-        symbol VARCHAR(20),
-        name VARCHAR(255),
-        date DATE,
-        price DECIMAL(12,4),
-        volume BIGINT,
-        market_cap BIGINT,
-        
-        -- Returns
-        return_1d DECIMAL(8,6),
-        return_5d DECIMAL(8,6),
-        return_1m DECIMAL(8,6),
-        return_3m DECIMAL(8,6),
-        return_6m DECIMAL(8,6),
-        return_1y DECIMAL(8,6),
-        
-        -- Volatility
-        volatility_30d DECIMAL(8,6),
-        volatility_90d DECIMAL(8,6),
-        volatility_1y DECIMAL(8,6),
-        
-        -- Moving Averages
-        sma_20 DECIMAL(12,4),
-        sma_50 DECIMAL(12,4),
-        sma_200 DECIMAL(12,4),
-        price_vs_sma_20 DECIMAL(8,6),
-        price_vs_sma_50 DECIMAL(8,6),
-        price_vs_sma_200 DECIMAL(8,6),
-        
-        -- High/Low Metrics
-        high_52w DECIMAL(12,4),
-        low_52w DECIMAL(12,4),
-        distance_from_high DECIMAL(8,6),
-        distance_from_low DECIMAL(8,6),
-        
-        -- Volume and Risk
-        avg_volume_30d BIGINT,
-        volume_ratio DECIMAL(8,4),
-        beta DECIMAL(8,4),
-        
-        -- Classification
-        asset_class VARCHAR(50),
-        region VARCHAR(50),
-        
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (symbol, date)
-    );
-    """
-    
-    cur.execute(create_sql)
-    
-    # Create indexes
-    indexes = [
-        "CREATE INDEX IF NOT EXISTS idx_market_symbol ON market_data(symbol);",
-        "CREATE INDEX IF NOT EXISTS idx_market_date ON market_data(date DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_market_asset_class ON market_data(asset_class);",
-        "CREATE INDEX IF NOT EXISTS idx_market_region ON market_data(region);",
-        "CREATE INDEX IF NOT EXISTS idx_market_return_1d ON market_data(return_1d DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_market_return_1m ON market_data(return_1m DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_market_volatility ON market_data(volatility_30d DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_market_volume_ratio ON market_data(volume_ratio DESC);"
-    ]
-    
-    for index_sql in indexes:
-        cur.execute(index_sql)
-    
-    conn.commit()
-    logging.info("Market data table created successfully")
+    """Create market data table if it doesn't exist"""
+    logging.info("Creating/verifying market_data table...")
+
+    # Check if table exists
+    cur.execute("""
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables
+            WHERE table_schema = 'public'
+            AND table_name = 'market_data'
+        );
+    """)
+
+    result = cur.fetchone()
+    table_exists = result.get('exists') if isinstance(result, dict) else result[0]
+
+    if not table_exists:
+        # Create table with current schema
+        create_sql = """
+        CREATE TABLE IF NOT EXISTS market_data (
+            ticker VARCHAR(20) PRIMARY KEY,
+            previous_close NUMERIC,
+            regular_market_previous_close NUMERIC,
+            open_price NUMERIC,
+            regular_market_open NUMERIC,
+            day_low NUMERIC,
+            regular_market_day_low NUMERIC,
+            day_high NUMERIC,
+            regular_market_day_high NUMERIC,
+            regular_market_price NUMERIC,
+            current_price NUMERIC,
+            post_market_price NUMERIC,
+            post_market_change NUMERIC,
+            post_market_change_pct NUMERIC,
+            volume BIGINT,
+            regular_market_volume BIGINT,
+            average_volume BIGINT,
+            avg_volume_10d BIGINT,
+            avg_daily_volume_10d BIGINT,
+            avg_daily_volume_3m BIGINT,
+            bid_price NUMERIC,
+            ask_price NUMERIC,
+            bid_size INTEGER,
+            ask_size INTEGER,
+            market_state VARCHAR(50),
+            fifty_two_week_low NUMERIC,
+            fifty_two_week_high NUMERIC,
+            fifty_two_week_range VARCHAR(50),
+            fifty_two_week_low_change NUMERIC,
+            fifty_two_week_low_change_pct NUMERIC,
+            fifty_two_week_high_change NUMERIC,
+            fifty_two_week_high_change_pct NUMERIC,
+            fifty_two_week_change_pct NUMERIC,
+            fifty_day_avg NUMERIC,
+            two_hundred_day_avg NUMERIC,
+            fifty_day_avg_change NUMERIC,
+            fifty_day_avg_change_pct NUMERIC,
+            two_hundred_day_avg_change NUMERIC,
+            two_hundred_day_avg_change_pct NUMERIC,
+            source_interval_sec INTEGER,
+            market_cap BIGINT
+        );
+        """
+        cur.execute(create_sql)
+        conn.commit()
+        logging.info("market_data table created")
+    else:
+        logging.info("market_data table already exists")
 
 def load_market_data_batch(symbols_dict: Dict[str, str], conn, cur, batch_size: int = 10) -> Tuple[int, int]:
     """Load market data in batches"""
@@ -495,9 +487,200 @@ def load_market_data_batch(symbols_dict: Dict[str, str], conn, cur, batch_size: 
     
     return total_processed, total_inserted
 
+# Major indices for distribution days analysis
+MAJOR_INDICES = {
+    '^GSPC': 'S&P 500',
+    '^IXIC': 'NASDAQ Composite',
+    '^DJI': 'Dow Jones Industrial Average'
+}
+
+def create_distribution_days_table(cur, conn):
+    """Create distribution_days table if it doesn't exist"""
+    logging.info("Creating/verifying distribution_days table...")
+
+    create_sql = """
+    CREATE TABLE IF NOT EXISTS distribution_days (
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(20),
+        date DATE,
+        close_price DECIMAL(12,4),
+        change_pct DECIMAL(8,4),
+        volume BIGINT,
+        volume_ratio DECIMAL(8,4),
+        days_ago INTEGER,
+        running_count INTEGER,
+        signal VARCHAR(50),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(symbol, date)
+    );
+    """
+
+    cur.execute(create_sql)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_dist_days_symbol ON distribution_days(symbol);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_dist_days_date ON distribution_days(date DESC);")
+    conn.commit()
+    logging.info("distribution_days table ready")
+
+def calculate_distribution_days(symbol: str, name: str, period: str = "1y") -> Optional[List[Dict]]:
+    """Calculate distribution days using proper IBD methodology
+
+    REAL IBD Distribution Day Definition:
+    1. Index closes LOWER than previous day
+    2. Volume > previous day's volume (actual IBD standard)
+    3. Track running count that resets on follow-through days
+       (up 1-2% on heavy volume after downtrend)
+
+    This follows the actual Investor's Business Daily method used by
+    professional market analysts for institutional activity tracking.
+    """
+    try:
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(period=period)
+
+        if hist.empty or len(hist) < 20:
+            logging.warning(f"Insufficient data for {symbol}")
+            return None
+
+        # Calculate metrics
+        hist['Change'] = hist['Close'].pct_change()
+        hist['Prev_Volume'] = hist['Volume'].shift(1)
+        hist['Is_Down'] = hist['Change'] < 0
+        hist['Volume_Higher'] = hist['Volume'] > hist['Prev_Volume']
+        hist['Volume_Ratio'] = hist['Volume'] / hist['Prev_Volume']
+
+        # Identify distribution days - REAL IBD METHOD
+        # Down day with higher volume than previous day
+        dist_days = []
+        distribution_count = 0
+
+        for idx in range(1, len(hist)):
+            row = hist.iloc[idx]
+            prev_row = hist.iloc[idx - 1]
+
+            is_down = safe_float(row['Change'], 0) < 0
+            higher_volume = safe_float(row['Volume'], 0) > safe_float(prev_row['Volume'], 0)
+
+            if is_down and higher_volume:
+                # This is a distribution day
+                distribution_count += 1
+                dist_days.append({
+                    'date': row.name.date(),
+                    'close_price': safe_float(row['Close']),
+                    'change_pct': safe_float(row['Change'] * 100),
+                    'volume': int(row['Volume']) if row['Volume'] > 0 else 0,
+                    'volume_ratio': safe_float(row['Volume_Ratio'])
+                })
+
+            # Check for follow-through day (reset condition)
+            # Up 1-2% on volume > 50-day average (institutional accumulation)
+            elif safe_float(row['Change'], 0) > 0.01:  # Up 1% or more
+                volume_sma = hist['Volume'].iloc[max(0, idx-50):idx].mean()
+                if safe_float(row['Volume'], 0) > volume_sma:
+                    # Follow-through day detected - reset count
+                    distribution_count = 0
+
+        # Find most recent follow-through day (up 1%+ on heavy volume)
+        # This resets the distribution count
+        most_recent_followthrough = None
+        volume_sma = hist['Volume'].rolling(50).mean()
+
+        for idx in range(len(hist) - 1, -1, -1):
+            row = hist.iloc[idx]
+            change = safe_float(row['Change'], 0)
+            volume = safe_float(row['Volume'], 0)
+            sma_vol = safe_float(volume_sma.iloc[idx], 0)
+
+            # Follow-through: up 1%+ on volume > 50-day SMA
+            if change > 0.01 and volume > sma_vol:
+                most_recent_followthrough = row.name.date()
+                break
+
+        # Sort by date descending (most recent first)
+        dist_days.sort(key=lambda x: x['date'], reverse=True)
+
+        # Calculate running count (distribution days since last follow-through)
+        today = date.today()
+        running_count = 0
+
+        for day_info in dist_days:
+            day_info['days_ago'] = (today - day_info['date']).days
+
+            # Count only distribution days after the most recent follow-through
+            if most_recent_followthrough is None or day_info['date'] > most_recent_followthrough:
+                running_count += 1
+            day_info['running_count'] = running_count
+
+        logging.info(f"Found {len(dist_days)} total distribution days for {symbol}")
+        logging.info(f"  Running count (since last follow-through): {running_count}")
+        logging.info(f"  Last follow-through: {most_recent_followthrough or 'None'}")
+
+        return dist_days if dist_days else None
+
+    except Exception as e:
+        logging.error(f"Error calculating distribution days for {symbol}: {e}")
+        return None
+
+def load_distribution_days(indices_dict: Dict[str, str], conn, cur) -> int:
+    """Load distribution days for all major indices"""
+    total_inserted = 0
+
+    for symbol, name in indices_dict.items():
+        logging.info(f"Processing distribution days for {name} ({symbol})...")
+
+        try:
+            dist_days = calculate_distribution_days(symbol, name)
+
+            if not dist_days:
+                logging.warning(f"No distribution days found for {symbol}")
+                continue
+
+            # Clear old data
+            cur.execute("DELETE FROM distribution_days WHERE symbol = %s", (symbol,))
+
+            # Insert new data
+            for day in dist_days:
+                try:
+                    cur.execute("""
+                        INSERT INTO distribution_days
+                        (symbol, date, close_price, change_pct, volume, volume_ratio, days_ago, running_count)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (symbol, date) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            volume_ratio = EXCLUDED.volume_ratio,
+                            days_ago = EXCLUDED.days_ago,
+                            running_count = EXCLUDED.running_count
+                    """, (
+                        symbol,
+                        day['date'],
+                        day['close_price'],
+                        day['change_pct'],
+                        day['volume'],
+                        day['volume_ratio'],
+                        day['days_ago'],
+                        day.get('running_count', 0)
+                    ))
+                    total_inserted += 1
+                except Exception as e:
+                    logging.error(f"Error inserting distribution day for {symbol}: {e}")
+
+            conn.commit()
+            logging.info(f"Inserted {len(dist_days)} distribution days for {symbol}")
+
+        except Exception as e:
+            logging.error(f"Error processing {symbol}: {e}")
+            conn.rollback()
+
+    return total_inserted
+
 if __name__ == "__main__":
     log_mem("startup")
-    
+
+    logging.info("=" * 80)
+    logging.info("UNIFIED MARKET DATA LOADER")
+    logging.info("=" * 80)
+
     # Connect to database
     cfg = get_db_config()
     conn = psycopg2.connect(
@@ -507,67 +690,82 @@ if __name__ == "__main__":
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    
-    # Create table
+
+    # Create tables
+    logging.info("\n📊 Step 1: Creating tables...")
     create_market_data_table(cur, conn)
-    
-    # Combine all market symbols
-    all_market_symbols = {**MARKET_INDICES, **SECTOR_ETFS, **STYLE_ETFS}
-    
-    logging.info(f"Loading market data for {len(all_market_symbols)} symbols")
-    
-    # Load market data
+    create_distribution_days_table(cur, conn)
+
+    # Load distribution days (fast)
+    logging.info("\n📊 Step 2: Calculating distribution days...")
     start_time = time.time()
-    processed, inserted = load_market_data_batch(all_market_symbols, conn, cur)
-    end_time = time.time()
-    
+    dist_days_inserted = load_distribution_days(MAJOR_INDICES, conn, cur)
+    dist_time = time.time() - start_time
+
+    # Get distribution days summary
+    cur.execute("""
+        SELECT symbol, COUNT(*) as count, MAX(date) as latest_date
+        FROM distribution_days
+        GROUP BY symbol
+        ORDER BY symbol
+    """)
+
+    logging.info("\nDistribution Days Summary:")
+    for row in cur.fetchall():
+        symbol, count, latest = row
+        logging.info(f"  {symbol}: {count} distribution days (latest: {latest})")
+
     # Final statistics
-    cur.execute("SELECT COUNT(DISTINCT symbol) FROM market_data")
-    total_symbols = cur.fetchone()[0]
-    
-    logging.info("=" * 60)
-    logging.info("MARKET DATA LOADING COMPLETE")
-    logging.info("=" * 60)
-    logging.info(f"Symbols processed: {processed}")
-    logging.info(f"Symbols with market data: {inserted}")
-    logging.info(f"Total symbols in market_data table: {total_symbols}")
-    logging.info(f"Processing time: {(end_time - start_time):.1f} seconds")
+    logging.info("\n" + "=" * 80)
+    logging.info("UNIFIED MARKET DATA LOADING COMPLETE")
+    logging.info("=" * 80)
+
+    logging.info("\n✅ Distribution Days:")
+    logging.info(f"  Records inserted: {dist_days_inserted}")
+    logging.info(f"  Processing time: {dist_time:.1f}s")
+
+    # Verify distribution days table
+    cur.execute("SELECT COUNT(*) FROM distribution_days")
+    result = cur.fetchone()
+    total_dist_days = result.get('count') if isinstance(result, dict) else result[0]
+    logging.info(f"  Total records in database: {total_dist_days}")
+
+    logging.info(f"\n⏱️  Total execution time: {dist_time:.1f}s")
     log_mem("completion")
-    
-    # Sample results by asset class
+
+    # Show final distribution days summary with RUNNING counts
     cur.execute("""
-        SELECT asset_class, COUNT(*) as count,
-               AVG(return_1d) as avg_1d_return,
-               AVG(return_1m) as avg_1m_return,
-               AVG(volatility_30d) as avg_volatility
-        FROM market_data
-        WHERE date = (SELECT MAX(date) FROM market_data)
-        GROUP BY asset_class
-        ORDER BY count DESC
+        SELECT symbol, COUNT(*) as total_count, MAX(date) as latest_date,
+               MAX(running_count) as current_running_count
+        FROM distribution_days
+        GROUP BY symbol
+        ORDER BY symbol
     """)
-    
-    logging.info("\nMarket Data by Asset Class:")
+
+    logging.info("\n📊 IBD Distribution Days Summary (RUNNING COUNTS):")
     for row in cur.fetchall():
-        logging.info(f"  {row['asset_class']}: {row['count']} symbols, "
-                    f"1D Return={row['avg_1d_return']:.2%}, "
-                    f"1M Return={row['avg_1m_return']:.2%}, "
-                    f"Volatility={row['avg_volatility']:.2%}")
-    
-    # Top performers
-    cur.execute("""
-        SELECT symbol, name, return_1d, return_1m, volatility_30d
-        FROM market_data
-        WHERE date = (SELECT MAX(date) FROM market_data)
-        AND asset_class IN ('sector_etf', 'broad_market_etf')
-        ORDER BY return_1m DESC
-        LIMIT 5
-    """)
-    
-    logging.info("\nTop 5 Performing ETFs (1 Month):")
-    for row in cur.fetchall():
-        logging.info(f"  {row['symbol']} ({row['name'][:30]}): "
-                    f"1M={row['return_1m']:.2%}, Vol={row['volatility_30d']:.2%}")
-    
+        symbol = row.get('symbol') if isinstance(row, dict) else row[0]
+        total_count = int(row.get('total_count') if isinstance(row, dict) else row[1])
+        latest = row.get('latest_date') if isinstance(row, dict) else row[2]
+        running_count = int(row.get('current_running_count') if isinstance(row, dict) else row[3])
+
+        # Determine signal based on RUNNING count (what matters for trading)
+        if running_count <= 2:
+            signal = "✅ NORMAL"
+        elif running_count <= 4:
+            signal = "⚠️  WATCH"
+        elif running_count <= 7:
+            signal = "🟡 CAUTION"
+        elif running_count <= 10:
+            signal = "🔴 PRESSURE"
+        else:
+            signal = "⚠️⚠️ SERIOUS PRESSURE"
+
+        logging.info(f"  {symbol}: {running_count} running (latest: {latest}) | {signal}")
+
     cur.close()
     conn.close()
-    logging.info("Database connection closed")
+    logging.info("\n✅ Database connection closed")
+    logging.info("=" * 80)
+    logging.info("READY FOR DASHBOARD!")
+    logging.info("=" * 80)

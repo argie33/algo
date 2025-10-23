@@ -28,6 +28,8 @@ router.get("/", async (req, res) => {
 
     // Query stock_scores with LEFT JOINs to metric tables
     // Fetches scores and detailed metrics from actual metric tables
+    // CRITICAL FIX: Filter time-series tables to use LATEST data for each symbol
+    // (quality_metrics, growth_metrics, positioning_metrics, risk_metrics have multiple rows per symbol by date)
     let stocksQuery = `
       SELECT
         ss.symbol,
@@ -89,13 +91,13 @@ router.get("/", async (req, res) => {
         CAST(ss.value_inputs->>'market_ps' AS NUMERIC) as market_ps,
         CAST(ss.value_inputs->>'market_fcf_yield' AS NUMERIC) as market_fcf_yield,
         CAST(ss.value_inputs->>'market_dividend_yield' AS NUMERIC) as market_dividend_yield,
-        -- Positioning metrics
+        -- Positioning metrics (from latest date)
         pos.institutional_ownership,
         pos.insider_ownership,
         pos.short_percent_of_float,
         pos.short_ratio,
         pos.institution_count,
-        -- Quality metrics from quality_metrics table
+        -- Quality metrics from quality_metrics table (from latest date)
         qm.return_on_equity_pct,
         qm.return_on_assets_pct,
         qm.gross_margin_pct,
@@ -109,7 +111,7 @@ router.get("/", async (req, res) => {
         qm.earnings_surprise_avg,
         qm.eps_growth_stability,
         qm.payout_ratio,
-        -- Growth metrics from growth_metrics table
+        -- Growth metrics from growth_metrics table (from latest date)
         gm.revenue_growth_3y_cagr,
         gm.eps_growth_3y_cagr,
         gm.operating_income_growth_yoy,
@@ -132,17 +134,36 @@ router.get("/", async (req, res) => {
         NULL::NUMERIC as price_vs_52w_high,
         NULL::NUMERIC as high_52w,
         NULL::NUMERIC as volatility_12m,
-        -- Risk metrics from risk_metrics table
+        -- Risk metrics from risk_metrics table (from latest date)
         rm.volatility_12m_pct,
         NULL::NUMERIC as volatility_risk_component,
         NULL::NUMERIC as max_drawdown_52w_pct,
         rm.beta
       FROM stock_scores ss
       LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
-      LEFT JOIN quality_metrics qm ON ss.symbol = qm.symbol
-      LEFT JOIN growth_metrics gm ON ss.symbol = gm.symbol
-      LEFT JOIN positioning_metrics pos ON ss.symbol = pos.symbol
-      LEFT JOIN risk_metrics rm ON ss.symbol = rm.symbol
+      -- CRITICAL: Time-series tables have multiple dates per symbol
+      -- Use LATERAL joins to get ONLY the latest date for each symbol
+      -- This ensures frontend displays exactly one row per symbol
+      LEFT JOIN LATERAL (
+        SELECT * FROM quality_metrics
+        WHERE symbol = ss.symbol
+        ORDER BY date DESC LIMIT 1
+      ) qm ON true
+      LEFT JOIN LATERAL (
+        SELECT * FROM growth_metrics
+        WHERE symbol = ss.symbol
+        ORDER BY date DESC LIMIT 1
+      ) gm ON true
+      LEFT JOIN LATERAL (
+        SELECT * FROM positioning_metrics
+        WHERE symbol = ss.symbol
+        ORDER BY date DESC LIMIT 1
+      ) pos ON true
+      LEFT JOIN LATERAL (
+        SELECT * FROM risk_metrics
+        WHERE symbol = ss.symbol
+        ORDER BY date DESC LIMIT 1
+      ) rm ON true
     `;
 
     const queryParams = [];
@@ -155,8 +176,8 @@ router.get("/", async (req, res) => {
       paramIndex++;
     }
 
-    stocksQuery += ` ORDER BY ss.composite_score DESC NULLS LAST`;
-    // No LIMIT or OFFSET - return all results for frontend filtering
+    // Sort by composite score (DISTINCT ON is no longer needed since LATERAL joins guarantee one row per symbol)
+    stocksQuery += ` ORDER BY ss.composite_score DESC NULLS LAST, ss.symbol`;
 
     const stocksResult = await query(stocksQuery, queryParams);
 

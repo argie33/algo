@@ -95,10 +95,9 @@ if (typeof process === "undefined" || process.env.NODE_ENV !== "test") {
 }
 
 // Create API instance - test-safe
-// IMPORTANT: In development, use relative paths so vite proxy can intercept
-// In production, use absolute URL
+// IMPORTANT: Always use absolute URL to backend for reliable proxying
 let api = axios.create({
-  baseURL: currentConfig.isDevelopment ? "" : currentConfig.baseURL, // Empty string = relative paths for vite proxy
+  baseURL: currentConfig.baseURL, // Always use absolute URL to backend (http://localhost:3001 or production URL)
   timeout: currentConfig.isServerless ? 45000 : 30000, // Longer timeout for Lambda cold starts
   headers: {
     "Content-Type": "application/json",

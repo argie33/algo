@@ -389,42 +389,59 @@ router.get("/calendar", async (req, res) => {
       `📅 Economic calendar requested - start: ${start_date}, end: ${end_date}, importance: ${importance}, country: ${country}`
     );
 
-    // Since we don't have a dedicated calendar table, simulate with economic data releases
-    // Map importance filter to our simulated data
-    const importanceLevel = importance ? importance.toLowerCase() : null;
-    let importanceFilter = 'medium'; // default
-    if (importanceLevel === 'high') importanceFilter = 'high';
-    if (importanceLevel === 'low') importanceFilter = 'low';
+    // Build WHERE clause dynamically
+    let whereClause = "WHERE event_date >= COALESCE(NULLIF($1, '')::date, CURRENT_DATE)";
+    const queryParams = [start_date];
+    let paramCount = 1;
+
+    if (end_date) {
+      paramCount++;
+      whereClause += ` AND event_date <= NULLIF($${paramCount}, '')::date`;
+      queryParams.push(end_date);
+    }
+
+    if (importance) {
+      paramCount++;
+      whereClause += ` AND importance = $${paramCount}`;
+      queryParams.push(importance);
+    }
+
+    if (country) {
+      paramCount++;
+      whereClause += ` AND country = $${paramCount}`;
+      queryParams.push(country);
+    }
 
     const calendarResult = await query(
       `
       SELECT
-        series_id as event_name,
-        date as event_date,
-        value as forecast_value,
-        CASE
-          WHEN $3 = 'high' THEN 'high'
-          WHEN $3 = 'low' THEN 'low'
-          ELSE 'medium'
-        END as importance,
-        'US' as country,
-        'Data Release' as event_type
-      FROM economic_data
-      WHERE date >= COALESCE(NULLIF($1, '')::date, CURRENT_DATE - INTERVAL '30 days')
-        AND date <= COALESCE(NULLIF($2, '')::date, CURRENT_DATE + INTERVAL '30 days')
-        AND ($3 IS NULL OR $3 = '' OR
-             ($3 = 'high' AND series_id IN ('FEDFUNDS', 'UNRATE', 'CPIAUCSL')) OR
-             ($3 = 'medium' AND series_id IN ('GDPC1', 'VIXCLS')) OR
-             ($3 = 'low' AND series_id IN ('GDP', 'CPI')))
-      ORDER BY date DESC
+        event_id,
+        event_name,
+        country,
+        category,
+        importance,
+        event_date,
+        event_time,
+        timezone,
+        forecast_value,
+        previous_value,
+        actual_value,
+        unit,
+        frequency,
+        source,
+        description
+      FROM economic_calendar
+      ${whereClause}
+      ORDER BY event_date ASC, event_time ASC
       LIMIT 100
     `,
-      [start_date, end_date, importanceLevel]
+      queryParams
     );
 
     res.json({
       success: true,
       data: calendarResult.rows || [],
+      events: calendarResult.rows || [],
       period: {
         start: start_date || "auto",
         end: end_date || "auto"
@@ -438,7 +455,7 @@ router.get("/calendar", async (req, res) => {
       error: "Failed to fetch economic calendar data",
       message: error.message,
       details:
-        "Economic calendar data is not available. Please ensure the economic_data table exists and is populated.",
+        "Economic calendar data is not available. Please ensure the economic_calendar table exists and is populated.",
     });
   }
 });

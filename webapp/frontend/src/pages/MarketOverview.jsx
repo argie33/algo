@@ -1100,10 +1100,22 @@ function MarketOverview() {
                           switch (signal) {
                             case "NORMAL":
                               return theme.palette.success.main;
+                            case "WATCH":
+                              return theme.palette.info.main;
                             case "ELEVATED":
                               return theme.palette.warning.main;
                             case "CAUTION":
                               return theme.palette.warning.dark;
+                            case "WARNING":
+                              return theme.palette.error.main;
+                            case "URGENT":
+                              return theme.palette.error.dark;
+                            case "PRESSURE":
+                              return theme.palette.error.main;
+                            case "OMFG!!!":
+                              return theme.palette.error.dark;
+                            case "SERIOUS_PRESSURE":
+                              return theme.palette.error.dark;
                             case "UNDER_PRESSURE":
                               return theme.palette.error.main;
                             default:
@@ -1115,10 +1127,22 @@ function MarketOverview() {
                           switch (signal) {
                             case "NORMAL":
                               return "success";
+                            case "WATCH":
+                              return "info";
                             case "ELEVATED":
                               return "warning";
                             case "CAUTION":
                               return "warning";
+                            case "WARNING":
+                              return "error";
+                            case "URGENT":
+                              return "error";
+                            case "PRESSURE":
+                              return "error";
+                            case "OMFG!!!":
+                              return "error";
+                            case "SERIOUS_PRESSURE":
+                              return "error";
                             case "UNDER_PRESSURE":
                               return "error";
                             default:
@@ -1130,10 +1154,22 @@ function MarketOverview() {
                           switch (signal) {
                             case "NORMAL":
                               return alpha(theme.palette.success.main, 0.08);
+                            case "WATCH":
+                              return alpha(theme.palette.info.main, 0.08);
                             case "ELEVATED":
                               return alpha(theme.palette.warning.main, 0.08);
                             case "CAUTION":
                               return alpha(theme.palette.warning.main, 0.12);
+                            case "WARNING":
+                              return alpha(theme.palette.error.main, 0.10);
+                            case "URGENT":
+                              return alpha(theme.palette.error.main, 0.15);
+                            case "PRESSURE":
+                              return alpha(theme.palette.error.main, 0.10);
+                            case "OMFG!!!":
+                              return alpha(theme.palette.error.main, 0.15);
+                            case "SERIOUS_PRESSURE":
+                              return alpha(theme.palette.error.main, 0.12);
                             case "UNDER_PRESSURE":
                               return alpha(theme.palette.error.main, 0.10);
                             default:

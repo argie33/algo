@@ -44,106 +44,107 @@ def get_db_connection():
         sys.exit(1)
 
 def load_company_profile(symbols, cur, conn):
-    """Load company profile data for all symbols from Yahoo Finance"""
+    """Load company profile data for all symbols from Yahoo Finance with aggressive rate limiting"""
     total = len(symbols)
     logger.info(f"Loading company profile data for {total} symbols")
+    logger.info(f"Rate limiting: 1.5 second delay between symbols to avoid API timeouts")
     processed = 0
     failed = []
-    CHUNK_SIZE = 20
-    PAUSE = 0.1
-    batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
-    for batch_idx in range(batches):
-        batch = symbols[batch_idx * CHUNK_SIZE:(batch_idx + 1) * CHUNK_SIZE]
-        yq_batch = [s.replace('.', '-').replace('$', '-').upper() for s in batch]
-        mapping = dict(zip(yq_batch, batch))
+    # Use per-symbol processing with aggressive rate limiting (NOT batching)
+    # This prevents yfinance API rate limiting that causes timeouts
+    RATE_LIMIT_DELAY = 1.5
 
-        logger.info(f"Processing batch {batch_idx + 1}/{batches} ({len(batch)} symbols)")
+    for idx, orig_sym in enumerate(symbols, 1):
+        yq_sym = orig_sym.replace('.', '-').replace('$', '-').upper()
 
-        for yq_sym, orig_sym in mapping.items():
-            info = None
-            for attempt in range(1, 4):
-                try:
-                    ticker = yf.Ticker(yq_sym)
-                    info = ticker.info
-                    if not info:
-                        raise ValueError("No info data received")
-                    break
-                except Exception as e:
-                    logger.warning(f"Attempt {attempt}/3 for {orig_sym}: {e}")
-                    if attempt == 3:
-                        failed.append(orig_sym)
-                    else:
-                        time.sleep(0.2)
+        if idx % 100 == 0:
+            logger.info(f"Processing {idx}/{total} symbols...")
 
-            if info is None:
-                logger.error(f"Failed to get info for {orig_sym} after 3 retries, skipping")
-                continue
-
+        info = None
+        for attempt in range(1, 4):
             try:
-                # Insert into company_profile table - 44 fields
-                cur.execute("""
-                    INSERT INTO company_profile (
-                        ticker, short_name, long_name, display_name, quote_type,
-                        symbol_type, triggerable, has_pre_post_market_data, price_hint,
-                        max_age_sec, language, region, financial_currency, currency,
-                        market, quote_source_name, custom_price_alert_confidence,
-                        address1, city, state, postal_code, country, phone_number,
-                        website_url, ir_website_url, message_board_id, corporate_actions,
-                        sector, sector_key, sector_disp, industry, industry_key,
-                        industry_disp, business_summary, employee_count,
-                        first_trade_date_ms, gmt_offset_ms, exchange,
-                        full_exchange_name, exchange_timezone_name,
-                        exchange_timezone_short_name, exchange_data_delayed_by_sec,
-                        post_market_time_ms, regular_market_time_ms
-                    ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s, %s
-                    )
-                    ON CONFLICT (ticker) DO UPDATE SET
-                        short_name = EXCLUDED.short_name,
-                        long_name = EXCLUDED.long_name,
-                        sector = EXCLUDED.sector,
-                        industry = EXCLUDED.industry
-                """, (
-                    orig_sym, info.get('shortName'), info.get('longName'),
-                    info.get('displayName'), info.get('quoteType'),
-                    info.get('symbolType'), info.get('triggerable'),
-                    info.get('hasPrePostMarketData'), info.get('priceHint'),
-                    info.get('maxAge'), info.get('language'), info.get('region'),
-                    info.get('financialCurrency'), info.get('currency'),
-                    info.get('market'), info.get('quoteSourceName'),
-                    info.get('customPriceAlertConfidence'),
-                    info.get('address1'), info.get('city'), info.get('state'),
-                    info.get('zip'), info.get('country'), info.get('phone'),
-                    info.get('website'), info.get('irWebsite'),
-                    info.get('messageBoardId'), None,
-                    info.get('sector'), info.get('sectorKey'),
-                    info.get('sectorDisp'), info.get('industry'),
-                    info.get('industryKey'), info.get('industryDisp'),
-                    info.get('longBusinessSummary'), info.get('fullTimeEmployees'),
-                    info.get('firstTradeDateEpochUtc'), info.get('gmtOffSetMilliseconds'),
-                    info.get('exchange'), info.get('fullExchangeName'),
-                    info.get('exchangeTimezoneName'),
-                    info.get('exchangeTimezoneShortName'),
-                    info.get('exchangeDataDelayedBy'),
-                    info.get('postMarketTime'), info.get('regularMarketTime')
-                ))
-
-                conn.commit()
-                processed += 1
-                if processed % 100 == 0:
-                    logger.info(f"✅ Processed {processed}/{total} symbols")
-
+                ticker = yf.Ticker(yq_sym)
+                info = ticker.info
+                if not info:
+                    raise ValueError("No info data received")
+                break
             except Exception as e:
-                logger.error(f"Failed to process {orig_sym}: {str(e)}")
-                failed.append(orig_sym)
-                conn.rollback()
+                logger.warning(f"Attempt {attempt}/3 for {orig_sym}: {str(e)[:60]}")
+                if attempt == 3:
+                    failed.append(orig_sym)
+                else:
+                    time.sleep(0.5)  # Wait before retry
 
-        time.sleep(PAUSE)
+        if info is None:
+            logger.error(f"Failed to get info for {orig_sym} after 3 retries, skipping")
+            time.sleep(RATE_LIMIT_DELAY)
+            continue
+
+        try:
+            # Insert into company_profile table - 44 fields
+            cur.execute("""
+                INSERT INTO company_profile (
+                    ticker, short_name, long_name, display_name, quote_type,
+                    symbol_type, triggerable, has_pre_post_market_data, price_hint,
+                    max_age_sec, language, region, financial_currency, currency,
+                    market, quote_source_name, custom_price_alert_confidence,
+                    address1, city, state, postal_code, country, phone_number,
+                    website_url, ir_website_url, message_board_id, corporate_actions,
+                    sector, sector_key, sector_disp, industry, industry_key,
+                    industry_disp, business_summary, employee_count,
+                    first_trade_date_ms, gmt_offset_ms, exchange,
+                    full_exchange_name, exchange_timezone_name,
+                    exchange_timezone_short_name, exchange_data_delayed_by_sec,
+                    post_market_time_ms, regular_market_time_ms
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s
+                )
+                ON CONFLICT (ticker) DO UPDATE SET
+                    short_name = EXCLUDED.short_name,
+                    long_name = EXCLUDED.long_name,
+                    sector = EXCLUDED.sector,
+                    industry = EXCLUDED.industry
+            """, (
+                orig_sym, info.get('shortName'), info.get('longName'),
+                info.get('displayName'), info.get('quoteType'),
+                info.get('symbolType'), info.get('triggerable'),
+                info.get('hasPrePostMarketData'), info.get('priceHint'),
+                info.get('maxAge'), info.get('language'), info.get('region'),
+                info.get('financialCurrency'), info.get('currency'),
+                info.get('market'), info.get('quoteSourceName'),
+                info.get('customPriceAlertConfidence'),
+                info.get('address1'), info.get('city'), info.get('state'),
+                info.get('zip'), info.get('country'), info.get('phone'),
+                info.get('website'), info.get('irWebsite'),
+                info.get('messageBoardId'), None,
+                info.get('sector'), info.get('sectorKey'),
+                info.get('sectorDisp'), info.get('industry'),
+                info.get('industryKey'), info.get('industryDisp'),
+                info.get('longBusinessSummary'), info.get('fullTimeEmployees'),
+                info.get('firstTradeDateEpochUtc'), info.get('gmtOffSetMilliseconds'),
+                info.get('exchange'), info.get('fullExchangeName'),
+                info.get('exchangeTimezoneName'),
+                info.get('exchangeTimezoneShortName'),
+                info.get('exchangeDataDelayedBy'),
+                info.get('postMarketTime'), info.get('regularMarketTime')
+            ))
+
+            conn.commit()
+            processed += 1
+            if processed % 100 == 0:
+                logger.info(f"✅ Processed {processed}/{total} symbols")
+
+        except Exception as e:
+            logger.error(f"Failed to process {orig_sym}: {str(e)}")
+            failed.append(orig_sym)
+            conn.rollback()
+
+        time.sleep(RATE_LIMIT_DELAY)
 
     return total, processed, failed
 
