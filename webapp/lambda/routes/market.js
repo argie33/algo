@@ -2551,139 +2551,67 @@ router.get("/seasonality", async (req, res) => {
       // Continue without SPY data - chart will still work with historical bars
     }
 
-    // 2. MONTHLY SEASONALITY
-    const monthlySeasonality = [
-      {
-        month: 1,
-        name: "January",
-        avgReturn: 1.2,
-        description: "January Effect - small cap outperformance",
-        cumulativeSPTypicalYear: 1.2,
-      },
-      {
-        month: 2,
-        name: "February",
-        avgReturn: 0.4,
-        description: "Typically weak month",
-        cumulativeSPTypicalYear: 1.6,
-      },
-      {
-        month: 3,
-        name: "March",
-        avgReturn: 1.1,
-        description: "End of Q1 rebalancing",
-        cumulativeSPTypicalYear: 2.7,
-      },
-      {
-        month: 4,
-        name: "April",
-        avgReturn: 1.6,
-        description: "Strong historical performance",
-        cumulativeSPTypicalYear: 4.3,
-      },
-      {
-        month: 5,
-        name: "May",
-        avgReturn: 0.2,
-        description: "Sell in May and go away begins",
-        cumulativeSPTypicalYear: 4.5,
-      },
-      {
-        month: 6,
-        name: "June",
-        avgReturn: 0.1,
-        description: "FOMC meeting impacts",
-        cumulativeSPTypicalYear: 4.6,
-      },
-      {
-        month: 7,
-        name: "July",
-        avgReturn: 1.2,
-        description: "Summer rally potential",
-        cumulativeSPTypicalYear: 5.8,
-      },
-      {
-        month: 8,
-        name: "August",
-        avgReturn: -0.1,
-        description: "Vacation month - low volume",
-        cumulativeSPTypicalYear: 5.7,
-      },
-      {
-        month: 9,
-        name: "September",
-        avgReturn: -0.7,
-        description: "Historically worst month",
-        cumulativeSPTypicalYear: 5.0,
-      },
-      {
-        month: 10,
-        name: "October",
-        avgReturn: 0.8,
-        description: "Volatility and opportunity",
-        cumulativeSPTypicalYear: 5.8,
-      },
-      {
-        month: 11,
-        name: "November",
-        avgReturn: 1.8,
-        description: "Holiday rally begins",
-        cumulativeSPTypicalYear: 7.6,
-      },
-      {
-        month: 12,
-        name: "December",
-        avgReturn: 1.6,
-        description: "Santa Claus rally",
-        cumulativeSPTypicalYear: 9.2,
-      },
-    ].map((m, index) => {
-      // Add cumulative S&P for current year from monthlySpPerformance
-      let cumulativeSPCurrentYear = null;
-      if (monthlySpPerformance && monthlySpPerformance[index]) {
-        cumulativeSPCurrentYear = monthlySpPerformance[index].ytd;
-      }
-      return {
-        ...m,
+    // 2. MONTHLY SEASONALITY - Calculate from actual SPY data
+    // NO hardcoded values - only use real data from database
+    let monthlySeasonality = [];
+
+    if (monthlySpPerformance && monthlySpPerformance.length > 0) {
+      const monthNames = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+      ];
+
+      monthlySeasonality = monthlySpPerformance.map((m) => ({
+        month: m.month,
+        name: m.name,
+        avgReturn: m.mtd, // Real current year monthly return
         isCurrent: m.month === currentMonth,
-        cumulativeSPCurrentYear: cumulativeSPCurrentYear,
+        cumulativeSPCurrentYear: m.ytd, // Real YTD performance
+        description: m.mtd !== null
+          ? `${m.mtd >= 0 ? "+" : ""}${m.mtd.toFixed(2)}% (current year)`
+          : "No data yet for this month",
+      }));
+    } else {
+      // Return error - no real data available
+      return res.status(503).json({
+        success: false,
+        error: "Monthly seasonality data unavailable",
+        message: "Market data loaders must run first. Execute: python loadtechnicalsdaily.py",
+        details: "benchmark_index_history table requires SPY price history data",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // 3. QUARTERLY PATTERNS - Calculate from monthly data
+    const quarterlySeasonality = [
+      { quarter: 1, months: [1, 2, 3], name: "Q1", months_display: "Jan-Mar" },
+      { quarter: 2, months: [4, 5, 6], name: "Q2", months_display: "Apr-Jun" },
+      { quarter: 3, months: [7, 8, 9], name: "Q3", months_display: "Jul-Sep" },
+      { quarter: 4, months: [10, 11, 12], name: "Q4", months_display: "Oct-Dec" },
+    ].map((q) => {
+      const quarterMonths = monthlySeasonality.filter((m) =>
+        q.months.includes(m.month)
+      );
+      const validReturns = quarterMonths
+        .filter((m) => m.avgReturn !== null)
+        .map((m) => m.avgReturn);
+
+      const avgReturn =
+        validReturns.length > 0
+          ? (validReturns.reduce((a, b) => a + b, 0) / validReturns.length).toFixed(2)
+          : null;
+
+      return {
+        quarter: q.quarter,
+        name: q.name,
+        months: q.months_display,
+        avgReturn: avgReturn ? parseFloat(avgReturn) : null,
+        isCurrent: Math.ceil(currentMonth / 3) === q.quarter,
+        description: avgReturn
+          ? `${avgReturn >= 0 ? "+" : ""}${avgReturn}% average (current year data)`
+          : "Insufficient quarterly data",
       };
     });
-
-    // 3. QUARTERLY PATTERNS
-    const quarterlySeasonality = [
-      {
-        quarter: 1,
-        name: "Q1",
-        months: "Jan-Mar",
-        avgReturn: 2.7,
-        description: "New year optimism, earnings season",
-      },
-      {
-        quarter: 2,
-        name: "Q2",
-        months: "Apr-Jun",
-        avgReturn: 1.9,
-        description: "Spring rally, then summer doldrums",
-      },
-      {
-        quarter: 3,
-        name: "Q3",
-        months: "Jul-Sep",
-        avgReturn: 0.4,
-        description: "Summer volatility, September weakness",
-      },
-      {
-        quarter: 4,
-        name: "Q4",
-        months: "Oct-Dec",
-        avgReturn: 4.2,
-        description: "Holiday rally, year-end positioning",
-      },
-    ].map((q) => ({
-      ...q,
-      isCurrent: Math.ceil(currentMonth / 3) === q.quarter,
-    }));
 
     // 4. INTRADAY PATTERNS
     const intradayPatterns = {
@@ -2710,209 +2638,185 @@ router.get("/seasonality", async (req, res) => {
       },
     };
 
-    // 5. DAY OF WEEK EFFECTS
+    // 5. DAY OF WEEK EFFECTS - Note: These require detailed historical analysis
+    // Cannot be determined from aggregated monthly data. Would require daily returns analysis.
     const dowEffects = [
       {
         day: "Monday",
-        avgReturn: -0.18,
-        description: "Monday Blues - weekend news impact",
+        isCurrent:
+          currentDate.toLocaleDateString("en-US", { weekday: "long" }) === "Monday",
+        description: "Data pending - requires historical daily returns",
       },
-      { day: "Tuesday", avgReturn: 0.04, description: "Neutral performance" },
-      { day: "Wednesday", avgReturn: 0.02, description: "Mid-week stability" },
-      { day: "Thursday", avgReturn: 0.03, description: "Slight positive bias" },
+      {
+        day: "Tuesday",
+        isCurrent:
+          currentDate.toLocaleDateString("en-US", { weekday: "long" }) === "Tuesday",
+        description: "Data pending - requires historical daily returns",
+      },
+      {
+        day: "Wednesday",
+        isCurrent:
+          currentDate.toLocaleDateString("en-US", { weekday: "long" }) === "Wednesday",
+        description: "Data pending - requires historical daily returns",
+      },
+      {
+        day: "Thursday",
+        isCurrent:
+          currentDate.toLocaleDateString("en-US", { weekday: "long" }) === "Thursday",
+        description: "Data pending - requires historical daily returns",
+      },
       {
         day: "Friday",
-        avgReturn: 0.08,
-        description: "TGIF effect - short covering",
-      },
-    ].map((d) => ({
-      ...d,
-      isCurrent:
-        d.day === currentDate.toLocaleDateString("en-US", { weekday: "long" }),
-    }));
-
-    // 6. SECTOR ROTATION CALENDAR
-    const sectorSeasonality = [
-      {
-        sector: "Technology",
-        bestMonths: [4, 10, 11],
-        worstMonths: [8, 9],
-        rationale: "Earnings cycles, back-to-school",
-        monthlyReturns: [0.8, 0.2, 0.5, 2.1, 0.3, -0.2, 1.0, -0.8, -1.2, 1.5, 2.3, 1.8],
-      },
-      {
-        sector: "Healthcare",
-        bestMonths: [1, 2, 3],
-        worstMonths: [7, 8],
-        rationale: "Defensive play, budget cycles",
-        monthlyReturns: [1.5, 0.8, 1.0, 0.3, 0.2, 0.4, -0.2, -0.6, 0.1, 0.5, 0.3, 0.7],
-      },
-      {
-        sector: "Financials",
-        bestMonths: [12, 1, 6],
-        worstMonths: [8, 9],
-        rationale: "Rate environment, year-end",
-        monthlyReturns: [1.3, 0.6, 0.8, 1.2, 0.5, 1.1, 0.4, -0.6, -0.9, 0.7, 0.9, 1.6],
-      },
-      {
-        sector: "Consumer Discretionary",
-        bestMonths: [10, 11, 12],
-        worstMonths: [2, 3],
-        rationale: "Holiday shopping season, discretionary spending",
-        monthlyReturns: [1.1, -0.5, -0.8, 0.9, 0.4, 0.2, 0.6, -0.3, -0.5, 1.2, 2.1, 1.9],
-      },
-      {
-        sector: "Industrials",
-        bestMonths: [3, 4, 11],
-        worstMonths: [5, 8],
-        rationale: "Economic cycle exposure, seasonal shipping",
-        monthlyReturns: [0.5, 0.3, 1.2, 1.8, -0.3, -0.2, 0.6, -0.4, -0.2, 0.9, 1.5, 1.1],
-      },
-      {
-        sector: "Consumer Staples",
-        bestMonths: [9, 10, 12],
-        worstMonths: [4, 5],
-        rationale: "Defensive demand, holiday gift-giving",
-        monthlyReturns: [0.3, 0.2, 0.4, -0.2, -0.4, 0.1, 0.2, 0.3, 0.8, 0.7, 0.9, 1.0],
-      },
-      {
-        sector: "Energy",
-        bestMonths: [5, 6, 7],
-        worstMonths: [11, 12, 1],
-        rationale: "Driving season demand",
-        monthlyReturns: [-0.5, 0.1, 0.3, 1.2, 1.8, 1.5, 1.3, 0.2, -0.4, 0.6, -0.8, -1.2],
-      },
-      {
-        sector: "Utilities",
-        bestMonths: [8, 9, 10],
-        worstMonths: [4, 5],
-        rationale: "Defensive rotation periods",
-        monthlyReturns: [0.2, 0.3, 0.4, -0.3, -0.5, 0.0, 0.1, 0.7, 0.6, 0.8, 0.2, 0.3],
-      },
-      {
-        sector: "Real Estate",
-        bestMonths: [6, 7, 11],
-        worstMonths: [1, 2],
-        rationale: "Summer activity, yield strategies, tax considerations",
-        monthlyReturns: [-0.3, -0.2, 0.1, 0.4, 0.3, 1.2, 1.1, 0.8, 0.2, 0.6, 1.0, 0.7],
-      },
-      {
-        sector: "Materials",
-        bestMonths: [3, 4, 10],
-        worstMonths: [7, 8],
-        rationale: "Economic cycle, commodity prices, seasonal demand",
-        monthlyReturns: [0.6, 0.4, 1.5, 1.6, 0.2, -0.1, -0.5, -0.8, 0.3, 1.2, 0.9, 0.5],
-      },
-      {
-        sector: "Communication Services",
-        bestMonths: [1, 2, 11],
-        worstMonths: [5, 6],
-        rationale: "Ad spending cycles, entertainment seasonality",
-        monthlyReturns: [1.2, 0.9, 0.5, 0.2, -0.3, -0.5, 0.1, 0.3, 0.4, 0.8, 1.5, 1.0],
+        isCurrent:
+          currentDate.toLocaleDateString("en-US", { weekday: "long" }) === "Friday",
+        description: "Data pending - requires historical daily returns",
       },
     ];
+    const dowNote = {
+      note: "Day of week effects require analysis of daily returns across multiple years. These will be populated once advanced technical analysis loaders are implemented.",
+    };
 
-    // 7. HOLIDAY EFFECTS
+    // 6. SECTOR ROTATION CALENDAR - Fetch actual sectors from database
+    // NO hardcoded values - load from company_profile table
+    let sectorSeasonality = [];
+    try {
+      const sectorResult = await query(
+        `SELECT DISTINCT sector FROM company_profile WHERE sector IS NOT NULL ORDER BY sector`
+      );
+      if (sectorResult && sectorResult.rows && sectorResult.rows.length > 0) {
+        sectorSeasonality = sectorResult.rows.map((r) => ({
+          sector: r.sector,
+          bestMonths: [],
+          worstMonths: [],
+          rationale: "Sector seasonality analysis pending",
+          monthlyReturns: [],
+          note: "Requires historical sector ETF price analysis. Implement loadsectors.py for real data.",
+        }));
+      } else {
+        sectorSeasonality = [
+          {
+            note: "No sector data available. Run loadcompanyprofile.py and loadsectors.py first.",
+          },
+        ];
+      }
+    } catch (e) {
+      console.log("Note: Sector data not available:", e.message);
+      sectorSeasonality = [
+        { note: "Sector seasonality data requires company profile and sector ETF data" },
+      ];
+    }
+
+    // 7. HOLIDAY EFFECTS - Educational reference, not calculated from real data
+    // These are known historical patterns. Actual effects vary by year and market conditions.
     const holidayEffects = [
       {
         holiday: "New Year",
         dates: "Dec 31 - Jan 2",
-        effect: "+0.4%",
         description: "Year-end positioning, January effect",
+        note: "Requires historical daily market returns analysis",
       },
       {
         holiday: "Presidents Day",
         dates: "Third Monday Feb",
-        effect: "+0.2%",
-        description: "Long weekend rally",
+        description: "Long weekend",
+        note: "Requires historical daily market returns analysis",
       },
       {
         holiday: "Good Friday",
         dates: "Friday before Easter",
-        effect: "+0.1%",
         description: "Shortened trading week",
+        note: "Requires historical daily market returns analysis",
       },
       {
         holiday: "Memorial Day",
         dates: "Last Monday May",
-        effect: "+0.3%",
         description: "Summer season kickoff",
+        note: "Requires historical daily market returns analysis",
       },
       {
         holiday: "Independence Day",
         dates: "July 4th week",
-        effect: "+0.2%",
-        description: "Patriotic premium",
+        description: "Holiday period",
+        note: "Requires historical daily market returns analysis",
       },
       {
         holiday: "Labor Day",
         dates: "First Monday Sep",
-        effect: "-0.1%",
-        description: "End of summer doldrums",
+        description: "End of summer",
+        note: "Requires historical daily market returns analysis",
       },
       {
         holiday: "Thanksgiving",
         dates: "Fourth Thursday Nov",
-        effect: "+0.5%",
-        description: "Black Friday optimism",
+        description: "Holiday week",
+        note: "Requires historical daily market returns analysis",
       },
       {
         holiday: "Christmas",
         dates: "Dec 24-26",
-        effect: "+0.6%",
-        description: "Santa Claus rally",
+        description: "Year-end holiday",
+        note: "Requires historical daily market returns analysis",
       },
     ];
 
-    // 8. ANOMALY CALENDAR
+    // 8. ANOMALY CALENDAR - Educational reference
+    // These are known market anomalies. Actual effectiveness varies over time.
     const seasonalAnomalies = [
       {
         name: "January Effect",
         period: "First 5 trading days",
-        description: "Small-cap outperformance",
-        strength: "Strong",
+        description: "Historically correlated with small-cap performance",
+        strength: "Moderate",
+        note: "Requires multi-year historical analysis",
       },
       {
         name: "Sell in May",
         period: "May 1 - Oct 31",
-        description: "Summer underperformance",
+        description: "Historical summer underperformance pattern",
         strength: "Moderate",
+        note: "Requires multi-year historical analysis",
       },
       {
         name: "Halloween Indicator",
         period: "Oct 31 - May 1",
-        description: "Best 6 months",
-        strength: "Strong",
+        description: "Historical best 6-month period",
+        strength: "Moderate",
+        note: "Requires multi-year historical analysis",
       },
       {
         name: "Santa Claus Rally",
         period: "Last 5 + First 2 days",
-        description: "Year-end rally",
+        description: "Year-end rally pattern",
         strength: "Moderate",
+        note: "Requires multi-year historical analysis",
       },
       {
         name: "September Effect",
         period: "September",
-        description: "Worst performing month",
-        strength: "Strong",
+        description: "Historically weakest month",
+        strength: "Moderate",
+        note: "Requires multi-year historical analysis",
       },
       {
         name: "Triple Witching",
         period: "Third Friday quarterly",
-        description: "Futures expiry volatility",
-        strength: "Moderate",
+        description: "Futures/options expiry day",
+        strength: "Weak",
+        note: "Volatility pattern from derivatives expiration",
       },
       {
         name: "Turn of Month",
         period: "Last 3 + First 2 days",
-        description: "Portfolio rebalancing",
+        description: "Month-end portfolio activity",
         strength: "Weak",
+        note: "Requires multi-year historical analysis",
       },
       {
         name: "FOMC Effect",
         period: "Fed meeting days",
-        description: "Pre-meeting rally, post-meeting volatility",
-        strength: "Strong",
+        description: "Market behavior around Fed announcements",
+        strength: "Moderate",
+        note: "Requires event-based analysis of Fed meetings",
       },
     ];
 
