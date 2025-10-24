@@ -734,13 +734,13 @@ router.get("/overview", async (req, res) => {
     }
 
     // Process indices
-    const indices = indicesResult.rows.map(row => ({
+    const indices = indicesResult && indicesResult.rows ? indicesResult.rows.map(row => ({
       symbol: row.symbol,
       name: row.name || row.symbol,
       price: parseFloat(row.price) || 0,
       change: parseFloat(row.change) || 0,
       changePercent: parseFloat(row.changepercent) || 0
-    }));
+    })) : [];
 
     // Process market breadth
     let marketBreadth = {};
@@ -781,7 +781,7 @@ router.get("/overview", async (req, res) => {
 
     // Process yield curve data
     let yieldCurve = {};
-    if (yieldCurveResult.rows.length > 0) {
+    if (yieldCurveResult && yieldCurveResult.rows && yieldCurveResult.rows.length > 0) {
       const yc = yieldCurveResult.rows[0];
       const tnx = parseFloat(yc.tnx_yield);
       const irx = parseFloat(yc.irx_yield);
