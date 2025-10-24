@@ -107,11 +107,11 @@ def populate_sector_performance(conn):
             SELECT
                 cp.sector,
                 pd.date,
-                SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close
+                SUM(pd.close * md.market_cap) / NULLIF(SUM(md.market_cap), 0) as avg_close
             FROM company_profile cp
             JOIN price_daily pd ON cp.ticker = pd.symbol
-            LEFT JOIN market_data md ON cp.ticker = md.ticker
-            WHERE cp.sector IS NOT NULL AND cp.sector != ''
+            INNER JOIN market_data md ON cp.ticker = md.ticker
+            WHERE cp.sector IS NOT NULL AND cp.sector != '' AND md.market_cap > 0
             GROUP BY cp.sector, pd.date
         ),
         latest_data AS (
@@ -201,11 +201,11 @@ def populate_industry_performance(conn):
                 cp.sector,
                 cp.industry,
                 pd.date,
-                SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close
+                SUM(pd.close * md.market_cap) / NULLIF(SUM(md.market_cap), 0) as avg_close
             FROM company_profile cp
             JOIN price_daily pd ON cp.ticker = pd.symbol
-            LEFT JOIN market_data md ON cp.ticker = md.ticker
-            WHERE cp.industry IS NOT NULL AND cp.industry != ''
+            INNER JOIN market_data md ON cp.ticker = md.ticker
+            WHERE cp.industry IS NOT NULL AND cp.industry != '' AND md.market_cap > 0
             GROUP BY cp.sector, cp.industry, pd.date
         ),
         latest_data AS (
