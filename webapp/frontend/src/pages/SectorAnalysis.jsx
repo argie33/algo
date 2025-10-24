@@ -1567,14 +1567,9 @@ const SectorAnalysis = () => {
                           />
                         </Grid>
                         <Grid item xs={3} sm={1.2}>
-                          <Box display="flex" alignItems="center" justifyContent="center" gap={0.25}>
-                            {(sector.current_trend || sector.trend) === "Uptrend" && (
-                              <TrendingUp color="success" fontSize="small" />
-                            )}
-                            {(sector.current_trend || sector.trend) === "Downtrend" && (
-                              <TrendingDown color="error" fontSize="small" />
-                            )}
-                          </Box>
+                          <Typography variant="h6" align="center">
+                            {sector.trend || "—"}
+                          </Typography>
                         </Grid>
                         <Grid item xs={3} sm={1}>
                           <Typography
@@ -1880,14 +1875,9 @@ const SectorAnalysis = () => {
                           />
                         </Grid>
                         <Grid item xs={2} sm={1.2} sx={{ display: "flex", justifyContent: "center" }}>
-                          <Box display="flex" alignItems="center" justifyContent="center" gap={0.25}>
-                            {industry.trend === "Uptrend" && (
-                              <TrendingUp color="success" fontSize="small" />
-                            )}
-                            {industry.trend === "Downtrend" && (
-                              <TrendingDown color="error" fontSize="small" />
-                            )}
-                          </Box>
+                          <Typography variant="h6" align="center">
+                            {industry.trend || "—"}
+                          </Typography>
                         </Grid>
                         <Grid item xs={2} sm={0.8}>
                           <Typography
