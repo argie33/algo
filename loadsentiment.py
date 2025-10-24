@@ -54,6 +54,13 @@ except ImportError:
     PYTRENDS_AVAILABLE = False
     logging.warning("PyTrends not available - Google Trends data will be unavailable")
 
+try:
+    import praw
+    PRAW_AVAILABLE = True
+except ImportError:
+    PRAW_AVAILABLE = False
+    logging.warning("⚠️  PRAW not installed - Reddit sentiment will be unavailable. Install with: pip install praw")
+
 # Script configuration
 SCRIPT_NAME = "loadsentiment.py"
 logging.basicConfig(
@@ -89,6 +96,46 @@ def get_db_config():
             "password": os.environ.get("DB_PASSWORD", ""),
             "dbname": os.environ.get("DB_NAME", "stocks")
         }
+
+def get_reddit_client():
+    """
+    Get Reddit API client with credentials from Secrets Manager
+
+    Requires credentials in AWS Secrets Manager:
+    {
+        "reddit_client_id": "...",
+        "reddit_client_secret": "...",
+        "reddit_user_agent": "StocksApp/1.0"
+    }
+    """
+    if not PRAW_AVAILABLE:
+        logging.warning("⚠️  PRAW not available - Reddit sentiment will be unavailable")
+        return None
+
+    try:
+        import boto3
+
+        secret_arn = os.environ.get("REDDIT_SECRET_ARN")
+        if not secret_arn:
+            logging.warning("⚠️  REDDIT_SECRET_ARN not set - Reddit sentiment will be unavailable")
+            return None
+
+        secret_str = boto3.client("secretsmanager").get_secret_value(SecretId=secret_arn)["SecretString"]
+        secrets = json.loads(secret_str)
+
+        reddit = praw.Reddit(
+            client_id=secrets.get('reddit_client_id'),
+            client_secret=secrets.get('reddit_client_secret'),
+            user_agent=secrets.get('reddit_user_agent', 'StocksApp/1.0')
+        )
+
+        logging.info("✓ Connected to Reddit API")
+        return reddit
+
+    except Exception as e:
+        logging.warning(f"⚠️  Failed to initialize Reddit client: {e}")
+        logging.warning("Set up Reddit app at: https://www.reddit.com/prefs/apps")
+        return None
 
 def safe_float(value, default=None):
     """Convert to float safely"""
@@ -236,7 +283,7 @@ class SocialSentimentCollector:
     def __init__(self, symbol: str):
         self.symbol = symbol
     
-    def get_reddit_sentiment(self) -> Dict:
+    def get_reddit_sentiment(self, reddit_client=None) -> Dict:
         """Get REAL Reddit sentiment from actual discussions - NO FAKE DATA"""
         data = {
             'symbol': self.symbol,
@@ -246,15 +293,75 @@ class SocialSentimentCollector:
             'reddit_volume_normalized_sentiment': None
         }
 
-        try:
-            # Return None values instead of generating fake data
-            # Real Reddit sentiment would require PRAW setup with credentials
+        # If no Reddit client available, return NULL values
+        if reddit_client is None:
             logging.warning(f"⚠️  Reddit sentiment unavailable for {self.symbol} - API not configured. Returning NULL.")
             return data
 
+        try:
+            logging.info(f"📱 Fetching REAL Reddit data for {self.symbol}...")
+
+            # Search major investment subreddits
+            target_subreddits = ['stocks', 'wallstreetbets', 'investing', 'options', 'SecurityAnalysis']
+            all_sentiments = []
+            total_mentions = 0
+
+            for subreddit_name in target_subreddits:
+                try:
+                    subreddit = reddit_client.subreddit(subreddit_name)
+
+                    # Search for symbol mentions in recent posts
+                    submissions = subreddit.search(self.symbol, time_filter='week', limit=25)
+
+                    mention_count = 0
+                    sentiments = []
+
+                    for submission in submissions:
+                        mention_count += 1
+
+                        # Get sentiment from submission title
+                        texts = [submission.title]
+
+                        # Get top comments
+                        submission.comments.list(limit=5)
+                        for comment in submission.comments[:5]:
+                            if hasattr(comment, 'body'):
+                                texts.append(comment.body)
+
+                        # Calculate sentiment using TextBlob
+                        if TEXTBLOB_AVAILABLE:
+                            full_text = " ".join(texts)
+                            blob = TextBlob(full_text)
+                            polarity = blob.sentiment.polarity  # -1 to 1
+                            sentiments.append(polarity)
+
+                    if mention_count > 0:
+                        total_mentions += mention_count
+                        all_sentiments.extend(sentiments)
+                        logging.info(f"  r/{subreddit_name}: {mention_count} mentions")
+
+                except Exception as e:
+                    logging.warning(f"Error fetching from r/{subreddit_name}: {e}")
+                    continue
+
+                time.sleep(1)  # Respect rate limits
+
+            # Aggregate results
+            data['reddit_mention_count'] = total_mentions if total_mentions > 0 else None
+
+            if all_sentiments:
+                avg_sentiment = sum(all_sentiments) / len(all_sentiments)
+                data['reddit_sentiment_score'] = float(avg_sentiment)
+                data['reddit_volume_normalized_sentiment'] = float(avg_sentiment)
+                logging.info(f"✓ Got REAL Reddit data for {self.symbol}: {total_mentions} mentions, sentiment={avg_sentiment:.3f}")
+            else:
+                logging.warning(f"No Reddit mentions found for {self.symbol}")
+
         except Exception as e:
-            logging.warning(f"Error collecting Reddit sentiment for {self.symbol}: {e}")
-            return data
+            logging.error(f"❌ Error fetching Reddit data for {self.symbol}: {e}")
+            # Return None values instead of fake data
+
+        return data
     
     def get_google_trends(self) -> Dict:
         """Get REAL Google Trends search data - NO FAKE DATA"""
@@ -373,17 +480,17 @@ class SocialSentimentCollector:
         
         return data
 
-def process_symbol_sentiment(symbol: str) -> Optional[Dict]:
+def process_symbol_sentiment(symbol: str, reddit_client=None) -> Optional[Dict]:
     """Process comprehensive sentiment data for a symbol"""
     try:
         # Collect analyst sentiment
         analyst_collector = AnalystSentimentCollector(symbol)
         analyst_data = analyst_collector.get_analyst_recommendations()
         analyst_revisions = analyst_collector.get_analyst_revisions()
-        
+
         # Collect social sentiment
         social_collector = SocialSentimentCollector(symbol)
-        reddit_data = social_collector.get_reddit_sentiment()
+        reddit_data = social_collector.get_reddit_sentiment(reddit_client)
         trends_data = social_collector.get_google_trends()
         news_data = social_collector.get_news_sentiment()
         
@@ -485,20 +592,27 @@ def load_sentiment_batch(symbols: List[str], conn, cur, batch_size: int = 10) ->
     total_processed = 0
     total_inserted = 0
     failed_symbols = []
-    
+
+    # Initialize Reddit client once for all symbols
+    reddit_client = get_reddit_client()
+    if reddit_client is None:
+        logging.warning("⚠️  Reddit API not configured - Reddit sentiment will be NULL for all symbols")
+    else:
+        logging.info("✓ Reddit API initialized for sentiment collection")
+
     for i in range(0, len(symbols), batch_size):
         batch = symbols[i:i + batch_size]
         batch_num = i // batch_size + 1
         total_batches = (len(symbols) + batch_size - 1) // batch_size
-        
+
         logging.info(f"Processing sentiment batch {batch_num}/{total_batches}: {len(batch)} symbols")
         log_mem(f"Sentiment batch {batch_num} start")
-        
+
         # Process symbols sequentially for sentiment (to respect API limits)
         sentiment_data = []
         for symbol in batch:
             try:
-                data = process_symbol_sentiment(symbol)
+                data = process_symbol_sentiment(symbol, reddit_client)
                 if data:
                     sentiment_data.append(data)
                 else:
