@@ -1668,11 +1668,12 @@ const SectorAnalysis = () => {
                         </Box>
 
                         {/* Momentum Score Chart */}
-                        <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2 }}>
+                        <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, minHeight: 300 }}>
                           <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
                             ⚡ Momentum Score
                           </Typography>
-                          <ResponsiveContainer width="100%" height={250}>
+                          <Box sx={{ width: "100%", height: 250 }}>
+                          <ResponsiveContainer width="100%" height="100%">
                             <RechartsBarChart data={[
                               { name: "1D", momentum: sector.current_perf_1d ?? sector.performance_1d ?? 0 },
                               { name: "5D", momentum: sector.current_perf_5d ?? sector.performance_5d ?? 0 },
@@ -1704,6 +1705,7 @@ const SectorAnalysis = () => {
                               </Bar>
                             </RechartsBarChart>
                           </ResponsiveContainer>
+                          </Box>
                         </Box>
 
                         {/* Industries Section */}
@@ -1954,11 +1956,12 @@ const SectorAnalysis = () => {
                         </Box>
 
                         {/* Momentum Score Chart */}
-                        <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2 }}>
+                        <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2, minHeight: 300 }}>
                           <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
                             ⚡ Momentum Score
                           </Typography>
-                          <ResponsiveContainer width="100%" height={250}>
+                          <Box sx={{ width: "100%", height: 250 }}>
+                          <ResponsiveContainer width="100%" height="100%">
                             <RechartsBarChart data={[
                               { name: "1D", momentum: industry.performance_1d ?? 0 },
                               { name: "5D", momentum: industry.performance_5d ?? 0 },
@@ -1990,6 +1993,7 @@ const SectorAnalysis = () => {
                               </Bar>
                             </RechartsBarChart>
                           </ResponsiveContainer>
+                          </Box>
                         </Box>
 
                         {/* Top Performing Companies Section */}
