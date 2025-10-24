@@ -1738,6 +1738,7 @@ router.get("/stocks", async (req, res) => {
       price_min = 0, // minimum price
       price_max = 10000, // maximum price
       volume_min = 0, // minimum daily volume
+      industry = null, // industry filter
       sort_by = "volume", // market_cap, price, volume, NULL as pe_ratio, dividend_yield
       sort_order = "desc", // asc, desc
       limit = 50, // number of results to return
@@ -1747,32 +1748,41 @@ router.get("/stocks", async (req, res) => {
       price_min,
       price_max,
       volume_min,
+      industry,
       limit,
       sort_by,
     });
 
-    // Build the WHERE clause based on filters
-    let whereConditions = ["close IS NOT NULL", "close > 0"];
+    // Build the WHERE clause based on filters for subquery (price_daily only)
+    let priceWhereConditions = ["close IS NOT NULL", "close > 0"];
+    let whereConditions = []; // For after the join
     let queryParams = [];
     let paramIndex = 1;
 
     // Price filters
     if (price_min && price_min > 0) {
-      whereConditions.push(`close >= $${paramIndex}`);
+      priceWhereConditions.push(`close >= $${paramIndex}`);
       queryParams.push(parseFloat(price_min));
       paramIndex++;
     }
 
     if (price_max && price_max < 10000) {
-      whereConditions.push(`close <= $${paramIndex}`);
+      priceWhereConditions.push(`close <= $${paramIndex}`);
       queryParams.push(parseFloat(price_max));
       paramIndex++;
     }
 
     // Volume filter
     if (volume_min && volume_min > 0) {
-      whereConditions.push(`volume >= $${paramIndex}`);
+      priceWhereConditions.push(`volume >= $${paramIndex}`);
       queryParams.push(parseInt(volume_min));
+      paramIndex++;
+    }
+
+    // Industry filter (applied after join)
+    if (industry && industry.trim()) {
+      whereConditions.push(`cp.industry = $${paramIndex}`);
+      queryParams.push(industry.trim());
       paramIndex++;
     }
 
@@ -1793,9 +1803,12 @@ router.get("/stocks", async (req, res) => {
     }
 
     // Main query using existing tables with correct column names
+    let finalWhereClause = whereConditions.length > 0 ? "WHERE " + whereConditions.join(" AND ") : "";
     const sqlQuery = `
       SELECT
         pd.symbol,
+        COALESCE(cp.fullName, pd.symbol) as fullName,
+        cp.industry,
         pd.close as price,
         pd.volume,
         pd.open,
@@ -1816,9 +1829,11 @@ router.get("/stocks", async (req, res) => {
         SELECT DISTINCT ON (symbol) symbol, close, volume, open,
                high, low, date, adj_close
         FROM price_daily
-        WHERE ${whereConditions.join(" AND ")}
+        WHERE ${priceWhereConditions.join(" AND ")}
         ORDER BY symbol, date DESC
       ) pd
+      LEFT JOIN company_profile cp ON UPPER(pd.symbol) = UPPER(cp.ticker)
+      ${finalWhereClause}
       ORDER BY ${orderByClause}
       LIMIT $${paramIndex}
     `;
@@ -1867,6 +1882,9 @@ router.get("/stocks", async (req, res) => {
 
     const stocks = result.rows.map((row) => ({
       symbol: row.symbol,
+      ticker: row.symbol,
+      fullName: row.fullname || row.symbol,
+      industry: row.industry,
       price: parseFloat(row.price) || 0,
       volume: parseInt(row.volume) || 0,
       open: parseFloat(row.open) || 0,

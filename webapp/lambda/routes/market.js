@@ -2048,31 +2048,103 @@ router.get("/economic", async (req, res) => {
 
 // Get NAAIM data (for DataValidation page)
 router.get("/naaim", async (req, res) => {
-  const { limit = 30 } = req.query;
+  const { range = "30d", limit = 30, days } = req.query;
 
-  console.log(`NAAIM data endpoint called with limit: ${limit}`);
+  console.log(`NAAIM data endpoint called with range: ${range || days || limit}`);
 
   try {
+    // Determine date range
+    let dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '30 days'";
+    let displayRange = "30d";
+
+    if (days) {
+      const numDays = parseInt(days);
+      dateCondition = `WHERE date >= CURRENT_DATE - INTERVAL '${numDays} days'`;
+      displayRange = `${numDays}d`;
+    } else if (range && range !== "limit") {
+      if (range === "all") {
+        dateCondition = "";
+        displayRange = "all";
+      } else if (range === "1y") {
+        dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '1 year'";
+        displayRange = "1y";
+      } else if (range === "6m") {
+        dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '6 months'";
+        displayRange = "6m";
+      } else if (range === "90d") {
+        dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '90 days'";
+        displayRange = "90d";
+      } else if (range === "30d") {
+        dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '30 days'";
+        displayRange = "30d";
+      }
+    } else {
+      // Fall back to limit parameter for backward compatibility
+      const naaimQuery = `
+        SELECT
+          date,
+          naaim_number_mean as exposure_index,
+          naaim_number_mean as mean_exposure,
+          bearish as bearish_exposure
+        FROM naaim
+        ORDER BY date DESC
+        LIMIT $1
+      `;
+
+      const result = await query(naaimQuery, [parseInt(limit)]);
+
+      if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+        return res.notFound("No data found for this query");
+      }
+
+      return res.json({
+        data: result.rows,
+        count: result.rows.length,
+      });
+    }
+
     const naaimQuery = `
-      SELECT 
+      SELECT
         date,
+        naaim_number_mean as average,
         naaim_number_mean as exposure_index,
         naaim_number_mean as mean_exposure,
+        bullish as bullish_exposure,
         bearish as bearish_exposure
       FROM naaim
-      ORDER BY date DESC
-      LIMIT $1
+      ${dateCondition}
+      ORDER BY date ASC
     `;
 
-    const result = await query(naaimQuery, [parseInt(limit)]);
+    const result = await query(naaimQuery);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.notFound("No data found for this query");
+      console.error("No NAAIM data found for the requested range");
+      return res.status(503).json({
+        success: false,
+        error: "No NAAIM data available",
+        details: `No NAAIM data found for range: ${displayRange}`,
+        suggestion: "NAAIM data requires sentiment data to be loaded.",
+        service: "naaim-sentiment",
+        requirements: [
+          "naaim table must exist with historical sentiment data",
+          "NAAIM data loading scripts must be executed",
+        ],
+      });
     }
+
+    // Get date range info
+    const fromDate = result.rows[0]?.date;
+    const toDate = result.rows[result.rows.length - 1]?.date;
 
     return res.json({
       data: result.rows,
       count: result.rows.length,
+      range: displayRange,
+      dateRange: {
+        from: fromDate,
+        to: toDate,
+      },
     });
   } catch (error) {
     console.error("Error fetching NAAIM data:", error);
@@ -2091,18 +2163,84 @@ router.get("/naaim", async (req, res) => {
   }
 });
 
-// Get fear & greed data (for DataValidation page)
+// Get fear & greed data with flexible date range support
 router.get("/fear-greed", async (req, res) => {
-  const { limit = 30 } = req.query;
+  const { range = "30d", limit = 30, days } = req.query;
 
-  console.log(`Fear & Greed data endpoint called with limit: ${limit}`);
+  console.log(`Fear & Greed data endpoint called with range: ${range || days || limit}`);
 
   try {
+    // Determine date range
+    let dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '30 days'";
+    let displayRange = "30d";
+
+    if (days) {
+      const numDays = parseInt(days);
+      dateCondition = `WHERE date >= CURRENT_DATE - INTERVAL '${numDays} days'`;
+      displayRange = `${numDays}d`;
+    } else if (range && range !== "limit") {
+      if (range === "all") {
+        dateCondition = "";
+        displayRange = "all";
+      } else if (range === "1y") {
+        dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '1 year'";
+        displayRange = "1y";
+      } else if (range === "6m") {
+        dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '6 months'";
+        displayRange = "6m";
+      } else if (range === "90d") {
+        dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '90 days'";
+        displayRange = "90d";
+      } else if (range === "30d") {
+        dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '30 days'";
+        displayRange = "30d";
+      }
+    } else {
+      // Fall back to limit parameter for backward compatibility
+      const fearGreedQuery = `
+        SELECT
+          date,
+          index_value as value,
+          CASE
+            WHEN index_value >= 75 THEN 'Extreme Greed'
+            WHEN index_value >= 55 THEN 'Greed'
+            WHEN index_value >= 45 THEN 'Neutral'
+            WHEN index_value >= 25 THEN 'Fear'
+            ELSE 'Extreme Fear'
+          END as classification
+        FROM fear_greed_index
+        ORDER BY date DESC
+        LIMIT $1
+      `;
+
+      const result = await query(fearGreedQuery, [parseInt(limit)]);
+
+      if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+        console.error("No fear & greed data found in database");
+        return res.status(503).json({
+          success: false,
+          error: "No fear and greed data available",
+          details: "No fear and greed data found in fear_greed_index table",
+          suggestion: "Fear and greed data requires sentiment data to be loaded.",
+          service: "fear-greed-sentiment",
+          requirements: [
+            "fear_greed_index table must exist with historical data",
+            "Sentiment data loading scripts must be executed",
+          ],
+        });
+      }
+
+      return res.json({
+        data: result.rows,
+        count: result.rows.length,
+      });
+    }
+
     const fearGreedQuery = `
       SELECT
         date,
         index_value as value,
-        CASE 
+        CASE
           WHEN index_value >= 75 THEN 'Extreme Greed'
           WHEN index_value >= 55 THEN 'Greed'
           WHEN index_value >= 45 THEN 'Neutral'
@@ -2110,18 +2248,18 @@ router.get("/fear-greed", async (req, res) => {
           ELSE 'Extreme Fear'
         END as classification
       FROM fear_greed_index
-      ORDER BY date DESC
-      LIMIT $1
+      ${dateCondition}
+      ORDER BY date ASC
     `;
 
-    const result = await query(fearGreedQuery, [parseInt(limit)]);
+    const result = await query(fearGreedQuery);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      console.error("No fear & greed data found in database");
+      console.error("No fear & greed data found for the requested range");
       return res.status(503).json({
         success: false,
         error: "No fear and greed data available",
-        details: "No fear and greed data found in fear_greed_index table",
+        details: `No fear and greed data found for range: ${displayRange}`,
         suggestion: "Fear and greed data requires sentiment data to be loaded.",
         service: "fear-greed-sentiment",
         requirements: [
@@ -2131,9 +2269,18 @@ router.get("/fear-greed", async (req, res) => {
       });
     }
 
+    // Get date range info
+    const fromDate = result.rows[0]?.date;
+    const toDate = result.rows[result.rows.length - 1]?.date;
+
     res.json({
       data: result.rows,
       count: result.rows.length,
+      range: displayRange,
+      dateRange: {
+        from: fromDate,
+        to: toDate,
+      },
     });
   } catch (error) {
     console.error("Error fetching fear & greed data:", error);
@@ -2249,204 +2396,6 @@ router.get("/aaii", async (req, res) => {
       requirements: [
         "Database connectivity must be available",
         "aaii_sentiment table must exist with sentiment data",
-      ],
-    });
-  }
-});
-
-// Get Fear & Greed Index history
-router.get("/fear-greed-history", async (req, res) => {
-  const { range = "30d", days } = req.query;
-
-  console.log(`Fear & Greed history endpoint called with range: ${range || days}`);
-
-  try {
-    // Determine date range
-    let dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '30 days'";
-    let displayRange = "30d";
-
-    if (days) {
-      const numDays = parseInt(days);
-      dateCondition = `WHERE date >= CURRENT_DATE - INTERVAL '${numDays} days'`;
-      displayRange = `${numDays}d`;
-    } else if (range === "all") {
-      dateCondition = "";
-      displayRange = "all";
-    } else if (range === "1y") {
-      dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '1 year'";
-      displayRange = "1y";
-    } else if (range === "6m") {
-      dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '6 months'";
-      displayRange = "6m";
-    } else if (range === "90d") {
-      dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '90 days'";
-      displayRange = "90d";
-    } else if (range === "30d") {
-      dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '30 days'";
-      displayRange = "30d";
-    }
-
-    const fearGreedQuery = `
-      SELECT
-        date,
-        value,
-        value_text,
-        fetched_at
-      FROM fear_greed_index
-      ${dateCondition}
-      ORDER BY date ASC
-    `;
-
-    const result = await query(fearGreedQuery);
-
-    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      console.error("No Fear & Greed data found for the requested range");
-      return res.status(503).json({
-        success: false,
-        error: "No Fear & Greed data available",
-        details: `No Fear & Greed data found for range: ${displayRange}`,
-        suggestion: "Fear & Greed data requires sentiment data to be loaded.",
-        service: "fear-greed-index",
-        requirements: [
-          "fear_greed_index table must exist with historical data",
-          "Fear & Greed data loading scripts must be executed",
-        ],
-      });
-    }
-
-    // Transform data to match expected format
-    const transformedData = result.rows.map((row) => ({
-      date: row.date,
-      value: parseFloat(row.value) || 0,
-      value_text: row.value_text,
-      fetched_at: row.fetched_at,
-    }));
-
-    // Get date range info
-    const fromDate = transformedData[0]?.date;
-    const toDate = transformedData[transformedData.length - 1]?.date;
-
-    res.json({
-      data: transformedData,
-      count: result.rows.length,
-      range: displayRange,
-      dateRange: {
-        from: fromDate,
-        to: toDate,
-      },
-    });
-  } catch (error) {
-    console.error("Error fetching Fear & Greed data:", error);
-    return res.status(503).json({
-      success: false,
-      error: "Failed to fetch Fear & Greed data",
-      details: error.message,
-      suggestion:
-        "Fear & Greed data requires database connectivity and sentiment tables.",
-      service: "fear-greed-index",
-      requirements: [
-        "Database connectivity must be available",
-        "fear_greed_index table must exist with sentiment data",
-      ],
-    });
-  }
-});
-
-// Get NAAIM history
-router.get("/naaim-history", async (req, res) => {
-  const { range = "30d", days } = req.query;
-
-  console.log(`NAAIM history endpoint called with range: ${range || days}`);
-
-  try {
-    // Determine date range
-    let dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '30 days'";
-    let displayRange = "30d";
-
-    if (days) {
-      const numDays = parseInt(days);
-      dateCondition = `WHERE date >= CURRENT_DATE - INTERVAL '${numDays} days'`;
-      displayRange = `${numDays}d`;
-    } else if (range === "all") {
-      dateCondition = "";
-      displayRange = "all";
-    } else if (range === "1y") {
-      dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '1 year'";
-      displayRange = "1y";
-    } else if (range === "6m") {
-      dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '6 months'";
-      displayRange = "6m";
-    } else if (range === "90d") {
-      dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '90 days'";
-      displayRange = "90d";
-    } else if (range === "30d") {
-      dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '30 days'";
-      displayRange = "30d";
-    }
-
-    const naaimQuery = `
-      SELECT
-        date,
-        naaim_number_mean,
-        bullish_exposure,
-        bearish_exposure,
-        fetched_at
-      FROM naaim
-      ${dateCondition}
-      ORDER BY date ASC
-    `;
-
-    const result = await query(naaimQuery);
-
-    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      console.error("No NAAIM data found for the requested range");
-      return res.status(503).json({
-        success: false,
-        error: "No NAAIM data available",
-        details: `No NAAIM data found for range: ${displayRange}`,
-        suggestion: "NAAIM data requires sentiment data to be loaded.",
-        service: "naaim",
-        requirements: [
-          "naaim table must exist with historical data",
-          "NAAIM data loading scripts must be executed",
-        ],
-      });
-    }
-
-    // Transform data to match expected format
-    const transformedData = result.rows.map((row) => ({
-      date: row.date,
-      average: parseFloat(row.naaim_number_mean) || 0,
-      bullish_exposure: parseFloat(row.bullish_exposure) || 0,
-      bearish_exposure: parseFloat(row.bearish_exposure) || 0,
-      fetched_at: row.fetched_at,
-    }));
-
-    // Get date range info
-    const fromDate = transformedData[0]?.date;
-    const toDate = transformedData[transformedData.length - 1]?.date;
-
-    res.json({
-      data: transformedData,
-      count: result.rows.length,
-      range: displayRange,
-      dateRange: {
-        from: fromDate,
-        to: toDate,
-      },
-    });
-  } catch (error) {
-    console.error("Error fetching NAAIM data:", error);
-    return res.status(503).json({
-      success: false,
-      error: "Failed to fetch NAAIM data",
-      details: error.message,
-      suggestion:
-        "NAAIM data requires database connectivity and sentiment tables.",
-      service: "naaim",
-      requirements: [
-        "Database connectivity must be available",
-        "naaim table must exist with sentiment data",
       ],
     });
   }
@@ -6258,31 +6207,6 @@ router.get("/volume", async (req, res) => {
     });
   }
 });
-
-// AAII sentiment endpoint
-router.get("/aaii", async (req, res) => {
-  try {
-    const aaiiQuery = `
-      SELECT bullish, neutral, bearish, date 
-      FROM aaii_sentiment 
-      ORDER BY date DESC 
-      LIMIT 1
-    `;
-    const result = await query(aaiiQuery);
-
-    if (!result || result.rows.length === 0) {
-      return res.notFound("No AAII sentiment data found");
-    }
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error("Error fetching AAII data:", error);
-    res
-      .status(500)
-      .json({ success: false, error: "Failed to fetch AAII sentiment data" });
-  }
-});
-
 // Stock quote endpoint
 router.get("/quote/:symbol", async (req, res) => {
   try {

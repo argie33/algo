@@ -1108,7 +1108,7 @@ const SectorAnalysis = () => {
           }));
 
           try {
-            const response = await api.get(`/api/stocks?industry=${encodeURIComponent(industryName)}&limit=5`);
+            const response = await api.get(`/api/stocks?industry=${encodeURIComponent(industryName)}&limit=10`);
             setCompaniesCache(prev => ({
               ...prev,
               [industryName]: response.data?.data || []
@@ -1667,6 +1667,33 @@ const SectorAnalysis = () => {
                           <DetailedTrendChart sectorOrIndustry={sector} type="sector" />
                         </Box>
 
+                        {/* Momentum Score Chart */}
+                        <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2 }}>
+                          <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
+                            ⚡ Momentum Score
+                          </Typography>
+                          <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                            <Box>
+                              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>1-Day Momentum</Typography>
+                              <Typography variant="h6" sx={{ color: getChangeColor(sector.current_perf_1d ?? sector.performance_1d) }}>
+                                {formatPercentage(sector.current_perf_1d ?? sector.performance_1d)}
+                              </Typography>
+                            </Box>
+                            <Box>
+                              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>5-Day Momentum</Typography>
+                              <Typography variant="h6" sx={{ color: getChangeColor(sector.current_perf_5d ?? sector.performance_5d) }}>
+                                {formatPercentage(sector.current_perf_5d ?? sector.performance_5d)}
+                              </Typography>
+                            </Box>
+                            <Box sx={{ gridColumn: "1 / -1" }}>
+                              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>20-Day Momentum</Typography>
+                              <Typography variant="h6" sx={{ color: getChangeColor(sector.current_perf_20d ?? sector.performance_20d) }}>
+                                {formatPercentage(sector.current_perf_20d ?? sector.performance_20d)}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </Box>
+
                         {/* Industries Section */}
                         <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2 }}>
                           <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1 }}>
@@ -1911,6 +1938,33 @@ const SectorAnalysis = () => {
                             <Typography variant="body2">
                               • Rank: <strong>{industry.current_rank || "N/A"}</strong>
                             </Typography>
+                          </Box>
+                        </Box>
+
+                        {/* Momentum Score Chart */}
+                        <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2 }}>
+                          <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
+                            ⚡ Momentum Score
+                          </Typography>
+                          <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                            <Box>
+                              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>1-Day Momentum</Typography>
+                              <Typography variant="h6" sx={{ color: getChangeColor(industry.performance_1d) }}>
+                                {formatPercentage(industry.performance_1d)}
+                              </Typography>
+                            </Box>
+                            <Box>
+                              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>5-Day Momentum</Typography>
+                              <Typography variant="h6" sx={{ color: getChangeColor(industry.performance_5d) }}>
+                                {formatPercentage(industry.performance_5d)}
+                              </Typography>
+                            </Box>
+                            <Box sx={{ gridColumn: "1 / -1" }}>
+                              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>20-Day Momentum</Typography>
+                              <Typography variant="h6" sx={{ color: getChangeColor(industry.performance_20d) }}>
+                                {formatPercentage(industry.performance_20d)}
+                              </Typography>
+                            </Box>
                           </Box>
                         </Box>
 

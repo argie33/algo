@@ -440,12 +440,12 @@ function calculatePositioningScore(positioningData) {
 
 function calculateCompositeScore(scores) {
   const weights = {
-    quality: 0.25,
-    growth: 0.2,
-    value: 0.2,
-    momentum: 0.15,
-    sentiment: 0.1,
-    positioning: 0.1,
+    quality: 0.278,      // 27.8% (was 25%, gained 2.8% from sentiment)
+    growth: 0.222,       // 22.2% (was 20%, gained 2.2% from sentiment)
+    value: 0.222,        // 22.2% (was 20%, gained 2.2% from sentiment)
+    momentum: 0.167,     // 16.7% (was 15%, gained 1.7% from sentiment)
+    positioning: 0.111,  // 11.1% (was 10%, gained 1.1% from sentiment)
+    // sentiment removed - was 10%
   };
 
   let compositeScore = 0;

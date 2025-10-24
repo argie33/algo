@@ -227,7 +227,7 @@ def create_unified_scores_tables(cur):
       );
     """)
     
-    # Master scores table (composite)
+    # Master scores table (composite) - sentiment removed from weighting
     cur.execute("DROP TABLE IF EXISTS master_scores CASCADE;")
     cur.execute("""
       CREATE TABLE master_scores (
@@ -240,7 +240,6 @@ def create_unified_scores_tables(cur):
         growth              REAL,
         value               REAL,
         momentum            REAL,
-        sentiment           REAL,
         positioning         REAL,
         composite           REAL,
         market_regime       VARCHAR(20),
@@ -475,11 +474,11 @@ def insert_scores(cur, symbol, date, period_type, period_ending, scores_data):
             positioning_confidence  # Real confidence based on data completeness
         ))
         
-        # Insert master scores
+        # Insert master scores (sentiment removed from scoring calculation)
         composite_score = scores_data.get('composite', 50)
         confidence_level = scores_data.get('confidence_level', 90)
         market_regime = scores_data.get('market_regime', 'neutral')
-        
+
         # Determine recommendation
         if composite_score >= 70:
             recommendation = 'BUY'
@@ -487,19 +486,18 @@ def insert_scores(cur, symbol, date, period_type, period_ending, scores_data):
             recommendation = 'HOLD'
         else:
             recommendation = 'SELL'
-        
+
         cur.execute("""
-            INSERT INTO master_scores (symbol, date, period_type, period_ending, quality, growth, 
-                                     value, momentum, sentiment, positioning, composite, market_regime, 
+            INSERT INTO master_scores (symbol, date, period_type, period_ending, quality, growth,
+                                     value, momentum, positioning, composite, market_regime,
                                      confidence_level, recommendation)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol, date, period_type) DO UPDATE SET
                 period_ending = EXCLUDED.period_ending,
                 quality = EXCLUDED.quality,
                 growth = EXCLUDED.growth,
                 value = EXCLUDED.value,
                 momentum = EXCLUDED.momentum,
-                sentiment = EXCLUDED.sentiment,
                 positioning = EXCLUDED.positioning,
                 composite = EXCLUDED.composite,
                 market_regime = EXCLUDED.market_regime,
@@ -512,7 +510,6 @@ def insert_scores(cur, symbol, date, period_type, period_ending, scores_data):
             growth.get('composite'),
             value.get('composite'),
             momentum.get('composite'),
-            sentiment.get('composite'),
             positioning.get('composite'),
             composite_score,
             market_regime,

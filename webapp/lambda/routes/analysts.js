@@ -880,7 +880,7 @@ router.get("/:symbol/analyst-momentum", async (req, res) => {
         bearishPercentage: bearishRatio.toFixed(1),
         neutralPercentage: (100 - bullishRatio - bearishRatio).toFixed(1),
         analystCount: latest.total_analysts,
-        averageRating: latest.recommendation_mean !== null ? latest.recommendation_mean.toFixed(2) : "N/A",
+        averageRating: latest.recommendation_mean !== null && !isNaN(latest.recommendation_mean) ? parseFloat(latest.recommendation_mean).toFixed(2) : "N/A",
         rating1To5Scale: {
           1: "Strong Buy",
           2: "Buy",

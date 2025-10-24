@@ -395,7 +395,6 @@ function MarketOverview() {
   const [_selectedSector, _setSelectedSector] = useState("all");
   const [aaiiRange, setAaiiRange] = useState("30d");
   const [fearGreedRange, setFearGreedRange] = useState("30d");
-  const [naaimRange, setNaaimRange] = useState("30d");
   const theme = useTheme();
 
   // Fix MUI Tabs validation error by ensuring tabs are ready before rendering
@@ -479,18 +478,7 @@ function MarketOverview() {
     refetchInterval: 300000,
   });
 
-  const { data: naaimData, isLoading: naaimLoading } = useQuery({
-    queryKey: ["naaim", naaimRange],
-    queryFn: async () => {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/market/naaim?range=${naaimRange}`);
-      if (!response.ok) throw new Error("Failed to fetch NAAIM data");
-      return response.json();
-    },
-    staleTime: 30000,
-    refetchInterval: 300000,
-  });
-
-  const handleTabChange = (event, newValue) => {
+const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
   };
   if (marketError) {
@@ -538,19 +526,14 @@ function MarketOverview() {
   const breadthInfo = breadthData?.data || {};
   const hasBreadthError = !breadthInfo || Object.keys(breadthInfo).length === 0;
   const distributionDays = distributionDaysData?.data || {};
-  const hasDistributionError = !distributionDays || Object.keys(distributionDays).length === 0;
   const sentimentHistory = sentimentData?.data || {};
-  const hasSentimentError = !sentimentHistory || Object.keys(sentimentHistory).length === 0;
   console.log("sentimentHistory", sentimentHistory);
 
 
   // Prepare sentiment chart data for all indicators
   const fearGreedHistory = sentimentHistory?.fear_greed_history || [];
-  const hasFearGreedError = !fearGreedHistory || fearGreedHistory.length === 0;
   const naaimHistory = sentimentHistory?.naaim_history || [];
-  const hasNaaimError = !naaimHistory || naaimHistory.length === 0;
   const aaiiHistory = sentimentHistory?.aaii_history || [];
-  const hasAaiiError = !aaiiHistory || aaiiHistory.length === 0;
   console.log("aaiiHistory", aaiiHistory);
 
   // Merge by date for multi-line chart - only include dates with actual data
@@ -590,7 +573,7 @@ function MarketOverview() {
     .filter(d => d.has_fear_greed || d.has_naaim || d.has_aaii)
     .sort((a, b) => new Date(a.date) - new Date(b.date))
     .map(d => {
-      const { has_fear_greed, has_naaim, has_aaii, ...cleanData } = d;
+      const { has_fear_greed: _has_fear_greed, has_naaim: _has_naaim, has_aaii: _has_aaii, ...cleanData } = d;
       return cleanData;
     })
     .slice(-30);
@@ -599,9 +582,6 @@ function MarketOverview() {
     sample: sentimentChartData.length > 0 ? sentimentChartData[0] : null
   });
 
-  // Latest stats for summary cards
-  const latestFG = fearGreedHistory[0] || {};
-  const latestNAAIM = naaimHistory[0] || {};
   // Get current AAII from sentiment indicators instead of history
   const latestAAII = sentimentIndicators?.aaii || {};
 
@@ -988,65 +968,6 @@ function MarketOverview() {
           ))}
         </Grid>
       )}
-
-      {/* Sentiment Indicators - Below Header */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Fear & Greed Index
-              </Typography>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="body2">Current Value:</Typography>
-                <Typography variant="body2" fontWeight="600">
-                  {latestFG.value ?? "N/A"}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="body2">Classification:</Typography>
-                <Typography variant="body2" fontWeight="600">
-                  {latestFG.value_text || latestFG.classification || "N/A"}
-                </Typography>
-              </Box>
-              <Typography variant="caption" color="text.secondary">
-                Scale: 0 (Extreme Fear) - 100 (Extreme Greed)
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                AAII Sentiment
-              </Typography>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="body2">Bullish:</Typography>
-                <Typography variant="body2" fontWeight="600">
-                  {latestAAII.bullish ?? "N/A"}%
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="body2">Neutral:</Typography>
-                <Typography variant="body2" fontWeight="600">
-                  {latestAAII.neutral ?? "N/A"}%
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="body2">Bearish:</Typography>
-                <Typography variant="body2" fontWeight="600">
-                  {latestAAII.bearish ?? "N/A"}%
-                </Typography>
-              </Box>
-              <Typography variant="caption" color="text.secondary">
-                Retail investor sentiment survey
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
 
       {/* Enhanced Market Indicators - Yield Curve, McClellan Oscillator, Sentiment Divergence */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
