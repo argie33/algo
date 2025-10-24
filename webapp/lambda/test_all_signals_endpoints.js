@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 
 /**
  * Comprehensive Trading Signals API Endpoint Testing Script

@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Automated test conversion script
  * Converts all integration route tests from broken database init pattern to proper mocks

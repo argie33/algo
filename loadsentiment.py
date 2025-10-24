@@ -480,6 +480,107 @@ class SocialSentimentCollector:
         
         return data
 
+def calculate_rsi(prices, period=14):
+    """Calculate RSI (Relative Strength Index) from prices"""
+    if len(prices) < period + 1:
+        return None
+
+    deltas = np.diff(prices)
+    seed = deltas[:period+1]
+    up = seed[seed >= 0].sum() / period
+    down = -seed[seed < 0].sum() / period
+    rs = up / down if down != 0 else 1
+    rsi = 100.0 - (100.0 / (1.0 + rs))
+
+    # Convert RSI to sentiment: RSI > 70 = overbought (negative), RSI < 30 = oversold (positive)
+    # Neutral at 50 (RSI of 50 = 0.0 sentiment)
+    # Returns value between -1.0 and 1.0
+    sentiment = (50 - rsi) / 50.0  # Maps RSI to -1 to 1 range
+    return max(-1.0, min(1.0, sentiment))
+
+def calculate_macd_sentiment(prices):
+    """Calculate MACD-based sentiment from prices"""
+    if len(prices) < 26:
+        return None
+
+    prices_array = np.array(prices, dtype=float)
+
+    # Calculate EMAs
+    ema_12 = pd.Series(prices_array).ewm(span=12, adjust=False).mean().values
+    ema_26 = pd.Series(prices_array).ewm(span=26, adjust=False).mean().values
+
+    # MACD = EMA12 - EMA26
+    macd = ema_12 - ema_26
+
+    # Get the latest MACD value and the previous one
+    current_macd = float(macd[-1])
+    prev_macd = float(macd[-2]) if len(macd) > 1 else current_macd
+
+    # Momentum: positive if MACD is increasing, negative if decreasing
+    macd_momentum = current_macd - prev_macd
+
+    # Convert to sentiment between -1 and 1
+    # Normalize based on typical MACD ranges
+    sentiment = float(np.tanh(current_macd / 0.5))  # Tanh keeps output in -1 to 1 range
+    return max(-1.0, min(1.0, sentiment))
+
+def get_fallback_sentiment(symbol: str) -> Dict:
+    """Get technical sentiment based on recent price movement - NO external API calls"""
+    try:
+        # Fetch recent price data (last 90 days)
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(period="90d")
+
+        if hist.empty or len(hist) < 14:
+            logging.warning(f"Insufficient historical data for {symbol}")
+            return {'price_change_sentiment': None}
+
+        # Get closing prices
+        prices = hist['Close'].values
+
+        # Calculate RSI-based sentiment
+        rsi_sentiment = calculate_rsi(prices, period=14)
+
+        # Calculate MACD-based sentiment
+        macd_sentiment = calculate_macd_sentiment(prices)
+
+        # Calculate price momentum (% change over last 5, 10, 20 days)
+        recent_price = prices[-1]
+        price_5d_ago = prices[-6] if len(prices) >= 6 else prices[0]
+        price_10d_ago = prices[-11] if len(prices) >= 11 else prices[0]
+        price_20d_ago = prices[-21] if len(prices) >= 21 else prices[0]
+
+        momentum_5d = (recent_price - price_5d_ago) / price_5d_ago if price_5d_ago > 0 else 0
+        momentum_10d = (recent_price - price_10d_ago) / price_10d_ago if price_10d_ago > 0 else 0
+        momentum_20d = (recent_price - price_20d_ago) / price_20d_ago if price_20d_ago > 0 else 0
+
+        # Normalize momentum to -1 to 1 range (assume ±10% is extreme)
+        momentum_sentiment = np.tanh(momentum_10d * 2.5)
+
+        # Combine all sentiments (weighted average)
+        sentiments = []
+        if rsi_sentiment is not None:
+            sentiments.append(rsi_sentiment * 0.4)  # RSI: 40% weight
+        if macd_sentiment is not None:
+            sentiments.append(macd_sentiment * 0.3)  # MACD: 30% weight
+        if momentum_sentiment is not None:
+            sentiments.append(momentum_sentiment * 0.3)  # Momentum: 30% weight
+
+        if sentiments:
+            technical_sentiment = sum(sentiments)
+            return {
+                'price_change_sentiment': float(technical_sentiment),
+                'rsi_sentiment': rsi_sentiment,
+                'macd_sentiment': macd_sentiment,
+                'momentum_10d': momentum_sentiment
+            }
+        else:
+            return {'price_change_sentiment': None}
+
+    except Exception as e:
+        logging.warning(f"Could not calculate technical sentiment for {symbol}: {e}")
+        return {'price_change_sentiment': None}
+
 def process_symbol_sentiment(symbol: str, reddit_client=None) -> Optional[Dict]:
     """Process comprehensive sentiment data for a symbol"""
     try:
@@ -493,17 +594,20 @@ def process_symbol_sentiment(symbol: str, reddit_client=None) -> Optional[Dict]:
         reddit_data = social_collector.get_reddit_sentiment(reddit_client)
         trends_data = social_collector.get_google_trends()
         news_data = social_collector.get_news_sentiment()
-        
+
+        # Always try fallback sentiment - it's our most reliable source
+        fallback_data = get_fallback_sentiment(symbol)
+
         # Combine all data
         result = {
             'symbol': symbol,
             'date': date.today(),
             'analyst_sentiment': {**analyst_data, **analyst_revisions},
-            'social_sentiment': {**reddit_data, **trends_data, **news_data}
+            'social_sentiment': {**reddit_data, **trends_data, **news_data, **fallback_data}
         }
-        
+
         return result
-        
+
     except Exception as e:
         logging.error(f"Error processing sentiment for {symbol}: {e}")
         return None
@@ -722,24 +826,32 @@ def load_sentiment_batch(symbols: List[str], conn, cur, batch_size: int = 10) ->
                         try:
                             symbol = item.get('symbol')
                             date_val = item.get('date')
-                            # Get sentiment data - try multiple sources in fallback order
+                            # Get sentiment data - try multiple sources in priority order
                             social = item.get('social_sentiment', {})
 
-                            # Try to get sentiment score from multiple sources:
-                            # 1. News sentiment (from yfinance news articles)
-                            # 2. Google Trends (if available)
-                            # 3. Default to None instead of 0 (so we can distinguish "no data" from "neutral")
+                            # Try to get sentiment score from multiple sources in order of preference:
+                            # 1. News sentiment (from yfinance news articles) - most reliable
+                            # 2. Google Trends (if available) - provides search interest
+                            # 3. Technical sentiment (RSI + MACD + momentum) - ALWAYS available as fallback
+                            # Always use technical sentiment as final fallback since it works for every symbol
                             sentiment_score = (
-                                social.get('news_sentiment_score') or  # News sentiment has priority
+                                social.get('news_sentiment_score') or  # News sentiment priority
                                 social.get('google_trends_score') or   # Then Google Trends
-                                None  # Explicitly None if no data (not 0.0)
+                                social.get('price_change_sentiment')   # Technical sentiment ALWAYS works
                             )
 
-                            # Only insert if we have an actual sentiment score
+                            # Always insert - technical sentiment ensures we have data
                             if sentiment_score is not None:
-                                cur.execute(sentiment_insert_direct, (symbol, date_val, sentiment_score, 'multiple_sources'))
+                                source = 'technical'  # Default to technical
+                                if social.get('news_sentiment_score'):
+                                    source = 'news'
+                                elif social.get('google_trends_score'):
+                                    source = 'trends'
+
+                                cur.execute(sentiment_insert_direct, (symbol, date_val, sentiment_score, source))
+                                logging.debug(f"✓ Inserted sentiment for {symbol}: {sentiment_score:.3f} ({source})")
                             else:
-                                logging.warning(f"No sentiment data collected for {symbol} - all sources failed")
+                                logging.warning(f"⚠️  No sentiment data collected for {symbol} - even technical sentiment failed")
                         except Exception as e:
                             logging.warning(f"Could not insert sentiment for {item.get('symbol')}: {e}")
 

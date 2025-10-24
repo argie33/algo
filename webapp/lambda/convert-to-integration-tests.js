@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Convert unit tests to integration tests by removing mocks
  * This allows tests to use the real database with actual loader data
@@ -6,6 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
+
 const glob = require('glob');
 
 const testsDir = path.join(__dirname, 'tests/unit/routes');

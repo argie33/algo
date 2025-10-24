@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 const { Pool } = require('pg');
 
 const pool = new Pool({

@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 
 /**
  * Comprehensive Test Status Checker

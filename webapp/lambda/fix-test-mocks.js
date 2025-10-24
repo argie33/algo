@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Systematic Test Mock Fixer
  * Fixes ISSUE #2 (Database Mock Returns Undefined) and ISSUE #3 (Auth Middleware Bypass)

@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Apply systematic fixes to test mocks
  * ISSUE #2: Database Mock Returns Undefined (90 tests)
@@ -7,6 +6,7 @@
 
 const fs = require('fs');
 const path = require('path');
+
 const glob = require('glob');
 
 let fixedFiles = 0;

@@ -372,6 +372,137 @@ router.get("/", async (req, res) => {
 });
 
 // Get metrics for specific symbol
+// Get top stocks by category (composite, quality, value, growth, etc.)
+router.get("/top/:category", async (req, res) => {
+  try {
+    const { category } = req.params;
+    const limit = parseInt(req.query.limit) || 10;
+    const sector = req.query.sector || null; // Optional sector filter
+
+    console.log(`📊 Top stocks requested for category: ${category}, limit: ${limit}, sector: ${sector}`);
+
+    // Map category to the appropriate score column in stock_scores table
+    const categoryMetrics = {
+      composite: "composite_score",
+      quality: "quality_score",
+      value: "value_score",
+      growth: "growth_score",
+      momentum: "momentum_score",
+      positioning: "positioning_score",
+      sentiment: "sentiment_score",
+      stability: "stability_score",
+    };
+
+    const metricColumn = categoryMetrics[category.toLowerCase()] || "composite_score";
+
+    // Build query to get top stocks from stock_scores table
+    let topStocksQuery = `
+      SELECT
+        ss.symbol,
+        cp.display_name as companyName,
+        cp.sector,
+        ss.composite_score,
+        ss.quality_score,
+        ss.value_score,
+        ss.growth_score,
+        ss.momentum_score,
+        ss.positioning_score,
+        ss.sentiment_score,
+        ss.stability_score,
+        ss.current_price as currentPrice,
+        ss.market_cap,
+        ss.pe_ratio,
+        ss.volume_avg_30d as volume
+      FROM stock_scores ss
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      WHERE ss.${metricColumn} IS NOT NULL
+    `;
+
+    const params = [];
+
+    if (sector) {
+      topStocksQuery += ` AND cp.sector = $${params.length + 1}`;
+      params.push(sector);
+    }
+
+    topStocksQuery += ` ORDER BY ss.${metricColumn} DESC LIMIT $${params.length + 1}`;
+    params.push(limit);
+
+    let result = null;
+    try {
+      result = await query(topStocksQuery, params);
+    } catch (dbError) {
+      console.error("Database query error:", dbError);
+      return res.status(500).json({
+        success: false,
+        error: "Database query failed",
+        details: dbError.message,
+        category,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (!result || !Array.isArray(result.rows)) {
+      return res.status(200).json({
+        success: true,
+        category,
+        topStocks: [],
+        count: 0,
+        limit,
+        sector: sector || "All",
+        message: "No data available for this category",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const topStocks = (result.rows || []).map((stock) => ({
+      symbol: (stock.symbol || "").toUpperCase(),
+      companyName: stock.companyname || stock.company_name || stock.display_name || "",
+      sector: stock.sector || "N/A",
+      currentPrice: parseFloat(stock.currentprice) || 0,
+      volume: parseInt(stock.volume) || 0,
+      categoryMetric: parseFloat(stock[metricColumn.toLowerCase()] || stock.composite_score) || 0,
+      compositeScore: parseFloat(stock.composite_score) || 0,
+      qualityScore: parseFloat(stock.quality_score) || 0,
+      valueScore: parseFloat(stock.value_score) || 0,
+      growthScore: parseFloat(stock.growth_score) || 0,
+      momentumScore: parseFloat(stock.momentum_score) || 0,
+      positioningScore: parseFloat(stock.positioning_score) || 0,
+      sentimentScore: parseFloat(stock.sentiment_score) || 0,
+      stabilityScore: parseFloat(stock.stability_score) || 0,
+      marketCap: parseFloat(stock.market_cap) || 0,
+      peRatio: parseFloat(stock.pe_ratio) || null,
+      dividendYield: null,
+      lastUpdated: new Date().toISOString(),
+    }));
+
+    // Return top N results
+    const slicedResults = topStocks.slice(0, limit);
+
+    res.json({
+      success: true,
+      category,
+      topStocks: slicedResults,
+      count: slicedResults.length,
+      limit,
+      sector: sector || "All",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error(
+      `Error fetching top stocks for category ${req.params.category}:`,
+      error
+    );
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch top stocks",
+      details: error.message,
+      category: req.params.category,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 router.get("/:symbol", async (req, res) => {
   try {
     const { symbol } = req.params;
