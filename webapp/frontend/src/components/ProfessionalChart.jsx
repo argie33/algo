@@ -6,6 +6,7 @@ import {
   Skeleton,
   Tooltip,
   Typography,
+  useTheme,
 } from "@mui/material";
 import { Download, Fullscreen, Refresh } from "@mui/icons-material";
 import {
@@ -76,6 +77,7 @@ const ProfessionalChart = ({
   _multitimeframe: _multitimeframe,
   ...props
 }) => {
+  const theme = useTheme();
   const renderChart = () => {
     if (loading) {
       return (
@@ -137,7 +139,7 @@ const ProfessionalChart = ({
               margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
             >
               {showGrid && (
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
               )}
               <XAxis dataKey={xAxisDataKey} tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} domain={yAxisDomain} />
@@ -161,7 +163,7 @@ const ProfessionalChart = ({
               margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
             >
               {showGrid && (
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
               )}
               <XAxis dataKey={xAxisDataKey} tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} domain={yAxisDomain} />
@@ -181,7 +183,7 @@ const ProfessionalChart = ({
                 cy="50%"
                 labelLine={{ stroke: "none" }}
                 outerRadius={80}
-                fill="#8884d8"
+                fill={theme.palette.primary.main}
                 dataKey={dataKey}
               >
                 {(data || []).map((entry, index) => (
@@ -204,12 +206,12 @@ const ProfessionalChart = ({
               margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
             >
               {showGrid && (
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
               )}
               <XAxis dataKey={xAxisDataKey} tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} domain={yAxisDomain} />
               {showTooltip && <RechartsTooltip />}
-              <Bar dataKey="volume" fill="#8884d8" opacity={0.3} />
+              <Bar dataKey="volume" fill={theme.palette.info.main} opacity={0.3} />
               <Line
                 type="monotone"
                 dataKey={dataKey}
@@ -228,7 +230,7 @@ const ProfessionalChart = ({
               margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
             >
               {showGrid && (
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
               )}
               <XAxis dataKey={xAxisDataKey} tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} domain={yAxisDomain} />

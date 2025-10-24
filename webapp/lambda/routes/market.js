@@ -7321,28 +7321,20 @@ router.get("/internals", async (req, res) => {
     const [breadthResult, maAnalysisResult, historicalBreadthResult, positioningResult] = await Promise.all([
       // Current breadth data with advance/decline calculations
       query(`
-        WITH latest_date AS (
-          SELECT MAX(date) as max_date
-          FROM price_daily
-          WHERE close IS NOT NULL
-        ),
-        current_breadth AS (
-          SELECT
-            COUNT(*) as total_stocks,
-            COUNT(CASE WHEN (close - open) > 0 THEN 1 END) as advancing,
-            COUNT(CASE WHEN (close - open) < 0 THEN 1 END) as declining,
-            COUNT(CASE WHEN (close - open) = 0 THEN 1 END) as unchanged,
-            COUNT(CASE WHEN (close - open) > (close * 0.05) THEN 1 END) as strong_up,
-            COUNT(CASE WHEN (close - open) < (close * -0.05) THEN 1 END) as strong_down,
-            SUM(volume) as total_volume,
-            AVG((close - open) / open * 100) as avg_daily_change,
-            STDDEV((close - open) / open * 100) as stddev_change
-          FROM price_daily
-          WHERE date = (SELECT max_date FROM latest_date)
-            AND close IS NOT NULL
-            AND open IS NOT NULL
-        )
-        SELECT * FROM current_breadth
+        SELECT
+          COUNT(*) as total_stocks,
+          COUNT(CASE WHEN (close - open) > 0 THEN 1 END) as advancing,
+          COUNT(CASE WHEN (close - open) < 0 THEN 1 END) as declining,
+          COUNT(CASE WHEN (close - open) = 0 THEN 1 END) as unchanged,
+          COUNT(CASE WHEN (close - open) > (close * 0.05) THEN 1 END) as strong_up,
+          COUNT(CASE WHEN (close - open) < (close * -0.05) THEN 1 END) as strong_down,
+          SUM(volume) as total_volume,
+          AVG((close - open) / open * 100) as avg_daily_change,
+          STDDEV((close - open) / open * 100) as stddev_change
+        FROM price_daily
+        WHERE date = (SELECT MAX(date) FROM price_daily WHERE close IS NOT NULL)
+          AND close IS NOT NULL
+          AND open IS NOT NULL
       `),
 
       // Stocks above moving averages analysis
@@ -7422,10 +7414,10 @@ router.get("/internals", async (req, res) => {
       `)
     ]);
 
-    const breadth = breadthResult.rows[0] || {};
-    const maAnalysis = maAnalysisResult.rows[0] || {};
-    const historicalBreadth = historicalBreadthResult.rows[0] || {};
-    const positioning = positioningResult.rows[0] || {};
+    const breadth = (breadthResult && breadthResult.rows && breadthResult.rows[0]) || {};
+    const maAnalysis = (maAnalysisResult && maAnalysisResult.rows && maAnalysisResult.rows[0]) || {};
+    const historicalBreadth = (historicalBreadthResult && historicalBreadthResult.rows && historicalBreadthResult.rows[0]) || {};
+    const positioning = (positioningResult && positioningResult.rows && positioningResult.rows[0]) || {};
 
     // Calculate overextension signals
     const advancingPct = breadth.total_stocks ? (breadth.advancing / breadth.total_stocks * 100) : 0;
