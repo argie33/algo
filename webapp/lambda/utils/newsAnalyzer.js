@@ -312,7 +312,7 @@ class NewsAnalyzer {
   calculateReliabilityScore(source) {
     try {
       if (!source || typeof source !== "string") {
-        return 0.5; // Default neutral score
+        return null; // Return NULL when data unavailable instead of fake 0.5
       }
 
       const sourceLower = source.toLowerCase();
@@ -380,11 +380,11 @@ class NewsAnalyzer {
         }
       }
 
-      // Default for unknown sources
-      return 0.5;
+      // Default for unknown sources - return NULL instead of fake data
+      return null;
     } catch (error) {
       logger.error("Reliability score calculation failed:", error);
-      return 0.5;
+      return null;
     }
   }
 

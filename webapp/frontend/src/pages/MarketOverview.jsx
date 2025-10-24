@@ -32,6 +32,7 @@ import {
   Bar,
   ComposedChart,
   Line,
+  LineChart,
   PieChart,
   Pie,
   Cell,
@@ -392,6 +393,9 @@ function MarketOverview() {
   const [tabsReady, setTabsReady] = useState(false);
   const [_viewMode, _setViewMode] = useState("cards");
   const [_selectedSector, _setSelectedSector] = useState("all");
+  const [aaiiRange, setAaiiRange] = useState("30d");
+  const [fearGreedRange, setFearGreedRange] = useState("30d");
+  const [naaimRange, setNaaimRange] = useState("30d");
   const theme = useTheme();
 
   // Fix MUI Tabs validation error by ensuring tabs are ready before rendering
@@ -451,6 +455,39 @@ function MarketOverview() {
     queryFn: fetchSentimentDivergence,
     staleTime: 60000,
     refetchInterval: 60000,
+  });
+
+  const { data: aaiiData, isLoading: aaiiLoading } = useQuery({
+    queryKey: ["aaii-sentiment", aaiiRange],
+    queryFn: async () => {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/market/aaii?range=${aaiiRange}`);
+      if (!response.ok) throw new Error("Failed to fetch AAII data");
+      return response.json();
+    },
+    staleTime: 30000,
+    refetchInterval: 300000,
+  });
+
+  const { data: fearGreedData, isLoading: fearGreedLoading } = useQuery({
+    queryKey: ["fear-greed-history", fearGreedRange],
+    queryFn: async () => {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/market/fear-greed-history?range=${fearGreedRange}`);
+      if (!response.ok) throw new Error("Failed to fetch Fear & Greed data");
+      return response.json();
+    },
+    staleTime: 30000,
+    refetchInterval: 300000,
+  });
+
+  const { data: naaimData, isLoading: naaimLoading } = useQuery({
+    queryKey: ["naaim-history", naaimRange],
+    queryFn: async () => {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/market/naaim-history?range=${naaimRange}`);
+      if (!response.ok) throw new Error("Failed to fetch NAAIM data");
+      return response.json();
+    },
+    staleTime: 30000,
+    refetchInterval: 300000,
   });
 
   const handleTabChange = (event, newValue) => {
@@ -645,6 +682,330 @@ function MarketOverview() {
             fearGreed_data={sentimentChartData}
             naaim_data={sentimentChartData}
           />
+        </Grid>
+
+        {/* AAII Historical Sentiment Chart with Time Range Selector */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  AAII Sentiment History
+                </Typography>
+                <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                  {["30d", "90d", "6m", "1y", "all"].map((range) => (
+                    <Chip
+                      key={range}
+                      label={range.toUpperCase()}
+                      onClick={() => setAaiiRange(range)}
+                      color={aaiiRange === range ? "primary" : "default"}
+                      variant={aaiiRange === range ? "filled" : "outlined"}
+                      sx={{ cursor: "pointer" }}
+                    />
+                  ))}
+                </Box>
+              </Box>
+
+              {aaiiLoading ? (
+                <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: 400 }}>
+                  <CircularProgress />
+                </Box>
+              ) : aaiiData?.data && aaiiData.data.length > 0 ? (
+                <Box sx={{ height: 400, width: "100%" }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={aaiiData.data}
+                      margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 12 }}
+                        tickFormatter={(date) => {
+                          const d = new Date(date);
+                          return `${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getDate().toString().padStart(2, "0")}`;
+                        }}
+                      />
+                      <YAxis
+                        domain={[0, 100]}
+                        label={{
+                          value: "Sentiment %",
+                          angle: -90,
+                          position: "insideLeft",
+                        }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "rgba(0,0,0,0.8)",
+                          border: "1px solid #ccc",
+                          color: "#fff",
+                          borderRadius: "4px",
+                        }}
+                        formatter={(value) => [`${parseFloat(value).toFixed(1)}%`, ""]}
+                        labelFormatter={(date) => {
+                          const d = new Date(date);
+                          return d.toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          });
+                        }}
+                      />
+                      <Legend />
+                      <Line
+                        type="monotone"
+                        dataKey="bullish"
+                        stroke={_colorSchemes.sentiment.bullish}
+                        strokeWidth={2.5}
+                        dot={false}
+                        name="Bullish"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="neutral"
+                        stroke={_colorSchemes.sentiment.moderate}
+                        strokeWidth={2.5}
+                        dot={false}
+                        name="Neutral"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="bearish"
+                        stroke={_colorSchemes.sentiment.bearish}
+                        strokeWidth={2.5}
+                        dot={false}
+                        name="Bearish"
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </Box>
+              ) : (
+                <Box sx={{ textAlign: "center", py: 4 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    No AAII sentiment data available for the selected range
+                  </Typography>
+                </Box>
+              )}
+
+              <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: "divider" }}>
+                <Typography variant="caption" color="text.secondary">
+                  AAII Sentiment Survey: Retail investor bullish/bearish sentiment data updated weekly
+                  {aaiiData?.dateRange && ` | Data range: ${new Date(aaiiData.dateRange.from).toLocaleDateString()} - ${new Date(aaiiData.dateRange.to).toLocaleDateString()}`}
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Fear & Greed Index Historical Chart with Time Range Selector */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  Fear & Greed Index History
+                </Typography>
+                <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                  {["30d", "90d", "6m", "1y", "all"].map((range) => (
+                    <Chip
+                      key={range}
+                      label={range.toUpperCase()}
+                      onClick={() => setFearGreedRange(range)}
+                      color={fearGreedRange === range ? "primary" : "default"}
+                      variant={fearGreedRange === range ? "filled" : "outlined"}
+                      sx={{ cursor: "pointer" }}
+                    />
+                  ))}
+                </Box>
+              </Box>
+
+              {fearGreedLoading ? (
+                <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: 400 }}>
+                  <CircularProgress />
+                </Box>
+              ) : fearGreedData?.data && fearGreedData.data.length > 0 ? (
+                <Box sx={{ height: 400, width: "100%" }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={fearGreedData.data}
+                      margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 12 }}
+                        tickFormatter={(date) => {
+                          const d = new Date(date);
+                          return `${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getDate().toString().padStart(2, "0")}`;
+                        }}
+                      />
+                      <YAxis
+                        domain={[0, 100]}
+                        label={{
+                          value: "Fear & Greed Index",
+                          angle: -90,
+                          position: "insideLeft",
+                        }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "rgba(0,0,0,0.8)",
+                          border: "1px solid #ccc",
+                          color: "#fff",
+                          borderRadius: "4px",
+                        }}
+                        formatter={(value) => [`${parseFloat(value).toFixed(1)}`, ""]}
+                        labelFormatter={(date) => {
+                          const d = new Date(date);
+                          return d.toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          });
+                        }}
+                      />
+                      <Legend />
+                      <Line
+                        type="monotone"
+                        dataKey="value"
+                        stroke="#FF6B6B"
+                        strokeWidth={2.5}
+                        dot={false}
+                        name="Fear & Greed Index"
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </Box>
+              ) : (
+                <Box sx={{ textAlign: "center", py: 4 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    No Fear & Greed data available for the selected range
+                  </Typography>
+                </Box>
+              )}
+
+              <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: "divider" }}>
+                <Typography variant="caption" color="text.secondary">
+                  CNN Fear & Greed Index: Market sentiment measurement across multiple indicators
+                  {fearGreedData?.dateRange && ` | Data range: ${new Date(fearGreedData.dateRange.from).toLocaleDateString()} - ${new Date(fearGreedData.dateRange.to).toLocaleDateString()}`}
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* NAAIM Historical Chart with Time Range Selector */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  NAAIM (Active Manager Exposure) History
+                </Typography>
+                <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                  {["30d", "90d", "6m", "1y", "all"].map((range) => (
+                    <Chip
+                      key={range}
+                      label={range.toUpperCase()}
+                      onClick={() => setNaaimRange(range)}
+                      color={naaimRange === range ? "primary" : "default"}
+                      variant={naaimRange === range ? "filled" : "outlined"}
+                      sx={{ cursor: "pointer" }}
+                    />
+                  ))}
+                </Box>
+              </Box>
+
+              {naaimLoading ? (
+                <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: 400 }}>
+                  <CircularProgress />
+                </Box>
+              ) : naaimData?.data && naaimData.data.length > 0 ? (
+                <Box sx={{ height: 400, width: "100%" }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={naaimData.data}
+                      margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 12 }}
+                        tickFormatter={(date) => {
+                          const d = new Date(date);
+                          return `${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getDate().toString().padStart(2, "0")}`;
+                        }}
+                      />
+                      <YAxis
+                        label={{
+                          value: "Exposure %",
+                          angle: -90,
+                          position: "insideLeft",
+                        }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "rgba(0,0,0,0.8)",
+                          border: "1px solid #ccc",
+                          color: "#fff",
+                          borderRadius: "4px",
+                        }}
+                        formatter={(value) => [`${parseFloat(value).toFixed(1)}%`, ""]}
+                        labelFormatter={(date) => {
+                          const d = new Date(date);
+                          return d.toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          });
+                        }}
+                      />
+                      <Legend />
+                      <Line
+                        type="monotone"
+                        dataKey="average"
+                        stroke={_colorSchemes.sentiment.bullish}
+                        strokeWidth={2.5}
+                        dot={false}
+                        name="Average Exposure"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="bullish_exposure"
+                        stroke={_colorSchemes.sentiment.bullish}
+                        strokeWidth={2.5}
+                        dot={false}
+                        strokeDasharray="5 5"
+                        name="Bullish Exposure"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="bearish_exposure"
+                        stroke={_colorSchemes.sentiment.bearish}
+                        strokeWidth={2.5}
+                        dot={false}
+                        strokeDasharray="5 5"
+                        name="Bearish Exposure"
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </Box>
+              ) : (
+                <Box sx={{ textAlign: "center", py: 4 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    No NAAIM data available for the selected range
+                  </Typography>
+                </Box>
+              )}
+
+              <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: "divider" }}>
+                <Typography variant="caption" color="text.secondary">
+                  NAAIM (National Association of Active Investment Managers): Active manager allocation and exposure trends
+                  {naaimData?.dateRange && ` | Data range: ${new Date(naaimData.dateRange.from).toLocaleDateString()} - ${new Date(naaimData.dateRange.to).toLocaleDateString()}`}
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
         </Grid>
       </Grid>
     </Box>

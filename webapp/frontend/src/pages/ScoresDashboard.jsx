@@ -472,6 +472,28 @@ const ScoresDashboard = () => {
   const topSentiment = getTopPerformers("sentiment_score", 10, selectedSector);
   const topBySector = getTopPerformersBySector(5);
 
+  // Get category leaders within each sector
+  const getCategoryLeadersBySector = (sector) => {
+    const sectorStocks = scores.filter(s => s.sector === sector);
+    if (sectorStocks.length === 0) return {};
+
+    return {
+      quality: [...sectorStocks].sort((a, b) => (b.quality_score || 0) - (a.quality_score || 0))[0],
+      momentum: [...sectorStocks].sort((a, b) => (b.momentum_score || 0) - (a.momentum_score || 0))[0],
+      value: [...sectorStocks].sort((a, b) => (b.value_score || 0) - (a.value_score || 0))[0],
+      growth: [...sectorStocks].sort((a, b) => (b.growth_score || 0) - (a.growth_score || 0))[0],
+      positioning: [...sectorStocks].sort((a, b) => (b.positioning_score || 0) - (a.positioning_score || 0))[0],
+      sentiment: [...sectorStocks].sort((a, b) => (b.sentiment_score || 0) - (a.sentiment_score || 0))[0],
+    };
+  };
+
+  // State for expanded sector accordion
+  const [expandedSector, setExpandedSector] = useState(null);
+
+  const handleSectorAccordionChange = (sectorName) => (event, isExpanded) => {
+    setExpandedSector(isExpanded ? sectorName : null);
+  };
+
   const handleAccordionChange = (symbol) => (event, isExpanded) => {
     setExpandedStock(isExpanded ? symbol : null);
   };
@@ -2284,60 +2306,6 @@ const ScoresDashboard = () => {
         )}
       </Box>
 
-      {/* Top Performers by Sector */}
-      <Typography variant="h4" gutterBottom sx={{ mt: 6, mb: 3 }}>
-        Top Performers by Sector
-      </Typography>
-
-      <Grid container spacing={3} sx={{ mb: 6 }}>
-        {sectors.slice(0, 6).map((sector) => {
-          const sectorStocks = topBySector[sector] || [];
-          return (
-            <Grid item xs={12} md={6} key={sector}>
-              <Paper sx={{ p: 3 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-                  <Assessment sx={{ color: theme.palette.primary.main, fontSize: 32 }} />
-                  <Typography variant="h6">{sector}</Typography>
-                  <Chip
-                    label={`${sectorStocks.length} stocks`}
-                    size="small"
-                    color="default"
-                  />
-                </Box>
-                <TableContainer>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Rank</TableCell>
-                        <TableCell>Symbol</TableCell>
-                        <TableCell align="right">Score</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {sectorStocks.map((stock, index) => (
-                        <TableRow key={`${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
-                          <TableCell>{index + 1}</TableCell>
-                          <TableCell>
-                            <Typography fontWeight={600}>{stock.symbol}</Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Chip
-                              label={stock.composite_score.toFixed(1)}
-                              size="small"
-                              color={stock.composite_score < 60 ? "error" : stock.composite_score < 80 ? "warning" : "success"}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Paper>
-            </Grid>
-          );
-        })}
-      </Grid>
-
       {/* Top Performers by Category */}
       <Typography variant="h4" gutterBottom sx={{ mt: 6, mb: 3 }}>
         Top Performers by Category
@@ -2581,6 +2549,129 @@ const ScoresDashboard = () => {
           </Paper>
         </Grid>
       </Grid>
+
+      <Divider sx={{ my: 4 }} />
+
+      {/* Sector Leaders with Accordions */}
+      <Typography variant="h4" gutterBottom sx={{ mt: 4, mb: 3 }}>
+        Category Leaders by Sector
+      </Typography>
+
+      <Box sx={{ mb: 4 }}>
+        {sectors.map((sector) => {
+          const sectorStocks = topBySector[sector] || [];
+          const categoryLeaders = getCategoryLeadersBySector(sector);
+
+          return (
+            <Accordion
+              key={sector}
+              expanded={expandedSector === sector}
+              onChange={handleSectorAccordionChange(sector)}
+              sx={{ mb: 2, backgroundColor: alpha(theme.palette.primary.main, 0.02) }}
+            >
+              <AccordionSummary expandIcon={<ExpandMore />}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 2, width: "100%" }}>
+                  <Assessment sx={{ color: theme.palette.primary.main, fontSize: 28 }} />
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                      {sector}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {sectorStocks.length} stocks | Top score: {sectorStocks[0]?.composite_score?.toFixed(1) || "N/A"}
+                    </Typography>
+                  </Box>
+                  <Chip
+                    label={`${sectorStocks.length} stocks`}
+                    size="small"
+                    color="primary"
+                    variant="outlined"
+                  />
+                </Box>
+              </AccordionSummary>
+              <AccordionDetails sx={{ pt: 3 }}>
+                <Box>
+                  {/* Category Leaders Grid */}
+                  <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
+                    Category Leaders
+                  </Typography>
+                  <Grid container spacing={2} sx={{ mb: 4 }}>
+                    {Object.entries({
+                      quality: { label: "Quality", icon: Stars, color: theme.palette.primary.main },
+                      momentum: { label: "Momentum", icon: Speed, color: theme.palette.warning.main },
+                      value: { label: "Value", icon: AccountBalance, color: theme.palette.info.main },
+                      growth: { label: "Growth", icon: Timeline, color: theme.palette.success.main },
+                      positioning: { label: "Positioning", icon: Group, color: theme.palette.secondary.main },
+                      sentiment: { label: "Sentiment", icon: SentimentSatisfied, color: theme.palette.success.main }
+                    }).map(([category, { label, icon: Icon, color }]) => {
+                      const leader = categoryLeaders[category];
+                      return (
+                        <Grid item xs={12} md={6} key={`${sector}-${category}`}>
+                          <Card sx={{ p: 2, height: "100%", backgroundColor: alpha(color, 0.05), border: `1px solid ${alpha(color, 0.2)}` }}>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+                              <Icon sx={{ fontSize: 20, color }} />
+                              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                                {label}
+                              </Typography>
+                            </Box>
+                            {leader ? (
+                              <Box>
+                                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                                  {leader.symbol}
+                                </Typography>
+                                <Chip
+                                  label={`${leader[`${category}_score`]?.toFixed(1) || "N/A"}`}
+                                  size="small"
+                                  color={leader[`${category}_score`] >= 80 ? "success" : "warning"}
+                                  sx={{ mt: 1 }}
+                                />
+                              </Box>
+                            ) : (
+                              <Typography variant="caption" color="text.secondary">
+                                No data
+                              </Typography>
+                            )}
+                          </Card>
+                        </Grid>
+                      );
+                    })}
+                  </Grid>
+
+                  {/* Top Performers in Sector Table */}
+                  <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600, mt: 3 }}>
+                    Top 5 Performers
+                  </Typography>
+                  <TableContainer>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow sx={{ backgroundColor: alpha(theme.palette.primary.main, 0.1) }}>
+                          <TableCell>Rank</TableCell>
+                          <TableCell>Symbol</TableCell>
+                          <TableCell align="right">Composite Score</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {sectorStocks.slice(0, 5).map((stock, index) => (
+                          <TableRow key={`${sector}-${stock.symbol}-${index}`} hover>
+                            <TableCell>{index + 1}</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>{stock.symbol}</TableCell>
+                            <TableCell align="right">
+                              <Chip
+                                label={stock.composite_score.toFixed(1)}
+                                size="small"
+                                color={stock.composite_score >= 80 ? "success" : stock.composite_score >= 60 ? "warning" : "error"}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+              </AccordionDetails>
+            </Accordion>
+          );
+        })}
+      </Box>
 
       {/* Score Guide */}
       <Paper

@@ -804,16 +804,67 @@ router.get("/compare", async (req, res) => {
       });
     });
 
-    // Create correlation matrix for test compatibility
+    // Create correlation matrix with REAL Pearson correlation calculations
     const correlationMatrix = {};
+
+    // Helper function to calculate Pearson correlation
+    const calculatePearsonCorrelation = (data1, data2) => {
+      // Find overlapping dates
+      const dates1 = new Set(data1.map(d => d.date));
+      const dates2 = new Set(data2.map(d => d.date));
+      const overlappingDates = Array.from(dates1).filter(d => dates2.has(d)).sort();
+
+      if (overlappingDates.length < 2) {
+        return null; // Not enough data points
+      }
+
+      // Get values for overlapping dates
+      const map1 = new Map(data1.map(d => [d.date, d.value]));
+      const map2 = new Map(data2.map(d => [d.date, d.value]));
+
+      const values1 = overlappingDates.map(d => map1.get(d));
+      const values2 = overlappingDates.map(d => map2.get(d));
+
+      // Calculate means
+      const mean1 = values1.reduce((a, b) => a + b, 0) / values1.length;
+      const mean2 = values2.reduce((a, b) => a + b, 0) / values2.length;
+
+      // Calculate covariance and standard deviations
+      let covariance = 0;
+      let sd1 = 0;
+      let sd2 = 0;
+
+      for (let i = 0; i < values1.length; i++) {
+        const diff1 = values1[i] - mean1;
+        const diff2 = values2[i] - mean2;
+        covariance += diff1 * diff2;
+        sd1 += diff1 * diff1;
+        sd2 += diff2 * diff2;
+      }
+
+      sd1 = Math.sqrt(sd1);
+      sd2 = Math.sqrt(sd2);
+
+      // Return correlation coefficient
+      if (sd1 === 0 || sd2 === 0) {
+        return 0; // No variation in one or both series
+      }
+
+      return covariance / (sd1 * sd2);
+    };
+
     seriesList.forEach((series1, i) => {
       correlationMatrix[series1] = {};
       seriesList.forEach((series2, j) => {
         if (i === j) {
           correlationMatrix[series1][series2] = 1.0;
         } else {
-          // Use real data - no synthetic correlation values
-          correlationMatrix[series1][series2] = (0.5).toFixed(3);
+          // Calculate REAL Pearson correlation from actual data
+          const corr = calculatePearsonCorrelation(
+            seriesData[series1] || [],
+            seriesData[series2] || []
+          );
+          correlationMatrix[series1][series2] = corr !== null ? parseFloat(corr.toFixed(3)) : null;
         }
       });
     });

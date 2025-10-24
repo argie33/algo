@@ -685,6 +685,24 @@ router.get("/:symbol/sentiment-trend", async (req, res) => {
       ORDER BY date ASC
     `, [symbol, daysBack]);
 
+    // Handle null result or no data
+    if (!result || !result.rows || result.rows.length === 0) {
+      return res.json({
+        success: true,
+        symbol,
+        days: daysBack,
+        dataPoints: 0,
+        chartData: [],
+        trends: {
+          sentimentTrend: null,
+          ratingMomentum: null,
+          analystCoverageTrend: null
+        },
+        message: "No analyst sentiment data available for this symbol",
+        timestamp: new Date().toISOString()
+      });
+    }
+
     // Calculate trend metrics
     const data = result.rows;
     let sentimentTrend = null;
@@ -815,12 +833,14 @@ router.get("/:symbol/analyst-momentum", async (req, res) => {
       ORDER BY date ASC
     `, [symbol]);
 
-    if (result.rows.length === 0) {
+    // Handle null result or no data
+    if (!result || !result.rows || result.rows.length === 0) {
       return res.json({
         success: true,
         symbol,
         momentum: null,
-        message: "No analyst data available for this symbol"
+        message: "No analyst data available for this symbol",
+        timestamp: new Date().toISOString()
       });
     }
 
@@ -845,8 +865,11 @@ router.get("/:symbol/analyst-momentum", async (req, res) => {
       ? (netEpsRevisions / (latest.eps_revisions_up_last_30d + latest.eps_revisions_down_last_30d)) * 100
       : 0;
 
-    // Trend velocity
-    const ratingChangeVelocity = thirtyDaysAgo.recommendation_mean - latest.recommendation_mean;
+    // Trend velocity - calculate only if recommendation_mean data exists
+    let ratingChangeVelocity = 0;
+    if (latest.recommendation_mean !== null && thirtyDaysAgo.recommendation_mean !== null) {
+      ratingChangeVelocity = thirtyDaysAgo.recommendation_mean - latest.recommendation_mean;
+    }
 
     res.json({
       success: true,
@@ -857,7 +880,7 @@ router.get("/:symbol/analyst-momentum", async (req, res) => {
         bearishPercentage: bearishRatio.toFixed(1),
         neutralPercentage: (100 - bullishRatio - bearishRatio).toFixed(1),
         analystCount: latest.total_analysts,
-        averageRating: latest.recommendation_mean.toFixed(2),
+        averageRating: latest.recommendation_mean !== null ? latest.recommendation_mean.toFixed(2) : "N/A",
         rating1To5Scale: {
           1: "Strong Buy",
           2: "Buy",
@@ -874,9 +897,9 @@ router.get("/:symbol/analyst-momentum", async (req, res) => {
         interpretation: netEpsRevisions > 0 ? "Positive (more ups)" : netEpsRevisions < 0 ? "Negative (more downs)" : "Neutral"
       },
       trend: {
-        ratingChangeVelocity: ratingChangeVelocity.toFixed(3),
-        direction: ratingChangeVelocity < -0.01 ? "Improving (more bullish)" : ratingChangeVelocity > 0.01 ? "Deteriorating (more bearish)" : "Stable",
-        interpretation: ratingChangeVelocity < -0.05 ? "Rapidly improving ↗️" : ratingChangeVelocity < 0 ? "Slowly improving →" : ratingChangeVelocity > 0.05 ? "Rapidly deteriorating ↘️" : ratingChangeVelocity > 0 ? "Slowly deteriorating →" : "Stable"
+        ratingChangeVelocity: ratingChangeVelocity !== null ? ratingChangeVelocity.toFixed(3) : "N/A",
+        direction: ratingChangeVelocity === 0 ? "Insufficient data" : ratingChangeVelocity < -0.01 ? "Improving (more bullish)" : ratingChangeVelocity > 0.01 ? "Deteriorating (more bearish)" : "Stable",
+        interpretation: ratingChangeVelocity === 0 ? "Insufficient historical recommendation data" : ratingChangeVelocity < -0.05 ? "Rapidly improving ↗️" : ratingChangeVelocity < 0 ? "Slowly improving →" : ratingChangeVelocity > 0.05 ? "Rapidly deteriorating ↘️" : ratingChangeVelocity > 0 ? "Slowly deteriorating →" : "Stable"
       },
       timestamp: new Date().toISOString()
     });

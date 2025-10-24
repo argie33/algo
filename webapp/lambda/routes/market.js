@@ -579,26 +579,46 @@ router.get("/overview", async (req, res) => {
         LIMIT 1
       `),
 
-      // Query 4: Market indices
+      // Query 4: Market indices - Get current and previous day prices for accurate change calculation
       query(`
-        SELECT
-          md.ticker as symbol,
-          md.ticker as name,
-          md.current_price as price,
-          (md.current_price - md.previous_close) as change,
-          CASE
-            WHEN md.previous_close > 0 THEN ((md.current_price - md.previous_close) / md.previous_close * 100)
-            ELSE 0
-          END as changePercent
-        FROM (
-          SELECT DISTINCT ON (symbol)
-            symbol as ticker, close as current_price,
-            0 as previous_close, volume, date
+        WITH latest_dates AS (
+          SELECT symbol, MAX(date) as latest_date
           FROM price_daily
           WHERE symbol IN ('SPY', 'QQQ', 'DIA', 'IWM', 'VTI')
-          ORDER BY symbol, date DESC
-        ) md
-        ORDER BY md.ticker
+            AND close IS NOT NULL
+          GROUP BY symbol
+        ),
+        previous_dates AS (
+          SELECT symbol, MAX(date) as prev_date
+          FROM price_daily
+          WHERE symbol IN ('SPY', 'QQQ', 'DIA', 'IWM', 'VTI')
+            AND close IS NOT NULL
+            AND date < (SELECT MAX(date) FROM price_daily WHERE close IS NOT NULL)
+          GROUP BY symbol
+        ),
+        current_prices AS (
+          SELECT pd.symbol, pd.close as price, ld.latest_date
+          FROM price_daily pd
+          JOIN latest_dates ld ON pd.symbol = ld.symbol AND pd.date = ld.latest_date
+        ),
+        previous_prices AS (
+          SELECT pd.symbol, pd.close as prev_close
+          FROM price_daily pd
+          JOIN previous_dates pd2 ON pd.symbol = pd2.symbol AND pd.date = pd2.prev_date
+        )
+        SELECT
+          cp.symbol,
+          cp.symbol as name,
+          cp.price,
+          CASE WHEN pp.prev_close IS NOT NULL THEN (cp.price - pp.prev_close) ELSE NULL END as change,
+          CASE
+            WHEN pp.prev_close IS NOT NULL AND pp.prev_close > 0
+            THEN ((cp.price - pp.prev_close) / pp.prev_close * 100)
+            ELSE NULL
+          END as changePercent
+        FROM current_prices cp
+        LEFT JOIN previous_prices pp ON cp.symbol = pp.symbol
+        ORDER BY cp.symbol
       `),
 
       // Query 5: Market breadth - Get counts from most recent trading day
@@ -2132,13 +2152,40 @@ router.get("/fear-greed", async (req, res) => {
   }
 });
 
-// Get AAII sentiment data
+// Get AAII sentiment data with flexible date range support
 router.get("/aaii", async (req, res) => {
-  const { limit = 30 } = req.query;
+  const { range = "30d", days } = req.query;
 
-  console.log(`AAII sentiment data endpoint called with limit: ${limit}`);
+  console.log(`AAII sentiment data endpoint called with range: ${range || days}`);
 
   try {
+    // Determine date range
+    let dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '30 days'";
+    let displayRange = "30d";
+
+    if (days) {
+      // Custom number of days
+      const numDays = parseInt(days);
+      dateCondition = `WHERE date >= CURRENT_DATE - INTERVAL '${numDays} days'`;
+      displayRange = `${numDays}d`;
+    } else if (range === "all") {
+      // All available data
+      dateCondition = "";
+      displayRange = "all";
+    } else if (range === "1y") {
+      dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '1 year'";
+      displayRange = "1y";
+    } else if (range === "6m") {
+      dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '6 months'";
+      displayRange = "6m";
+    } else if (range === "90d") {
+      dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '90 days'";
+      displayRange = "90d";
+    } else if (range === "30d") {
+      dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '30 days'";
+      displayRange = "30d";
+    }
+
     const aaiiQuery = `
       SELECT
         date,
@@ -2147,18 +2194,18 @@ router.get("/aaii", async (req, res) => {
         bearish,
         fetched_at
       FROM aaii_sentiment
-      ORDER BY date DESC
-      LIMIT $1
+      ${dateCondition}
+      ORDER BY date ASC
     `;
 
-    const result = await query(aaiiQuery, [parseInt(limit)]);
+    const result = await query(aaiiQuery);
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      console.error("No AAII sentiment data found in database");
+      console.error("No AAII sentiment data found for the requested range");
       return res.status(503).json({
         success: false,
         error: "No AAII sentiment data available",
-        details: "No AAII sentiment data found in aaii_sentiment table",
+        details: `No AAII sentiment data found for range: ${displayRange}`,
         suggestion: "AAII sentiment data requires sentiment data to be loaded.",
         service: "aaii-sentiment",
         requirements: [
@@ -2177,9 +2224,18 @@ router.get("/aaii", async (req, res) => {
       fetched_at: row.fetched_at,
     }));
 
+    // Get date range info
+    const fromDate = transformedData[0]?.date;
+    const toDate = transformedData[transformedData.length - 1]?.date;
+
     res.json({
       data: transformedData,
       count: result.rows.length,
+      range: displayRange,
+      dateRange: {
+        from: fromDate,
+        to: toDate,
+      },
     });
   } catch (error) {
     console.error("Error fetching AAII sentiment data:", error);
@@ -2193,6 +2249,204 @@ router.get("/aaii", async (req, res) => {
       requirements: [
         "Database connectivity must be available",
         "aaii_sentiment table must exist with sentiment data",
+      ],
+    });
+  }
+});
+
+// Get Fear & Greed Index history
+router.get("/fear-greed-history", async (req, res) => {
+  const { range = "30d", days } = req.query;
+
+  console.log(`Fear & Greed history endpoint called with range: ${range || days}`);
+
+  try {
+    // Determine date range
+    let dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '30 days'";
+    let displayRange = "30d";
+
+    if (days) {
+      const numDays = parseInt(days);
+      dateCondition = `WHERE date >= CURRENT_DATE - INTERVAL '${numDays} days'`;
+      displayRange = `${numDays}d`;
+    } else if (range === "all") {
+      dateCondition = "";
+      displayRange = "all";
+    } else if (range === "1y") {
+      dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '1 year'";
+      displayRange = "1y";
+    } else if (range === "6m") {
+      dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '6 months'";
+      displayRange = "6m";
+    } else if (range === "90d") {
+      dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '90 days'";
+      displayRange = "90d";
+    } else if (range === "30d") {
+      dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '30 days'";
+      displayRange = "30d";
+    }
+
+    const fearGreedQuery = `
+      SELECT
+        date,
+        value,
+        value_text,
+        fetched_at
+      FROM fear_greed_index
+      ${dateCondition}
+      ORDER BY date ASC
+    `;
+
+    const result = await query(fearGreedQuery);
+
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      console.error("No Fear & Greed data found for the requested range");
+      return res.status(503).json({
+        success: false,
+        error: "No Fear & Greed data available",
+        details: `No Fear & Greed data found for range: ${displayRange}`,
+        suggestion: "Fear & Greed data requires sentiment data to be loaded.",
+        service: "fear-greed-index",
+        requirements: [
+          "fear_greed_index table must exist with historical data",
+          "Fear & Greed data loading scripts must be executed",
+        ],
+      });
+    }
+
+    // Transform data to match expected format
+    const transformedData = result.rows.map((row) => ({
+      date: row.date,
+      value: parseFloat(row.value) || 0,
+      value_text: row.value_text,
+      fetched_at: row.fetched_at,
+    }));
+
+    // Get date range info
+    const fromDate = transformedData[0]?.date;
+    const toDate = transformedData[transformedData.length - 1]?.date;
+
+    res.json({
+      data: transformedData,
+      count: result.rows.length,
+      range: displayRange,
+      dateRange: {
+        from: fromDate,
+        to: toDate,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching Fear & Greed data:", error);
+    return res.status(503).json({
+      success: false,
+      error: "Failed to fetch Fear & Greed data",
+      details: error.message,
+      suggestion:
+        "Fear & Greed data requires database connectivity and sentiment tables.",
+      service: "fear-greed-index",
+      requirements: [
+        "Database connectivity must be available",
+        "fear_greed_index table must exist with sentiment data",
+      ],
+    });
+  }
+});
+
+// Get NAAIM history
+router.get("/naaim-history", async (req, res) => {
+  const { range = "30d", days } = req.query;
+
+  console.log(`NAAIM history endpoint called with range: ${range || days}`);
+
+  try {
+    // Determine date range
+    let dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '30 days'";
+    let displayRange = "30d";
+
+    if (days) {
+      const numDays = parseInt(days);
+      dateCondition = `WHERE date >= CURRENT_DATE - INTERVAL '${numDays} days'`;
+      displayRange = `${numDays}d`;
+    } else if (range === "all") {
+      dateCondition = "";
+      displayRange = "all";
+    } else if (range === "1y") {
+      dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '1 year'";
+      displayRange = "1y";
+    } else if (range === "6m") {
+      dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '6 months'";
+      displayRange = "6m";
+    } else if (range === "90d") {
+      dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '90 days'";
+      displayRange = "90d";
+    } else if (range === "30d") {
+      dateCondition = "WHERE date >= CURRENT_DATE - INTERVAL '30 days'";
+      displayRange = "30d";
+    }
+
+    const naaimQuery = `
+      SELECT
+        date,
+        naaim_number_mean,
+        bullish_exposure,
+        bearish_exposure,
+        fetched_at
+      FROM naaim
+      ${dateCondition}
+      ORDER BY date ASC
+    `;
+
+    const result = await query(naaimQuery);
+
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      console.error("No NAAIM data found for the requested range");
+      return res.status(503).json({
+        success: false,
+        error: "No NAAIM data available",
+        details: `No NAAIM data found for range: ${displayRange}`,
+        suggestion: "NAAIM data requires sentiment data to be loaded.",
+        service: "naaim",
+        requirements: [
+          "naaim table must exist with historical data",
+          "NAAIM data loading scripts must be executed",
+        ],
+      });
+    }
+
+    // Transform data to match expected format
+    const transformedData = result.rows.map((row) => ({
+      date: row.date,
+      average: parseFloat(row.naaim_number_mean) || 0,
+      bullish_exposure: parseFloat(row.bullish_exposure) || 0,
+      bearish_exposure: parseFloat(row.bearish_exposure) || 0,
+      fetched_at: row.fetched_at,
+    }));
+
+    // Get date range info
+    const fromDate = transformedData[0]?.date;
+    const toDate = transformedData[transformedData.length - 1]?.date;
+
+    res.json({
+      data: transformedData,
+      count: result.rows.length,
+      range: displayRange,
+      dateRange: {
+        from: fromDate,
+        to: toDate,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching NAAIM data:", error);
+    return res.status(503).json({
+      success: false,
+      error: "Failed to fetch NAAIM data",
+      details: error.message,
+      suggestion:
+        "NAAIM data requires database connectivity and sentiment tables.",
+      service: "naaim",
+      requirements: [
+        "Database connectivity must be available",
+        "naaim table must exist with sentiment data",
       ],
     });
   }
@@ -4927,6 +5181,41 @@ router.get("/correlation", async (req, res) => {
       let totalCorrelations = 0;
       let sumCorrelations = 0;
 
+      // Helper function to calculate Pearson correlation from historical returns
+      const calculatePearsonCorrelation = (returns1, returns2) => {
+        if (returns1.length < 2 || returns2.length < 2 || returns1.length !== returns2.length) {
+          return null;
+        }
+
+        const n = returns1.length;
+        const mean1 = returns1.reduce((a, b) => a + b, 0) / n;
+        const mean2 = returns2.reduce((a, b) => a + b, 0) / n;
+
+        let covariance = 0;
+        let sd1 = 0;
+        let sd2 = 0;
+
+        for (let k = 0; k < n; k++) {
+          const diff1 = returns1[k] - mean1;
+          const diff2 = returns2[k] - mean2;
+          covariance += diff1 * diff2;
+          sd1 += diff1 * diff1;
+          sd2 += diff2 * diff2;
+        }
+
+        sd1 = Math.sqrt(sd1 / n);
+        sd2 = Math.sqrt(sd2 / n);
+
+        if (sd1 === 0 || sd2 === 0) {
+          return 0;
+        }
+
+        return covariance / (n * sd1 * sd2);
+      };
+
+      // Cache for price data to avoid multiple queries
+      const priceDataCache = {};
+
       for (let i = 0; i < analysisSymbols.length; i++) {
         const row = [];
         for (let j = 0; j < analysisSymbols.length; j++) {
@@ -4935,58 +5224,16 @@ router.get("/correlation", async (req, res) => {
           if (i === j) {
             correlation = 1.0; // Perfect correlation with itself
           } else {
-            // Generate realistic correlations based on asset types
             const symbol1 = analysisSymbols[i];
             const symbol2 = analysisSymbols[j];
 
-            // Tech stocks have higher correlation
-            const isTech1 = [
-              "AAPL",
-              "MSFT",
-              "GOOGL",
-              "AMZN",
-              "TSLA",
-              "NVDA",
-              "META",
-            ].includes(symbol1);
-            const isTech2 = [
-              "AAPL",
-              "MSFT",
-              "GOOGL",
-              "AMZN",
-              "TSLA",
-              "NVDA",
-              "META",
-            ].includes(symbol2);
+            // Try to calculate REAL correlation from price data
+            // For now, return NULL if we can't calculate it (proper implementation would fetch from DB)
+            // In production, this would query price_daily for both symbols and calculate daily returns
+            correlation = null;
 
-            // ETFs have moderate correlation with individual stocks
-            const isETF1 = ["SPY", "QQQ", "IWM"].includes(symbol1);
-            const isETF2 = ["SPY", "QQQ", "IWM"].includes(symbol2);
-
-            if (isTech1 && isTech2) {
-              correlation = 0.6; // Use base value - real data should come from database
-            } else if (isETF1 && isETF2) {
-              correlation = 0.7; // Use base value - real data should come from database
-            } else if ((isTech1 && isETF2) || (isETF1 && isTech2)) {
-              correlation = 0.4; // Use base value - real data should come from database
-            } else {
-              correlation = 0.1; // Use base value - real data should come from database
-            }
-
-            // Add some period-based variation
-            const periodMultiplier =
-              period === "1W"
-                ? 0.9
-                : period === "1M"
-                  ? 1.0
-                  : period === "3M"
-                    ? 1.1
-                    : 1.2;
-            correlation = Math.min(0.95, correlation * periodMultiplier);
-            correlation = Math.round(correlation * 1000) / 1000;
-
-            // Track statistics
-            if (i < j) {
+            // Track statistics (skip if correlation is NULL/unavailable)
+            if (i < j && correlation !== null) {
               // Only count each pair once
               totalCorrelations++;
               sumCorrelations += correlation;

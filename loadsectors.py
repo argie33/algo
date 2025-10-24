@@ -93,13 +93,15 @@ def populate_sector_ranking(conn):
         for target_date in price_dates:
 
             # Calculate current ranks for all sectors based on price_daily data for this date
+            # Using MARKET-CAP WEIGHTED performance calculation
             cursor.execute("""
                 WITH sector_perf AS (
                     SELECT
                         cp.sector,
-                        AVG(COALESCE(pd.close - pd.open, 0)) as avg_performance
+                        SUM((pd.close - pd.open) * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL OR pd.open IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_performance
                     FROM company_profile cp
                     LEFT JOIN price_daily pd ON cp.ticker = pd.symbol AND pd.date = %s
+                    LEFT JOIN market_data md ON cp.ticker = md.ticker
                     WHERE cp.sector IS NOT NULL
                     GROUP BY cp.sector
                 )
@@ -157,7 +159,7 @@ def populate_sector_ranking(conn):
                 perf_value = 0  # Default performance
                 for sector, perf, rank in rankings:
                     if sector == sector_name:
-                        perf_value = perf
+                        perf_value = perf if perf is not None else 0
                         break
 
                 trend = "📈" if perf_value > 0 else "📉" if perf_value < 0 else "➡️"
@@ -271,14 +273,16 @@ def populate_industry_ranking(conn):
         # Process each date
         for target_date in price_dates:
             # Calculate industry rankings based on price_daily data for this date
+            # Using MARKET-CAP WEIGHTED performance calculation
             cursor.execute("""
                 WITH industry_perf AS (
                     SELECT
                         cp.industry,
-                        AVG(COALESCE(pd.close - pd.open, 0)) as avg_performance,
+                        SUM((pd.close - pd.open) * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL OR pd.open IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_performance,
                         COUNT(DISTINCT cp.ticker) as stock_count
                     FROM company_profile cp
                     LEFT JOIN price_daily pd ON cp.ticker = pd.symbol AND pd.date = %s
+                    LEFT JOIN market_data md ON cp.ticker = md.ticker
                     WHERE cp.industry IS NOT NULL
                     GROUP BY cp.industry
                 )
@@ -329,7 +333,8 @@ def populate_industry_ranking(conn):
 
             # Batch insert for this date
             for industry_name, perf, stock_count, current_rank in rankings:
-                trend = "📈" if perf > 0 else "📉" if perf < 0 else "➡️"
+                perf_value = perf if perf is not None else 0
+                trend = "📈" if perf_value > 0 else "📉" if perf_value < 0 else "➡️"
                 hist = historical_ranks.get(industry_name, {})
 
                 # Add to batch
@@ -340,7 +345,7 @@ def populate_industry_ranking(conn):
                     hist.get('rank_1w_ago'),
                     hist.get('rank_4w_ago'),
                     hist.get('rank_8w_ago'),
-                    perf,
+                    perf_value,
                     stock_count,
                     trend
                 ))

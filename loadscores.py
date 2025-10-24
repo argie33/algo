@@ -278,13 +278,48 @@ def get_period_ending_date(period_type):
         last_day = calendar.monthrange(today.year, today.month)[1]
         return datetime(today.year, today.month, last_day).date()
 
+def calculate_confidence_score(score_dict: Dict) -> float:
+    """
+    Calculate real confidence score based on data completeness.
+
+    Confidence is higher when:
+    - More data fields are available (non-null)
+    - Data is recent
+    - Multiple indicators support the score
+
+    Returns a value between 0 and 1, or None if no data available.
+    """
+    if not score_dict:
+        return None
+
+    # Count non-null values in the score dict
+    non_null_values = sum(1 for v in score_dict.values() if v is not None)
+    total_fields = len(score_dict)
+
+    if total_fields == 0:
+        return None
+
+    # Calculate confidence as percentage of available data
+    # 0.5 (50%) -> 0.70 confidence
+    # 0.75 (75%) -> 0.85 confidence
+    # 1.0 (100%) -> 0.95 confidence
+    data_completeness = non_null_values / total_fields
+
+    if data_completeness == 0:
+        return None  # No data available
+    elif data_completeness < 0.5:
+        return 0.5 + (data_completeness / 2)  # 0.5-0.75 range
+    else:
+        return 0.7 + (data_completeness * 0.25)  # 0.7-0.95 range
+
 def insert_scores(cur, symbol, date, period_type, period_ending, scores_data):
     """Insert scores into all relevant tables with period information"""
     try:
         # Insert quality scores
         quality = scores_data.get('quality', {})
+        quality_confidence = calculate_confidence_score(quality)
         cur.execute("""
-            INSERT INTO quality_scores (symbol, date, period_type, period_ending, earnings_quality, 
+            INSERT INTO quality_scores (symbol, date, period_type, period_ending, earnings_quality,
                                       balance_strength, profitability, management, composite, trend, confidence)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol, date, period_type) DO UPDATE SET
@@ -304,13 +339,14 @@ def insert_scores(cur, symbol, date, period_type, period_ending, scores_data):
             quality.get('management'),
             quality.get('composite'),
             quality.get('trend'),
-            90.0  # Default confidence
+            quality_confidence  # Real confidence based on data completeness
         ))
         
         # Insert growth scores
         growth = scores_data.get('growth', {})
+        growth_confidence = calculate_confidence_score(growth)
         cur.execute("""
-            INSERT INTO growth_scores (symbol, date, period_type, period_ending, revenue_growth, 
+            INSERT INTO growth_scores (symbol, date, period_type, period_ending, revenue_growth,
                                      earnings_growth, fundamental_growth, market_expansion, composite, trend, confidence)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol, date, period_type) DO UPDATE SET
@@ -330,13 +366,14 @@ def insert_scores(cur, symbol, date, period_type, period_ending, scores_data):
             growth.get('market_expansion'),
             growth.get('composite'),
             growth.get('trend'),
-            90.0  # Default confidence
+            growth_confidence  # Real confidence based on data completeness
         ))
         
         # Insert value scores
         value = scores_data.get('value', {})
+        value_confidence = calculate_confidence_score(value)
         cur.execute("""
-            INSERT INTO value_scores (symbol, date, period_type, period_ending, pe_score, 
+            INSERT INTO value_scores (symbol, date, period_type, period_ending, pe_score,
                                     dcf_score, relative_value, composite, trend, confidence)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol, date, period_type) DO UPDATE SET
@@ -354,13 +391,14 @@ def insert_scores(cur, symbol, date, period_type, period_ending, scores_data):
             value.get('relative_value'),
             value.get('composite'),
             value.get('trend'),
-            90.0  # Default confidence
+            value_confidence  # Real confidence based on data completeness
         ))
         
         # Insert momentum scores
         momentum = scores_data.get('momentum', {})
+        momentum_confidence = calculate_confidence_score(momentum)
         cur.execute("""
-            INSERT INTO momentum_scores (symbol, date, period_type, period_ending, price_momentum, 
+            INSERT INTO momentum_scores (symbol, date, period_type, period_ending, price_momentum,
                                        fundamental_momentum, technical, volume_analysis, composite, trend, confidence)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol, date, period_type) DO UPDATE SET
@@ -380,13 +418,14 @@ def insert_scores(cur, symbol, date, period_type, period_ending, scores_data):
             momentum.get('volume_analysis'),
             momentum.get('composite'),
             momentum.get('trend'),
-            90.0  # Default confidence
+            momentum_confidence  # Real confidence based on data completeness
         ))
         
         # Insert sentiment scores
         sentiment = scores_data.get('sentiment', {})
+        sentiment_confidence = calculate_confidence_score(sentiment)
         cur.execute("""
-            INSERT INTO sentiment_scores (symbol, date, period_type, period_ending, analyst_sentiment, 
+            INSERT INTO sentiment_scores (symbol, date, period_type, period_ending, analyst_sentiment,
                                         social_sentiment, market_sentiment, news_sentiment, composite, trend, confidence)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol, date, period_type) DO UPDATE SET
@@ -406,13 +445,14 @@ def insert_scores(cur, symbol, date, period_type, period_ending, scores_data):
             sentiment.get('news_sentiment'),
             sentiment.get('composite'),
             sentiment.get('trend'),
-            90.0  # Default confidence
+            sentiment_confidence  # Real confidence based on data completeness
         ))
         
         # Insert positioning scores
         positioning = scores_data.get('positioning', {})
+        positioning_confidence = calculate_confidence_score(positioning)
         cur.execute("""
-            INSERT INTO positioning_scores (symbol, date, period_type, period_ending, institutional, 
+            INSERT INTO positioning_scores (symbol, date, period_type, period_ending, institutional,
                                           insider, short_interest, options_flow, composite, trend, confidence)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol, date, period_type) DO UPDATE SET
@@ -432,7 +472,7 @@ def insert_scores(cur, symbol, date, period_type, period_ending, scores_data):
             positioning.get('options_flow'),
             positioning.get('composite'),
             positioning.get('trend'),
-            90.0  # Default confidence
+            positioning_confidence  # Real confidence based on data completeness
         ))
         
         # Insert master scores

@@ -72,15 +72,16 @@ router.get("/", async (req, res) => {
       SELECT
         s.sector,
         COUNT(DISTINCT s.ticker) as stock_count,
-        AVG(pd.close) as avg_price,
+        SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_price,
         SUM(pd.volume) as total_volume,
-        AVG(
-          CASE
-            WHEN pd_old.close > 0 THEN
-              ((pd.close - pd_old.close) / pd_old.close * 100)
-            ELSE NULL
-          END
-        ) as performance_pct,
+        CASE
+          WHEN SUM(CASE WHEN pd_old.close > 0 THEN COALESCE(md.market_cap, 0) ELSE 0 END) > 0 THEN
+            (SUM(CASE WHEN pd_old.close > 0 THEN (pd.close - pd_old.close) * COALESCE(md.market_cap, 0) ELSE 0 END) /
+             SUM(CASE WHEN pd_old.close > 0 THEN COALESCE(md.market_cap, 0) ELSE 0 END)) /
+            NULLIF(SUM(CASE WHEN pd_old.close > 0 THEN pd_old.close * COALESCE(md.market_cap, 0) ELSE 0 END) /
+                   SUM(CASE WHEN pd_old.close > 0 THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) * 100
+          ELSE NULL
+        END as performance_pct,
         COUNT(DISTINCT CASE
           WHEN pd.close > pd_old.close THEN s.ticker
           ELSE NULL
@@ -90,6 +91,7 @@ router.get("/", async (req, res) => {
           ELSE NULL
         END) as losing_stocks
       FROM company_profile s
+      LEFT JOIN market_data md ON s.ticker = md.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
@@ -267,23 +269,25 @@ router.get("/analysis", async (req, res) => {
       return Promise.race([queryPromise, timeoutPromise]);
     };
 
-    // Query for sector analysis using real data only
+    // Query for sector analysis using real data only with MARKET-CAP WEIGHTING
     const sectorAnalysisQuery = `
       SELECT
         s.sector,
         COUNT(DISTINCT s.ticker) as stock_count,
-        AVG(pd.close) as avg_price,
+        SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_price,
         SUM(pd.volume) as total_volume,
         AVG(ti.rsi) as avg_rsi,
         AVG(ti.momentum) as avg_momentum,
-        AVG(
-          CASE
-            WHEN pd_old.close > 0 THEN
-              ((pd.close - pd_old.close) / pd_old.close * 100)
-            ELSE NULL
-          END
-        ) as monthly_change_pct
+        CASE
+          WHEN SUM(CASE WHEN pd_old.close > 0 THEN COALESCE(md.market_cap, 0) ELSE 0 END) > 0 THEN
+            (SUM(CASE WHEN pd_old.close > 0 THEN (pd.close - pd_old.close) * COALESCE(md.market_cap, 0) ELSE 0 END) /
+             SUM(CASE WHEN pd_old.close > 0 THEN COALESCE(md.market_cap, 0) ELSE 0 END)) /
+            NULLIF(SUM(CASE WHEN pd_old.close > 0 THEN pd_old.close * COALESCE(md.market_cap, 0) ELSE 0 END) /
+                   SUM(CASE WHEN pd_old.close > 0 THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) * 100
+          ELSE NULL
+        END as monthly_change_pct
       FROM company_profile s
+      LEFT JOIN market_data md ON s.ticker = md.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
@@ -517,22 +521,23 @@ router.get("/performance", async (req, res) => {
 
     const days = periodDays[period];
 
-    // Query for sector performance using real data only
+    // Query for sector performance using real data only with MARKET-CAP WEIGHTING
     const olderDays = days + 7;
     const result = await query(
       `
       SELECT
         s.sector,
         COUNT(DISTINCT s.ticker) as stock_count,
-        AVG(pd.close) as avg_price,
+        SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_price,
         SUM(pd.volume) as total_volume,
-        AVG(
-          CASE
-            WHEN pd_old.close > 0 THEN
-              ((pd.close - pd_old.close) / pd_old.close * 100)
-            ELSE NULL
-          END
-        ) as performance_pct,
+        CASE
+          WHEN SUM(CASE WHEN pd_old.close > 0 THEN COALESCE(md.market_cap, 0) ELSE 0 END) > 0 THEN
+            (SUM(CASE WHEN pd_old.close > 0 THEN (pd.close - pd_old.close) * COALESCE(md.market_cap, 0) ELSE 0 END) /
+             SUM(CASE WHEN pd_old.close > 0 THEN COALESCE(md.market_cap, 0) ELSE 0 END)) /
+            NULLIF(SUM(CASE WHEN pd_old.close > 0 THEN pd_old.close * COALESCE(md.market_cap, 0) ELSE 0 END) /
+                   SUM(CASE WHEN pd_old.close > 0 THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) * 100
+          ELSE NULL
+        END as performance_pct,
         COUNT(DISTINCT CASE
           WHEN pd.close > pd_old.close THEN s.ticker
           ELSE NULL
@@ -542,6 +547,7 @@ router.get("/performance", async (req, res) => {
           ELSE NULL
         END) as losing_stocks
       FROM company_profile s
+      LEFT JOIN market_data md ON s.ticker = md.ticker
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
           symbol, close, volume, date
@@ -1411,13 +1417,14 @@ router.get("/sectors-with-history", async (req, res) => {
         LIMIT 1
       ),
       sector_prices AS (
-        -- Calculate current sector average prices for latest available date
+        -- Calculate current sector MARKET-CAP WEIGHTED average prices for latest available date
         SELECT
           cp.sector,
-          AVG(pd.close) as avg_close,
+          SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close,
           MAX(pd.date) as latest_date
         FROM company_profile cp
         JOIN price_daily pd ON cp.ticker = pd.symbol
+        LEFT JOIN market_data md ON cp.ticker = md.ticker
         WHERE cp.sector IS NOT NULL AND cp.sector != ''
           AND pd.date = (SELECT MAX(date) FROM price_daily)
         GROUP BY cp.sector
@@ -1443,23 +1450,26 @@ router.get("/sectors-with-history", async (req, res) => {
           END as perf_20d
         FROM sector_prices sp
         LEFT JOIN (
-          SELECT cp.sector, AVG(pd.close) as avg_close
+          SELECT cp.sector, SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close
           FROM company_profile cp
           JOIN price_daily pd ON cp.ticker = pd.symbol
+          LEFT JOIN market_data md ON cp.ticker = md.ticker
           WHERE pd.date = (SELECT MAX(date) FROM price_daily) - INTERVAL '1 day'
           GROUP BY cp.sector
         ) pd_1d ON sp.sector = pd_1d.sector
         LEFT JOIN (
-          SELECT cp.sector, AVG(pd.close) as avg_close
+          SELECT cp.sector, SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close
           FROM company_profile cp
           JOIN price_daily pd ON cp.ticker = pd.symbol
+          LEFT JOIN market_data md ON cp.ticker = md.ticker
           WHERE pd.date = (SELECT MAX(date) FROM price_daily) - INTERVAL '5 days'
           GROUP BY cp.sector
         ) pd_5d ON sp.sector = pd_5d.sector
         LEFT JOIN (
-          SELECT cp.sector, AVG(pd.close) as avg_close
+          SELECT cp.sector, SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close
           FROM company_profile cp
           JOIN price_daily pd ON cp.ticker = pd.symbol
+          LEFT JOIN market_data md ON cp.ticker = md.ticker
           WHERE pd.date = (SELECT MAX(date) FROM price_daily) - INTERVAL '20 days'
           GROUP BY cp.sector
         ) pd_20d ON sp.sector = pd_20d.sector
@@ -1630,13 +1640,14 @@ router.get("/industries-with-history", async (req, res) => {
         LIMIT 1
       ),
       industry_prices AS (
-        -- Calculate current industry average prices for latest available date
+        -- Calculate current industry MARKET-CAP WEIGHTED average prices for latest available date
         SELECT
           cp.industry,
-          AVG(pd.close) as avg_close,
+          SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close,
           MAX(pd.date) as latest_date
         FROM company_profile cp
         JOIN price_daily pd ON cp.ticker = pd.symbol
+        LEFT JOIN market_data md ON cp.ticker = md.ticker
         WHERE cp.industry IS NOT NULL AND cp.industry != ''
           AND pd.date = (SELECT MAX(date) FROM price_daily)
         GROUP BY cp.industry
@@ -1662,23 +1673,26 @@ router.get("/industries-with-history", async (req, res) => {
           END as perf_20d
         FROM industry_prices ip
         LEFT JOIN (
-          SELECT cp.industry, AVG(pd.close) as avg_close
+          SELECT cp.industry, SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close
           FROM company_profile cp
           JOIN price_daily pd ON cp.ticker = pd.symbol
+          LEFT JOIN market_data md ON cp.ticker = md.ticker
           WHERE pd.date = (SELECT MAX(date) FROM price_daily) - INTERVAL '1 day'
           GROUP BY cp.industry
         ) pd_1d ON ip.industry = pd_1d.industry
         LEFT JOIN (
-          SELECT cp.industry, AVG(pd.close) as avg_close
+          SELECT cp.industry, SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close
           FROM company_profile cp
           JOIN price_daily pd ON cp.ticker = pd.symbol
+          LEFT JOIN market_data md ON cp.ticker = md.ticker
           WHERE pd.date = (SELECT MAX(date) FROM price_daily) - INTERVAL '5 days'
           GROUP BY cp.industry
         ) pd_5d ON ip.industry = pd_5d.industry
         LEFT JOIN (
-          SELECT cp.industry, AVG(pd.close) as avg_close
+          SELECT cp.industry, SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close
           FROM company_profile cp
           JOIN price_daily pd ON cp.ticker = pd.symbol
+          LEFT JOIN market_data md ON cp.ticker = md.ticker
           WHERE pd.date = (SELECT MAX(date) FROM price_daily) - INTERVAL '20 days'
           GROUP BY cp.industry
         ) pd_20d ON ip.industry = pd_20d.industry

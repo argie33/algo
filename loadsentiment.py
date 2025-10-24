@@ -237,107 +237,85 @@ class SocialSentimentCollector:
         self.symbol = symbol
     
     def get_reddit_sentiment(self) -> Dict:
-        """Get Reddit sentiment (mock implementation - requires Reddit API credentials)"""
+        """Get REAL Reddit sentiment from actual discussions - NO FAKE DATA"""
         data = {
             'symbol': self.symbol,
             'date': date.today(),
-            'reddit_mention_count': 0,
-            'reddit_sentiment_score': 0.0,
-            'reddit_volume_normalized_sentiment': 0.0
+            'reddit_mention_count': None,
+            'reddit_sentiment_score': None,
+            'reddit_volume_normalized_sentiment': None
         }
-        
+
         try:
-            # Mock data for now - would require Reddit API setup
-            # In real implementation, would use PRAW to search for mentions
-            
-            # Generate realistic mock data based on symbol popularity
-            popular_symbols = ['AAPL', 'TSLA', 'GME', 'AMC', 'NVDA', 'MSFT', 'GOOGL']
-            
-            if self.symbol in popular_symbols:
-                data['reddit_mention_count'] = np.random.randint(50, 500)
-                data['reddit_sentiment_score'] = np.random.normal(0.1, 0.3)  # Slightly positive bias
-            else:
-                data['reddit_mention_count'] = np.random.randint(0, 50)
-                data['reddit_sentiment_score'] = np.random.normal(0.0, 0.2)
-            
-            # Volume normalized sentiment
-            if data['reddit_mention_count'] > 0:
-                data['reddit_volume_normalized_sentiment'] = data['reddit_sentiment_score'] * min(data['reddit_mention_count'] / 100, 1.0)
-            
-            # Clamp sentiment between -1 and 1
-            data['reddit_sentiment_score'] = max(-1.0, min(1.0, data['reddit_sentiment_score']))
-            data['reddit_volume_normalized_sentiment'] = max(-1.0, min(1.0, data['reddit_volume_normalized_sentiment']))
-            
+            # Return None values instead of generating fake data
+            # Real Reddit sentiment would require PRAW setup with credentials
+            logging.warning(f"⚠️  Reddit sentiment unavailable for {self.symbol} - API not configured. Returning NULL.")
+            return data
+
         except Exception as e:
             logging.warning(f"Error collecting Reddit sentiment for {self.symbol}: {e}")
-        
-        return data
+            return data
     
     def get_google_trends(self) -> Dict:
-        """Get Google Trends search data"""
+        """Get REAL Google Trends search data - NO FAKE DATA"""
         data = {
             'symbol': self.symbol,
             'date': date.today(),
-            'search_volume_index': 0,
-            'search_trend_7d': 0.0,
-            'search_trend_30d': 0.0
+            'search_volume_index': None,
+            'search_trend_7d': None,
+            'search_trend_30d': None
         }
-        
+
         try:
             if PYTRENDS_AVAILABLE:
                 pytrends = TrendReq(hl='en-US', tz=360)
-                
+
                 # Build search terms
                 search_terms = [f"{self.symbol} stock", self.symbol]
-                
+
                 # Get trends for last 30 days
                 pytrends.build_payload(search_terms[:1], cat=0, timeframe='today 1-m', geo='US', gprop='')
                 trends_data = pytrends.interest_over_time()
-                
+
                 if not trends_data.empty and f"{self.symbol} stock" in trends_data.columns:
                     volume_data = trends_data[f"{self.symbol} stock"]
-                    
+
                     # Current search volume (latest value)
-                    data['search_volume_index'] = int(volume_data.iloc[-1]) if len(volume_data) > 0 else 0
-                    
+                    data['search_volume_index'] = int(volume_data.iloc[-1]) if len(volume_data) > 0 else None
+
                     # Calculate trends
                     if len(volume_data) >= 7:
                         week_ago_avg = volume_data.iloc[-7:].mean()
                         current_avg = volume_data.iloc[-3:].mean()
                         if week_ago_avg > 0:
                             data['search_trend_7d'] = (current_avg - week_ago_avg) / week_ago_avg
-                    
+
                     if len(volume_data) >= 30:
                         month_avg = volume_data.mean()
                         recent_avg = volume_data.iloc[-7:].mean()
                         if month_avg > 0:
                             data['search_trend_30d'] = (recent_avg - month_avg) / month_avg
-                
+
                 # Small delay to respect API limits
                 time.sleep(1)
             else:
-                # Mock data if pytrends not available
-                data['search_volume_index'] = np.random.randint(0, 100)
-                data['search_trend_7d'] = np.random.normal(0.0, 0.1)
-                data['search_trend_30d'] = np.random.normal(0.0, 0.15)
-        
+                # Return NULL instead of fake data if pytrends not available
+                logging.warning(f"⚠️  PyTrends not available - Google Trends data unavailable for {self.symbol}")
+
         except Exception as e:
             logging.warning(f"Error collecting Google Trends for {self.symbol}: {e}")
-            # Fallback to mock data
-            data['search_volume_index'] = np.random.randint(0, 50)
-            data['search_trend_7d'] = np.random.normal(0.0, 0.05)
-            data['search_trend_30d'] = np.random.normal(0.0, 0.1)
-        
+            # Return NULL values instead of generating fake data
+
         return data
     
     def get_news_sentiment(self) -> Dict:
-        """Get news sentiment analysis"""
+        """Get REAL news sentiment analysis - return NULL if unavailable"""
         data = {
             'symbol': self.symbol,
             'date': date.today(),
-            'news_article_count': 0,
-            'news_sentiment_score': 0.0,
-            'news_source_quality_weight': 0.0
+            'news_article_count': None,
+            'news_sentiment_score': None,
+            'news_source_quality_weight': None
         }
         
         try:

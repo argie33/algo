@@ -92,24 +92,25 @@ def calculate_macd(prices, fast=12, slow=26, signal=9):
 def populate_sector_performance(conn):
     """
     Populate sector_performance table with real percentage calculations
-    Calculates 1D%, 5D%, 20D% from company average prices by sector
+    Calculates 1D%, 5D%, 20D% from company MARKET-CAP WEIGHTED average prices by sector
     """
-    logger.info("📊 Populating sector_performance table with real percentage data...")
+    logger.info("📊 Populating sector_performance table with MARKET-CAP WEIGHTED percentage data...")
     cursor = conn.cursor()
 
     try:
         # Delete old data
         cursor.execute("DELETE FROM sector_performance")
 
-        # Calculate sector performance based on company average prices
+        # Calculate sector performance based on MARKET-CAP WEIGHTED company average prices
         query = """
         WITH sector_daily_prices AS (
             SELECT
                 cp.sector,
                 pd.date,
-                AVG(pd.close) as avg_close
+                SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close
             FROM company_profile cp
             JOIN price_daily pd ON cp.ticker = pd.symbol
+            LEFT JOIN market_data md ON cp.ticker = md.ticker
             WHERE cp.sector IS NOT NULL AND cp.sector != ''
             GROUP BY cp.sector, pd.date
         ),
@@ -122,6 +123,7 @@ def populate_sector_performance(conn):
             ORDER BY sector, date DESC
         )
         INSERT INTO sector_performance (
+            symbol,
             sector_name,
             performance_1d,
             performance_5d,
@@ -129,6 +131,7 @@ def populate_sector_performance(conn):
             fetched_at
         )
         SELECT
+            SUBSTRING('S_' || ld.sector FROM 1 FOR 20),
             ld.sector,
             -- 1D performance (today vs yesterday)
             CASE
@@ -182,43 +185,47 @@ def populate_sector_performance(conn):
 def populate_industry_performance(conn):
     """
     Populate industry_performance table with real percentage calculations
-    Calculates 1D%, 5D%, 20D% from company average prices by industry
+    Calculates 1D%, 5D%, 20D% from company MARKET-CAP WEIGHTED average prices by industry
     """
-    logger.info("📊 Populating industry_performance table with real percentage data...")
+    logger.info("📊 Populating industry_performance table with MARKET-CAP WEIGHTED percentage data...")
     cursor = conn.cursor()
 
     try:
         # Delete old data
         cursor.execute("DELETE FROM industry_performance")
 
-        # Calculate industry performance based on company average prices
+        # Calculate industry performance based on MARKET-CAP WEIGHTED company average prices
         query = """
         WITH industry_daily_prices AS (
             SELECT
+                cp.sector,
                 cp.industry,
                 pd.date,
-                AVG(pd.close) as avg_close
+                SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close
             FROM company_profile cp
             JOIN price_daily pd ON cp.ticker = pd.symbol
+            LEFT JOIN market_data md ON cp.ticker = md.ticker
             WHERE cp.industry IS NOT NULL AND cp.industry != ''
-            GROUP BY cp.industry, pd.date
+            GROUP BY cp.sector, cp.industry, pd.date
         ),
         latest_data AS (
-            SELECT DISTINCT ON (industry)
+            SELECT DISTINCT ON (sector, industry)
+                sector,
                 industry,
                 avg_close as latest_close
             FROM industry_daily_prices
             WHERE date <= CURRENT_DATE
-            ORDER BY industry, date DESC
+            ORDER BY sector, industry, date DESC
         )
         INSERT INTO industry_performance (
-            industry_name,
+            sector,
+            industry,
             performance_1d,
             performance_5d,
-            performance_20d,
-            fetched_at
+            performance_20d
         )
         SELECT
+            ld.sector,
             ld.industry,
             -- 1D performance (today vs yesterday)
             CASE
@@ -237,24 +244,23 @@ def populate_industry_performance(conn):
                 WHEN d20.avg_close > 0 THEN
                     ((ld.latest_close - d20.avg_close) / d20.avg_close * 100)
                 ELSE NULL
-            END as perf_20d,
-            NOW()
+            END as perf_20d
         FROM latest_data ld
         LEFT JOIN (
-            SELECT industry, avg_close
+            SELECT sector, industry, avg_close
             FROM industry_daily_prices
             WHERE date = CURRENT_DATE - INTERVAL '1 day'
-        ) d1 ON ld.industry = d1.industry
+        ) d1 ON ld.sector = d1.sector AND ld.industry = d1.industry
         LEFT JOIN (
-            SELECT industry, avg_close
+            SELECT sector, industry, avg_close
             FROM industry_daily_prices
             WHERE date = CURRENT_DATE - INTERVAL '5 days'
-        ) d5 ON ld.industry = d5.industry
+        ) d5 ON ld.sector = d5.sector AND ld.industry = d5.industry
         LEFT JOIN (
-            SELECT industry, avg_close
+            SELECT sector, industry, avg_close
             FROM industry_daily_prices
             WHERE date = CURRENT_DATE - INTERVAL '20 days'
-        ) d20 ON ld.industry = d20.industry
+        ) d20 ON ld.sector = d20.sector AND ld.industry = d20.industry
         """
 
         cursor.execute(query)
@@ -321,9 +327,10 @@ def populate_technical_data(conn):
         for sector in sectors:
             try:
                 cursor.execute("""
-                    SELECT pd.date, AVG(pd.close) as avg_close, SUM(pd.volume) as total_vol
+                    SELECT pd.date, SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close, SUM(pd.volume) as total_vol
                     FROM company_profile cp
                     JOIN price_daily pd ON cp.ticker = pd.symbol
+                    LEFT JOIN market_data md ON cp.ticker = md.ticker
                     WHERE cp.sector = %s
                     GROUP BY pd.date
                     ORDER BY pd.date ASC LIMIT 200
@@ -370,9 +377,10 @@ def populate_technical_data(conn):
         for industry in industries:
             try:
                 cursor.execute("""
-                    SELECT pd.date, AVG(pd.close) as avg_close, SUM(pd.volume) as total_vol
+                    SELECT pd.date, SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close, SUM(pd.volume) as total_vol
                     FROM company_profile cp
                     JOIN price_daily pd ON cp.ticker = pd.symbol
+                    LEFT JOIN market_data md ON cp.ticker = md.ticker
                     WHERE cp.industry = %s
                     GROUP BY pd.date
                     ORDER BY pd.date ASC LIMIT 200

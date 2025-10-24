@@ -95,8 +95,8 @@ class SentimentEngine {
       });
 
       const totalSentimentWords = positiveCount + negativeCount;
-      let score = 0.5; // neutral default
-      let confidence = 0.3; // low confidence for simple analysis
+      let score = null; // No default fake value - return NULL if no sentiment data
+      let confidence = null; // No default - return NULL if no sentiment data
 
       if (totalSentimentWords > 0) {
         score = positiveCount / (positiveCount + negativeCount);
@@ -118,9 +118,9 @@ class SentimentEngine {
     } catch (error) {
       logger.error("Sentiment analysis failed:", error);
       return {
-        score: 0.5,
-        label: "neutral",
-        confidence: 0,
+        score: null,
+        label: null,
+        confidence: null,
         symbol: symbol || null,
         error: error.message,
         timestamp: new Date().toISOString(),

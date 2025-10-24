@@ -183,49 +183,56 @@ class InstitutionalHoldingsAnalyzer:
             return None
     
     def _calculate_institutional_quality(self, institutional_holders: pd.DataFrame) -> float:
-        """Calculate quality score based on institutional holder types"""
+        """Calculate quality score based on REAL institutional holder types and characteristics"""
         if institutional_holders.empty or 'Holder' not in institutional_holders.columns:
-            return 0.5
-        
-        quality_score = 0.5  # Base score
+            return None  # Return NULL instead of fake 0.5
+
+        quality_score = 0
         total_weight = 0
-        
+
         # Define quality tiers for different institution types
         high_quality_keywords = [
             'berkshire', 'bridgewater', 'blackrock', 'vanguard', 'fidelity',
             'renaissance', 'citadel', 'aqr', 'two sigma', 'man group'
         ]
-        
+
         medium_quality_keywords = [
             'capital', 'management', 'advisors', 'partners', 'investment',
             'funds', 'asset', 'equity', 'growth', 'value'
         ]
-        
+
         for _, holder_row in institutional_holders.iterrows():
             holder_name = str(holder_row.get('Holder', '')).lower()
             shares = safe_float(holder_row.get('Shares', 0))
-            
+
             if shares and shares > 0:
                 weight = shares  # Weight by shares held
-                holder_quality = 0.5  # Default quality
-                
-                # High quality institutions
+                holder_quality = None  # No default fake value
+
+                # High quality institutions (active, proven track record)
                 if any(keyword in holder_name for keyword in high_quality_keywords):
                     holder_quality = 0.9
-                # Medium quality institutions
+                # Medium quality institutions (established, broad focus)
                 elif any(keyword in holder_name for keyword in medium_quality_keywords):
                     holder_quality = 0.7
-                # ETFs and index funds (passive)
+                # ETFs and index funds (passive, lower quality for active stock analysis)
                 elif 'etf' in holder_name or 'index' in holder_name:
                     holder_quality = 0.6
-                
-                quality_score += holder_quality * weight
-                total_weight += weight
-        
+                # Unknown/unclassified institutions - cannot score without more data
+                else:
+                    holder_quality = None  # Return NULL for unclassified holders
+
+                # Only include classified institutions in weighted average
+                if holder_quality is not None:
+                    quality_score += holder_quality * weight
+                    total_weight += weight
+
         if total_weight > 0:
             quality_score = quality_score / total_weight
-        
-        return min(max(quality_score, 0), 1)
+            return min(max(quality_score, 0), 1)
+        else:
+            # No classifiable institutions found
+            return None
     
     def _simulate_institutional_flow(self) -> Dict:
         """Simulate institutional flow analysis"""
@@ -270,12 +277,16 @@ class InstitutionalHoldingsAnalyzer:
                 })
                 
                 # Smart money score (combination of quality and recent activity)
-                base_ownership = safe_float(result.get('institutional_ownership_pct', 0.5))
-                quality_score = safe_float(result.get('institutional_quality_score', 0.5))
+                base_ownership = safe_float(result.get('institutional_ownership_pct', None))
+                quality_score = safe_float(result.get('institutional_quality_score', None))
                 net_flow = result.get('net_institutional_flow', 0)
-                
-                smart_money_score = (base_ownership * 0.4) + (quality_score * 0.4) + (max(net_flow, -0.1) * 2 + 0.2)
-                result['smart_money_score'] = min(max(smart_money_score, 0), 1)
+
+                # Only calculate smart money score if we have actual data
+                if base_ownership is not None and quality_score is not None:
+                    smart_money_score = (base_ownership * 0.4) + (quality_score * 0.4) + (max(net_flow, -0.1) * 2 + 0.2)
+                    result['smart_money_score'] = min(max(smart_money_score, 0), 1)
+                else:
+                    result['smart_money_score'] = None  # No fake data
         
         except Exception as e:
             logging.error(f"Error simulating institutional flow for {self.symbol}: {e}")
