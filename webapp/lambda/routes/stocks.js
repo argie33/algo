@@ -1316,14 +1316,14 @@ router.get("/", async (req, res) => {
 
         // Factor scores from stock_scores table
         factorScores: {
-          composite: stock.composite_score || 0,
-          momentum: stock.momentum_score || 0,
-          value: stock.value_score || 0,
-          quality: stock.quality_score || 0,
-          growth: stock.growth_score || 0,
-          positioning: stock.positioning_score || 0,
-          sentiment: stock.sentiment_score || 0,
-          stability: stock.stability_score || 0,
+          composite: stock.composite_score !== null && stock.composite_score !== undefined ? stock.composite_score : null,
+          momentum: stock.momentum_score !== null && stock.momentum_score !== undefined ? stock.momentum_score : null,
+          value: stock.value_score !== null && stock.value_score !== undefined ? stock.value_score : null,
+          quality: stock.quality_score !== null && stock.quality_score !== undefined ? stock.quality_score : null,
+          growth: stock.growth_score !== null && stock.growth_score !== undefined ? stock.growth_score : null,
+          positioning: stock.positioning_score !== null && stock.positioning_score !== undefined ? stock.positioning_score : null,
+          sentiment: stock.sentiment_score !== null && stock.sentiment_score !== undefined ? stock.sentiment_score : null,
+          stability: stock.stability_score !== null && stock.stability_score !== undefined ? stock.stability_score : null,
         },
       },
     }));

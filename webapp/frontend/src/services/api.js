@@ -1168,6 +1168,36 @@ export const getMarketBreadth = async () => {
   }
 };
 
+export const getMarketInternals = async () => {
+  console.log(`📊 [API] Fetching market internals...`);
+
+  try {
+    const response = await api.get(`/api/market/internals`);
+    console.log(`📊 [API] Fetched market internals:`, response.data);
+
+    // Always return response as-is for internals
+    if (response?.data && typeof response?.data === "object") {
+      console.log("📊 [API] Returning internals data structure:", response?.data);
+      return response?.data;
+    }
+
+    // Fallback to normalized response
+    const result = normalizeApiResponse(response, false);
+    console.log("📊 [API] Internals fallback normalized result:", result);
+    return { data: result };
+  } catch (error) {
+    console.error("❌ [API] Market internals error details:", {
+      message: error?.message || "Unknown error",
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      url: error.config?.url,
+      method: error.config?.method,
+    });
+    const errorMessage = handleApiError(error, "get market internals");
+    throw new Error(errorMessage);
+  }
+};
+
 export const getDistributionDays = async () => {
   console.log(`📊 [API] Fetching distribution days...`);
 

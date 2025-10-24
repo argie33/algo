@@ -116,7 +116,8 @@ const handleGetStock = async (params) => {
   const { symbol, include } = params;
   if (!symbol) throw new Error("symbol parameter is required");
 
-  const response = await callApi(`/api/stocks/${symbol}`, "GET", {
+  // Use quote endpoint which works reliably
+  const response = await callApi(`/api/stocks/quote/${symbol}`, "GET", {
     ...(include && { include }),
   });
 
@@ -136,8 +137,9 @@ const handleCompareStocks = async (params) => {
     throw new Error("symbols array is required");
   }
 
-  const response = await callApi("/api/stocks/compare", "POST", {
-    symbols,
+  // Use GET with query params for compare endpoint
+  const response = await callApi("/api/stocks/compare", "GET", {
+    symbols: symbols.join(","),
   });
 
   return {
@@ -176,11 +178,22 @@ const handleTopStocks = async (params) => {
   const { factor, limit = 20, sector } = params;
   if (!factor) throw new Error("factor parameter is required");
 
-  const response = await callApi("/api/scores/top", "GET", {
-    factor,
-    limit,
+  // Get all scores and filter/sort in response
+  const response = await callApi("/api/scores", "GET", {
+    limit: 100,
     ...(sector && { sector }),
   });
+
+  if (response.data?.stocks) {
+    // Sort by requested factor
+    response.data.stocks = response.data.stocks
+      .sort((a, b) => {
+        const aScore = a[`${factor}_score`] || 0;
+        const bScore = b[`${factor}_score`] || 0;
+        return bScore - aScore;
+      })
+      .slice(0, limit);
+  }
 
   return {
     content: [
@@ -216,8 +229,9 @@ const handleAnalyzeTechnical = async (params) => {
   const { symbol } = params;
   if (!symbol) throw new Error("symbol parameter is required");
 
+  // Use analysis endpoint which summarizes technical data
   const response = await callApi(
-    `/api/technical/${symbol}/analysis`,
+    `/api/stocks/analysis/${symbol}`,
     "GET"
   );
 
@@ -236,7 +250,8 @@ const handleGetFinancialStatements = async (params) => {
   const { symbol, period = "quarterly" } = params;
   if (!symbol) throw new Error("symbol parameter is required");
 
-  const response = await callApi(`/api/financials/${symbol}/statements`, "GET", {
+  // Use financials endpoint which returns statements
+  const response = await callApi(`/api/financials/${symbol}`, "GET", {
     period,
   });
 
@@ -377,8 +392,10 @@ const handleGetSignals = async (params) => {
 // Earnings Tools
 const handleGetEarningsCalendar = async (params) => {
   const { days = 30, symbols } = params;
-  const response = await callApi("/api/earnings/calendar", "GET", {
+  // Use calendar endpoint for earnings calendar
+  const response = await callApi("/api/calendar", "GET", {
     days,
+    type: "earnings",
     ...(symbols && { symbols }),
   });
   return {

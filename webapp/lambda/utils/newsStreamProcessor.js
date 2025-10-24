@@ -210,11 +210,11 @@ class NewsStreamProcessor {
       // Enhance article with analysis
       const enhancedArticle = {
         ...normalizedArticle,
-        sentiment: sentimentAnalysis.label || "neutral",
-        sentiment_score: sentimentAnalysis.score || 0.5,
-        sentiment_confidence: sentimentAnalysis.confidence || 0,
-        impact_score: impactAnalysis.score || 0.5,
-        relevance_score: reliabilityScore || 0.5,
+        sentiment: sentimentAnalysis.label || null,
+        sentiment_score: sentimentAnalysis.score !== null && sentimentAnalysis.score !== undefined ? sentimentAnalysis.score : null,
+        sentiment_confidence: sentimentAnalysis.confidence !== null && sentimentAnalysis.confidence !== undefined ? sentimentAnalysis.confidence : null,
+        impact_score: impactAnalysis.score !== null && impactAnalysis.score !== undefined ? impactAnalysis.score : null,
+        relevance_score: reliabilityScore !== null && reliabilityScore !== undefined ? reliabilityScore : null,
         keywords: this.extractKeywords(normalizedArticle),
         is_breaking: this.isBreakingNews(normalizedArticle),
         processing_timestamp: new Date(),

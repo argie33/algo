@@ -7304,4 +7304,247 @@ router.get("/sentiment-divergence", async (req, res) => {
   }
 });
 
+// Advanced Market Internals - Comprehensive breadth, MA analysis, and positioning
+router.get("/internals", async (req, res) => {
+  console.log("Market internals endpoint called");
+
+  try {
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service unavailable",
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Run all queries in parallel
+    const [breadthResult, maAnalysisResult, historicalBreadthResult, positioningResult] = await Promise.all([
+      // Current breadth data with advance/decline calculations
+      query(`
+        WITH latest_date AS (
+          SELECT MAX(date) as max_date
+          FROM price_daily
+          WHERE close IS NOT NULL
+        ),
+        current_breadth AS (
+          SELECT
+            COUNT(*) as total_stocks,
+            COUNT(CASE WHEN (close - open) > 0 THEN 1 END) as advancing,
+            COUNT(CASE WHEN (close - open) < 0 THEN 1 END) as declining,
+            COUNT(CASE WHEN (close - open) = 0 THEN 1 END) as unchanged,
+            COUNT(CASE WHEN (close - open) > (close * 0.05) THEN 1 END) as strong_up,
+            COUNT(CASE WHEN (close - open) < (close * -0.05) THEN 1 END) as strong_down,
+            SUM(volume) as total_volume,
+            AVG((close - open) / open * 100) as avg_daily_change,
+            STDDEV((close - open) / open * 100) as stddev_change
+          FROM price_daily
+          WHERE date = (SELECT max_date FROM latest_date)
+            AND close IS NOT NULL
+            AND open IS NOT NULL
+        )
+        SELECT * FROM current_breadth
+      `),
+
+      // Stocks above moving averages analysis
+      query(`
+        WITH latest_date AS (
+          SELECT MAX(date) as max_date
+          FROM price_daily
+          WHERE close IS NOT NULL
+        ),
+        ma_analysis AS (
+          SELECT
+            COUNT(*) FILTER (WHERE sma_20 IS NOT NULL AND close > sma_20) as above_sma20,
+            COUNT(*) FILTER (WHERE sma_50 IS NOT NULL AND close > sma_50) as above_sma50,
+            COUNT(*) FILTER (WHERE sma_200 IS NOT NULL AND close > sma_200) as above_sma200,
+            COUNT(*) FILTER (WHERE sma_20 IS NOT NULL) as total_with_sma20,
+            COUNT(*) FILTER (WHERE sma_50 IS NOT NULL) as total_with_sma50,
+            COUNT(*) FILTER (WHERE sma_200 IS NOT NULL) as total_with_sma200,
+            COUNT(*) as total_stocks,
+            AVG(CASE WHEN sma_20 IS NOT NULL THEN (close - sma_20) / sma_20 * 100 ELSE NULL END) as avg_dist_from_sma20,
+            AVG(CASE WHEN sma_50 IS NOT NULL THEN (close - sma_50) / sma_50 * 100 ELSE NULL END) as avg_dist_from_sma50,
+            AVG(CASE WHEN sma_200 IS NOT NULL THEN (close - sma_200) / sma_200 * 100 ELSE NULL END) as avg_dist_from_sma200
+          FROM (
+            SELECT DISTINCT ON (symbol)
+              symbol, date, close, sma_20, sma_50, sma_200
+            FROM price_daily
+            WHERE date <= (SELECT max_date FROM latest_date)
+              AND close IS NOT NULL
+            ORDER BY symbol, date DESC
+          ) latest_prices
+        )
+        SELECT * FROM ma_analysis
+      `),
+
+      // Historical breadth percentiles (30, 60, 90 day lookback)
+      query(`
+        WITH breadth_history AS (
+          SELECT
+            date,
+            COUNT(*) as total_stocks,
+            COUNT(CASE WHEN (close - open) > 0 THEN 1 END) as advancing,
+            COUNT(CASE WHEN (close - open) < 0 THEN 1 END) as declining,
+            ROUND(100.0 * COUNT(CASE WHEN (close - open) > 0 THEN 1 END) / COUNT(*), 2) as advancing_percent,
+            ROUND(100.0 * COUNT(CASE WHEN (close - open) < 0 THEN 1 END) / COUNT(*), 2) as declining_percent
+          FROM price_daily
+          WHERE date >= CURRENT_DATE - INTERVAL '90 days'
+            AND close IS NOT NULL
+            AND open IS NOT NULL
+          GROUP BY date
+          ORDER BY date DESC
+        )
+        SELECT
+          (SELECT advancing_percent FROM breadth_history ORDER BY date DESC LIMIT 1) as current_advancing_pct,
+          PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY advancing_percent) as percentile_25_advancing,
+          PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY advancing_percent) as percentile_50_advancing,
+          PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY advancing_percent) as percentile_75_advancing,
+          PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY advancing_percent) as percentile_90_advancing,
+          AVG(advancing_percent) as avg_advancing_pct,
+          STDDEV(advancing_percent) as stddev_advancing_pct,
+          MAX(advancing_percent) as max_advancing_pct,
+          MIN(advancing_percent) as min_advancing_pct
+        FROM breadth_history
+      `),
+
+      // Market positioning metrics
+      query(`
+        SELECT
+          (SELECT COUNT(*) FROM positioning_metrics WHERE institutional_ownership > 0.5 AND date >= CURRENT_DATE - INTERVAL '30 days') as high_inst_ownership_count,
+          (SELECT AVG(institutional_ownership) FROM positioning_metrics WHERE date >= CURRENT_DATE - INTERVAL '30 days') as avg_inst_ownership,
+          (SELECT AVG(short_percent_of_float) FROM positioning_metrics WHERE date >= CURRENT_DATE - INTERVAL '30 days') as avg_short_interest,
+          (SELECT AVG(short_interest_change) FROM positioning_metrics WHERE date >= CURRENT_DATE - INTERVAL '30 days') as avg_short_change,
+          (SELECT bullish FROM aaii_sentiment ORDER BY date DESC LIMIT 1) as aaii_bullish,
+          (SELECT bearish FROM aaii_sentiment ORDER BY date DESC LIMIT 1) as aaii_bearish,
+          (SELECT neutral FROM aaii_sentiment ORDER BY date DESC LIMIT 1) as aaii_neutral,
+          (SELECT bullish FROM naaim ORDER BY date DESC LIMIT 1) as naaim_bullish,
+          (SELECT bearish FROM naaim ORDER BY date DESC LIMIT 1) as naaim_bearish,
+          (SELECT index_value FROM fear_greed_index ORDER BY date DESC LIMIT 1) as fear_greed_value
+      `)
+    ]);
+
+    const breadth = breadthResult.rows[0] || {};
+    const maAnalysis = maAnalysisResult.rows[0] || {};
+    const historicalBreadth = historicalBreadthResult.rows[0] || {};
+    const positioning = positioningResult.rows[0] || {};
+
+    // Calculate overextension signals
+    const advancingPct = breadth.total_stocks ? (breadth.advancing / breadth.total_stocks * 100) : 0;
+    const advancingPercAboveMA20 = maAnalysis.total_with_sma20 ? (maAnalysis.above_sma20 / maAnalysis.total_with_sma20 * 100) : 0;
+    const advancingPercAboveMA200 = maAnalysis.total_with_sma200 ? (maAnalysis.above_sma200 / maAnalysis.total_with_sma200 * 100) : 0;
+
+    // Determine overextension level
+    let overextensionLevel = "Normal";
+    let overextensionSignal = null;
+
+    if (advancingPct > 75 && advancingPercAboveMA200 > 80) {
+      overextensionLevel = "Extreme";
+      overextensionSignal = "Market extremely overbought - consider taking profits";
+    } else if (advancingPct > 70 || advancingPercAboveMA200 > 75) {
+      overextensionLevel = "Strong";
+      overextensionSignal = "Market extended to upside - watch for reversal";
+    } else if (advancingPct < 25 && advancingPercAboveMA200 < 20) {
+      overextensionLevel = "Extreme Down";
+      overextensionSignal = "Market extremely oversold - may be bottom";
+    } else if (advancingPct < 30 || advancingPercAboveMA200 < 25) {
+      overextensionLevel = "Strong Down";
+      overextensionSignal = "Market extended to downside - watch for reversal";
+    }
+
+    // Calculate how many std deviations from mean
+    const stdDevsFromMean = historicalBreadth.stddev_advancing_pct
+      ? ((advancingPct - historicalBreadth.avg_advancing_pct) / historicalBreadth.stddev_advancing_pct).toFixed(2)
+      : 0;
+
+    return res.json({
+      success: true,
+      data: {
+        market_breadth: {
+          total_stocks: parseInt(breadth.total_stocks || 0),
+          advancing: parseInt(breadth.advancing || 0),
+          declining: parseInt(breadth.declining || 0),
+          unchanged: parseInt(breadth.unchanged || 0),
+          strong_up: parseInt(breadth.strong_up || 0),
+          strong_down: parseInt(breadth.strong_down || 0),
+          advancing_percent: parseFloat(advancingPct).toFixed(2),
+          decline_advance_ratio: breadth.declining > 0 ? parseFloat(breadth.declining / breadth.advancing).toFixed(2) : "N/A",
+          avg_daily_change: parseFloat(breadth.avg_daily_change || 0).toFixed(3),
+          total_volume: parseInt(breadth.total_volume || 0)
+        },
+        moving_average_analysis: {
+          above_sma20: {
+            count: parseInt(maAnalysis.above_sma20 || 0),
+            total: parseInt(maAnalysis.total_with_sma20 || 0),
+            percent: maAnalysis.total_with_sma20 ? parseFloat(advancingPercAboveMA20).toFixed(2) : "N/A",
+            avg_distance_pct: parseFloat(maAnalysis.avg_dist_from_sma20 || 0).toFixed(2)
+          },
+          above_sma50: {
+            count: parseInt(maAnalysis.above_sma50 || 0),
+            total: parseInt(maAnalysis.total_with_sma50 || 0),
+            percent: maAnalysis.total_with_sma50 ? parseFloat((maAnalysis.above_sma50 / maAnalysis.total_with_sma50 * 100)).toFixed(2) : "N/A",
+            avg_distance_pct: parseFloat(maAnalysis.avg_dist_from_sma50 || 0).toFixed(2)
+          },
+          above_sma200: {
+            count: parseInt(maAnalysis.above_sma200 || 0),
+            total: parseInt(maAnalysis.total_with_sma200 || 0),
+            percent: maAnalysis.total_with_sma200 ? parseFloat(advancingPercAboveMA200).toFixed(2) : "N/A",
+            avg_distance_pct: parseFloat(maAnalysis.avg_dist_from_sma200 || 0).toFixed(2)
+          }
+        },
+        market_extremes: {
+          current_breadth_percentile: advancingPct.toFixed(2),
+          percentile_25: parseFloat(historicalBreadth.percentile_25_advancing || 0).toFixed(2),
+          percentile_50: parseFloat(historicalBreadth.percentile_50_advancing || 0).toFixed(2),
+          percentile_75: parseFloat(historicalBreadth.percentile_75_advancing || 0).toFixed(2),
+          percentile_90: parseFloat(historicalBreadth.percentile_90_advancing || 0).toFixed(2),
+          avg_breadth_30d: parseFloat(historicalBreadth.avg_advancing_pct || 0).toFixed(2),
+          stddev_breadth_30d: parseFloat(historicalBreadth.stddev_advancing_pct || 0).toFixed(2),
+          stddev_from_mean: stdDevsFromMean,
+          breadth_rank: Math.round(((advancingPct - historicalBreadth.min_advancing_pct) / (historicalBreadth.max_advancing_pct - historicalBreadth.min_advancing_pct) * 100)) || 50
+        },
+        overextension_indicator: {
+          level: overextensionLevel,
+          signal: overextensionSignal,
+          breadth_score: advancingPct.toFixed(2),
+          ma200_score: advancingPercAboveMA200.toFixed(2),
+          composite_score: ((parseFloat(advancingPct) + parseFloat(advancingPercAboveMA200)) / 2).toFixed(2)
+        },
+        positioning_metrics: {
+          institutional: {
+            high_ownership_symbols: parseInt(positioning.high_inst_ownership_count || 0),
+            avg_ownership_pct: (parseFloat(positioning.avg_inst_ownership || 0) * 100).toFixed(2),
+            avg_short_interest: (parseFloat(positioning.avg_short_interest || 0) * 100).toFixed(2),
+            short_change_trend: parseFloat(positioning.avg_short_change || 0).toFixed(3)
+          },
+          retail_sentiment: {
+            aaii_bullish: positioning.aaii_bullish !== null && positioning.aaii_bullish !== undefined ? parseFloat(positioning.aaii_bullish).toFixed(2) : null,
+            aaii_bearish: positioning.aaii_bearish !== null && positioning.aaii_bearish !== undefined ? parseFloat(positioning.aaii_bearish).toFixed(2) : null,
+            aaii_neutral: positioning.aaii_neutral !== null && positioning.aaii_neutral !== undefined ? parseFloat(positioning.aaii_neutral).toFixed(2) : null
+          },
+          professional_sentiment: {
+            naaim_bullish: positioning.naaim_bullish !== null && positioning.naaim_bullish !== undefined ? parseFloat(positioning.naaim_bullish).toFixed(2) : null,
+            naaim_bearish: positioning.naaim_bearish !== null && positioning.naaim_bearish !== undefined ? parseFloat(positioning.naaim_bearish).toFixed(2) : null
+          },
+          fear_greed_index: parseFloat(positioning.fear_greed_value || 50).toFixed(0)
+        }
+      },
+      metadata: {
+        data_freshness: "Real-time from database",
+        breadth_lookback: "Last trading day",
+        historical_lookback: "90 days",
+        positioning_lookback: "30 days"
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Error fetching market internals:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Market internals calculation failed",
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 module.exports = router;

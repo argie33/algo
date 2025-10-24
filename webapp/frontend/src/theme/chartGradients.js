@@ -105,26 +105,6 @@ export const LEADING_INDICATORS_GRADIENT = {
 };
 
 /**
- * Helper function to render SVG linearGradient element
- * @param {Object} gradient - Gradient definition object
- * @returns {JSX.Element} SVG linearGradient element
- */
-export const renderGradient = (gradient) => (
-  <defs>
-    <linearGradient id={gradient.id} x1="0" y1="0" x2="0" y2="1">
-      {gradient.stops.map((stop, idx) => (
-        <stop
-          key={idx}
-          offset={stop.offset}
-          stopColor={stop.color}
-          stopOpacity={stop.opacity}
-        />
-      ))}
-    </linearGradient>
-  </defs>
-);
-
-/**
  * Helper function to get gradient fill reference
  * @param {string} gradientId - The gradient ID
  * @returns {string} URL reference for use in fill attributes
@@ -161,7 +141,6 @@ export const GRADIENTS = {
 };
 
 export default {
-  renderGradient,
   getGradientFill,
   GRADIENTS,
   COLOR_PALETTE

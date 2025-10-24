@@ -1530,14 +1530,14 @@ function StockExplorer() {
                                 y2="1"
                               >
                                 <stop
-                                  offset="5%"
+                                  offset="0%"
                                   stopColor="#1976d2"
-                                  stopOpacity={0.8}
+                                  stopOpacity={0.4}
                                 />
                                 <stop
-                                  offset="95%"
+                                  offset="100%"
                                   stopColor="#1976d2"
-                                  stopOpacity={0.1}
+                                  stopOpacity={0.05}
                                 />
                               </linearGradient>
                             </defs>

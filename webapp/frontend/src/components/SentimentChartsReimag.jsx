@@ -441,12 +441,12 @@ const SentimentChartsReimag = ({
                 <AreaChart data={processedAAIIData} margin={{ top: 10, right: 30, left: 60, bottom: 30 }}>
                   <defs>
                     <linearGradient id="aaiiBullishGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={chartColors.bullish} stopOpacity={0.3} />
-                      <stop offset="95%" stopColor={chartColors.bullish} stopOpacity={0.05} />
+                      <stop offset="0%" stopColor={chartColors.bullish} stopOpacity={0.4} />
+                      <stop offset="100%" stopColor={chartColors.bullish} stopOpacity={0.05} />
                     </linearGradient>
                     <linearGradient id="aaiiBearishGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={chartColors.bearish} stopOpacity={0.3} />
-                      <stop offset="95%" stopColor={chartColors.bearish} stopOpacity={0.05} />
+                      <stop offset="0%" stopColor={chartColors.bearish} stopOpacity={0.4} />
+                      <stop offset="100%" stopColor={chartColors.bearish} stopOpacity={0.05} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid
@@ -573,8 +573,8 @@ const SentimentChartsReimag = ({
                 <AreaChart data={processedFearGreedData} margin={{ top: 10, right: 30, left: 60, bottom: 30 }}>
                   <defs>
                     <linearGradient id="fearGreedGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={chartColors.fearGreed} stopOpacity={0.4} />
-                      <stop offset="95%" stopColor={chartColors.fearGreed} stopOpacity={0.08} />
+                      <stop offset="0%" stopColor={chartColors.fearGreed} stopOpacity={0.4} />
+                      <stop offset="100%" stopColor={chartColors.fearGreed} stopOpacity={0.05} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid
@@ -654,8 +654,8 @@ const SentimentChartsReimag = ({
                 <AreaChart data={processedNAAIMData} margin={{ top: 10, right: 30, left: 60, bottom: 30 }}>
                   <defs>
                     <linearGradient id="naamGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={chartColors.naaim} stopOpacity={0.3} />
-                      <stop offset="95%" stopColor={chartColors.naaim} stopOpacity={0.05} />
+                      <stop offset="0%" stopColor={chartColors.naaim} stopOpacity={0.4} />
+                      <stop offset="100%" stopColor={chartColors.naaim} stopOpacity={0.05} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid

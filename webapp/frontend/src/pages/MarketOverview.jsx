@@ -67,6 +67,7 @@ import { createComponentLogger } from "../utils/errorLogger";
 import SectorSeasonalityTable from "../components/SectorSeasonalityTable";
 import McClellanOscillatorChart from "../components/McClellanOscillatorChart";
 import SentimentDivergenceChart from "../components/SentimentDivergenceChart";
+import MarketInternals from "../components/MarketInternals";
 
 // Create logger instance for this component
 const _logger = createComponentLogger("MarketOverview");
@@ -1104,6 +1105,17 @@ const handleTabChange = (event, newValue) => {
             data={sentimentDivergenceData?.data}
             isLoading={sentimentDivergenceLoading}
           />
+        </Grid>
+      </Grid>
+
+      {/* Market Internals - Comprehensive Breadth & Technical Analysis */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <MarketInternals />
+            </CardContent>
+          </Card>
         </Grid>
       </Grid>
 
