@@ -66,12 +66,13 @@ def get_economic_calendar_data():
         if fred_events:
             return fred_events
         else:
-            logger.warning("All free sources failed, using mock data")
-            return get_mock_calendar_data()
-        
+            logger.error("❌ All free sources failed - returning empty data (no mock calendar)")
+            return []
+
     except Exception as e:
         logger.error(f"Failed to fetch economic calendar data: {e}")
-        return get_mock_calendar_data()
+        logger.error("❌ Returning empty data - synthetic calendar data not permitted")
+        return []
 
 def get_fred_release_calendar():
     """Get upcoming economic releases from FRED API (completely free)."""
@@ -202,67 +203,9 @@ def get_scheduled_economic_events():
     return events
 
 def get_mock_calendar_data():
-    """Generate mock economic calendar data for testing."""
-    mock_events = [
-        {
-            'Event': 'Federal Reserve Meeting',
-            'Date': '2025-01-29',
-            'Time': '14:00',
-            'Country': 'United States',
-            'Category': 'monetary_policy',
-            'Importance': 'High',
-            'Currency': 'USD',
-            'Forecast': '0.25% rate cut expected',
-            'Previous': '5.25-5.50%',
-            'Unit': '%',
-            'Frequency': 'Monthly',
-            'Source': 'Federal Reserve'
-        },
-        {
-            'Event': 'Consumer Price Index',
-            'Date': '2025-01-15',
-            'Time': '08:30',
-            'Country': 'United States',
-            'Category': 'inflation',
-            'Importance': 'High',
-            'Currency': 'USD',
-            'Forecast': '2.4% Y/Y',
-            'Previous': '2.6% Y/Y',
-            'Unit': '%',
-            'Frequency': 'Monthly',
-            'Source': 'Bureau of Labor Statistics'
-        },
-        {
-            'Event': 'Nonfarm Payrolls',
-            'Date': '2025-01-10',
-            'Time': '08:30',
-            'Country': 'United States',
-            'Category': 'employment',
-            'Importance': 'High',
-            'Currency': 'USD',
-            'Forecast': '160K',
-            'Previous': '227K',
-            'Unit': 'K',
-            'Frequency': 'Monthly',
-            'Source': 'Bureau of Labor Statistics'
-        },
-        {
-            'Event': 'Gross Domestic Product',
-            'Date': '2025-01-30',
-            'Time': '08:30',
-            'Country': 'United States',
-            'Category': 'gdp',
-            'Importance': 'High',
-            'Currency': 'USD',
-            'Forecast': '2.8% QoQ',
-            'Previous': '2.8% QoQ',
-            'Unit': '%',
-            'Frequency': 'Quarterly',
-            'Source': 'Bureau of Economic Analysis'
-        }
-    ]
-    
-    return mock_events
+    """❌ DEPRECATED - Mock calendar data generation removed."""
+    logger.error("❌ get_mock_calendar_data() called - returning empty list (no synthetic data)")
+    return []
 
 def process_calendar_events(events):
     """Process raw calendar events into standardized format."""

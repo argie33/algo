@@ -426,9 +426,9 @@ class InsiderTradingAnalyzer:
             else:
                 result['insider_sentiment_score'] = 0.0
             
-            # Simulate executive-specific activity
-            result['ceo_trading_activity'] = 1 if buys > sells else -1 if sells > buys else 0
-            result['director_trading_activity'] = np.random.choice([-1, 0, 1], p=[0.3, 0.4, 0.3])
+            # Director/CEO trading requires real SEC Form 4 data - not generating fake data
+            result['ceo_trading_activity'] = None  # Return NULL instead of synthetic data
+            result['director_trading_activity'] = None  # Return NULL instead of synthetic data
             
         except Exception as e:
             logging.error(f"Error simulating insider trading for {self.symbol}: {e}")

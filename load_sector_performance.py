@@ -101,17 +101,17 @@ def populate_sector_performance(conn):
         # Delete old data
         cursor.execute("DELETE FROM sector_performance")
 
-        # Calculate sector performance based on MARKET-CAP WEIGHTED company average prices
+        # Calculate sector performance based on SIMPLE AVERAGE of closing prices
+        # (Market cap data is only available for ~6% of stocks, so use simple average instead)
         query = """
         WITH sector_daily_prices AS (
             SELECT
                 cp.sector,
                 pd.date,
-                SUM(pd.close * md.market_cap) / NULLIF(SUM(md.market_cap), 0) as avg_close
+                AVG(pd.close) as avg_close
             FROM company_profile cp
             JOIN price_daily pd ON cp.ticker = pd.symbol
-            INNER JOIN market_data md ON cp.ticker = md.ticker
-            WHERE cp.sector IS NOT NULL AND cp.sector != '' AND md.market_cap > 0
+            WHERE cp.sector IS NOT NULL AND cp.sector != ''
             GROUP BY cp.sector, pd.date
         ),
         latest_data AS (
@@ -194,18 +194,18 @@ def populate_industry_performance(conn):
         # Delete old data
         cursor.execute("DELETE FROM industry_performance")
 
-        # Calculate industry performance based on MARKET-CAP WEIGHTED company average prices
+        # Calculate industry performance based on SIMPLE AVERAGE of closing prices
+        # (Market cap data is only available for ~6% of stocks, so use simple average instead)
         query = """
         WITH industry_daily_prices AS (
             SELECT
                 cp.sector,
                 cp.industry,
                 pd.date,
-                SUM(pd.close * md.market_cap) / NULLIF(SUM(md.market_cap), 0) as avg_close
+                AVG(pd.close) as avg_close
             FROM company_profile cp
             JOIN price_daily pd ON cp.ticker = pd.symbol
-            INNER JOIN market_data md ON cp.ticker = md.ticker
-            WHERE cp.industry IS NOT NULL AND cp.industry != '' AND md.market_cap > 0
+            WHERE cp.industry IS NOT NULL AND cp.industry != ''
             GROUP BY cp.sector, cp.industry, pd.date
         ),
         latest_data AS (
@@ -327,10 +327,9 @@ def populate_technical_data(conn):
         for sector in sectors:
             try:
                 cursor.execute("""
-                    SELECT pd.date, SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close, SUM(pd.volume) as total_vol
+                    SELECT pd.date, AVG(pd.close) as avg_close, SUM(pd.volume) as total_vol
                     FROM company_profile cp
                     JOIN price_daily pd ON cp.ticker = pd.symbol
-                    LEFT JOIN market_data md ON cp.ticker = md.ticker
                     WHERE cp.sector = %s
                     GROUP BY pd.date
                     ORDER BY pd.date ASC LIMIT 200
@@ -340,9 +339,14 @@ def populate_technical_data(conn):
                 if not data:
                     continue
 
-                dates = [row[0] for row in data]
-                prices = np.array([float(row[1]) for row in data])
-                volumes = [int(row[2]) for row in data]
+                # Filter out rows with None prices
+                valid_data = [(row[0], row[1], row[2]) for row in data if row[1] is not None]
+                if not valid_data:
+                    continue
+
+                dates = [row[0] for row in valid_data]
+                prices = np.array([float(row[1]) for row in valid_data])
+                volumes = [int(row[2]) if row[2] is not None else 0 for row in valid_data]
 
                 rsi = calculate_rsi(prices)
 
@@ -377,10 +381,9 @@ def populate_technical_data(conn):
         for industry in industries:
             try:
                 cursor.execute("""
-                    SELECT pd.date, SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close, SUM(pd.volume) as total_vol
+                    SELECT pd.date, AVG(pd.close) as avg_close, SUM(pd.volume) as total_vol
                     FROM company_profile cp
                     JOIN price_daily pd ON cp.ticker = pd.symbol
-                    LEFT JOIN market_data md ON cp.ticker = md.ticker
                     WHERE cp.industry = %s
                     GROUP BY pd.date
                     ORDER BY pd.date ASC LIMIT 200
@@ -390,9 +393,14 @@ def populate_technical_data(conn):
                 if not data:
                     continue
 
-                dates = [row[0] for row in data]
-                prices = np.array([float(row[1]) for row in data])
-                volumes = [int(row[2]) for row in data]
+                # Filter out rows with None prices
+                valid_data = [(row[0], row[1], row[2]) for row in data if row[1] is not None]
+                if not valid_data:
+                    continue
+
+                dates = [row[0] for row in valid_data]
+                prices = np.array([float(row[1]) for row in valid_data])
+                volumes = [int(row[2]) if row[2] is not None else 0 for row in valid_data]
 
                 rsi = calculate_rsi(prices)
 

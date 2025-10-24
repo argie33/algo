@@ -977,14 +977,19 @@ router.get("/risk-metrics", authenticateToken, async (req, res) => {
         holding.market_value || holding.quantity * holding.current_price;
       totalValue += marketValue;
 
+      // Use real beta/volatility from database, not hardcoded defaults
+      if (!holding.beta || !holding.historical_volatility_20d) {
+        console.warn(`⚠️ Missing beta/volatility for ${holding.symbol} - using NULL (no synthetic defaults)`);
+      }
+
       return {
         symbol: holding.symbol,
         quantity: holding.quantity,
         marketValue: marketValue,
         costBasis: costBasis,
         weight: 0, // Will be calculated below
-        beta: 1.0, // Default beta - could be enhanced with real data
-        volatility: 0.15, // Default volatility 15% - could be enhanced with real data
+        beta: holding.beta || null, // Must come from technical_data_daily - no hardcoded 1.0
+        volatility: holding.historical_volatility_20d || null, // Must come from DB - no hardcoded 0.15
         sector: holding.sector,
         pnl: holding.pnl || marketValue - costBasis,
         pnl_percent:
@@ -2285,8 +2290,15 @@ router.get("/risk", authenticateToken, async (req, res) => {
 
     holdings.forEach((holding) => {
       const weight = holding.market_value / totalValue;
-      const beta = parseFloat(holding.beta || 1.0);
-      const volatility = parseFloat(holding.historical_volatility_20d || 20.0);
+
+      // Require real data from database - no hardcoded defaults (1.0 for beta, 20.0 for volatility)
+      if (!holding.beta || !holding.historical_volatility_20d) {
+        console.warn(`⚠️ Missing metrics for ${holding.symbol} - cannot calculate portfolio risk without real data`);
+        return; // Skip this holding if metrics missing
+      }
+
+      const beta = parseFloat(holding.beta);
+      const volatility = parseFloat(holding.historical_volatility_20d);
       const sector = holding.sector || "Unknown";
 
       portfolioBeta += weight * beta;
@@ -4989,7 +5001,13 @@ function calculateStressTestImpact(holdings, scenario) {
   const impacts = [];
 
   holdings.forEach((holding) => {
-    const beta = parseFloat(holding.beta) || 1.0;
+    // Cannot use hardcoded 1.0 beta - requires real market sensitivity data
+    if (!holding.beta) {
+      console.warn(`⚠️ Missing beta for ${holding.symbol} - skipping stress test impact (requires real data)`);
+      return; // Skip if beta missing
+    }
+
+    const beta = parseFloat(holding.beta);
     const sectorMultiplier = getSectorStressMultiplier(holding.sector);
 
     const stockImpact = scenario.market * beta * sectorMultiplier;

@@ -175,10 +175,11 @@ class NewsStreamProcessor {
   async processArticle(article) {
     try {
       // Normalize article structure
+      const { randomUUID } = require('crypto');
       const normalizedArticle = {
         id:
           article.id ||
-          `news_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          `news_${randomUUID()}`,
         title: article.title || article.headline,
         summary: article.summary || article.description || "",
         content:

@@ -693,7 +693,7 @@ const handleTabChange = (event, newValue) => {
                   <CircularProgress />
                 </Box>
               ) : aaiiData?.data && aaiiData.data.length > 0 ? (
-                <Box sx={{ height: 400, width: "100%" }}>
+                <Box sx={{ height: 400, width: "100%", minWidth: 0, minHeight: 0 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
                       data={aaiiData.data}
@@ -709,12 +709,13 @@ const handleTabChange = (event, newValue) => {
                         }}
                       />
                       <YAxis
-                        domain={[0, 100]}
+                        domain={[0, 1]}
                         label={{
-                          value: "Sentiment %",
+                          value: "Sentiment (0-1)",
                           angle: -90,
                           position: "insideLeft",
                         }}
+                        tickFormatter={(value) => (value * 100).toFixed(0) + "%"}
                       />
                       <Tooltip
                         contentStyle={{
@@ -723,7 +724,7 @@ const handleTabChange = (event, newValue) => {
                           color: "#fff",
                           borderRadius: "4px",
                         }}
-                        formatter={(value) => [`${parseFloat(value).toFixed(1)}%`, ""]}
+                        formatter={(value) => [`${(parseFloat(value) * 100).toFixed(1)}%`, ""]}
                         labelFormatter={(date) => {
                           const d = new Date(date);
                           return d.toLocaleDateString("en-US", {
@@ -806,7 +807,7 @@ const handleTabChange = (event, newValue) => {
                   <CircularProgress />
                 </Box>
               ) : fearGreedData?.data && fearGreedData.data.length > 0 ? (
-                <Box sx={{ height: 400, width: "100%" }}>
+                <Box sx={{ height: 400, width: "100%", minWidth: 0, minHeight: 0 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
                       data={fearGreedData.data}
@@ -903,7 +904,7 @@ const handleTabChange = (event, newValue) => {
                   <CircularProgress />
                 </Box>
               ) : naaimData?.data && naaimData.data.length > 0 ? (
-                <Box sx={{ height: 400, width: "100%" }}>
+                <Box sx={{ height: 400, width: "100%", minWidth: 0, minHeight: 0 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
                       data={naaimData.data}
@@ -920,7 +921,7 @@ const handleTabChange = (event, newValue) => {
                       />
                       <YAxis
                         label={{
-                          value: "Exposure %",
+                          value: "Manager Positioning",
                           angle: -90,
                           position: "insideLeft",
                         }}
@@ -932,7 +933,7 @@ const handleTabChange = (event, newValue) => {
                           color: "#fff",
                           borderRadius: "4px",
                         }}
-                        formatter={(value) => [`${parseFloat(value).toFixed(1)}%`, ""]}
+                        formatter={(value) => [`${parseFloat(value).toFixed(1)}`, ""]}
                         labelFormatter={(date) => {
                           const d = new Date(date);
                           return d.toLocaleDateString("en-US", {
@@ -945,7 +946,7 @@ const handleTabChange = (event, newValue) => {
                       <Legend />
                       <Line
                         type="monotone"
-                        dataKey="bullish"
+                        dataKey="bullish_exposure"
                         stroke="#10b981"
                         strokeWidth={2.5}
                         dot={false}
@@ -953,7 +954,7 @@ const handleTabChange = (event, newValue) => {
                       />
                       <Line
                         type="monotone"
-                        dataKey="bearish"
+                        dataKey="bearish_exposure"
                         stroke="#ef4444"
                         strokeWidth={2.5}
                         dot={false}
@@ -1053,7 +1054,7 @@ const handleTabChange = (event, newValue) => {
                       </Box>
                       <Box sx={{ textAlign: "right" }}>
                         <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                          {formatCurrency(index.price, 2)}
+                          {formatCurrency(index.value, 2)}
                         </Typography>
                         <Typography
                           variant="body1"

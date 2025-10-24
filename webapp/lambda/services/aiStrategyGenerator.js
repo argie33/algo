@@ -84,7 +84,8 @@ class AIStrategyGenerator {
   }
 
   generateCorrelationId() {
-    return `ai-strategy-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const { randomUUID } = require('crypto');
+    return `ai-strategy-${randomUUID()}`;
   }
 
   /**
@@ -1655,7 +1656,8 @@ and incorporates sophisticated quantitative finance techniques.
     const assetPart =
       intent.assets.length > 0 ? intent.assets[0].toUpperCase() : "Multi";
     const timestamp = new Date().toISOString().split("T")[0].replace(/-/g, "");
-    const aiSuffix = Math.random().toString(36).substr(2, 4).toUpperCase();
+    const { randomBytes } = require('crypto');
+    const aiSuffix = randomBytes(2).toString('hex').toUpperCase();
 
     const nameComponents = [
       stylePrefix,
@@ -4420,59 +4422,14 @@ When RSI rises above 70, it generates a sell signal indicating the asset is over
     try {
       console.log("⚡ Strategy optimization requested");
 
-      // Mock optimization logic
-      const optimizedStrategy = {
-        ...strategy,
-        parameters: {
-          ...strategy.parameters,
-          // Apply optimization
-          optimized: true,
-          metric: options.metric || "sharpe_ratio",
-          optimizedAt: new Date().toISOString()
-        }
-      };
+      // ❌ Strategy optimization requires real backtesting - cannot use mock improvements
+      console.error("❌ Strategy optimization not available - requires real backtesting engine with historical data");
 
       return {
-        success: true,
-        strategy: optimizedStrategy,
-        optimization: {
-          metric: options.metric || "sharpe_ratio",
-          improvement: Math.random() * 0.3 + 0.1, // Mock 10-40% improvement
-          explanation: `Strategy optimized for ${options.metric || "sharpe_ratio"}`
-        },
-        optimizedParameters: [
-          {
-            parameter: "rsi_period",
-            original: 14,
-            optimized: 12,
-            improvement: "8.5%"
-          },
-          {
-            parameter: "rsi_low",
-            original: 30,
-            optimized: 28,
-            improvement: "3.2%"
-          },
-          {
-            parameter: "rsi_high",
-            original: 70,
-            optimized: 72,
-            improvement: "2.1%"
-          }
-        ],
-        performance: {
-          before: {
-            sharpe_ratio: 1.2,
-            total_return: 0.15,
-            volatility: 0.12
-          },
-          after: {
-            sharpe_ratio: 1.5,
-            total_return: 0.18,
-            volatility: 0.10
-          },
-          improvement_pct: 25
-        }
+        success: false,
+        error: "Strategy optimization not available - requires real backtesting implementation with historical price data",
+        strategy: null,
+        optimization: null
       };
     } catch (error) {
       console.error("Strategy optimization failed:", error);

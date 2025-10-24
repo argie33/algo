@@ -342,8 +342,10 @@ class PerformanceMonitor {
     else if (score < 90) status = "warning";
 
     const memoryUsage = process.memoryUsage();
-    const memUsedPercent = Math.round(Math.random() * 50 + 20); // Mock memory usage 20-70%
-    const cpuUsagePercent = Math.round(Math.random() * 30 + 10); // Mock CPU usage 10-40%
+    // Calculate REAL memory usage percentage
+    const memUsedPercent = Math.round(
+      (memoryUsage.heapUsed / memoryUsage.heapTotal) * 100
+    );
 
     return {
       score: Math.round(score),
@@ -360,14 +362,14 @@ class PerformanceMonitor {
           usage_percent: memUsedPercent,
         },
         cpu: {
-          usage: cpuUsagePercent,
-          usage_percent: cpuUsagePercent,
+          usage: null, // CPU usage requires os.cpus() sampling - not generating fake values
+          usage_percent: null, // Use real OS metrics or NULL
         },
         uptime: process.uptime(),
         database: {
           connected: true,
           pool_size: 10,
-          active_connections: Math.floor(Math.random() * 5) + 1,
+          active_connections: null, // Real connection count requires pool monitoring - not generating fake values
         },
       },
     };
@@ -378,7 +380,8 @@ class PerformanceMonitor {
    */
   middleware() {
     return (req, res, next) => {
-      const operationId = `${req.method}:${req.path}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
+      const { randomUUID } = require('crypto');
+      const operationId = `${req.method}:${req.path}:${randomUUID()}`;
       const category = this.categorizeRequest(req);
 
       const _operation = this.startOperation(operationId, category, {

@@ -452,23 +452,19 @@ class RiskEngine {
         (historicalReturns.length - 1)
     );
 
-    const simulatedReturns = [];
-
-    for (let i = 0; i < simulations; i++) {
-      // Generate random normal variable using Box-Muller transform
-      const u1 = Math.random();
-      const u2 = Math.random();
-      const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
-
-      const simulatedReturn = mean + stdDev * z;
-      simulatedReturns.push(simulatedReturn);
+    // DO NOT simulate VaR with random data - requires real historical returns
+    if (!returns || returns.length < 30) {
+      console.warn('❌ Insufficient real return data for VaR calculation');
+      return null; // Cannot calculate VaR without sufficient historical data
     }
 
-    // Sort and find VaR
-    simulatedReturns.sort((a, b) => a - b);
-    const varIndex = Math.floor((1 - confidenceLevel) * simulations);
+    // Use historical VaR instead of simulated (no Math.random)
+    // Calculate empirical quantile from actual returns
+    const sortedReturns = [...returns].sort((a, b) => a - b);
+    const varIndex = Math.floor((1 - confidenceLevel) * sortedReturns.length);
 
-    return Math.abs(simulatedReturns[varIndex] || 0) * Math.sqrt(timeHorizon);
+    // Return historical VaR (NOT simulated)
+    return Math.abs(sortedReturns[varIndex]) * Math.sqrt(timeHorizon);
   }
 
   /**
@@ -581,30 +577,19 @@ class RiskEngine {
     shockMagnitude = 0.1,
     correlationAdjustment = false
   ) {
-    try {
-      const results = scenarios.map((scenario) => ({
-        scenario: scenario.name || "Market Shock",
-        impact: -shockMagnitude * Math.random() * 100000,
-        duration: `${Math.floor(Math.random() * 30) + 1} days`,
-        recovery: `${Math.floor(Math.random() * 90) + 30} days`,
-        probability: Math.random() * 0.1,
-      }));
+    // DO NOT simulate stress test results with Math.random()
+    // Real stress testing requires:
+    // 1. Historical scenario analysis (past market shocks)
+    // 2. Monte Carlo with real volatility/correlation data
+    // 3. Proper duration/recovery estimation from actual recovery patterns
 
-      return {
-        portfolioId,
-        shockMagnitude,
-        correlationAdjustment,
-        scenarios: results,
-        overallImpact: results.reduce((sum, r) => sum + r.impact, 0),
-        timestamp: new Date().toISOString(),
-      };
-    } catch (error) {
-      logger.error("Stress test failed:", error);
-      return {
-        error: error.message,
-        portfolioId,
-      };
-    }
+    console.warn('❌ Stress testing requires real scenario data - returning NULL');
+    return {
+      portfolioId,
+      scenarios: null,
+      error: 'Stress testing not available - requires real historical scenario data',
+      timestamp: new Date().toISOString(),
+    };
   }
 
   /**
@@ -630,12 +615,14 @@ class RiskEngine {
             if (symbol1 === symbol2) {
               correlationMatrix[symbol1][symbol2] = 1.0;
             } else {
-              // Generate realistic correlations between -1 and 1
-              correlationMatrix[symbol1][symbol2] = Math.random() * 0.8 - 0.4; // Range -0.4 to 0.4
+              // Correlation must be calculated from real price data
+              // Return NULL instead of generating fake values
+              correlationMatrix[symbol1][symbol2] = null;
             }
           });
         });
 
+        console.warn('❌ Correlation matrix requires real price data - returning NULL values');
         return correlationMatrix;
       }
 
@@ -1212,7 +1199,8 @@ class RiskEngine {
         return null; // No data available
       }
       if (returns.length < 10) {
-        return 0.2; // Default volatility of 20% when insufficient data
+        console.warn(`❌ Insufficient return data for ${symbol} volatility calculation`);
+        return null; // Return NULL instead of hardcoded default
       }
 
       // Calculate standard deviation of returns
@@ -1589,8 +1577,13 @@ class RiskEngine {
         let portfolioReturn = 0;
 
         for (const asset of portfolio) {
+          // If volatility is missing, this function cannot proceed
+          if (!asset?.volatility) {
+            console.warn(`❌ Missing volatility for asset - cannot simulate without real data`);
+            return null;
+          }
           const expectedReturn = asset?.expectedReturn || 0;
-          const volatility = asset?.volatility || 0.2;
+          const volatility = asset?.volatility;
           const weight = asset?.weight || 0;
 
           // Simple random return (normally distributed)
@@ -1836,8 +1829,13 @@ class RiskEngine {
 
       // Simple mean-variance optimization (simplified)
       for (const asset of assets) {
+        // Cannot use hardcoded volatility - requires real data
+        if (!asset?.volatility) {
+          console.warn(`❌ Missing volatility for ${asset?.symbol} - cannot optimize without real metrics`);
+          return null;
+        }
         const expectedReturn = asset?.expectedReturn || 0;
-        const volatility = asset?.volatility || 0.2;
+        const volatility = asset?.volatility;
         const symbol = asset?.symbol;
 
         // Risk-adjusted return

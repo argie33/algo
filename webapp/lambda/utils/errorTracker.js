@@ -244,10 +244,10 @@ class ErrorTracker {
    * Generate unique error ID for tracking
    */
   generateErrorId(errorData) {
-    const timestamp = Date.now().toString(36);
-    const random = Math.random().toString(36).substr(2, 5);
+    const { randomBytes } = require('crypto');
     const category = errorData.category.substr(0, 3);
-    return `${category}-${timestamp}-${random}`;
+    const randomHex = randomBytes(2).toString('hex');
+    return `${category}-${Date.now()}-${randomHex}`;
   }
 
   /**

@@ -595,7 +595,7 @@ const EconomicModeling = () => {
                                             ? theme.palette.error.main
                                             : theme.palette.warning.main
                                       }
-                                      stopOpacity={0.12}
+                                      stopOpacity={0.25}
                                     />
                                     <stop
                                       offset="100%"
@@ -606,7 +606,7 @@ const EconomicModeling = () => {
                                             ? theme.palette.error.main
                                             : theme.palette.warning.main
                                       }
-                                      stopOpacity={0}
+                                      stopOpacity={0.05}
                                     />
                                   </linearGradient>
                                 </defs>
@@ -839,8 +839,8 @@ const EconomicModeling = () => {
                         <AreaChart data={economicData.yieldCurveData} margin={{ top: 10, right: 30, left: 0, bottom: 40 }}>
                           <defs>
                             <linearGradient id="yieldGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#1976d2" stopOpacity={0.35}/>
-                              <stop offset="100%" stopColor="#1976d2" stopOpacity={0.02}/>
+                              <stop offset="0%" stopColor="#1976d2" stopOpacity={0.4}/>
+                              <stop offset="100%" stopColor="#1976d2" stopOpacity={0.08}/>
                             </linearGradient>
                           </defs>
                           <XAxis

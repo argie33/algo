@@ -27,23 +27,8 @@ analyticsFile = analyticsFile.replace(
         [userId]
       );
     } catch (dbError) {
-      console.log(\`⚠️ portfolio_performance table not found, using demo data\`);
-      // Generate demo performance data
-      const dates = [];
-      const today = new Date();
-      for (let i = 29; i >= 0; i--) {
-        const date = new Date(today);
-        date.setDate(today.getDate() - i);
-        dates.push({
-          date: date.toISOString().split('T')[0],
-          total_value: 100000 + (Math.random() * 10000 - 5000),
-          daily_pnl: Math.random() * 2000 - 1000,
-          total_pnl: Math.random() * 5000 - 2500,
-          total_pnl_percent: Math.random() * 10 - 5,
-          daily_pnl_percent: (Math.random() * 6 - 3)
-        });
-      }
-      performanceResult = { rows: dates };
+      console.error(\`❌ portfolio_performance table not found - returning NULL (no synthetic data)\`);
+      performanceResult = { rows: [] }; // Return empty instead of generating fake data
     }`
 );
 
