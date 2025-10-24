@@ -2132,6 +2132,71 @@ router.get("/fear-greed", async (req, res) => {
   }
 });
 
+// Get AAII sentiment data
+router.get("/aaii", async (req, res) => {
+  const { limit = 30 } = req.query;
+
+  console.log(`AAII sentiment data endpoint called with limit: ${limit}`);
+
+  try {
+    const aaiiQuery = `
+      SELECT
+        date,
+        bullish,
+        neutral,
+        bearish,
+        fetched_at
+      FROM aaii_sentiment
+      ORDER BY date DESC
+      LIMIT $1
+    `;
+
+    const result = await query(aaiiQuery, [parseInt(limit)]);
+
+    if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
+      console.error("No AAII sentiment data found in database");
+      return res.status(503).json({
+        success: false,
+        error: "No AAII sentiment data available",
+        details: "No AAII sentiment data found in aaii_sentiment table",
+        suggestion: "AAII sentiment data requires sentiment data to be loaded.",
+        service: "aaii-sentiment",
+        requirements: [
+          "aaii_sentiment table must exist with historical data",
+          "AAII sentiment data loading scripts must be executed",
+        ],
+      });
+    }
+
+    // Transform data to match expected format
+    const transformedData = result.rows.map((row) => ({
+      date: row.date,
+      bullish: parseFloat(row.bullish) || 0,
+      neutral: parseFloat(row.neutral) || 0,
+      bearish: parseFloat(row.bearish) || 0,
+      fetched_at: row.fetched_at,
+    }));
+
+    res.json({
+      data: transformedData,
+      count: result.rows.length,
+    });
+  } catch (error) {
+    console.error("Error fetching AAII sentiment data:", error);
+    return res.status(503).json({
+      success: false,
+      error: "Failed to fetch AAII sentiment data",
+      details: error.message,
+      suggestion:
+        "AAII sentiment data requires database connectivity and sentiment tables.",
+      service: "aaii-sentiment",
+      requirements: [
+        "Database connectivity must be available",
+        "aaii_sentiment table must exist with sentiment data",
+      ],
+    });
+  }
+});
 
 // Get market volatility
 router.get("/volatility", async (req, res) => {
