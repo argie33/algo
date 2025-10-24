@@ -122,6 +122,7 @@ const EconomicModeling = () => {
         api.get("/api/market/leading-indicators"),
         api.get("/api/market/sectoral-analysis"),
         api.get("/api/market/credit-spreads"),
+        api.get("/api/market/calendar"), // Economic calendar
       ]);
 
       // Extract successful responses
@@ -130,6 +131,7 @@ const EconomicModeling = () => {
         leadingIndicators,
         _sectoralAnalysis,
         creditSpreads,
+        calendar,
       ] = results.map((result) => (result.status === "fulfilled" ? result.value : null));
 
       // Check for missing data errors (503 responses)
@@ -160,6 +162,7 @@ const EconomicModeling = () => {
       const leadingData = leadingIndicators?.data?.data || {};
       const recessionData = recessionForecast?.data?.data || {};
       const creditData = creditSpreads?.data?.data || {};
+      const calendarData = calendar?.data?.data || {};
 
       console.log("✅ Economic data loaded:", {
         recession: recessionData.compositeRecessionProbability,
@@ -195,7 +198,7 @@ const EconomicModeling = () => {
         financialConditionsIndex: creditData.financialConditionsIndex || {},
 
         // Calendar
-        upcomingEvents: leadingData.upcomingEvents || [],
+        upcomingEvents: calendarData.upcomingEvents || calendarData.events || [],
       };
 
       setEconomicData(combinedData);

@@ -65,7 +65,6 @@ import {
 } from "../utils/formatters";
 import { createComponentLogger } from "../utils/errorLogger";
 import SectorSeasonalityTable from "../components/SectorSeasonalityTable";
-import SentimentChartsReimag from "../components/SentimentChartsReimag";
 import McClellanOscillatorChart from "../components/McClellanOscillatorChart";
 import SentimentDivergenceChart from "../components/SentimentDivergenceChart";
 
