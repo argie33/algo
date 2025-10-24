@@ -40,6 +40,7 @@ import {
   Area,
   AreaChart,
 } from "recharts";
+import { GRADIENTS } from "../theme/chartGradients";
 
 
 // Safe formatting helpers

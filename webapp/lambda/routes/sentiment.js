@@ -783,6 +783,106 @@ router.get("/stocks", async (req, res) => {
   }
 });
 
+// Get all stocks with sentiment data
+router.get("/stocks", async (req, res) => {
+  try {
+    console.log("📊 Fetching all stocks with sentiment data");
+
+    // Query to get sentiment data for all stocks with real company data
+    const result = await query(`
+      SELECT DISTINCT
+        cp.symbol,
+        cp.company_name,
+        cp.sector,
+        MAX(s.date) as last_updated,
+        AVG(CAST(s.news_sentiment_score AS FLOAT)) as news_sentiment,
+        AVG(CAST(s.reddit_sentiment_score AS FLOAT)) as social_sentiment,
+        MAX(s.search_volume_index) as search_volume
+      FROM company_profile cp
+      LEFT JOIN sentiment s ON cp.symbol = s.symbol
+        AND s.date >= CURRENT_DATE - INTERVAL '30 days'
+      WHERE cp.symbol IS NOT NULL
+      GROUP BY cp.symbol, cp.company_name, cp.sector
+      ORDER BY cp.symbol
+      LIMIT 5000
+    `);
+
+    if (!result || !result.rows) {
+      return res.status(500).json({
+        success: false,
+        error: "Database query failed",
+        message: "Unable to fetch sentiment data",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Transform data for frontend
+    const sentimentStocks = result.rows.map(row => {
+      const newsSentiment = row.news_sentiment ? parseFloat(row.news_sentiment) : null;
+      const socialSentiment = row.social_sentiment ? parseFloat(row.social_sentiment) : null;
+
+      // Calculate composite sentiment (if any data available)
+      let compositeSentiment = null;
+      let sentimentLabel = "Unknown";
+
+      if (newsSentiment !== null || socialSentiment !== null) {
+        const scores = [newsSentiment, socialSentiment].filter(s => s !== null);
+        if (scores.length > 0) {
+          compositeSentiment = scores.reduce((a, b) => a + b, 0) / scores.length;
+
+          if (compositeSentiment > 0.3) {
+            sentimentLabel = "Bullish";
+          } else if (compositeSentiment < -0.3) {
+            sentimentLabel = "Bearish";
+          } else {
+            sentimentLabel = "Neutral";
+          }
+        }
+      }
+
+      return {
+        symbol: row.symbol,
+        company_name: row.company_name,
+        sector: row.sector,
+        sentiment_score: compositeSentiment,
+        sentiment_label: sentimentLabel,
+        news_sentiment: newsSentiment,
+        social_sentiment: socialSentiment,
+        search_volume: row.search_volume ? parseInt(row.search_volume) : null,
+        last_updated: row.last_updated ? row.last_updated.toISOString() : null,
+        has_real_data: newsSentiment !== null || socialSentiment !== null
+      };
+    });
+
+    // Count stocks with real data vs those without
+    const withData = sentimentStocks.filter(s => s.has_real_data).length;
+    const total = sentimentStocks.length;
+
+    console.log(`✅ Successfully fetched sentiment for ${total} stocks (${withData} with real data)`);
+
+    return res.json({
+      success: true,
+      data: sentimentStocks,
+      summary: {
+        total_stocks: total,
+        stocks_with_sentiment_data: withData,
+        stocks_without_sentiment_data: total - withData,
+        data_coverage: withData > 0 ? ((withData / total) * 100).toFixed(1) + "%" : "0%"
+      },
+      timestamp: new Date().toISOString(),
+    });
+
+  } catch (error) {
+    console.error("❌ Sentiment stocks endpoint error:", error.message);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 // Catch-all /:symbol endpoint removed - only real data sources allowed
 
 module.exports = router;

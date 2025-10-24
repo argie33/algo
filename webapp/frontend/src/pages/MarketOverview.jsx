@@ -604,7 +604,10 @@ const handleTabChange = (event, newValue) => {
     return { label: "Neutral", color: "warning", icon: <TrendingFlat /> };
   };
 
-  const aaiiSignal = getSentimentSignal(latestAAII.bullish || 0, latestAAII.bearish || 0);
+  // Only calculate signal if real data exists
+  const aaiiSignal = (latestAAII.bullish !== undefined && latestAAII.bearish !== undefined)
+    ? getSentimentSignal(latestAAII.bullish, latestAAII.bearish)
+    : { label: "No Data", color: "default", icon: null };
 
   // --- Sentiment History Tab ---
   const SentimentHistoryPanel = () => (
@@ -628,9 +631,9 @@ const handleTabChange = (event, newValue) => {
                   </Box>
                   <LinearProgress
                     variant="determinate"
-                    value={latestAAII.bullish || 0}
+                    value={latestAAII.bullish ?? 0}
                     color="success"
-                    sx={{ height: 8, borderRadius: 1 }}
+                    sx={{ height: 8, borderRadius: 1, opacity: latestAAII.bullish !== undefined ? 1 : 0.3 }}
                   />
                 </Box>
                 <Box mb={2}>
@@ -642,9 +645,9 @@ const handleTabChange = (event, newValue) => {
                   </Box>
                   <LinearProgress
                     variant="determinate"
-                    value={latestAAII.neutral || 0}
+                    value={latestAAII.neutral ?? 0}
                     color="warning"
-                    sx={{ height: 8, borderRadius: 1 }}
+                    sx={{ height: 8, borderRadius: 1, opacity: latestAAII.neutral !== undefined ? 1 : 0.3 }}
                   />
                 </Box>
                 <Box>
@@ -656,9 +659,9 @@ const handleTabChange = (event, newValue) => {
                   </Box>
                   <LinearProgress
                     variant="determinate"
-                    value={latestAAII.bearish || 0}
+                    value={latestAAII.bearish ?? 0}
                     color="error"
-                    sx={{ height: 8, borderRadius: 1 }}
+                    sx={{ height: 8, borderRadius: 1, opacity: latestAAII.bearish !== undefined ? 1 : 0.3 }}
                   />
                 </Box>
               </Box>

@@ -6,7 +6,11 @@
   "type": "commonjs",
   "scripts": {
     "start": "node index.js",
-    "dev": "node index.js"
+    "dev": "node index.js",
+    "test": "node test-tools.js",
+    "test:all": "node test.js",
+    "validate": "node validate-all.js",
+    "validate:full": "npm test && npm validate"
   },
   "keywords": ["mcp", "claude", "stocks", "api", "financial"],
   "author": "",

@@ -272,14 +272,16 @@ VALUES
     ('demo_user', 'MSFT', 25, 400.00, 415.20, 10380.00, 380.00, 10000.00, 'demo')
 ON CONFLICT (user_id, symbol, broker) DO NOTHING;
 
--- Sentiment data
-INSERT INTO sentiment (symbol, date, sentiment_score, positive_mentions, negative_mentions, neutral_mentions, total_mentions, source)
-VALUES 
-    ('AAPL', CURRENT_DATE, 0.65, 150, 45, 105, 300, 'twitter'),
-    ('MSFT', CURRENT_DATE, 0.72, 120, 30, 80, 230, 'twitter'),
-    ('GOOGL', CURRENT_DATE, 0.45, 80, 60, 90, 230, 'twitter'),
-    ('TSLA', CURRENT_DATE, 0.55, 200, 120, 180, 500, 'twitter'),
-    ('NVDA', CURRENT_DATE, 0.78, 180, 25, 95, 300, 'twitter')
-ON CONFLICT (symbol, date, source) DO NOTHING;
+-- DISABLED: Mock sentiment data - using real data from loadsentiment.py instead (Google Trends + Reddit)
+-- Sentiment data will be populated by the legitimate loaders:
+-- - loadsentiment.py loads real data from Google Trends, Reddit, and analyst sources
+-- INSERT INTO sentiment (symbol, date, sentiment_score, positive_mentions, negative_mentions, neutral_mentions, total_mentions, source)
+-- VALUES
+--     ('AAPL', CURRENT_DATE, 0.65, 150, 45, 105, 300, 'twitter'),
+--     ('MSFT', CURRENT_DATE, 0.72, 120, 30, 80, 230, 'twitter'),
+--     ('GOOGL', CURRENT_DATE, 0.45, 80, 60, 90, 230, 'twitter'),
+--     ('TSLA', CURRENT_DATE, 0.55, 200, 120, 180, 500, 'twitter'),
+--     ('NVDA', CURRENT_DATE, 0.78, 180, 25, 95, 300, 'twitter')
+-- ON CONFLICT (symbol, date, source) DO NOTHING;
 
 SELECT 'Dummy data inserted successfully!' as status;

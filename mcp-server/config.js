@@ -7,13 +7,13 @@ module.exports = {
     dev: {
       baseUrl: process.env.API_URL_DEV || "http://localhost:3001",
       authToken: process.env.DEV_AUTH_TOKEN || "dev-bypass-token",
-      timeout: 30000,
+      timeout: 60000, // Increased to 60 seconds for large queries
     },
     // Production environment
     prod: {
       baseUrl: process.env.API_URL_PROD || process.env.API_URL,
       authToken: process.env.API_AUTH_TOKEN,
-      timeout: 30000,
+      timeout: 60000,
     },
   },
 

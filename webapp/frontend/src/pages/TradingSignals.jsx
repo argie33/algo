@@ -153,7 +153,7 @@ function TradingSignals() {
           params.append("symbol", symbolFilter);
         }
         // Note: date filtering happens client-side for better UX
-        const url = `${API_BASE}/api/signals?${params}`;
+        const url = `${API_BASE}/api/trading/signals/${timeframe}?${params}`;
         logger.info("fetchTradingSignals - Request started", {
           url,
           signalType,
@@ -294,7 +294,7 @@ function TradingSignals() {
       if (!selectedSymbol) return null;
       try {
         const response = await fetch(
-          `${API_BASE}/api/signals?timeframe=daily&symbol=${selectedSymbol}&limit=50`
+          `${API_BASE}/api/trading/signals/daily?symbol=${selectedSymbol}&limit=50`
         );
         if (!response.ok) throw new Error("Failed to fetch historical data");
         return await response.json();

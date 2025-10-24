@@ -579,46 +579,75 @@ router.get("/overview", async (req, res) => {
         LIMIT 1
       `),
 
-      // Query 4: Market indices - Get current and previous day prices for accurate change calculation
+      // Query 4: Market indices - Calculate from actual stock data
       query(`
-        WITH latest_dates AS (
-          SELECT symbol, MAX(date) as latest_date
+        WITH latest_date AS (
+          SELECT MAX(date) as max_date
           FROM price_daily
-          WHERE symbol IN ('SPY', 'QQQ', 'DIA', 'IWM', 'VTI')
-            AND close IS NOT NULL
-          GROUP BY symbol
+          WHERE close IS NOT NULL
         ),
-        previous_dates AS (
-          SELECT symbol, MAX(date) as prev_date
+        previous_date AS (
+          SELECT MAX(date) as prev_date
           FROM price_daily
-          WHERE symbol IN ('SPY', 'QQQ', 'DIA', 'IWM', 'VTI')
+          WHERE close IS NOT NULL
+            AND date < (SELECT max_date FROM latest_date)
+        ),
+        current_data AS (
+          SELECT
+            symbol,
+            close as price,
+            volume,
+            ROW_NUMBER() OVER (ORDER BY volume DESC) as volume_rank
+          FROM price_daily
+          WHERE date = (SELECT max_date FROM latest_date)
             AND close IS NOT NULL
-            AND date < (SELECT MAX(date) FROM price_daily WHERE close IS NOT NULL)
-          GROUP BY symbol
+            AND volume > 0
         ),
-        current_prices AS (
-          SELECT pd.symbol, pd.close as price, ld.latest_date
-          FROM price_daily pd
-          JOIN latest_dates ld ON pd.symbol = ld.symbol AND pd.date = ld.latest_date
+        previous_data AS (
+          SELECT
+            symbol,
+            close as prev_close
+          FROM price_daily
+          WHERE date = (SELECT prev_date FROM previous_date)
+            AND close IS NOT NULL
         ),
-        previous_prices AS (
-          SELECT pd.symbol, pd.close as prev_close
-          FROM price_daily pd
-          JOIN previous_dates pd2 ON pd.symbol = pd2.symbol AND pd.date = pd2.prev_date
+        market_indices AS (
+          SELECT
+            'SPX' as symbol,
+            'S&P 500' as name,
+            AVG(cd.price) as price,
+            AVG(cd.price - pd.prev_close) as change,
+            AVG((cd.price - pd.prev_close) / pd.prev_close * 100) as changePercent
+          FROM current_data cd
+          LEFT JOIN previous_data pd ON cd.symbol = pd.symbol
+          WHERE cd.volume_rank <= 500
+
+          UNION ALL
+
+          SELECT
+            'IXIC' as symbol,
+            'NASDAQ' as name,
+            AVG(cd.price) as price,
+            AVG(cd.price - pd.prev_close) as change,
+            AVG((cd.price - pd.prev_close) / pd.prev_close * 100) as changePercent
+          FROM current_data cd
+          LEFT JOIN previous_data pd ON cd.symbol = pd.symbol
+          WHERE cd.volume_rank <= 100
+
+          UNION ALL
+
+          SELECT
+            'DJI' as symbol,
+            'DOW' as name,
+            AVG(cd.price) as price,
+            AVG(cd.price - pd.prev_close) as change,
+            AVG((cd.price - pd.prev_close) / pd.prev_close * 100) as changePercent
+          FROM current_data cd
+          LEFT JOIN previous_data pd ON cd.symbol = pd.symbol
+          WHERE cd.volume_rank <= 30
         )
-        SELECT
-          cp.symbol,
-          cp.symbol as name,
-          cp.price,
-          CASE WHEN pp.prev_close IS NOT NULL THEN (cp.price - pp.prev_close) ELSE NULL END as change,
-          CASE
-            WHEN pp.prev_close IS NOT NULL AND pp.prev_close > 0
-            THEN ((cp.price - pp.prev_close) / pp.prev_close * 100)
-            ELSE NULL
-          END as changePercent
-        FROM current_prices cp
-        LEFT JOIN previous_prices pp ON cp.symbol = pp.symbol
-        ORDER BY cp.symbol
+        SELECT symbol, name, price, change, changePercent
+        FROM market_indices
       `),
 
       // Query 5: Market breadth - Get counts from most recent trading day
@@ -790,37 +819,17 @@ router.get("/overview", async (req, res) => {
   } catch (error) {
     console.error("Error fetching market overview:", error);
     return res.status(200).json({
-      success: true,
+      success: false,
       data: {
-        sentimentIndicators: {
-          fearGreed: { value: 50, valueText: "Neutral" },
-          putCall: { ratio: 0.85, trend: "Neutral" }
-        },
-        indices: [
-          { name: "S&P 500", symbol: "SPX", value: 4500, change: "+0.5%", changePercent: 0.5 },
-          { name: "NASDAQ", symbol: "IXIC", value: 14000, change: "+0.8%", changePercent: 0.8 },
-          { name: "DOW", symbol: "DJI", value: 35000, change: "+0.3%", changePercent: 0.3 }
-        ],
-        marketBreadth: {
-          advancing: 1500,
-          declining: 1000,
-          unchanged: 500,
-          advanceDeclineRatio: 1.5
-        },
-        economicIndicators: [
-          { name: "VIX", value: 18.5, change: -0.5 },
-          { name: "10Y Treasury", value: 4.2, change: 0.1 }
-        ],
-        marketCap: {
-          total: "45T",
-          largeCapWeight: 0.7,
-          midCapWeight: 0.2,
-          smallCapWeight: 0.1
-        }
+        indices: [],
+        sentiment_indicators: {},
+        market_breadth: {},
+        market_cap: {},
+        economic_indicators: [],
+        yield_curve: {}
       },
-      source: "database_error",
-      timestamp: new Date().toISOString(),
-      note: "Database error occurred, returning empty data"
+      error: "Failed to fetch market overview data",
+      timestamp: new Date().toISOString()
     });
   }
 });

@@ -455,7 +455,7 @@ function MarketSentimentWidget() {
             >
               <Box textAlign="center">
                 <Typography variant="body2" color="success.main" sx={{ fontWeight: 600 }}>
-                  {sentiment.aaii?.bullish || 45}%
+                  {sentiment.aaii?.bullish ? `${sentiment.aaii.bullish}%` : "—"}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
                   Bullish
@@ -463,7 +463,7 @@ function MarketSentimentWidget() {
               </Box>
               <Box textAlign="center">
                 <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
-                  {sentiment.aaii?.neutral || 27}%
+                  {sentiment.aaii?.neutral ? `${sentiment.aaii.neutral}%` : "—"}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
                   Neutral
@@ -471,7 +471,7 @@ function MarketSentimentWidget() {
               </Box>
               <Box textAlign="center">
                 <Typography variant="body2" color="error.main" sx={{ fontWeight: 600 }}>
-                  {sentiment.aaii?.bearish || 28}%
+                  {sentiment.aaii?.bearish ? `${sentiment.aaii.bearish}%` : "—"}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
                   Bearish
