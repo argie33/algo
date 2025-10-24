@@ -436,7 +436,7 @@ function MarketSentimentWidget() {
         </Box>
 
         <Grid container spacing={2}>
-          <Grid item xs={6}>
+          <Grid item xs={12}>
             <Box textAlign="center">
               <Typography
                 variant="h4"
@@ -445,40 +445,36 @@ function MarketSentimentWidget() {
                 {sentiment.fearGreed}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Fear & Greed
-              </Typography>
-            </Box>
-          </Grid>
-          <Grid item xs={6}>
-            <Box textAlign="center">
-              <Typography
-                variant="h4"
-                color={getSentimentColor(sentiment.naaim)}
-              >
-                {sentiment.naaim}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                NAAIM
+                Fear & Greed Index
               </Typography>
             </Box>
           </Grid>
           <Grid item xs={12}>
             <Box
-              sx={{ display: "flex", justifyContent: "space-between", mt: 1 }}
+              sx={{ display: "flex", justifyContent: "space-around", mt: 2 }}
             >
-              <Box>
-                <Typography variant="body2" color="success.main">
-                  Bulls: {sentiment.aaii?.bullish || 45}%
+              <Box textAlign="center">
+                <Typography variant="body2" color="success.main" sx={{ fontWeight: 600 }}>
+                  {sentiment.aaii?.bullish || 45}%
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Bullish
                 </Typography>
               </Box>
-              <Box>
-                <Typography variant="body2" color="text.secondary">
-                  Neutral: {sentiment.aaii?.neutral || 27}%
+              <Box textAlign="center">
+                <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
+                  {sentiment.aaii?.neutral || 27}%
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Neutral
                 </Typography>
               </Box>
-              <Box>
-                <Typography variant="body2" color="error.main">
-                  Bears: {sentiment.aaii?.bearish || 28}%
+              <Box textAlign="center">
+                <Typography variant="body2" color="error.main" sx={{ fontWeight: 600 }}>
+                  {sentiment.aaii?.bearish || 28}%
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Bearish
                 </Typography>
               </Box>
             </Box>

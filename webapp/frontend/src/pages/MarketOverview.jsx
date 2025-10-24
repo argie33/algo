@@ -469,9 +469,9 @@ function MarketOverview() {
   });
 
   const { data: fearGreedData, isLoading: fearGreedLoading } = useQuery({
-    queryKey: ["fear-greed-history", fearGreedRange],
+    queryKey: ["fear-greed", fearGreedRange],
     queryFn: async () => {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/market/fear-greed-history?range=${fearGreedRange}`);
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/market/fear-greed?range=${fearGreedRange}`);
       if (!response.ok) throw new Error("Failed to fetch Fear & Greed data");
       return response.json();
     },
@@ -480,9 +480,9 @@ function MarketOverview() {
   });
 
   const { data: naaimData, isLoading: naaimLoading } = useQuery({
-    queryKey: ["naaim-history", naaimRange],
+    queryKey: ["naaim", naaimRange],
     queryFn: async () => {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/market/naaim-history?range=${naaimRange}`);
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/market/naaim?range=${naaimRange}`);
       if (!response.ok) throw new Error("Failed to fetch NAAIM data");
       return response.json();
     },
@@ -894,119 +894,6 @@ function MarketOverview() {
           </Card>
         </Grid>
 
-        {/* NAAIM Historical Chart with Time Range Selector */}
-        <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  NAAIM (Active Manager Exposure) History
-                </Typography>
-                <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-                  {["30d", "90d", "6m", "1y", "all"].map((range) => (
-                    <Chip
-                      key={range}
-                      label={range.toUpperCase()}
-                      onClick={() => setNaaimRange(range)}
-                      color={naaimRange === range ? "primary" : "default"}
-                      variant={naaimRange === range ? "filled" : "outlined"}
-                      sx={{ cursor: "pointer" }}
-                    />
-                  ))}
-                </Box>
-              </Box>
-
-              {naaimLoading ? (
-                <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: 400 }}>
-                  <CircularProgress />
-                </Box>
-              ) : naaimData?.data && naaimData.data.length > 0 ? (
-                <Box sx={{ height: 400, width: "100%" }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
-                      data={naaimData.data}
-                      margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fontSize: 12 }}
-                        tickFormatter={(date) => {
-                          const d = new Date(date);
-                          return `${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getDate().toString().padStart(2, "0")}`;
-                        }}
-                      />
-                      <YAxis
-                        label={{
-                          value: "Exposure %",
-                          angle: -90,
-                          position: "insideLeft",
-                        }}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "rgba(0,0,0,0.8)",
-                          border: "1px solid #ccc",
-                          color: "#fff",
-                          borderRadius: "4px",
-                        }}
-                        formatter={(value) => [`${parseFloat(value).toFixed(1)}%`, ""]}
-                        labelFormatter={(date) => {
-                          const d = new Date(date);
-                          return d.toLocaleDateString("en-US", {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          });
-                        }}
-                      />
-                      <Legend />
-                      <Line
-                        type="monotone"
-                        dataKey="average"
-                        stroke={_colorSchemes.sentiment.bullish}
-                        strokeWidth={2.5}
-                        dot={false}
-                        name="Average Exposure"
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="bullish_exposure"
-                        stroke={_colorSchemes.sentiment.bullish}
-                        strokeWidth={2.5}
-                        dot={false}
-                        strokeDasharray="5 5"
-                        name="Bullish Exposure"
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="bearish_exposure"
-                        stroke={_colorSchemes.sentiment.bearish}
-                        strokeWidth={2.5}
-                        dot={false}
-                        strokeDasharray="5 5"
-                        name="Bearish Exposure"
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </Box>
-              ) : (
-                <Box sx={{ textAlign: "center", py: 4 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    No NAAIM data available for the selected range
-                  </Typography>
-                </Box>
-              )}
-
-              <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: "divider" }}>
-                <Typography variant="caption" color="text.secondary">
-                  NAAIM (National Association of Active Investment Managers): Active manager allocation and exposure trends
-                  {naaimData?.dateRange && ` | Data range: ${new Date(naaimData.dateRange.from).toLocaleDateString()} - ${new Date(naaimData.dateRange.to).toLocaleDateString()}`}
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
       </Grid>
     </Box>
   );
@@ -1129,32 +1016,7 @@ function MarketOverview() {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                NAAIM Exposure
-              </Typography>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="body2">Mean Exposure:</Typography>
-                <Typography variant="body2" fontWeight="600">
-                  {latestNAAIM.mean_exposure ?? latestNAAIM.average ?? "N/A"}
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                <Typography variant="body2">Bearish Exposure:</Typography>
-                <Typography variant="body2" fontWeight="600">
-                  {latestNAAIM.bearish_exposure ?? "N/A"}
-                </Typography>
-              </Box>
-              <Typography variant="caption" color="text.secondary">
-                Active manager equity exposure (0=out, 100=in)
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={3}>
+        <Grid item xs={12} md={4}>
           <Card>
             <CardContent>
               <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
