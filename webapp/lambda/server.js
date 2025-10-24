@@ -13,7 +13,6 @@ const alertsRoutes = require("./routes/alerts");
 const analyticsRoutes = require("./routes/analytics");
 const analystRoutes = require("./routes/analysts");
 const authRoutes = require("./routes/auth");
-const backtestRoutes = require("./routes/backtest");
 const benchmarksRoutes = require("./routes/benchmarks");
 const calendarRoutes = require("./routes/calendar");
 const commoditiesRoutes = require("./routes/commodities");

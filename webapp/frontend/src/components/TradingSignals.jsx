@@ -50,7 +50,6 @@ import {
   Tune,
 } from "@mui/icons-material";
 import { formatCurrency, formatPercentage } from "../utils/formatters";
-// import realTimeDataService from "../services/realTimeDataService"; // Removed with live data feature
 
 const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
   const [signals, setSignals] = useState([]);
@@ -113,21 +112,6 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
       if (data.success) {
         setSignals(data.data.signals || []);
         setLastUpdate(new Date());
-
-        // Subscribe to real-time updates
-        if (isRealTime && data.data.signals) {
-          const symbols = data.data.signals.map((s) => s.symbol);
-          symbols.forEach((symbol) => {
-            realTimeDataService.subscribe("signals", (signalData) => {
-              if (signalData[symbol]) {
-                setRealtimeUpdates((prev) => ({
-                  ...prev,
-                  [symbol]: signalData[symbol],
-                }));
-              }
-            });
-          });
-        }
       }
     } catch (error) {
       console.error("Failed to fetch signals:", error);

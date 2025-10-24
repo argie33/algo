@@ -1536,7 +1536,7 @@ router.get("/search", async (req, res) => {
           CASE WHEN LOWER(headline) LIKE $${paramIndex} THEN 10 ELSE 0 END +
           CASE WHEN LOWER(summary) LIKE $${paramIndex + 1} THEN 5 ELSE 0 END +
           CASE WHEN symbol = $${paramIndex + 2} THEN 8 ELSE 0 END +
-          COALESCE(relevance_score * 3, 0)
+          )
         ) as search_relevance_score,
         -- Extract matching text snippets
         SUBSTRING(

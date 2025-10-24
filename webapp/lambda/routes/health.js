@@ -364,7 +364,7 @@ router.get("/", async (req, res) => {
         const countQueries = existingTables.map((tableName) =>
           Promise.race([
             query(
-              `SELECT COALESCE(reltuples::bigint, 0) as estimated_count
+              `SELECT  as estimated_count
                FROM pg_class
                WHERE relname = $1`,
               [tableName]
@@ -579,7 +579,7 @@ router.get("/database", async (req, res) => {
       const statsQuery = `
         SELECT
           t.table_name,
-          COALESCE(s.n_live_tup, 0) as record_count,
+           as record_count,
           s.last_vacuum,
           s.last_autovacuum,
           s.last_analyze,
@@ -944,7 +944,7 @@ router.get("/database/diagnostics", async (req, res) => {
           // Use table statistics for faster performance instead of COUNT(*)
           const stats = await query(
             `
-            SELECT COALESCE(n_tup_ins + n_tup_upd, 0) as estimated_count
+            SELECT  as estimated_count
             FROM pg_stat_user_tables
             WHERE relname = $1
           `,
@@ -1288,7 +1288,6 @@ router.get("/api-endpoints", async (req, res) => {
       { name: "etf", path: "/api/etf" },
       { name: "financials", path: "/api/financials" },
       { name: "insider", path: "/api/insider" },
-      { name: "livedata", path: "/api/livedata/health" },
       { name: "market", path: "/api/market" },
       { name: "metrics", path: "/api/metrics" },
       { name: "news", path: "/api/news" },

@@ -56,10 +56,10 @@ router.get("/analysis", async (req, res) => {
     const holdingsResult = await query(
       `
       SELECT
-        h.symbol, h.quantity, COALESCE(h.average_cost, 0), h.current_price,
-        COALESCE(cp.sector, 'Unknown') as sector, COALESCE(cp.short_name, h.symbol) as company_name,
+        h.symbol, h.quantity, ), h.current_price,
+        cp.sector as sector, COALESCE(cp.short_name, h.symbol) as company_name,
         (h.current_price * h.quantity) as market_value,
-        ((h.current_price - COALESCE(h.average_cost, 0)) / COALESCE(h.average_cost, 0) * 100) as return_percent
+        ((h.current_price - )) / COALESCE(h.average_cost, 0) * 100) as return_percent
       FROM portfolio_holdings h
       LEFT JOIN company_profile cp ON h.symbol = cp.ticker
       WHERE h.user_id = $1 AND h.quantity > 0

@@ -22,7 +22,6 @@ Tests specific pages in isolation (matches exact unit test naming pattern and ac
 - `Dashboard.spec.js` - Dashboard page (`/`)
 - `MarketOverview.spec.js` - Market overview page (`/market`)
 - `Portfolio.spec.js` - Portfolio holdings page (`/portfolio`)
-- `RealTimeDashboard.spec.js` - Real-time data page (`/realtime`)
 - `ScoresDashboard.spec.js` - Stock scores page (`/scores`)
 - `SectorAnalysis.spec.js` - Sector analysis page (`/sectors`)
 - `SentimentAnalysis.spec.js` - Sentiment analysis page (`/sentiment`)

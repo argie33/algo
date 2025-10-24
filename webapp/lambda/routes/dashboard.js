@@ -60,9 +60,9 @@ router.get("/data", authenticateToken, async (req, res) => {
       // Get portfolio data
       query(`
         SELECT
-          COALESCE(SUM(quantity * current_price), 0) as total_value,
+           as total_value,
           COUNT(*) as total_positions,
-          COALESCE(SUM((current_price - average_cost) * quantity), 0) as total_gain_loss
+           as total_gain_loss
         FROM portfolio_holdings
         WHERE user_id = $1
       `, [userId]),
@@ -133,8 +133,8 @@ router.get("/summary", authenticateToken, async (req, res) => {
                 pd.symbol,
                 pd.close as current_price,
                 pd.volume,
-                COALESCE((pd.close - prev.close) / prev.close * 100, 0) as change_percent,
-                COALESCE(pd.close - prev.close, 0) as change_amount,
+                 as change_percent,
+                 as change_amount,
                 pd.high,
                 pd.low,
                 pd.date as created_at

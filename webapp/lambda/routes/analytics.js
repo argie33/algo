@@ -181,9 +181,9 @@ router.get("/performance", async (req, res) => {
     try {
       const holdingsResult = await query(
         `SELECT symbol, quantity as shares,
-                COALESCE(average_cost, 0) as avg_cost,
+                 as avg_cost,
                 current_price,
-                ((current_price - COALESCE(average_cost, 0)) / NULLIF(COALESCE(average_cost, 0), 0) * 100) as return_percent,
+                ((current_price - ) / NULLIF(, 0) * 100) as return_percent,
                 quantity * current_price as current_value
          FROM portfolio_holdings
          WHERE user_id = $1 AND quantity > 0`,
@@ -285,10 +285,10 @@ router.get("/performance", async (req, res) => {
     const holdingsResult = await query(
       `
       SELECT 
-        h.symbol, h.quantity, h.current_price, COALESCE(h.average_cost, 0),
+        h.symbol, h.quantity, h.current_price, ,
         'General' as sector, h.symbol as company_name,
         (h.current_price * h.quantity) as market_value,
-        ((h.current_price - COALESCE(h.average_cost, 0)) / COALESCE(h.average_cost, 0) * 100) as return_percent
+        ((h.current_price - ) /  * 100) as return_percent
       FROM portfolio_holdings h
       WHERE h.user_id = $1 AND h.quantity > 0
       ORDER BY h.current_price * h.quantity DESC
@@ -485,9 +485,9 @@ router.get("/risk", async (req, res) => {
       holdingsResult = await query(
         `
         SELECT
-          h.symbol, h.quantity, h.current_price, COALESCE(h.average_cost, 0) as average_cost,
+          h.symbol, h.quantity, h.current_price,  as average_cost,
           (h.current_price * h.quantity) as market_value,
-          ((h.current_price - COALESCE(h.average_cost, 0)) / NULLIF(COALESCE(h.average_cost, 0), 0) * 100) as return_percent
+          ((h.current_price - ) / NULLIF(, 0) * 100) as return_percent
         FROM portfolio_holdings h
         WHERE h.user_id = $1 AND h.quantity > 0
         ORDER BY h.current_price * h.quantity DESC
@@ -843,7 +843,7 @@ router.get("/allocation", async (req, res) => {
       holdingsResult = await query(
         `
         SELECT
-          h.symbol, h.quantity, h.current_price, COALESCE(h.average_cost, 0) as average_cost,
+          h.symbol, h.quantity, h.current_price,  as average_cost,
           'General' as sector, h.symbol as company_name,
           (h.current_price * h.quantity) as market_value
         FROM portfolio_holdings h
@@ -990,13 +990,13 @@ router.get("/returns", async (req, res) => {
     const holdingsResult = await query(
       `
       SELECT 
-        h.symbol, h.quantity, h.current_price, COALESCE(h.average_cost, 0),
+        h.symbol, h.quantity, h.current_price, ,
         h.symbol as company_name,
-        ((h.current_price - COALESCE(h.average_cost, 0)) / COALESCE(h.average_cost, 0) * 100) as return_percent,
+        ((h.current_price - ) /  * 100) as return_percent,
         (h.current_price * h.quantity) as market_value
       FROM portfolio_holdings h
       WHERE h.user_id = $1 AND h.quantity > 0
-      ORDER BY ((h.current_price - COALESCE(h.average_cost, 0)) / COALESCE(h.average_cost, 0) * 100) DESC
+      ORDER BY ((h.current_price - ) /  * 100) DESC
       `,
       [userId]
     );
@@ -1077,8 +1077,8 @@ router.get("/sectors", async (req, res) => {
       SELECT
         cp.sector,
         COUNT(DISTINCT cp.symbol) as stock_count,
-        AVG(COALESCE(pd.close, 100)) as avg_price,
-        SUM(COALESCE(pd.volume, 1000000)) as total_volume
+        AVG(pd.close) as avg_price,
+        SUM(pd.volume) as total_volume
       FROM company_profile cp
       LEFT JOIN (
         SELECT DISTINCT ON (symbol)
@@ -1433,9 +1433,9 @@ router.post("/custom", async (req, res) => {
         // Query real portfolio symbol data
         try {
           const symbolResults = await query(
-            `SELECT symbol, quantity, current_price, COALESCE(average_cost, 0) as average_cost,
+            `SELECT symbol, quantity, current_price,  as average_cost,
                     (current_price * quantity) as unrealized_pnl,
-                    ((current_price - COALESCE(average_cost, 0)) / NULLIF(COALESCE(average_cost, 0), 0) * 100) as return_percent
+                    ((current_price - ) / NULLIF(, 0) * 100) as return_percent
              FROM portfolio_holdings
              WHERE user_id = $1 AND symbol = ANY($2) AND quantity > 0`,
             [req.user?.sub || "test-user", symbols]
@@ -1506,7 +1506,7 @@ router.get("/export", async (req, res) => {
         ph.symbol,
         ph.quantity,
         ph.current_price,
-        pCOALESCE(h.average_cost, 0),
+        p,
         ph.market_value,
         ph.unrealized_pnl,
         ph.unrealized_pnl_percent,
@@ -1832,7 +1832,7 @@ router.get("/attribution", async (req, res) => {
       SELECT
         h.symbol,
         h.quantity,
-        COALESCE(h.average_cost, 0),
+        ,
         h.current_value,
         h.market_value,
         h.weight,
@@ -1913,7 +1913,7 @@ router.get("/attribution", async (req, res) => {
       // Calculate sector attribution
       attributionData = Object.values(sectorGroups).map((group) => {
         const avgCost = group.holdings.reduce(
-          (sum, h) => sum + parseFloat(COALESCE(h.average_cost, 0) || 0) * parseFloat(h.quantity || 0),
+          (sum, h) => sum + parseFloat( || 0) * parseFloat(h.quantity || 0),
           0
         );
         const currentValue = group.total_value;

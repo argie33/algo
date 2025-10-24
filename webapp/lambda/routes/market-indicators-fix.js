@@ -214,7 +214,7 @@ router.get("/sentiment-divergence", async (req, res) => {
         COALESCE(n.date, a.date) as date,
         n.naaim_number_mean as professional_bullish,
         a.bullish as retail_bullish,
-        (a.bullish - COALESCE(n.naaim_number_mean, 0)) as divergence
+        (a.bullish - )) as divergence
       FROM (SELECT date, naaim_number_mean FROM naaim ORDER BY date DESC LIMIT 1) n
       FULL OUTER JOIN (SELECT date, bullish FROM aaii_sentiment ORDER BY date DESC LIMIT 1) a ON TRUE
     `);

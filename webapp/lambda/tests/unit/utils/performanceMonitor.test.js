@@ -370,29 +370,6 @@ const { query, closeDatabase, initializeDatabase, getPool, transaction, healthCh
     });
   });
   describe("advanced analytics", () => {
-    test("should get real-time dashboard data", () => {
-      // Add recent metrics
-      const now = Date.now();
-      monitor.recordMetric({
-        operationId: "dashboard-1",
-        category: "api",
-        duration: 100,
-        success: true,
-        timestamp: now,
-      });
-      monitor.recordMetric({
-        operationId: "dashboard-2",
-        category: "database",
-        duration: 50,
-        success: true,
-        timestamp: now,
-      });
-      const dashboard = monitor.getRealTimeDashboard();
-      expect(dashboard).toHaveProperty("timestamp");
-      expect(dashboard).toHaveProperty("totalOperations");
-      expect(dashboard).toHaveProperty("categoryBreakdown");
-      expect(dashboard).toHaveProperty("alerts");
-    });
     test("should set custom thresholds", () => {
       const customThresholds = {
         api: 500,

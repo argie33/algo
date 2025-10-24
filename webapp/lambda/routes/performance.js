@@ -47,10 +47,10 @@ router.get("/analytics", async (req, res) => {
     // Query analytics data from portfolio performance
     const analyticsQuery = `
       SELECT
-        COALESCE(AVG(total_pnl), 0) as avg_return,
-        COALESCE(STDDEV(total_pnl), 0) as volatility,
-        COALESCE(MAX(total_pnl), 0) as max_return,
-        COALESCE(MIN(total_pnl), 0) as min_return,
+        AVG(total_pnl) as avg_return,
+        STDDEV(total_pnl) as volatility,
+        MAX(total_pnl) as max_return,
+        MIN(total_pnl) as min_return,
         COUNT(*) as total_transactions
       FROM portfolio_performance
       WHERE total_pnl IS NOT NULL
@@ -119,8 +119,8 @@ router.get("/benchmark", authenticateToken, async (req, res) => {
     // Query 1: Portfolio performance
     const portfolioQuery = `
       SELECT
-        COALESCE(AVG(total_pnl), 0) as portfolio_return,
-        COALESCE(STDDEV(total_pnl), 0) as portfolio_volatility,
+        AVG(total_pnl) as portfolio_return,
+        STDDEV(total_pnl) as portfolio_volatility,
         COUNT(*) as data_points
       FROM portfolio_performance
       WHERE total_pnl IS NOT NULL
@@ -131,7 +131,7 @@ router.get("/benchmark", authenticateToken, async (req, res) => {
     const benchmarkQuery = `
       SELECT
         symbol,
-        COALESCE(AVG(close), 0) as avg_price,
+        AVG(close) as avg_price,
         COUNT(*) as trading_days
       FROM price_daily
       WHERE symbol = '${benchmark}'
@@ -195,11 +195,11 @@ router.get("/portfolio", authenticateToken, async (req, res) => {
 
     const portfolioQuery = `
       SELECT
-        COALESCE(SUM(total_pnl), 0) as total_pnl,
-        COALESCE(AVG(total_pnl), 0) as avg_return,
-        COALESCE(STDDEV(total_pnl), 0) as volatility,
-        COALESCE(MAX(total_pnl), 0) as max_return,
-        COALESCE(MIN(total_pnl), 0) as min_return,
+        SUM(total_pnl) as total_pnl,
+        AVG(total_pnl) as avg_return,
+        STDDEV(total_pnl) as volatility,
+        MAX(total_pnl) as max_return,
+        MIN(total_pnl) as min_return,
         COUNT(*) as total_positions
       FROM portfolio_performance
       WHERE total_pnl IS NOT NULL
@@ -244,8 +244,8 @@ router.get("/returns", authenticateToken, async (req, res) => {
 
     const returnsQuery = `
       SELECT
-        COALESCE(SUM(total_pnl), 0) as total_pnl,
-        COALESCE(AVG(total_pnl), 0) as average_return,
+        SUM(total_pnl) as total_pnl,
+        AVG(total_pnl) as average_return,
         COUNT(CASE WHEN total_pnl > 0 THEN 1 END) as positive_periods,
         COUNT(*) as total_periods
       FROM portfolio_performance
@@ -295,7 +295,7 @@ router.get("/attribution", authenticateToken, async (req, res) => {
     // Simple attribution analysis from portfolio data
     const attributionQuery = `
       SELECT
-        COALESCE(SUM(total_pnl), 0) as total_pnl,
+        SUM(total_pnl) as total_pnl,
         COUNT(*) as total_positions
       FROM portfolio_performance
       WHERE total_pnl IS NOT NULL
@@ -348,10 +348,10 @@ router.get("/metrics", authenticateToken, async (req, res) => {
 
     const metricsQuery = `
       SELECT
-        COALESCE(AVG(total_pnl), 0) as avg_return,
-        COALESCE(STDDEV(total_pnl), 0) as volatility,
-        COALESCE(MAX(total_pnl), 0) as max_return,
-        COALESCE(MIN(total_pnl), 0) as min_return,
+        AVG(total_pnl) as avg_return,
+        STDDEV(total_pnl) as volatility,
+        MAX(total_pnl) as max_return,
+        MIN(total_pnl) as min_return,
         COUNT(*) as data_points
       FROM portfolio_performance
       WHERE total_pnl IS NOT NULL
@@ -394,9 +394,9 @@ router.get("/risk", authenticateToken, async (req, res) => {
   try {
     const riskQuery = `
       SELECT
-        COALESCE(STDDEV(total_pnl), 0) as volatility,
-        COALESCE(MIN(total_pnl), 0) as worst_return,
-        COALESCE(AVG(total_pnl), 0) as avg_return,
+        STDDEV(total_pnl) as volatility,
+        MIN(total_pnl) as worst_return,
+        AVG(total_pnl) as avg_return,
         COUNT(CASE WHEN total_pnl < 0 THEN 1 END) as negative_periods,
         COUNT(*) as total_periods
       FROM portfolio_performance

@@ -1188,7 +1188,7 @@ router.get("/analytics", authenticateToken, async (req, res) => {
       const sectorResult = await query(
         `
         SELECT 
-          COALESCE(s.sector, 'Unknown') as sector,
+          s.sector as sector,
           COUNT(*) as trade_count,
           SUM(ph.net_pnl) as sector_pnl,
           AVG(ph.return_percentage) as avg_roi
@@ -1197,7 +1197,7 @@ router.get("/analytics", authenticateToken, async (req, res) => {
         WHERE ph.user_id = $1 
           AND ph.opened_at >= $2 
           AND ph.opened_at <= $3
-        GROUP BY COALESCE(s.sector, 'Unknown')
+        GROUP BY s.sector
         ORDER BY sector_pnl DESC
         LIMIT 10
         `,
@@ -1441,7 +1441,7 @@ router.get("/analytics/overview", authenticateToken, async (req, res) => {
       const sectorResult = await query(
         `
         SELECT 
-          COALESCE(s.sector, 'Unknown') as sector,
+          s.sector as sector,
           COUNT(*) as trade_count,
           SUM(ph.net_pnl) as sector_pnl,
           AVG(ph.return_percentage) as avg_roi,
@@ -1451,7 +1451,7 @@ router.get("/analytics/overview", authenticateToken, async (req, res) => {
         WHERE ph.user_id = $1 
           AND ph.opened_at >= $2 
           AND ph.opened_at <= $3
-        GROUP BY COALESCE(s.sector, 'Unknown')
+        GROUP BY s.sector
         ORDER BY sector_pnl DESC
       `,
         [userId, startDate, endDate],
@@ -1524,7 +1524,7 @@ router.get("/analytics/overview", authenticateToken, async (req, res) => {
           const portfolioSectorsResult = await query(
             `
             SELECT 
-              COALESCE(s.sector, 'Unknown') as sector,
+              s.sector as sector,
               COUNT(*) as position_count,
               SUM(ph.unrealized_pl) as sector_pnl,
               AVG(ph.unrealized_plpc) as avg_roi,
@@ -1532,7 +1532,7 @@ router.get("/analytics/overview", authenticateToken, async (req, res) => {
             FROM portfolio_holdings ph
             LEFT JOIN company_profile s ON ph.symbol = s.symbol
             WHERE ph.user_id = $1 AND ph.quantity > 0
-            GROUP BY COALESCE(s.sector, 'Unknown')
+            GROUP BY s.sector
             ORDER BY sector_pnl DESC
           `,
             [userId],

@@ -223,25 +223,6 @@ const API_CONTRACTS = {
     },
   },
 
-  // Live data endpoints
-  "GET /api/live-data": {
-    expectedStatus: 200,
-    requiredFields: ["success", "data"],
-    responseSchema: {
-      success: "boolean",
-      data: "object",
-    },
-  },
-
-  "GET /api/live-data/status": {
-    expectedStatus: 200,
-    requiredFields: ["success", "status"],
-    responseSchema: {
-      success: "boolean",
-      status: "object",
-    },
-  },
-
   // Analytics endpoints
   "GET /api/analytics": {
     expectedStatus: [200, 401],

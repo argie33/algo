@@ -33,10 +33,7 @@ import {
   ComposedChart,
   Line,
   LineChart,
-  PieChart,
-  Pie,
   Cell,
-  Legend,
   Tooltip,
 } from "recharts";
 import {
@@ -45,7 +42,6 @@ import {
   TrendingFlat,
   Timeline,
   CalendarToday,
-  Equalizer,
 } from "@mui/icons-material";
 
 import {
@@ -328,18 +324,6 @@ const fetchSentimentHistory = async (days = 30) => {
   }
 };
 
-const fetchMarketBreadth = async () => {
-  try {
-    console.log("📏 Fetching market breadth...");
-    const response = await getMarketBreadth();
-    console.log("📏 Market breadth response:", response);
-    return response;
-  } catch (error) {
-    _logger.error("Market breadth error:", error.message || error.toString());
-    throw error;
-  }
-};
-
 const fetchDistributionDays = async () => {
   try {
     console.log("📊 Fetching distribution days...");
@@ -423,12 +407,6 @@ function MarketOverview() {
     staleTime: 30000,
   });
 
-  const { data: breadthData, isLoading: breadthLoading } = useQuery({
-    queryKey: ["market-breadth"],
-    queryFn: fetchMarketBreadth,
-    enabled: tabValue === 1,
-    staleTime: 30000,
-  });
 
   const { data: distributionDaysData, isLoading: distributionDaysLoading } = useQuery({
     queryKey: ["distribution-days"],
@@ -535,8 +513,6 @@ const handleTabChange = (event, newValue) => {
   const topMovers = marketData?.data?.movers || { gainers: [], losers: [] };
 
   // Real API response structure from loaders
-  const breadthInfo = breadthData?.data || {};
-  const hasBreadthError = !breadthInfo || Object.keys(breadthInfo).length === 0;
   const distributionDays = distributionDaysData?.data || {};
   const sentimentHistory = sentimentData?.data || {};
   console.log("sentimentHistory", sentimentHistory);
@@ -1551,12 +1527,6 @@ const handleTabChange = (event, newValue) => {
               />
               <Tab
                 value={1}
-                label="Market Breadth"
-                icon={<Equalizer />}
-                iconPosition="start"
-              />
-              <Tab
-                value={2}
                 label="Seasonality"
                 icon={<CalendarToday />}
                 iconPosition="start"
@@ -1575,146 +1545,6 @@ const handleTabChange = (event, newValue) => {
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
-          {breadthLoading ? (
-            <LinearProgress />
-          ) : (
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                      Market Breadth Details
-                    </Typography>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        mb: 2,
-                      }}
-                    >
-                      <Typography variant="body2">Advancing Stocks:</Typography>
-                      <Typography
-                        variant="body2"
-                        color="success.main"
-                        fontWeight="600"
-                      >
-                        {(hasBreadthError ? "N/A" : breadthInfo.advancing || 0)}
-                      </Typography>
-                    </Box>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        mb: 2,
-                      }}
-                    >
-                      <Typography variant="body2">Declining Stocks:</Typography>
-                      <Typography
-                        variant="body2"
-                        color="error.main"
-                        fontWeight="600"
-                      >
-                        {(hasBreadthError ? "N/A" : breadthInfo.declining || 0)}
-                      </Typography>
-                    </Box>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        mb: 2,
-                      }}
-                    >
-                      <Typography variant="body2">Unchanged:</Typography>
-                      <Typography variant="body2" fontWeight="600">
-                        {(hasBreadthError ? "N/A" : breadthInfo.unchanged || 0)}
-                      </Typography>
-                    </Box>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        mb: 2,
-                      }}
-                    >
-                      <Typography variant="body2">A/D Ratio:</Typography>
-                      <Typography variant="body2" fontWeight="600">
-                        {breadthInfo.advance_decline_ratio || "N/A"}
-                      </Typography>
-                    </Box>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        mb: 2,
-                      }}
-                    >
-                      <Typography variant="body2">Average Change:</Typography>
-                      <Typography
-                        variant="body2"
-                        fontWeight="600"
-                        sx={{
-                          color: getChangeColor(
-                            parseFloat(breadthInfo.average_change_percent) || 0
-                          ),
-                        }}
-                      >
-                        {formatPercentage(
-                          parseFloat(breadthInfo.average_change_percent) || 0
-                        )}
-                      </Typography>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                      Breadth Visualization
-                    </Typography>
-                    <Box sx={{ height: 300, width: '100%' }}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={[
-                              {
-                                name: "Advancing",
-                                value: (hasBreadthError ? "N/A" : breadthInfo.advancing || 0),
-                                color: "#4CAF50",
-                              },
-                              {
-                                name: "Declining",
-                                value: (hasBreadthError ? "N/A" : breadthInfo.declining || 0),
-                                color: "#F44336",
-                              },
-                              {
-                                name: "Unchanged",
-                                value: (hasBreadthError ? "N/A" : breadthInfo.unchanged || 0),
-                                color: "#9E9E9E",
-                              },
-                            ]}
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={80}
-                            dataKey="value"
-                            label={({ name, value }) => `${name}: ${value}`}
-                          >
-                            <Cell fill="#4CAF50" />
-                            <Cell fill="#F44336" />
-                            <Cell fill="#9E9E9E" />
-                          </Pie>
-                          <Tooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          )}
-        </TabPanel>
-
-        <TabPanel value={tabValue} index={2}>
           {seasonalityLoading ? (
             <LinearProgress />
           ) : (

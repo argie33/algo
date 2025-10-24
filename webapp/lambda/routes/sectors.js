@@ -1699,7 +1699,7 @@ router.get("/industries-with-history", async (req, res) => {
       )
       SELECT
         ir.industry,
-        COALESCE(cp.sector, 'Unknown') as sector,
+        cp.sector as sector,
         ir.current_rank,
         ir.rank_1w_ago,
         ir.rank_4w_ago,
@@ -1740,7 +1740,7 @@ router.get("/industries-with-history", async (req, res) => {
       const fallbackQuery = `
         SELECT DISTINCT ON (industry)
           industry,
-          COALESCE(sector, 'Unknown') as sector,
+          sector as sector,
           CAST(COALESCE(overall_rank, 999) AS INTEGER) as current_rank,
           NULL as rank_1w_ago,
           NULL as rank_4w_ago,

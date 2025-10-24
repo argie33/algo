@@ -427,8 +427,7 @@ class PerformanceMonitor {
     const path = req.path.toLowerCase();
 
     if (path.includes("/api/technical/patterns")) return "pattern";
-    if (path.includes("/api/live-data") || path.includes("/api/stocks"))
-      return "dashboard";
+    if (path.includes("/api/stocks")) return "dashboard";
     if (path.includes("/api/database")) return "database";
     if (path.includes("/api/health") || path.includes("/health"))
       return "health_check";
@@ -927,34 +926,6 @@ class PerformanceMonitor {
     };
   }
 
-
-  /**
-   * Get real-time dashboard data
-   */
-  getRealTimeDashboard() {
-    const totalOps = this.performanceHistory.length;
-    const errorOps = this.performanceHistory.filter((m) => !m.success).length;
-    const categoryBreakdown = {};
-
-    // Build category breakdown
-    for (const [category, stats] of this.metrics.entries()) {
-      categoryBreakdown[category] = {
-        count: stats.count,
-        averageDuration: stats.averageDuration,
-        errorRate: stats.errorCount / stats.count,
-        successRate: stats.successCount / stats.count,
-      };
-    }
-
-    return {
-      totalOperations: totalOps,
-      activeOperations: this.activeOperations.size,
-      errorRate: totalOps > 0 ? errorOps / totalOps : 0,
-      alerts: this.getActiveAlerts(),
-      categoryBreakdown,
-      timestamp: new Date().toISOString(),
-    };
-  }
 
   /**
    * Set custom thresholds

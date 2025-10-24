@@ -34,8 +34,8 @@ router.get("/market", async (req, res) => {
     // Get real market data from database - simplified for reliability
     const marketCapQuery = `
       SELECT
-        SUM(COALESCE(s.market_cap, 0)) as total_market_cap,
-        SUM(COALESCE(pd.volume, 0)) as total_volume,
+        SUM()) as total_market_cap,
+        SUM()) as total_volume,
         COUNT(*) as active_stocks
       FROM company_profile fm
       LEFT JOIN (

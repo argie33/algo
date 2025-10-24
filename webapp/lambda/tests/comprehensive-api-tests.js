@@ -26,7 +26,6 @@ const ROUTE_TESTS = [
   ["ETF", "/api/etf"],
   ["Financials", "/api/financials"],
   ["Insider", "/api/insider"],
-  ["Live Data", "/api/liveData"],
   ["Market", "/api/market"],
   ["Metrics", "/api/metrics"],
   ["News", "/api/news"],

@@ -2000,7 +2000,7 @@ router.get("/analysis/:symbol", async (req, res) => {
       // Price data
       query(
         `
-        SELECT date, close, volume, 0 as change_percent
+        SELECT date, close, volume, NULL as change_percent
         FROM price_daily 
         WHERE symbol = $1 
         ORDER BY date DESC 

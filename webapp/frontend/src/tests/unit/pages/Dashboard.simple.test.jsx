@@ -40,14 +40,6 @@ vi.mock("../../../services/dataCache.js", () => ({
   clearCache: vi.fn(),
 }));
 
-// Mock real-time services
-vi.mock("../../../services/realTimeDataService.js", () => ({
-  default: {
-    subscribe: vi.fn(),
-    unsubscribe: vi.fn(),
-  },
-}));
-
 // Mock components that might cause issues
 vi.mock("../../../components/HistoricalPriceChart.jsx", () => ({
   default: () => <div data-testid="price-chart">Price Chart Mock</div>,

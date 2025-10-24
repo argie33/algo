@@ -40,7 +40,6 @@ import {
   ShowChart,
 } from "@mui/icons-material";
 import { formatCurrency, formatPercentage } from "../utils/formatters";
-// import realTimeDataService from "../services/realTimeDataService"; // Removed with live data feature
 
 const AIMarketScanner = ({ onStockSelect }) => {
   const [scanType, setScanType] = useState("momentum");
@@ -123,23 +122,6 @@ const AIMarketScanner = ({ onStockSelect }) => {
       if (data.success) {
         setScanResults(data.data.results || []);
         setLastScan(new Date());
-
-        // Subscribe to real-time updates for top results
-        if (isRealTime && data.data.results) {
-          const topSymbols = data.data.results
-            .slice(0, 20)
-            .map((r) => r.symbol);
-          topSymbols.forEach((symbol) => {
-            realTimeDataService.subscribe("prices", (priceData) => {
-              if (priceData[symbol]) {
-                setRealtimeData((prev) => ({
-                  ...prev,
-                  [symbol]: priceData[symbol],
-                }));
-              }
-            });
-          });
-        }
       }
     } catch (error) {
       console.error("Scan failed:", error);

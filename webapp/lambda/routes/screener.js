@@ -1179,7 +1179,7 @@ router.get("/results", async (req, res) => {
         pd.date as price_date,
         md.market_cap,
  NULL as pe_ratio,
-        COALESCE(s.dividend_yield * 100, 0) as dividend_yield_percent,
+        ) as dividend_yield_percent,
         NULL as rsi,
         NULL as sma_20,
         NULL as sma_50,

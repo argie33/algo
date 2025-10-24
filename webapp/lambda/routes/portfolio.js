@@ -300,7 +300,7 @@ router.get("/positions", authenticateToken, async (req, res) => {
         h.symbol, h.quantity, h.average_cost, h.current_price,
         h.last_updated as created_at, h.last_updated as updated_at,
         COALESCE(cp.short_name, h.symbol) as company_name,
-        COALESCE(cp.sector, 'Unknown') as sector,
+        cp.sector as sector,
         (h.current_price - h.average_cost) * h.quantity as unrealized_pnl,
         ((h.current_price - h.average_cost) / h.average_cost * 100) as unrealized_pnl_percent,
         h.current_price * h.quantity as market_value,
@@ -365,8 +365,8 @@ router.get("/analytics", authenticateToken, async (req, res) => {
         ph.average_cost as avg_cost,
         ph.current_price,
         ph.last_updated,
-        COALESCE(cp.sector, 'Unknown') as sector,
-        COALESCE(cp.industry, 'Unknown') as industry,
+        cp.sector as sector,
+        cp.industry as industry,
         COALESCE(cp.short_name, ph.symbol) as short_name
       FROM portfolio_holdings ph
       LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
@@ -1073,7 +1073,7 @@ router.get("/:id/holdings", async (req, res) => {
         (ph.current_price - ph.average_cost) * ph.quantity as unrealized_pnl,
         CASE WHEN ph.average_cost > 0 THEN ((ph.current_price - ph.average_cost) / ph.average_cost * 100) ELSE 0 END as unrealized_pnl_percent,
         ph.last_updated,
-        COALESCE(cp.sector, 'Unknown') as sector
+        cp.sector as sector
       FROM portfolio_holdings ph
       LEFT JOIN company_profile cp ON ph.symbol = cp.ticker 
       WHERE ph.user_id = $1
@@ -1203,7 +1203,7 @@ router.get("/performance", async (req, res) => {
       SELECT
         date, total_value, daily_pnl, (daily_pnl/total_value)*100 as daily_pnl_percent,
         total_pnl, total_pnl_percent,
-        0 as benchmark_return, 0 as alpha, 1 as beta, 0 as sharpe_ratio, 0 as max_drawdown, 0 as volatility
+        0 as benchmark_return, NULL as alpha, 1 as beta, NULL as sharpe_ratio, NULL as max_drawdown, NULL as volatility
       FROM portfolio_performance 
       WHERE user_id = $1 
       ORDER BY date
@@ -1748,7 +1748,7 @@ router.get("/holdings", authenticateToken, async (req, res) => {
         ph.user_id, ph.symbol, ph.quantity, ph.average_cost, ph.current_price, 
         (ph.quantity * ph.current_price) as market_value, (ph.average_cost * ph.quantity) as cost_basis, (ph.current_price - ph.average_cost) * ph.quantity as pnl, 
         CASE WHEN ph.average_cost > 0 THEN ROUND(((ph.current_price - ph.average_cost) / ph.average_cost * 100), 2) ELSE 0 END as pnl_percent,
-        0 as day_change, 0 as day_change_percent,
+        0 as day_change, NULL as day_change_percent,
         'Unknown' as sector, 
         'Unknown' as asset_class,
         'Unknown' as broker, ph.last_updated
@@ -2761,7 +2761,7 @@ router.get("/optimization", authenticateToken, async (req, res) => {
     const holdingsQuery = `
       SELECT
         symbol, quantity, (quantity * current_price) as market_value, 'Technology' as sector,
-        average_cost, current_price, 0 as unrealized_pnl_percent,
+        average_cost, current_price, NULL as unrealized_pnl_percent,
         (average_cost * quantity) as cost_basis, 'Equity' as asset_class, 'long' as position_type
       FROM portfolio_holdings
       WHERE user_id = $1 AND quantity > 0
@@ -5885,8 +5885,8 @@ router.get("/allocation", authenticateToken, async (req, res) => {
     const holdingsQuery = `
       SELECT 
         ph.symbol, ph.quantity, (ph.quantity * ph.current_price) as market_value, (ph.average_cost * ph.quantity) as cost_basis,
-        COALESCE(cp.sector, 'Unknown') as sector,
-        COALESCE(cp.industry, 'Unknown') as industry,
+        cp.sector as sector,
+        cp.industry as industry,
         CASE
           WHEN ph.symbol LIKE '%ETF' OR ph.symbol LIKE '%REIT' THEN 'ETF'
           WHEN ph.symbol IN ('BND', 'AGG', 'LQD', 'HYG', 'TLT') THEN 'Bond'

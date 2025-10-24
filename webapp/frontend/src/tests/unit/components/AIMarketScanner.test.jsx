@@ -4,18 +4,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import AIMarketScanner from "../../../components/AIMarketScanner";
 import { vi } from "vitest";
 
-// Mock the real-time data service
-vi.mock("../../../services/realTimeDataService", () => ({
-  default: {
-    subscribe: vi.fn(),
-    unsubscribe: vi.fn(),
-    connect: vi.fn(),
-    disconnect: vi.fn(),
-    isConnected: vi.fn(() => false),
-    getLatestPrice: vi.fn(),
-  },
-}));
-
 // Mock API service with standardized pattern
 vi.mock("../../../services/api.js", () => ({
   default: {

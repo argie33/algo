@@ -1217,7 +1217,7 @@ router.get("/positions", async (req, res) => {
         UNION ALL
         SELECT symbol, -1 as position_value, price, date FROM {table}  
         UNION ALL
-        SELECT symbol, 0 as position_value, price, date FROM {table}
+        SELECT symbol, NULL as position_value, price, date FROM {table}
       ) all_signals
       GROUP BY symbol
       HAVING SUM(position_value) != 0
@@ -2274,7 +2274,7 @@ router.get("/risk/portfolio", async (req, res) => {
         ph.average_cost as avg_cost,
         ph.market_value as current_value,
         cp.sector,
-        COALESCE(pd.close, 0) as market_cap,
+        ) as market_cap,
         pd.close as current_price,
         pd.volume,
         0.15 as volatility,

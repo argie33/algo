@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Unified Company Profile Loader - Loads stock tickers from Yahoo Finance
+Unified Company & Market Data Loader - Loads stock tickers from Yahoo Finance
 Replaces deprecated loadinfo.py
-Loads ONLY company_profile table with core data for all 5,315 stocks
+Loads BOTH company_profile and market_data tables for all 5,315 stocks
+Ensures data consistency by populating both from same yfinance API call
 """
 
 import sys
@@ -134,6 +135,77 @@ def load_company_profile(symbols, cur, conn):
                 info.get('postMarketTime'), info.get('regularMarketTime')
             ))
 
+            # Also insert into market_data table from same API call
+            cur.execute("""
+                INSERT INTO market_data (
+                    ticker, previous_close, regular_market_previous_close,
+                    open_price, regular_market_open, day_low,
+                    regular_market_day_low, day_high, regular_market_day_high,
+                    regular_market_price, current_price, post_market_price,
+                    post_market_change, post_market_change_pct, volume,
+                    regular_market_volume, average_volume, avg_volume_10d,
+                    avg_daily_volume_10d, avg_daily_volume_3m, bid_price,
+                    ask_price, bid_size, ask_size, market_state,
+                    fifty_two_week_low, fifty_two_week_high,
+                    fifty_two_week_range, fifty_two_week_low_change,
+                    fifty_two_week_low_change_pct, fifty_two_week_high_change,
+                    fifty_two_week_high_change_pct, fifty_two_week_change_pct,
+                    fifty_day_avg, two_hundred_day_avg, fifty_day_avg_change,
+                    fifty_day_avg_change_pct, two_hundred_day_avg_change,
+                    two_hundred_day_avg_change_pct, source_interval_sec, market_cap
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                         %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                         %s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT (ticker) DO UPDATE SET
+                    previous_close = EXCLUDED.previous_close,
+                    regular_market_previous_close = EXCLUDED.regular_market_previous_close,
+                    open_price = EXCLUDED.open_price,
+                    regular_market_open = EXCLUDED.regular_market_open,
+                    day_low = EXCLUDED.day_low,
+                    regular_market_day_low = EXCLUDED.regular_market_day_low,
+                    day_high = EXCLUDED.day_high,
+                    regular_market_day_high = EXCLUDED.regular_market_day_high,
+                    regular_market_price = EXCLUDED.regular_market_price,
+                    current_price = EXCLUDED.current_price,
+                    post_market_price = EXCLUDED.post_market_price,
+                    post_market_change = EXCLUDED.post_market_change,
+                    post_market_change_pct = EXCLUDED.post_market_change_pct,
+                    volume = EXCLUDED.volume,
+                    regular_market_volume = EXCLUDED.regular_market_volume,
+                    average_volume = EXCLUDED.average_volume,
+                    market_cap = EXCLUDED.market_cap
+            """, (
+                orig_sym,
+                info.get('previousClose'), info.get('regularMarketPreviousClose'),
+                info.get('open'), info.get('regularMarketOpen'),
+                info.get('dayLow'), info.get('regularMarketDayLow'),
+                info.get('dayHigh'), info.get('regularMarketDayHigh'),
+                info.get('regularMarketPrice'), info.get('currentPrice'),
+                info.get('postMarketPrice'), info.get('postMarketChange'),
+                info.get('postMarketChangePercent'), info.get('volume'),
+                info.get('regularMarketVolume'), info.get('averageVolume'),
+                info.get('averageVolume10days'),
+                info.get('averageDailyVolume10Day'),
+                info.get('averageDailyVolume3Month'),
+                info.get('bid'), info.get('ask'),
+                info.get('bidSize'), info.get('askSize'),
+                info.get('marketState'),
+                info.get('fiftyTwoWeekLow'), info.get('fiftyTwoWeekHigh'),
+                info.get('fiftyTwoWeekRange'),
+                info.get('fiftyTwoWeekLowChange'),
+                info.get('fiftyTwoWeekLowChangePercent'),
+                info.get('fiftyTwoWeekHighChange'),
+                info.get('fiftyTwoWeekHighChangePercent'),
+                info.get('fiftyTwoWeekChangePercent'),
+                info.get('fiftyDayAverage'),
+                info.get('twoHundredDayAverage'),
+                info.get('fiftyDayAverageChange'),
+                info.get('fiftyDayAverageChangePercent'),
+                info.get('twoHundredDayAverageChange'),
+                info.get('twoHundredDayAverageChangePercent'),
+                info.get('sourceInterval'), info.get('marketCap')
+            ))
+
             conn.commit()
             processed += 1
             if processed % 100 == 0:
@@ -151,8 +223,9 @@ def load_company_profile(symbols, cur, conn):
 # Main execution
 if __name__ == "__main__":
     logger.info("=" * 60)
-    logger.info("🚀 UNIFIED COMPANY PROFILE LOADER - STOCKS ONLY")
+    logger.info("🚀 UNIFIED COMPANY & MARKET DATA LOADER")
     logger.info("=" * 60)
+    logger.info("Loading both company_profile and market_data for all stocks")
 
     try:
         conn = get_db_connection()

@@ -1421,7 +1421,7 @@ router.get("/estimates", async (req, res) => {
     );
 
     // Use company_profile and market_data tables as the base for basic financial info
-    let query_sql = `SELECT cp.ticker as symbol, cp.long_name as name, cp.sector, cp.industry, md.market_cap, md.previous_close as price, md.dividend_yield, 0 as beta FROM company_profile cp LEFT JOIN market_data md ON cp.ticker = md.ticker LEFT JOIN key_metrics km ON cp.ticker = km.ticker`;
+    let query_sql = `SELECT cp.ticker as symbol, cp.long_name as name, cp.sector, cp.industry, md.market_cap, md.previous_close as price, md.dividend_yield, NULL as beta FROM company_profile cp LEFT JOIN market_data md ON cp.ticker = md.ticker LEFT JOIN key_metrics km ON cp.ticker = km.ticker`;
     let params = [];
 
     if (symbol) {

@@ -309,10 +309,10 @@ router.get("/summary", authenticateToken, async (req, res) => {
     // Get institutional positioning summary from positioning_metrics
     const institutionalSummary = await query(`
       SELECT
-        AVG(COALESCE(pm.institutional_ownership, 0)) as avg_institutional_ownership,
-        AVG(COALESCE(pm.insider_ownership, 0)) as avg_insider_ownership,
-        AVG(COALESCE(pm.short_percent_of_float, 0)) as avg_short_interest,
-        AVG(COALESCE(pm.short_interest_change, 0)) as avg_short_change,
+        AVG() as avg_institutional_ownership,
+        AVG() as avg_insider_ownership,
+        AVG() as avg_short_interest,
+        AVG() as avg_short_change,
         COUNT(CASE WHEN pm.institutional_ownership > 0.5 THEN 1 END) as high_institutional_count,
         COUNT(CASE WHEN pm.short_percent_of_float > 0.1 THEN 1 END) as high_short_count,
         COUNT(*) as total_positions
@@ -436,7 +436,7 @@ router.get("/data", async (req, res) => {
       FROM latest_metrics lm
       LEFT JOIN company_profile cp ON lm.symbol = cp.symbol
       WHERE lm.institutional_ownership IS NOT NULL
-      ORDER BY ABS(COALESCE(lm.short_interest_change, 0)) DESC
+      ORDER BY ABS() DESC
       LIMIT $1
     `, [limitNum]);
 
