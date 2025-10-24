@@ -162,7 +162,8 @@ const EconomicModeling = () => {
       const leadingData = leadingIndicators?.data?.data || {};
       const recessionData = recessionForecast?.data?.data || {};
       const creditData = creditSpreads?.data?.data || {};
-      const calendarData = calendar?.data?.data || {};
+      // Calendar endpoint returns {data: [...], count: number}, so we extract data directly
+      const calendarEvents = calendar?.data?.data || [];
 
       console.log("✅ Economic data loaded:", {
         recession: recessionData.compositeRecessionProbability,
@@ -198,7 +199,7 @@ const EconomicModeling = () => {
         financialConditionsIndex: creditData.financialConditionsIndex || {},
 
         // Calendar
-        upcomingEvents: calendarData.upcomingEvents || calendarData.events || [],
+        upcomingEvents: calendarEvents || [],
       };
 
       setEconomicData(combinedData);
@@ -778,24 +779,24 @@ const EconomicModeling = () => {
                               {economicData.upcomingEvents?.length > 0 ? (
                                 economicData.upcomingEvents.map((event, idx) => (
                                   <TableRow key={idx}>
-                                    <TableCell>{event.date}</TableCell>
+                                    <TableCell>{new Date(event.date).toLocaleDateString()}</TableCell>
                                     <TableCell>{event.event}</TableCell>
-                                    <TableCell>{event.category}</TableCell>
+                                    <TableCell>Economics</TableCell>
                                     <TableCell>
                                       <Chip
                                         label={event.importance}
                                         color={
-                                          event.importance === "high"
+                                          event.importance?.toLowerCase() === "high"
                                             ? "error"
-                                            : event.importance === "medium"
+                                            : event.importance?.toLowerCase() === "medium"
                                               ? "warning"
                                               : "default"
                                         }
                                         size="small"
                                       />
                                     </TableCell>
-                                    <TableCell>{event.forecast}</TableCell>
-                                    <TableCell>{event.previous}</TableCell>
+                                    <TableCell>{event.forecast_value || "N/A"}</TableCell>
+                                    <TableCell>{event.previous_value || "N/A"}</TableCell>
                                   </TableRow>
                                 ))
                               ) : (

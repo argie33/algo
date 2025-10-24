@@ -406,42 +406,17 @@ class InsiderTradingAnalyzer:
             if previous_close and previous_close > 0:
                 performance = (current_price - previous_close) / previous_close
             
-            # Simulate based on company size and performance
-            if market_cap > 100e9:  # Large cap
-                base_activity = np.random.randint(0, 3)
-            elif market_cap > 10e9:  # Mid cap
-                base_activity = np.random.randint(1, 5)
-            else:  # Small cap
-                base_activity = np.random.randint(1, 8)
-            
-            # Insiders more likely to buy after poor performance (contrarian)
-            # More likely to sell after good performance (profit taking)
-            if performance < -0.05:  # Down >5%
-                buy_probability = 0.7
-                sell_probability = 0.3
-            elif performance > 0.05:  # Up >5%
-                buy_probability = 0.3
-                sell_probability = 0.7
-            else:
-                buy_probability = 0.5
-                sell_probability = 0.5
-            
-            # Simulate transactions
-            total_transactions = base_activity
-            buys = np.random.binomial(total_transactions, buy_probability)
-            sells = total_transactions - buys
-            
-            # Simulate values
-            avg_transaction_value = 50000 if market_cap > 10e9 else 25000
-            buy_value = buys * avg_transaction_value * np.random.uniform(0.5, 2.0)
-            sell_value = sells * avg_transaction_value * np.random.uniform(0.5, 2.0)
-            
+            # Return NULL instead of simulating insider trading data
+            # Real insider trading data requires SEC Form 4 filings integration
+            # and should NOT be simulated with random data
+            logging.warning(f"⚠️  Insider trading data unavailable for {symbol} - requires SEC Form 4 integration")
+
             result.update({
-                'recent_insider_buys': buys,
-                'recent_insider_sells': sells,
-                'insider_buy_value': buy_value,
-                'insider_sell_value': sell_value,
-                'net_insider_trading': buy_value - sell_value
+                'recent_insider_buys': None,
+                'recent_insider_sells': None,
+                'insider_buy_value': None,
+                'insider_sell_value': None,
+                'net_insider_trading': None
             })
             
             # Calculate sentiment
@@ -575,39 +550,22 @@ class OptionsFlowAnalyzer:
         return result
     
     def _simulate_options_activity(self, current_price: float) -> Dict:
-        """Simulate options activity for stocks without options data"""
+        """Return NULL for options activity - should not be simulated"""
         result = {}
-        
-        try:
-            info = self.ticker.info
-            market_cap = safe_float(info.get('marketCap', 0))
-            
-            # Larger, more volatile stocks have more options activity
-            if market_cap > 50e9:  # Large cap
-                base_volume = np.random.randint(5000, 50000)
-                unusual_activity = np.random.uniform(0.5, 2.0)
-            elif market_cap > 10e9:  # Mid cap
-                base_volume = np.random.randint(1000, 10000)
-                unusual_activity = np.random.uniform(0.2, 1.5)
-            else:  # Small cap or no options
-                base_volume = np.random.randint(0, 1000)
-                unusual_activity = np.random.uniform(0.0, 0.5)
-            
-            # Simulate put/call ratio based on market sentiment
-            put_call_ratio = np.random.uniform(0.5, 1.5)
-            
-            result.update({
-                'options_volume': base_volume,
-                'put_call_ratio': put_call_ratio,
-                'unusual_options_activity': unusual_activity,
-                'options_sentiment': 0.5 - put_call_ratio / 2,  # Convert to sentiment
-                'large_options_trades': max(0, base_volume // 5000),
-                'max_pain_level': current_price * np.random.uniform(0.95, 1.05)
-            })
-        
-        except Exception as e:
-            logging.error(f"Error simulating options activity for {self.symbol}: {e}")
-        
+
+        # Real options data requires actual options chain data from data provider
+        # Should NOT be simulated with random data - too important for trading decisions
+        logging.warning(f"⚠️  Options activity data unavailable for {self.symbol} - requires options chain data integration")
+
+        result.update({
+            'options_volume': None,
+            'put_call_ratio': None,
+            'unusual_options_activity': None,
+            'options_sentiment': None,
+            'large_options_trades': None,
+            'max_pain_level': None
+        })
+
         return result
 
 class ShortInterestAnalyzer:
