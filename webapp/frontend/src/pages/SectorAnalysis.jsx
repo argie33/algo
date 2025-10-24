@@ -1111,7 +1111,7 @@ const SectorAnalysis = () => {
             const response = await api.get(`/api/stocks?industry=${encodeURIComponent(industryName)}&limit=10`);
             setCompaniesCache(prev => ({
               ...prev,
-              [industryName]: response.data?.data || []
+              [industryName]: response.data?.data?.stocks || []
             }));
           } catch (err) {
             console.error(`Failed to fetch companies for ${industryName}:`, err);
@@ -1672,26 +1672,38 @@ const SectorAnalysis = () => {
                           <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
                             ⚡ Momentum Score
                           </Typography>
-                          <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
-                            <Box>
-                              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>1-Day Momentum</Typography>
-                              <Typography variant="h6" sx={{ color: getChangeColor(sector.current_perf_1d ?? sector.performance_1d) }}>
-                                {formatPercentage(sector.current_perf_1d ?? sector.performance_1d)}
-                              </Typography>
-                            </Box>
-                            <Box>
-                              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>5-Day Momentum</Typography>
-                              <Typography variant="h6" sx={{ color: getChangeColor(sector.current_perf_5d ?? sector.performance_5d) }}>
-                                {formatPercentage(sector.current_perf_5d ?? sector.performance_5d)}
-                              </Typography>
-                            </Box>
-                            <Box sx={{ gridColumn: "1 / -1" }}>
-                              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>20-Day Momentum</Typography>
-                              <Typography variant="h6" sx={{ color: getChangeColor(sector.current_perf_20d ?? sector.performance_20d) }}>
-                                {formatPercentage(sector.current_perf_20d ?? sector.performance_20d)}
-                              </Typography>
-                            </Box>
-                          </Box>
+                          <ResponsiveContainer width="100%" height={250}>
+                            <RechartsBarChart data={[
+                              { name: "1D", momentum: sector.current_perf_1d ?? sector.performance_1d ?? 0 },
+                              { name: "5D", momentum: sector.current_perf_5d ?? sector.performance_5d ?? 0 },
+                              { name: "20D", momentum: sector.current_perf_20d ?? sector.performance_20d ?? 0 }
+                            ]}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="name" />
+                              <YAxis />
+                              <Tooltip
+                                formatter={(value) => formatPercentage(value)}
+                                labelFormatter={(label) => `${label}-Day`}
+                              />
+                              <Bar
+                                dataKey="momentum"
+                                fill="#1976d2"
+                                radius={[8, 8, 0, 0]}
+                                cellStyle={{ fill: '#1976d2' }}
+                              >
+                                {[
+                                  { name: "1D", momentum: sector.current_perf_1d ?? sector.performance_1d ?? 0 },
+                                  { name: "5D", momentum: sector.current_perf_5d ?? sector.performance_5d ?? 0 },
+                                  { name: "20D", momentum: sector.current_perf_20d ?? sector.performance_20d ?? 0 }
+                                ].map((entry, index) => (
+                                  <Cell
+                                    key={`cell-${index}`}
+                                    fill={entry.momentum >= 0 ? "#4caf50" : "#f44336"}
+                                  />
+                                ))}
+                              </Bar>
+                            </RechartsBarChart>
+                          </ResponsiveContainer>
                         </Box>
 
                         {/* Industries Section */}
@@ -1946,26 +1958,38 @@ const SectorAnalysis = () => {
                           <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
                             ⚡ Momentum Score
                           </Typography>
-                          <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
-                            <Box>
-                              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>1-Day Momentum</Typography>
-                              <Typography variant="h6" sx={{ color: getChangeColor(industry.performance_1d) }}>
-                                {formatPercentage(industry.performance_1d)}
-                              </Typography>
-                            </Box>
-                            <Box>
-                              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>5-Day Momentum</Typography>
-                              <Typography variant="h6" sx={{ color: getChangeColor(industry.performance_5d) }}>
-                                {formatPercentage(industry.performance_5d)}
-                              </Typography>
-                            </Box>
-                            <Box sx={{ gridColumn: "1 / -1" }}>
-                              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>20-Day Momentum</Typography>
-                              <Typography variant="h6" sx={{ color: getChangeColor(industry.performance_20d) }}>
-                                {formatPercentage(industry.performance_20d)}
-                              </Typography>
-                            </Box>
-                          </Box>
+                          <ResponsiveContainer width="100%" height={250}>
+                            <RechartsBarChart data={[
+                              { name: "1D", momentum: industry.performance_1d ?? 0 },
+                              { name: "5D", momentum: industry.performance_5d ?? 0 },
+                              { name: "20D", momentum: industry.performance_20d ?? 0 }
+                            ]}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="name" />
+                              <YAxis />
+                              <Tooltip
+                                formatter={(value) => formatPercentage(value)}
+                                labelFormatter={(label) => `${label}-Day`}
+                              />
+                              <Bar
+                                dataKey="momentum"
+                                fill="#1976d2"
+                                radius={[8, 8, 0, 0]}
+                                cellStyle={{ fill: '#1976d2' }}
+                              >
+                                {[
+                                  { name: "1D", momentum: industry.performance_1d ?? 0 },
+                                  { name: "5D", momentum: industry.performance_5d ?? 0 },
+                                  { name: "20D", momentum: industry.performance_20d ?? 0 }
+                                ].map((entry, index) => (
+                                  <Cell
+                                    key={`cell-${index}`}
+                                    fill={entry.momentum >= 0 ? "#4caf50" : "#f44336"}
+                                  />
+                                ))}
+                              </Bar>
+                            </RechartsBarChart>
+                          </ResponsiveContainer>
                         </Box>
 
                         {/* Top Performing Companies Section */}
