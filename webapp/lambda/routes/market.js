@@ -5100,8 +5100,8 @@ router.get("/correlation", async (req, res) => {
       `📊 Market correlation requested - symbols: ${symbols || "all"}, period: ${period}`
     );
 
-    // Generate realistic correlation matrix data
-    const generateCorrelationMatrix = (targetSymbols, period) => {
+    // Generate correlation matrix from real price data
+    const generateCorrelationMatrix = async (targetSymbols, period) => {
       const baseSymbols = [
         "SPY",
         "QQQ",
@@ -5176,10 +5176,71 @@ router.get("/correlation", async (req, res) => {
             const symbol1 = analysisSymbols[i];
             const symbol2 = analysisSymbols[j];
 
-            // Try to calculate REAL correlation from price data
-            // For now, return NULL if we can't calculate it (proper implementation would fetch from DB)
-            // In production, this would query price_daily for both symbols and calculate daily returns
-            correlation = null;
+            // Calculate REAL correlation from price_daily data in database
+            try {
+              // Cache price data to avoid multiple queries for same symbol
+              if (!priceDataCache[symbol1] && query) {
+                const result1 = await query(
+                  `SELECT date, close FROM price_daily WHERE symbol = $1 ORDER BY date DESC LIMIT 252`,
+                  [symbol1]
+                );
+                priceDataCache[symbol1] = (result1?.rows || []).reverse();
+              }
+
+              if (!priceDataCache[symbol2] && query) {
+                const result2 = await query(
+                  `SELECT date, close FROM price_daily WHERE symbol = $1 ORDER BY date DESC LIMIT 252`,
+                  [symbol2]
+                );
+                priceDataCache[symbol2] = (result2?.rows || []).reverse();
+              }
+
+              const prices1 = priceDataCache[symbol1] || [];
+              const prices2 = priceDataCache[symbol2] || [];
+
+              // Find overlapping dates and calculate returns
+              if (prices1.length >= 2 && prices2.length >= 2) {
+                const dates1 = new Set(prices1.map((p) => p.date));
+                const dates2 = new Set(prices2.map((p) => p.date));
+                const overlappingDates = prices1
+                  .map((p) => p.date)
+                  .filter((d) => dates2.has(d));
+
+                if (overlappingDates.length >= 2) {
+                  // Calculate daily returns for overlapping dates
+                  const returns1 = [];
+                  const returns2 = [];
+
+                  const p1Map = new Map(prices1.map((p) => [p.date?.toString?.() || p.date, p.close]));
+                  const p2Map = new Map(prices2.map((p) => [p.date?.toString?.() || p.date, p.close]));
+
+                  for (let k = 1; k < overlappingDates.length; k++) {
+                    const prevDate = (overlappingDates[k - 1]?.toString?.() || overlappingDates[k - 1]);
+                    const currDate = (overlappingDates[k]?.toString?.() || overlappingDates[k]);
+
+                    const p1Prev = p1Map.get(prevDate);
+                    const p1Curr = p1Map.get(currDate);
+                    const p2Prev = p2Map.get(prevDate);
+                    const p2Curr = p2Map.get(currDate);
+
+                    if (p1Prev && p1Curr && p2Prev && p2Curr && p1Prev > 0 && p2Prev > 0) {
+                      returns1.push((p1Curr - p1Prev) / p1Prev);
+                      returns2.push((p2Curr - p2Prev) / p2Prev);
+                    }
+                  }
+
+                  // Calculate Pearson correlation of returns
+                  if (returns1.length >= 2) {
+                    correlation = calculatePearsonCorrelation(returns1, returns2);
+                  }
+                }
+              }
+            } catch (e) {
+              console.warn(
+                `⚠️  Error calculating correlation for ${symbol1}-${symbol2}: ${e.message}`
+              );
+              correlation = null;
+            }
 
             // Track statistics (skip if correlation is NULL/unavailable)
             if (i < j && correlation !== null) {
@@ -5250,7 +5311,7 @@ router.get("/correlation", async (req, res) => {
       };
     };
 
-    const correlationData = generateCorrelationMatrix(symbols, period);
+    const correlationData = await generateCorrelationMatrix(symbols, period);
 
     // Generate additional analysis
     const analysis = {
