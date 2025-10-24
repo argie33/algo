@@ -187,9 +187,20 @@ class AnalystSentimentCollector:
             # Get recommendation data
             recommendations = self.ticker.recommendations
             if recommendations is not None and not recommendations.empty:
-                # Get latest recommendations (last 90 days)
-                recent_date = datetime.now() - timedelta(days=90)
-                recent_recs = recommendations[recommendations.index >= recent_date]
+                try:
+                    # Get latest recommendations (last 90 days)
+                    recent_date = datetime.now() - timedelta(days=90)
+                    # Try datetime comparison first
+                    try:
+                        rec_index = pd.to_datetime(recommendations.index)
+                        mask = rec_index >= pd.Timestamp(recent_date)
+                        recent_recs = recommendations[mask]
+                    except (TypeError, ValueError):
+                        # If index isn't datetime, use last 90 rows as proxy
+                        recent_recs = recommendations.tail(90)
+                except Exception as e:
+                    logging.warning(f"Error filtering recommendations for {self.symbol}: {e}")
+                    recent_recs = recommendations.tail(90)  # Fallback
                 
                 if not recent_recs.empty:
                     # Aggregate recommendation counts
@@ -257,20 +268,38 @@ class AnalystSentimentCollector:
             # Get upgrades/downgrades from recommendations
             recommendations = self.ticker.recommendations
             if recommendations is not None and not recommendations.empty:
-                recent_date = datetime.now() - timedelta(days=30)
-                recent_recs = recommendations[recommendations.index >= recent_date]
-                
-                if not recent_recs.empty:
-                    # Simple count of recommendations in last 30 days as proxy for activity
-                    data['initiations_last_30d'] = len(recent_recs)
-                    
-                    # Could enhance this with more sophisticated upgrade/downgrade detection
-                    # For now, use simple heuristics
-                    positive_actions = recent_recs[recent_recs['To Grade'].str.contains('Buy|Outperform|Overweight', case=False, na=False)]
-                    negative_actions = recent_recs[recent_recs['To Grade'].str.contains('Sell|Underperform|Underweight', case=False, na=False)]
-                    
-                    data['upgrades_last_30d'] = len(positive_actions)
-                    data['downgrades_last_30d'] = len(negative_actions)
+                try:
+                    # Get last 30 days of recommendations
+                    # The recommendations df may have different index types, so handle gracefully
+                    recent_date = datetime.now() - timedelta(days=30)
+
+                    # Try to filter by date if index is datetime, otherwise just take last rows
+                    try:
+                        # Assume index is datetime-like
+                        rec_index = pd.to_datetime(recommendations.index)
+                        mask = rec_index >= pd.Timestamp(recent_date)
+                        recent_recs = recommendations[mask]
+                    except (TypeError, ValueError):
+                        # If index isn't datetime, just use the last 30 rows as proxy for 30 days
+                        recent_recs = recommendations.tail(30)
+
+                    if not recent_recs.empty:
+                        # Simple count of recommendations in last 30 days as proxy for activity
+                        data['initiations_last_30d'] = len(recent_recs)
+
+                        # Could enhance this with more sophisticated upgrade/downgrade detection
+                        # For now, use simple heuristics
+                        if 'To Grade' in recent_recs.columns:
+                            try:
+                                positive_actions = recent_recs[recent_recs['To Grade'].str.contains('Buy|Outperform|Overweight', case=False, na=False)]
+                                negative_actions = recent_recs[recent_recs['To Grade'].str.contains('Sell|Underperform|Underweight', case=False, na=False)]
+
+                                data['upgrades_last_30d'] = len(positive_actions)
+                                data['downgrades_last_30d'] = len(negative_actions)
+                            except Exception as e:
+                                logging.warning(f"Error parsing analyst grades for {self.symbol}: {e}")
+                except Exception as e:
+                    logging.warning(f"Error filtering recommendations for {self.symbol}: {e}")
         
         except Exception as e:
             logging.warning(f"Error collecting analyst revisions for {self.symbol}: {e}")
@@ -589,21 +618,20 @@ def process_symbol_sentiment(symbol: str, reddit_client=None) -> Optional[Dict]:
         analyst_data = analyst_collector.get_analyst_recommendations()
         analyst_revisions = analyst_collector.get_analyst_revisions()
 
-        # Collect social sentiment
+        # Collect social sentiment (Reddit + Google Trends only, NO news)
         social_collector = SocialSentimentCollector(symbol)
         reddit_data = social_collector.get_reddit_sentiment(reddit_client)
         trends_data = social_collector.get_google_trends()
-        news_data = social_collector.get_news_sentiment()
 
         # Always try fallback sentiment - it's our most reliable source
         fallback_data = get_fallback_sentiment(symbol)
 
-        # Combine all data
+        # Combine all data (analyst, reddit, trends, technical fallback)
         result = {
             'symbol': symbol,
             'date': date.today(),
             'analyst_sentiment': {**analyst_data, **analyst_revisions},
-            'social_sentiment': {**reddit_data, **trends_data, **news_data, **fallback_data}
+            'social_sentiment': {**reddit_data, **trends_data, **fallback_data}
         }
 
         return result
@@ -800,17 +828,100 @@ def load_sentiment_batch(symbols: List[str], conn, cur, batch_size: int = 10) ->
                         0.0  # viral_score (placeholder)
                     ))
                 
-                # Execute batch inserts
+                # Execute batch inserts for analyst data
                 if analyst_data:
-                    # Skip analyst data for now - schema mismatch between what loader expects and what DB has
-                    # analyst_sentiment_analysis table already has data from other loaders
-                    # Social sentiment data will still be inserted below
-                    pass
-                
+                    analyst_insert = """
+                        INSERT INTO analyst_sentiment_analysis
+                        (symbol, date, strong_buy_count, buy_count, hold_count, sell_count,
+                         strong_sell_count, total_analysts, avg_price_target,
+                         upgrades_last_30d, downgrades_last_30d,
+                         eps_revisions_up_last_30d, eps_revisions_down_last_30d,
+                         recommendation_mean, price_target_vs_current, analyst_count)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (symbol, date) DO UPDATE SET
+                            strong_buy_count = EXCLUDED.strong_buy_count,
+                            buy_count = EXCLUDED.buy_count,
+                            hold_count = EXCLUDED.hold_count,
+                            sell_count = EXCLUDED.sell_count,
+                            strong_sell_count = EXCLUDED.strong_sell_count,
+                            total_analysts = EXCLUDED.total_analysts,
+                            avg_price_target = EXCLUDED.avg_price_target,
+                            upgrades_last_30d = EXCLUDED.upgrades_last_30d,
+                            downgrades_last_30d = EXCLUDED.downgrades_last_30d,
+                            eps_revisions_up_last_30d = EXCLUDED.eps_revisions_up_last_30d,
+                            eps_revisions_down_last_30d = EXCLUDED.eps_revisions_down_last_30d,
+                            recommendation_mean = EXCLUDED.recommendation_mean,
+                            price_target_vs_current = EXCLUDED.price_target_vs_current,
+                            analyst_count = EXCLUDED.analyst_count
+                    """
+                    for analyst_tuple in analyst_data:
+                        try:
+                            # Re-order tuple to match INSERT columns
+                            symbol = analyst_tuple[0]
+                            date_val = analyst_tuple[1]
+                            strong_buy = analyst_tuple[2]
+                            buy = analyst_tuple[3]
+                            hold = analyst_tuple[4]
+                            sell = analyst_tuple[5]
+                            strong_sell = analyst_tuple[6]
+                            total = analyst_tuple[7]
+                            upgrades = analyst_tuple[8]
+                            downgrades = analyst_tuple[9]
+                            initiations = analyst_tuple[10]
+                            avg_target = analyst_tuple[11]
+                            high_target = analyst_tuple[12]
+                            low_target = analyst_tuple[13]
+                            price_vs_current = analyst_tuple[14]
+                            eps_up = analyst_tuple[15]
+                            eps_down = analyst_tuple[16]
+                            rev_up = analyst_tuple[17]
+                            rev_down = analyst_tuple[18]
+                            rec_mean = analyst_tuple[19]
+
+                            # Use total_analysts count
+                            analyst_count = total
+
+                            cur.execute(analyst_insert, (
+                                symbol, date_val, strong_buy, buy, hold, sell, strong_sell,
+                                total, avg_target, upgrades, downgrades,
+                                eps_up, eps_down, rec_mean, price_vs_current, analyst_count
+                            ))
+                            logging.debug(f"✓ Inserted analyst data for {symbol}: {total} analysts")
+                        except Exception as e:
+                            logging.debug(f"Could not insert analyst data for {symbol}: {e}")
+
                 if social_data:
-                    # Skip social_sentiment_analysis insert (schema mismatch issues)
-                    # Focus only on sentiment table which the API actually queries
-                    pass
+                    social_insert = """
+                        INSERT INTO social_sentiment_analysis
+                        (symbol, date, reddit_sentiment_score, search_volume_index, news_sentiment_score, news_article_count)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (symbol, date) DO UPDATE SET
+                            reddit_sentiment_score = EXCLUDED.reddit_sentiment_score,
+                            search_volume_index = EXCLUDED.search_volume_index,
+                            news_sentiment_score = EXCLUDED.news_sentiment_score,
+                            news_article_count = EXCLUDED.news_article_count
+                    """
+                    for social_tuple in social_data:
+                        try:
+                            # Extract relevant columns for social_sentiment_analysis table
+                            symbol = social_tuple[0]
+                            date_val = social_tuple[1]
+                            reddit_mention_count = social_tuple[2]
+                            reddit_sentiment = social_tuple[3]
+                            reddit_volume_norm = social_tuple[4]
+                            search_volume = social_tuple[5]
+                            search_7d = social_tuple[6]
+                            search_30d = social_tuple[7]
+                            news_count = social_tuple[8]
+                            news_sentiment = social_tuple[9]
+                            news_quality = social_tuple[10]
+
+                            cur.execute(social_insert, (
+                                symbol, date_val, reddit_sentiment, search_volume, news_sentiment, news_count
+                            ))
+                            logging.debug(f"✓ Inserted social data for {symbol}: reddit={reddit_sentiment}, search_vol={search_volume}")
+                        except Exception as e:
+                            logging.debug(f"Could not insert social data for {symbol}: {e}")
 
                 # Always insert into sentiment table (the one the API queries)
                 # Map data from sentiment_data which has the actual sentiment info

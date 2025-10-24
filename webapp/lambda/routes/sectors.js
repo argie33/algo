@@ -1405,7 +1405,7 @@ router.get("/sectors-with-history", async (req, res) => {
     console.log(`📊 Fetching sectors with history (limit: ${limit})`);
 
     // Query sectors with historical data from the consolidated rankings table + performance metrics
-    // Strategy: Get the most recent date that has the best historical data availability
+    // Strategy: Get top-ranked sectors from most recent date with historical data
     const sectorsQuery = `
       WITH latest_data AS (
         -- Get the most recent date with actual historical data (not all NULLs)
@@ -1474,7 +1474,7 @@ router.get("/sectors-with-history", async (req, res) => {
           GROUP BY cp.sector
         ) pd_20d ON sp.sector = pd_20d.sector
       )
-      SELECT DISTINCT ON (sr.sector)
+      SELECT
         sr.sector as sector_name,
         sr.current_rank,
         sr.rank_1w_ago,
@@ -1500,7 +1500,7 @@ router.get("/sectors-with-history", async (req, res) => {
       LEFT JOIN calculated_performance cp ON sr.sector = cp.sector,
       latest_data ld
       WHERE sr.date = ld.date
-      ORDER BY sr.sector, sr.date DESC
+      ORDER BY sr.current_rank ASC NULLS LAST, sr.sector ASC
       LIMIT $1
     `;
 
@@ -1697,7 +1697,7 @@ router.get("/industries-with-history", async (req, res) => {
           GROUP BY cp.industry
         ) pd_20d ON ip.industry = pd_20d.industry
       )
-      SELECT DISTINCT ON (ir.industry)
+      SELECT
         ir.industry,
         COALESCE(cp.sector, 'Unknown') as sector,
         ir.current_rank,
@@ -1729,7 +1729,7 @@ router.get("/industries-with-history", async (req, res) => {
       LEFT JOIN calculated_performance cp_calc ON ir.industry = cp_calc.industry,
       latest_data ld
       WHERE ir.date = ld.date
-      ORDER BY ir.industry, ir.date DESC
+      ORDER BY ir.current_rank ASC NULLS LAST, ir.industry ASC
       LIMIT $1
     `;
 
@@ -2281,6 +2281,8 @@ router.get("/trend/industry/:industryName", async (req, res) => {
       `SELECT
         date,
         current_rank as rank,
+        momentum_score,
+        trend,
         TO_CHAR(date, 'MM/DD') as label
       FROM industry_ranking
       WHERE LOWER(industry) = LOWER($1)
@@ -2301,6 +2303,8 @@ router.get("/trend/industry/:industryName", async (req, res) => {
       trendData: trendData.rows.map(row => ({
         date: row.date,
         rank: row.rank,
+        momentumScore: row.momentum_score,
+        trend: row.trend,
         label: row.label
       }))
     });

@@ -173,14 +173,15 @@ router.get("/summary", async (req, res) => {
         SELECT
           symbol,
           close as close,
-          COALESCE((close - open), 0) as change_amount,
-          CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END as change_percent,
+          (close - open) as change_amount,
+          CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE NULL END as change_percent,
           volume,
           date
         FROM price_daily
         WHERE symbol IN ('AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA')
-          AND date >= CURRENT_DATE - INTERVAL '7 days' WHERE symbol IN ('AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA'))
+          AND date >= CURRENT_DATE - INTERVAL '7 days'
           AND close IS NOT NULL
+          AND open IS NOT NULL
         ORDER BY symbol
       `;
       indicesResult = await executeQueryWithTimeout(query(indicesQuery), "indices");
@@ -189,14 +190,16 @@ router.get("/summary", async (req, res) => {
       const breadthQuery = `
         SELECT
           COUNT(*) as total_stocks,
-          COUNT(CASE WHEN COALESCE((close - open), 0) > 0 THEN 1 END) as advancing,
-          COUNT(CASE WHEN COALESCE((close - open), 0) < 0 THEN 1 END) as declining,
-          COUNT(CASE WHEN COALESCE((close - open), 0) = 0 THEN 1 END) as unchanged,
-          AVG(CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END) as avg_change_percent,
+          COUNT(CASE WHEN (close - open) > 0 THEN 1 END) as advancing,
+          COUNT(CASE WHEN (close - open) < 0 THEN 1 END) as declining,
+          COUNT(CASE WHEN (close - open) = 0 THEN 1 END) as unchanged,
+          AVG(CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE NULL END) as avg_change_percent,
           SUM(volume) as total_volume
         FROM price_daily
         WHERE date >= CURRENT_DATE - INTERVAL '7 days'
-          AND close IS NOT NULL AND volume > 0
+          AND close IS NOT NULL
+          AND open IS NOT NULL
+          AND volume > 0
         ORDER BY date DESC
         LIMIT 10000
       `;
@@ -207,13 +210,15 @@ router.get("/summary", async (req, res) => {
         SELECT
           cp.sector,
           COUNT(*) as stock_count,
-          AVG(COALESCE(((md.close - md.open) / NULLIF(md.open, 0) * 100), 0)) as avg_change_percent,
+          AVG(CASE WHEN md.open > 0 THEN ((md.close - md.open) / md.open * 100) ELSE NULL END) as avg_change_percent,
           SUM(md.volume) as total_volume
         FROM price_daily md
         JOIN company_profile cp ON md.symbol = cp.symbol
         WHERE cp.sector IS NOT NULL
           AND md.volume > 0
           AND md.date >= CURRENT_DATE - INTERVAL '7 days'
+          AND md.close IS NOT NULL
+          AND md.open IS NOT NULL
         GROUP BY cp.sector
         ORDER BY avg_change_percent DESC
         LIMIT 15
@@ -2415,15 +2420,17 @@ router.get("/volatility", async (req, res) => {
   try {
     // Get VIX and volatility data
     const volatilityQuery = `
-      SELECT 
+      SELECT
         symbol,
         close as close,
-        COALESCE(change_amount, 0) as change_amount,
-        COALESCE(change_percent, 0) as change_percent,
+        (close - open) as change_amount,
+        CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE NULL END as change_percent,
         date
       FROM price_daily
       WHERE symbol = '^VIX'
-        AND date >= CURRENT_DATE - INTERVAL '7 days')
+        AND date >= CURRENT_DATE - INTERVAL '7 days'
+        AND close IS NOT NULL
+        AND open IS NOT NULL
     `;
 
     const result = await query(volatilityQuery);
@@ -2486,7 +2493,7 @@ router.get("/calendar", async (req, res) => {
   try {
     // Query economic calendar events from database
     const calendarQuery = `
-      SELECT 
+      SELECT
         event_name as event,
         event_date as date,
         importance,
@@ -2494,7 +2501,7 @@ router.get("/calendar", async (req, res) => {
         actual_value,
         forecast_value,
         previous_value
-      FROM economic_calendar 
+      FROM economic_calendar
       WHERE event_date >= CURRENT_DATE
       ORDER BY event_date ASC
       LIMIT 20
@@ -2502,22 +2509,27 @@ router.get("/calendar", async (req, res) => {
 
     const result = await query(calendarQuery);
 
-    if (!result || !result.rows || result.rows.length === 0) {
-      return res.notFound("No economic calendar events found", {
-        details: "No upcoming economic events in database",
-        suggestion: "Economic calendar data needs to be populated",
-      });
-    }
+    // Always return success with empty array if no data - frontend expects this format
+    const calendarEvents = (result?.rows || []).map(row => ({
+      date: row.date,
+      event: row.event,
+      importance: row.importance || 'Medium',
+      currency: row.currency || 'USD',
+      actual: row.actual_value,
+      forecast: row.forecast_value,
+      previous: row.previous_value
+    }));
 
     res.json({
-      data: result.rows,
-      count: result.rows.length,
+      success: true,
+      data: calendarEvents,
+      count: calendarEvents.length,
     });
   } catch (error) {
     console.error("Error fetching economic calendar:", error);
     return res
       .status(500)
-      .json({ success: false, error: "Failed to fetch economic calendar" });
+      .json({ success: false, error: "Failed to fetch economic calendar", data: [] });
   }
 });
 
@@ -2528,11 +2540,11 @@ router.get("/indicators", async (req, res) => {
   try {
     // Get market indicators data from individual stocks
     const indicatorsQuery = `
-      SELECT 
+      SELECT
         pd.symbol,
         pd.close,
-        COALESCE(0, 0) as change_amount,
-        COALESCE(((pd.close - pd.open) / pd.open * 100), 0) as change_percent,
+        (pd.close - pd.open) as change_amount,
+        CASE WHEN pd.open > 0 THEN ((pd.close - pd.open) / pd.open * 100) ELSE NULL END as change_percent,
         pd.volume,
         s.market_cap,
         s.sector,
@@ -2540,6 +2552,8 @@ router.get("/indicators", async (req, res) => {
       FROM price_daily pd
       JOIN company_profile s ON pd.symbol = s.ticker
       WHERE pd.date >= CURRENT_DATE - INTERVAL '7 days'
+        AND pd.close IS NOT NULL
+        AND pd.open IS NOT NULL
       ORDER BY pd.symbol
     `;
 

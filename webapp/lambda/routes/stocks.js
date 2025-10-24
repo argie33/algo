@@ -864,6 +864,7 @@ router.get("/", async (req, res) => {
     // Input validation for string parameters to prevent injection
     let search = validated.search || "";
     let sector = validated.sector || "";
+    let industry = validated.industry || "";
     let exchange = validated.exchange || "";
     let symbol = validated.symbol || "";
 
@@ -880,25 +881,40 @@ router.get("/", async (req, res) => {
     // Add exact symbol filter (takes precedence over search)
     if (symbol) {
       paramCount++;
-      whereClause += ` AND symbol = $${paramCount}`;
+      whereClause += ` AND cp.ticker = $${paramCount}`;
       params.push(symbol.toUpperCase());
     }
     // Add search filter (partial match)
     else if (search) {
       paramCount++;
-      whereClause += ` AND symbol ILIKE $${paramCount}`;
+      whereClause += ` AND cp.ticker ILIKE $${paramCount}`;
       params.push(`%${search}%`);
     }
 
-    // Simple sort columns for price_daily table
+    // Add industry filter
+    if (industry) {
+      paramCount++;
+      whereClause += ` AND cp.industry = $${paramCount}`;
+      params.push(industry);
+    }
+
+    // Add sector filter
+    if (sector) {
+      paramCount++;
+      whereClause += ` AND cp.sector = $${paramCount}`;
+      params.push(sector);
+    }
+
+    // Valid sort columns
     const validSortColumns = {
-      ticker: "symbol",
-      symbol: "symbol",
-      volume: "volume",
-      price: "close",
+      ticker: "cp.ticker",
+      symbol: "cp.ticker",
+      volume: "md.volume",
+      price: "md.current_price",
+      composite_score: "ss.composite_score",
     };
 
-    const sortColumn = validSortColumns[sortBy] || "symbol";
+    let sortColumn = validSortColumns[sortBy] || "cp.ticker";
     const sortDirection = sortOrder.toLowerCase() === "desc" ? "DESC" : "ASC";
 
     console.log("Query params:", {
@@ -906,6 +922,8 @@ router.get("/", async (req, res) => {
       params,
       limit,
       offset,
+      sortBy,
+      sortDirection,
     });
 
     // ACTUAL AWS SCHEMA: Use company_profile with price_daily using efficient LATERAL join
@@ -985,7 +1003,7 @@ router.get("/", async (req, res) => {
       LEFT JOIN key_metrics km ON cp.ticker = km.ticker
       LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
       ${whereClause.replace(/symbol/g, 'cp.ticker')}
-      ORDER BY cp.ticker ASC
+      ORDER BY ${sortColumn} ${sortDirection}
       LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
     `;
 

@@ -30,7 +30,6 @@ from typing import Dict, List, Optional, Tuple, Any
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
-import yfinance as yf
 import pandas as pd
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -80,56 +79,190 @@ def safe_float(value, default=None):
     except (ValueError, TypeError):
         return default
 
+def sanitize_result(result: Dict) -> Dict:
+    """Recursively convert all numpy/pandas types to native Python types for database insertion"""
+    if not isinstance(result, dict):
+        return result
+
+    sanitized = {}
+    for key, value in result.items():
+        try:
+            if value is None:
+                sanitized[key] = None
+            elif isinstance(value, bool):
+                # Check bool before numbers since bool is a subclass of int
+                sanitized[key] = bool(value)
+            elif isinstance(value, np.bool_):
+                sanitized[key] = bool(value)
+            elif isinstance(value, (np.integer, int)):
+                sanitized[key] = int(value)
+            elif isinstance(value, (np.floating, float)):
+                sanitized[key] = float(value)
+            elif isinstance(value, (np.ndarray, list)):
+                sanitized[key] = None  # Skip array values
+            elif isinstance(value, (datetime, date)):
+                sanitized[key] = value if isinstance(value, date) else value.date()
+            elif isinstance(value, pd.Timestamp):
+                sanitized[key] = value.date()
+            elif isinstance(value, str):
+                sanitized[key] = str(value)
+            elif hasattr(value, 'item'):
+                # numpy scalar with .item() method
+                try:
+                    sanitized[key] = float(value.item())
+                except (ValueError, TypeError):
+                    try:
+                        sanitized[key] = int(value.item())
+                    except (ValueError, TypeError):
+                        sanitized[key] = None
+            else:
+                # Last resort: try converting to native Python type
+                try:
+                    if hasattr(value, '__float__'):
+                        sanitized[key] = float(value)
+                    elif hasattr(value, '__int__'):
+                        sanitized[key] = int(value)
+                    else:
+                        logging.warning(f"Unknown type for key '{key}': {type(value)} = {value}")
+                        sanitized[key] = None
+                except Exception as e:
+                    logging.warning(f"Failed to convert key '{key}' (type {type(value)}): {e}")
+                    sanitized[key] = None
+        except Exception as e:
+            logging.warning(f"Error sanitizing key '{key}': {e}")
+            sanitized[key] = None
+
+    return sanitized
+
 class MomentumCalculator:
     """Calculate comprehensive momentum metrics using academic methodologies"""
-    
-    def __init__(self, symbol: str):
+
+    def __init__(self, symbol: str, conn):
         self.symbol = symbol
-        self.ticker = yf.Ticker(symbol)
-    
-    def get_price_momentum_data(self, period: str = "2y") -> Optional[Dict]:
-        """Get comprehensive price momentum analysis"""
+        self.conn = conn
+
+    def get_price_momentum_data(self, conn) -> Optional[Dict]:
+        """Get comprehensive price momentum analysis from database"""
         try:
-            # Get historical price data (need 2+ years for proper momentum calculation)
-            hist = self.ticker.history(period=period)
-            if hist.empty or len(hist) < 252:  # Need at least 1 year of data
-                logging.warning(f"Insufficient price data for {self.symbol}")
+            # Get historical price data from price_daily table (need 2+ years for proper momentum calculation)
+            try:
+                logging.debug(f"Creating cursor for {self.symbol}")
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+            except Exception as e:
+                logging.error(f"Cursor creation failed for {self.symbol}: {e}")
                 return None
-            
+
+            try:
+                logging.debug(f"Executing SELECT for {self.symbol}, symbol type={type(self.symbol)}")
+                cur.execute("""
+                    SELECT date, open, high, low, close, volume
+                    FROM price_daily
+                    WHERE symbol = %s
+                    ORDER BY date ASC
+                """, (self.symbol,))
+            except Exception as e:
+                logging.error(f"Execute query failed for {self.symbol}: {type(e).__name__}: {e}")
+                cur.close()
+                return None
+
+            rows = cur.fetchall()
+            cur.close()
+
+            if not rows or len(rows) < 252:  # Need at least 1 year of data
+                logging.warning(f"Insufficient price data for {self.symbol}: {len(rows) if rows else 0} records")
+                return None
+
+            # Convert to DataFrame with proper column names from RealDictCursor results
+            # RealDictCursor returns dictionaries, so we can construct DataFrame directly
+            hist = pd.DataFrame(list(rows))
+
+            # Ensure column names are lowercase to match database column names
+            hist.columns = [col.lower() for col in hist.columns]
+
+            # Convert date to datetime
+            hist['date'] = pd.to_datetime(hist['date'])
+
+            # Set index to date
+            hist = hist.set_index('date')
+
+            # Convert numeric columns to float
+            for col in ['close', 'volume', 'open', 'high', 'low']:
+                if col in hist.columns:
+                    hist[col] = pd.to_numeric(hist[col], errors='coerce')
+
             # Calculate returns
-            hist['Returns'] = hist['Close'].pct_change()
-            hist['LogReturns'] = np.log(hist['Close'] / hist['Close'].shift(1))
-            
+            hist['returns'] = hist['close'].pct_change()
+            hist['log_returns'] = np.log(hist['close'] / hist['close'].shift(1))
+
             # Get latest date and price
             latest_date = hist.index[-1]
-            current_price = hist['Close'].iloc[-1]
-            
+            current_price = hist['close'].iloc[-1]
+
+            # Ensure date is properly converted to Python date
+            try:
+                if hasattr(latest_date, 'date'):
+                    date_val = latest_date.date()
+                elif hasattr(latest_date, 'to_pydatetime'):
+                    date_val = latest_date.to_pydatetime().date()
+                else:
+                    date_val = date.today()
+            except Exception as date_err:
+                logging.warning(f"Date conversion error for {self.symbol}: {date_err}, using today")
+                date_val = date.today()
+
             result = {
-                'symbol': self.symbol,
-                'date': latest_date.date() if hasattr(latest_date, 'date') else date.today(),
-                'current_price': safe_float(current_price)
+                'symbol': str(self.symbol),
+                'date': date_val,
+                'current_price': float(current_price) if pd.notna(current_price) else 0.0
             }
-            
+
             # Calculate Jegadeesh-Titman momentum (12-1 month)
-            jt_momentum = self.calculate_jegadeesh_titman_momentum(hist)
-            result.update(jt_momentum)
-            
+            try:
+                jt_momentum = self.calculate_jegadeesh_titman_momentum(hist)
+                if jt_momentum:
+                    result.update(jt_momentum)
+            except Exception as e:
+                logging.warning(f"JT momentum calc failed for {self.symbol}: {e}")
+
             # Calculate additional momentum metrics
-            momentum_metrics = self.calculate_momentum_metrics(hist)
-            result.update(momentum_metrics)
-            
+            try:
+                momentum_metrics = self.calculate_momentum_metrics(hist)
+                if momentum_metrics:
+                    result.update(momentum_metrics)
+            except Exception as e:
+                logging.warning(f"Momentum metrics calc failed for {self.symbol}: {e}")
+
             # Calculate volume momentum
-            volume_momentum = self.calculate_volume_momentum(hist)
-            result.update(volume_momentum)
-            
+            try:
+                volume_momentum = self.calculate_volume_momentum(hist)
+                if volume_momentum:
+                    result.update(volume_momentum)
+            except Exception as e:
+                logging.warning(f"Volume momentum calc failed for {self.symbol}: {e}")
+
             # Calculate momentum quality metrics
-            quality_metrics = self.calculate_momentum_quality(hist)
-            result.update(quality_metrics)
-            
-            return result
-            
+            try:
+                quality_metrics = self.calculate_momentum_quality(hist)
+                if quality_metrics:
+                    result.update(quality_metrics)
+            except Exception as e:
+                logging.warning(f"Quality metrics calc failed for {self.symbol}: {e}")
+
+            # Sanitize result to ensure all values are native Python types BEFORE returning
+            sanitized = sanitize_result(result)
+
+            # Final validation - ensure all values can be serialized
+            for key, val in sanitized.items():
+                if val is not None and not isinstance(val, (str, int, float, bool, date, datetime)):
+                    logging.warning(f"After sanitization, {key} is still type {type(val)}")
+                    sanitized[key] = None
+
+            return sanitized
+
         except Exception as e:
-            logging.error(f"Error calculating price momentum for {self.symbol}: {e}")
+            logging.error(f"Error calculating price momentum for {self.symbol}: {type(e).__name__}: {e}")
+            import traceback
+            logging.debug(traceback.format_exc())
             return None
     
     def calculate_jegadeesh_titman_momentum(self, hist: pd.DataFrame) -> Dict:
@@ -147,19 +280,19 @@ class MomentumCalculator:
             if len(hist) < 252:  # Need at least 1 year
                 return result
             
-            current_price = hist['Close'].iloc[-1]
+            current_price = hist['close'].iloc[-1]
             
             # Standard Jegadeesh-Titman: 12-1 month momentum
             # t-252 to t-21 (11 months, skipping most recent month)
             if len(hist) >= 252:
-                price_12m_ago = hist['Close'].iloc[-252]  # 12 months ago
-                price_1m_ago = hist['Close'].iloc[-21]    # 1 month ago
+                price_12m_ago = hist['close'].iloc[-252]  # 12 months ago
+                price_1m_ago = hist['close'].iloc[-21]    # 1 month ago
                 
                 jt_momentum = (price_1m_ago - price_12m_ago) / price_12m_ago
                 result['jt_momentum_12_1'] = safe_float(jt_momentum)
                 
                 # Calculate statistical significance
-                returns_11m = hist['Returns'].iloc[-252:-21]  # 11 months of returns
+                returns_11m = hist['returns'].iloc[-252:-21]  # 11 months of returns
                 if len(returns_11m) > 20:
                     momentum_vol = returns_11m.std() * math.sqrt(252)
                     momentum_sharpe = jt_momentum / momentum_vol if momentum_vol > 0 else 0
@@ -176,15 +309,15 @@ class MomentumCalculator:
             
             for name, (long_period, skip_period) in horizons.items():
                 if len(hist) >= long_period:
-                    price_long_ago = hist['Close'].iloc[-long_period]
-                    price_skip_ago = hist['Close'].iloc[-skip_period]
+                    price_long_ago = hist['close'].iloc[-long_period]
+                    price_skip_ago = hist['close'].iloc[-skip_period]
                     
                     momentum = (price_skip_ago - price_long_ago) / price_long_ago
                     result[f'momentum_{name}'] = safe_float(momentum)
             
             # Risk-adjusted momentum (Sharpe ratio based)
             if len(hist) >= 252:
-                returns_12m = hist['Returns'].iloc[-252:]
+                returns_12m = hist['returns'].iloc[-252:]
                 if len(returns_12m) > 20:
                     mean_return = returns_12m.mean() * 252  # Annualized
                     vol_return = returns_12m.std() * math.sqrt(252)  # Annualized
@@ -211,20 +344,20 @@ class MomentumCalculator:
         try:
             # Short-term momentum (1 week, 1 month)
             if len(hist) >= 21:
-                current_price = hist['Close'].iloc[-1]
-                price_1w = hist['Close'].iloc[-5] if len(hist) >= 5 else current_price
-                price_1m = hist['Close'].iloc[-21]
+                current_price = hist['close'].iloc[-1]
+                price_1w = hist['close'].iloc[-5] if len(hist) >= 5 else current_price
+                price_1m = hist['close'].iloc[-21]
                 
                 result['momentum_1w'] = safe_float((current_price - price_1w) / price_1w)
                 result['momentum_1m'] = safe_float((current_price - price_1m) / price_1m)
             
             # Medium-term momentum
             if len(hist) >= 63:
-                price_3m = hist['Close'].iloc[-63]
+                price_3m = hist['close'].iloc[-63]
                 result['momentum_3m'] = safe_float((current_price - price_3m) / price_3m)
             
             if len(hist) >= 126:
-                price_6m = hist['Close'].iloc[-126]
+                price_6m = hist['close'].iloc[-126]
                 result['momentum_6m'] = safe_float((current_price - price_6m) / price_6m)
             
             # Momentum persistence (consistency)
@@ -233,7 +366,7 @@ class MomentumCalculator:
                 monthly_returns = []
                 for i in range(21, len(hist), 21):  # Every ~month
                     if i < len(hist):
-                        ret = (hist['Close'].iloc[i] - hist['Close'].iloc[i-21]) / hist['Close'].iloc[i-21]
+                        ret = (hist['close'].iloc[i] - hist['close'].iloc[i-21]) / hist['close'].iloc[i-21]
                         monthly_returns.append(ret)
                 
                 if len(monthly_returns) >= 3:
@@ -250,7 +383,7 @@ class MomentumCalculator:
             
             # Maximum drawdown during momentum period
             if len(hist) >= 252:
-                prices_12m = hist['Close'].iloc[-252:]
+                prices_12m = hist['close'].iloc[-252:]
                 rolling_max = prices_12m.expanding().max()
                 drawdowns = (prices_12m - rolling_max) / rolling_max
                 max_drawdown = drawdowns.min()
@@ -271,11 +404,11 @@ class MomentumCalculator:
         result = {}
         
         try:
-            if 'Volume' not in hist.columns:
+            if 'volume' not in hist.columns:
                 return result
-            
-            volume = hist['Volume']
-            returns = hist['Returns']
+
+            volume = hist['volume']
+            returns = hist['returns']
             
             # Volume-weighted momentum
             if len(hist) >= 63:
@@ -294,9 +427,9 @@ class MomentumCalculator:
                 # Calculate OBV
                 obv = volume.copy()
                 for i in range(1, len(hist)):
-                    if hist['Close'].iloc[i] > hist['Close'].iloc[i-1]:
+                    if hist['close'].iloc[i] > hist['close'].iloc[i-1]:
                         obv.iloc[i] = obv.iloc[i-1] + volume.iloc[i]
-                    elif hist['Close'].iloc[i] < hist['Close'].iloc[i-1]:
+                    elif hist['close'].iloc[i] < hist['close'].iloc[i-1]:
                         obv.iloc[i] = obv.iloc[i-1] - volume.iloc[i]
                     else:
                         obv.iloc[i] = obv.iloc[i-1]
@@ -338,9 +471,9 @@ class MomentumCalculator:
     def calculate_momentum_quality(self, hist: pd.DataFrame) -> Dict:
         """Calculate momentum quality and sustainability metrics"""
         result = {}
-        
+
         try:
-            returns = hist['Returns'].dropna()
+            returns = hist['returns'].dropna()
             
             if len(returns) < 60:
                 return result
@@ -375,7 +508,7 @@ class MomentumCalculator:
             
             # Momentum acceleration (second derivative)
             if len(hist) >= 126:
-                prices = hist['Close']
+                prices = hist['close']
                 
                 # Calculate momentum over different periods
                 mom_1m = (prices.iloc[-21] - prices.iloc[-42]) / prices.iloc[-42] if len(hist) >= 42 else 0
@@ -475,19 +608,33 @@ class MomentumCalculator:
         
         return result
 
-def process_symbol_momentum(symbol: str) -> Optional[Dict]:
+def process_symbol_momentum(symbol: str, conn=None) -> Optional[Dict]:
     """Process comprehensive momentum analysis for a symbol"""
     try:
-        calculator = MomentumCalculator(symbol)
-        
-        # Get price momentum data
-        price_momentum = calculator.get_price_momentum_data()
+        # Create fresh connection for each symbol to avoid thread-safety issues
+        if conn is None:
+            import os
+            conn = psycopg2.connect(
+                host=os.getenv("DB_HOST", "localhost"),
+                port=int(os.getenv("DB_PORT", 5432)),
+                user=os.getenv("DB_USER", "postgres"),
+                password=os.getenv("DB_PASSWORD", "password"),
+                database=os.getenv("DB_NAME", "stocks")
+            )
+            should_close = True
+        else:
+            should_close = False
+
+        calculator = MomentumCalculator(symbol, conn)
+
+        # Get price momentum data from database
+        price_momentum = calculator.get_price_momentum_data(conn)
         if not price_momentum:
             return None
-        
+
         # Get fundamental momentum data
         fundamental_momentum = calculator.get_fundamental_momentum()
-        
+
         # Combine results
         result = {**price_momentum}
         if fundamental_momentum:
@@ -495,68 +642,93 @@ def process_symbol_momentum(symbol: str) -> Optional[Dict]:
             for key, value in fundamental_momentum.items():
                 if key not in ['symbol', 'date']:
                     result[key] = value
-        
+
+        # Sanitize entire result to ensure all types are native Python types
+        result = sanitize_result(result)
+
+        # Close connection if we created it
+        if should_close:
+            try:
+                conn.close()
+            except:
+                pass
+
         return result
-        
+
     except Exception as e:
         logging.error(f"Error processing momentum for {symbol}: {e}")
+        # Close connection if we created it
+        if 'should_close' in locals() and should_close:
+            try:
+                conn.close()
+            except:
+                pass
         return None
 
 def create_momentum_metrics_table(cur, conn):
-    """Create momentum metrics table"""
+    """Create momentum metrics table - drop and recreate to ensure fresh schema"""
+    logging.info("Dropping existing momentum_metrics table (if any)...")
+    try:
+        cur.execute("DROP TABLE IF EXISTS momentum_metrics CASCADE;")
+        conn.commit()
+        logging.info("✅ Dropped existing momentum_metrics table")
+    except Exception as e:
+        logging.warning(f"Could not drop existing table: {e}")
+        conn.rollback()
+
     logging.info("Creating momentum_metrics table...")
-    
+
     create_sql = """
-    CREATE TABLE IF NOT EXISTS momentum_metrics (
+    CREATE TABLE momentum_metrics (
         symbol VARCHAR(20),
         date DATE,
         current_price DECIMAL(12,4),
-        
+
         -- Jegadeesh-Titman Momentum (Academic Standard)
-        jt_momentum_12_1 DECIMAL(8,6),
-        jt_momentum_sharpe DECIMAL(8,4),
-        jt_momentum_volatility DECIMAL(8,4),
-        
+        jt_momentum_12_1 DECIMAL(10,4),
+        jt_momentum_sharpe DECIMAL(10,4),
+        jt_momentum_volatility DECIMAL(10,4),
+
         -- Alternative Momentum Horizons
-        momentum_6_1 DECIMAL(8,6),
-        momentum_9_1 DECIMAL(8,6),
-        momentum_3_1 DECIMAL(8,6),
-        momentum_12_3 DECIMAL(8,6),
-        
+        momentum_6_1 DECIMAL(10,4),
+        momentum_9_1 DECIMAL(10,4),
+        momentum_3_1 DECIMAL(10,4),
+        momentum_12_3 DECIMAL(10,4),
+
         -- Risk-Adjusted Momentum
-        risk_adjusted_momentum DECIMAL(8,4),
-        sortino_momentum DECIMAL(8,4),
-        
+        risk_adjusted_momentum DECIMAL(10,4),
+        sortino_momentum DECIMAL(10,4),
+
         -- Short to Medium Term Momentum
-        momentum_1w DECIMAL(8,6),
-        momentum_1m DECIMAL(8,6),
-        momentum_3m DECIMAL(8,6),
-        momentum_6m DECIMAL(8,6),
-        
+        momentum_1w DECIMAL(10,4),
+        momentum_1m DECIMAL(10,4),
+        momentum_3m DECIMAL(10,4),
+        momentum_6m DECIMAL(10,4),
+
         -- Momentum Quality Metrics
-        momentum_persistence DECIMAL(6,4),
-        momentum_consistency DECIMAL(8,4),
-        momentum_max_drawdown DECIMAL(8,6),
-        momentum_recovery_factor DECIMAL(8,4),
-        momentum_skewness DECIMAL(8,4),
-        momentum_kurtosis DECIMAL(8,4),
-        momentum_strength DECIMAL(6,4),
-        momentum_smoothness DECIMAL(6,4),
-        momentum_acceleration DECIMAL(8,6),
+        momentum_persistence DECIMAL(10,4),
+        momentum_consistency DECIMAL(10,4),
+        momentum_max_drawdown DECIMAL(10,4),
+        momentum_recovery_factor DECIMAL(10,4),
+        momentum_skewness DECIMAL(10,4),
+        momentum_kurtosis DECIMAL(10,4),
+        momentum_strength DECIMAL(10,4),
+        momentum_smoothness DECIMAL(10,4),
+        momentum_acceleration DECIMAL(10,4),
         
         -- Volume-Based Momentum
-        volume_weighted_momentum DECIMAL(8,6),
-        obv_momentum DECIMAL(8,6),
-        volume_trend DECIMAL(8,6),
-        volume_price_correlation DECIMAL(6,4),
-        
+        volume_weighted_momentum DECIMAL(10,4),
+        obv_momentum DECIMAL(10,4),
+        volume_trend DECIMAL(10,4),
+        volume_price_correlation DECIMAL(10,4),
+
         -- Fundamental Momentum
-        expected_eps_growth DECIMAL(8,6),
-        recommendation_momentum DECIMAL(6,4),
-        price_target_momentum DECIMAL(8,6),
-        price_target_dispersion DECIMAL(8,6),
-        earnings_momentum_qoq DECIMAL(8,6),
-        earnings_acceleration DECIMAL(8,6),
+        expected_eps_growth DECIMAL(10,4),
+        recommendation_momentum DECIMAL(10,4),
+        price_target_momentum DECIMAL(10,4),
+        price_target_dispersion DECIMAL(10,4),
+        earnings_momentum_qoq DECIMAL(10,4),
+        earnings_acceleration DECIMAL(10,4),
         
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -602,14 +774,14 @@ def load_momentum_batch(symbols: List[str], conn, cur, batch_size: int = 5) -> T
         momentum_data = []
         for symbol in batch:
             try:
-                data = process_symbol_momentum(symbol)
+                data = process_symbol_momentum(symbol, conn)
                 if data:
                     momentum_data.append(data)
                 else:
                     failed_symbols.append(symbol)
                 total_processed += 1
-                
-                # Delay to respect API limits
+
+                # Delay between symbols
                 time.sleep(0.5)
                 
             except Exception as e:
@@ -717,18 +889,21 @@ if __name__ == "__main__":
     # Create table
     create_momentum_metrics_table(cur, conn)
     
-    # Get symbols to process
+    # Get symbols to process - get ALL symbols from stock_scores that have price data
     cur.execute("""
-        SELECT symbol FROM stock_symbols_enhanced 
-        WHERE is_active = TRUE 
-        AND market_cap > 1000000000  -- Only stocks with >$1B market cap
-        ORDER BY market_cap DESC 
-        LIMIT 100
+        SELECT DISTINCT ss.symbol
+        FROM stock_scores ss
+        WHERE ss.symbol IS NOT NULL
+        AND EXISTS (
+            SELECT 1 FROM price_daily pd
+            WHERE pd.symbol = ss.symbol
+        )
+        ORDER BY ss.symbol
     """)
     symbols = [row['symbol'] for row in cur.fetchall()]
-    
+
     if not symbols:
-        logging.warning("No symbols found in stock_symbols_enhanced table. Run loadsymbols.py first.")
+        logging.warning("No symbols found in stock_scores table with price data.")
         sys.exit(1)
     
     logging.info(f"Loading momentum metrics for {len(symbols)} symbols")
@@ -772,6 +947,49 @@ if __name__ == "__main__":
                     f"Persist={row['momentum_persistence']:.2f}, Vol-Wtd={row['volume_weighted_momentum']:.1%}, "
                     f"Earn-Accel={row['earnings_acceleration']:.2f}")
     
+    # Sync momentum_score to stock_scores table (normalize jt_momentum_12_1 to 0-100 scale)
+    logging.info("\nSyncing momentum scores to stock_scores table...")
+    try:
+        cur.execute("""
+            UPDATE stock_scores ss
+            SET momentum_score = ROUND(
+                CASE
+                    WHEN m.jt_momentum_12_1 IS NULL THEN 0.0
+                    ELSE GREATEST(0, LEAST(100, 50 + (m.jt_momentum_12_1 / 2 * 100)))
+                END::NUMERIC, 2),
+                last_updated = CURRENT_TIMESTAMP
+            FROM momentum_metrics m
+            WHERE ss.symbol = m.symbol
+            AND m.date = (
+                SELECT MAX(date) FROM momentum_metrics
+                WHERE symbol = m.symbol
+            )
+        """)
+        conn.commit()
+        updated_count = cur.rowcount
+        logging.info(f"✅ Updated {updated_count} momentum_score values in stock_scores")
+    except Exception as e:
+        logging.error(f"Error syncing momentum_score to stock_scores: {e}")
+        conn.rollback()
+
+    # Final verification
+    cur.execute("""
+        SELECT
+            COUNT(*) as total,
+            COUNT(CASE WHEN momentum_score > 0 THEN 1 END) as with_score,
+            ROUND(AVG(momentum_score)::NUMERIC, 2) as avg_score,
+            MIN(momentum_score) as min_score,
+            MAX(momentum_score) as max_score
+        FROM stock_scores
+        WHERE momentum_score IS NOT NULL
+    """)
+    stats = cur.fetchone()
+    logging.info(f"\nStock Scores Momentum Update Summary:")
+    logging.info(f"  Total stocks with momentum: {stats['total']}")
+    logging.info(f"  Stocks with score > 0: {stats['with_score']}")
+    logging.info(f"  Average momentum score: {stats['avg_score']}")
+    logging.info(f"  Score range: {stats['min_score']:.2f} - {stats['max_score']:.2f}")
+
     cur.close()
     conn.close()
-    logging.info("Database connection closed")
+    logging.info("\n✅ Database connection closed")

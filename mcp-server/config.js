@@ -3,22 +3,22 @@
 module.exports = {
   // API Server Configuration
   api: {
-    // Development environment
+    // Development environment - AWS API Gateway
     dev: {
-      baseUrl: process.env.API_URL_DEV || "http://localhost:3001",
-      authToken: process.env.DEV_AUTH_TOKEN || "dev-bypass-token",
+      baseUrl: process.env.API_URL_DEV || "https://qda42av7je.execute-api.us-east-1.amazonaws.com/dev",
+      authToken: process.env.DEV_AUTH_TOKEN || "",
       timeout: 60000, // Increased to 60 seconds for large queries
     },
-    // Production environment
+    // Production environment - AWS API Gateway
     prod: {
-      baseUrl: process.env.API_URL_PROD || process.env.API_URL,
-      authToken: process.env.API_AUTH_TOKEN,
+      baseUrl: process.env.API_URL_PROD || "https://qda42av7je.execute-api.us-east-1.amazonaws.com/prod",
+      authToken: process.env.API_AUTH_TOKEN || "",
       timeout: 60000,
     },
   },
 
-  // Environment configuration
-  environment: process.env.NODE_ENV || "development",
+  // Environment configuration - Set to production to use AWS API
+  environment: process.env.NODE_ENV || "production",
 
   // API Categories - Grouped by domain
   apiCategories: {
