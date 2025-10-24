@@ -263,11 +263,12 @@ def populate_sector_ranking(conn):
 
         conn.commit()
         logger.info(f"✅ Successfully populated sector_ranking table for {len(price_dates)} recent dates with {len(sectors)} sectors")
+        return True
 
     except Exception as e:
         logger.error(f"Error populating sector_ranking: {e}")
         conn.rollback()
-        raise
+        return False
     finally:
         cursor.close()
 
@@ -441,11 +442,12 @@ def populate_industry_ranking(conn):
 
         conn.commit()
         logger.info(f"✅ Successfully populated industry_ranking table for {len(price_dates)} recent dates with {len(industries)} industries")
+        return True
 
     except Exception as e:
         logger.error(f"Error populating industry_ranking: {e}")
         conn.rollback()
-        raise
+        return False
     finally:
         cursor.close()
 

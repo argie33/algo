@@ -596,7 +596,7 @@ const EconomicModeling = () => {
                                             ? theme.palette.error.main
                                             : theme.palette.warning.main
                                       }
-                                      stopOpacity={0.25}
+                                      stopOpacity={0.4}
                                     />
                                     <stop
                                       offset="100%"
@@ -611,10 +611,11 @@ const EconomicModeling = () => {
                                     />
                                   </linearGradient>
                                 </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} opacity={0.3} />
                                 <XAxis
                                   dataKey="date"
                                   hide={indicator.name !== "GDP Growth"}
-                                  tick={{ fontSize: 11, fill: "#666" }}
+                                  tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
                                   angle={indicator.name === "GDP Growth" ? -45 : 0}
                                   textAnchor={indicator.name === "GDP Growth" ? "end" : "middle"}
                                   height={indicator.name === "GDP Growth" ? 60 : 30}
@@ -841,12 +842,13 @@ const EconomicModeling = () => {
                           <defs>
                             <linearGradient id="yieldGradient" x1="0" y1="0" x2="0" y2="1">
                               <stop offset="0%" stopColor="#1976d2" stopOpacity={0.4}/>
-                              <stop offset="100%" stopColor="#1976d2" stopOpacity={0.08}/>
+                              <stop offset="100%" stopColor="#1976d2" stopOpacity={0.05}/>
                             </linearGradient>
                           </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} opacity={0.3} />
                           <XAxis
                             dataKey="maturity"
-                            tick={{ fontSize: 12, fill: "#666" }}
+                            tick={{ fontSize: 12, fill: theme.palette.text.secondary }}
                             label={{ value: "Maturity (3M → 30Y)", position: "insideBottomRight", offset: -10, fontSize: 13, fontWeight: 500 }}
                             angle={-45}
                             textAnchor="end"

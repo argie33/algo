@@ -759,11 +759,8 @@ if __name__ == "__main__":
     
     # Get symbols to process
     cur.execute("""
-        SELECT symbol FROM stock_symbols_enhanced 
-        WHERE is_active = TRUE 
-        AND market_cap > 1000000000  -- Only large cap stocks for sentiment analysis
-        ORDER BY market_cap DESC 
-        LIMIT 100
+        SELECT symbol FROM stock_symbols_enhanced
+        ORDER BY symbol
     """)
     symbols = [row['symbol'] for row in cur.fetchall()]
     

@@ -13,12 +13,11 @@ const _logger = require("./logger");
 async function calculateComprehensiveScores(symbol) {
   try {
     // Get all necessary data for scoring
-    const [basicInfo, financialData, technicalData, sentimentData, positioningData] =
+    const [basicInfo, financialData, technicalData, positioningData] =
       await Promise.all([
         getBasicInfo(symbol),
         getFinancialMetrics(symbol),
         getTechnicalIndicators(symbol),
-        getSentimentData(symbol),
         getPositioningData(symbol),
       ]);
 
@@ -32,7 +31,6 @@ async function calculateComprehensiveScores(symbol) {
     const growthScore = calculateGrowthScore(basicInfo, financialData);
     const valueScore = calculateValueScore(basicInfo, financialData);
     const momentumScore = calculateMomentumScore(basicInfo, technicalData);
-    const sentimentScore = calculateSentimentScore(sentimentData);
     const positioningScore = calculatePositioningScore(positioningData);
 
     // Calculate weighted composite score
@@ -41,7 +39,6 @@ async function calculateComprehensiveScores(symbol) {
       growth: growthScore,
       value: valueScore,
       momentum: momentumScore,
-      sentiment: sentimentScore,
       positioning: positioningScore,
     });
 
@@ -51,15 +48,13 @@ async function calculateComprehensiveScores(symbol) {
       growth_score: growthScore,
       value_score: valueScore,
       momentum_score: momentumScore,
-      sentiment_score: sentimentScore,
       positioning_score: positioningScore,
       composite_score: compositeScore,
       calculation_date: new Date().toISOString().split("T")[0],
       data_quality: assessDataQuality(
         basicInfo,
         financialData,
-        technicalData,
-        sentimentData
+        technicalData
       ),
     };
   } catch (error) {
@@ -79,15 +74,14 @@ async function storeComprehensiveScores(symbol, scores) {
       `
       INSERT INTO comprehensive_scores (
         symbol, quality_score, growth_score, value_score, momentum_score,
-        sentiment_score, positioning_score, composite_score, 
+        positioning_score, composite_score,
         calculation_date, data_quality, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
       ON CONFLICT (symbol, calculation_date) DO UPDATE SET
         quality_score = EXCLUDED.quality_score,
         growth_score = EXCLUDED.growth_score,
         value_score = EXCLUDED.value_score,
         momentum_score = EXCLUDED.momentum_score,
-        sentiment_score = EXCLUDED.sentiment_score,
         positioning_score = EXCLUDED.positioning_score,
         composite_score = EXCLUDED.composite_score,
         data_quality = EXCLUDED.data_quality,
@@ -99,7 +93,6 @@ async function storeComprehensiveScores(symbol, scores) {
         scores.growth_score,
         scores.value_score,
         scores.momentum_score,
-        scores.sentiment_score,
         scores.positioning_score,
         scores.composite_score,
         scores.calculation_date,
@@ -473,16 +466,14 @@ function calculateCompositeScore(scores) {
 function assessDataQuality(
   basicInfo,
   financialData,
-  technicalData,
-  sentimentData
+  technicalData
 ) {
   let qualityScore = 0;
-  let maxScore = 4;
+  let maxScore = 3;
 
   if (basicInfo) qualityScore += 1;
   if (financialData && Object.keys(financialData).length > 2) qualityScore += 1;
   if (technicalData && Object.keys(technicalData).length > 5) qualityScore += 1;
-  if (sentimentData && Object.keys(sentimentData).length > 2) qualityScore += 1;
 
   return (qualityScore / maxScore) * 100;
 }

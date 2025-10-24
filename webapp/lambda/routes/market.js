@@ -684,13 +684,13 @@ router.get("/overview", async (req, res) => {
       // Query 8: Yield curve data (10Y and 2Y treasury yields)
       query(`
         SELECT
-          MAX(CASE WHEN symbol = '^TNX' THEN price END) as tnx_yield,
-          MAX(CASE WHEN symbol = '^IRX' THEN price END) as irx_yield,
-          MAX(date) as date
+          MAX(CASE WHEN ticker = '^TNX' THEN current_price END) as tnx_yield,
+          MAX(CASE WHEN ticker = '^IRX' THEN current_price END) as irx_yield,
+          MAX(fetched_at) as date
         FROM market_data
-        WHERE symbol IN ('^TNX', '^IRX')
-          AND price IS NOT NULL
-          AND date = (SELECT MAX(date) FROM market_data WHERE symbol IN ('^TNX', '^IRX') AND price IS NOT NULL)
+        WHERE ticker IN ('^TNX', '^IRX')
+          AND current_price IS NOT NULL
+          AND fetched_at = (SELECT MAX(fetched_at) FROM market_data WHERE ticker IN ('^TNX', '^IRX') AND current_price IS NOT NULL)
       `)
     ]);
 
