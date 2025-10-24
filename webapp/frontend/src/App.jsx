@@ -77,7 +77,6 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import RootRedirect from "./components/RootRedirect";
 import Watchlist from "./pages/Watchlist";
 import SectorAnalysis from "./pages/SectorAnalysis";
-import RealTimeDashboard from "./pages/RealTimeDashboard";
 import AuthTest from "./pages/AuthTest";
 import AIAssistant from "./pages/AIAssistant";
 
@@ -616,7 +615,6 @@ function App() {
           <Routes>
             <Route path="/" element={<RootRedirect />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/realtime" element={<ProtectedRoute><RealTimeDashboard /></ProtectedRoute>} />
             <Route path="/portfolio" element={<ProtectedRoute><PortfolioHoldings /></ProtectedRoute>} />
             <Route path="/trade-history" element={<ProtectedRoute><TradeHistory /></ProtectedRoute>} />
             <Route path="/orders" element={<ProtectedRoute><OrderManagement /></ProtectedRoute>} />

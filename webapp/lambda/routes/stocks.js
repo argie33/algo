@@ -177,14 +177,14 @@ router.get("/popular", async (req, res) => {
         cp.ticker,
         COALESCE(COALESCE(cp.short_name, cp.long_name), cp.ticker) as name,
         md.market_cap,
-        COALESCE(pd.close, md.current_price, 0) as price,
-        0 as change_percent,
-        0 as change,
-        COALESCE(pd.volume, 0) as volume,
-        0 as pe,
-        0 as revenue,
-        0 as "profitMargin",
-        0 as "dividendYield"
+        COALESCE(pd.close, md.current_price) as price,
+        NULL as change_percent,
+        NULL as change,
+        pd.volume,
+        NULL as pe,
+        NULL as revenue,
+        NULL as "profitMargin",
+        NULL as "dividendYield"
       FROM company_profile cp
       LEFT JOIN market_data md ON cp.ticker = md.ticker
       LEFT JOIN price_daily pd ON cp.ticker = pd.symbol
@@ -363,7 +363,7 @@ router.get("/list", async (req, res) => {
         cp.ticker as symbol,
         COALESCE(cp.short_name, cp.long_name) as name,
         cp.sector,
-        COALESCE(md.market_cap, 0) as market_cap
+        md.market_cap
       FROM company_profile cp
       LEFT JOIN LATERAL (
         SELECT market_cap
@@ -429,7 +429,7 @@ router.get("/movers", async (req, res) => {
           (pd.close - prev.close) as change,
           CASE
             WHEN prev.close > 0 THEN ((pd.close - prev.close) / prev.close * 100)
-            ELSE 0
+            ELSE NULL
           END as changePercent,
           pd.volume
         FROM price_daily pd
@@ -687,8 +687,8 @@ router.get("/:symbol", async (req, res, next) => {
         cp.sector,
         cp.industry,
         md.market_cap,
-        COALESCE(pd.close, md.current_price, 0) as current_price,
-        COALESCE(pd.volume, 0) as volume,
+        COALESCE(pd.close, md.current_price) as current_price,
+        pd.volume,
 
         -- Metrics from key_metrics table
         km.trailing_pe as pe_ratio,
@@ -698,7 +698,7 @@ router.get("/:symbol", async (req, res, next) => {
         km.beta,
 
         'NASDAQ' as exchange,
-        COALESCE(pd.close, md.current_price, 0) as previous_close,
+        COALESCE(pd.close, md.current_price) as previous_close,
 
         -- Price data from price_daily
         pd.open,
@@ -940,55 +940,55 @@ router.get("/", async (req, res) => {
         cp.business_summary,
         cp.sector,
         cp.industry,
-        COALESCE(md.market_cap, 0) as market_cap,
-        COALESCE(md.current_price, 0) as current_price,
-        COALESCE(md.volume, 0) as volume,
-        COALESCE(km.trailing_pe, 0) as trailing_pe,
-        COALESCE(km.forward_pe, 0) as forward_pe,
-        COALESCE(km.dividend_yield, 0) as dividend_yield,
-        0 as beta,
+        md.market_cap,
+        md.current_price,
+        md.volume,
+        km.trailing_pe,
+        km.forward_pe,
+        km.dividend_yield,
+        km.beta,
         'NASDAQ' as exchange,
-        COALESCE(km.eps_trailing, 0) as eps,
-        COALESCE(md.current_price, 0) as previous_close,
-        COALESCE(km.total_revenue, 0) as total_revenue,
-        COALESCE(km.profit_margin_pct, 0) as profit_margin_pct,
-        COALESCE(km.price_to_book, 0) as price_to_book,
-        COALESCE(km.price_to_sales_ttm, 0) as price_to_sales_ttm,
-        COALESCE(km.peg_ratio, 0) as peg_ratio,
-        COALESCE(km.eps_trailing, 0) as eps_trailing,
-        COALESCE(km.eps_forward, 0) as eps_forward,
-        0 as eps_current_year,
-        COALESCE(km.enterprise_value, 0) as enterprise_value,
-        0 as ev_to_revenue,
-        0 as ev_to_ebitda,
-        0 as ebitda,
-        COALESCE(km.net_income, 0) as net_income,
-        0 as gross_profit,
-        COALESCE(km.total_cash, 0) as total_cash,
-        COALESCE(km.cash_per_share, 0) as cash_per_share,
-        COALESCE(km.operating_cashflow, 0) as operating_cashflow,
-        COALESCE(km.free_cashflow, 0) as free_cashflow,
-        0 as total_debt,
-        COALESCE(km.debt_to_equity, 0) as debt_to_equity,
-        COALESCE(km.current_ratio, 0) as current_ratio,
-        COALESCE(km.quick_ratio, 0) as quick_ratio,
-        0 as gross_margin_pct,
-        0 as operating_margin_pct,
-        0 as ebitda_margin_pct,
-        COALESCE(km.return_on_equity_pct, 0) as return_on_equity_pct,
-        COALESCE(km.return_on_assets_pct, 0) as return_on_assets_pct,
-        COALESCE(km.earnings_growth_pct, 0) as earnings_growth_pct,
-        COALESCE(km.revenue_growth_pct, 0) as revenue_growth_pct,
+        km.eps_trailing as eps,
+        md.current_price as previous_close,
+        km.total_revenue,
+        km.profit_margin_pct,
+        km.price_to_book,
+        km.price_to_sales_ttm,
+        km.peg_ratio,
+        km.eps_trailing,
+        km.eps_forward,
+        NULL as eps_current_year,
+        km.enterprise_value,
+        NULL as ev_to_revenue,
+        NULL as ev_to_ebitda,
+        NULL as ebitda,
+        km.net_income,
+        NULL as gross_profit,
+        km.total_cash,
+        km.cash_per_share,
+        km.operating_cashflow,
+        km.free_cashflow,
+        NULL as total_debt,
+        km.debt_to_equity,
+        km.current_ratio,
+        km.quick_ratio,
+        NULL as gross_margin_pct,
+        NULL as operating_margin_pct,
+        NULL as ebitda_margin_pct,
+        km.return_on_equity_pct,
+        km.return_on_assets_pct,
+        km.earnings_growth_pct,
+        km.revenue_growth_pct,
 
         -- Factor scores from stock_scores table
-        COALESCE(ss.composite_score, 0) as composite_score,
-        COALESCE(ss.momentum_score, 0) as momentum_score,
-        COALESCE(ss.value_score, 0) as value_score,
-        COALESCE(ss.quality_score, 0) as quality_score,
-        COALESCE(ss.growth_score, 0) as growth_score,
-        COALESCE(ss.positioning_score, 0) as positioning_score,
-        COALESCE(ss.sentiment_score, 0) as sentiment_score,
-        COALESCE(ss.stability_score, 0) as stability_score,
+        ss.composite_score,
+        ss.momentum_score,
+        ss.value_score,
+        ss.quality_score,
+        ss.growth_score,
+        ss.positioning_score,
+        ss.sentiment_score,
+        ss.stability_score,
 
         -- Price data from market_data (removed slow LATERAL join to price_daily)
         md.open_price as open,
@@ -1641,22 +1641,21 @@ router.get("/screen", async (req, res) => {
         cp.ticker as symbol,
         COALESCE(COALESCE(cp.short_name, cp.long_name), cp.ticker) as company_name,
         cp.sector,
-        COALESCE(pd.close, 0) as current_price,
-        COALESCE(
-          CASE
-            WHEN pd.open > 0 THEN ROUND(((pd.close - pd.open) / pd.open * 100)::numeric, 2)
-            ELSE 0
-          END, 0) as change_percent,
-        COALESCE(pd.volume, 0) as volume,
-        COALESCE(md.market_cap, 0) as market_cap,
+        pd.close as current_price,
+        CASE
+          WHEN pd.open > 0 THEN ROUND(((pd.close - pd.open) / pd.open * 100)::numeric, 2)
+          ELSE NULL
+        END as change_percent,
+        pd.volume,
+        md.market_cap,
         NULL as pe_ratio,
         NULL as dividend_yield
       FROM company_profile cp
       LEFT JOIN market_data md ON cp.ticker = md.ticker
       LEFT JOIN price_daily pd ON cp.ticker = pd.symbol
         AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = cp.ticker)
-      WHERE ${whereClause.replace(/current_price/g, 'COALESCE(pd.close, 0)').replace(/price/g, 'COALESCE(pd.close, 0)').replace(/name/g, 'COALESCE(cp.short_name, cp.long_name)').replace(/sector/g, 'cp.sector')}
-      ORDER BY ${safeSortBy.replace(/current_price/g, 'COALESCE(pd.close, 0)').replace(/price/g, 'COALESCE(pd.close, 0)')} ${safeSortOrder}
+      WHERE ${whereClause.replace(/current_price/g, 'pd.close').replace(/price/g, 'pd.close').replace(/name/g, 'COALESCE(cp.short_name, cp.long_name)').replace(/sector/g, 'cp.sector')}
+      ORDER BY ${safeSortBy.replace(/current_price/g, 'pd.close').replace(/price/g, 'pd.close')} ${safeSortOrder}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
@@ -1792,8 +1791,8 @@ router.get("/search", async (req, res) => {
         COALESCE(cp.short_name, cp.long_name, cp.ticker) as company_name,
         cp.sector,
         cp.industry,
-        COALESCE(md.market_cap, 0) as market_cap,
-        COALESCE(pd.close, md.current_price, 0) as price
+        md.market_cap,
+        COALESCE(pd.close, md.current_price) as price
       FROM company_profile cp
       LEFT JOIN market_data md ON cp.ticker = md.ticker
       LEFT JOIN (
@@ -1812,7 +1811,7 @@ router.get("/search", async (req, res) => {
           WHEN UPPER(cp.ticker) LIKE UPPER($5) THEN 2
           ELSE 3
         END,
-        COALESCE(md.market_cap, 0) DESC NULLS LAST
+        md.market_cap DESC NULLS LAST
       LIMIT $6 OFFSET $7
     `;
 
@@ -1916,14 +1915,14 @@ router.get("/analysis", async (req, res) => {
         cp.ticker as symbol,
         COALESCE(cp.short_name, cp.long_name, cp.ticker) as name,
         cp.sector,
-        COALESCE(md.market_cap, 0) as market_cap,
+        md.market_cap,
         'NASDAQ' as exchange,
-        COALESCE(pd.close, md.current_price, 0) as current_price,
-        COALESCE(pd.volume, md.volume, 0) as volume,
+        COALESCE(pd.close, md.current_price) as current_price,
+        COALESCE(pd.volume, md.volume) as volume,
         CASE
           WHEN pd.close IS NOT NULL AND pd.open IS NOT NULL AND pd.open > 0
           THEN (pd.close - pd.open) / pd.open * 100
-          ELSE 0
+          ELSE NULL
         END as daily_change_percent
       FROM company_profile cp
       LEFT JOIN market_data md ON cp.ticker = md.ticker
@@ -2020,7 +2019,7 @@ router.get("/analysis/:symbol", async (req, res) => {
       // Financial metrics
       query(
         `
-        SELECT COALESCE(km.trailing_pe, 0) as trailing_pe, COALESCE(km.forward_pe, 0) as forward_pe, COALESCE(km.price_to_book, 0) as price_to_book, COALESCE(km.dividend_yield, 0) as dividend_yield, COALESCE(km.peg_ratio, 0) as peg_ratio
+        SELECT km.trailing_pe as trailing_pe, km.forward_pe as forward_pe, km.price_to_book as price_to_book, km.dividend_yield as dividend_yield, km.peg_ratio as peg_ratio
         FROM company_profile cp
         LEFT JOIN key_metrics km ON cp.ticker = km.ticker
         WHERE cp.ticker = $1
@@ -2177,10 +2176,10 @@ router.get("/recommendations", async (req, res) => {
         cp.ticker as symbol,
         COALESCE(cp.short_name, cp.long_name, cp.ticker) as name,
         cp.sector,
-        COALESCE(md.market_cap, 0) as market_cap,
+        md.market_cap,
         'NASDAQ' as exchange,
-        COALESCE(sp.close, md.current_price, 0) as current_price,
-        COALESCE(sp.volume, md.volume, 0) as volume,
+        COALESCE(sp.close, md.current_price) as current_price,
+        COALESCE(sp.volume, md.volume) as volume,
         'BUY' as recommendation,
         'Strong fundamentals and market position' as reason
       FROM company_profile cp
@@ -2192,7 +2191,7 @@ router.get("/recommendations", async (req, res) => {
         ORDER BY symbol, date DESC
       ) sp ON cp.ticker = sp.symbol
       WHERE ${whereClause}
-      ORDER BY COALESCE(md.market_cap, 0) DESC
+      ORDER BY md.market_cap DESC
       LIMIT $${paramIndex}
     `;
 
@@ -2338,7 +2337,7 @@ router.get("/screener", authenticateToken, async (req, res) => {
         cp.sector,
         lp.close as current_price,
         lp.volume,
-        COALESCE(md.market_cap, 0) as market_cap
+        md.market_cap
       FROM latest_prices lp
       JOIN company_profile cp ON lp.symbol = cp.ticker
       LEFT JOIN market_data md ON cp.ticker = md.ticker
@@ -2767,8 +2766,8 @@ router.get("/compare", async (req, res) => {
     // Get stock comparison data from price_daily and stocks tables
     const fundamentalQuery = `
       SELECT p.symbol,
-             COALESCE(km.trailing_pe, 0) as pe_ratio,
-             COALESCE(md.market_cap, 0) as market_cap,
+             km.trailing_pe as pe_ratio,
+             md.market_cap,
              cp.sector,
              cp.industry,
              p.close as current_price,
@@ -3034,12 +3033,12 @@ router.get("/:ticker", async (req, res) => {
         cp.sector,
         'NASDAQ' as exchange,
         cp.sector as market_category,
-        COALESCE(md.market_cap, 0) as market_cap,
-        COALESCE(sp.close, md.current_price, 0) as current_price,
+        md.market_cap,
+        COALESCE(sp.close, md.current_price) as current_price,
         sp.open,
         sp.high,
         sp.low,
-        COALESCE(sp.volume, md.volume, 0) as volume,
+        COALESCE(sp.volume, md.volume) as volume,
         sp.date as price_date
       FROM company_profile cp
       LEFT JOIN market_data md ON cp.ticker = md.ticker
@@ -3846,18 +3845,18 @@ router.get("/screen/stats", async (req, res) => {
     const statsQuery = `
       SELECT
         COUNT(*) as total_stocks,
-        COALESCE(MIN(md.market_cap), 0) as min_market_cap,
-        COALESCE(MAX(md.market_cap), 0) as max_market_cap,
-        COALESCE(MIN(km.trailing_pe), 0) as min_pe_ratio,
-        COALESCE(MAX(km.trailing_pe), 0) as max_pe_ratio,
-        COALESCE(MIN(km.price_to_book), 0) as min_pb_ratio,
-        COALESCE(MAX(km.price_to_book), 0) as max_pb_ratio,
-        COALESCE(MIN(km.return_on_equity_pct), 0) as min_roe,
-        COALESCE(MAX(km.return_on_equity_pct), 0) as max_roe,
-        COALESCE(MIN(km.revenue_growth_pct), 0) as min_revenue_growth,
-        COALESCE(MAX(km.revenue_growth_pct), 0) as max_revenue_growth,
-        COALESCE(MIN(ae.average_analyst_rating), 10) as min_analyst_rating,
-        COALESCE(MAX(ae.average_analyst_rating), 90) as max_analyst_rating
+        MIN(md.market_cap) as min_market_cap,
+        MAX(md.market_cap) as max_market_cap,
+        MIN(km.trailing_pe) as min_pe_ratio,
+        MAX(km.trailing_pe) as max_pe_ratio,
+        MIN(km.price_to_book) as min_pb_ratio,
+        MAX(km.price_to_book) as max_pb_ratio,
+        MIN(km.return_on_equity_pct) as min_roe,
+        MAX(km.return_on_equity_pct) as max_roe,
+        MIN(km.revenue_growth_pct) as min_revenue_growth,
+        MAX(km.revenue_growth_pct) as max_revenue_growth,
+        MIN(ae.average_analyst_rating) as min_analyst_rating,
+        MAX(ae.average_analyst_rating) as max_analyst_rating
       FROM company_profile cp
       LEFT JOIN market_data md ON cp.ticker = md.ticker
       LEFT JOIN key_metrics km ON cp.ticker = km.ticker
@@ -4246,7 +4245,7 @@ router.get("/:symbol/fundamentals", async (req, res) => {
 
     // Get company profile data using Python loader schema tables ONLY
     const result = await query(
-      `SELECT cp.ticker as symbol, COALESCE(cp.short_name, cp.long_name, cp.ticker) as name, cp.sector, cp.industry, COALESCE(md.market_cap, 0) as market_cap, COALESCE(km.trailing_pe, 0) as pe_ratio, COALESCE(km.dividend_yield, 0) as dividend_yield
+      `SELECT cp.ticker as symbol, COALESCE(cp.short_name, cp.long_name, cp.ticker) as name, cp.sector, cp.industry, md.market_cap as market_cap, km.trailing_pe as pe_ratio, km.dividend_yield as dividend_yield
        FROM company_profile cp
        LEFT JOIN market_data md ON cp.ticker = md.ticker
        LEFT JOIN key_metrics km ON cp.ticker = km.ticker
@@ -4531,8 +4530,8 @@ router.get("/compare", async (req, res) => {
     // Get stock comparison data from price_daily and stocks tables
     const fundamentalQuery = `
       SELECT p.symbol,
-             COALESCE(km.trailing_pe, 0) as pe_ratio,
-             COALESCE(md.market_cap, 0) as market_cap,
+             km.trailing_pe as pe_ratio,
+             md.market_cap,
              cp.sector,
              cp.industry,
              p.close as current_price,

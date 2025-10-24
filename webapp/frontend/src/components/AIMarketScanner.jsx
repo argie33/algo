@@ -40,7 +40,7 @@ import {
   ShowChart,
 } from "@mui/icons-material";
 import { formatCurrency, formatPercentage } from "../utils/formatters";
-import realTimeDataService from "../services/realTimeDataService";
+// import realTimeDataService from "../services/realTimeDataService"; // Removed with live data feature
 
 const AIMarketScanner = ({ onStockSelect }) => {
   const [scanType, setScanType] = useState("momentum");

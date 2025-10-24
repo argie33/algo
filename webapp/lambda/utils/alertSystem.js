@@ -80,35 +80,16 @@ class AlertSystem extends EventEmitter {
   /**
    * Start monitoring with health checks
    */
-  startMonitoring(liveDataManager) {
+  startMonitoring() {
     // Don't start monitoring in test environment
     if (process.env.NODE_ENV === "test" || process.env.DISABLE_ALERT_SYSTEM) {
       return;
     }
 
-    this.liveDataManager = liveDataManager;
-
     // Start periodic health checks
     this.healthCheckInterval = setInterval(() => {
       this.performHealthCheck();
     }, 30000); // Every 30 seconds
-
-    // Listen to live data manager events
-    this.liveDataManager.on("connectionCreated", (_data) => {
-      this.checkConnectionLimits();
-    });
-
-    this.liveDataManager.on("connectionClosed", (_data) => {
-      this.checkConnectionLimits();
-    });
-
-    this.liveDataManager.on("errorRecorded", (data) => {
-      this.checkErrorRates(data.providerId);
-    });
-
-    this.liveDataManager.on("requestTracked", (_data) => {
-      this.checkCostLimits();
-    });
 
     console.log("🔍 Alert monitoring started");
   }
@@ -129,23 +110,6 @@ class AlertSystem extends EventEmitter {
    */
   async performHealthCheck() {
     try {
-      if (!this.liveDataManager) return;
-
-      const dashboardStatus = this.liveDataManager.getDashboardStatus();
-
-      // Check each provider
-      for (const [providerId, provider] of Object.entries(
-        dashboardStatus.providers || {}
-      )) {
-        await this.checkProviderHealth(providerId, provider);
-      }
-
-      // Check global metrics
-      await this.checkGlobalHealth(dashboardStatus.global || {});
-
-      // Check resource limits
-      await this.checkResourceLimits(dashboardStatus.limits || {});
-
       // Clean up resolved alerts
       this.cleanupResolvedAlerts();
     } catch (error) {

@@ -856,7 +856,9 @@ def load_sentiment_batch(symbols: List[str], conn, cur, batch_size: int = 10) ->
                     """
                     for analyst_tuple in analyst_data:
                         try:
-                            # Re-order tuple to match INSERT columns
+                            # analyst_tuple is (symbol, date, strong_buy, buy, hold, sell, strong_sell,
+                            #                   total, upgrades, downgrades, initiations, avg_target, high_target,
+                            #                   low_target, price_vs_current, eps_up, eps_down, rev_up, rev_down, rec_mean)
                             symbol = analyst_tuple[0]
                             date_val = analyst_tuple[1]
                             strong_buy = analyst_tuple[2]
@@ -867,24 +869,21 @@ def load_sentiment_batch(symbols: List[str], conn, cur, batch_size: int = 10) ->
                             total = analyst_tuple[7]
                             upgrades = analyst_tuple[8]
                             downgrades = analyst_tuple[9]
-                            initiations = analyst_tuple[10]
+                            # initiations = analyst_tuple[10]  # not used in table
                             avg_target = analyst_tuple[11]
-                            high_target = analyst_tuple[12]
-                            low_target = analyst_tuple[13]
+                            # high_target = analyst_tuple[12]  # not used in table
+                            # low_target = analyst_tuple[13]  # not used in table
                             price_vs_current = analyst_tuple[14]
                             eps_up = analyst_tuple[15]
                             eps_down = analyst_tuple[16]
-                            rev_up = analyst_tuple[17]
-                            rev_down = analyst_tuple[18]
+                            # rev_up = analyst_tuple[17]  # not used
+                            # rev_down = analyst_tuple[18]  # not used
                             rec_mean = analyst_tuple[19]
-
-                            # Use total_analysts count
-                            analyst_count = total
 
                             cur.execute(analyst_insert, (
                                 symbol, date_val, strong_buy, buy, hold, sell, strong_sell,
                                 total, avg_target, upgrades, downgrades,
-                                eps_up, eps_down, rec_mean, price_vs_current, analyst_count
+                                eps_up, eps_down, rec_mean, price_vs_current, total
                             ))
                             logging.debug(f"✓ Inserted analyst data for {symbol}: {total} analysts")
                         except Exception as e:
@@ -903,18 +902,22 @@ def load_sentiment_batch(symbols: List[str], conn, cur, batch_size: int = 10) ->
                     """
                     for social_tuple in social_data:
                         try:
-                            # Extract relevant columns for social_sentiment_analysis table
+                            # social_tuple is (symbol, date, reddit_mention_count, reddit_sentiment, reddit_volume_norm,
+                            #                  search_volume, search_7d, search_30d, news_count, news_sentiment, news_quality,
+                            #                  social_media_volume, viral_score)
                             symbol = social_tuple[0]
                             date_val = social_tuple[1]
                             reddit_mention_count = social_tuple[2]
                             reddit_sentiment = social_tuple[3]
                             reddit_volume_norm = social_tuple[4]
                             search_volume = social_tuple[5]
-                            search_7d = social_tuple[6]
-                            search_30d = social_tuple[7]
+                            # search_7d = social_tuple[6]  # not used in table
+                            # search_30d = social_tuple[7]  # not used in table
                             news_count = social_tuple[8]
                             news_sentiment = social_tuple[9]
-                            news_quality = social_tuple[10]
+                            # news_quality = social_tuple[10]  # not used in table
+                            # social_media_volume = social_tuple[11]  # not used in table
+                            # viral_score = social_tuple[12]  # not used in table
 
                             cur.execute(social_insert, (
                                 symbol, date_val, reddit_sentiment, search_volume, news_sentiment, news_count

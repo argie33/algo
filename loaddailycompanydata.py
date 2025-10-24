@@ -180,6 +180,40 @@ def pyval(val):
     return val
 
 
+def calculate_missing_metrics(symbol: str, info: dict, ticker) -> dict:
+    """Calculate missing earnings_growth_pct and payout_ratio when not provided by yfinance"""
+
+    metrics = {
+        'earnings_growth': info.get('earningsGrowth'),
+        'payout_ratio': info.get('payoutRatio'),
+    }
+
+    # If earningsGrowth is missing, try to calculate from earnings_estimate
+    if not metrics['earnings_growth']:
+        try:
+            earnings_est = ticker.earnings_estimate
+            if earnings_est is not None and not earnings_est.empty:
+                # Get current year and previous year estimates
+                current_eps = info.get('epsCurrentYear')
+                trailing_eps = info.get('trailingEps')
+                if current_eps and trailing_eps and trailing_eps > 0:
+                    metrics['earnings_growth'] = (current_eps - trailing_eps) / trailing_eps
+        except:
+            pass
+
+    # If payoutRatio is missing, try to calculate from dividend and earnings data
+    if metrics['payout_ratio'] is None or metrics['payout_ratio'] == 0:
+        try:
+            annual_dividend = info.get('trailingAnnualDividendRate', 0)
+            trailing_eps = info.get('trailingEps')
+            if annual_dividend and annual_dividend > 0 and trailing_eps and trailing_eps > 0:
+                metrics['payout_ratio'] = min(1.0, annual_dividend / trailing_eps)
+        except:
+            pass
+
+    return metrics
+
+
 def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
     """Load ALL daily data from single yfinance API call"""
 
@@ -196,6 +230,9 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
         major_holders = ticker.major_holders
         earnings_estimate = ticker.earnings_estimate
         revenue_estimate = ticker.revenue_estimate
+
+        # Calculate missing metrics
+        missing_metrics = calculate_missing_metrics(symbol, info, ticker)
 
         stats = {
             'info': 0,
@@ -417,7 +454,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         info.get("returnOnAssets"),
                         info.get("returnOnEquity"),
                         info.get("revenueGrowth"),
-                        info.get("earningsGrowth"),
+                        missing_metrics.get('earnings_growth') or info.get("earningsGrowth"),
                         info.get("lastSplitFactor"),
                         info.get("lastSplitDate"),
                         info.get("dividendRate"), info.get("dividendYield"),
@@ -427,7 +464,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         info.get("trailingAnnualDividendYield"),
                         info.get("lastDividendValue"),
                         info.get("lastDividendDate"),
-                        info.get("dividendDate"), info.get("payoutRatio"),
+                        info.get("dividendDate"), missing_metrics.get('payout_ratio') or info.get("payoutRatio"),
                         info.get("heldPercentInsiders"),
                         info.get("heldPercentInstitutions"),
                         info.get("sharesShort"),

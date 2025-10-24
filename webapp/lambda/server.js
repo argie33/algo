@@ -26,7 +26,6 @@ const etfRoutes = require("./routes/etf");
 const financialRoutes = require("./routes/financials");
 const healthRoutes = require("./routes/health");
 const insiderRoutes = require("./routes/insider");
-const liveDataRoutes = require("./routes/liveData");
 const marketRoutes = require("./routes/market");
 const metricsRoutes = require("./routes/metrics");
 const newsRoutes = require("./routes/news");
@@ -159,8 +158,6 @@ app.use("/api/economic", economicRoutes);
 app.use("/api/etf", etfRoutes);
 app.use("/api/financials", financialRoutes);
 app.use("/api/insider", insiderRoutes);
-app.use("/api/livedata", liveDataRoutes);
-app.use("/api/live-data", liveDataRoutes); // Alternative mapping with hyphen
 app.use("/api/news", newsRoutes);
 app.use("/api/orders", ordersRoutes);
 app.use("/api/performance", performanceRoutes);

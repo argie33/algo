@@ -72,14 +72,14 @@ router.get("/", async (req, res) => {
       SELECT
         s.sector,
         COUNT(DISTINCT s.ticker) as stock_count,
-        SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_price,
+        SUM(pd.close * md.market_cap) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN md.market_cap ELSE 0 END), 0) as avg_price,
         SUM(pd.volume) as total_volume,
         CASE
-          WHEN SUM(CASE WHEN pd_old.close > 0 THEN COALESCE(md.market_cap, 0) ELSE 0 END) > 0 THEN
-            (SUM(CASE WHEN pd_old.close > 0 THEN (pd.close - pd_old.close) * COALESCE(md.market_cap, 0) ELSE 0 END) /
-             SUM(CASE WHEN pd_old.close > 0 THEN COALESCE(md.market_cap, 0) ELSE 0 END)) /
-            NULLIF(SUM(CASE WHEN pd_old.close > 0 THEN pd_old.close * COALESCE(md.market_cap, 0) ELSE 0 END) /
-                   SUM(CASE WHEN pd_old.close > 0 THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) * 100
+          WHEN SUM(CASE WHEN pd_old.close > 0 THEN md.market_cap ELSE 0 END) > 0 THEN
+            (SUM(CASE WHEN pd_old.close > 0 THEN (pd.close - pd_old.close) * md.market_cap ELSE 0 END) /
+             SUM(CASE WHEN pd_old.close > 0 THEN md.market_cap ELSE 0 END)) /
+            NULLIF(SUM(CASE WHEN pd_old.close > 0 THEN pd_old.close * md.market_cap ELSE 0 END) /
+                   SUM(CASE WHEN pd_old.close > 0 THEN md.market_cap ELSE 0 END), 0) * 100
           ELSE NULL
         END as performance_pct,
         COUNT(DISTINCT CASE
@@ -274,16 +274,16 @@ router.get("/analysis", async (req, res) => {
       SELECT
         s.sector,
         COUNT(DISTINCT s.ticker) as stock_count,
-        SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_price,
+        SUM(pd.close * md.market_cap) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN md.market_cap ELSE 0 END), 0) as avg_price,
         SUM(pd.volume) as total_volume,
         AVG(ti.rsi) as avg_rsi,
         AVG(ti.momentum) as avg_momentum,
         CASE
-          WHEN SUM(CASE WHEN pd_old.close > 0 THEN COALESCE(md.market_cap, 0) ELSE 0 END) > 0 THEN
-            (SUM(CASE WHEN pd_old.close > 0 THEN (pd.close - pd_old.close) * COALESCE(md.market_cap, 0) ELSE 0 END) /
-             SUM(CASE WHEN pd_old.close > 0 THEN COALESCE(md.market_cap, 0) ELSE 0 END)) /
-            NULLIF(SUM(CASE WHEN pd_old.close > 0 THEN pd_old.close * COALESCE(md.market_cap, 0) ELSE 0 END) /
-                   SUM(CASE WHEN pd_old.close > 0 THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) * 100
+          WHEN SUM(CASE WHEN pd_old.close > 0 THEN md.market_cap ELSE 0 END) > 0 THEN
+            (SUM(CASE WHEN pd_old.close > 0 THEN (pd.close - pd_old.close) * md.market_cap ELSE 0 END) /
+             SUM(CASE WHEN pd_old.close > 0 THEN md.market_cap ELSE 0 END)) /
+            NULLIF(SUM(CASE WHEN pd_old.close > 0 THEN pd_old.close * md.market_cap ELSE 0 END) /
+                   SUM(CASE WHEN pd_old.close > 0 THEN md.market_cap ELSE 0 END), 0) * 100
           ELSE NULL
         END as monthly_change_pct
       FROM company_profile s
@@ -528,14 +528,14 @@ router.get("/performance", async (req, res) => {
       SELECT
         s.sector,
         COUNT(DISTINCT s.ticker) as stock_count,
-        SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_price,
+        SUM(pd.close * md.market_cap) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN md.market_cap ELSE 0 END), 0) as avg_price,
         SUM(pd.volume) as total_volume,
         CASE
-          WHEN SUM(CASE WHEN pd_old.close > 0 THEN COALESCE(md.market_cap, 0) ELSE 0 END) > 0 THEN
-            (SUM(CASE WHEN pd_old.close > 0 THEN (pd.close - pd_old.close) * COALESCE(md.market_cap, 0) ELSE 0 END) /
-             SUM(CASE WHEN pd_old.close > 0 THEN COALESCE(md.market_cap, 0) ELSE 0 END)) /
-            NULLIF(SUM(CASE WHEN pd_old.close > 0 THEN pd_old.close * COALESCE(md.market_cap, 0) ELSE 0 END) /
-                   SUM(CASE WHEN pd_old.close > 0 THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) * 100
+          WHEN SUM(CASE WHEN pd_old.close > 0 THEN md.market_cap ELSE 0 END) > 0 THEN
+            (SUM(CASE WHEN pd_old.close > 0 THEN (pd.close - pd_old.close) * md.market_cap ELSE 0 END) /
+             SUM(CASE WHEN pd_old.close > 0 THEN md.market_cap ELSE 0 END)) /
+            NULLIF(SUM(CASE WHEN pd_old.close > 0 THEN pd_old.close * md.market_cap ELSE 0 END) /
+                   SUM(CASE WHEN pd_old.close > 0 THEN md.market_cap ELSE 0 END), 0) * 100
           ELSE NULL
         END as performance_pct,
         COUNT(DISTINCT CASE
@@ -1420,7 +1420,7 @@ router.get("/sectors-with-history", async (req, res) => {
         -- Calculate current sector MARKET-CAP WEIGHTED average prices for latest available date
         SELECT
           cp.sector,
-          SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close,
+          SUM(pd.close * md.market_cap) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN md.market_cap ELSE 0 END), 0) as avg_close,
           MAX(pd.date) as latest_date
         FROM company_profile cp
         JOIN price_daily pd ON cp.ticker = pd.symbol
@@ -1450,7 +1450,7 @@ router.get("/sectors-with-history", async (req, res) => {
           END as perf_20d
         FROM sector_prices sp
         LEFT JOIN (
-          SELECT cp.sector, SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close
+          SELECT cp.sector, SUM(pd.close * md.market_cap) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN md.market_cap ELSE 0 END), 0) as avg_close
           FROM company_profile cp
           JOIN price_daily pd ON cp.ticker = pd.symbol
           LEFT JOIN market_data md ON cp.ticker = md.ticker
@@ -1458,7 +1458,7 @@ router.get("/sectors-with-history", async (req, res) => {
           GROUP BY cp.sector
         ) pd_1d ON sp.sector = pd_1d.sector
         LEFT JOIN (
-          SELECT cp.sector, SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close
+          SELECT cp.sector, SUM(pd.close * md.market_cap) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN md.market_cap ELSE 0 END), 0) as avg_close
           FROM company_profile cp
           JOIN price_daily pd ON cp.ticker = pd.symbol
           LEFT JOIN market_data md ON cp.ticker = md.ticker
@@ -1466,7 +1466,7 @@ router.get("/sectors-with-history", async (req, res) => {
           GROUP BY cp.sector
         ) pd_5d ON sp.sector = pd_5d.sector
         LEFT JOIN (
-          SELECT cp.sector, SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close
+          SELECT cp.sector, SUM(pd.close * md.market_cap) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN md.market_cap ELSE 0 END), 0) as avg_close
           FROM company_profile cp
           JOIN price_daily pd ON cp.ticker = pd.symbol
           LEFT JOIN market_data md ON cp.ticker = md.ticker
@@ -1482,9 +1482,9 @@ router.get("/sectors-with-history", async (req, res) => {
         sr.rank_12w_ago,
         sr.momentum_score as current_momentum,
         sr.trend as current_trend,
-        COALESCE(CAST(sp.performance_1d AS FLOAT), CAST(cp.perf_1d AS FLOAT), 0) as current_perf_1d,
-        COALESCE(CAST(sp.performance_5d AS FLOAT), CAST(cp.perf_5d AS FLOAT), 0) as current_perf_5d,
-        COALESCE(CAST(sp.performance_20d AS FLOAT), CAST(cp.perf_20d AS FLOAT), 0) as current_perf_20d,
+        COALESCE(CAST(sp.performance_1d AS FLOAT), CAST(cp.perf_1d AS FLOAT)) as current_perf_1d,
+        COALESCE(CAST(sp.performance_5d AS FLOAT), CAST(cp.perf_5d AS FLOAT)) as current_perf_5d,
+        COALESCE(CAST(sp.performance_20d AS FLOAT), CAST(cp.perf_20d AS FLOAT)) as current_perf_20d,
         sr.date
       FROM sector_ranking sr
       LEFT JOIN (
@@ -1643,7 +1643,7 @@ router.get("/industries-with-history", async (req, res) => {
         -- Calculate current industry MARKET-CAP WEIGHTED average prices for latest available date
         SELECT
           cp.industry,
-          SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close,
+          SUM(pd.close * md.market_cap) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN md.market_cap ELSE 0 END), 0) as avg_close,
           MAX(pd.date) as latest_date
         FROM company_profile cp
         JOIN price_daily pd ON cp.ticker = pd.symbol
@@ -1673,7 +1673,7 @@ router.get("/industries-with-history", async (req, res) => {
           END as perf_20d
         FROM industry_prices ip
         LEFT JOIN (
-          SELECT cp.industry, SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close
+          SELECT cp.industry, SUM(pd.close * md.market_cap) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN md.market_cap ELSE 0 END), 0) as avg_close
           FROM company_profile cp
           JOIN price_daily pd ON cp.ticker = pd.symbol
           LEFT JOIN market_data md ON cp.ticker = md.ticker
@@ -1681,7 +1681,7 @@ router.get("/industries-with-history", async (req, res) => {
           GROUP BY cp.industry
         ) pd_1d ON ip.industry = pd_1d.industry
         LEFT JOIN (
-          SELECT cp.industry, SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close
+          SELECT cp.industry, SUM(pd.close * md.market_cap) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN md.market_cap ELSE 0 END), 0) as avg_close
           FROM company_profile cp
           JOIN price_daily pd ON cp.ticker = pd.symbol
           LEFT JOIN market_data md ON cp.ticker = md.ticker
@@ -1689,7 +1689,7 @@ router.get("/industries-with-history", async (req, res) => {
           GROUP BY cp.industry
         ) pd_5d ON ip.industry = pd_5d.industry
         LEFT JOIN (
-          SELECT cp.industry, SUM(pd.close * COALESCE(md.market_cap, 0)) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN COALESCE(md.market_cap, 0) ELSE 0 END), 0) as avg_close
+          SELECT cp.industry, SUM(pd.close * md.market_cap) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN md.market_cap ELSE 0 END), 0) as avg_close
           FROM company_profile cp
           JOIN price_daily pd ON cp.ticker = pd.symbol
           LEFT JOIN market_data md ON cp.ticker = md.ticker
@@ -1707,9 +1707,9 @@ router.get("/industries-with-history", async (req, res) => {
         ir.momentum_score as momentum,
         ir.trend,
         ir.stock_count,
-        COALESCE(CAST(ip.performance_1d AS FLOAT), CAST(cp_calc.perf_1d AS FLOAT), 0) as performance_1d,
-        COALESCE(CAST(ip.performance_5d AS FLOAT), CAST(cp_calc.perf_5d AS FLOAT), 0) as performance_5d,
-        COALESCE(CAST(ip.performance_20d AS FLOAT), CAST(cp_calc.perf_20d AS FLOAT), 0) as performance_20d,
+        COALESCE(CAST(ip.performance_1d AS FLOAT), CAST(cp_calc.perf_1d AS FLOAT)) as performance_1d,
+        COALESCE(CAST(ip.performance_5d AS FLOAT), CAST(cp_calc.perf_5d AS FLOAT)) as performance_5d,
+        COALESCE(CAST(ip.performance_20d AS FLOAT), CAST(cp_calc.perf_20d AS FLOAT)) as performance_20d,
         ir.date
       FROM industry_ranking ir
       LEFT JOIN (
@@ -1750,7 +1750,7 @@ router.get("/industries-with-history", async (req, res) => {
           0.0 as performance_1d,
           0.0 as performance_5d,
           0.0 as performance_20d,
-          COALESCE(stock_count, 0) as stock_count,
+          stock_count as stock_count,
           NULL as rank_change_1w,
           NULL as perf_1d_1w_ago,
           NULL as perf_5d_1w_ago,
