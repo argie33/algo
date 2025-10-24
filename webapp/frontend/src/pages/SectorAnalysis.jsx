@@ -1667,46 +1667,73 @@ const SectorAnalysis = () => {
                           <DetailedTrendChart sectorOrIndustry={sector} type="sector" />
                         </Box>
 
-                        {/* Momentum Score Chart */}
-                        <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, minHeight: 300 }}>
-                          <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-                            ⚡ Momentum Score
-                          </Typography>
-                          <Box sx={{ width: "100%", height: 250 }}>
-                          <ResponsiveContainer width="100%" height="100%">
-                            <RechartsBarChart data={[
-                              { name: "1D", momentum: sector.current_perf_1d ?? sector.performance_1d ?? 0 },
-                              { name: "5D", momentum: sector.current_perf_5d ?? sector.performance_5d ?? 0 },
-                              { name: "20D", momentum: sector.current_perf_20d ?? sector.performance_20d ?? 0 }
-                            ]}>
-                              <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis dataKey="name" hide />
-                              <YAxis />
-                              <Tooltip
-                                formatter={(value) => formatPercentage(value)}
-                                labelFormatter={(label) => `${label}-Day`}
-                              />
-                              <Bar
-                                dataKey="momentum"
-                                fill="#1976d2"
-                                radius={[8, 8, 0, 0]}
-                                cellStyle={{ fill: '#1976d2' }}
-                              >
-                                {[
-                                  { name: "1D", momentum: sector.current_perf_1d ?? sector.performance_1d ?? 0 },
-                                  { name: "5D", momentum: sector.current_perf_5d ?? sector.performance_5d ?? 0 },
-                                  { name: "20D", momentum: sector.current_perf_20d ?? sector.performance_20d ?? 0 }
-                                ].map((entry, index) => (
-                                  <Cell
-                                    key={`cell-${index}`}
-                                    fill={entry.momentum >= 0 ? "#4caf50" : "#f44336"}
-                                  />
-                                ))}
-                              </Bar>
-                            </RechartsBarChart>
-                          </ResponsiveContainer>
-                          </Box>
-                        </Box>
+                        {/* Momentum Score Chart - Same Historical Data as Trend Chart */}
+                        {(() => {
+                          const { data: trendData } = useQuery({
+                            queryKey: [`momentum-trend-sector`, sector.sector_name || sector.sector],
+                            queryFn: async () => {
+                              try {
+                                const response = await api.get(
+                                  `/api/sectors/trend/sector/${encodeURIComponent(sector.sector_name || sector.sector)}`
+                                );
+                                return response.data?.trendData || [];
+                              } catch { return []; }
+                            },
+                            staleTime: 300000,
+                            enabled: !!(sector.sector_name || sector.sector),
+                            retry: false,
+                          });
+
+                          let momentumData = (trendData || []).map(row => ({
+                            date: row.label || row.date,
+                            momentum: parseFloat(row.momentumScore || row.momentum || 0)
+                          }));
+
+                          if (momentumData.length > 0 && momentumData[0].date) {
+                            const threeMonthsAgo = new Date();
+                            threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+                            momentumData = momentumData.filter(row => {
+                              try {
+                                const rowDate = new Date(row.date);
+                                return rowDate >= threeMonthsAgo;
+                              } catch { return true; }
+                            });
+                            momentumData = aggregateToWeekly(momentumData);
+                          }
+
+                          return (
+                            <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, minHeight: 300 }}>
+                              <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
+                                ⚡ Momentum Score
+                              </Typography>
+                              {momentumData.length > 0 ? (
+                                <Box sx={{ width: "100%", height: 250 }}>
+                                  <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={momentumData}>
+                                      <CartesianGrid strokeDasharray="3 3" />
+                                      <XAxis dataKey="date" fontSize={12} />
+                                      <YAxis />
+                                      <Tooltip
+                                        formatter={(value) => formatPercentage(value)}
+                                        labelFormatter={(label) => `${label}`}
+                                      />
+                                      <Line
+                                        type="monotone"
+                                        dataKey="momentum"
+                                        stroke="#ff9800"
+                                        strokeWidth={2}
+                                        dot={false}
+                                        isAnimationActive={false}
+                                      />
+                                    </LineChart>
+                                  </ResponsiveContainer>
+                                </Box>
+                              ) : (
+                                <Typography variant="caption" color="text.secondary">Loading momentum data...</Typography>
+                              )}
+                            </Box>
+                          );
+                        })()}
 
                         {/* Industries Section */}
                         <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2 }}>
@@ -1955,46 +1982,73 @@ const SectorAnalysis = () => {
                           </Box>
                         </Box>
 
-                        {/* Momentum Score Chart */}
-                        <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2, minHeight: 300 }}>
-                          <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-                            ⚡ Momentum Score
-                          </Typography>
-                          <Box sx={{ width: "100%", height: 250 }}>
-                          <ResponsiveContainer width="100%" height="100%">
-                            <RechartsBarChart data={[
-                              { name: "1D", momentum: industry.performance_1d ?? 0 },
-                              { name: "5D", momentum: industry.performance_5d ?? 0 },
-                              { name: "20D", momentum: industry.performance_20d ?? 0 }
-                            ]}>
-                              <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis dataKey="name" hide />
-                              <YAxis />
-                              <Tooltip
-                                formatter={(value) => formatPercentage(value)}
-                                labelFormatter={(label) => `${label}-Day`}
-                              />
-                              <Bar
-                                dataKey="momentum"
-                                fill="#1976d2"
-                                radius={[8, 8, 0, 0]}
-                                cellStyle={{ fill: '#1976d2' }}
-                              >
-                                {[
-                                  { name: "1D", momentum: industry.performance_1d ?? 0 },
-                                  { name: "5D", momentum: industry.performance_5d ?? 0 },
-                                  { name: "20D", momentum: industry.performance_20d ?? 0 }
-                                ].map((entry, index) => (
-                                  <Cell
-                                    key={`cell-${index}`}
-                                    fill={entry.momentum >= 0 ? "#4caf50" : "#f44336"}
-                                  />
-                                ))}
-                              </Bar>
-                            </RechartsBarChart>
-                          </ResponsiveContainer>
-                          </Box>
-                        </Box>
+                        {/* Momentum Score Chart - Same Historical Data as Trend Chart */}
+                        {(() => {
+                          const { data: trendData } = useQuery({
+                            queryKey: [`momentum-trend-industry`, industry.industry],
+                            queryFn: async () => {
+                              try {
+                                const response = await api.get(
+                                  `/api/sectors/trend/industry/${encodeURIComponent(industry.industry)}`
+                                );
+                                return response.data?.trendData || [];
+                              } catch { return []; }
+                            },
+                            staleTime: 300000,
+                            enabled: !!industry.industry,
+                            retry: false,
+                          });
+
+                          let momentumData = (trendData || []).map(row => ({
+                            date: row.label || row.date,
+                            momentum: parseFloat(row.momentumScore || row.momentum || 0)
+                          }));
+
+                          if (momentumData.length > 0 && momentumData[0].date) {
+                            const threeMonthsAgo = new Date();
+                            threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+                            momentumData = momentumData.filter(row => {
+                              try {
+                                const rowDate = new Date(row.date);
+                                return rowDate >= threeMonthsAgo;
+                              } catch { return true; }
+                            });
+                            momentumData = aggregateToWeekly(momentumData);
+                          }
+
+                          return (
+                            <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2, minHeight: 300 }}>
+                              <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
+                                ⚡ Momentum Score
+                              </Typography>
+                              {momentumData.length > 0 ? (
+                                <Box sx={{ width: "100%", height: 250 }}>
+                                  <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={momentumData}>
+                                      <CartesianGrid strokeDasharray="3 3" />
+                                      <XAxis dataKey="date" fontSize={12} />
+                                      <YAxis />
+                                      <Tooltip
+                                        formatter={(value) => formatPercentage(value)}
+                                        labelFormatter={(label) => `${label}`}
+                                      />
+                                      <Line
+                                        type="monotone"
+                                        dataKey="momentum"
+                                        stroke="#ff9800"
+                                        strokeWidth={2}
+                                        dot={false}
+                                        isAnimationActive={false}
+                                      />
+                                    </LineChart>
+                                  </ResponsiveContainer>
+                                </Box>
+                              ) : (
+                                <Typography variant="caption" color="text.secondary">Loading momentum data...</Typography>
+                              )}
+                            </Box>
+                          );
+                        })()}
 
                         {/* Top Performing Companies Section */}
                         <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2 }}>
