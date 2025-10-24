@@ -10,7 +10,7 @@ import {
   alpha,
   useTheme,
 } from "@mui/material";
-import { TrendingUp, TrendingDown, ShowChart } from "@mui/icons-material";
+import { TrendingUp, ShowChart } from "@mui/icons-material";
 import {
   LineChart,
   Line,
@@ -92,23 +92,25 @@ const SentimentChartsReimag = ({
       .sort((a, b) => new Date(a.date) - new Date(b.date));
   }, [fearGreed_data]);
 
-  // Process NAAIM data
+  // Process NAAIM data - properly handle bullish/bearish split
   const processedNAAIMData = useMemo(() => {
     if (!naaim_data?.length) return [];
     return naaim_data
       .map(item => ({
         ...item,
         date: item.date || item.timestamp,
-        naaim: parseFloat(item.exposure_index || item.naaim) || null,
+        naaim_bullish: parseFloat(item.bullish_exposure || item.bullish) || 0,
+        naaim_bearish: parseFloat(item.bearish_exposure || item.bearish) || 0,
+        // Net exposure: bullish - bearish (ranges from -100 to +100)
+        naaim_net: (parseFloat(item.bullish_exposure || item.bullish) || 0) - (parseFloat(item.bearish_exposure || item.bearish) || 0),
       }))
-      .filter(item => item.naaim !== null)
+      .filter(item => item.naaim_bullish !== null || item.naaim_bearish !== null)
       .sort((a, b) => new Date(a.date) - new Date(b.date));
   }, [naaim_data]);
 
   // Get latest values for summary cards
   const latestAAII = processedAAIIData[processedAAIIData.length - 1];
   const latestFearGreed = processedFearGreedData[processedFearGreedData.length - 1];
-  const latestNAAIM = processedNAAIMData[processedNAAIMData.length - 1];
 
   // Custom tooltip for better display
   const CustomAAIITooltip = ({ active, payload, label }) => {
@@ -187,9 +189,11 @@ const SentimentChartsReimag = ({
           <Typography variant="caption" sx={{ fontWeight: 600, display: "block", mb: 0.5 }}>
             {formatTooltipDate(label)}
           </Typography>
-          <Typography variant="caption" sx={{ display: "block" }}>
-            Exposure: {payload[0].value?.toFixed(1) || "N/A"}%
-          </Typography>
+          {payload.map((entry, index) => (
+            <Typography key={index} variant="caption" sx={{ color: entry.color, display: "block" }}>
+              {entry.name}: {entry.value?.toFixed(1) || "N/A"}%
+            </Typography>
+          ))}
         </Paper>
       );
     }
@@ -619,7 +623,7 @@ const SentimentChartsReimag = ({
         </Card>
       )}
 
-      {/* NAAIM Manager Exposure Chart */}
+      {/* NAAIM Manager Exposure Chart - Bullish vs Bearish */}
       {processedNAAIMData.length > 0 && (
         <Card sx={{ boxShadow: 2 }}>
           <CardContent sx={{ p: 3 }}>
@@ -636,13 +640,13 @@ const SentimentChartsReimag = ({
               }}
             >
               <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                <TrendingDown sx={{ color: "primary.main", fontSize: 28 }} />
+                <ShowChart sx={{ color: "primary.main", fontSize: 28 }} />
                 <Box>
                   <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                    NAAIM Manager Exposure
+                    NAAIM Manager Positioning
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    Investment manager positioning: {processedNAAIMData.length} data points
+                    Professional manager bullish/bearish exposure: {processedNAAIMData.length} data points
                   </Typography>
                 </Box>
               </Box>
@@ -651,11 +655,15 @@ const SentimentChartsReimag = ({
             {/* Chart */}
             <Box sx={{ height: 350, width: "100%" }}>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={processedNAAIMData} margin={{ top: 10, right: 30, left: 60, bottom: 30 }}>
+                <LineChart data={processedNAAIMData} margin={{ top: 10, right: 30, left: 60, bottom: 30 }}>
                   <defs>
-                    <linearGradient id="naamGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={chartColors.naaim} stopOpacity={0.4} />
-                      <stop offset="100%" stopColor={chartColors.naaim} stopOpacity={0.05} />
+                    <linearGradient id="bullishGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={chartColors.bullish} stopOpacity={0.3} />
+                      <stop offset="100%" stopColor={chartColors.bullish} stopOpacity={0.05} />
+                    </linearGradient>
+                    <linearGradient id="bearishGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={chartColors.bearish} stopOpacity={0.3} />
+                      <stop offset="100%" stopColor={chartColors.bearish} stopOpacity={0.05} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid
@@ -674,28 +682,49 @@ const SentimentChartsReimag = ({
                   />
                   <YAxis
                     tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
-                    label={{ value: "Exposure %", angle: -90, position: "insideLeft", offset: 10 }}
-                    width={50}
+                    label={{ value: "Manager Exposure %", angle: -90, position: "insideLeft", offset: 10 }}
+                    width={70}
                   />
                   <ReferenceLine
                     y={0}
                     stroke={chartColors.gridDark}
                     strokeWidth={2}
-                    label={{ value: "Neutral", position: "right", fill: theme.palette.text.secondary, fontSize: 10 }}
+                    label={{ value: "Neutral (0%)", position: "right", fill: theme.palette.text.secondary, fontSize: 10 }}
                   />
                   <Tooltip content={<CustomNAAIMTooltip />} cursor={{ stroke: theme.palette.divider, strokeWidth: 1 }} />
-                  <Legend wrapperStyle={{ paddingTop: 20, fontSize: 12 }} iconType="line" />
-                  <Area
+                  <Legend wrapperStyle={{ paddingTop: 20, fontSize: 12 }} />
+                  <Line
                     type="monotone"
-                    dataKey="naaim"
-                    name="Manager Exposure"
-                    stroke={chartColors.naaim}
-                    fill="url(#naamGrad)"
+                    dataKey="naaim_bullish"
+                    name="Bullish Exposure"
+                    stroke={chartColors.bullish}
                     strokeWidth={2.5}
                     isAnimationActive={false}
                     connectNulls
+                    dot={false}
                   />
-                </AreaChart>
+                  <Line
+                    type="monotone"
+                    dataKey="naaim_bearish"
+                    name="Bearish Exposure"
+                    stroke={chartColors.bearish}
+                    strokeWidth={2.5}
+                    isAnimationActive={false}
+                    connectNulls
+                    dot={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="naaim_net"
+                    name="Net Exposure"
+                    stroke={chartColors.naaim}
+                    strokeWidth={3}
+                    isAnimationActive={false}
+                    connectNulls
+                    dot={false}
+                    strokeDasharray="5 5"
+                  />
+                </LineChart>
               </ResponsiveContainer>
             </Box>
           </CardContent>
