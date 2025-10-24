@@ -101,8 +101,8 @@ def populate_sector_performance(conn):
         # Delete old data
         cursor.execute("DELETE FROM sector_performance")
 
-        # Calculate sector performance based on SIMPLE AVERAGE of closing prices
-        # (Market cap data is only available for ~6% of stocks, so use simple average instead)
+        # Calculate sector performance using ONLY stocks with market cap data
+        # This avoids skewing by penny stocks with huge % gains
         query = """
         WITH sector_daily_prices AS (
             SELECT
@@ -111,7 +111,8 @@ def populate_sector_performance(conn):
                 AVG(pd.close) as avg_close
             FROM company_profile cp
             JOIN price_daily pd ON cp.ticker = pd.symbol
-            WHERE cp.sector IS NOT NULL AND cp.sector != ''
+            INNER JOIN market_data md ON cp.ticker = md.ticker
+            WHERE cp.sector IS NOT NULL AND cp.sector != '' AND md.market_cap > 0
             GROUP BY cp.sector, pd.date
         ),
         latest_data AS (
@@ -194,8 +195,8 @@ def populate_industry_performance(conn):
         # Delete old data
         cursor.execute("DELETE FROM industry_performance")
 
-        # Calculate industry performance based on SIMPLE AVERAGE of closing prices
-        # (Market cap data is only available for ~6% of stocks, so use simple average instead)
+        # Calculate industry performance using ONLY stocks with market cap data
+        # This avoids skewing by penny stocks with huge % gains
         query = """
         WITH industry_daily_prices AS (
             SELECT
@@ -205,7 +206,8 @@ def populate_industry_performance(conn):
                 AVG(pd.close) as avg_close
             FROM company_profile cp
             JOIN price_daily pd ON cp.ticker = pd.symbol
-            WHERE cp.industry IS NOT NULL AND cp.industry != ''
+            INNER JOIN market_data md ON cp.ticker = md.ticker
+            WHERE cp.industry IS NOT NULL AND cp.industry != '' AND md.market_cap > 0
             GROUP BY cp.sector, cp.industry, pd.date
         ),
         latest_data AS (
@@ -330,7 +332,8 @@ def populate_technical_data(conn):
                     SELECT pd.date, AVG(pd.close) as avg_close, SUM(pd.volume) as total_vol
                     FROM company_profile cp
                     JOIN price_daily pd ON cp.ticker = pd.symbol
-                    WHERE cp.sector = %s
+                    INNER JOIN market_data md ON cp.ticker = md.ticker
+                    WHERE cp.sector = %s AND md.market_cap > 0
                     GROUP BY pd.date
                     ORDER BY pd.date ASC LIMIT 200
                 """, (sector,))
@@ -384,7 +387,8 @@ def populate_technical_data(conn):
                     SELECT pd.date, AVG(pd.close) as avg_close, SUM(pd.volume) as total_vol
                     FROM company_profile cp
                     JOIN price_daily pd ON cp.ticker = pd.symbol
-                    WHERE cp.industry = %s
+                    INNER JOIN market_data md ON cp.ticker = md.ticker
+                    WHERE cp.industry = %s AND md.market_cap > 0
                     GROUP BY pd.date
                     ORDER BY pd.date ASC LIMIT 200
                 """, (industry,))

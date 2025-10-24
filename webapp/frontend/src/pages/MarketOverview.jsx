@@ -772,7 +772,7 @@ const handleTabChange = (event, newValue) => {
 
               <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: "divider" }}>
                 <Typography variant="caption" color="text.secondary">
-                  AAII Sentiment Survey: Retail investor bullish/bearish sentiment data updated weekly
+                  AAII Sentiment Survey: Bullish/bearish sentiment data updated weekly
                   {aaiiData?.dateRange && ` | Data range: ${new Date(aaiiData.dateRange.from).toLocaleDateString()} - ${new Date(aaiiData.dateRange.to).toLocaleDateString()}`}
                 </Typography>
               </Box>
@@ -933,7 +933,11 @@ const handleTabChange = (event, newValue) => {
                           color: "#fff",
                           borderRadius: "4px",
                         }}
-                        formatter={(value) => [`${parseFloat(value).toFixed(1)}`, ""]}
+                        formatter={(value, name) => {
+                          // Display absolute value for bearish exposure
+                          const displayValue = name === "Bearish Exposure" ? Math.abs(parseFloat(value)) : parseFloat(value);
+                          return [`${displayValue.toFixed(1)}`, ""];
+                        }}
                         labelFormatter={(date) => {
                           const d = new Date(date);
                           return d.toLocaleDateString("en-US", {
@@ -973,8 +977,11 @@ const handleTabChange = (event, newValue) => {
 
               <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: "divider" }}>
                 <Typography variant="caption" color="text.secondary">
-                  NAAIM (National Association of Active Investment Managers) Manager Exposure Index: Measures the positioning of professional managers
+                  NAAIM (National Association of Active Investment Managers) Manager Exposure Index: Bullish/bearish exposure levels
                   {naaimData?.dateRange && ` | Data range: ${new Date(naaimData.dateRange.from).toLocaleDateString()} - ${new Date(naaimData.dateRange.to).toLocaleDateString()}`}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                  Bullish = Long exposure | Bearish = Short exposure (displayed as absolute value)
                 </Typography>
               </Box>
             </CardContent>
