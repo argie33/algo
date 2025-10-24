@@ -46,7 +46,14 @@ import {
 const SectorAnalysis = () => {
   const [lastUpdate, setLastUpdate] = useState(null);
 
-  // Sector color mapping (for visualization consistency)
+  // Vibrant color palette for sectors & industries (no gray defaults - only 1 gray for unknowns)
+  const vibrantColors = [
+    "#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8",
+    "#F7DC6F", "#BB8FCE", "#85C1E2", "#F8B88B", "#ABEBC6",
+    "#F1948A", "#A3E4D7", "#F5B041", "#A9DFBF", "#F8BBAD",
+    "#B7DEE8", "#F9E79F", "#D7BDE2", "#AED6F1", "#F5CBA7",
+  ];
+
   const sectorColors = {
     "Technology": "#2196F3",
     "Healthcare": "#4CAF50",
@@ -59,6 +66,16 @@ const SectorAnalysis = () => {
     "Utilities": "#FFC107",
     "Real Estate": "#E91E63",
     "Communication Services": "#00BCD4",
+  };
+
+  // Function to get vibrant color for unknown sectors/industries
+  const getVibrantColor = (index) => {
+    return vibrantColors[index % vibrantColors.length];
+  };
+
+  // Only use gray as last resort fallback
+  const getColorForSector = (sectorName) => {
+    return sectorColors[sectorName] || "#999"; // Only gray for truly unknown
   };
 
   // Comprehensive industry-to-sector mapping
@@ -499,6 +516,13 @@ const SectorAnalysis = () => {
       momentumScore: parseFloat(row.momentumScore || row.momentum || 0)
     }));
 
+    // DEBUG: Log momentum data
+    if (history && history.length > 0) {
+      console.log(`[MOMENTUM DEBUG] ${type}=${name || 'unknown'} - Sample momentum scores:`,
+        history.slice(0, 3).map(h => ({ date: h.date, momentum: h.momentumScore, rank: h.rank }))
+      );
+    }
+
     // Filter to last 3 months only (same as mini trend charts)
     if (history.length > 0 && history[0].date) {
       const threeMonthsAgo = new Date();
@@ -595,7 +619,8 @@ const SectorAnalysis = () => {
                 orientation="right"
                 width={70}
                 tick={{ fontSize: 12 }}
-                label={{ value: 'Momentum Score', angle: 90, position: 'insideRight' }}
+                label={{ value: 'Momentum Score (Higher is Better)', angle: 90, position: 'insideRight' }}
+                domain={['dataMin - 0.5', 'dataMax + 0.5']} // Ensure momentum line is visible
               />
               <Tooltip
                 contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', border: '1px solid #ccc' }}
@@ -924,6 +949,136 @@ const SectorAnalysis = () => {
     return <TrendChart data={trendData} width={90} height={35} />;
   };
 
+  // Component to render top performing companies for an industry
+  const TopPerformingCompaniesGrid = ({ industry }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const [companies, setCompanies] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleToggle = async () => {
+      if (isExpanded) {
+        setIsExpanded(false);
+      } else {
+        setIsExpanded(true);
+
+        if (companies.length === 0 && !isLoading) {
+          setIsLoading(true);
+          try {
+            // Fetch top 10 performing stocks in this industry, sorted by composite score
+            const response = await api.get(
+              `/api/stocks?industry=${encodeURIComponent(industry.industry)}&limit=10&sortBy=composite_score&sortOrder=desc`
+            );
+            const stocksData = response.data;
+
+            // Handle both response formats: direct array or nested in data.stocks
+            let stocksList = [];
+            if (Array.isArray(stocksData?.data)) {
+              stocksList = stocksData.data;
+            } else if (stocksData?.data && Array.isArray(stocksData.data.stocks)) {
+              stocksList = stocksData.data.stocks;
+            }
+
+            setCompanies(stocksList || []);
+          } catch (err) {
+            console.error(`Failed to fetch companies for ${industry.industry}:`, err);
+            setCompanies([]);
+          } finally {
+            setIsLoading(false);
+          }
+        }
+      }
+    };
+
+    return (
+      <Box>
+        <Box
+          onClick={handleToggle}
+          sx={{
+            p: 1.5,
+            backgroundColor: "action.hover",
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: 1,
+            cursor: "pointer",
+            transition: "all 0.2s",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            "&:hover": {
+              backgroundColor: "action.selected",
+              borderColor: "primary.main",
+            },
+          }}
+        >
+          <Typography variant="body2" fontWeight="600">
+            {isExpanded ? "Hide" : "Show"} Top Performing Companies
+          </Typography>
+          <Typography variant="body2" sx={{ color: "primary.main", fontWeight: "bold" }}>
+            {isExpanded ? "−" : "+"}
+          </Typography>
+        </Box>
+
+        {isExpanded && (
+          <Box sx={{ mt: 2, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 1.5 }}>
+            {isLoading ? (
+              <Box sx={{ gridColumn: "1 / -1", textAlign: "center", py: 2 }}>
+                <Typography variant="body2" color="text.secondary">Loading companies...</Typography>
+              </Box>
+            ) : companies.length > 0 ? (
+              companies.map((company) => (
+                <Box
+                  key={company.symbol}
+                  sx={{
+                    p: 1.5,
+                    backgroundColor: "background.paper",
+                    border: "1px solid",
+                    borderColor: "divider",
+                    borderRadius: 1,
+                    transition: "all 0.2s",
+                    "&:hover": {
+                      boxShadow: 2,
+                      borderColor: "primary.main",
+                    },
+                  }}
+                >
+                  <Typography variant="caption" fontWeight="bold" display="block" sx={{ mb: 0.5 }}>
+                    {company.symbol}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.75, fontSize: "0.75rem" }}>
+                    {(company.company_name || company.fullName)?.substring(0, 40)}
+                  </Typography>
+
+                  {/* Show company metrics */}
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
+                    {company.price?.current && (
+                      <Typography variant="caption" display="block" sx={{ fontSize: "0.7rem" }}>
+                        Price: <strong>${parseFloat(company.price.current).toFixed(2)}</strong>
+                      </Typography>
+                    )}
+                    {company.marketCap && (
+                      <Typography variant="caption" display="block" sx={{ fontSize: "0.7rem" }}>
+                        Market Cap: <strong>${(company.marketCap / 1e9).toFixed(1)}B</strong>
+                      </Typography>
+                    )}
+                    {company.exchange && (
+                      <Typography variant="caption" display="block" sx={{ fontSize: "0.7rem", color: "text.secondary" }}>
+                        {company.exchange}
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
+              ))
+            ) : (
+              <Box sx={{ gridColumn: "1 / -1", textAlign: "center", py: 2 }}>
+                <Typography variant="body2" color="text.secondary">No companies found</Typography>
+              </Box>
+            )}
+          </Box>
+        )}
+      </Box>
+    );
+  };
+
   // Component to render industry cards grid with proper state management
   const IndustryCardsGrid = ({ industries }) => {
     const [expandedIndustries, setExpandedIndustries] = useState({});
@@ -1136,28 +1291,29 @@ const SectorAnalysis = () => {
     return `${hours}h ago`;
   };
 
-  // Prepare chart data from rotation data
+  // Prepare chart data from rotation data with vibrant colors
   const chartData = (rotationData?.data?.sectors || [])
     .filter((s) => (s.sector_name || s.sector) && (s.current_perf_1d ?? s.performance_1d) != null && !isNaN(s.current_perf_1d ?? s.performance_1d))
-    .map((s) => {
+    .map((s, index) => {
       const sectorName = s.sector_name || s.sector;
       return {
         name: sectorName.length > 15 ? sectorName.substring(0, 15) + "..." : sectorName,
         fullName: sectorName,
         performance: parseFloat((s.current_perf_1d ?? s.performance_1d ?? 0).toFixed(2)),
-        color: sectorColors[sectorName] || "#666",
+        color: sectorColors[sectorName] || getVibrantColor(index),
       };
     })
     .sort((a, b) => b.performance - a.performance);
 
+  // Pie chart data with vibrant colors for visual appeal
   const pieData = (rotationData?.data?.sectors || [])
     .filter((s) => (s.sector_name || s.sector) && (s.current_rank || s.overall_rank) != null && !isNaN(s.current_rank || s.overall_rank))
-    .map((s) => {
+    .map((s, index) => {
       const sectorName = s.sector_name || s.sector;
       return {
         name: sectorName,
         value: Math.abs(s.current_rank || s.overall_rank), // Use rank as proxy for significance
-        color: sectorColors[sectorName] || "#666",
+        color: sectorColors[sectorName] || getVibrantColor(index),
       };
     });
 
@@ -1756,6 +1912,14 @@ const SectorAnalysis = () => {
                               • Rank: <strong>{industry.current_rank || "N/A"}</strong>
                             </Typography>
                           </Box>
+                        </Box>
+
+                        {/* Top Performing Companies Section */}
+                        <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2 }}>
+                          <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
+                            ⭐ Top Performing Companies in {industry.industry}
+                          </Typography>
+                          <TopPerformingCompaniesGrid industry={industry} />
                         </Box>
 
                         {/* Technical Analysis Section */}
