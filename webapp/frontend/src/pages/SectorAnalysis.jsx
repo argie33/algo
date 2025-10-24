@@ -1679,7 +1679,7 @@ const SectorAnalysis = () => {
                               { name: "20D", momentum: sector.current_perf_20d ?? sector.performance_20d ?? 0 }
                             ]}>
                               <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis dataKey="name" />
+                              <XAxis dataKey="name" hide />
                               <YAxis />
                               <Tooltip
                                 formatter={(value) => formatPercentage(value)}
@@ -1965,7 +1965,7 @@ const SectorAnalysis = () => {
                               { name: "20D", momentum: industry.performance_20d ?? 0 }
                             ]}>
                               <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis dataKey="name" />
+                              <XAxis dataKey="name" hide />
                               <YAxis />
                               <Tooltip
                                 formatter={(value) => formatPercentage(value)}
