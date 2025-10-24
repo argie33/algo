@@ -27,14 +27,19 @@ LOG_DIR="/tmp/data_loads"
 mkdir -p "$LOG_DIR"
 
 # Main loaders in execution order (dependencies first)
+# ENHANCED: Added more real data sources for comprehensive coverage
 declare -a LOADERS=(
     "loadcompanyprofile.py:Company Profiles"
     "loadsectors.py:Sectors"
     "loadmarket.py:Market Overview"
     "loadtechnicalsdaily.py:Technical Data"
     "loadvaluemetrics.py:Value Metrics"
+    "loadkeymetrics.py:Key Financial Metrics"
     "loadscores.py:Composite Scores"
     "loadsentiment.py:Sentiment (Google Trends + Reddit)"
+    "loadaaiidata.py:AAII Investor Sentiment"
+    "loadfeargreed.py:CNN Fear & Greed Index"
+    "loadnews.py:News Sentiment"
     "loadbuyselldaily.py:Buy/Sell Signals"
     "load_sector_performance.py:Sector Performance"
 )
@@ -113,13 +118,18 @@ if [ $FAILED -eq 0 ]; then
     echo ""
     echo "✨ Database now contains:"
     echo "   - Real company profiles (from yfinance)"
-    echo "   - Real price data and technicals"
+    echo "   - Real price data and technicals (OHLCV + RSI, MACD, MAs)"
     echo "   - Real market metrics and sectors"
-    echo "   - Real sentiment (Google Trends + Reddit)"
-    echo "   - Real buy/sell signals"
-    echo "   - Real performance metrics"
+    echo "   - Real sentiment data:"
+    echo "     • Google Trends + Reddit (loadsentiment.py)"
+    echo "     • AAII Investor Sentiment Survey (loadaaiidata.py)"
+    echo "     • CNN Fear & Greed Index (loadfeargreed.py)"
+    echo "     • News Sentiment Analysis (loadnews.py)"
+    echo "   - Real key financial metrics (P/E, dividend yields, etc)"
+    echo "   - Real buy/sell signals and composite scores"
+    echo "   - Real sector performance data"
     echo ""
-    echo "❌ NO SYNTHETIC/FAKE DATA"
+    echo "❌ NO SYNTHETIC/FAKE DATA - ALL REAL SOURCES"
     exit 0
 else
     echo "⚠️  SOME LOADERS FAILED - Check logs in $LOG_DIR"
