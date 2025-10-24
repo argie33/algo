@@ -28,6 +28,7 @@ mkdir -p "$LOG_DIR"
 
 # Main loaders in execution order (dependencies first)
 # ENHANCED: Added more real data sources for comprehensive coverage
+# ALL DATA IS REAL - No synthetic/fake data, no fallbacks
 declare -a LOADERS=(
     "loadcompanyprofile.py:Company Profiles"
     "loadsectors.py:Sectors"
@@ -40,6 +41,7 @@ declare -a LOADERS=(
     "loadaaiidata.py:AAII Investor Sentiment"
     "loadfeargreed.py:CNN Fear & Greed Index"
     "loadnews.py:News Sentiment"
+    "loadanalystupgradedowngrade.py:Analyst Upgrades/Downgrades"
     "loadbuyselldaily.py:Buy/Sell Signals"
     "load_sector_performance.py:Sector Performance"
 )

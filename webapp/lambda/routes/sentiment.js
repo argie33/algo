@@ -185,19 +185,23 @@ router.get("/analysis", async (req, res) => {
     }
 
     const sentimentCounts = sentimentData.reduce((counts, item) => {
-      const score = item.sentiment || 0;
-      if (score > 0.2) {
-        counts.positive = (counts.positive || 0) + 1;
-      } else if (score < -0.2) {
-        counts.negative = (counts.negative || 0) + 1;
-      } else {
-        counts.neutral = (counts.neutral || 0) + 1;
+      // Only count items with real sentiment data (not NULL/undefined)
+      const score = item.sentiment;
+      if (score !== null && score !== undefined) {
+        if (score > 0.2) {
+          counts.positive = (counts.positive || 0) + 1;
+        } else if (score < -0.2) {
+          counts.negative = (counts.negative || 0) + 1;
+        } else {
+          counts.neutral = (counts.neutral || 0) + 1;
+        }
       }
       return counts;
     }, {});
 
     // Calculate sentiment score (positive: +1, neutral: 0, negative: -1)
-    const totalArticles = sentimentData.length;
+    // Return NULL if no real data available
+    const totalArticles = sentimentData.filter(d => d.sentiment !== null && d.sentiment !== undefined).length;
     const positiveCount = sentimentCounts.positive || 0;
     const negativeCount = sentimentCounts.negative || 0;
     const neutralCount = sentimentCounts.neutral || 0;
@@ -205,7 +209,7 @@ router.get("/analysis", async (req, res) => {
     const sentimentScore =
       totalArticles > 0
         ? (((positiveCount - negativeCount) / totalArticles) * 100).toFixed(2)
-        : 0;
+        : null;
 
     // Group articles by date for trend analysis
     const dailySentiment = sentimentData.reduce((daily, article) => {
@@ -225,9 +229,10 @@ router.get("/analysis", async (req, res) => {
       }
 
       // Convert numeric sentiment to category
-      const sentimentScore = article.sentiment || 0;
+      // Return NULL if no real sentiment data available (don't use fallback 0)
+      const sentimentScore = article.sentiment;
       let sentimentCategory;
-      if (typeof sentimentScore === 'number') {
+      if (sentimentScore !== null && sentimentScore !== undefined && typeof sentimentScore === 'number') {
         if (sentimentScore > 0.2) {
           sentimentCategory = 'positive';
         } else if (sentimentScore < -0.2) {
@@ -236,7 +241,7 @@ router.get("/analysis", async (req, res) => {
           sentimentCategory = 'neutral';
         }
       } else {
-        sentimentCategory = sentimentScore || "neutral";
+        sentimentCategory = null; // No real data - return NULL, not fake "neutral"
       }
 
       daily[date][sentimentCategory]++;
@@ -469,10 +474,10 @@ router.get("/social/reddit", async (req, res) => {
           subreddit: row.subreddit,
           title: row.title,
           author: row.author,
-          upvotes: parseInt(row.upvotes) || 0,
-          downvotes: parseInt(row.downvotes) || 0,
-          comments: parseInt(row.comments) || 0,
-          sentiment_score: parseFloat(row.sentiment_score) || 0,
+          upvotes: row.upvotes !== null ? parseInt(row.upvotes) : null,
+          downvotes: row.downvotes !== null ? parseInt(row.downvotes) : null,
+          comments: row.comments !== null ? parseInt(row.comments) : null,
+          sentiment_score: row.sentiment_score !== null ? parseFloat(row.sentiment_score) : null,
           sentiment_label: row.sentiment_label,
           created_utc: row.created_utc,
           url: row.url,
