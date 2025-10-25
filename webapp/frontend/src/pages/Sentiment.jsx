@@ -451,6 +451,9 @@ const AnalystTrendCard = ({ symbol }) => {
   // Use metrics directly from the endpoint response
   const metrics = data?.metrics || null;
   const momentum = data?.momentum || null;
+  const priceTargets = data?.priceTargets || [];
+  const coverage = data?.coverage || null;
+  const recentUpgrades = data?.recentUpgrades || [];
 
   if (loading) {
     return (
@@ -458,9 +461,10 @@ const AnalystTrendCard = ({ symbol }) => {
         <CardContent>
           <Box display="flex" alignItems="center" gap={1} mb={2}>
             <TrendingUpRounded />
-            <Typography variant="h6">Analyst Sentiment</Typography>
+            <Typography variant="h6">Analyst Sentiment & Price Targets</Typography>
           </Box>
-          <Typography variant="body2" color="textSecondary">Loading analyst data...</Typography>
+          <CircularProgress size={24} sx={{ mr: 1 }} />
+          <Typography variant="body2" color="textSecondary">Loading comprehensive analyst data...</Typography>
         </CardContent>
       </Card>
     );
@@ -472,7 +476,7 @@ const AnalystTrendCard = ({ symbol }) => {
         <CardContent>
           <Box display="flex" alignItems="center" gap={1} mb={2}>
             <TrendingUpRounded />
-            <Typography variant="h6">Analyst Sentiment</Typography>
+            <Typography variant="h6">Analyst Sentiment & Price Targets</Typography>
           </Box>
           <Typography variant="body2" color="textSecondary">
             {error ? `Error: ${error}` : `No analyst data available for ${symbol}`}
@@ -677,8 +681,136 @@ const AnalystTrendCard = ({ symbol }) => {
           </Box>
         )}
 
+        {/* Price Targets */}
+        {priceTargets && priceTargets.length > 0 && (
+          <>
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
+              Price Targets by Firm
+            </Typography>
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Firm</TableCell>
+                    <TableCell align="center">Target Price</TableCell>
+                    <TableCell align="center">Previous</TableCell>
+                    <TableCell align="center">Change</TableCell>
+                    <TableCell>Date</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {priceTargets.slice(0, 10).map((target, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell>{target.analyst_firm}</TableCell>
+                      <TableCell align="center">
+                        <Chip label={`$${parseFloat(target.target_price).toFixed(2)}`} size="small" />
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography variant="body2" color="textSecondary">
+                          ${parseFloat(target.previous_target_price || 0).toFixed(2)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Chip
+                          label={`${(parseFloat(target.target_price) - parseFloat(target.previous_target_price || 0)).toFixed(2)}`}
+                          size="small"
+                          color={parseFloat(target.target_price) > parseFloat(target.previous_target_price || 0) ? 'success' : 'error'}
+                          variant="outlined"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {new Date(target.target_date).toLocaleDateString()}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </>
+        )}
+
+        {/* Recent Analyst Actions */}
+        {recentUpgrades && recentUpgrades.length > 0 && (
+          <>
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
+              Recent Analyst Actions
+            </Typography>
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Firm</TableCell>
+                    <TableCell align="center">Action</TableCell>
+                    <TableCell>From Grade</TableCell>
+                    <TableCell>To Grade</TableCell>
+                    <TableCell>Details</TableCell>
+                    <TableCell>Date</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {recentUpgrades.slice(0, 8).map((upgrade, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell>{upgrade.firm}</TableCell>
+                      <TableCell align="center">
+                        <Chip
+                          label={upgrade.action === 'up' ? '↑' : upgrade.action === 'down' ? '↓' : '→'}
+                          size="small"
+                          color={upgrade.action === 'up' ? 'success' : upgrade.action === 'down' ? 'error' : 'default'}
+                          variant="outlined"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">{upgrade.from_grade || '-'}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip label={upgrade.to_grade} size="small" />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="caption">{upgrade.details}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        {new Date(upgrade.date).toLocaleDateString()}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </>
+        )}
+
+        {/* Analyst Coverage */}
+        {coverage && coverage.firms && coverage.firms.length > 0 && (
+          <>
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
+              Analyst Coverage ({coverage.totalFirms} firms)
+            </Typography>
+            <Grid container spacing={2}>
+              {coverage.firms.slice(0, 6).map((firm, idx) => (
+                <Grid item xs={12} sm={6} md={4} key={idx}>
+                  <Box sx={{ p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 1 }}>
+                    <Typography variant="subtitle2" fontWeight="bold">{firm.analyst_firm}</Typography>
+                    <Typography variant="caption" color="textSecondary">
+                      Analyst: {firm.analyst_name}
+                    </Typography>
+                    <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
+                      <Chip label={firm.coverage_status} size="small" variant="outlined" />
+                    </Typography>
+                    <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+                      Since: {new Date(firm.coverage_started).toLocaleDateString()}
+                    </Typography>
+                  </Box>
+                </Grid>
+              ))}
+            </Grid>
+          </>
+        )}
+
         {/* No data message */}
-        {!metrics && !momentum && (
+        {!metrics && !momentum && !priceTargets && !recentUpgrades && (
           <Typography variant="body2" color="textSecondary">
             No analyst sentiment data available
           </Typography>
