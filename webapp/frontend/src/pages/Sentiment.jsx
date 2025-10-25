@@ -110,13 +110,13 @@ const AnalystTrendCard = ({ symbol }) => {
   const [error, setError] = React.useState(null);
   const [data, setData] = React.useState(null);
 
-  // Fetch analyst metrics from endpoint
+  // Fetch analyst sentiment data from sentiment endpoint
   React.useEffect(() => {
     const fetchAnalystMetrics = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${API_BASE}/api/analysts/${symbol}`);
-        if (!response.ok) throw new Error("Failed to fetch analyst metrics");
+        const response = await fetch(`${API_BASE}/api/sentiment/stocks?symbol=${symbol}`);
+        if (!response.ok) throw new Error("Failed to fetch analyst sentiment data");
         const result = await response.json();
         setData(result);
       } catch (err) {
@@ -132,23 +132,46 @@ const AnalystTrendCard = ({ symbol }) => {
     }
   }, [symbol]);
 
-  // Extract metrics from backend response
-  const metrics = data?.rating_distribution ? {
-    bullish: data.rating_distribution.buy || 0,
-    bullishPercent: parseFloat(data.rating_distribution.percentages?.buy_pct || 0).toFixed(1),
-    neutral: data.rating_distribution.hold || 0,
-    neutralPercent: parseFloat(data.rating_distribution.percentages?.hold_pct || 0).toFixed(1),
-    bearish: (data.rating_distribution.sell || 0) + (data.rating_distribution.strong_sell || 0),
-    bearishPercent: (parseFloat(data.rating_distribution.percentages?.sell_pct || 0) + parseFloat(data.rating_distribution.percentages?.strong_sell_pct || 0)).toFixed(1),
-    totalAnalysts: data.rating_distribution.total_analysts || 0,
-    avgPriceTarget: data.price_target?.target || null,
-    priceTargetVsCurrent: data.price_target?.upside_downside_pct ? parseFloat(data.price_target.upside_downside_pct) : null,
-  } : null;
+  // Extract analyst sentiment metrics from the data array
+  const metrics = React.useMemo(() => {
+    if (!data || !data.data || !Array.isArray(data.data)) return null;
 
-  const momentum = data?.momentum?.recent_30d ? {
-    upgrades30d: data.momentum.recent_30d.upgrades || 0,
-    downgrades30d: data.momentum.recent_30d.downgrades || 0,
-  } : null;
+    // Filter for analyst sentiment records (source === 'analyst')
+    const analystRecords = data.data.filter(item => item.source === 'analyst');
+    if (analystRecords.length === 0) return null;
+
+    // Get the most recent analyst record
+    const latestRecord = analystRecords[0];
+    if (!latestRecord) return null;
+
+    return {
+      bullish: latestRecord.buy_count || latestRecord.strong_buy_count || 0,
+      bullishPercent: ((latestRecord.buy_count || 0) / (latestRecord.total_analysts || 1) * 100).toFixed(1),
+      neutral: latestRecord.hold_count || 0,
+      neutralPercent: ((latestRecord.hold_count || 0) / (latestRecord.total_analysts || 1) * 100).toFixed(1),
+      bearish: (latestRecord.sell_count || 0) + (latestRecord.strong_sell_count || 0),
+      bearishPercent: (((latestRecord.sell_count || 0) + (latestRecord.strong_sell_count || 0)) / (latestRecord.total_analysts || 1) * 100).toFixed(1),
+      totalAnalysts: latestRecord.total_analysts || 0,
+      avgPriceTarget: latestRecord.avg_price_target || null,
+      priceTargetVsCurrent: latestRecord.price_target_vs_current ? parseFloat(latestRecord.price_target_vs_current) : null,
+    };
+  }, [data]);
+
+  const momentum = React.useMemo(() => {
+    if (!data || !data.data || !Array.isArray(data.data)) return null;
+
+    // Filter for analyst sentiment records
+    const analystRecords = data.data.filter(item => item.source === 'analyst');
+    if (analystRecords.length === 0) return null;
+
+    const latestRecord = analystRecords[0];
+    if (!latestRecord) return null;
+
+    return {
+      upgrades30d: latestRecord.upgrades_last_30d || 0,
+      downgrades30d: latestRecord.downgrades_last_30d || 0,
+    };
+  }, [data]);
 
   if (loading) {
     return (
