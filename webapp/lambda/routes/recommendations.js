@@ -74,9 +74,9 @@ router.get("/", authenticateToken, async (req, res) => {
         to_grade,
         date as date_published,
         details,
-        0 as target_price,
-        0 as current_price,
-        0 as upside_potential,
+        NULL as target_price,
+        NULL as current_price,
+        NULL as upside_potential,
         CASE
           WHEN LOWER(to_grade) LIKE '%buy%' OR LOWER(to_grade) LIKE '%strong buy%' THEN 'buy'
           WHEN LOWER(to_grade) LIKE '%sell%' OR LOWER(to_grade) LIKE '%strong sell%' THEN 'sell'

@@ -49,6 +49,8 @@ import {
   SentimentSatisfied,
   FilterList,
   ClearAll,
+  ChevronLeft as ChevronLeftIcon,
+  ChevronRight as ChevronRightIcon,
 } from "@mui/icons-material";
 import {
   BarChart,
@@ -247,8 +249,12 @@ const ScoresDashboard = () => {
   const [signals, setSignals] = useState({});
   const [signalsLoading, setSignalsLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [displayLimit, setDisplayLimit] = useState(25);
+  const [displayLimit, setDisplayLimit] = useState(50); // Items per page
   const [showAllStocks, setShowAllStocks] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1); // Pagination state
+  const [totalRecords, setTotalRecords] = useState(0); // Total from API
+  const [totalPages, setTotalPages] = useState(0); // Total pages from API
+  const [paginationInfo, setPaginationInfo] = useState(null); // Full pagination metadata
 
   // Advanced filter states
   const [minCompositeScore, setMinCompositeScore] = useState(0);
@@ -316,15 +322,29 @@ const ScoresDashboard = () => {
     }
   }, [scores]);
 
-  const loadAllScores = async () => {
+  const loadAllScores = async (page = 1) => {
     setLoading(true);
     try {
       const { default: api } = await import("../services/api");
-      const response = await api.get("/api/scores");
+      // Calculate offset based on page and displayLimit
+      const offset = (page - 1) * displayLimit;
+
+      // Fetch paginated data from API
+      const response = await api.get(
+        `/api/scores?limit=${displayLimit}&offset=${offset}`
+      );
 
       if (response?.data?.success && response.data?.data?.stocks) {
         const transformedStocks = response.data.data.stocks.map(transformStockData);
         setScores(transformedStocks);
+
+        // Update pagination info from API response
+        if (response.data.pagination) {
+          setTotalRecords(response.data.pagination.totalRecords || 0);
+          setTotalPages(response.data.pagination.totalPages || 0);
+          setPaginationInfo(response.data.pagination);
+          setCurrentPage(page);
+        }
       } else {
         console.error("Invalid API response format:", response);
         setScores([]);
@@ -2302,6 +2322,49 @@ const ScoresDashboard = () => {
               </AccordionDetails>
             </Accordion>
           ))}
+
+          {/* Pagination Controls */}
+          {paginationInfo && totalPages > 1 && (
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: 2,
+                mt: 4,
+                mb: 2,
+              }}
+            >
+              <Button
+                variant="outlined"
+                disabled={!paginationInfo.hasPrevPage}
+                onClick={() => loadAllScores(currentPage - 1)}
+                startIcon={<ChevronLeftIcon />}
+              >
+                Previous
+              </Button>
+
+              <Typography variant="body1" sx={{ minWidth: "200px", textAlign: "center" }}>
+                Page {currentPage} of {totalPages}
+                {totalRecords > 0 && (
+                  <>
+                    {" • "}
+                    {paginationInfo.pageStart}-{paginationInfo.pageEnd} of{" "}
+                    {totalRecords}
+                  </>
+                )}
+              </Typography>
+
+              <Button
+                variant="outlined"
+                disabled={!paginationInfo.hasNextPage}
+                onClick={() => loadAllScores(currentPage + 1)}
+                endIcon={<ChevronRightIcon />}
+              >
+                Next
+              </Button>
+            </Box>
+          )}
           </Box>
         )}
       </Box>

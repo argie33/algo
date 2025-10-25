@@ -33,7 +33,10 @@ import {
   ComposedChart,
   Line,
   LineChart,
+  PieChart,
+  Pie,
   Cell,
+  Legend,
   Tooltip,
 } from "recharts";
 import {
@@ -42,6 +45,7 @@ import {
   TrendingFlat,
   Timeline,
   CalendarToday,
+  Equalizer,
 } from "@mui/icons-material";
 
 import {
@@ -51,7 +55,6 @@ import {
   getSeasonalityData,
   getDistributionDays,
   getMcClellanOscillator,
-  getSentimentDivergence,
 } from "../services/api";
 import {
   formatCurrency,
@@ -62,8 +65,6 @@ import {
 import { createComponentLogger } from "../utils/errorLogger";
 import SectorSeasonalityTable from "../components/SectorSeasonalityTable";
 import McClellanOscillatorChart from "../components/McClellanOscillatorChart";
-import SentimentDivergenceChart from "../components/SentimentDivergenceChart";
-import MarketInternals from "../components/MarketInternals";
 
 // Create logger instance for this component
 const _logger = createComponentLogger("MarketOverview");
@@ -324,6 +325,18 @@ const fetchSentimentHistory = async (days = 30) => {
   }
 };
 
+const fetchMarketBreadth = async () => {
+  try {
+    console.log("📏 Fetching market breadth...");
+    const response = await getMarketBreadth();
+    console.log("📏 Market breadth response:", response);
+    return response;
+  } catch (error) {
+    _logger.error("Market breadth error:", error.message || error.toString());
+    throw error;
+  }
+};
+
 const fetchDistributionDays = async () => {
   try {
     console.log("📊 Fetching distribution days...");
@@ -356,18 +369,6 @@ const fetchMcClellanOscillator = async () => {
     return response;
   } catch (error) {
     _logger.error("McClellan Oscillator error:", error.message || error.toString());
-    throw error;
-  }
-};
-
-const fetchSentimentDivergence = async () => {
-  try {
-    console.log("💡 Fetching sentiment divergence...");
-    const response = await getSentimentDivergence();
-    console.log("💡 Sentiment divergence response:", response);
-    return response;
-  } catch (error) {
-    _logger.error("Sentiment divergence error:", error.message || error.toString());
     throw error;
   }
 };
@@ -407,6 +408,12 @@ function MarketOverview() {
     staleTime: 30000,
   });
 
+  const { data: breadthData, isLoading: breadthLoading } = useQuery({
+    queryKey: ["market-breadth"],
+    queryFn: fetchMarketBreadth,
+    enabled: tabValue === 1,
+    staleTime: 30000,
+  });
 
   const { data: distributionDaysData, isLoading: distributionDaysLoading } = useQuery({
     queryKey: ["distribution-days"],
@@ -424,13 +431,6 @@ function MarketOverview() {
   const { data: mcOscillatorData, isLoading: mcOscillatorLoading } = useQuery({
     queryKey: ["mcclellan-oscillator"],
     queryFn: fetchMcClellanOscillator,
-    staleTime: 60000,
-    refetchInterval: 60000,
-  });
-
-  const { data: sentimentDivergenceData, isLoading: sentimentDivergenceLoading } = useQuery({
-    queryKey: ["sentiment-divergence"],
-    queryFn: fetchSentimentDivergence,
     staleTime: 60000,
     refetchInterval: 60000,
   });
@@ -513,6 +513,8 @@ const handleTabChange = (event, newValue) => {
   const topMovers = marketData?.data?.movers || { gainers: [], losers: [] };
 
   // Real API response structure from loaders
+  const breadthInfo = breadthData?.data || {};
+  const hasBreadthError = !breadthInfo || Object.keys(breadthInfo).length === 0;
   const distributionDays = distributionDaysData?.data || {};
   const sentimentHistory = sentimentData?.data || {};
   console.log("sentimentHistory", sentimentHistory);
@@ -581,10 +583,7 @@ const handleTabChange = (event, newValue) => {
     return { label: "Neutral", color: "warning", icon: <TrendingFlat /> };
   };
 
-  // Only calculate signal if real data exists
-  const aaiiSignal = (latestAAII.bullish !== undefined && latestAAII.bearish !== undefined)
-    ? getSentimentSignal(latestAAII.bullish, latestAAII.bearish)
-    : { label: "No Data", color: "default", icon: null };
+  const aaiiSignal = getSentimentSignal(latestAAII.bullish || 0, latestAAII.bearish || 0);
 
   // --- Sentiment History Tab ---
   const SentimentHistoryPanel = () => (
@@ -608,9 +607,9 @@ const handleTabChange = (event, newValue) => {
                   </Box>
                   <LinearProgress
                     variant="determinate"
-                    value={latestAAII.bullish ?? 0}
+                    value={latestAAII.bullish || 0}
                     color="success"
-                    sx={{ height: 8, borderRadius: 1, opacity: latestAAII.bullish !== undefined ? 1 : 0.3 }}
+                    sx={{ height: 8, borderRadius: 1 }}
                   />
                 </Box>
                 <Box mb={2}>
@@ -622,9 +621,9 @@ const handleTabChange = (event, newValue) => {
                   </Box>
                   <LinearProgress
                     variant="determinate"
-                    value={latestAAII.neutral ?? 0}
+                    value={latestAAII.neutral || 0}
                     color="warning"
-                    sx={{ height: 8, borderRadius: 1, opacity: latestAAII.neutral !== undefined ? 1 : 0.3 }}
+                    sx={{ height: 8, borderRadius: 1 }}
                   />
                 </Box>
                 <Box>
@@ -636,9 +635,9 @@ const handleTabChange = (event, newValue) => {
                   </Box>
                   <LinearProgress
                     variant="determinate"
-                    value={latestAAII.bearish ?? 0}
+                    value={latestAAII.bearish || 0}
                     color="error"
-                    sx={{ height: 8, borderRadius: 1, opacity: latestAAII.bearish !== undefined ? 1 : 0.3 }}
+                    sx={{ height: 8, borderRadius: 1 }}
                   />
                 </Box>
               </Box>
@@ -887,10 +886,25 @@ const handleTabChange = (event, newValue) => {
                 <Box sx={{ height: 400, width: "100%", minWidth: 0, minHeight: 0 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
-                      data={naaimData.data}
+                      data={naaimData.data.map((d) => ({
+                        ...d,
+                        // Normalize bullish/bearish to percentages (0-100)
+                        bullish_exposure: d.bullish_exposure ? Math.max(0, Math.min(100, (d.bullish_exposure + 100) / 4)) : d.average,
+                        bearish_exposure: d.bearish_exposure ? Math.max(0, Math.min(100, Math.abs(d.bearish_exposure) / 2)) : (100 - d.average),
+                      }))}
                       margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" />
+                      <defs>
+                        <linearGradient id="bullishGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="bearishGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
                       <XAxis
                         dataKey="date"
                         tick={{ fontSize: 12 }}
@@ -900,23 +914,25 @@ const handleTabChange = (event, newValue) => {
                         }}
                       />
                       <YAxis
+                        domain={[0, 100]}
                         label={{
-                          value: "Manager Positioning",
+                          value: "Manager Exposure (%)",
                           angle: -90,
                           position: "insideLeft",
+                          offset: 10,
                         }}
                       />
                       <Tooltip
                         contentStyle={{
-                          backgroundColor: "rgba(0,0,0,0.8)",
-                          border: "1px solid #ccc",
+                          backgroundColor: "rgba(0,0,0,0.9)",
+                          border: "2px solid #10b981",
                           color: "#fff",
-                          borderRadius: "4px",
+                          borderRadius: "6px",
+                          padding: "8px 12px",
                         }}
                         formatter={(value, name) => {
-                          // Display absolute value for bearish exposure
-                          const displayValue = name === "Bearish Exposure" ? Math.abs(parseFloat(value)) : parseFloat(value);
-                          return [`${displayValue.toFixed(1)}`, ""];
+                          const displayValue = Math.abs(parseFloat(value));
+                          return [`${displayValue.toFixed(1)}%`, name];
                         }}
                         labelFormatter={(date) => {
                           const d = new Date(date);
@@ -927,13 +943,18 @@ const handleTabChange = (event, newValue) => {
                           });
                         }}
                       />
-                      <Legend />
+                      <Legend
+                        wrapperStyle={{ paddingTop: "16px" }}
+                        iconType="line"
+                      />
                       <Line
                         type="monotone"
                         dataKey="bullish_exposure"
                         stroke="#10b981"
                         strokeWidth={2.5}
                         dot={false}
+                        fill="url(#bullishGradient)"
+                        isAnimationActive={true}
                         name="Bullish Exposure"
                       />
                       <Line
@@ -942,6 +963,8 @@ const handleTabChange = (event, newValue) => {
                         stroke="#ef4444"
                         strokeWidth={2.5}
                         dot={false}
+                        fill="url(#bearishGradient)"
+                        isAnimationActive={true}
                         name="Bearish Exposure"
                       />
                     </LineChart>
@@ -1074,26 +1097,6 @@ const handleTabChange = (event, newValue) => {
         </Grid>
       </Grid>
 
-      {/* Sentiment Divergence Chart - Full Width */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12}>
-          <SentimentDivergenceChart
-            data={sentimentDivergenceData?.data}
-            isLoading={sentimentDivergenceLoading}
-          />
-        </Grid>
-      </Grid>
-
-      {/* Market Internals - Comprehensive Breadth & Technical Analysis */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <MarketInternals />
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
 
       {/* Top Movers Section */}
       {(topMovers.gainers?.length > 0 || topMovers.losers?.length > 0) && (
@@ -1527,6 +1530,12 @@ const handleTabChange = (event, newValue) => {
               />
               <Tab
                 value={1}
+                label="Market Breadth"
+                icon={<Equalizer />}
+                iconPosition="start"
+              />
+              <Tab
+                value={2}
                 label="Seasonality"
                 icon={<CalendarToday />}
                 iconPosition="start"
@@ -1545,6 +1554,146 @@ const handleTabChange = (event, newValue) => {
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
+          {breadthLoading ? (
+            <LinearProgress />
+          ) : (
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                      Market Breadth Details
+                    </Typography>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        mb: 2,
+                      }}
+                    >
+                      <Typography variant="body2">Advancing Stocks:</Typography>
+                      <Typography
+                        variant="body2"
+                        color="success.main"
+                        fontWeight="600"
+                      >
+                        {(hasBreadthError ? "N/A" : breadthInfo.advancing || 0)}
+                      </Typography>
+                    </Box>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        mb: 2,
+                      }}
+                    >
+                      <Typography variant="body2">Declining Stocks:</Typography>
+                      <Typography
+                        variant="body2"
+                        color="error.main"
+                        fontWeight="600"
+                      >
+                        {(hasBreadthError ? "N/A" : breadthInfo.declining || 0)}
+                      </Typography>
+                    </Box>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        mb: 2,
+                      }}
+                    >
+                      <Typography variant="body2">Unchanged:</Typography>
+                      <Typography variant="body2" fontWeight="600">
+                        {(hasBreadthError ? "N/A" : breadthInfo.unchanged || 0)}
+                      </Typography>
+                    </Box>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        mb: 2,
+                      }}
+                    >
+                      <Typography variant="body2">A/D Ratio:</Typography>
+                      <Typography variant="body2" fontWeight="600">
+                        {breadthInfo.advance_decline_ratio || "N/A"}
+                      </Typography>
+                    </Box>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        mb: 2,
+                      }}
+                    >
+                      <Typography variant="body2">Average Change:</Typography>
+                      <Typography
+                        variant="body2"
+                        fontWeight="600"
+                        sx={{
+                          color: getChangeColor(
+                            parseFloat(breadthInfo.average_change_percent) || 0
+                          ),
+                        }}
+                      >
+                        {formatPercentage(
+                          parseFloat(breadthInfo.average_change_percent) || 0
+                        )}
+                      </Typography>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                      Breadth Visualization
+                    </Typography>
+                    <Box sx={{ height: 300, width: '100%' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={[
+                              {
+                                name: "Advancing",
+                                value: (hasBreadthError ? "N/A" : breadthInfo.advancing || 0),
+                                color: "#4CAF50",
+                              },
+                              {
+                                name: "Declining",
+                                value: (hasBreadthError ? "N/A" : breadthInfo.declining || 0),
+                                color: "#F44336",
+                              },
+                              {
+                                name: "Unchanged",
+                                value: (hasBreadthError ? "N/A" : breadthInfo.unchanged || 0),
+                                color: "#9E9E9E",
+                              },
+                            ]}
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={80}
+                            dataKey="value"
+                            label={({ name, value }) => `${name}: ${value}`}
+                          >
+                            <Cell fill="#4CAF50" />
+                            <Cell fill="#F44336" />
+                            <Cell fill="#9E9E9E" />
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          )}
+        </TabPanel>
+
+        <TabPanel value={tabValue} index={2}>
           {seasonalityLoading ? (
             <LinearProgress />
           ) : (

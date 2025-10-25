@@ -1277,7 +1277,6 @@ router.get("/api-endpoints", async (req, res) => {
       { name: "analytics", path: "/api/analytics" },
       { name: "analysts", path: "/api/analysts" },
       { name: "auth", path: "/api/auth/status" },
-      { name: "backtest", path: "/api/backtest" },
       { name: "calendar", path: "/api/calendar" },
       { name: "commodities", path: "/api/commodities" },
       { name: "dashboard", path: "/api/dashboard" },

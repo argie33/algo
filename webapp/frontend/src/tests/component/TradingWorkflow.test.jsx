@@ -579,6 +579,17 @@ const MockRiskManagementComponent = ({ positions = [], orders = [] }) => {
       .filter((order) => order.status === "new")
       .reduce((sum, order) => sum + order.qty * (order.limit_price || 100), 0);
 
+    const stabilityScore = Math.max(
+      0,
+      100 -
+        Math.min(
+          100,
+          leverage * 30 +
+            concentration * 0.7 +
+            (pendingOrderValue / totalCash) * 40
+        )
+    );
+
     return {
       totalExposure: totalPositionValue,
       leverage,
@@ -590,6 +601,7 @@ const MockRiskManagementComponent = ({ positions = [], orders = [] }) => {
           concentration * 0.7 +
           (pendingOrderValue / totalCash) * 40
       ),
+      stabilityScore,
     };
   }, [positions, orders]);
 
@@ -1368,7 +1380,7 @@ describe("Trading Workflow Tests", () => {
       expect(screen.getByText(/Total Exposure:/)).toBeInTheDocument();
       expect(screen.getByText(/Leverage:.*x/)).toBeInTheDocument(); // More specific to match risk metrics section
       expect(screen.getByText(/Max Concentration:/)).toBeInTheDocument();
-      expect(screen.getByTestId("risk-score")).toBeInTheDocument();
+      expect(screen.getByTestId("stability-score")).toBeInTheDocument();
     });
 
     it("should generate risk alerts for high leverage", async () => {
@@ -1468,7 +1480,7 @@ describe("Trading Workflow Tests", () => {
         />
       );
 
-      const _initialRiskScore = screen.getByTestId("risk-score").textContent;
+      const _initialRiskScore = screen.getByTestId("stability-score").textContent;
 
       // Change stop loss percentage
       fireEvent.change(screen.getByTestId("stop-loss-percent"), {
@@ -1476,7 +1488,7 @@ describe("Trading Workflow Tests", () => {
       });
 
       await waitFor(() => {
-        const newRiskScore = screen.getByTestId("risk-score").textContent;
+        const newRiskScore = screen.getByTestId("stability-score").textContent;
         // Risk score might change due to different alert generation
         expect(newRiskScore).toBeDefined();
       }, { timeout: 10000 });

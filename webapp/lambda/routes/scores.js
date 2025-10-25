@@ -27,6 +27,8 @@ router.get("/", async (req, res) => {
     }
 
     const search = req.query.search || '';
+    const limit = Math.min(parseInt(req.query.limit) || 50, 500); // Default 50, max 500
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0); // Default 0
 
     // Query stock_scores with LEFT JOINs to metric tables
     // Fetches scores and detailed metrics from actual metric tables
@@ -180,6 +182,23 @@ router.get("/", async (req, res) => {
 
     // Sort by composite score (DISTINCT ON is no longer needed since LATERAL joins guarantee one row per symbol)
     stocksQuery += ` ORDER BY ss.composite_score DESC NULLS LAST, ss.symbol`;
+
+    // Get total count for pagination (with same search filter)
+    let countQuery = `SELECT COUNT(*) as total FROM stock_scores ss`;
+    const countParams = [];
+    let countParamIndex = 1;
+
+    if (search) {
+      countQuery += ` WHERE ss.symbol ILIKE $${countParamIndex}`;
+      countParams.push(`%${search.toUpperCase()}%`);
+    }
+
+    const countResult = await query(countQuery, countParams);
+    const totalStocks = parseInt(countResult.rows[0]?.total || 0);
+
+    // Add LIMIT and OFFSET for pagination
+    stocksQuery += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    queryParams.push(limit, offset);
 
     const stocksResult = await query(stocksQuery, queryParams);
 
@@ -360,7 +379,11 @@ router.get("/", async (req, res) => {
       }
     }));
 
-    // Return all results - no pagination needed for small dataset
+    // Return paginated results with pagination metadata
+    const currentPage = Math.floor(offset / limit) + 1;
+    const totalPages = Math.ceil(totalStocks / limit);
+    const pageStocks = stocksList.length;
+
     res.json({
       success: true,
       data: {
@@ -368,19 +391,33 @@ router.get("/", async (req, res) => {
         viewType: "list"
       },
       summary: {
-        totalStocks: stocksList.length,
+        totalStocks: totalStocks, // Total across ALL pages (not just this page)
+        pageStocks: pageStocks, // Stocks on current page
         averageScore: stocksList.length > 0
-          ? Math.round(stocksList.reduce((sum, s) => sum + s.composite_score, 0) / stocksList.length * 100) / 100
+          ? Math.round(stocksList.reduce((sum, s) => sum + (s.composite_score || 0), 0) / stocksList.length * 100) / 100
           : 0,
         topScore: stocksList.length > 0 ? stocksList[0].composite_score : 0,
         scoreRange: stocksList.length > 0 ?
           `${stocksList[stocksList.length - 1].composite_score} - ${stocksList[0].composite_score}` : "0 - 0"
       },
+      pagination: {
+        limit,
+        offset,
+        currentPage,
+        pageSize: limit,
+        totalPages,
+        totalRecords: totalStocks,
+        hasNextPage: offset + limit < totalStocks,
+        hasPrevPage: offset > 0,
+        pageStart: offset + 1,
+        pageEnd: Math.min(offset + limit, totalStocks)
+      },
       metadata: {
         dataSource: "stock_scores_real_table",
         searchTerm: search || null,
         lastUpdated: stocksList.length > 0 ? stocksList[0].lastUpdated : null,
-        factorAnalysis: "seven_factor_scoring_system"
+        factorAnalysis: "seven_factor_scoring_system",
+        paginationEnabled: true
       },
       timestamp: new Date().toISOString(),
     });

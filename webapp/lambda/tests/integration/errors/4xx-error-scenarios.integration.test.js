@@ -23,12 +23,6 @@ describe("4xx Client Error Scenarios Integration", () => {
           body: '{"invalid": ',
           auth: true,
         },
-        {
-          endpoint: "/api/backtest/run",
-          method: "post",
-          body: "{incomplete json",
-          auth: true,
-        },
       ];
 
       for (const test of malformedJsonTests) {
@@ -90,13 +84,6 @@ describe("4xx Client Error Scenarios Integration", () => {
           body: {}, // Missing required symbols field
           auth: true,
           expectedStatus: 400, // Endpoint exists but missing required fields
-        },
-        {
-          endpoint: "/api/backtest/run",
-          method: "post",
-          body: { strategy: "test" }, // Missing other required fields
-          auth: true,
-          expectedStatus: 400, // Should return 400 for missing fields
         },
       ];
 
@@ -307,11 +294,6 @@ describe("4xx Client Error Scenarios Integration", () => {
 
     test("should return 404 for non-existent resources", async () => {
       const nonExistentResources = [
-        {
-          endpoint: "/api/backtest/results/nonexistent-id",
-          method: "get",
-          auth: true,
-        },
         {
           endpoint: "/api/portfolio/positions/999999",
           method: "get",

@@ -125,14 +125,6 @@ const API_CONTRACTS = {
     },
   },
 
-  // Backtest endpoints
-  "GET /api/backtest/strategies": {
-    expectedStatus: 200,
-    responseSchema: {
-      strategies: "array",
-    },
-  },
-
   // Additional comprehensive coverage endpoints
   "GET /api/portfolio/holdings": {
     expectedStatus: [200, 401],

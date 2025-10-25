@@ -45,21 +45,28 @@ import {
 
 // Helper component for sector momentum chart
 const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
+  const sectorName = sector?.sector_name || sector?.sector;
+
   const { data: trendDataResponse, isLoading } = useQuery({
-    queryKey: [`momentum-trend-sector`, sector.sector_name || sector.sector],
+    queryKey: [`momentum-trend-sector`, sectorName],
     queryFn: async () => {
       try {
+        if (!sectorName) {
+          console.warn('No sector name provided to SectorMomentumChart');
+          return { trendData: [] };
+        }
         const response = await api.get(
-          `/api/sectors/trend/sector/${encodeURIComponent(sector.sector_name || sector.sector)}`
+          `/api/sectors/trend/sector/${encodeURIComponent(sectorName)}`
         );
-        return response.data || {};
+        console.log(`Sector momentum data for ${sectorName}:`, response.data?.trendData?.length || 0, 'rows');
+        return response.data || { trendData: [] };
       } catch (err) {
-        console.error('Momentum fetch error:', err);
-        return {};
+        console.error(`Momentum fetch error for ${sectorName}:`, err.message);
+        return { trendData: [] };
       }
     },
     staleTime: 300000,
-    enabled: !!(sector.sector_name || sector.sector),
+    enabled: !!sectorName,
     retry: false,
   });
 
@@ -68,7 +75,7 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
 
   let momentumData = trendArray.map(row => ({
     date: row.label || row.date,
-    momentum: parseFloat(row.momentumScore || row.momentum || 0)
+    momentum: parseFloat(row.dailyStrengthScore || row.momentumScore || row.momentum || 0)
   }));
 
   console.log(`[MOMENTUM CHART - SECTOR] ${sector.sector_name || sector.sector}: ${trendArray.length} rows, ${momentumData.length} mapped points`, momentumData.slice(0, 3));
@@ -81,7 +88,7 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
   return (
     <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, minHeight: 300 }}>
       <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-        ⚡ Momentum Score
+        ⚡ Daily Strength Score
       </Typography>
       {isLoading ? (
         <Box display="flex" justifyContent="center" alignItems="center" minHeight={250}>
@@ -106,7 +113,7 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
                 strokeWidth={2}
                 dot={false}
                 isAnimationActive={false}
-                name="Momentum"
+                name="Daily Strength"
               />
             </LineChart>
           </ResponsiveContainer>
@@ -122,21 +129,28 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
 
 // Helper component for industry momentum chart
 const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
+  const industryName = industry?.industry;
+
   const { data: trendDataResponse, isLoading } = useQuery({
-    queryKey: [`momentum-trend-industry`, industry.industry],
+    queryKey: [`momentum-trend-industry`, industryName],
     queryFn: async () => {
       try {
+        if (!industryName) {
+          console.warn('No industry name provided to IndustryMomentumChart');
+          return { trendData: [] };
+        }
         const response = await api.get(
-          `/api/sectors/trend/industry/${encodeURIComponent(industry.industry)}`
+          `/api/sectors/trend/industry/${encodeURIComponent(industryName)}`
         );
-        return response.data || {};
+        console.log(`Industry momentum data for ${industryName}:`, response.data?.trendData?.length || 0, 'rows');
+        return response.data || { trendData: [] };
       } catch (err) {
-        console.error('Momentum fetch error:', err);
-        return {};
+        console.error(`Momentum fetch error for ${industryName}:`, err.message);
+        return { trendData: [] };
       }
     },
     staleTime: 300000,
-    enabled: !!industry.industry,
+    enabled: !!industryName,
     retry: false,
   });
 
@@ -145,7 +159,7 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
 
   let momentumData = trendArray.map(row => ({
     date: row.label || row.date,
-    momentum: parseFloat(row.momentumScore || row.momentum || 0)
+    momentum: parseFloat(row.dailyStrengthScore || row.momentumScore || row.momentum || 0)
   }));
 
   console.log(`[MOMENTUM CHART - INDUSTRY] ${industry.industry}: ${trendArray.length} rows, ${momentumData.length} mapped points`, momentumData.slice(0, 3));
@@ -158,7 +172,7 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
   return (
     <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2, minHeight: 300 }}>
       <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-        ⚡ Momentum Score
+        ⚡ Daily Strength Score
       </Typography>
       {isLoading ? (
         <Box display="flex" justifyContent="center" alignItems="center" minHeight={250}>
@@ -183,7 +197,7 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
                 strokeWidth={2}
                 dot={false}
                 isAnimationActive={false}
-                name="Momentum"
+                name="Daily Strength"
               />
             </LineChart>
           </ResponsiveContainer>
@@ -572,6 +586,7 @@ const SectorAnalysis = () => {
             date: row.date,
             label: row.label,
             rank: row.rank,
+            momentum: row.momentum,
             weekStart: currentWeek.toISOString().split('T')[0]
           });
         } else {
@@ -580,6 +595,7 @@ const SectorAnalysis = () => {
             date: row.date,
             label: row.label,
             rank: row.rank,
+            momentum: row.momentum,
             weekStart: currentWeek.toISOString().split('T')[0]
           };
         }
@@ -589,7 +605,8 @@ const SectorAnalysis = () => {
       }
     }
 
-    return weeklyData.length > 0 ? weeklyData : dailyData;
+    // Sort by date to ensure proper chronological order in the chart
+    return weeklyData.length > 0 ? weeklyData.sort((a, b) => new Date(a.date) - new Date(b.date)) : dailyData;
   };
 
   // Detailed ranking trend chart showing rank changes over time
@@ -637,7 +654,7 @@ const SectorAnalysis = () => {
       date: row.date,
       label: row.label,
       rank: row.rank,
-      momentumScore: parseFloat(row.momentumScore || row.momentum || 0)
+      momentum: parseFloat(row.dailyStrengthScore || row.momentumScore || row.momentum || 0)
     }));
 
     const name = type === "sector" ? (sectorOrIndustry.sector_name || sectorOrIndustry.sector) : sectorOrIndustry.industry;
@@ -647,7 +664,7 @@ const SectorAnalysis = () => {
       const uniqueRanks = [...new Set(history.map(h => h.rank))];
       console.log(`[RANK TREND DEBUG] ${type}=${name} - Total points: ${history.length}, Unique ranks: ${uniqueRanks.length}`, {
         ranks: uniqueRanks.slice(0, 10),
-        sample: history.slice(0, 3).map(h => ({ date: h.date, rank: h.rank, momentum: h.momentumScore }))
+        sample: history.slice(0, 3).map(h => ({ date: h.date, rank: h.rank, momentum: h.momentum }))
       });
     }
 
@@ -1356,7 +1373,7 @@ const SectorAnalysis = () => {
                 <BarChart color="primary" />
                 Sector Performance Today
               </Typography>
-              <Box height={400}>
+              <Box width="100%" height={400} sx={{ overflow: "hidden" }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <RechartsBarChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -1564,7 +1581,7 @@ const SectorAnalysis = () => {
                         </Grid>
                         <Grid item xs={3} sm={1.2}>
                           <Typography variant="h6" align="center">
-                            {sector.trend || "—"}
+                            {sector.current_trend || sector.trend || "—"}
                           </Typography>
                         </Grid>
                         <Grid item xs={3} sm={1}>
@@ -1732,7 +1749,7 @@ const SectorAnalysis = () => {
                       <Typography variant="caption" fontWeight="bold" align="center">Momentum</Typography>
                     </Grid>
                     <Grid item xs={2} sm={1.2}>
-                      <Typography variant="caption" fontWeight="bold" align="center">Status</Typography>
+                      <Typography variant="caption" fontWeight="bold" align="center">Trend</Typography>
                     </Grid>
                     <Grid item xs={2} sm={0.8}>
                       <Typography variant="caption" fontWeight="bold" align="right">1D%</Typography>
@@ -1815,7 +1832,7 @@ const SectorAnalysis = () => {
                         </Grid>
                         <Grid item xs={2} sm={1.2} sx={{ display: "flex", justifyContent: "center" }}>
                           <Typography variant="h6" align="center">
-                            {industry.trend || "—"}
+                            {industry.current_trend || industry.trend || "—"}
                           </Typography>
                         </Grid>
                         <Grid item xs={2} sm={0.8}>

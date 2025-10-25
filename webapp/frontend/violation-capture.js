@@ -35,7 +35,6 @@ async function captureAndAnalyzeViolations() {
     { name: 'Trading Signals', url: 'trading-signals' },
     { name: 'Watchlist', url: 'watchlist' },
     { name: 'Earnings Calendar', url: 'earnings-calendar' },
-    { name: 'Backtest', url: 'backtest' },
     { name: 'Advanced Screener', url: 'screener' },
     { name: 'Financial Data', url: 'financial-data' },
     { name: 'Service Health', url: 'service-health' },

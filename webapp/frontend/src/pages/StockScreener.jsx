@@ -50,6 +50,8 @@ import {
   TrendingDown,
   ShowChart,
   BookmarkBorder,
+  ArrowUpward,
+  ArrowDownward,
 } from "@mui/icons-material";
 
 // Create component-specific logger

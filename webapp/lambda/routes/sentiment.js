@@ -541,22 +541,107 @@ router.get("/social/:symbol", async (req, res) => {
   const { symbol } = req.params;
   try {
     console.log(
-      `📱 Social sentiment for ${symbol} requested - not implemented`
+      `📱 Social sentiment for ${symbol} requested`
     );
 
-    res.status(501).json({
-      success: false,
-      error: "Social sentiment data not available for symbol",
-      message: `Social media sentiment analysis for ${symbol} is not yet implemented`,
-      data_source: "Twitter API v2, Reddit API, Discord webhooks",
+    if (!symbol || symbol.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        error: "Symbol parameter required",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const targetSymbol = symbol.trim().toUpperCase();
+
+    // Query social sentiment data from sentiment table
+    const result = await query(`
+      SELECT
+        symbol,
+        date,
+        sentiment_score,
+        positive_mentions,
+        negative_mentions,
+        neutral_mentions,
+        total_mentions,
+        source,
+        fetched_at
+      FROM sentiment
+      WHERE symbol = $1
+        AND (source ILIKE '%reddit%' OR source ILIKE '%social%' OR source ILIKE '%twitter%')
+      ORDER BY date DESC
+      LIMIT 50
+    `, [targetSymbol]);
+
+    if (!result || !result.rows || result.rows.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          symbol: targetSymbol,
+          reddit_sentiment: null,
+          social_sentiment: null,
+          posts: [],
+          summary: {
+            total_posts: 0,
+            total_engagement: 0,
+            average_sentiment: null,
+            sentiment_breakdown: {
+              positive: 0,
+              neutral: 0,
+              negative: 0
+            }
+          }
+        },
+        message: `No social sentiment data available for ${targetSymbol}`,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Process social sentiment data
+    const socialData = result.rows;
+    const positive = socialData.filter(p => parseFloat(p.sentiment_score) > 0.3).length;
+    const negative = socialData.filter(p => parseFloat(p.sentiment_score) < -0.3).length;
+    const neutral = socialData.length - positive - negative;
+    const avgSentiment = socialData.reduce((sum, p) => sum + parseFloat(p.sentiment_score || 0), 0) / socialData.length;
+    const totalMentions = socialData.reduce((sum, p) => sum + (parseInt(p.total_mentions) || 0), 0);
+
+    res.json({
+      success: true,
+      data: {
+        symbol: targetSymbol,
+        reddit_sentiment: avgSentiment,
+        social_sentiment: avgSentiment,
+        posts: socialData.map(row => ({
+          date: row.date,
+          sentiment_score: parseFloat(row.sentiment_score),
+          positive_mentions: parseInt(row.positive_mentions) || 0,
+          negative_mentions: parseInt(row.negative_mentions) || 0,
+          neutral_mentions: parseInt(row.neutral_mentions) || 0,
+          total_mentions: parseInt(row.total_mentions) || 0,
+          source: row.source || "Unknown",
+          sentiment_label: parseFloat(row.sentiment_score) > 0.3 ? "positive" : parseFloat(row.sentiment_score) < -0.3 ? "negative" : "neutral"
+        })),
+        summary: {
+          total_posts: socialData.length,
+          total_engagement: totalMentions,
+          average_sentiment: parseFloat(avgSentiment.toFixed(4)),
+          sentiment_breakdown: {
+            positive: positive,
+            neutral: neutral,
+            negative: negative
+          },
+          last_updated: socialData[0]?.fetched_at || new Date().toISOString()
+        }
+      },
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error(`Social sentiment error for ${symbol}:`, error);
-    res.json({
+    res.status(500).json({
       success: false,
       error: `Failed to fetch social sentiment data for ${symbol}`,
       details: error.message,
+      timestamp: new Date().toISOString(),
     });
   }
 });
@@ -720,39 +805,145 @@ router.get("/market", async (req, res) => {
   }
 });
 
-// Stock-specific sentiment data
+// Stock-specific sentiment data - unified endpoint returning all sentiment sources
 router.get("/stocks", async (req, res) => {
   try {
     const { symbol } = req.query;
 
     console.log(`📊 Stock sentiment requested, symbol: ${symbol || 'all'}`);
 
-    let sentimentQuery;
-    let params = [];
+    let allData = [];
 
-    if (symbol) {
-      sentimentQuery = `
-        SELECT symbol, date, sentiment_score, positive_mentions, negative_mentions,
-               neutral_mentions, total_mentions, source, fetched_at
-        FROM sentiment
-        WHERE symbol = $1
-        ORDER BY date DESC
-        LIMIT 100
-      `;
-      params = [symbol.toUpperCase()];
-    } else {
-      sentimentQuery = `
-        SELECT symbol, date, sentiment_score, positive_mentions, negative_mentions,
-               neutral_mentions, total_mentions, source, fetched_at
-        FROM sentiment
-        ORDER BY date DESC, symbol
-        LIMIT 100
-      `;
+    // Query 1: Technical sentiment from sentiment table
+    try {
+      let technicalQuery;
+      let params = [];
+
+      if (symbol) {
+        technicalQuery = `
+          SELECT symbol, date, sentiment_score, positive_mentions, negative_mentions,
+                 neutral_mentions, total_mentions, source, fetched_at
+          FROM sentiment
+          WHERE symbol = $1
+          ORDER BY date DESC
+          LIMIT 100
+        `;
+        params = [symbol.toUpperCase()];
+      } else {
+        technicalQuery = `
+          SELECT symbol, date, sentiment_score, positive_mentions, negative_mentions,
+                 neutral_mentions, total_mentions, source, fetched_at
+          FROM sentiment
+          ORDER BY date DESC, symbol
+          LIMIT 100
+        `;
+      }
+
+      const technicalResult = await query(technicalQuery, params);
+      if (technicalResult && technicalResult.rows) {
+        allData = allData.concat(technicalResult.rows.map(row => ({
+          symbol: row.symbol,
+          date: row.date,
+          sentiment_score: row.sentiment_score ? parseFloat(row.sentiment_score) : null,
+          positive_mentions: row.positive_mentions || 0,
+          negative_mentions: row.negative_mentions || 0,
+          neutral_mentions: row.neutral_mentions || 0,
+          total_mentions: row.total_mentions || 0,
+          source: row.source || "technical",
+        })));
+      }
+    } catch (err) {
+      console.warn("Warning: Failed to fetch technical sentiment data:", err.message);
     }
 
-    const result = await query(sentimentQuery, params);
+    // Query 2: Analyst sentiment from analyst_sentiment_analysis table
+    try {
+      let analystQuery;
+      let params = [];
 
-    if (!result || !result.rows || result.rows.length === 0) {
+      if (symbol) {
+        analystQuery = `
+          SELECT symbol, date, recommendation_mean as sentiment_score,
+                 analyst_count as total_analysts, 'analyst' as source
+          FROM analyst_sentiment_analysis
+          WHERE symbol = $1
+          ORDER BY date DESC
+          LIMIT 100
+        `;
+        params = [symbol.toUpperCase()];
+      } else {
+        analystQuery = `
+          SELECT symbol, date, recommendation_mean as sentiment_score,
+                 analyst_count as total_analysts, 'analyst' as source
+          FROM analyst_sentiment_analysis
+          ORDER BY date DESC, symbol
+          LIMIT 100
+        `;
+      }
+
+      const analystResult = await query(analystQuery, params);
+      if (analystResult && analystResult.rows) {
+        allData = allData.concat(analystResult.rows.map(row => ({
+          symbol: row.symbol,
+          date: row.date,
+          sentiment_score: row.sentiment_score ? parseFloat(row.sentiment_score) : null,
+          source: "analyst",
+          metadata: {
+            analyst_count: row.total_analysts || 0
+          }
+        })));
+      }
+    } catch (err) {
+      console.warn("Warning: Failed to fetch analyst sentiment data:", err.message);
+    }
+
+    // Query 3: Social/Reddit sentiment from social_sentiment_analysis table
+    try {
+      let socialQuery;
+      let params = [];
+
+      if (symbol) {
+        socialQuery = `
+          SELECT symbol, date, reddit_sentiment_score as sentiment_score, news_sentiment_score, search_volume_index, news_article_count, 'social' as source
+          FROM social_sentiment_analysis
+          WHERE symbol = $1
+          ORDER BY date DESC
+          LIMIT 100
+        `;
+        params = [symbol.toUpperCase()];
+      } else {
+        socialQuery = `
+          SELECT symbol, date, reddit_sentiment_score as sentiment_score, news_sentiment_score, search_volume_index, news_article_count, 'social' as source
+          FROM social_sentiment_analysis
+          ORDER BY date DESC, symbol
+          LIMIT 100
+        `;
+      }
+
+      const socialResult = await query(socialQuery, params);
+      if (socialResult && socialResult.rows) {
+        allData = allData.concat(socialResult.rows.map(row => ({
+          symbol: row.symbol,
+          date: row.date,
+          sentiment_score: row.sentiment_score ? parseFloat(row.sentiment_score) : null,
+          news_sentiment_score: row.news_sentiment_score ? parseFloat(row.news_sentiment_score) : null,
+          search_volume_index: row.search_volume_index || 0,
+          news_article_count: row.news_article_count || 0,
+          source: "social",
+        })));
+      }
+    } catch (err) {
+      console.warn("Warning: Failed to fetch social sentiment data:", err.message);
+    }
+
+    // Sort combined results by date descending
+    allData.sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return dateB - dateA;
+    });
+
+    if (!allData || allData.length === 0) {
       return res.json({
         success: true,
         data: [],
@@ -765,16 +956,7 @@ router.get("/stocks", async (req, res) => {
 
     res.json({
       success: true,
-      data: result.rows.map(row => ({
-        symbol: row.symbol,
-        date: row.date,
-        sentiment_score: row.sentiment_score ? parseFloat(row.sentiment_score) : null,
-        positive_mentions: row.positive_mentions || 0,
-        negative_mentions: row.negative_mentions || 0,
-        neutral_mentions: row.neutral_mentions || 0,
-        total_mentions: row.total_mentions || 0,
-        source: row.source || "Unknown",
-      })),
+      data: allData,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
@@ -788,105 +970,6 @@ router.get("/stocks", async (req, res) => {
   }
 });
 
-// Get all stocks with sentiment data
-router.get("/stocks", async (req, res) => {
-  try {
-    console.log("📊 Fetching all stocks with sentiment data");
-
-    // Query to get sentiment data for all stocks with real company data
-    const result = await query(`
-      SELECT DISTINCT
-        cp.symbol,
-        cp.company_name,
-        cp.sector,
-        MAX(s.date) as last_updated,
-        AVG(CAST(s.news_sentiment_score AS FLOAT)) as news_sentiment,
-        AVG(CAST(s.reddit_sentiment_score AS FLOAT)) as social_sentiment,
-        MAX(s.search_volume_index) as search_volume
-      FROM company_profile cp
-      LEFT JOIN sentiment s ON cp.symbol = s.symbol
-        AND s.date >= CURRENT_DATE - INTERVAL '30 days'
-      WHERE cp.symbol IS NOT NULL
-      GROUP BY cp.symbol, cp.company_name, cp.sector
-      ORDER BY cp.symbol
-      LIMIT 5000
-    `);
-
-    if (!result || !result.rows) {
-      return res.status(500).json({
-        success: false,
-        error: "Database query failed",
-        message: "Unable to fetch sentiment data",
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    // Transform data for frontend
-    const sentimentStocks = result.rows.map(row => {
-      const newsSentiment = row.news_sentiment ? parseFloat(row.news_sentiment) : null;
-      const socialSentiment = row.social_sentiment ? parseFloat(row.social_sentiment) : null;
-
-      // Calculate composite sentiment (if any data available)
-      let compositeSentiment = null;
-      let sentimentLabel = "Unknown";
-
-      if (newsSentiment !== null || socialSentiment !== null) {
-        const scores = [newsSentiment, socialSentiment].filter(s => s !== null);
-        if (scores.length > 0) {
-          compositeSentiment = scores.reduce((a, b) => a + b, 0) / scores.length;
-
-          if (compositeSentiment > 0.3) {
-            sentimentLabel = "Bullish";
-          } else if (compositeSentiment < -0.3) {
-            sentimentLabel = "Bearish";
-          } else {
-            sentimentLabel = "Neutral";
-          }
-        }
-      }
-
-      return {
-        symbol: row.symbol,
-        company_name: row.company_name,
-        sector: row.sector,
-        sentiment_score: compositeSentiment,
-        sentiment_label: sentimentLabel,
-        news_sentiment: newsSentiment,
-        social_sentiment: socialSentiment,
-        search_volume: row.search_volume ? parseInt(row.search_volume) : null,
-        last_updated: row.last_updated ? row.last_updated.toISOString() : null,
-        has_real_data: newsSentiment !== null || socialSentiment !== null
-      };
-    });
-
-    // Count stocks with real data vs those without
-    const withData = sentimentStocks.filter(s => s.has_real_data).length;
-    const total = sentimentStocks.length;
-
-    console.log(`✅ Successfully fetched sentiment for ${total} stocks (${withData} with real data)`);
-
-    return res.json({
-      success: true,
-      data: sentimentStocks,
-      summary: {
-        total_stocks: total,
-        stocks_with_sentiment_data: withData,
-        stocks_without_sentiment_data: total - withData,
-        data_coverage: withData > 0 ? ((withData / total) * 100).toFixed(1) + "%" : "0%"
-      },
-      timestamp: new Date().toISOString(),
-    });
-
-  } catch (error) {
-    console.error("❌ Sentiment stocks endpoint error:", error.message);
-    return res.status(500).json({
-      success: false,
-      error: "Internal server error",
-      message: error.message,
-      timestamp: new Date().toISOString(),
-    });
-  }
-});
 
 // Catch-all /:symbol endpoint removed - only real data sources allowed
 

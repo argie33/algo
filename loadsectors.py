@@ -231,14 +231,14 @@ def populate_sector_ranking(conn):
                 if len(batch_data) >= batch_size:
                     cursor.executemany("""
                         INSERT INTO sector_ranking
-                        (sector, date, current_rank, rank_1w_ago, rank_4w_ago, rank_12w_ago, momentum_score, trend)
+                        (sector, date, current_rank, rank_1w_ago, rank_4w_ago, rank_12w_ago, daily_strength_score, trend)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT(sector, date) DO UPDATE SET
                             current_rank = EXCLUDED.current_rank,
                             rank_1w_ago = EXCLUDED.rank_1w_ago,
                             rank_4w_ago = EXCLUDED.rank_4w_ago,
                             rank_12w_ago = EXCLUDED.rank_12w_ago,
-                            momentum_score = EXCLUDED.momentum_score,
+                            daily_strength_score = EXCLUDED.daily_strength_score,
                             trend = EXCLUDED.trend
                     """, batch_data)
                     batch_data = []
@@ -250,14 +250,14 @@ def populate_sector_ranking(conn):
         if batch_data:
             cursor.executemany("""
                 INSERT INTO sector_ranking
-                (sector, date, current_rank, rank_1w_ago, rank_4w_ago, rank_12w_ago, momentum_score, trend)
+                (sector, date, current_rank, rank_1w_ago, rank_4w_ago, rank_12w_ago, daily_strength_score, trend)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT(sector, date) DO UPDATE SET
                     current_rank = EXCLUDED.current_rank,
                     rank_1w_ago = EXCLUDED.rank_1w_ago,
                     rank_4w_ago = EXCLUDED.rank_4w_ago,
                     rank_12w_ago = EXCLUDED.rank_12w_ago,
-                    momentum_score = EXCLUDED.momentum_score,
+                    daily_strength_score = EXCLUDED.daily_strength_score,
                     trend = EXCLUDED.trend
             """, batch_data)
 
@@ -407,14 +407,14 @@ def populate_industry_ranking(conn):
                     cursor.executemany("""
                         INSERT INTO industry_ranking
                         (industry, date, current_rank, rank_1w_ago, rank_4w_ago, rank_8w_ago,
-                         momentum_score, stock_count, trend)
+                         daily_strength_score, stock_count, trend)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT(industry, date) DO UPDATE SET
                             current_rank = EXCLUDED.current_rank,
                             rank_1w_ago = EXCLUDED.rank_1w_ago,
                             rank_4w_ago = EXCLUDED.rank_4w_ago,
                             rank_8w_ago = EXCLUDED.rank_8w_ago,
-                            momentum_score = EXCLUDED.momentum_score,
+                            daily_strength_score = EXCLUDED.daily_strength_score,
                             stock_count = EXCLUDED.stock_count,
                             trend = EXCLUDED.trend
                     """, batch_data)
@@ -428,14 +428,14 @@ def populate_industry_ranking(conn):
             cursor.executemany("""
                 INSERT INTO industry_ranking
                 (industry, date, current_rank, rank_1w_ago, rank_4w_ago, rank_8w_ago,
-                 momentum_score, stock_count, trend)
+                 daily_strength_score, stock_count, trend)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT(industry, date) DO UPDATE SET
                     current_rank = EXCLUDED.current_rank,
                     rank_1w_ago = EXCLUDED.rank_1w_ago,
                     rank_4w_ago = EXCLUDED.rank_4w_ago,
                     rank_8w_ago = EXCLUDED.rank_8w_ago,
-                    momentum_score = EXCLUDED.momentum_score,
+                    daily_strength_score = EXCLUDED.daily_strength_score,
                     stock_count = EXCLUDED.stock_count,
                     trend = EXCLUDED.trend
             """, batch_data)

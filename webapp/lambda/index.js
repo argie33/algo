@@ -20,7 +20,6 @@ const alertsRoutes = require("./routes/alerts");
 const analystRoutes = require("./routes/analysts");
 const analyticsRoutes = require("./routes/analytics");
 const authRoutes = require("./routes/auth");
-const backtestRoutes = require("./routes/backtest");
 const calendarRoutes = require("./routes/calendar");
 const commoditiesRoutes = require("./routes/commodities");
 const dashboardRoutes = require("./routes/dashboard");
@@ -56,7 +55,7 @@ const etfRoutes = require("./routes/etf");
 const insiderRoutes = require("./routes/insider");
 const dividendRoutes = require("./routes/dividend");
 const positioningRoutes = require("./routes/positioning");
-const strategyBuilderRoutes = require("./routes/strategyBuilder");
+// const strategyBuilderRoutes = require("./routes/strategyBuilder"); // TODO: Fix missing backtestStore dependency
 const userRoutes = require("./routes/user");
 const debugRoutes = require("./routes/debug");
 
@@ -495,7 +494,6 @@ app.use("/api/alerts", alertsRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/analysts", analystRoutes);
 app.use("/api/auth", authRoutes);
-app.use("/api/backtest", backtestRoutes);
 app.use("/api/calendar", calendarRoutes);
 app.use("/api/commodities", commoditiesRoutes);
 app.use("/api/dashboard", dashboardRoutes);
@@ -525,7 +523,7 @@ app.use("/api/sentiment", sentimentRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/signals", signalsRoutes);
 app.use("/api/stocks", stockRoutes);
-app.use("/api/strategy-builder", strategyBuilderRoutes);
+// app.use("/api/strategy-builder", strategyBuilderRoutes); // TODO: Requires missing backtestStore.js
 app.use("/api/technical", technicalRoutes);
 app.use("/api/trades", tradesRoutes);
 app.use("/api/trading", tradingRoutes);

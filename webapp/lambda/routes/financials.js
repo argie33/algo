@@ -749,23 +749,23 @@ router.get("/:ticker/balance-sheet", async (req, res) => {
         SELECT
           symbol,
           date,
-          MAX(CASE WHEN item_name = 'Total Assets' THEN value ELSE 0 END) as total_assets,
-          MAX(CASE WHEN item_name = 'Current Assets' THEN value ELSE 0 END) as current_assets,
-          MAX(CASE WHEN item_name = 'Cash And Cash Equivalents' THEN value ELSE 0 END) as cash,
-          MAX(CASE WHEN item_name = 'Cash Cash Equivalents And Short Term Investments' THEN value ELSE 0 END) as cash_and_short_term_investments,
-          MAX(CASE WHEN item_name = 'Inventory' THEN value ELSE 0 END) as inventory,
-          MAX(CASE WHEN item_name = 'Receivables' THEN value ELSE 0 END) as receivables,
-          MAX(CASE WHEN item_name = 'Total Liabilities Net Minority Interest' THEN value ELSE 0 END) as total_liabilities,
-          MAX(CASE WHEN item_name = 'Current Liabilities' THEN value ELSE 0 END) as current_liabilities,
-          MAX(CASE WHEN item_name = 'Payables' THEN value ELSE 0 END) as payables,
-          MAX(CASE WHEN item_name = 'Total Debt' THEN value ELSE 0 END) as total_debt,
-          MAX(CASE WHEN item_name = 'Current Debt' THEN value ELSE 0 END) as current_debt,
-          MAX(CASE WHEN item_name = 'Long Term Debt' THEN value ELSE 0 END) as long_term_debt,
-          MAX(CASE WHEN item_name = 'Stockholders Equity' THEN value ELSE 0 END) as stockholders_equity,
-          MAX(CASE WHEN item_name = 'Common Stock' THEN value ELSE 0 END) as common_stock,
-          MAX(CASE WHEN item_name = 'Retained Earnings' THEN value ELSE 0 END) as retained_earnings,
-          MAX(CASE WHEN item_name = 'Intangible Assets' THEN value ELSE 0 END) as intangible_assets,
-          MAX(CASE WHEN item_name = 'Goodwill' THEN value ELSE 0 END) as goodwill
+          MAX(CASE WHEN item_name = 'Total Assets' THEN value ELSE NULL END) as total_assets,
+          MAX(CASE WHEN item_name = 'Current Assets' THEN value ELSE NULL END) as current_assets,
+          MAX(CASE WHEN item_name = 'Cash And Cash Equivalents' THEN value ELSE NULL END) as cash,
+          MAX(CASE WHEN item_name = 'Cash Cash Equivalents And Short Term Investments' THEN value ELSE NULL END) as cash_and_short_term_investments,
+          MAX(CASE WHEN item_name = 'Inventory' THEN value ELSE NULL END) as inventory,
+          MAX(CASE WHEN item_name = 'Receivables' THEN value ELSE NULL END) as receivables,
+          MAX(CASE WHEN item_name = 'Total Liabilities Net Minority Interest' THEN value ELSE NULL END) as total_liabilities,
+          MAX(CASE WHEN item_name = 'Current Liabilities' THEN value ELSE NULL END) as current_liabilities,
+          MAX(CASE WHEN item_name = 'Payables' THEN value ELSE NULL END) as payables,
+          MAX(CASE WHEN item_name = 'Total Debt' THEN value ELSE NULL END) as total_debt,
+          MAX(CASE WHEN item_name = 'Current Debt' THEN value ELSE NULL END) as current_debt,
+          MAX(CASE WHEN item_name = 'Long Term Debt' THEN value ELSE NULL END) as long_term_debt,
+          MAX(CASE WHEN item_name = 'Stockholders Equity' THEN value ELSE NULL END) as stockholders_equity,
+          MAX(CASE WHEN item_name = 'Common Stock' THEN value ELSE NULL END) as common_stock,
+          MAX(CASE WHEN item_name = 'Retained Earnings' THEN value ELSE NULL END) as retained_earnings,
+          MAX(CASE WHEN item_name = 'Intangible Assets' THEN value ELSE NULL END) as intangible_assets,
+          MAX(CASE WHEN item_name = 'Goodwill' THEN value ELSE NULL END) as goodwill
         FROM ${tableName}
         WHERE symbol ILIKE $1
         GROUP BY symbol, date
@@ -924,13 +924,13 @@ router.get("/:ticker/income-statement", async (req, res) => {
         SELECT
           symbol,
           date,
-          MAX(CASE WHEN item_name = 'Total Revenue' THEN value ELSE 0 END) as revenue,
-          MAX(CASE WHEN item_name = 'Gross Profit' THEN value ELSE 0 END) as gross_profit,
-          MAX(CASE WHEN item_name = 'Operating Income' THEN value ELSE 0 END) as operating_income,
-          MAX(CASE WHEN item_name = 'Net Income' THEN value ELSE 0 END) as net_income,
-          MAX(CASE WHEN item_name = 'Basic EPS' THEN value ELSE 0 END) as earnings_per_share,
-          MAX(CASE WHEN item_name = 'Cost Of Revenue' THEN value ELSE 0 END) as cost_of_revenue,
-          MAX(CASE WHEN item_name = 'Operating Expense' THEN value ELSE 0 END) as operating_expenses
+          MAX(CASE WHEN item_name = 'Total Revenue' THEN value ELSE NULL END) as revenue,
+          MAX(CASE WHEN item_name = 'Gross Profit' THEN value ELSE NULL END) as gross_profit,
+          MAX(CASE WHEN item_name = 'Operating Income' THEN value ELSE NULL END) as operating_income,
+          MAX(CASE WHEN item_name = 'Net Income' THEN value ELSE NULL END) as net_income,
+          MAX(CASE WHEN item_name = 'Basic EPS' THEN value ELSE NULL END) as earnings_per_share,
+          MAX(CASE WHEN item_name = 'Cost Of Revenue' THEN value ELSE NULL END) as cost_of_revenue,
+          MAX(CASE WHEN item_name = 'Operating Expense' THEN value ELSE NULL END) as operating_expenses
         FROM ${tableName}
         WHERE symbol ILIKE $1
         GROUP BY symbol, date
@@ -1073,19 +1073,19 @@ router.get("/:ticker/cash-flow", async (req, res) => {
         SELECT
           symbol,
           date,
-          MAX(CASE WHEN item_name = 'Operating Cash Flow' THEN value ELSE 0 END) as operating_cash_flow,
-          MAX(CASE WHEN item_name = 'Investing Cash Flow' THEN value ELSE 0 END) as investing_cash_flow,
-          MAX(CASE WHEN item_name = 'Financing Cash Flow' THEN value ELSE 0 END) as financing_cash_flow,
-          MAX(CASE WHEN item_name = 'Free Cash Flow' THEN value ELSE 0 END) as free_cash_flow,
-          MAX(CASE WHEN item_name = 'Capital Expenditure' THEN value ELSE 0 END) as capital_expenditure,
-          MAX(CASE WHEN item_name = 'Net Income From Continuing Operations' THEN value ELSE 0 END) as net_income,
-          MAX(CASE WHEN item_name = 'Depreciation And Amortization' THEN value ELSE 0 END) as depreciation_amortization,
-          MAX(CASE WHEN item_name = 'Stock Based Compensation' THEN value ELSE 0 END) as stock_based_compensation,
-          MAX(CASE WHEN item_name = 'Change In Working Capital' THEN value ELSE 0 END) as change_in_working_capital,
-          MAX(CASE WHEN item_name = 'Cash Dividends Paid' THEN value ELSE 0 END) as dividends_paid,
-          MAX(CASE WHEN item_name = 'Repurchase Of Capital Stock' THEN value ELSE 0 END) as stock_repurchases,
-          MAX(CASE WHEN item_name = 'Issuance Of Debt' THEN value ELSE 0 END) as debt_issuance,
-          MAX(CASE WHEN item_name = 'Repayment Of Debt' THEN value ELSE 0 END) as debt_repayment
+          MAX(CASE WHEN item_name = 'Operating Cash Flow' THEN value ELSE NULL END) as operating_cash_flow,
+          MAX(CASE WHEN item_name = 'Investing Cash Flow' THEN value ELSE NULL END) as investing_cash_flow,
+          MAX(CASE WHEN item_name = 'Financing Cash Flow' THEN value ELSE NULL END) as financing_cash_flow,
+          MAX(CASE WHEN item_name = 'Free Cash Flow' THEN value ELSE NULL END) as free_cash_flow,
+          MAX(CASE WHEN item_name = 'Capital Expenditure' THEN value ELSE NULL END) as capital_expenditure,
+          MAX(CASE WHEN item_name = 'Net Income From Continuing Operations' THEN value ELSE NULL END) as net_income,
+          MAX(CASE WHEN item_name = 'Depreciation And Amortization' THEN value ELSE NULL END) as depreciation_amortization,
+          MAX(CASE WHEN item_name = 'Stock Based Compensation' THEN value ELSE NULL END) as stock_based_compensation,
+          MAX(CASE WHEN item_name = 'Change In Working Capital' THEN value ELSE NULL END) as change_in_working_capital,
+          MAX(CASE WHEN item_name = 'Cash Dividends Paid' THEN value ELSE NULL END) as dividends_paid,
+          MAX(CASE WHEN item_name = 'Repurchase Of Capital Stock' THEN value ELSE NULL END) as stock_repurchases,
+          MAX(CASE WHEN item_name = 'Issuance Of Debt' THEN value ELSE NULL END) as debt_issuance,
+          MAX(CASE WHEN item_name = 'Repayment Of Debt' THEN value ELSE NULL END) as debt_repayment
         FROM ${tableName}
         WHERE symbol ILIKE $1
         GROUP BY symbol, date

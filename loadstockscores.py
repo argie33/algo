@@ -725,6 +725,9 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         if price_data:
             df = pd.DataFrame(price_data, columns=['date', 'open', 'high', 'low', 'close', 'volume', 'adj_close'])
             df = df.sort_values('date')  # Sort chronologically for calculations
+            # Convert all numeric columns to float to avoid Decimal type issues
+            for col in ['open', 'high', 'low', 'close', 'volume', 'adj_close']:
+                df[col] = df[col].astype(float)
             current_price = float(df['close'].iloc[-1])
         else:
             df = pd.DataFrame()  # Empty dataframe
@@ -740,7 +743,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
         # Get latest technical data including momentum indicators
         cur.execute("""
-            SELECT rsi, macd, macd_hist, sma_20, sma_50, atr, mom, roc
+            SELECT rsi, macd, macd_hist, sma_20, sma_50, sma_200, atr, mom, roc
             FROM technical_data_daily
             WHERE symbol = %s
             ORDER BY date DESC
@@ -748,8 +751,18 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         """, (symbol,))
 
         tech_data = cur.fetchone()
-        if tech_data and len(tech_data) >= 8:
-            rsi, macd, macd_hist, sma_20, sma_50, atr, mom_10d, roc_10d = tech_data
+        if tech_data and len(tech_data) >= 9:
+            # Convert Decimal types from PostgreSQL to float immediately after fetching
+            raw_rsi, raw_macd, raw_macd_hist, raw_sma_20, raw_sma_50, raw_sma_200, raw_atr, raw_mom_10d, raw_roc_10d = tech_data
+            rsi = float(raw_rsi) if raw_rsi is not None else None
+            macd = float(raw_macd) if raw_macd is not None else None
+            macd_hist = float(raw_macd_hist) if raw_macd_hist is not None else None
+            sma_20 = float(raw_sma_20) if raw_sma_20 is not None else None
+            sma_50 = float(raw_sma_50) if raw_sma_50 is not None else None
+            sma_200 = float(raw_sma_200) if raw_sma_200 is not None else None
+            atr = float(raw_atr) if raw_atr is not None else None
+            mom_10d = float(raw_mom_10d) if raw_mom_10d is not None else None
+            roc_10d = float(raw_roc_10d) if raw_roc_10d is not None else None
             roc_20d = None
             roc_60d = None
             roc_120d = None
@@ -785,9 +798,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
         # Get dual momentum metrics from momentum_metrics table
         cur.execute("""
-            SELECT momentum_12m_1, momentum_6m, momentum_3m, risk_adjusted_momentum,
-                   price_vs_sma_50, price_vs_sma_200, price_vs_52w_high,
-                   volatility_12m
+            SELECT momentum_12_3, momentum_6m, momentum_3m, risk_adjusted_momentum
             FROM momentum_metrics
             WHERE symbol = %s
             ORDER BY date DESC
@@ -795,19 +806,19 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         """, (symbol,))
 
         momentum_data = cur.fetchone()
-        if momentum_data and len(momentum_data) >= 8:
-            momentum_12m_1, momentum_6m, momentum_3m, risk_adjusted_momentum, \
-            price_vs_sma_50, price_vs_sma_200, price_vs_52w_high, volatility_12m = momentum_data
+        if momentum_data and len(momentum_data) >= 4:
+            # Convert Decimal types from PostgreSQL to float immediately after fetching
+            raw_momentum_12m_1, raw_momentum_6m, raw_momentum_3m, raw_risk_adj_momentum = momentum_data
+            momentum_12m_1 = float(raw_momentum_12m_1) if raw_momentum_12m_1 is not None else None
+            momentum_6m = float(raw_momentum_6m) if raw_momentum_6m is not None else None
+            momentum_3m = float(raw_momentum_3m) if raw_momentum_3m is not None else None
+            risk_adjusted_momentum = float(raw_risk_adj_momentum) if raw_risk_adj_momentum is not None else None
         else:
             # No dual momentum data available
             momentum_12m_1 = None
             momentum_6m = None
             momentum_3m = None
             risk_adjusted_momentum = None
-            price_vs_sma_50 = None
-            price_vs_sma_200 = None
-            price_vs_52w_high = None
-            volatility_12m = None
 
         if len(df) > 0:
             prices = df['close'].astype(float).values
@@ -1196,6 +1207,28 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         # Based on academic momentum research (Jegadeesh & Titman, AQR, Dimensional)
         # ============================================================
 
+        # Convert all technical indicators from Decimal to float to avoid type mismatches
+        # PostgreSQL returns numeric values as Decimal objects that don't work with Python floats
+        try:
+            if 'rsi' in locals() and rsi is not None:
+                rsi = float(rsi)
+            if 'macd' in locals() and macd is not None:
+                macd = float(macd)
+            if 'macd_hist' in locals() and macd_hist is not None:
+                macd_hist = float(macd_hist)
+            if 'current_price' in locals() and current_price is not None:
+                current_price = float(current_price)
+            if 'sma_50' in locals() and sma_50 is not None:
+                sma_50 = float(sma_50)
+            if 'momentum_3m' in locals() and momentum_3m is not None:
+                momentum_3m = float(momentum_3m)
+            if 'momentum_6m' in locals() and momentum_6m is not None:
+                momentum_6m = float(momentum_6m)
+            if 'momentum_12m' in locals() and momentum_12m is not None:
+                momentum_12m = float(momentum_12m)
+        except (ValueError, TypeError) as e:
+            logger.warning(f"{symbol}: Type conversion warning in momentum score - {e}")
+
         # Component 1: Intraweek Trend Confirmation (10 points) - Technical Indicators
         # Confirms current momentum through RSI, MACD, and price vs SMA50
         intraweek_confirmation = 5  # Start neutral
@@ -1227,6 +1260,18 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             # Bonus for MACD histogram (momentum acceleration)
             if macd_hist and macd_hist > 0:
                 macd_score = min(3, macd_score + 0.25)
+
+        # Calculate price vs SMA50 deviation if not already available
+        price_vs_sma_50 = None
+        if current_price is not None and sma_50 is not None and sma_50 > 0:
+            # Values are already converted to float in the conversion block above
+            price_vs_sma_50 = ((current_price - sma_50) / sma_50) * 100
+
+        # Calculate price vs SMA200 deviation if not already available
+        price_vs_sma_200 = None
+        if current_price is not None and sma_200 is not None and sma_200 > 0:
+            # Values are already converted to float from price_data
+            price_vs_sma_200 = ((current_price - sma_200) / sma_200) * 100
 
         # Price vs SMA50 sub-component (0-3 points) - trend confirmation
         sma50_score = 1.5  # Default neutral
@@ -1839,19 +1884,20 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         # Try to save partial score if we have at least SOME calculated scores
         try:
             # Create minimal fallback score with any calculated components
+            # Convert all numpy types to native Python types
             fallback_score = {
                 'symbol': symbol,
                 'composite_score': None,
-                'momentum_score': momentum_score if 'momentum_score' in locals() else None,
-                'value_score': value_score if 'value_score' in locals() else None,
-                'quality_score': quality_score if 'quality_score' in locals() else None,
-                'growth_score': growth_score if 'growth_score' in locals() else None,
-                'positioning_score': positioning_score if 'positioning_score' in locals() else None,
-                'sentiment_score': sentiment_score if 'sentiment_score' in locals() else None,
-                'stability_score': risk_stability_score if 'risk_stability_score' in locals() else None,
+                'momentum_score': float(momentum_score) if 'momentum_score' in locals() and momentum_score is not None else None,
+                'value_score': float(value_score) if 'value_score' in locals() and value_score is not None else None,
+                'quality_score': float(quality_score) if 'quality_score' in locals() and quality_score is not None else None,
+                'growth_score': float(growth_score) if 'growth_score' in locals() and growth_score is not None else None,
+                'positioning_score': float(positioning_score) if 'positioning_score' in locals() and positioning_score is not None else None,
+                'sentiment_score': float(sentiment_score) if 'sentiment_score' in locals() and sentiment_score is not None else None,
+                'stability_score': float(risk_stability_score) if 'risk_stability_score' in locals() and risk_stability_score is not None else None,
                 'stability_inputs': None,
-                'rsi': rsi if 'rsi' in locals() else None,
-                'macd': macd if 'macd' in locals() else None,
+                'rsi': float(rsi) if 'rsi' in locals() and rsi is not None else None,
+                'macd': float(macd) if 'macd' in locals() and macd is not None else None,
                 'sma_20': float(round(float(sma_20), 2)) if 'sma_20' in locals() and sma_20 else None,
                 'sma_50': float(round(float(sma_50), 2)) if 'sma_50' in locals() and sma_50 else None,
                 'volume_avg_30d': int(volume_avg_30d) if 'volume_avg_30d' in locals() and volume_avg_30d is not None else None,

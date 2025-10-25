@@ -417,15 +417,15 @@ router.get("/overview-fixed", async (req, res) => {
     let breadthData = null;
     try {
       const breadthQuery = `
-        SELECT 
+        SELECT
           COUNT(*) as total_stocks,
-          COUNT(CASE WHEN (CASE WHEN change_percent IS NOT NULL THEN change_percent ELSE 0 END) > 0 THEN 1 END) as advancing,
-          COUNT(CASE WHEN (CASE WHEN change_percent IS NOT NULL THEN change_percent ELSE 0 END) < 0 THEN 1 END) as declining,
-          COUNT(CASE WHEN (CASE WHEN change_percent IS NOT NULL THEN change_percent ELSE 0 END) = 0 THEN 1 END) as unchanged,
-          AVG(CASE WHEN change_percent IS NOT NULL THEN change_percent ELSE 0 END) as average_change_percent
+          COUNT(CASE WHEN change_percent > 0 THEN 1 END) as advancing,
+          COUNT(CASE WHEN change_percent < 0 THEN 1 END) as declining,
+          COUNT(CASE WHEN change_percent = 0 THEN 1 END) as unchanged,
+          AVG(change_percent) as average_change_percent
         FROM price_daily
         WHERE date >= CURRENT_DATE - INTERVAL '7 days'
-          AND CASE WHEN change_percent IS NOT NULL THEN change_percent ELSE 0 END IS NOT NULL
+          AND change_percent IS NOT NULL
       `;
       const breadthResult = await query(breadthQuery);
       console.log("Fixed market breadth query result:", breadthResult.rows);
@@ -2437,12 +2437,12 @@ router.get("/volatility", async (req, res) => {
 
     // Calculate market volatility from all stocks
     const marketVolatilityQuery = `
-      SELECT 
-        STDDEV(CASE WHEN change_percent IS NOT NULL THEN change_percent ELSE 0 END) as market_volatility,
-        AVG(ABS(CASE WHEN change_percent IS NOT NULL THEN change_percent ELSE 0 END)) as avg_absolute_change
+      SELECT
+        STDDEV(change_percent) as market_volatility,
+        AVG(ABS(change_percent)) as avg_absolute_change
       FROM price_daily
       WHERE date >= CURRENT_DATE - INTERVAL '7 days'
-        AND CASE WHEN change_percent IS NOT NULL THEN change_percent ELSE 0 END IS NOT NULL
+        AND change_percent IS NOT NULL
     `;
 
     const _volatilityResult = await query(marketVolatilityQuery);
@@ -2561,13 +2561,14 @@ router.get("/indicators", async (req, res) => {
 
     // Get market breadth
     const breadthQuery = `
-      SELECT 
+      SELECT
         COUNT(*) as total_stocks,
-        COUNT(CASE WHEN (CASE WHEN change_percent IS NOT NULL THEN change_percent ELSE 0 END) > 0 THEN 1 END) as advancing,
-        COUNT(CASE WHEN (CASE WHEN change_percent IS NOT NULL THEN change_percent ELSE 0 END) < 0 THEN 1 END) as declining,
-        AVG(CASE WHEN change_percent IS NOT NULL THEN change_percent ELSE 0 END) as avg_change
+        COUNT(CASE WHEN change_percent > 0 THEN 1 END) as advancing,
+        COUNT(CASE WHEN change_percent < 0 THEN 1 END) as declining,
+        AVG(change_percent) as avg_change
       FROM price_daily
       WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+        AND change_percent IS NOT NULL
     `;
 
     const breadthResult = await query(breadthQuery);
@@ -4831,7 +4832,7 @@ router.get("/movers", async (req, res) => {
           SELECT
             p1.symbol,
             p1.close as current_close,
-            COALESCE(p2.close, p1.close) as prev_close,
+            p2.close as prev_close,
             p1.volume,
             p1.date
           FROM price_daily p1
@@ -4867,7 +4868,7 @@ router.get("/movers", async (req, res) => {
           SELECT
             p1.symbol,
             p1.close as current_close,
-            COALESCE(p2.close, p1.close) as prev_close,
+            p2.close as prev_close,
             p1.volume,
             p1.date
           FROM price_daily p1
@@ -4903,7 +4904,7 @@ router.get("/movers", async (req, res) => {
           SELECT
             p1.symbol,
             p1.close as current_close,
-            COALESCE(p2.close, p1.close) as prev_close,
+            p2.close as prev_close,
             p1.volume,
             p1.date
           FROM price_daily p1
@@ -4937,7 +4938,7 @@ router.get("/movers", async (req, res) => {
             SELECT
               p1.symbol,
               p1.close as current_close,
-              COALESCE(p2.close, p1.close) as prev_close,
+              p2.close as prev_close,
               p1.volume,
               p1.date
             FROM price_daily p1
@@ -4976,7 +4977,7 @@ router.get("/movers", async (req, res) => {
             SELECT
               p1.symbol,
               p1.close as current_close,
-              COALESCE(p2.close, p1.close) as prev_close,
+              p2.close as prev_close,
               p1.volume,
               p1.date
             FROM price_daily p1
@@ -5015,7 +5016,7 @@ router.get("/movers", async (req, res) => {
             SELECT
               p1.symbol,
               p1.close as current_close,
-              COALESCE(p2.close, p1.close) as prev_close,
+              p2.close as prev_close,
               p1.volume,
               p1.date
             FROM price_daily p1

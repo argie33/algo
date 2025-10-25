@@ -59,7 +59,6 @@ import EarningsCalendar from "./pages/EarningsCalendar";
 import FinancialData from "./pages/FinancialData";
 import ServiceHealth from "./pages/ServiceHealth";
 import TechnicalHistory from "./pages/TechnicalHistory";
-import Backtest from "./pages/Backtest";
 import TradingSignals from "./pages/TradingSignals";
 import PortfolioHoldings from "./pages/PortfolioHoldings";
 import PortfolioOptimization from "./pages/PortfolioOptimization";
@@ -67,7 +66,7 @@ import TradeHistory from "./pages/TradeHistory";
 import OrderManagement from "./pages/OrderManagement";
 import Sentiment from "./pages/Sentiment";
 import AnalystInsights from "./pages/AnalystInsights";
-import EconomicModeling from "./pages/EconomicModeling";
+import EconomicDashboard from "./pages/EconomicDashboard";
 import Settings from "./pages/Settings";
 import ScoresDashboard from "./pages/ScoresDashboard";
 import { useAuth } from "./contexts/AuthContext";
@@ -211,13 +210,6 @@ const menuItems = [
     icon: <HealthAndSafetyIcon />,
     path: "/service-health",
     category: "tools",
-  },
-  {
-    text: "Backtester",
-    icon: <PlayArrow />,
-    path: "/backtest",
-    category: "tools",
-    premium: true,
   },
   {
     text: "AI Assistant",
@@ -624,7 +616,7 @@ function App() {
             />
             <Route path="/market" element={<MarketOverview />} />
             <Route path="/scores" element={<ScoresDashboard />} />
-            <Route path="/economic" element={<EconomicModeling />} />
+            <Route path="/economic" element={<EconomicDashboard />} />
             <Route path="/metrics" element={<MetricsDashboard />} />
             <Route path="/stocks" element={<StockExplorer />} />
             <Route path="/stock-explorer" element={<StockExplorer />} />
@@ -635,7 +627,6 @@ function App() {
             <Route path="/technical" element={<TechnicalAnalysis />} />
             <Route path="/technical-analysis" element={<TechnicalAnalysis />} />
             <Route path="/earnings" element={<EarningsCalendar />} />
-            <Route path="/backtest" element={<Backtest />} />
             <Route path="/financial-data" element={<FinancialData />} />
             <Route path="/service-health" element={<ServiceHealth />} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />

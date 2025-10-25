@@ -1389,7 +1389,6 @@ Requirements:
         "ai trading",
         "prediction",
       ],
-      high_frequency: ["hft", "high frequency", "scalping", "microsecond"],
       options: ["options", "calls", "puts", "volatility trading", "gamma"],
       fundamental: ["fundamental", "pe ratio", "earnings", "revenue", "dcf"],
       sentiment: ["sentiment", "news", "social media", "twitter", "reddit"],
@@ -1571,8 +1570,6 @@ Requirements:
       return "statistical_arbitrage";
     if (intent.advancedPatterns?.includes("machine_learning"))
       return "ml_momentum";
-    if (intent.advancedPatterns?.includes("high_frequency"))
-      return "hft_scalping";
     if (intent.advancedPatterns?.includes("options"))
       return "volatility_trading";
     if (intent.advancedPatterns?.includes("fundamental"))
@@ -1609,7 +1606,6 @@ Requirements:
     const advancedTemplates = {
       statistical_arbitrage: this.getStatisticalArbitrageTemplate(),
       ml_momentum: this.getMLMomentumTemplate(),
-      hft_scalping: this.getHFTScalpingTemplate(),
       volatility_trading: this.getVolatilityTradingTemplate(),
       fundamental_analysis: this.getFundamentalAnalysisTemplate(),
       sentiment_trading: this.getSentimentTradingTemplate(),
@@ -1679,8 +1675,6 @@ and incorporates sophisticated quantitative finance techniques.
         "Advanced statistical arbitrage strategy using mean reversion and cointegration analysis",
       ml_momentum:
         "Machine learning-enhanced momentum strategy with predictive analytics",
-      hft_scalping:
-        "High-frequency scalping strategy optimized for micro-movements",
       volatility_trading:
         "Volatility-based trading strategy using options and derivatives",
       fundamental_analysis:
@@ -2206,205 +2200,6 @@ signals = execute_ml_momentum_strategy(symbols, start_date, end_date)
 `;
   }
 
-  getHFTScalpingTemplate() {
-    return `
-import pandas as pd
-import numpy as np
-from collections import deque
-import warnings
-warnings.filterwarnings('ignore')
-
-# High-Frequency Trading Scalping Strategy
-def execute_hft_scalping_strategy(symbols, start_date, end_date):
-    signals = []
-    
-    # HFT Scalping parameters
-    tick_size = 0.01  # Minimum price movement
-    spread_threshold = 0.05  # Minimum bid-ask spread for scalping
-    profit_target = 0.02  # 2% profit target
-    stop_loss = 0.01  # 1% stop loss
-    max_hold_time = 300  # Maximum hold time in seconds (5 minutes)
-    
-    print(f"⚡ Running HFT scalping strategy on {len(symbols)} symbols")
-    
-    for symbol in symbols:
-        # Generate high-frequency synthetic data (1-minute intervals)
-        datetime_range = pd.date_range(start=start_date, end=end_date, freq='1min')
-        np.random.seed(hash(symbol) % 1000)
-        
-        # Create realistic intraday price movements
-        base_price = 100
-        price_changes = np.random.normal(0, 0.001, len(datetime_range))
-        # Add microstructure noise typical of HFT
-        microstructure_noise = np.random.normal(0, 0.0005, len(datetime_range))
-        total_changes = price_changes + microstructure_noise
-        
-        prices = base_price * np.exp(np.cumsum(total_changes))
-        
-        # Simulate bid-ask spread
-        spread_pct = np.random.uniform(0.001, 0.01, len(datetime_range))  # 0.1% to 1%
-        bid_prices = prices * (1 - spread_pct/2)
-        ask_prices = prices * (1 + spread_pct/2)
-        
-        # Simulate volume (higher during market open/close)
-        hour_of_day = datetime_range.hour
-        volume_multiplier = np.where((hour_of_day >= 9) & (hour_of_day <= 10), 2.0,  # Market open
-                            np.where((hour_of_day >= 15) & (hour_of_day <= 16), 1.8,  # Market close
-                            np.where((hour_of_day >= 11) & (hour_of_day <= 14), 1.0, 0.3)))  # Mid-day and off-hours
-        
-        volume = np.random.exponential(1000, len(datetime_range)) * volume_multiplier
-        
-        data = pd.DataFrame({
-            'datetime': datetime_range,
-            'price': prices,
-            'bid': bid_prices,
-            'ask': ask_prices,
-            'volume': volume,
-            'spread': ask_prices - bid_prices
-        })
-        
-        # Calculate HFT indicators
-        data['price_velocity'] = data['price'].diff() / data['price'].shift(1)  # Price momentum
-        data['volume_velocity'] = data['volume'].diff()  # Volume change
-        data['spread_pct'] = data['spread'] / data['price']
-        data['vwap_5min'] = calculate_vwap(data, window=5)  # 5-minute VWAP
-        data['price_vs_vwap'] = (data['price'] - data['vwap_5min']) / data['vwap_5min']
-        
-        # Order book imbalance simulation
-        data['order_imbalance'] = np.random.uniform(-0.5, 0.5, len(data))  # -0.5 to 0.5
-        
-        # Track open positions
-        open_positions = []
-        
-        for i, row in data.iterrows():
-            current_time = row['datetime']
-            
-            # Skip if spread is too wide (not profitable for scalping)
-            if row['spread_pct'] > spread_threshold:
-                continue
-                
-            # Check exit conditions for existing positions first
-            positions_to_close = []
-            for pos in open_positions:
-                time_held = (current_time - pos['entry_time']).total_seconds()
-                current_pnl = (row['price'] - pos['entry_price']) / pos['entry_price']
-                
-                should_close = False
-                close_reason = ''
-                
-                if pos['direction'] == 'long':
-                    if current_pnl >= profit_target:
-                        should_close = True
-                        close_reason = 'profit_target'
-                    elif current_pnl <= -stop_loss:
-                        should_close = True
-                        close_reason = 'stop_loss'
-                elif pos['direction'] == 'short':
-                    if current_pnl <= -profit_target:  # Profit for short position
-                        should_close = True
-                        close_reason = 'profit_target'
-                    elif current_pnl >= stop_loss:
-                        should_close = True
-                        close_reason = 'stop_loss'
-                
-                # Time-based exit
-                if time_held >= max_hold_time:
-                    should_close = True
-                    close_reason = 'time_exit'
-                
-                if should_close:
-                    # Close position
-                    exit_action = 'sell' if pos['direction'] == 'long' else 'buy'
-                    exit_price = row['bid'] if exit_action == 'sell' else row['ask']
-                    
-                    signals.append({
-                        'symbol': symbol,
-                        'action': exit_action,
-                        'quantity': pos['quantity'],
-                        'price': exit_price,
-                        'timestamp': current_time.strftime('%Y-%m-%d %H:%M:%S'),
-                        'signal_type': f'hft_scalping_exit_{close_reason}',
-                        'confidence': 0.9,
-                        'metadata': {
-                            'entry_price': pos['entry_price'],
-                            'pnl_pct': current_pnl * (1 if pos['direction'] == 'long' else -1),
-                            'hold_time_seconds': time_held,
-                            'exit_reason': close_reason
-                        }
-                    })
-                    positions_to_close.append(pos)
-            
-            # Remove closed positions
-            for pos in positions_to_close:
-                open_positions.remove(pos)
-            
-            # Look for new entry opportunities
-            if len(open_positions) < 3:  # Limit concurrent positions
-                entry_signal = None
-                
-                # Scalping entry conditions
-                if (abs(row['price_velocity']) > 0.0005 and  # Sufficient price movement
-                    row['volume'] > data['volume'].quantile(0.7) and  # High volume
-                    abs(row['price_vs_vwap']) < 0.002):  # Price near VWAP
-                    
-                    if row['price_velocity'] > 0 and row['order_imbalance'] > 0.1:
-                        # Long scalp opportunity
-                        entry_signal = {
-                            'direction': 'long',
-                            'action': 'buy',
-                            'price': row['ask'],
-                            'reason': 'momentum_long'
-                        }
-                    elif row['price_velocity'] < 0 and row['order_imbalance'] < -0.1:
-                        # Short scalp opportunity
-                        entry_signal = {
-                            'direction': 'short',
-                            'action': 'sell',
-                            'price': row['bid'],
-                            'reason': 'momentum_short'
-                        }
-                
-                # Execute entry signal
-                if entry_signal:
-                    quantity = min(1000, int(10000 / row['price']))  # Risk-based position sizing
-                    
-                    signals.append({
-                        'symbol': symbol,
-                        'action': entry_signal['action'],
-                        'quantity': quantity,
-                        'price': entry_signal['price'],
-                        'timestamp': current_time.strftime('%Y-%m-%d %H:%M:%S'),
-                        'signal_type': f"hft_scalping_entry_{entry_signal['reason']}",
-                        'confidence': 0.85,
-                        'metadata': {
-                            'spread_pct': row['spread_pct'],
-                            'volume_velocity': row['volume_velocity'],
-                            'price_velocity': row['price_velocity'],
-                            'order_imbalance': row['order_imbalance']
-                        }
-                    })
-                    
-                    # Track position
-                    open_positions.append({
-                        'direction': entry_signal['direction'],
-                        'entry_price': entry_signal['price'],
-                        'entry_time': current_time,
-                        'quantity': quantity
-                    })
-    
-    print(f"⚡ HFT scalping generated {len(signals)} signals")
-    return signals
-
-def calculate_vwap(data, window):
-    """Calculate Volume Weighted Average Price"""
-    typical_price = data['price']  # Using price as proxy for typical price
-    vwap = (typical_price * data['volume']).rolling(window=window).sum() / data['volume'].rolling(window=window).sum()
-    return vwap
-
-# Execute the strategy
-signals = execute_hft_scalping_strategy(symbols, start_date, end_date)
-`;
-  }
 
   getVolatilityTradingTemplate() {
     return `

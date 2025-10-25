@@ -32,55 +32,13 @@ router.post("/login", async (req, res) => {
         .json({ success: false, error: "Missing credentials" });
     }
 
-    // Check if running in local development mode or AWS Cognito is not configured
-    // In test environment, always use local mode to avoid AWS API calls
-    const useLocalMode = process.env.NODE_ENV === "test" || process.env.LOCAL_DEV_MODE === "true" || !process.env.COGNITO_CLIENT_ID;
-
-    if (useLocalMode) {
-      console.log("🔧 DEV: Using development auth for login");
-
-      // Development fallback - generate proper JWT tokens for dev/test
-      if (
-        (username === "devuser" || username === "argeropolos@gmail.com") &&
-        password === "password123"
-      ) {
-        const jwt = require("jsonwebtoken");
-        const secret = process.env.JWT_SECRET || "dev-secret-key";
-
-        const userPayload = {
-          sub: `dev-user-${Date.now()}`,
-          username: username,
-          email: username.includes("@") ? username : `${username}@dev.local`,
-          "cognito:username": username,
-          token_use: "id",
-          auth_time: Math.floor(Date.now() / 1000),
-          iss: "dev-issuer",
-          exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, // 24 hours
-        };
-
-        const accessPayload = {
-          ...userPayload,
-          token_use: "access",
-          scope: "aws.cognito.signin.user.admin",
-        };
-
-        return res.json({
-          accessToken: jwt.sign(accessPayload, secret, { algorithm: "HS256" }),
-          idToken: jwt.sign(userPayload, secret, { algorithm: "HS256" }),
-          refreshToken: jwt.sign(
-            { ...userPayload, token_use: "refresh" },
-            secret,
-            { algorithm: "HS256" }
-          ),
-          expiresIn: 3600,
-          tokenType: "Bearer",
-        });
-      }
-
-      // Invalid credentials
-      return res
-        .status(401)
-        .json({ success: false, error: "Invalid credentials" });
+    // AWS Cognito is REQUIRED - no development fallbacks for real finance
+    if (!process.env.COGNITO_CLIENT_ID) {
+      return res.status(500).json({
+        success: false,
+        error: "Service unavailable",
+        details: "Authentication service not properly configured. Real Cognito required.",
+      });
     }
 
     const command = new InitiateAuthCommand({
@@ -158,10 +116,8 @@ router.post("/login", async (req, res) => {
 router.post("/challenge", async (req, res) => {
   try {
     // Check if AWS Cognito is configured or we're in test environment
-    if (process.env.NODE_ENV === "test" || !process.env.COGNITO_CLIENT_ID) {
-      console.log("🔧 DEV: Using development auth for challenge");
+    if (!process.env.COGNITO_CLIENT_ID) {
 
-      // Development fallback - simulate challenge response
       const { challengeName, challengeResponses } = req.body;
 
       if (
@@ -173,9 +129,7 @@ router.post("/challenge", async (req, res) => {
 
         const userPayload = {
           sub: `mfa-user-${Date.now()}`,
-          username: "mfa-dev-user",
           email: "mfa-user@dev.local",
-          "cognito:username": "mfa-dev-user",
           token_use: "id",
           auth_time: Math.floor(Date.now() / 1000),
           iss: "dev-issuer",
@@ -254,80 +208,12 @@ router.post("/register", async (req, res) => {
         .json({ success: false, error: "Missing required fields" });
     }
 
-    // Check if AWS Cognito is configured or we're in test environment
-    if (process.env.NODE_ENV === "test" || !process.env.COGNITO_CLIENT_ID) {
-      console.log("🔧 DEV: Using development auth for registration");
-
-      // Development fallback - validate input properly but don't actually create users
-
-      // Validate email format
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        return res.status(400).json({
-          success: false,
-          error: "Invalid parameters",
-          details: "Invalid email format",
-        });
-      }
-
-      // Validate password strength (basic requirements)
-      if (password.length < 8) {
-        return res.status(400).json({
-          success: false,
-          error: "Invalid parameters",
-          details: "Password must be at least 8 characters",
-        });
-      }
-
-      // Validate against XSS and malicious content
-      const xssPattern = /<script|javascript:|on\w+\s*=|<iframe|<object|<embed/i;
-      if (xssPattern.test(username) || xssPattern.test(email) ||
-          (firstName && xssPattern.test(firstName)) ||
-          (lastName && xssPattern.test(lastName))) {
-        return res.status(422).json({
-          success: false,
-          error: "Invalid parameters",
-          details: "Invalid characters detected",
-        });
-      }
-
-      // Validate input length limits
-      if (username.length > 1000 || email.length > 1000 ||
-          (firstName && firstName.length > 1000) ||
-          (lastName && lastName.length > 1000)) {
-        return res.status(422).json({
-          success: false,
-          error: "Invalid parameters",
-          details: "Input too long",
-        });
-      }
-
-      // Simple in-memory store for testing duplicate emails
-      if (!global.testRegisteredEmails) {
-        global.testRegisteredEmails = new Set();
-        // Pre-populate with known test emails for duplicate tests
-        // This ensures duplicate tests work even when run individually
-        global.testRegisteredEmails.add("register.test@example.com");
-      }
-
-      // Check for duplicate email
-      if (global.testRegisteredEmails.has(email.toLowerCase())) {
-        return res.status(400).json({
-          success: false,
-          error: "Username exists",
-          details: "Email already registered",
-        });
-      }
-
-      // Add email to test registry
-      global.testRegisteredEmails.add(email.toLowerCase());
-
-      // Development fallback - simulate successful registration
-      return res.json({
-        success: true,
-        message: "User registered successfully",
-        userSub: "mock-user-sub",
-        userConfirmed: false,
+    // AWS Cognito is REQUIRED - no development fallbacks for real finance
+    if (!process.env.COGNITO_CLIENT_ID) {
+      return res.status(500).json({
+        success: false,
+        error: "Service unavailable",
+        details: "Authentication service not properly configured. Real Cognito required.",
       });
     }
 
@@ -380,10 +266,8 @@ router.post("/confirm", async (req, res) => {
     }
 
     // Check if AWS Cognito is configured or we're in test environment
-    if (process.env.NODE_ENV === "test" || !process.env.COGNITO_CLIENT_ID) {
-      console.log("🔧 DEV: Using development auth for confirmation");
+    if (!process.env.COGNITO_CLIENT_ID) {
 
-      // Development fallback - simulate successful confirmation
       if (confirmationCode === "123456") {
         return res.json({
           success: true,
@@ -435,10 +319,8 @@ router.post("/forgot-password", async (req, res) => {
     }
 
     // Check if AWS Cognito is configured or we're in test environment
-    if (process.env.NODE_ENV === "test" || !process.env.COGNITO_CLIENT_ID) {
-      console.log("🔧 DEV: Using development auth for forgot password");
+    if (!process.env.COGNITO_CLIENT_ID) {
 
-      // Development fallback - simulate password reset initiated
       return res.json({
         success: true,
         message: "Password reset code sent",
@@ -468,10 +350,8 @@ router.post("/forgot-password", async (req, res) => {
 router.post("/reset-password", async (req, res) => {
   try {
     // Check if AWS Cognito is configured or we're in test environment
-    if (process.env.NODE_ENV === "test" || !process.env.COGNITO_CLIENT_ID) {
-      console.log("🔧 DEV: Using development auth for password reset");
+    if (!process.env.COGNITO_CLIENT_ID) {
 
-      // Development fallback - simulate password reset
       const { username, confirmationCode, newPassword } = req.body;
 
       if (!username || !confirmationCode || !newPassword) {
@@ -526,9 +406,7 @@ router.post("/reset-password", async (req, res) => {
 router.post("/confirm-forgot-password", async (req, res) => {
   // Check if AWS Cognito is configured
   if (!process.env.COGNITO_CLIENT_ID) {
-    console.log("🔧 DEV: Using development auth for confirm forgot password");
 
-    // Development fallback - simulate password reset confirmation
     const { username, confirmationCode, newPassword } = req.body;
 
     if (!username || !confirmationCode || !newPassword) {
@@ -581,9 +459,7 @@ router.post("/confirm-forgot-password", async (req, res) => {
 router.post("/respond-to-challenge", async (req, res) => {
   // Check if AWS Cognito is configured
   if (!process.env.COGNITO_CLIENT_ID) {
-    console.log("🔧 DEV: Using development auth for respond to challenge");
 
-    // Development fallback - simulate challenge response
     const { challengeName, challengeResponses } = req.body;
 
     if (
@@ -595,9 +471,7 @@ router.post("/respond-to-challenge", async (req, res) => {
 
       const userPayload = {
         sub: `challenge-user-${Date.now()}`,
-        username: "devuser",
         email: "dev@example.com",
-        "cognito:username": "devuser",
         token_use: "id",
         auth_time: Math.floor(Date.now() / 1000),
         iss: "dev-issuer",

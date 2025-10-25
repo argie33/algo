@@ -26,7 +26,7 @@ router.get("/sectors", async (req, res) => {
     // Use actual sectors from stocks table (matches loadfundamentalmetrics.py schema)
     const sectorsQuery = `
       SELECT
-        COALESCE(cp.sector, 'Other') as sector,
+        cp.sector,
         COUNT(DISTINCT cp.ticker) as count
       FROM company_profile cp
       WHERE cp.ticker IS NOT NULL
@@ -946,11 +946,9 @@ router.get("/", async (req, res) => {
         km.trailing_pe,
         km.forward_pe,
         km.dividend_yield,
-        km.beta,
         'NASDAQ' as exchange,
         km.eps_trailing as eps,
         md.current_price as previous_close,
-        km.total_revenue,
         km.profit_margin_pct,
         km.price_to_book,
         km.price_to_sales_ttm,
@@ -959,22 +957,14 @@ router.get("/", async (req, res) => {
         km.eps_forward,
         NULL as eps_current_year,
         km.enterprise_value,
-        NULL as ev_to_revenue,
-        NULL as ev_to_ebitda,
-        NULL as ebitda,
         km.net_income,
-        NULL as gross_profit,
         km.total_cash,
         km.cash_per_share,
         km.operating_cashflow,
         km.free_cashflow,
-        NULL as total_debt,
         km.debt_to_equity,
         km.current_ratio,
         km.quick_ratio,
-        NULL as gross_margin_pct,
-        NULL as operating_margin_pct,
-        NULL as ebitda_margin_pct,
         km.return_on_equity_pct,
         km.return_on_assets_pct,
         km.earnings_growth_pct,

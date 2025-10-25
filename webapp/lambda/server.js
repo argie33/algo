@@ -145,7 +145,6 @@ app.use("/api/health", healthRoutes);
 app.use("/health", healthRoutes);
 app.use("/api/market", marketRoutes);
 app.use("/api/analysts", analystRoutes);
-app.use("/api/backtest", backtestRoutes);
 app.use("/api/benchmarks", benchmarksRoutes);
 app.use("/api/calendar", calendarRoutes);
 app.use("/api/commodities", commoditiesRoutes);

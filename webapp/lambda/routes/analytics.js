@@ -191,14 +191,14 @@ router.get("/performance", async (req, res) => {
       );
 
       if (!holdingsResult) {
-        console.warn("Holdings query returned null - using mock data");
+        console.warn("Holdings query returned null - no holdings data available");
         portfolioHoldings = [];
       } else {
         portfolioHoldings = holdingsResult.rows || [];
       }
     } catch (error) {
       console.error("Portfolio holdings query failed:", error.message);
-      // Don't fail - just use empty holdings for demo data
+      // Return empty holdings on error - no data available
       portfolioHoldings = [];
     }
 
@@ -1913,7 +1913,7 @@ router.get("/attribution", async (req, res) => {
       // Calculate sector attribution
       attributionData = Object.values(sectorGroups).map((group) => {
         const avgCost = group.holdings.reduce(
-          (sum, h) => sum + parseFloat( || 0) * parseFloat(h.quantity || 0),
+          (sum, h) => sum + parseFloat(h.cost_basis || 0) * parseFloat(h.quantity || 0),
           0
         );
         const currentValue = group.total_value;

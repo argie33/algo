@@ -898,9 +898,9 @@ router.get("/risk-metrics", authenticateToken, async (req, res) => {
       SELECT 
         ph.user_id,
         ph.symbol, 
-        ph.quantity, 
+        ph.quantity,
         (ph.quantity * ph.current_price) as market_value,
-        COALESCE(cp.sector, 'Technology') as sector,
+        cp.sector,
         ph.last_updated
       FROM portfolio_holdings ph
       LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
@@ -1324,9 +1324,10 @@ router.get("/performance/analysis", authenticateToken, async (req, res) => {
     const holdingsQuery = `
       SELECT 
         ph.symbol, ph.quantity, ph.average_cost, ph.current_price, (ph.quantity * ph.current_price) as market_value, 
-        (ph.current_price - ph.average_cost) * ph.quantity as pnl, 
+        (ph.current_price - ph.average_cost) * ph.quantity as pnl,
         CASE WHEN ph.average_cost > 0 THEN ROUND(((ph.current_price - ph.average_cost) / ph.average_cost * 100), 2) ELSE 0 END as pnl_percent,
-        COALESCE(cp.sector, 'Technology') as sector, ph.last_updated
+        cp.sector,
+        ph.last_updated
       FROM portfolio_holdings ph
       LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
       WHERE ph.user_id = $1
@@ -4726,7 +4727,7 @@ router.get("/risk/stress-test", authenticateToken, async (req, res) => {
         ph.symbol, ph.quantity, ph.average_cost as average_price, 
         (ph.quantity * ph.current_price) as market_value, 
         'Technology' as sector,
-        COALESCE(pr.beta, 1.0) as beta
+        pr.beta as beta
       FROM portfolio_holdings ph
       LEFT JOIN portfolio_risk pr ON pr.portfolio_id = 'default'
         AND pr.date = (SELECT MAX(date) FROM portfolio_risk WHERE portfolio_id = 'default')
@@ -6317,7 +6318,7 @@ router.get("/factors", async (req, res) => {
         ph.quantity,
         (ph.quantity * ph.current_price) as market_value,
         ph.sector,
-        COALESCE(s.beta, 1.0) as beta,
+        s.beta as beta,
         15.0 as pe_ratio
       FROM portfolio_holdings ph
       LEFT JOIN company_profile s ON ph.symbol = s.symbol

@@ -2001,19 +2001,6 @@ const Dashboard = () => {
               <Grid item xs={6} md={2}>
                 <Button
                   variant="contained"
-                  color="secondary"
-                  startIcon={<Assessment />}
-                  fullWidth
-                  onClick={() => (window.location.href = "/backtest")}
-                  aria-label="Run strategy backtest"
-                  tabIndex={0}
-                >
-                  Run Backtest
-                </Button>
-              </Grid>
-              <Grid item xs={6} md={2}>
-                <Button
-                  variant="contained"
                   color="success"
                   startIcon={<FilterList />}
                   fullWidth

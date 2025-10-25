@@ -1,6 +1,6 @@
 /**
  * Strategy Builder API Routes
- * Handles AI strategy generation, validation, backtesting, and HFT deployment
+ * Handles AI strategy generation, and validation
  */
 
 const express = require("express");
@@ -8,7 +8,6 @@ const express = require("express");
 const { query } = require("../utils/database");
 const { authenticateToken } = require("../middleware/auth");
 const logger = require("../utils/logger");
-const backtestStore = require("../utils/backtestStore");
 
 // Import services with error handling
 let aiGenerator, _aiStreamingGenerator;
@@ -122,8 +121,6 @@ router.get("/", async (req, res) => {
         available_endpoints: [
           "POST /ai-generate - Generate AI trading strategy",
           "GET / - Get available strategies",
-          "POST /backtest - Backtest strategy",
-          "POST /deploy - Deploy strategy to HFT",
         ],
         strategy_types: [
           "momentum",
@@ -342,141 +339,6 @@ router.post("/run-ai-strategy", authenticateToken, async (req, res) => {
     return res.status(500).json({
       success: false,
       error: "Internal server error during backtest execution",
-    });
-  }
-});
-
-/**
- * Deploy strategy to HFT engine
- * POST /api/strategies/deploy-hft
- */
-router.post("/deploy-hft", authenticateToken, async (req, res) => {
-  try {
-    const { strategy, backtestResults, hftConfig: _hftConfig = {} } = req.body;
-    const userId = req.user.id;
-
-    logger.info("HFT deployment request", {
-      userId,
-      strategyName: strategy?.name,
-      sharpeRatio: backtestResults?.metrics?.sharpeRatio,
-    });
-
-    if (!strategy || !backtestResults) {
-      return res.status(400).json({
-        success: false,
-        error: "Strategy and backtest results are required for HFT deployment",
-      });
-    }
-
-    // Check if strategy qualifies for HFT
-    const qualificationCheck = {
-      minSharpe: backtestResults.metrics.sharpeRatio >= 1.0,
-      maxDrawdown: backtestResults.metrics.maxDrawdown <= 0.25,
-      minWinRate: backtestResults.metrics.winRate >= 0.45,
-    };
-
-    const isQualified = Object.values(qualificationCheck).every(Boolean);
-
-    if (!isQualified) {
-      return res.status(400).json({
-        success: false,
-        error: "Strategy does not meet HFT deployment requirements",
-        requirements: {
-          sharpeRatio: {
-            required: ">= 1.0",
-            actual: backtestResults.metrics.sharpeRatio,
-          },
-          maxDrawdown: {
-            required: "<= 25%",
-            actual: `${(backtestResults.metrics.maxDrawdown * 100).toFixed(1)}%`,
-          },
-          winRate: {
-            required: ">= 45%",
-            actual: `${(backtestResults.metrics.winRate * 100).toFixed(1)}%`,
-          },
-        },
-      });
-    }
-
-    // HFT deployment is not implemented yet
-    return res.status(501).json({
-      success: false,
-      error: "HFT deployment is not implemented",
-      message: "High-frequency trading deployment is not yet implemented",
-    });
-
-    // Deploy strategy to database for HFT execution (disabled)
-    try {
-      const deploymentQuery = `
-        INSERT INTO trading_strategies (
-          user_id, strategy_name, strategy_description, strategy_code,
-          backtest_id, risk_settings, hft_config, deployment_status, strategy_type
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        RETURNING id, strategy_name, deployment_status, created_at
-      `;
-
-      const riskSettings = {
-        positionSize: _hftConfig.positionSize || 0.01, // 1% default
-        stopLoss: _hftConfig.stopLoss || 0.02, // 2% stop loss
-        takeProfit: _hftConfig.takeProfit || 0.015, // 1.5% take profit
-        riskLevel: _hftConfig.riskLevel || "conservative",
-        maxDrawdown: _hftConfig.maxDrawdown || 0.1, // 10% max drawdown
-      };
-
-      const deploymentResult = await query(deploymentQuery, [
-        userId,
-        strategy.name || `AI Strategy ${Date.now()}`,
-        strategy.description || "AI generated HFT strategy",
-        JSON.stringify(strategy),
-        backtestResults?.backtest_id || null,
-        JSON.stringify(riskSettings),
-        JSON.stringify(_hftConfig),
-        "pending_review", // Requires manual approval for live trading
-        "hft", // strategy_type
-      ]);
-
-      if (!deploymentResult.rows || deploymentResult.rows.length === 0) {
-        throw new Error("Failed to create strategy deployment record");
-      }
-
-      const deployment = deploymentResult.rows[0];
-
-      return res.json({
-        success: true,
-        data: {
-          deployment_id: deployment.id,
-          strategy_name: deployment.strategy_name,
-          status: deployment.deployment_status,
-          created_at: deployment.created_at,
-          message: "Strategy submitted for HFT deployment review",
-          next_steps: [
-            "Strategy will be reviewed for risk compliance",
-            "Upon approval, strategy will be deployed to paper trading",
-            "After successful paper trading, can be deployed to live trading",
-          ],
-        },
-      });
-    } catch (deployError) {
-      logger.error("HFT deployment failed", {
-        userId: userId,
-        error: deployError.message,
-      });
-
-      return res.status(500).json({
-        success: false,
-        error: "HFT deployment failed",
-        message: deployError.message,
-      });
-    }
-  } catch (err) {
-    logger.error("HFT deployment error", {
-      userId: req.user?.id,
-      error: err.message,
-    });
-
-    return res.status(500).json({
-      success: false,
-      error: "Internal server error during HFT deployment",
     });
   }
 });

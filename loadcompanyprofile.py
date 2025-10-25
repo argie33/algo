@@ -13,14 +13,20 @@ import time
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import yfinance as yf
+import signal
+from contextlib import contextmanager
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout
 )
 logger = logging.getLogger(__name__)
+
+# Suppress verbose yfinance logging
+logging.getLogger('yfinance').setLevel(logging.WARNING)
+logging.getLogger('urllib3').setLevel(logging.WARNING)
 
 # Database configuration
 DB_HOST = os.getenv('DB_HOST', 'localhost')
@@ -28,6 +34,22 @@ DB_PORT = os.getenv('DB_PORT', '5432')
 DB_USER = os.getenv('DB_USER', 'postgres')
 DB_PASSWORD = os.getenv('DB_PASSWORD', 'password')
 DB_NAME = os.getenv('DB_NAME', 'stocks')
+
+class TimeoutException(Exception):
+    pass
+
+def timeout_handler(signum, frame):
+    raise TimeoutException("API call timed out")
+
+@contextmanager
+def time_limit(seconds, symbol=""):
+    """Context manager to limit execution time with timeout"""
+    signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)  # Disable alarm
 
 def get_db_connection():
     """Establish database connection"""
@@ -59,26 +81,37 @@ def load_company_profile(symbols, cur, conn):
     for idx, orig_sym in enumerate(symbols, 1):
         yq_sym = orig_sym.replace('.', '-').replace('$', '-').upper()
 
-        if idx % 100 == 0:
+        if idx % 50 == 0:
             logger.info(f"Processing {idx}/{total} symbols...")
+        else:
+            logger.debug(f"[{idx}/{total}] {orig_sym}")
 
         info = None
         for attempt in range(1, 4):
             try:
-                ticker = yf.Ticker(yq_sym)
-                info = ticker.info
+                logger.debug(f"[{idx}] Fetching yfinance data for {orig_sym}...")
+                with time_limit(10, orig_sym):  # 10 second timeout per API call
+                    ticker = yf.Ticker(yq_sym)
+                    info = ticker.info
                 if not info:
                     raise ValueError("No info data received")
+                logger.debug(f"[{idx}] ✅ Got data for {orig_sym}")
                 break
+            except TimeoutException:
+                logger.warning(f"[{idx}] TIMEOUT on {orig_sym} (attempt {attempt}/3)")
+                if attempt == 3:
+                    failed.append(orig_sym)
+                else:
+                    time.sleep(0.5)
             except Exception as e:
-                logger.warning(f"Attempt {attempt}/3 for {orig_sym}: {str(e)[:60]}")
+                logger.warning(f"[{idx}] Attempt {attempt}/3 for {orig_sym}: {str(e)[:60]}")
                 if attempt == 3:
                     failed.append(orig_sym)
                 else:
                     time.sleep(0.5)  # Wait before retry
 
         if info is None:
-            logger.error(f"Failed to get info for {orig_sym} after 3 retries, skipping")
+            logger.error(f"[{idx}] ❌ Failed to get info for {orig_sym} after 3 retries")
             time.sleep(RATE_LIMIT_DELAY)
             continue
 

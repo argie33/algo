@@ -350,7 +350,7 @@ router.get("/screen", async (req, res) => {
         factorScore: "50",
         volume: "pd.volume",
         rsi: "NULL",
-        sector: "COALESCE(cp.sector, 'Technology')",
+        sector: "cp.sector",
       };
 
       const dbField = fieldMap[sortField] || "md.market_cap";

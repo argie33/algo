@@ -1480,7 +1480,7 @@ router.get("/sectors-with-history", async (req, res) => {
         sr.rank_1w_ago,
         sr.rank_4w_ago,
         sr.rank_12w_ago,
-        sr.momentum_score as current_momentum,
+        sr.daily_strength_score as current_momentum,
         sr.trend as current_trend,
         COALESCE(CAST(sp.performance_1d AS FLOAT), CAST(cp.perf_1d AS FLOAT)) as current_perf_1d,
         COALESCE(CAST(sp.performance_5d AS FLOAT), CAST(cp.perf_5d AS FLOAT)) as current_perf_5d,
@@ -1511,7 +1511,7 @@ router.get("/sectors-with-history", async (req, res) => {
       const fallbackQuery = `
         SELECT DISTINCT ON (sector_name)
           sector_name,
-          CAST(COALESCE(sector_rank, 999) AS INTEGER) as current_rank,
+          CAST(sector_rank AS INTEGER) as current_rank,
           NULL as rank_1w_ago,
           NULL as rank_4w_ago,
           NULL as rank_12w_ago,
@@ -1704,7 +1704,7 @@ router.get("/industries-with-history", async (req, res) => {
         ir.rank_1w_ago,
         ir.rank_4w_ago,
         ir.rank_8w_ago,
-        ir.momentum_score as momentum,
+        ir.daily_strength_score as momentum,
         ir.trend,
         ir.stock_count,
         COALESCE(CAST(ip.performance_1d AS FLOAT), CAST(cp_calc.perf_1d AS FLOAT)) as performance_1d,
@@ -1741,7 +1741,7 @@ router.get("/industries-with-history", async (req, res) => {
         SELECT DISTINCT ON (industry)
           industry,
           sector as sector,
-          CAST(COALESCE(overall_rank, 999) AS INTEGER) as current_rank,
+          CAST(overall_rank AS INTEGER) as current_rank,
           NULL as rank_1w_ago,
           NULL as rank_4w_ago,
           NULL as rank_12w_ago,
@@ -1969,7 +1969,7 @@ router.get("/heatmap", authenticateToken, async (req, res) => {
     // Get sector performance data for heatmap
     const heatmapQuery = `
       SELECT
-        COALESCE(cp.sector, 'Other') as sector,
+        cp.sector,
         COUNT(*) as stock_count,
         AVG(md.current_price) as avg_price,
         AVG(md.volume) as avg_volume,
@@ -2223,16 +2223,17 @@ router.get("/trend/sector/:sectorName", async (req, res) => {
 
     const { sectorName } = req.params;
 
-    // Get all historical rankings for this sector, ordered by date
+    // Get recent historical rankings for this sector (last 1 year), ordered by date
     const trendData = await query(
       `SELECT
         date,
         current_rank as rank,
-        momentum_score,
+        daily_strength_score,
         trend,
         TO_CHAR(date, 'MM/DD') as label
       FROM sector_ranking
       WHERE LOWER(sector) = LOWER($1)
+      AND date >= CURRENT_DATE - INTERVAL '365 days'
       ORDER BY date ASC`,
       [sectorName]
     );
@@ -2250,7 +2251,7 @@ router.get("/trend/sector/:sectorName", async (req, res) => {
       trendData: trendData.rows.map(row => ({
         date: row.date,
         rank: row.rank,
-        momentumScore: row.momentum_score,
+        dailyStrengthScore: row.daily_strength_score,
         trend: row.trend,
         label: row.label
       }))
@@ -2276,16 +2277,17 @@ router.get("/trend/industry/:industryName", async (req, res) => {
 
     const { industryName } = req.params;
 
-    // Get all historical rankings for this industry, ordered by date
+    // Get recent historical rankings for this industry (last 1 year), ordered by date
     const trendData = await query(
       `SELECT
         date,
         current_rank as rank,
-        momentum_score,
+        daily_strength_score,
         trend,
         TO_CHAR(date, 'MM/DD') as label
       FROM industry_ranking
       WHERE LOWER(industry) = LOWER($1)
+      AND date >= CURRENT_DATE - INTERVAL '365 days'
       ORDER BY date ASC`,
       [industryName]
     );
@@ -2303,7 +2305,7 @@ router.get("/trend/industry/:industryName", async (req, res) => {
       trendData: trendData.rows.map(row => ({
         date: row.date,
         rank: row.rank,
-        momentumScore: row.momentum_score,
+        dailyStrengthScore: row.daily_strength_score,
         trend: row.trend,
         label: row.label
       }))
@@ -2483,6 +2485,131 @@ router.get("/technical-details/industry/:industryName", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Failed to fetch technical details",
+      details: error.message
+    });
+  }
+});
+
+// Rankings Endpoints - Return current rankings with daily strength scores
+router.get("/rankings", async (req, res) => {
+  try {
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service unavailable"
+      });
+    }
+
+    const { limit = 20 } = req.query;
+
+    // Get the most recent date with ranking data
+    const dateResult = await query(
+      `SELECT DISTINCT date FROM sector_ranking ORDER BY date DESC LIMIT 1`
+    );
+
+    if (!dateResult.rows.length) {
+      return res.status(404).json({
+        success: false,
+        error: "No ranking data available"
+      });
+    }
+
+    const latestDate = dateResult.rows[0].date;
+
+    // Get current rankings for that date, sorted by rank
+    const rankings = await query(
+      `SELECT
+        sector,
+        current_rank as rank,
+        daily_strength_score,
+        trend,
+        TO_CHAR(date, 'MM/DD/YYYY') as date
+      FROM sector_ranking
+      WHERE date = $1
+      ORDER BY current_rank ASC
+      LIMIT $2`,
+      [latestDate, parseInt(limit)]
+    );
+
+    res.json({
+      success: true,
+      asOf: latestDate,
+      rankings: rankings.rows.map(row => ({
+        sector: row.sector,
+        rank: row.rank,
+        dailyStrengthScore: row.daily_strength_score,
+        trend: row.trend,
+        date: row.date
+      }))
+    });
+  } catch (error) {
+    console.error("Sector rankings endpoint error:", error.message);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch sector rankings",
+      details: error.message
+    });
+  }
+});
+
+router.get("/industry/rankings", async (req, res) => {
+  try {
+    if (!query) {
+      return res.status(503).json({
+        success: false,
+        error: "Database service unavailable"
+      });
+    }
+
+    const { limit = 20 } = req.query;
+
+    // Get the most recent date with ranking data
+    const dateResult = await query(
+      `SELECT DISTINCT date FROM industry_ranking ORDER BY date DESC LIMIT 1`
+    );
+
+    if (!dateResult.rows.length) {
+      return res.status(404).json({
+        success: false,
+        error: "No ranking data available"
+      });
+    }
+
+    const latestDate = dateResult.rows[0].date;
+
+    // Get current rankings for that date, sorted by rank
+    const rankings = await query(
+      `SELECT
+        industry,
+        current_rank as rank,
+        daily_strength_score,
+        trend,
+        stock_count,
+        TO_CHAR(date, 'MM/DD/YYYY') as date
+      FROM industry_ranking
+      WHERE date = $1
+      ORDER BY current_rank ASC
+      LIMIT $2`,
+      [latestDate, parseInt(limit)]
+    );
+
+    res.json({
+      success: true,
+      asOf: latestDate,
+      rankings: rankings.rows.map(row => ({
+        industry: row.industry,
+        rank: row.rank,
+        dailyStrengthScore: row.daily_strength_score,
+        trend: row.trend,
+        stockCount: row.stock_count,
+        date: row.date
+      }))
+    });
+  } catch (error) {
+    console.error("Industry rankings endpoint error:", error.message);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch industry rankings",
       details: error.message
     });
   }

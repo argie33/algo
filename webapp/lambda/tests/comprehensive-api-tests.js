@@ -14,7 +14,6 @@ const ROUTE_TESTS = [
   ["Analysts", "/api/analysts"],
   ["Analytics", "/api/analytics"],
   ["Auth", "/api/auth/health"],
-  ["Backtest", "/api/backtest"],
   ["Calendar", "/api/calendar"],
   ["Commodities", "/api/commodities"],
   ["Dashboard", "/api/dashboard"],

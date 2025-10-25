@@ -741,7 +741,6 @@ function StockExplorer() {
                     <MenuItem value="marketCap">Market Cap</MenuItem>
                     <MenuItem value="currentPrice">Price</MenuItem>
                     <MenuItem value="volume">Volume</MenuItem>
-                    <MenuItem value="stability_score">Stability Score</MenuItem>
                   </TextField>
 
                   <Button
@@ -895,20 +894,6 @@ function StockExplorer() {
                               >
                                 P/E Ratio
                               </Typography>
-                            </Grid>
-                            <Grid item xs={2}>
-                              <Chip
-                                label={`Stability: ${(stock.stability_score || 0).toFixed(1)}`}
-                                color={
-                                  (stock.stability_score || 0) < 30
-                                    ? "success"
-                                    : (stock.stability_score || 0) < 50
-                                    ? "warning"
-                                    : "error"
-                                }
-                                variant="outlined"
-                                size="small"
-                              />
                             </Grid>
                           </Grid>
                         </AccordionSummary>
