@@ -1,5 +1,6 @@
 // Load environment variables first - trigger Lambda deployment Mon Oct 6 22:30 CDT 2025
-require("dotenv").config();
+require("dotenv").config({ path: ".env.local" });
+require("dotenv").config(); // Also load from .env as fallback
 
 // Financial Dashboard API - Lambda Function
 // Updated: 2025-06-25 - Fixed CORS configuration for API Gateway

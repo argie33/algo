@@ -6711,5 +6711,185 @@ router.post("/analyze", async (req, res) => {
   }
 });
 
+// Import portfolio from Alpaca using environment variables (no user input needed)
+router.post("/import/alpaca", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.sub || "test-user";
+
+    // Read API keys from environment variables
+    const apiKey = process.env.ALPACA_API_KEY;
+    const secretKey = process.env.ALPACA_SECRET_KEY;
+    const isPaper = process.env.ALPACA_PAPER_TRADING === "true";
+
+    // Validate that API keys are configured
+    if (!apiKey || !secretKey) {
+      return res.status(400).json({
+        success: false,
+        error: "Alpaca API keys not configured",
+        message: "Please set ALPACA_API_KEY and ALPACA_SECRET_KEY in your .env.local file",
+        details: "API keys must be configured in the server environment to import from Alpaca",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    console.log(
+      `📊 Starting Alpaca portfolio import for user ${userId} (paper: ${isPaper})`
+    );
+
+    // Initialize Alpaca service
+    const AlpacaService = require("../utils/alpacaService");
+    const alpaca = new AlpacaService(apiKey, secretKey, isPaper);
+
+    // Get account info and positions
+    const [account, positions] = await Promise.all([
+      alpaca.getAccount(),
+      alpaca.getPositions(),
+    ]);
+
+    if (!account) {
+      return res.status(500).json({
+        success: false,
+        error: "Failed to retrieve account information from Alpaca",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    console.log(`✅ Retrieved account info: $${account.portfolioValue}`);
+    console.log(`✅ Retrieved ${positions.length} positions`);
+
+    // Transform Alpaca positions to our format
+    const holdings = positions.map((position) => ({
+      symbol: position.symbol,
+      quantity: position.qty,
+      current_price: position.current_price,
+      market_value: position.market_value,
+      average_cost: position.avg_entry_price,
+      unrealized_gain: (position.current_price - position.avg_entry_price) * position.qty,
+      unrealized_gain_percent: position.unrealized_percent * 100,
+      broker: "alpaca",
+      last_updated: new Date().toISOString(),
+    }));
+
+    // Store portfolio data in database
+    if (holdings.length > 0) {
+      // Delete existing holdings for this user
+      await query("DELETE FROM portfolio_holdings WHERE user_id = $1", [userId]);
+
+      // Insert new holdings
+      for (const holding of holdings) {
+        await query(
+          `INSERT INTO portfolio_holdings
+          (user_id, symbol, quantity, current_price, average_cost, market_value, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          [
+            userId,
+            holding.symbol,
+            holding.quantity,
+            holding.current_price,
+            holding.average_cost,
+            holding.market_value,
+          ]
+        );
+      }
+
+      console.log(`✅ Stored ${holdings.length} holdings in database`);
+    }
+
+    // Store account summary
+    const portfolioSummary = {
+      total_value: account.portfolioValue,
+      cash: account.cash,
+      buying_power: account.buyingPower,
+      returns_percent: account.portfolio_return || 0,
+      day_trading_count: account.dayTradeCount || 0,
+      last_equity: account.last_equity,
+      last_updated: new Date().toISOString(),
+    };
+
+    // Update or insert portfolio summary
+    try {
+      await query(
+        `INSERT INTO portfolio_summary (user_id, total_value, cash_balance, buying_power, updated_at)
+        VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+        ON CONFLICT (user_id) DO UPDATE SET
+          total_value = $2,
+          cash_balance = $3,
+          buying_power = $4,
+          updated_at = CURRENT_TIMESTAMP`,
+        [
+          userId,
+          portfolioSummary.total_value,
+          portfolioSummary.cash,
+          portfolioSummary.buying_power,
+        ]
+      );
+    } catch (dbError) {
+      console.warn("Could not update portfolio summary:", dbError.message);
+      // Non-critical, continue anyway
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        imported_holdings: holdings.length,
+        account: {
+          portfolio_value: portfolioSummary.total_value,
+          cash: portfolioSummary.cash,
+          buying_power: portfolioSummary.buying_power,
+          returns_percent: portfolioSummary.returns_percent,
+          environment: isPaper ? "paper_trading" : "live_trading",
+        },
+        holdings: holdings,
+      },
+      message: `Successfully imported ${holdings.length} holdings from Alpaca`,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Alpaca portfolio import error:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to import portfolio from Alpaca",
+      details: error.message,
+      troubleshooting: [
+        "Verify ALPACA_API_KEY is set in .env.local",
+        "Verify ALPACA_SECRET_KEY is set in .env.local",
+        "Ensure API keys are valid and haven't expired",
+        "Check that the account has positions to import",
+      ],
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Check Alpaca configuration (no auth required, used by frontend for setup UI)
+router.get("/import/alpaca/status", async (req, res) => {
+  try {
+    const apiKey = process.env.ALPACA_API_KEY;
+    const secretKey = process.env.ALPACA_SECRET_KEY;
+    const isPaper = process.env.ALPACA_PAPER_TRADING === "true";
+
+    const isConfigured = !!(apiKey && secretKey);
+
+    return res.json({
+      success: true,
+      data: {
+        is_configured: isConfigured,
+        environment: isPaper ? "paper_trading" : "live_trading",
+        message: isConfigured
+          ? "Alpaca is configured and ready to import"
+          : "Alpaca is not configured. Please add ALPACA_API_KEY and ALPACA_SECRET_KEY to .env.local",
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: "Failed to check Alpaca configuration",
+      details: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 
 module.exports = router;

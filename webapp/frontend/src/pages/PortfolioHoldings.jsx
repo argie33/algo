@@ -61,6 +61,8 @@ import {
   deleteHolding,
   getStockPrices,
   importPortfolioFromBroker,
+  checkAlpacaConfiguration,
+  importPortfolioFromAlpaca,
   getPerformanceAnalytics,
   getRiskAnalytics,
   getCorrelationAnalytics,
@@ -1010,24 +1012,33 @@ const PortfolioHoldings = () => {
   };
 
   const handleImportPortfolio = async () => {
-    if (!selectedBroker) {
-      setError("Please select a broker");
-      return;
-    }
-
     try {
       setLoading(true);
       setError(null);
-      const response = await importPortfolioFromBroker(selectedBroker);
-      if (response.success) {
-        setImportDialog(false);
-        setSelectedBroker("");
-        loadPortfolioData(); // Reload data to show imported positions
+
+      // For Alpaca: Use environment variables (no user input needed)
+      if (selectedBroker === "alpaca") {
+        const response = await importPortfolioFromAlpaca();
+        if (response.success) {
+          setImportDialog(false);
+          setSelectedBroker("");
+          loadPortfolioData(); // Reload data to show imported positions
+        } else {
+          throw new Error(response.error || "Failed to import portfolio");
+        }
       } else {
-        throw new Error(response.message || "Failed to import portfolio");
+        // For other brokers: Use the old flow if they exist
+        const response = await importPortfolioFromBroker(selectedBroker);
+        if (response.success) {
+          setImportDialog(false);
+          setSelectedBroker("");
+          loadPortfolioData();
+        } else {
+          throw new Error(response.message || "Failed to import portfolio");
+        }
       }
     } catch (err) {
-      setError(err.message || "Failed to import portfolio. Please check your API credentials and try again.");
+      setError(err.message || "Failed to import portfolio. Check that ALPACA_API_KEY and ALPACA_SECRET_KEY are configured in the server's .env.local file.");
     } finally {
       setLoading(false);
     }
@@ -1609,9 +1620,17 @@ const PortfolioHoldings = () => {
         <DialogTitle>Import Portfolio from Broker</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Import your portfolio positions from your connected broker account.
-            Make sure you have configured your API keys in the Settings page.
+            Import your portfolio positions from your Alpaca paper trading account.
           </Typography>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              API keys are configured in the server environment (.env.local)
+            </Typography>
+            <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
+              Your API keys are stored securely on the server and are never exposed to your browser.
+              Simply click "Import Portfolio" to load your holdings.
+            </Typography>
+          </Alert>
           <FormControl fullWidth sx={{ mt: 2 }}>
             <InputLabel>Select Broker</InputLabel>
             <Select
@@ -1620,7 +1639,7 @@ const PortfolioHoldings = () => {
               label="Select Broker"
               data-testid="broker-select"
             >
-              <MenuItem value="alpaca">Alpaca</MenuItem>
+              <MenuItem value="alpaca">Alpaca (Paper Trading)</MenuItem>
             </Select>
           </FormControl>
           {error && (

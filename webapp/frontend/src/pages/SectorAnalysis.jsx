@@ -68,195 +68,111 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
   }
 
   return (
-    <Box>
-      {/* Main Daily Strength Score Chart */}
-      <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, minHeight: 300, mb: 3 }}>
-        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-          ⚡ Daily Strength Score
-        </Typography>
-        {momentumData && momentumData.length > 0 ? (
-          <Box sx={{ width: "100%", height: 250 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={momentumData} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                <YAxis width={50} tick={{ fontSize: 12 }} />
-                <Tooltip
-                  formatter={(value) => value?.toFixed(2) || "N/A"}
-                  labelFormatter={(label) => `Date: ${label}`}
-                />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="momentum"
-                  stroke="#ff9800"
-                  strokeWidth={2}
-                  dot={false}
-                  isAnimationActive={false}
-                  name="Daily Strength"
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </Box>
-        ) : (
-          <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-            No momentum data available for this sector
-          </Typography>
-        )}
-      </Box>
+    <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, minHeight: 400, mb: 3 }}>
+      <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
+        ⚡ Daily Strength Score (with Moving Averages & RSI Overlay)
+      </Typography>
+      {momentumData && momentumData.length > 0 ? (
+        <Box sx={{ width: "100%", height: 350 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={momentumData} margin={{ top: 5, right: 120, left: 60, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+              {/* Primary Y-axis for Daily Strength Score */}
+              <YAxis width={50} tick={{ fontSize: 12 }} yAxisId="left" />
+              {/* Secondary Y-axis for RSI (0-100) */}
+              <YAxis width={50} tick={{ fontSize: 12 }} yAxisId="right" orientation="right" domain={[0, 100]} />
+              <Tooltip
+                formatter={(value) => value?.toFixed(2) || "N/A"}
+                labelFormatter={(label) => `Date: ${label}`}
+              />
+              <Legend wrapperStyle={{ paddingRight: 20 }} />
 
-      {/* Moving Averages Chart */}
-      <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, minHeight: 280, mb: 3 }}>
-        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-          📊 Moving Averages (SMA20, SMA5, EMA5)
-        </Typography>
-        {momentumData && momentumData.length > 0 && momentumData.some(d => d.sma20 || d.sma5 || d.ema5) ? (
-          <Box sx={{ width: "100%", height: 230 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={momentumData} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                <YAxis width={50} tick={{ fontSize: 12 }} />
-                <Tooltip
-                  formatter={(value) => value?.toFixed(4) || "N/A"}
-                  labelFormatter={(label) => `Date: ${label}`}
-                />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="sma20"
-                  stroke="#3f51b5"
-                  strokeWidth={2}
-                  dot={false}
-                  isAnimationActive={false}
-                  name="SMA 20"
-                  connectNulls={true}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="sma5"
-                  stroke="#f44336"
-                  strokeWidth={2}
-                  dot={false}
-                  isAnimationActive={false}
-                  name="SMA 5"
-                  connectNulls={true}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="ema5"
-                  stroke="#4caf50"
-                  strokeWidth={2}
-                  strokeDasharray="5 5"
-                  dot={false}
-                  isAnimationActive={false}
-                  name="EMA 5"
-                  connectNulls={true}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </Box>
-        ) : (
-          <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-            No moving average data available
-          </Typography>
-        )}
-      </Box>
+              {/* Daily Strength Score - Main Line */}
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="momentum"
+                stroke="#ff9800"
+                strokeWidth={3}
+                dot={false}
+                isAnimationActive={false}
+                name="Daily Strength"
+              />
 
-      {/* RSI Chart */}
-      <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, minHeight: 280, mb: 3 }}>
-        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-          📈 Relative Strength Index (RSI)
-        </Typography>
-        {momentumData && momentumData.length > 0 && momentumData.some(d => d.rsi) ? (
-          <Box sx={{ width: "100%", height: 230 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={momentumData} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                <YAxis width={50} tick={{ fontSize: 12 }} domain={[0, 100]} />
-                <Tooltip
-                  formatter={(value) => value?.toFixed(2) || "N/A"}
-                  labelFormatter={(label) => `Date: ${label}`}
-                />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="rsi"
-                  stroke="#ff6b00"
-                  strokeWidth={2}
-                  dot={false}
-                  isAnimationActive={false}
-                  name="RSI (14)"
-                  connectNulls={true}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </Box>
-        ) : (
-          <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-            No RSI data available
-          </Typography>
-        )}
-      </Box>
+              {/* Moving Averages - Overlaid */}
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="sma20"
+                stroke="#3f51b5"
+                strokeWidth={2}
+                dot={false}
+                isAnimationActive={false}
+                name="SMA 20"
+                connectNulls={true}
+                opacity={0.8}
+              />
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="sma5"
+                stroke="#f44336"
+                strokeWidth={2}
+                dot={false}
+                isAnimationActive={false}
+                name="SMA 5"
+                connectNulls={true}
+                opacity={0.8}
+              />
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="ema5"
+                stroke="#4caf50"
+                strokeWidth={2}
+                strokeDasharray="5 5"
+                dot={false}
+                isAnimationActive={false}
+                name="EMA 5"
+                connectNulls={true}
+                opacity={0.7}
+              />
 
-      {/* Additional Indicators Chart */}
-      <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, minHeight: 280 }}>
-        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-          🔧 Additional Indicators (Momentum10, Volatility5, Acceleration)
+              {/* RSI - Right Y-axis */}
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="rsi"
+                stroke="#ff6b00"
+                strokeWidth={2}
+                dot={false}
+                isAnimationActive={false}
+                name="RSI (14)"
+                connectNulls={true}
+                opacity={0.7}
+                strokeDasharray="3 3"
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </Box>
+      ) : (
+        <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+          No momentum data available for this sector
         </Typography>
-        {momentumData && momentumData.length > 0 && momentumData.some(d => d.momentum10 || d.volatility5 || d.acceleration) ? (
-          <Box sx={{ width: "100%", height: 230 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={momentumData} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                <YAxis width={50} tick={{ fontSize: 12 }} />
-                <Tooltip
-                  formatter={(value) => value?.toFixed(4) || "N/A"}
-                  labelFormatter={(label) => `Date: ${label}`}
-                />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="momentum10"
-                  stroke="#2196f3"
-                  strokeWidth={2}
-                  dot={false}
-                  isAnimationActive={false}
-                  name="Momentum (10)"
-                  connectNulls={true}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="volatility5"
-                  stroke="#ff9800"
-                  strokeWidth={2}
-                  dot={false}
-                  isAnimationActive={false}
-                  name="Volatility (5)"
-                  connectNulls={true}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="acceleration"
-                  stroke="#9c27b0"
-                  strokeWidth={2}
-                  strokeDasharray="5 5"
-                  dot={false}
-                  isAnimationActive={false}
-                  name="Acceleration"
-                  connectNulls={true}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </Box>
-        ) : (
-          <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-            No additional indicator data available
-          </Typography>
-        )}
-      </Box>
+      )}
+
+      {/* Additional Indicators Info Below */}
+      {momentumData && momentumData.length > 0 && (
+        <Box sx={{ mt: 2, p: 1.5, bgcolor: "background.paper", borderRadius: 1, fontSize: "0.85rem" }}>
+          <Typography variant="caption" fontWeight="bold">Supporting Indicators:</Typography>
+          <ul style={{ margin: "8px 0", paddingLeft: "20px" }}>
+            <li>📈 Momentum (10): Measures rate of change over 10 periods</li>
+            <li>📊 Volatility (5): 5-period price volatility indicator</li>
+            <li>⚡ Acceleration: Rate of momentum change</li>
+          </ul>
+        </Box>
+      )}
     </Box>
   );
 };
@@ -286,195 +202,111 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
   }
 
   return (
-    <Box>
-      {/* Main Daily Strength Score Chart */}
-      <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2, minHeight: 300, mb: 3 }}>
-        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-          ⚡ Daily Strength Score
-        </Typography>
-        {momentumData && momentumData.length > 0 ? (
-          <Box sx={{ width: "100%", height: 250 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={momentumData} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                <YAxis width={50} tick={{ fontSize: 12 }} />
-                <Tooltip
-                  formatter={(value) => value?.toFixed(2) || "N/A"}
-                  labelFormatter={(label) => `Date: ${label}`}
-                />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="momentum"
-                  stroke="#ff9800"
-                  strokeWidth={2}
-                  dot={false}
-                  isAnimationActive={false}
-                  name="Daily Strength"
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </Box>
-        ) : (
-          <Typography variant="body2" color="error" sx={{ py: 2 }}>
-            No momentum data: {trendArray.length === 0 ? 'API returned empty' : 'aggregation failed'}
-          </Typography>
-        )}
-      </Box>
+    <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2, minHeight: 400, mb: 3 }}>
+      <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
+        ⚡ Daily Strength Score (with Moving Averages & RSI Overlay)
+      </Typography>
+      {momentumData && momentumData.length > 0 ? (
+        <Box sx={{ width: "100%", height: 350 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={momentumData} margin={{ top: 5, right: 120, left: 60, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+              {/* Primary Y-axis for Daily Strength Score */}
+              <YAxis width={50} tick={{ fontSize: 12 }} yAxisId="left" />
+              {/* Secondary Y-axis for RSI (0-100) */}
+              <YAxis width={50} tick={{ fontSize: 12 }} yAxisId="right" orientation="right" domain={[0, 100]} />
+              <Tooltip
+                formatter={(value) => value?.toFixed(2) || "N/A"}
+                labelFormatter={(label) => `Date: ${label}`}
+              />
+              <Legend wrapperStyle={{ paddingRight: 20 }} />
 
-      {/* Moving Averages Chart */}
-      <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, minHeight: 280, mb: 3 }}>
-        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-          📊 Moving Averages (SMA20, SMA5, EMA5)
-        </Typography>
-        {momentumData && momentumData.length > 0 && momentumData.some(d => d.sma20 || d.sma5 || d.ema5) ? (
-          <Box sx={{ width: "100%", height: 230 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={momentumData} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                <YAxis width={50} tick={{ fontSize: 12 }} />
-                <Tooltip
-                  formatter={(value) => value?.toFixed(4) || "N/A"}
-                  labelFormatter={(label) => `Date: ${label}`}
-                />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="sma20"
-                  stroke="#3f51b5"
-                  strokeWidth={2}
-                  dot={false}
-                  isAnimationActive={false}
-                  name="SMA 20"
-                  connectNulls={true}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="sma5"
-                  stroke="#f44336"
-                  strokeWidth={2}
-                  dot={false}
-                  isAnimationActive={false}
-                  name="SMA 5"
-                  connectNulls={true}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="ema5"
-                  stroke="#4caf50"
-                  strokeWidth={2}
-                  strokeDasharray="5 5"
-                  dot={false}
-                  isAnimationActive={false}
-                  name="EMA 5"
-                  connectNulls={true}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </Box>
-        ) : (
-          <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-            No moving average data available
-          </Typography>
-        )}
-      </Box>
+              {/* Daily Strength Score - Main Line */}
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="momentum"
+                stroke="#ff9800"
+                strokeWidth={3}
+                dot={false}
+                isAnimationActive={false}
+                name="Daily Strength"
+              />
 
-      {/* RSI Chart */}
-      <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, minHeight: 280, mb: 3 }}>
-        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-          📈 Relative Strength Index (RSI)
-        </Typography>
-        {momentumData && momentumData.length > 0 && momentumData.some(d => d.rsi) ? (
-          <Box sx={{ width: "100%", height: 230 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={momentumData} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                <YAxis width={50} tick={{ fontSize: 12 }} domain={[0, 100]} />
-                <Tooltip
-                  formatter={(value) => value?.toFixed(2) || "N/A"}
-                  labelFormatter={(label) => `Date: ${label}`}
-                />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="rsi"
-                  stroke="#ff6b00"
-                  strokeWidth={2}
-                  dot={false}
-                  isAnimationActive={false}
-                  name="RSI (14)"
-                  connectNulls={true}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </Box>
-        ) : (
-          <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-            No RSI data available
-          </Typography>
-        )}
-      </Box>
+              {/* Moving Averages - Overlaid */}
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="sma20"
+                stroke="#3f51b5"
+                strokeWidth={2}
+                dot={false}
+                isAnimationActive={false}
+                name="SMA 20"
+                connectNulls={true}
+                opacity={0.8}
+              />
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="sma5"
+                stroke="#f44336"
+                strokeWidth={2}
+                dot={false}
+                isAnimationActive={false}
+                name="SMA 5"
+                connectNulls={true}
+                opacity={0.8}
+              />
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="ema5"
+                stroke="#4caf50"
+                strokeWidth={2}
+                strokeDasharray="5 5"
+                dot={false}
+                isAnimationActive={false}
+                name="EMA 5"
+                connectNulls={true}
+                opacity={0.7}
+              />
 
-      {/* Additional Indicators Chart */}
-      <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, minHeight: 280 }}>
-        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-          🔧 Additional Indicators (Momentum10, Volatility5, Acceleration)
+              {/* RSI - Right Y-axis */}
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="rsi"
+                stroke="#ff6b00"
+                strokeWidth={2}
+                dot={false}
+                isAnimationActive={false}
+                name="RSI (14)"
+                connectNulls={true}
+                opacity={0.7}
+                strokeDasharray="3 3"
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </Box>
+      ) : (
+        <Typography variant="body2" color="error" sx={{ py: 2 }}>
+          No momentum data: {trendArray.length === 0 ? 'API returned empty' : 'aggregation failed'}
         </Typography>
-        {momentumData && momentumData.length > 0 && momentumData.some(d => d.momentum10 || d.volatility5 || d.acceleration) ? (
-          <Box sx={{ width: "100%", height: 230 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={momentumData} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                <YAxis width={50} tick={{ fontSize: 12 }} />
-                <Tooltip
-                  formatter={(value) => value?.toFixed(4) || "N/A"}
-                  labelFormatter={(label) => `Date: ${label}`}
-                />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="momentum10"
-                  stroke="#2196f3"
-                  strokeWidth={2}
-                  dot={false}
-                  isAnimationActive={false}
-                  name="Momentum (10)"
-                  connectNulls={true}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="volatility5"
-                  stroke="#ff9800"
-                  strokeWidth={2}
-                  dot={false}
-                  isAnimationActive={false}
-                  name="Volatility (5)"
-                  connectNulls={true}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="acceleration"
-                  stroke="#9c27b0"
-                  strokeWidth={2}
-                  strokeDasharray="5 5"
-                  dot={false}
-                  isAnimationActive={false}
-                  name="Acceleration"
-                  connectNulls={true}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </Box>
-        ) : (
-          <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-            No additional indicator data available
-          </Typography>
-        )}
-      </Box>
+      )}
+
+      {/* Additional Indicators Info Below */}
+      {momentumData && momentumData.length > 0 && (
+        <Box sx={{ mt: 2, p: 1.5, bgcolor: "background.paper", borderRadius: 1, fontSize: "0.85rem" }}>
+          <Typography variant="caption" fontWeight="bold">Supporting Indicators:</Typography>
+          <ul style={{ margin: "8px 0", paddingLeft: "20px" }}>
+            <li>📈 Momentum (10): Measures rate of change over 10 periods</li>
+            <li>📊 Volatility (5): 5-period price volatility indicator</li>
+            <li>⚡ Acceleration: Rate of momentum change</li>
+          </ul>
+        </Box>
+      )}
     </Box>
   );
 };

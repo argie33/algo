@@ -4269,6 +4269,28 @@ export const getProfessionalMetrics = async (timeframe = "1y", benchmark = "SPY"
   }
 };
 
+// Check if Alpaca is configured (using environment variables)
+export const checkAlpacaConfiguration = async () => {
+  try {
+    const response = await api.get("/api/portfolio/import/alpaca/status");
+    return response.data;
+  } catch (error) {
+    console.error("Error checking Alpaca configuration:", error);
+    throw new Error(handleApiError(error, "Failed to check Alpaca configuration"));
+  }
+};
+
+// Import portfolio from Alpaca (uses environment variables, no user input needed)
+export const importPortfolioFromAlpaca = async () => {
+  try {
+    const response = await api.post("/api/portfolio/import/alpaca");
+    return response.data;
+  } catch (error) {
+    console.error("Error importing portfolio from Alpaca:", error);
+    throw new Error(handleApiError(error, "Failed to import portfolio from Alpaca"));
+  }
+};
+
 export const getCustomAnalytics = async (
   analysisType,
   parameters = {},
