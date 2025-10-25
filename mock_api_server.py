@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import random
 from urllib.parse import urlparse
 
-PORT = 3002
+PORT = 3003
 
 def generate_indicator(name, category, value, unit, change, trend, signal, strength, importance):
     """Generate a single indicator with 30-day history"""

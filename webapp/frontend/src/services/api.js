@@ -12,7 +12,7 @@ export const getApiConfig = () => {
   const apiUrl =
     runtimeApiUrl ||
     (import.meta.env && import.meta.env.VITE_API_URL) ||
-    "http://localhost:3002";
+    "http://localhost:3003";
 
   // Only log in development, not in tests
   if (typeof process === "undefined" || process.env.NODE_ENV !== "test") {
