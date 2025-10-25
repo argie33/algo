@@ -110,13 +110,13 @@ const AnalystTrendCard = ({ symbol }) => {
   const [error, setError] = React.useState(null);
   const [data, setData] = React.useState(null);
 
-  // Fetch analyst insights from endpoint
+  // Fetch analyst metrics from endpoint
   React.useEffect(() => {
-    const fetchAnalystInsights = async () => {
+    const fetchAnalystMetrics = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${API_BASE}/api/sentiment/analyst/insights/${symbol}`);
-        if (!response.ok) throw new Error("Failed to fetch analyst insights");
+        const response = await fetch(`${API_BASE}/api/analysts/${symbol}/metrics`);
+        if (!response.ok) throw new Error("Failed to fetch analyst metrics");
         const result = await response.json();
         setData(result);
       } catch (err) {
@@ -128,13 +128,27 @@ const AnalystTrendCard = ({ symbol }) => {
     };
 
     if (symbol) {
-      fetchAnalystInsights();
+      fetchAnalystMetrics();
     }
   }, [symbol]);
 
-  // Use metrics directly from new endpoint
-  const metrics = data?.metrics || null;
-  const momentum = data?.momentum || null;
+  // Extract metrics from backend response
+  const metrics = data?.rating_distribution ? {
+    bullish: data.rating_distribution.buy || 0,
+    bullishPercent: parseFloat(data.rating_distribution.percentages?.buy_pct || 0).toFixed(1),
+    neutral: data.rating_distribution.hold || 0,
+    neutralPercent: parseFloat(data.rating_distribution.percentages?.hold_pct || 0).toFixed(1),
+    bearish: (data.rating_distribution.sell || 0) + (data.rating_distribution.strong_sell || 0),
+    bearishPercent: (parseFloat(data.rating_distribution.percentages?.sell_pct || 0) + parseFloat(data.rating_distribution.percentages?.strong_sell_pct || 0)).toFixed(1),
+    totalAnalysts: data.rating_distribution.total_analysts || 0,
+    avgPriceTarget: data.price_target?.target || null,
+    priceTargetVsCurrent: data.price_target?.upside_downside_pct ? parseFloat(data.price_target.upside_downside_pct) : null,
+  } : null;
+
+  const momentum = data?.momentum?.recent_30d ? {
+    upgrades30d: data.momentum.recent_30d.upgrades || 0,
+    downgrades30d: data.momentum.recent_30d.downgrades || 0,
+  } : null;
 
   if (loading) {
     return (
