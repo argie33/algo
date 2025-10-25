@@ -27,8 +27,6 @@ import {
   Select,
   MenuItem,
   alpha,
-  Chip,
-  useTheme,
 } from "@mui/material";
 import {
   TrendingUp,
@@ -102,320 +100,6 @@ const detectSentimentDivergence = (newsScore, analystScore, socialScore) => {
   }
 
   return { isDiverged: false };
-};
-
-// Comprehensive Analyst Metrics Component - Detailed analyst data
-const ComprehensiveAnalystMetrics = ({ symbol }) => {
-  const theme = useTheme();
-  const [sentimentTrend, setSentimentTrend] = React.useState(null);
-  const [momentum, setMomentum] = React.useState(null);
-  const [epsRevisions, setEpsRevisions] = React.useState(null);
-  const [loading, setLoading] = React.useState(true);
-
-  React.useEffect(() => {
-    const fetchAnalystData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        // Fetch from multiple analyst endpoints
-        const [trendRes, momentumRes, epsRes] = await Promise.all([
-          fetch(`${API_BASE}/api/analysts/${symbol}/sentiment-trend`).catch(() => null),
-          fetch(`${API_BASE}/api/analysts/${symbol}/analyst-momentum`).catch(() => null),
-          fetch(`${API_BASE}/api/analysts/${symbol}/eps-revisions`).catch(() => null),
-        ]);
-
-        if (trendRes?.ok) {
-          const trendData = await trendRes.json();
-          setSentimentTrend(trendData?.data || trendData);
-        }
-        if (momentumRes?.ok) {
-          const momentumData = await momentumRes.json();
-          setMomentum(momentumData?.data || momentumData);
-        }
-        if (epsRes?.ok) {
-          const epsData = await epsRes.json();
-          setEpsRevisions(epsData?.data || epsData);
-        }
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (symbol) {
-      fetchAnalystData();
-    }
-  }, [symbol]);
-
-  if (loading) {
-    return (
-      <Card variant="outlined">
-        <CardContent>
-          <CircularProgress size={24} sx={{ mr: 1 }} />
-          <Typography variant="body2" color="textSecondary">Loading comprehensive analyst data...</Typography>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Box>
-      {/* Sentiment Trend */}
-      {sentimentTrend && (
-        <Card variant="outlined" sx={{ mb: 2 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>Analyst Sentiment Trend</Typography>
-            {Array.isArray(sentimentTrend) ? (
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Date</TableCell>
-                      <TableCell align="center">Bullish %</TableCell>
-                      <TableCell align="center">Neutral %</TableCell>
-                      <TableCell align="center">Bearish %</TableCell>
-                      <TableCell align="center">Total</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {sentimentTrend.slice(0, 10).map((item, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell>{new Date(item.date || item.timestamp).toLocaleDateString()}</TableCell>
-                        <TableCell align="center">
-                          <Chip label={`${item.bullish_pct || 0}%`} size="small" color="success" />
-                        </TableCell>
-                        <TableCell align="center">
-                          <Chip label={`${item.neutral_pct || 0}%`} size="small" />
-                        </TableCell>
-                        <TableCell align="center">
-                          <Chip label={`${item.bearish_pct || 0}%`} size="small" color="error" />
-                        </TableCell>
-                        <TableCell align="center">{item.total_analysts || 0}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            ) : (
-              <Typography variant="body2" color="textSecondary">No trend data available</Typography>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Momentum Data */}
-      {momentum && (
-        <Card variant="outlined" sx={{ mb: 2 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>Analyst Actions & Momentum</Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6} md={3}>
-                <Box sx={{ p: 1.5, bgcolor: alpha(theme.palette.success.main, 0.1), borderRadius: 1 }}>
-                  <Typography variant="caption" color="textSecondary">Upgrades (30d)</Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: theme.palette.success.main }}>
-                    {momentum.upgrades_30d || momentum.upgrades || 0}
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Box sx={{ p: 1.5, bgcolor: alpha(theme.palette.error.main, 0.1), borderRadius: 1 }}>
-                  <Typography variant="caption" color="textSecondary">Downgrades (30d)</Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: theme.palette.error.main }}>
-                    {momentum.downgrades_30d || momentum.downgrades || 0}
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Box sx={{ p: 1.5, bgcolor: alpha(theme.palette.info.main, 0.1), borderRadius: 1 }}>
-                  <Typography variant="caption" color="textSecondary">Initiations</Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: theme.palette.info.main }}>
-                    {momentum.initiations || 0}
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Box sx={{ p: 1.5, bgcolor: alpha(theme.palette.warning.main, 0.1), borderRadius: 1 }}>
-                  <Typography variant="caption" color="textSecondary">Maintained</Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: theme.palette.warning.main }}>
-                    {momentum.maintained || 0}
-                  </Typography>
-                </Box>
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* EPS Revisions */}
-      {epsRevisions && (
-        <Card variant="outlined">
-          <CardContent>
-            <Typography variant="h6" gutterBottom>EPS Revisions & Estimates</Typography>
-            {Array.isArray(epsRevisions) ? (
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Period</TableCell>
-                      <TableCell align="center">Current Estimate</TableCell>
-                      <TableCell align="center">7-Day Change</TableCell>
-                      <TableCell align="center">30-Day Change</TableCell>
-                      <TableCell align="center">Count</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {epsRevisions.slice(0, 5).map((item, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell>{item.period || item.fiscal_period || 'N/A'}</TableCell>
-                        <TableCell align="center">${item.current_estimate || item.estimate || 0}</TableCell>
-                        <TableCell align="center">
-                          <Chip
-                            label={`${item.seven_day_change || 0 > 0 ? '+' : ''}${item.seven_day_change || 0}%`}
-                            size="small"
-                            color={item.seven_day_change > 0 ? 'success' : 'error'}
-                            variant={item.seven_day_change ? 'filled' : 'outlined'}
-                          />
-                        </TableCell>
-                        <TableCell align="center">
-                          <Chip
-                            label={`${item.thirty_day_change || 0 > 0 ? '+' : ''}${item.thirty_day_change || 0}%`}
-                            size="small"
-                            color={item.thirty_day_change > 0 ? 'success' : 'error'}
-                            variant={item.thirty_day_change ? 'filled' : 'outlined'}
-                          />
-                        </TableCell>
-                        <TableCell align="center">{item.estimate_count || 0}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            ) : (
-              <Typography variant="body2" color="textSecondary">No EPS revision data available</Typography>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {!sentimentTrend && !momentum && !epsRevisions && !loading && (
-        <Alert severity="info">No comprehensive analyst metrics available for {symbol}</Alert>
-      )}
-    </Box>
-  );
-};
-
-// Comprehensive Social Sentiment Component
-const ComprehensiveSocialSentiment = ({ symbol }) => {
-  const [socialData, setSocialData] = React.useState(null);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState(null);
-
-  React.useEffect(() => {
-    const fetchSocialData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        // Fetch sentiment analysis data which includes social metrics
-        const response = await fetch(`${API_BASE}/api/sentiment/analysis?symbol=${symbol}`);
-        if (response.ok) {
-          const data = await response.json();
-          setSocialData(data?.data || data);
-        }
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (symbol) {
-      fetchSocialData();
-    }
-  }, [symbol]);
-
-  if (loading) {
-    return (
-      <Card variant="outlined">
-        <CardContent>
-          <CircularProgress size={24} sx={{ mr: 1 }} />
-          <Typography variant="body2" color="textSecondary">Loading social sentiment data...</Typography>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (error) {
-    return (
-      <Card variant="outlined">
-        <CardContent>
-          <Typography variant="body2" color="error">Error loading social data: {error}</Typography>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Box>
-      {socialData && Array.isArray(socialData) ? (
-        <Card variant="outlined">
-          <CardContent>
-            <Typography variant="h6" gutterBottom>Social Media & Alternative Data Sentiment</Typography>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Date</TableCell>
-                    <TableCell>Source</TableCell>
-                    <TableCell align="center">Sentiment Score</TableCell>
-                    <TableCell align="center">Positive</TableCell>
-                    <TableCell align="center">Neutral</TableCell>
-                    <TableCell align="center">Negative</TableCell>
-                    <TableCell align="center">Total Volume</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {socialData.slice(0, 15).map((item, idx) => (
-                    <TableRow key={idx}>
-                      <TableCell>{new Date(item.date || item.timestamp).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={item.source || 'Social'}
-                          size="small"
-                          variant="outlined"
-                        />
-                      </TableCell>
-                      <TableCell align="center">
-                        <Chip
-                          label={item.sentiment_score?.toFixed(2) || 'N/A'}
-                          size="small"
-                          color={item.sentiment_score > 0.2 ? 'success' : item.sentiment_score < -0.2 ? 'error' : 'warning'}
-                        />
-                      </TableCell>
-                      <TableCell align="center">
-                        <Chip label={item.positive_mentions || 0} size="small" color="success" variant="outlined" />
-                      </TableCell>
-                      <TableCell align="center">
-                        <Chip label={item.neutral_mentions || 0} size="small" variant="outlined" />
-                      </TableCell>
-                      <TableCell align="center">
-                        <Chip label={item.negative_mentions || 0} size="small" color="error" variant="outlined" />
-                      </TableCell>
-                      <TableCell align="center">{item.total_mentions || 0}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </CardContent>
-        </Card>
-      ) : (
-        <Alert severity="info">No social sentiment data available for {symbol}</Alert>
-      )}
-    </Box>
-  );
 };
 
 // Analyst Trend Card Component - Metrics-focused display
@@ -687,7 +371,23 @@ const AnalystTrendCard = ({ symbol }) => {
   );
 };
 
+function TabPanel(props) {
+  const { children, value, index, ...other } = props;
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`sentiment-tabpanel-${index}`}
+      aria-labelledby={`sentiment-tab-${index}`}
+      {...other}
+    >
+      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
+    </div>
+  );
+}
+
 function Sentiment() {
+  const theme = useTheme();
   const [expandedSymbol, setExpandedSymbol] = useState(null);
   const [searchFilter, setSearchFilter] = useState("");
   const [sortBy, setSortBy] = useState("composite");
@@ -1599,15 +1299,15 @@ function Sentiment() {
               <Alert severity="info">No analyst upgrades/downgrades found</Alert>
             )}
 
-            {/* Section: Comprehensive Analyst Metrics - Detailed Data */}
+            {/* Analyst Insights by Symbol - Detailed Metrics */}
             <Divider sx={{ my: 4 }} />
             <Box sx={{ mb: 3 }}>
               <Typography variant="h6" sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
                 <TrendingUpRounded />
-                Comprehensive Analyst Metrics by Stock
+                Detailed Analyst Metrics by Stock
               </Typography>
               <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
-                Detailed analyst sentiment trends, momentum, EPS revisions, and all available analyst metrics
+                Browse detailed analyst sentiment metrics, price targets, and coverage statistics for each stock
               </Typography>
             </Box>
 
@@ -1623,8 +1323,8 @@ function Sentiment() {
               <Alert severity="info">No sentiment data available</Alert>
             ) : (
               <Box>
-                {filteredAndSortedStocks.map((stock) => (
-                  <Accordion key={`analyst-${stock.symbol}`} sx={{ mb: 2 }}>
+                {filteredAndSortedStocks.slice(0, 10).map((stock) => (
+                  <Accordion key={stock.symbol} sx={{ mb: 2 }}>
                     <AccordionSummary expandIcon={<ExpandMore />}>
                       <Box sx={{ width: "100%", display: "flex", alignItems: "center", gap: 2 }}>
                         <Typography variant="h6" fontWeight="bold" sx={{ minWidth: 80 }}>
@@ -1641,56 +1341,7 @@ function Sentiment() {
                       </Box>
                     </AccordionSummary>
                     <AccordionDetails>
-                      <ComprehensiveAnalystMetrics symbol={stock.symbol} />
-                    </AccordionDetails>
-                  </Accordion>
-                ))}
-              </Box>
-            )}
-
-            {/* Section: Comprehensive Social Sentiment Metrics */}
-            <Divider sx={{ my: 4 }} />
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="h6" sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
-                <Reddit />
-                Comprehensive Social Sentiment Metrics by Stock
-              </Typography>
-              <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
-                Detailed social media, alternative data, and sentiment volume trends for each stock
-              </Typography>
-            </Box>
-
-            {isLoading ? (
-              <Box display="flex" justifyContent="center" py={4}>
-                <CircularProgress />
-              </Box>
-            ) : error ? (
-              <Alert severity="error" sx={{ mb: 3 }}>
-                Failed to load sentiment data: {error.message}
-              </Alert>
-            ) : filteredAndSortedStocks.length === 0 ? (
-              <Alert severity="info">No sentiment data available</Alert>
-            ) : (
-              <Box>
-                {filteredAndSortedStocks.map((stock) => (
-                  <Accordion key={`social-${stock.symbol}`} sx={{ mb: 2 }}>
-                    <AccordionSummary expandIcon={<ExpandMore />}>
-                      <Box sx={{ width: "100%", display: "flex", alignItems: "center", gap: 2 }}>
-                        <Typography variant="h6" fontWeight="bold" sx={{ minWidth: 80 }}>
-                          {stock.symbol}
-                        </Typography>
-                        <Box display="flex" alignItems="center" gap={1}>
-                          {stock.compositeSentiment.icon}
-                          <Chip
-                            label={stock.compositeSentiment.label}
-                            color={stock.compositeSentiment.color}
-                            size="small"
-                          />
-                        </Box>
-                      </Box>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      <ComprehensiveSocialSentiment symbol={stock.symbol} />
+                      <AnalystTrendCard symbol={stock.symbol} />
                     </AccordionDetails>
                   </Accordion>
                 ))}
