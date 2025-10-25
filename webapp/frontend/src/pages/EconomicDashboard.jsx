@@ -305,7 +305,7 @@ const RecessionRiskPanel = ({ data, isLoading, theme }) => {
   );
 };
 
-const LeadingIndicatorsPanel = ({ data, isLoading, theme }) => {
+const LeadingIndicatorsPanel = ({ data, isLoading, theme, yieldCurveData }) => {
   if (isLoading) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
@@ -329,18 +329,25 @@ const LeadingIndicatorsPanel = ({ data, isLoading, theme }) => {
       <Grid container spacing={3}>
         {data.map((indicator, idx) => (
           <Grid item xs={12} md={6} key={idx}>
-            <Card variant="outlined">
+            <Card sx={{
+              height: "100%",
+              background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.02)} 0%, ${alpha(theme.palette.primary.main, 0.01)} 100%)`,
+              border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+            }}>
               <CardContent>
                 <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
                   <Box display="flex" alignItems="center" gap={1}>
                     {indicator.trend === "up" ? (
-                      <TrendingUp sx={{ color: "success.main", fontSize: 24 }} />
+                      <TrendingUp sx={{ color: "#4caf50", fontSize: 24, fontWeight: "bold" }} />
                     ) : indicator.trend === "down" ? (
-                      <TrendingDown sx={{ color: "error.main", fontSize: 24 }} />
+                      <TrendingDown sx={{ color: "#f44336", fontSize: 24, fontWeight: "bold" }} />
                     ) : (
-                      <TrendingFlat sx={{ color: "warning.main", fontSize: 24 }} />
+                      <TrendingFlat sx={{ color: "#ff9800", fontSize: 24, fontWeight: "bold" }} />
                     )}
-                    <Typography variant="h6">{indicator.name}</Typography>
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 600 }}>{indicator.name}</Typography>
+                      <Typography variant="caption" color="text.secondary">{indicator.description}</Typography>
+                    </Box>
                   </Box>
                   <Chip
                     label={indicator.signal}

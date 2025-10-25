@@ -194,12 +194,6 @@ const menuItems = [
     category: "tools",
   },
   {
-    text: "Real-Time Data",
-    icon: <PlayArrow />,
-    path: "/realtime",
-    category: "tools",
-  },
-  {
     text: "Settings",
     icon: <SettingsIcon />,
     path: "/settings",
