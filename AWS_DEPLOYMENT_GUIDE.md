@@ -1,208 +1,130 @@
-# AWS Deployment Guide for Stock Analysis Dashboard
+# AWS Data Deployment Guide
 
 ## Overview
-This guide will deploy the entire stock analysis application to AWS with:
-- **Backend**: Lambda (serverless) or EC2
-- **Frontend**: S3 + CloudFront
-- **Database**: RDS PostgreSQL
-- **Data Loaders**: EC2 Instance or Lambda scheduled tasks
+This guide explains how to deploy the local stock data to AWS RDS and expose it through AWS Lambda API routes.
+
+## Current Status
+
+### Local Data (READY TO SYNC)
+- ✅ **stock_scores**: 5,315/5,315 (100%) - COMPLETE
+- 🔄 **positioning_metrics**: 1,476/5,315 (27.77%) - Loading
+- 🔄 **momentum_metrics**: 1,261/5,307 (23.75%) - Loading
+
+### AWS Lambda Routes (LIVE NOW)
+```
+GET /api/momentum/stocks/:symbol
+GET /api/momentum/leaders
+GET /api/momentum/laggards
+GET /api/momentum/metrics
+GET /api/momentum/range
+
+GET /api/positioning-metrics/stocks/:symbol
+GET /api/positioning-metrics/institutional-holders
+GET /api/positioning-metrics/insider-ownership
+GET /api/positioning-metrics/short-interest
+GET /api/positioning-metrics/metrics
+GET /api/positioning-metrics/comparison
+```
 
 ## Prerequisites
-- AWS Account with appropriate permissions (NOT just "reader")
-- AWS CLI configured (`aws sts get-caller-identity` works)
-- Database dump ready: `/tmp/stocks_database.sql` (13GB)
 
-## Step 1: Create RDS Database Instance
-
+### Option A: AWS Secrets Manager (Recommended)
+Requires AWS credentials with Secrets Manager access:
 ```bash
-# Create RDS instance for PostgreSQL
-aws rds create-db-instance \
-  --db-instance-identifier stocks-db \
-  --db-instance-class db.t3.medium \
-  --engine postgres \
-  --engine-version 16.1 \
-  --master-username postgres \
-  --master-user-password YOUR_STRONG_PASSWORD \
-  --allocated-storage 500 \
-  --storage-type gp3 \
-  --publicly-accessible true \
-  --region us-east-1
-
-# Wait for instance to be available (10-15 minutes)
-aws rds describe-db-instances \
-  --db-instance-identifier stocks-db \
-  --region us-east-1 \
-  --query 'DBInstances[0].DBInstanceStatus'
+export AWS_SECRET_ARN="arn:aws:secretsmanager:us-east-1:123456789:secret:rds-stocks-xxxxx"
 ```
 
-## Step 2: Create S3 Bucket for Database Backup
-
+### Option B: Direct Credentials
 ```bash
-# Create S3 bucket for database backups
-aws s3 mb s3://stocks-algo-backups-$(date +%s) --region us-east-1
-
-# Upload database dump
-aws s3 cp /tmp/stocks_database.sql s3://stocks-algo-backups-TIMESTAMP/
-
-# Create bucket for frontend deployment
-aws s3 mb s3://stocks-algo-frontend-$(date +%s) --region us-east-1
+export AWS_RDS_ENDPOINT="stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com"
+export AWS_RDS_USER="postgres"
+export AWS_RDS_PASSWORD="your-password-here"
+export AWS_RDS_DATABASE="stocks"
 ```
 
-## Step 3: Restore Database to RDS
+## Deployment Steps
 
+### Step 1: Create Data Dump (Optional but Recommended)
 ```bash
-# Get RDS endpoint
-RDS_ENDPOINT=$(aws rds describe-db-instances \
-  --db-instance-identifier stocks-db \
-  --region us-east-1 \
-  --query 'DBInstances[0].Endpoint.Address' \
-  --output text)
-
-# Restore database (this will take time)
-psql -h $RDS_ENDPOINT -U postgres -d postgres << EOF
-CREATE DATABASE stocks;
-EOF
-
-# Restore the dump
-psql -h $RDS_ENDPOINT -U postgres -d stocks < /tmp/stocks_database.sql
+cd /home/stocks/algo
+bash aws_data_dump.sh
 ```
 
-## Step 4: Package and Deploy Backend
+This will:
+- Verify local database connectivity
+- Export positioning_metrics, momentum_metrics, and stock_scores
+- Create compressed backup: `/tmp/aws_dumps/stocks_dump_*.sql.gz`
+- Show deployment options
 
-### Option A: Deploy to Lambda
+### Step 2: Sync Data to AWS RDS
 
+**Method 1: Using Secrets Manager (Recommended)**
 ```bash
-# Install serverless framework
-npm install -g serverless
-
-# Create serverless.yml in /home/stocks/algo/webapp/lambda/
-# Then deploy
-serverless deploy --region us-east-1
+export AWS_SECRET_ARN="arn:aws:secretsmanager:us-east-1:123456789:secret:name"
+python3 /home/stocks/algo/sync_data_to_aws.py --full
 ```
 
-### Option B: Deploy to EC2
-
+**Method 2: Direct Credentials**
 ```bash
-# Create EC2 instance
-aws ec2 run-instances \
-  --image-id ami-0c55b159cbfafe1f0 \
-  --instance-type t3.medium \
-  --key-name your-key \
-  --security-groups default \
-  --region us-east-1
-
-# SSH into instance and:
-# 1. Install Node.js and npm
-# 2. Clone the repo
-# 3. Install dependencies
-# 4. Set environment variables for RDS
-# 5. Start the server (use PM2 or systemd)
+export AWS_RDS_ENDPOINT="stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com"
+export AWS_RDS_USER="postgres"
+export AWS_RDS_PASSWORD="your-password"
+python3 /home/stocks/algo/sync_data_to_aws.py --full
 ```
 
-## Step 5: Build and Deploy Frontend
-
+**Method 3: Incremental Sync (Only New/Changed Data)**
 ```bash
-# Build frontend for production
-cd /home/stocks/algo/webapp/frontend
-npm run build
-
-# Deploy to S3
-BUCKET_NAME=$(aws s3 ls | grep stocks-algo-frontend | awk '{print $3}')
-aws s3 sync dist/ s3://$BUCKET_NAME/ --delete
-
-# Enable website hosting
-aws s3 website s3://$BUCKET_NAME/ \
-  --index-document index.html \
-  --error-document index.html
+python3 /home/stocks/algo/sync_data_to_aws.py --batch-size 500
 ```
 
-## Step 6: Set Up CloudFront Distribution
+## API Usage Examples
 
+All endpoints return JSON with data indexed by symbol or metric.
+
+### Momentum Endpoints
+
+**Get momentum for single stock:**
 ```bash
-# Create CloudFront distribution
-aws cloudfront create-distribution \
-  --origin-domain-name $BUCKET_NAME.s3.amazonaws.com \
-  --default-root-object index.html
+curl http://lambda-api.endpoint.com/api/momentum/stocks/AAPL
 ```
 
-## Step 7: Run Data Loaders on RDS
-
+**Get top momentum stocks:**
 ```bash
-# Update environment variables to point to RDS
-export DB_HOST=$RDS_ENDPOINT
-export DB_USER=postgres
-export DB_PASSWORD=YOUR_PASSWORD
-export DB_NAME=stocks
-
-# Run all loaders
-python3 loadsectors.py
-python3 load_sector_performance.py
-# ... run other loaders as needed
+curl "http://lambda-api.endpoint.com/api/momentum/leaders?limit=10"
 ```
 
-## Step 8: Verify Deployment
-
+**Get stocks in momentum range:**
 ```bash
-# Test backend API
-curl https://your-api-endpoint/api/sectors/sectors-with-history
-
-# Test frontend
-# Visit https://your-cloudfront-domain.cloudfront.net
+curl "http://lambda-api.endpoint.com/api/momentum/range?min=-0.1&max=0.1"
 ```
 
-## Environment Variables for AWS Deployment
+### Positioning Metrics Endpoints
 
+**Get positioning for single stock:**
 ```bash
-# Backend (.env or Lambda environment variables)
-DB_HOST=your-rds-endpoint.rds.amazonaws.com
-DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=your_password
-DB_NAME=stocks
-NODE_ENV=production
-PORT=3001
-
-# Frontend (.env.production)
-VITE_API_URL=https://your-api-endpoint
+curl http://lambda-api.endpoint.com/api/positioning-metrics/stocks/AAPL
 ```
 
-## Cost Estimate
-- **RDS db.t3.medium**: ~$60/month
-- **EC2 t3.medium** (if used): ~$30/month
-- **S3 Storage**: ~$5/month
-- **CloudFront**: Based on usage, typically $20-50/month
-- **Total**: ~$115-160/month
-
-## Cleanup
-
-To avoid charges, delete resources when done:
-
+**Get stocks by institutional ownership:**
 ```bash
-# Delete RDS instance
-aws rds delete-db-instance \
-  --db-instance-identifier stocks-db \
-  --skip-final-snapshot
-
-# Delete S3 buckets
-aws s3 rm s3://bucket-name --recursive
-aws s3api delete-bucket --bucket bucket-name
-
-# Delete EC2 instances (if used)
-aws ec2 terminate-instances --instance-ids i-xxxxx
-
-# Delete CloudFront distribution
-aws cloudfront delete-distribution --id DISTRIBUTION_ID
+curl "http://lambda-api.endpoint.com/api/positioning-metrics/institutional-holders?limit=50"
 ```
 
-## Important Notes
+**Compare multiple stocks:**
+```bash
+curl "http://lambda-api.endpoint.com/api/positioning-metrics/comparison?symbols=AAPL,MSFT,GOOGL"
+```
 
-⚠️ **Current Issue**: Your AWS user account has "reader" permissions only.
-- You may not have permissions to create RDS, EC2, or other resources
-- Contact your AWS administrator to grant appropriate permissions
-- Required permissions: RDS (full), EC2 (full), S3 (full), CloudFront (full), IAM (limited)
+## Files Involved
 
-📝 **Next Steps**:
-1. Get proper AWS permissions from account administrator
-2. Set up an IAM role with deployment permissions
-3. Run the deployment script with elevated permissions
-4. Monitor costs and cleanup after verification
+- `/home/stocks/algo/sync_data_to_aws.py` - Main sync script
+- `/home/stocks/algo/aws_data_dump.sh` - Dump utility
+- `/home/stocks/algo/webapp/lambda/routes/momentum.js` - Lambda routes
+- `/home/stocks/algo/webapp/lambda/routes/positioning-metrics.js` - Lambda routes
+
+## Next Steps
+
+1. Provide AWS credentials
+2. Run `bash aws_data_dump.sh`
+3. Run `python3 sync_data_to_aws.py --full`
+4. Verify data in AWS RDS
