@@ -3629,8 +3629,14 @@ router.get("/leading-indicators", async (req, res) => {
         ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY date DESC) as rn
       FROM economic_data
       WHERE series_id IN (
-        'UNRATE', 'PAYEMS', 'CPIAUCSL', 'GDPC1', 'T10Y2Y',
-        'SP500', 'VIXCLS', 'FEDFUNDS', 'INDPRO', 'HOUST', 'MICH', 'ICSA',
+        -- OFFICIAL LEI COMPONENTS (10)
+        'UNRATE', 'PAYEMS', 'CPIAUCSL', 'GDPC1', 'HOUST', 'ICSA', 'T10Y2Y', 'BUSLOANS', 'SP500', 'VIXCLS',
+        -- LAGGING INDICATORS (7)
+        'UEMPMEAN', 'PRIME', 'MMNRNJ', 'ISITC', 'TOTALSA', 'IMPGS', 'LBMVRTQ',
+        -- COINCIDENT/SECONDARY INDICATORS (5)
+        'INDPRO', 'UMCSENT', 'MICH', 'RSXFS', 'EMSRATIO',
+        -- ADDITIONAL SECONDARY
+        'FEDFUNDS',
         -- Full yield curve maturities for comprehensive chart
         'DGS3MO', 'DGS6MO', 'DGS1', 'DGS2', 'DGS3', 'DGS5', 'DGS7',
         'DGS10', 'DGS20', 'DGS30'
@@ -3744,7 +3750,7 @@ router.get("/leading-indicators", async (req, res) => {
     };
 
     // VALIDATE required series exist - FAIL if missing (NO FALLBACK)
-    const requiredSeries = ['UNRATE', 'PAYEMS', 'CPIAUCSL', 'GDPC1', 'DGS10', 'DGS2', 'T10Y2Y', 'SP500', 'VIXCLS', 'FEDFUNDS', 'INDPRO', 'HOUST', 'MICH'];
+    const requiredSeries = ['UNRATE', 'PAYEMS', 'CPIAUCSL', 'GDPC1', 'DGS10', 'DGS2', 'T10Y2Y', 'SP500', 'VIXCLS', 'FEDFUNDS', 'INDPRO', 'HOUST', 'MICH', 'ICSA', 'BUSLOANS'];
     const missingSeries = requiredSeries.filter(s => !indicators[s]);
     if (missingSeries.length > 0) {
       console.error(`❌ MISSING REQUIRED SERIES: ${missingSeries.join(', ')}`);
@@ -3865,7 +3871,7 @@ router.get("/leading-indicators", async (req, res) => {
           },
           {
             name: "Payroll Employment",
-            category: "SECONDARY", // Additional Economic Indicator
+            category: "LEI", // Official Leading Economic Indicator
             value: indicators["PAYEMS"] ? (indicators["PAYEMS"].value / 1000).toFixed(1) + "M" : null,
             rawValue: indicators["PAYEMS"] ? indicators["PAYEMS"].value : null,
             unit: "Thousands",
@@ -3876,20 +3882,6 @@ router.get("/leading-indicators", async (req, res) => {
             importance: "high",
             date: indicators["PAYEMS"] ? indicators["PAYEMS"].date : null,
             history: historicalData["PAYEMS"] ? historicalData["PAYEMS"].reverse() : [],
-          },
-          {
-            name: "Industrial Production",
-            category: "SECONDARY", // Additional Economic Indicator
-            value: indicators["INDPRO"] ? indicators["INDPRO"].value.toFixed(1) : null,
-            rawValue: indicators["INDPRO"] ? indicators["INDPRO"].value : null,
-            unit: "Index",
-            ...calculateTrend("INDPRO"),
-            signal: indicators["INDPRO"] && indicators["INDPRO"].value > 100 ? "Positive" : indicators["INDPRO"] && indicators["INDPRO"].value < 95 ? "Negative" : "Neutral",
-            description: "Measure of real output for all manufacturing, mining, and utilities facilities",
-            strength: indicators["INDPRO"] ? Math.min(100, Math.max(0, (indicators["INDPRO"].value - 90) * 2)) : 0,
-            importance: "medium",
-            date: indicators["INDPRO"] ? indicators["INDPRO"].date : null,
-            history: historicalData["INDPRO"] ? historicalData["INDPRO"].reverse() : [],
           },
           {
             name: "Housing Starts",
@@ -3920,32 +3912,46 @@ router.get("/leading-indicators", async (req, res) => {
             history: historicalData["MICH"] ? historicalData["MICH"].reverse() : [],
           },
           {
-            name: "S&P 500",
-            category: "SECONDARY", // Additional Economic Indicator
-            value: indicators["SP500"] ? indicators["SP500"].value.toFixed(0) : null,
-            rawValue: indicators["SP500"] ? indicators["SP500"].value : null,
-            unit: "Index",
-            ...calculateTrend("SP500"),
-            signal: indicators["SP500"] && indicators["SP500"].value > 5500 ? "Positive" : indicators["SP500"] && indicators["SP500"].value < 4500 ? "Negative" : "Neutral",
-            description: "S&P 500 stock market index",
-            strength: indicators["SP500"] ? Math.min(100, Math.max(0, (indicators["SP500"].value - 4000) / 30)) : 0,
-            importance: "medium",
-            date: indicators["SP500"] ? indicators["SP500"].date : null,
-            history: historicalData["SP500"] ? historicalData["SP500"].reverse() : [],
+            name: "Payroll Employment",
+            category: "SECONDARY", // Secondary Indicator - also in LEI
+            value: indicators["PAYEMS"] ? (indicators["PAYEMS"].value / 1000).toFixed(1) + "M" : null,
+            rawValue: indicators["PAYEMS"] ? indicators["PAYEMS"].value : null,
+            unit: "Thousands",
+            ...calculateTrend("PAYEMS"),
+            signal: indicators["PAYEMS"] && indicators["PAYEMS"].value > 155000 ? "Positive" : indicators["PAYEMS"] && indicators["PAYEMS"].value < 145000 ? "Negative" : "Neutral",
+            description: "Total nonfarm payroll employment",
+            strength: indicators["PAYEMS"] ? Math.min(100, Math.max(0, (indicators["PAYEMS"].value - 140000) / 200)) : 0,
+            importance: "high",
+            date: indicators["PAYEMS"] ? indicators["PAYEMS"].date : null,
+            history: historicalData["PAYEMS"] ? historicalData["PAYEMS"].reverse() : [],
           },
           {
-            name: "Market Volatility (VIX)",
-            category: "SECONDARY",
-            value: indicators["VIXCLS"] ? indicators["VIXCLS"].value.toFixed(1) : null,
-            rawValue: indicators["VIXCLS"] ? indicators["VIXCLS"].value : null,
+            name: "Industrial Production",
+            category: "SECONDARY", // Additional Economic Indicator
+            value: indicators["INDPRO"] ? indicators["INDPRO"].value.toFixed(1) : null,
+            rawValue: indicators["INDPRO"] ? indicators["INDPRO"].value : null,
             unit: "Index",
-            ...calculateTrend("VIXCLS"),
-            signal: indicators["VIXCLS"] && indicators["VIXCLS"].value < 15 ? "Positive" : indicators["VIXCLS"] && indicators["VIXCLS"].value > 25 ? "Negative" : "Neutral",
-            description: "CBOE Volatility Index (fear gauge)",
-            strength: indicators["VIXCLS"] ? Math.min(100, Math.max(0, 100 - indicators["VIXCLS"].value * 3)) : 0,
+            ...calculateTrend("INDPRO"),
+            signal: indicators["INDPRO"] && indicators["INDPRO"].value > 100 ? "Positive" : indicators["INDPRO"] && indicators["INDPRO"].value < 95 ? "Negative" : "Neutral",
+            description: "Measure of real output for all manufacturing, mining, and utilities facilities",
+            strength: indicators["INDPRO"] ? Math.min(100, Math.max(0, (indicators["INDPRO"].value - 90) * 2)) : 0,
             importance: "medium",
-            date: indicators["VIXCLS"] ? indicators["VIXCLS"].date : null,
-            history: historicalData["VIXCLS"] ? historicalData["VIXCLS"].reverse() : [],
+            date: indicators["INDPRO"] ? indicators["INDPRO"].date : null,
+            history: historicalData["INDPRO"] ? historicalData["INDPRO"].reverse() : [],
+          },
+          {
+            name: "Federal Funds Rate",
+            category: "SECONDARY", // Additional Economic Indicator
+            value: indicators["FEDFUNDS"] ? indicators["FEDFUNDS"].value.toFixed(2) + "%" : null,
+            rawValue: indicators["FEDFUNDS"] ? indicators["FEDFUNDS"].value : null,
+            unit: "%",
+            ...calculateTrend("FEDFUNDS"),
+            signal: indicators["FEDFUNDS"] && indicators["FEDFUNDS"].value < 2 ? "Positive" : indicators["FEDFUNDS"] && indicators["FEDFUNDS"].value > 4 ? "Negative" : "Neutral",
+            description: "Federal Reserve target interest rate policy",
+            strength: indicators["FEDFUNDS"] ? Math.min(100, Math.max(0, 100 - indicators["FEDFUNDS"].value * 15)) : 0,
+            importance: "high",
+            date: indicators["FEDFUNDS"] ? indicators["FEDFUNDS"].date : null,
+            history: historicalData["FEDFUNDS"] ? historicalData["FEDFUNDS"].reverse() : [],
           },
           {
             name: "Initial Jobless Claims",
@@ -3960,6 +3966,204 @@ router.get("/leading-indicators", async (req, res) => {
             importance: "medium",
             date: indicators["ICSA"] ? indicators["ICSA"].date : null,
             history: historicalData["ICSA"] ? historicalData["ICSA"].reverse() : [],
+          },
+          {
+            name: "Business Loans",
+            category: "LEI", // Official Leading Economic Indicator
+            value: indicators["BUSLOANS"] ? (indicators["BUSLOANS"].value / 1000).toFixed(1) + "B" : null,
+            rawValue: indicators["BUSLOANS"] ? indicators["BUSLOANS"].value : null,
+            unit: "Billions",
+            ...calculateTrend("BUSLOANS"),
+            signal: indicators["BUSLOANS"] && indicators["BUSLOANS"].value > 2000000 ? "Positive" : indicators["BUSLOANS"] && indicators["BUSLOANS"].value < 1800000 ? "Negative" : "Neutral",
+            description: "Commercial and industrial loans outstanding",
+            strength: indicators["BUSLOANS"] ? Math.min(100, Math.max(0, (indicators["BUSLOANS"].value - 1700000) / 10000)) : 0,
+            importance: "medium",
+            date: indicators["BUSLOANS"] ? indicators["BUSLOANS"].date : null,
+            history: historicalData["BUSLOANS"] ? historicalData["BUSLOANS"].reverse() : [],
+          },
+          {
+            name: "S&P 500 Index",
+            category: "LEI", // Official Leading Economic Indicator
+            value: indicators["SP500"] ? indicators["SP500"].value.toFixed(0) : null,
+            rawValue: indicators["SP500"] ? indicators["SP500"].value : null,
+            unit: "Index",
+            ...calculateTrend("SP500"),
+            signal: indicators["SP500"] && indicators["SP500"].value > 5500 ? "Positive" : indicators["SP500"] && indicators["SP500"].value < 4500 ? "Negative" : "Neutral",
+            description: "S&P 500 stock market index - leading indicator of economic activity",
+            strength: indicators["SP500"] ? Math.min(100, Math.max(0, (indicators["SP500"].value - 4000) / 30)) : 0,
+            importance: "high",
+            date: indicators["SP500"] ? indicators["SP500"].date : null,
+            history: historicalData["SP500"] ? historicalData["SP500"].reverse() : [],
+          },
+          {
+            name: "Market Volatility (VIX)",
+            category: "LEI", // Official Leading Economic Indicator
+            value: indicators["VIXCLS"] ? indicators["VIXCLS"].value.toFixed(1) : null,
+            rawValue: indicators["VIXCLS"] ? indicators["VIXCLS"].value : null,
+            unit: "Index",
+            ...calculateTrend("VIXCLS"),
+            signal: indicators["VIXCLS"] && indicators["VIXCLS"].value < 15 ? "Positive" : indicators["VIXCLS"] && indicators["VIXCLS"].value > 25 ? "Negative" : "Neutral",
+            description: "CBOE Volatility Index - fear gauge and market sentiment",
+            strength: indicators["VIXCLS"] ? Math.min(100, Math.max(0, 100 - indicators["VIXCLS"].value * 3)) : 0,
+            importance: "high",
+            date: indicators["VIXCLS"] ? indicators["VIXCLS"].date : null,
+            history: historicalData["VIXCLS"] ? historicalData["VIXCLS"].reverse() : [],
+          },
+          {
+            name: "Yield Curve (2Y-10Y Spread)",
+            category: "LEI", // Official Leading Economic Indicator
+            value: indicators["T10Y2Y"] ? indicators["T10Y2Y"].value.toFixed(2) + " %" : null,
+            rawValue: indicators["T10Y2Y"] ? indicators["T10Y2Y"].value : null,
+            unit: "%",
+            ...calculateTrend("T10Y2Y"),
+            signal: indicators["T10Y2Y"] && indicators["T10Y2Y"].value > 0 ? "Positive" : indicators["T10Y2Y"] && indicators["T10Y2Y"].value < -0.5 ? "Negative" : "Neutral",
+            description: "Difference between 10-year and 2-year Treasury yields - recession predictor",
+            strength: indicators["T10Y2Y"] ? Math.min(100, Math.max(0, 50 + indicators["T10Y2Y"].value * 50)) : 0,
+            importance: "high",
+            date: indicators["T10Y2Y"] ? indicators["T10Y2Y"].date : null,
+            history: historicalData["T10Y2Y"] ? historicalData["T10Y2Y"].reverse() : [],
+          },
+          // LAGGING ECONOMIC INDICATORS
+          {
+            name: "Average Duration of Unemployment",
+            category: "LAGGING", // Lagging Economic Indicator
+            value: indicators["UEMPMEAN"] ? indicators["UEMPMEAN"].value.toFixed(1) + " weeks" : null,
+            rawValue: indicators["UEMPMEAN"] ? indicators["UEMPMEAN"].value : null,
+            unit: "Weeks",
+            ...calculateTrend("UEMPMEAN"),
+            signal: indicators["UEMPMEAN"] && indicators["UEMPMEAN"].value < 20 ? "Positive" : indicators["UEMPMEAN"] && indicators["UEMPMEAN"].value > 30 ? "Negative" : "Neutral",
+            description: "Average number of weeks unemployed workers have been looking for work",
+            strength: indicators["UEMPMEAN"] ? Math.min(100, Math.max(0, 100 - (indicators["UEMPMEAN"].value - 10) * 2)) : 0,
+            importance: "high",
+            date: indicators["UEMPMEAN"] ? indicators["UEMPMEAN"].date : null,
+            history: historicalData["UEMPMEAN"] ? historicalData["UEMPMEAN"].reverse() : [],
+          },
+          {
+            name: "Prime Lending Rate",
+            category: "LAGGING", // Lagging Economic Indicator
+            value: indicators["PRIME"] ? indicators["PRIME"].value.toFixed(2) + "%" : null,
+            rawValue: indicators["PRIME"] ? indicators["PRIME"].value : null,
+            unit: "%",
+            ...calculateTrend("PRIME"),
+            signal: indicators["PRIME"] && indicators["PRIME"].value < 4 ? "Positive" : indicators["PRIME"] && indicators["PRIME"].value > 7 ? "Negative" : "Neutral",
+            description: "Bank prime lending rate used as a basis for other loan rates",
+            strength: indicators["PRIME"] ? Math.min(100, Math.max(0, 100 - indicators["PRIME"].value * 8)) : 0,
+            importance: "medium",
+            date: indicators["PRIME"] ? indicators["PRIME"].date : null,
+            history: historicalData["PRIME"] ? historicalData["PRIME"].reverse() : [],
+          },
+          {
+            name: "Money Market Instruments Rate",
+            category: "LAGGING", // Lagging Economic Indicator
+            value: indicators["MMNRNJ"] ? indicators["MMNRNJ"].value.toFixed(2) + "%" : null,
+            rawValue: indicators["MMNRNJ"] ? indicators["MMNRNJ"].value : null,
+            unit: "%",
+            ...calculateTrend("MMNRNJ"),
+            signal: indicators["MMNRNJ"] && indicators["MMNRNJ"].value < 3 ? "Positive" : indicators["MMNRNJ"] && indicators["MMNRNJ"].value > 5 ? "Negative" : "Neutral",
+            description: "Interest rate on money market instruments",
+            strength: indicators["MMNRNJ"] ? Math.min(100, Math.max(0, 100 - indicators["MMNRNJ"].value * 15)) : 0,
+            importance: "medium",
+            date: indicators["MMNRNJ"] ? indicators["MMNRNJ"].date : null,
+            history: historicalData["MMNRNJ"] ? historicalData["MMNRNJ"].reverse() : [],
+          },
+          {
+            name: "Inventory-Sales Ratio",
+            category: "LAGGING", // Lagging Economic Indicator
+            value: indicators["ISITC"] ? indicators["ISITC"].value.toFixed(2) : null,
+            rawValue: indicators["ISITC"] ? indicators["ISITC"].value : null,
+            unit: "Ratio",
+            ...calculateTrend("ISITC"),
+            signal: indicators["ISITC"] && indicators["ISITC"].value < 1.2 ? "Positive" : indicators["ISITC"] && indicators["ISITC"].value > 1.5 ? "Negative" : "Neutral",
+            description: "Ratio of business inventories to sales",
+            strength: indicators["ISITC"] ? Math.min(100, Math.max(0, 100 - Math.abs(indicators["ISITC"].value - 1.3) * 50)) : 0,
+            importance: "medium",
+            date: indicators["ISITC"] ? indicators["ISITC"].date : null,
+            history: historicalData["ISITC"] ? historicalData["ISITC"].reverse() : [],
+          },
+          {
+            name: "Total Nonfarm Payroll (Lagging)",
+            category: "LAGGING", // Lagging Economic Indicator
+            value: indicators["TOTALSA"] ? (indicators["TOTALSA"].value / 1000).toFixed(1) + "M" : null,
+            rawValue: indicators["TOTALSA"] ? indicators["TOTALSA"].value : null,
+            unit: "Thousands",
+            ...calculateTrend("TOTALSA"),
+            signal: indicators["TOTALSA"] && indicators["TOTALSA"].value > 155000 ? "Positive" : indicators["TOTALSA"] && indicators["TOTALSA"].value < 145000 ? "Negative" : "Neutral",
+            description: "Total seasonally adjusted nonfarm payroll employment",
+            strength: indicators["TOTALSA"] ? Math.min(100, Math.max(0, (indicators["TOTALSA"].value - 140000) / 200)) : 0,
+            importance: "high",
+            date: indicators["TOTALSA"] ? indicators["TOTALSA"].date : null,
+            history: historicalData["TOTALSA"] ? historicalData["TOTALSA"].reverse() : [],
+          },
+          {
+            name: "Imports of Goods and Services",
+            category: "LAGGING", // Lagging Economic Indicator
+            value: indicators["IMPGS"] ? (indicators["IMPGS"].value / 1000).toFixed(1) + "B" : null,
+            rawValue: indicators["IMPGS"] ? indicators["IMPGS"].value : null,
+            unit: "Billions",
+            ...calculateTrend("IMPGS"),
+            signal: indicators["IMPGS"] && indicators["IMPGS"].value > 350000 ? "Positive" : indicators["IMPGS"] && indicators["IMPGS"].value < 300000 ? "Negative" : "Neutral",
+            description: "Real imports of goods and services",
+            strength: indicators["IMPGS"] ? Math.min(100, Math.max(0, (indicators["IMPGS"].value - 250000) / 500)) : 0,
+            importance: "medium",
+            date: indicators["IMPGS"] ? indicators["IMPGS"].date : null,
+            history: historicalData["IMPGS"] ? historicalData["IMPGS"].reverse() : [],
+          },
+          {
+            name: "Labor Share of Income",
+            category: "LAGGING", // Lagging Economic Indicator
+            value: indicators["LBMVRTQ"] ? indicators["LBMVRTQ"].value.toFixed(2) + "%" : null,
+            rawValue: indicators["LBMVRTQ"] ? indicators["LBMVRTQ"].value : null,
+            unit: "%",
+            ...calculateTrend("LBMVRTQ"),
+            signal: indicators["LBMVRTQ"] && indicators["LBMVRTQ"].value > 58 ? "Positive" : indicators["LBMVRTQ"] && indicators["LBMVRTQ"].value < 55 ? "Negative" : "Neutral",
+            description: "Labor share of income in the business sector",
+            strength: indicators["LBMVRTQ"] ? Math.min(100, Math.max(0, (indicators["LBMVRTQ"].value - 50) * 5)) : 0,
+            importance: "medium",
+            date: indicators["LBMVRTQ"] ? indicators["LBMVRTQ"].date : null,
+            history: historicalData["LBMVRTQ"] ? historicalData["LBMVRTQ"].reverse() : [],
+          },
+          // COINCIDENT/ADDITIONAL ECONOMIC INDICATORS
+          {
+            name: "Consumer Sentiment (University of Michigan)",
+            category: "COINCIDENT", // Coincident Economic Indicator
+            value: indicators["UMCSENT"] ? indicators["UMCSENT"].value.toFixed(1) : null,
+            rawValue: indicators["UMCSENT"] ? indicators["UMCSENT"].value : null,
+            unit: "Index",
+            ...calculateTrend("UMCSENT"),
+            signal: indicators["UMCSENT"] && indicators["UMCSENT"].value > 80 ? "Positive" : indicators["UMCSENT"] && indicators["UMCSENT"].value < 60 ? "Negative" : "Neutral",
+            description: "Consumer sentiment index measuring economic expectations",
+            strength: indicators["UMCSENT"] ? Math.min(100, Math.max(0, indicators["UMCSENT"].value - 20)) : 0,
+            importance: "high",
+            date: indicators["UMCSENT"] ? indicators["UMCSENT"].date : null,
+            history: historicalData["UMCSENT"] ? historicalData["UMCSENT"].reverse() : [],
+          },
+          {
+            name: "Retail Sales",
+            category: "COINCIDENT", // Coincident Economic Indicator
+            value: indicators["RSXFS"] ? (indicators["RSXFS"].value / 1000).toFixed(1) + "B" : null,
+            rawValue: indicators["RSXFS"] ? indicators["RSXFS"].value : null,
+            unit: "Billions",
+            ...calculateTrend("RSXFS"),
+            signal: indicators["RSXFS"] && indicators["RSXFS"].value > 700000 ? "Positive" : indicators["RSXFS"] && indicators["RSXFS"].value < 600000 ? "Negative" : "Neutral",
+            description: "Real retail sales excluding gasoline",
+            strength: indicators["RSXFS"] ? Math.min(100, Math.max(0, (indicators["RSXFS"].value - 550000) / 1000)) : 0,
+            importance: "high",
+            date: indicators["RSXFS"] ? indicators["RSXFS"].date : null,
+            history: historicalData["RSXFS"] ? historicalData["RSXFS"].reverse() : [],
+          },
+          {
+            name: "Employment-to-Population Ratio",
+            category: "COINCIDENT", // Coincident Economic Indicator
+            value: indicators["EMSRATIO"] ? indicators["EMSRATIO"].value.toFixed(1) + "%" : null,
+            rawValue: indicators["EMSRATIO"] ? indicators["EMSRATIO"].value : null,
+            unit: "%",
+            ...calculateTrend("EMSRATIO"),
+            signal: indicators["EMSRATIO"] && indicators["EMSRATIO"].value > 61 ? "Positive" : indicators["EMSRATIO"] && indicators["EMSRATIO"].value < 58 ? "Negative" : "Neutral",
+            description: "Percentage of population aged 16+ that is employed",
+            strength: indicators["EMSRATIO"] ? Math.min(100, Math.max(0, (indicators["EMSRATIO"].value - 55) * 8)) : 0,
+            importance: "high",
+            date: indicators["EMSRATIO"] ? indicators["EMSRATIO"].date : null,
+            history: historicalData["EMSRATIO"] ? historicalData["EMSRATIO"].reverse() : [],
           },
         ].filter(ind => ind.rawValue !== null), // Filter out indicators with no data
 
