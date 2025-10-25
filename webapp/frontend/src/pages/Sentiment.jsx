@@ -110,13 +110,13 @@ const AnalystTrendCard = ({ symbol }) => {
   const [error, setError] = React.useState(null);
   const [data, setData] = React.useState(null);
 
-  // Fetch analyst sentiment data from sentiment endpoint
+  // Fetch analyst insights from the correct endpoint
   React.useEffect(() => {
-    const fetchAnalystMetrics = async () => {
+    const fetchAnalystInsights = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${API_BASE}/api/sentiment/stocks?symbol=${symbol}`);
-        if (!response.ok) throw new Error("Failed to fetch analyst sentiment data");
+        const response = await fetch(`${API_BASE}/api/sentiment/analyst/insights/${symbol}`);
+        if (!response.ok) throw new Error("Failed to fetch analyst insights");
         const result = await response.json();
         setData(result);
       } catch (err) {
@@ -128,50 +128,13 @@ const AnalystTrendCard = ({ symbol }) => {
     };
 
     if (symbol) {
-      fetchAnalystMetrics();
+      fetchAnalystInsights();
     }
   }, [symbol]);
 
-  // Extract analyst sentiment metrics from the data array
-  const metrics = React.useMemo(() => {
-    if (!data || !data.data || !Array.isArray(data.data)) return null;
-
-    // Filter for analyst sentiment records (source === 'analyst')
-    const analystRecords = data.data.filter(item => item.source === 'analyst');
-    if (analystRecords.length === 0) return null;
-
-    // Get the most recent analyst record
-    const latestRecord = analystRecords[0];
-    if (!latestRecord) return null;
-
-    return {
-      bullish: latestRecord.buy_count || latestRecord.strong_buy_count || 0,
-      bullishPercent: ((latestRecord.buy_count || 0) / (latestRecord.total_analysts || 1) * 100).toFixed(1),
-      neutral: latestRecord.hold_count || 0,
-      neutralPercent: ((latestRecord.hold_count || 0) / (latestRecord.total_analysts || 1) * 100).toFixed(1),
-      bearish: (latestRecord.sell_count || 0) + (latestRecord.strong_sell_count || 0),
-      bearishPercent: (((latestRecord.sell_count || 0) + (latestRecord.strong_sell_count || 0)) / (latestRecord.total_analysts || 1) * 100).toFixed(1),
-      totalAnalysts: latestRecord.total_analysts || 0,
-      avgPriceTarget: latestRecord.avg_price_target || null,
-      priceTargetVsCurrent: latestRecord.price_target_vs_current ? parseFloat(latestRecord.price_target_vs_current) : null,
-    };
-  }, [data]);
-
-  const momentum = React.useMemo(() => {
-    if (!data || !data.data || !Array.isArray(data.data)) return null;
-
-    // Filter for analyst sentiment records
-    const analystRecords = data.data.filter(item => item.source === 'analyst');
-    if (analystRecords.length === 0) return null;
-
-    const latestRecord = analystRecords[0];
-    if (!latestRecord) return null;
-
-    return {
-      upgrades30d: latestRecord.upgrades_last_30d || 0,
-      downgrades30d: latestRecord.downgrades_last_30d || 0,
-    };
-  }, [data]);
+  // Use metrics directly from the endpoint response
+  const metrics = data?.metrics || null;
+  const momentum = data?.momentum || null;
 
   if (loading) {
     return (
