@@ -320,6 +320,28 @@ const LeadingIndicatorsPanel = ({ data, isLoading, theme, yieldCurveData }) => {
     );
   }
 
+  const getSignalColor = (signal) => {
+    switch (signal) {
+      case "Positive":
+        return { main: "#4caf50", light: alpha("#4caf50", 0.1) };
+      case "Negative":
+        return { main: "#f44336", light: alpha("#f44336", 0.1) };
+      default:
+        return { main: "#1976d2", light: alpha("#1976d2", 0.1) };
+    }
+  };
+
+  const getGradientColor = (signal) => {
+    switch (signal) {
+      case "Positive":
+        return "#4caf50";
+      case "Negative":
+        return "#f44336";
+      default:
+        return "#1976d2";
+    }
+  };
+
   return (
     <Box sx={{ mb: 4 }}>
       <Typography variant="h4" sx={{ fontWeight: 600, mb: 3, display: "flex", alignItems: "center", gap: 1 }}>
@@ -327,129 +349,163 @@ const LeadingIndicatorsPanel = ({ data, isLoading, theme, yieldCurveData }) => {
       </Typography>
 
       <Grid container spacing={3}>
-        {data.map((indicator, idx) => (
-          <Grid item xs={12} md={6} key={idx}>
-            <Card sx={{
-              height: "100%",
-              background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.02)} 0%, ${alpha(theme.palette.primary.main, 0.01)} 100%)`,
-              border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-            }}>
-              <CardContent>
-                <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-                  <Box display="flex" alignItems="center" gap={1}>
-                    {indicator.trend === "up" ? (
-                      <TrendingUp sx={{ color: "#4caf50", fontSize: 24, fontWeight: "bold" }} />
-                    ) : indicator.trend === "down" ? (
-                      <TrendingDown sx={{ color: "#f44336", fontSize: 24, fontWeight: "bold" }} />
-                    ) : (
-                      <TrendingFlat sx={{ color: "#ff9800", fontSize: 24, fontWeight: "bold" }} />
-                    )}
-                    <Box>
-                      <Typography variant="h6" sx={{ fontWeight: 600 }}>{indicator.name}</Typography>
-                      <Typography variant="caption" color="text.secondary">{indicator.description}</Typography>
+        {data.map((indicator, idx) => {
+          const signalColor = getSignalColor(indicator.signal);
+          const gradColor = getGradientColor(indicator.signal);
+
+          return (
+            <Grid item xs={12} md={6} key={idx}>
+              <Card
+                sx={{
+                  height: "100%",
+                  background: `linear-gradient(135deg, ${signalColor.light} 0%, ${alpha(signalColor.main, 0.03)} 100%)`,
+                  border: `1.5px solid ${signalColor.light}`,
+                  borderRadius: "12px",
+                  transition: "all 0.3s ease",
+                  boxShadow: `0 2px 8px ${alpha(signalColor.main, 0.08)}`,
+                  "&:hover": {
+                    boxShadow: `0 4px 16px ${alpha(signalColor.main, 0.15)}`,
+                    transform: "translateY(-2px)",
+                  },
+                }}
+              >
+                <CardContent>
+                  {/* Header with Trend Icon and Signal Badge */}
+                  <Box display="flex" alignItems="flex-start" justifyContent="space-between" mb={2.5}>
+                    <Box display="flex" alignItems="flex-start" gap={1.5} flex={1}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: 40,
+                          height: 40,
+                          borderRadius: "8px",
+                          background: signalColor.light,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {indicator.trend === "up" ? (
+                          <TrendingUp sx={{ color: "#4caf50", fontSize: 22 }} />
+                        ) : indicator.trend === "down" ? (
+                          <TrendingDown sx={{ color: "#f44336", fontSize: 22 }} />
+                        ) : (
+                          <TrendingFlat sx={{ color: "#1976d2", fontSize: 22 }} />
+                        )}
+                      </Box>
+                      <Box flex={1}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700, fontSize: "0.95rem" }}>
+                          {indicator.name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.75rem", lineHeight: 1.4 }}>
+                          {indicator.description}
+                        </Typography>
+                      </Box>
                     </Box>
+                    <Chip
+                      label={indicator.signal}
+                      color={
+                        indicator.signal === "Positive"
+                          ? "success"
+                          : indicator.signal === "Negative"
+                            ? "error"
+                            : "primary"
+                      }
+                      size="small"
+                      variant="filled"
+                      sx={{
+                        fontWeight: 600,
+                        fontSize: "0.7rem",
+                        height: 24,
+                      }}
+                    />
                   </Box>
-                  <Chip
-                    label={indicator.signal}
-                    color={
-                      indicator.signal === "Positive"
-                        ? "success"
-                        : indicator.signal === "Negative"
-                          ? "error"
-                          : "default"
-                    }
-                    size="small"
-                  />
-                </Box>
 
-                <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-                  <Typography variant="h4" color="primary">
-                    {indicator.value}
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      fontWeight: "bold",
-                      color:
-                        indicator.change > 0
-                          ? "success.main"
-                          : indicator.change < 0
-                            ? "error.main"
-                            : "text.secondary",
-                    }}
-                  >
-                    {indicator.change > 0 ? "+" : ""}
-                    {indicator.change}%
-                  </Typography>
-                </Box>
-
-                <Typography variant="body2" color="text.secondary" mb={2}>
-                  {indicator.description}
-                </Typography>
-
-                {indicator.history && indicator.history.length > 1 && (
-                  <ResponsiveContainer width="100%" height={150}>
-                    <AreaChart
-                      data={indicator.history}
-                      margin={{ top: 5, right: 15, bottom: 5, left: 50 }}
+                  {/* Value and Change */}
+                  <Box display="flex" alignItems="flex-end" justifyContent="space-between" mb={2.5}>
+                    <Box>
+                      <Typography variant="h5" sx={{ fontWeight: 700, color: signalColor.main }}>
+                        {indicator.value}
+                      </Typography>
+                    </Box>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontWeight: 700,
+                        fontSize: "0.9rem",
+                        color:
+                          indicator.change > 0
+                            ? "#4caf50"
+                            : indicator.change < 0
+                              ? "#f44336"
+                              : "text.secondary",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 0.5,
+                      }}
                     >
-                      <defs>
-                        <linearGradient id={`grad-${indicator.name}`} x1="0" y1="0" x2="0" y2="1">
-                          <stop
-                            offset="0%"
-                            stopColor={
-                              indicator.signal === "Positive"
-                                ? theme.palette.success.main
-                                : indicator.signal === "Negative"
-                                  ? theme.palette.error.main
-                                  : theme.palette.warning.main
-                            }
-                            stopOpacity={0.4}
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor={
-                              indicator.signal === "Positive"
-                                ? theme.palette.success.main
-                                : indicator.signal === "Negative"
-                                  ? theme.palette.error.main
-                                  : theme.palette.warning.main
-                            }
-                            stopOpacity={0.05}
-                          />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} opacity={0.3} />
-                      <XAxis dataKey="date" hide tick={{ fontSize: 11 }} />
-                      <YAxis hide />
-                      <Area
-                        type="monotone"
-                        dataKey="value"
-                        stroke={
-                          indicator.signal === "Positive"
-                            ? theme.palette.success.main
-                            : indicator.signal === "Negative"
-                              ? theme.palette.error.main
-                              : theme.palette.warning.main
-                        }
-                        strokeWidth={2}
-                        fill={`url(#grad-${indicator.name})`}
-                        dot={false}
-                        isAnimationActive={true}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                )}
+                      {indicator.change > 0 ? "↑" : indicator.change < 0 ? "↓" : "→"}
+                      {indicator.change > 0 ? "+" : ""}
+                      {indicator.change}%
+                    </Typography>
+                  </Box>
 
-                {indicator.date && (
-                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 2 }}>
-                    Last updated: {new Date(indicator.date).toLocaleDateString()}
-                  </Typography>
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
+                  {/* Chart */}
+                  {indicator.history && indicator.history.length > 1 && (
+                    <Box sx={{ mb: 2, mt: 2, mx: -2 }}>
+                      <ResponsiveContainer width="100%" height={160}>
+                        <AreaChart
+                          data={indicator.history}
+                          margin={{ top: 8, right: 12, bottom: 8, left: 45 }}
+                        >
+                          <defs>
+                            <linearGradient id={`lei-grad-${idx}`} x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={gradColor} stopOpacity={0.35} />
+                              <stop offset="70%" stopColor={gradColor} stopOpacity={0.15} />
+                              <stop offset="100%" stopColor={gradColor} stopOpacity={0.01} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            stroke={alpha(theme.palette.divider, 0.4)}
+                            vertical={false}
+                            opacity={0.5}
+                          />
+                          <XAxis
+                            dataKey="date"
+                            hide
+                            tick={{ fontSize: 10 }}
+                            style={{ color: theme.palette.text.secondary }}
+                          />
+                          <YAxis hide />
+                          <Area
+                            type="monotone"
+                            dataKey="value"
+                            stroke={gradColor}
+                            strokeWidth={2.5}
+                            fill={`url(#lei-grad-${idx})`}
+                            dot={false}
+                            isAnimationActive={true}
+                            animationDuration={500}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </Box>
+                  )}
+
+                  {/* Last Updated Footer */}
+                  {indicator.date && (
+                    <Box sx={{ pt: 1, borderTop: `1px solid ${alpha(theme.palette.divider, 0.3)}` }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
+                        Last updated: {new Date(indicator.date).toLocaleDateString()}
+                      </Typography>
+                    </Box>
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
+          );
+        })}
       </Grid>
     </Box>
   );

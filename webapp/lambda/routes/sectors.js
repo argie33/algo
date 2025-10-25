@@ -1481,7 +1481,15 @@ router.get("/sectors-with-history", async (req, res) => {
         sr.rank_4w_ago,
         sr.rank_12w_ago,
         sr.daily_strength_score as current_momentum,
-        sr.trend as current_trend,
+        CASE
+          WHEN sr.trend = '📈' THEN 'Uptrend'
+          WHEN sr.trend = '📉' THEN 'Downtrend'
+          WHEN sr.trend = '➡️' THEN 'Sideways'
+          WHEN sr.trend IS NULL OR sr.trend = '' THEN 'Sideways'
+          WHEN LOWER(sr.trend::text) IN ('up', 'uptrend', '1') THEN 'Uptrend'
+          WHEN LOWER(sr.trend::text) IN ('down', 'downtrend', '-1') THEN 'Downtrend'
+          ELSE 'Sideways'
+        END as current_trend,
         COALESCE(CAST(sp.performance_1d AS FLOAT), CAST(cp.perf_1d AS FLOAT)) as current_perf_1d,
         COALESCE(CAST(sp.performance_5d AS FLOAT), CAST(cp.perf_5d AS FLOAT)) as current_perf_5d,
         COALESCE(CAST(sp.performance_20d AS FLOAT), CAST(cp.perf_20d AS FLOAT)) as current_perf_20d,
