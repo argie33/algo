@@ -246,6 +246,18 @@ const SectorAnalysis = () => {
     return sectorColors[sectorName] || "#999"; // Only gray for truly unknown
   };
 
+  // Get trend icon and color based on trend value
+  const getTrendIcon = (trend) => {
+    const trendLower = (trend || "").toLowerCase();
+    if (trendLower.includes("uptrend")) {
+      return { icon: TrendingUp, color: "#4caf50", label: "Uptrend" };
+    } else if (trendLower.includes("downtrend")) {
+      return { icon: TrendingDown, color: "#f44336", label: "Downtrend" };
+    } else {
+      return { icon: TrendingUp, color: "#9e9e9e", label: "Sideways" };
+    }
+  };
+
   // Comprehensive industry-to-sector mapping
   // This mapping ensures ALL industries are correctly assigned to their sectors
   // regardless of how the API returns sector assignments
@@ -1285,10 +1297,13 @@ const SectorAnalysis = () => {
   useEffect(() => {
     if (rotationData?.data?.sectors && rotationData.data.sectors.length > 0) {
       console.log(`[SECTORS API] Total sectors returned: ${rotationData.data.sectors.length}`);
+      console.log(`[SECTOR CHART DATA] Sectors available for chart:`, rotationData.data.sectors.map(s => ({ name: s.sector_name, perf_1d: s.current_perf_1d })));
       console.log(`[SECTOR HISTORICAL RANK CHECK] Sample of sectors with historical data:`);
       rotationData.data.sectors.slice(0, 5).forEach((sector, idx) => {
-        console.log(`  [${idx}] ${sector.sector_name || sector.sector}: current=${sector.current_rank || sector.overall_rank} | 1w_ago=${sector.rank_1w_ago} | 4w_ago=${sector.rank_4w_ago} | 12w_ago=${sector.rank_12w_ago}`);
+        console.log(`  [${idx}] ${sector.sector_name || sector.sector}: current=${sector.current_rank || sector.overall_rank} | 1d_perf=${sector.current_perf_1d} | 1w_ago=${sector.rank_1w_ago} | 4w_ago=${sector.rank_4w_ago} | 12w_ago=${sector.rank_12w_ago}`);
       });
+    } else {
+      console.log(`[SECTORS API] No sectors data available:`, rotationData);
     }
   }, [rotationData]);
 
@@ -1306,7 +1321,16 @@ const SectorAnalysis = () => {
 
   // Prepare chart data from rotation data with vibrant colors
   const chartData = (rotationData?.data?.sectors || [])
-    .filter((s) => (s.sector_name || s.sector) && (s.current_perf_1d ?? s.performance_1d) != null && !isNaN(s.current_perf_1d ?? s.performance_1d))
+    .filter((s) => {
+      const hasName = !!(s.sector_name || s.sector);
+      const hasPerf = (s.current_perf_1d ?? s.performance_1d) != null;
+      const perfIsNum = !isNaN(s.current_perf_1d ?? s.performance_1d);
+      const passes = hasName && hasPerf && perfIsNum;
+      if (!passes) {
+        console.log(`[CHART FILTER] Filtered out:`, { name: s.sector_name, perf: s.current_perf_1d, hasName, hasPerf, perfIsNum });
+      }
+      return passes;
+    })
     .map((s, index) => {
       const sectorName = s.sector_name || s.sector;
       return {
@@ -1317,6 +1341,8 @@ const SectorAnalysis = () => {
       };
     })
     .sort((a, b) => b.performance - a.performance);
+
+  console.log(`[CHART DATA] Final chart data points: ${chartData.length}`, chartData);
 
   // Pie chart data with vibrant colors for visual appeal
   const pieData = (rotationData?.data?.sectors || [])
@@ -1580,9 +1606,10 @@ const SectorAnalysis = () => {
                           />
                         </Grid>
                         <Grid item xs={3} sm={1.2}>
-                          <Typography variant="h6" align="center">
-                            {sector.current_trend || sector.trend || "—"}
-                          </Typography>
+                          {(() => {
+                            const { icon: Icon, color } = getTrendIcon(sector.current_trend || sector.trend);
+                            return <Icon sx={{ color, fontSize: 24, mx: "auto" }} title={sector.current_trend || sector.trend || "—"} />;
+                          })()}
                         </Grid>
                         <Grid item xs={3} sm={1}>
                           <Typography
@@ -1831,9 +1858,10 @@ const SectorAnalysis = () => {
                           />
                         </Grid>
                         <Grid item xs={2} sm={1.2} sx={{ display: "flex", justifyContent: "center" }}>
-                          <Typography variant="h6" align="center">
-                            {industry.current_trend || industry.trend || "—"}
-                          </Typography>
+                          {(() => {
+                            const { icon: Icon, color } = getTrendIcon(industry.current_trend || industry.trend);
+                            return <Icon sx={{ color, fontSize: 24 }} title={industry.current_trend || industry.trend || "—"} />;
+                          })()}
                         </Grid>
                         <Grid item xs={2} sm={0.8}>
                           <Typography

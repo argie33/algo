@@ -864,7 +864,12 @@ router.get("/stocks", async (req, res) => {
       if (symbol) {
         analystQuery = `
           SELECT symbol, date, recommendation_mean as sentiment_score,
-                 analyst_count as total_analysts, 'analyst' as source
+                 analyst_count, total_analysts, strong_buy_count, buy_count,
+                 hold_count, sell_count, strong_sell_count,
+                 avg_price_target, price_target_vs_current,
+                 upgrades_last_30d, downgrades_last_30d,
+                 eps_revisions_up_last_30d, eps_revisions_down_last_30d,
+                 'analyst' as source
           FROM analyst_sentiment_analysis
           WHERE symbol = $1
           ORDER BY date DESC
@@ -874,7 +879,12 @@ router.get("/stocks", async (req, res) => {
       } else {
         analystQuery = `
           SELECT symbol, date, recommendation_mean as sentiment_score,
-                 analyst_count as total_analysts, 'analyst' as source
+                 analyst_count, total_analysts, strong_buy_count, buy_count,
+                 hold_count, sell_count, strong_sell_count,
+                 avg_price_target, price_target_vs_current,
+                 upgrades_last_30d, downgrades_last_30d,
+                 eps_revisions_up_last_30d, eps_revisions_down_last_30d,
+                 'analyst' as source
           FROM analyst_sentiment_analysis
           ORDER BY date DESC, symbol
           LIMIT 100
@@ -889,7 +899,19 @@ router.get("/stocks", async (req, res) => {
           sentiment_score: row.sentiment_score ? parseFloat(row.sentiment_score) : null,
           source: "analyst",
           metadata: {
-            analyst_count: row.total_analysts || 0
+            analyst_count: row.analyst_count || 0,
+            total_analysts: row.total_analysts || 0,
+            strong_buy_count: row.strong_buy_count || 0,
+            buy_count: row.buy_count || 0,
+            hold_count: row.hold_count || 0,
+            sell_count: row.sell_count || 0,
+            strong_sell_count: row.strong_sell_count || 0,
+            avg_price_target: row.avg_price_target ? parseFloat(row.avg_price_target) : null,
+            price_target_vs_current: row.price_target_vs_current ? parseFloat(row.price_target_vs_current) : null,
+            upgrades_last_30d: row.upgrades_last_30d || 0,
+            downgrades_last_30d: row.downgrades_last_30d || 0,
+            eps_revisions_up_last_30d: row.eps_revisions_up_last_30d || 0,
+            eps_revisions_down_last_30d: row.eps_revisions_down_last_30d || 0
           }
         })));
       }

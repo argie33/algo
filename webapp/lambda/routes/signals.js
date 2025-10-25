@@ -237,7 +237,10 @@ router.get("/", async (req, res) => {
       bsd.base_type, bsd.base_length_days,
       bsd.avg_volume_50d, bsd.volume_surge_pct,
       bsd.rs_rating, bsd.breakout_quality,
-      bsd.risk_reward_ratio, bsd.current_gain_pct, bsd.days_in_position
+      bsd.risk_reward_ratio, bsd.current_gain_pct, bsd.days_in_position,
+      bsd.target_price, bsd.entry_quality_score,
+      bsd.profit_target_8pct, bsd.profit_target_20pct, bsd.profit_target_25pct,
+      bsd.risk_pct, bsd.current_price
     `;
 
     const signalsQuery = `
@@ -337,13 +340,13 @@ router.get("/", async (req, res) => {
       stoplevel: parseFloat(row.stoplevel || 0),
       sell_level: 0,
       selllevel: 0,
-      target_price: 0,
+      target_price: parseFloat(row.target_price || 0),
       in_position: row.inposition || false,
       inposition: row.inposition || false,
 
       // Risk management - REAL DATA
       risk_reward_ratio: parseFloat(row.risk_reward_ratio || 0),
-      risk_pct: 0,
+      risk_pct: parseFloat(row.risk_pct || 0),
       position_size_recommendation: 0,
 
       // Swing Trading Setup Analysis - REAL DATA from database
@@ -391,14 +394,14 @@ router.get("/", async (req, res) => {
       atr: 0,
       daily_range_pct: 0,
 
-      // Quality metrics - NOT IN buy_sell tables
-      entry_quality_score: 0,
+      // Quality metrics - NOW IN buy_sell tables
+      entry_quality_score: parseInt(row.entry_quality_score || 0),
       passes_minervini_template: false,
 
-      // Profit targets - NOT IN buy_sell tables
-      profit_target_8pct: 0,
-      profit_target_20pct: 0,
-      profit_target_25pct: 0,
+      // Profit targets - NOW IN buy_sell tables
+      profit_target_8pct: parseFloat(row.profit_target_8pct || 0),
+      profit_target_20pct: parseFloat(row.profit_target_20pct || 0),
+      profit_target_25pct: parseFloat(row.profit_target_25pct || 0),
       current_gain_loss_pct: parseFloat(row.current_gain_pct || 0),
 
       // Volatility - NOT IN buy_sell tables
