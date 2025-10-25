@@ -11,7 +11,6 @@ import {
   useTheme,
   alpha,
   Tooltip,
-  LinearProgress,
 } from '@mui/material';
 import { ExpandMore, TrendingUp, TrendingDown, ShowChart } from '@mui/icons-material';
 
@@ -222,125 +221,6 @@ const SignalCardAccordion = ({ signals = [] }) => {
                   >
                     {signal.stage_number ? `Stage ${signal.stage_number}` : '—'}
                   </Typography>
-                </Box>
-              </Box>
-
-              {/* Quality Metrics Progress Bars */}
-              <Box sx={{ display: 'flex', gap: 2, ml: 'auto', minWidth: 350, pl: 2 }}>
-                {/* Signal Strength */}
-                <Box sx={{ flex: 1, minWidth: 70 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                    <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ fontSize: '0.7rem' }}>
-                      Strength
-                    </Typography>
-                    <Typography variant="caption" fontWeight={700} sx={{ fontSize: '0.75rem' }}>
-                      {signal.strength ? signal.strength.toFixed(1) : '—'}
-                    </Typography>
-                  </Box>
-                  <LinearProgress
-                    variant="determinate"
-                    value={signal.strength ? Math.min((signal.strength / 10) * 100, 100) : 0}
-                    sx={{
-                      height: 6,
-                      borderRadius: 1,
-                      backgroundColor: alpha(theme.palette.action.disabled, 0.2),
-                      '& .MuiLinearProgress-bar': {
-                        backgroundColor: (signal.strength || 0) < 6
-                          ? theme.palette.error.main
-                          : (signal.strength || 0) < 8
-                          ? theme.palette.warning.main
-                          : theme.palette.success.main,
-                        borderRadius: 1,
-                      },
-                    }}
-                  />
-                </Box>
-
-                {/* Risk/Reward Ratio */}
-                <Box sx={{ flex: 1, minWidth: 70 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                    <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ fontSize: '0.7rem' }}>
-                      Risk/Rwd
-                    </Typography>
-                    <Typography variant="caption" fontWeight={700} sx={{ fontSize: '0.75rem' }}>
-                      {signal.risk_reward_ratio ? signal.risk_reward_ratio.toFixed(2) : '—'}
-                    </Typography>
-                  </Box>
-                  <LinearProgress
-                    variant="determinate"
-                    value={signal.risk_reward_ratio ? Math.min((signal.risk_reward_ratio / 5) * 100, 100) : 0}
-                    sx={{
-                      height: 6,
-                      borderRadius: 1,
-                      backgroundColor: alpha(theme.palette.action.disabled, 0.2),
-                      '& .MuiLinearProgress-bar': {
-                        backgroundColor: (signal.risk_reward_ratio || 0) < 1.5
-                          ? theme.palette.error.main
-                          : (signal.risk_reward_ratio || 0) < 3
-                          ? theme.palette.warning.main
-                          : theme.palette.success.main,
-                        borderRadius: 1,
-                      },
-                    }}
-                  />
-                </Box>
-
-                {/* Entry Quality Score */}
-                <Box sx={{ flex: 1, minWidth: 70 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                    <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ fontSize: '0.7rem' }}>
-                      Entry Q
-                    </Typography>
-                    <Typography variant="caption" fontWeight={700} sx={{ fontSize: '0.75rem' }}>
-                      {signal.entry_quality_score ? signal.entry_quality_score.toFixed(1) : '—'}
-                    </Typography>
-                  </Box>
-                  <LinearProgress
-                    variant="determinate"
-                    value={signal.entry_quality_score ? Math.min((signal.entry_quality_score / 10) * 100, 100) : 0}
-                    sx={{
-                      height: 6,
-                      borderRadius: 1,
-                      backgroundColor: alpha(theme.palette.action.disabled, 0.2),
-                      '& .MuiLinearProgress-bar': {
-                        backgroundColor: (signal.entry_quality_score || 0) < 6
-                          ? theme.palette.error.main
-                          : (signal.entry_quality_score || 0) < 8
-                          ? theme.palette.warning.main
-                          : theme.palette.success.main,
-                        borderRadius: 1,
-                      },
-                    }}
-                  />
-                </Box>
-
-                {/* Breakout Quality */}
-                <Box sx={{ flex: 1, minWidth: 70 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                    <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ fontSize: '0.7rem' }}>
-                      Breakout Q
-                    </Typography>
-                    <Typography variant="caption" fontWeight={700} sx={{ fontSize: '0.75rem' }}>
-                      {signal.breakout_quality ? signal.breakout_quality.toFixed(1) : '—'}
-                    </Typography>
-                  </Box>
-                  <LinearProgress
-                    variant="determinate"
-                    value={signal.breakout_quality ? Math.min((signal.breakout_quality / 10) * 100, 100) : 0}
-                    sx={{
-                      height: 6,
-                      borderRadius: 1,
-                      backgroundColor: alpha(theme.palette.action.disabled, 0.2),
-                      '& .MuiLinearProgress-bar': {
-                        backgroundColor: (signal.breakout_quality || 0) < 6
-                          ? theme.palette.error.main
-                          : (signal.breakout_quality || 0) < 8
-                          ? theme.palette.warning.main
-                          : theme.palette.success.main,
-                        borderRadius: 1,
-                      },
-                    }}
-                  />
                 </Box>
               </Box>
             </AccordionSummary>
