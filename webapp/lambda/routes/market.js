@@ -4329,6 +4329,7 @@ router.get("/leading-indicators", async (req, res) => {
           },
           {
             name: "Market Volatility (VIX)",
+            category: "SECONDARY",
             value: indicators["VIXCLS"] ? indicators["VIXCLS"].value.toFixed(1) : null,
             rawValue: indicators["VIXCLS"] ? indicators["VIXCLS"].value : null,
             unit: "Index",

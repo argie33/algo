@@ -49,7 +49,13 @@ def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {mb:.1f} MB RSS")
 
 def get_db_config():
-    """Get database configuration"""
+    """Get database configuration
+
+    Supports both AWS RDS (via AWS Secrets Manager) and local PostgreSQL.
+    Set DB_SECRET_ARN environment variable to use AWS RDS credentials.
+    Falls back to environment variables: DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME
+    Local defaults: localhost:5432 (postgres/password)
+    """
     try:
         import boto3
         secret_str = boto3.client("secretsmanager") \

@@ -53,6 +53,7 @@ import { formatCellValue, getCellAlign, getDynamicColumns } from "../utils/signa
 import { getApiConfig } from "../services/api";
 import { ErrorDisplay, LoadingDisplay } from "../components/ui/ErrorBoundary";
 import SignalPerformanceTracker from "../components/SignalPerformanceTracker";
+import SignalCardAccordion from "../components/SignalCardAccordion";
 
 // Use console logger for now
 const logger = {
@@ -866,22 +867,10 @@ function TradingSignals() {
               />
             )}
 
-          {/* Data Table */}
+          {/* Data Display - Accordion View */}
           <Card>
             <CardContent>
-              <BuySellSignalsTable />
-              <TablePagination
-                component="div"
-                count={signalsData?.pagination?.total || 0}
-                page={page}
-                onPageChange={(e, newPage) => setPage(newPage)}
-                rowsPerPage={rowsPerPage}
-                onRowsPerPageChange={(e) => {
-                  setRowsPerPage(parseInt(e.target.value, 10));
-                  setPage(0);
-                }}
-                rowsPerPageOptions={[10, 25, 50, 100, { label: 'All', value: -1 }]}
-              />
+              <SignalCardAccordion signals={filteredSignals} />
             </CardContent>
           </Card>
         </Grid>
