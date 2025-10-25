@@ -27,6 +27,7 @@ import {
   TrendingUp,
   TrendingDown,
   TrendingFlat,
+  ShowChart,
   Refresh,
 } from "@mui/icons-material";
 import {
@@ -345,6 +346,8 @@ const LeadingIndicatorsPanel = ({ data, isLoading, theme, yieldCurveData }) => {
   // Filter indicators by category
   const leiIndicators = data.filter((ind) => ind.category === "LEI");
   const secondaryIndicators = data.filter((ind) => ind.category === "SECONDARY");
+  const laggingIndicators = data.filter((ind) => ind.category === "LAGGING");
+  const coincidentIndicators = data.filter((ind) => ind.category === "COINCIDENT");
 
   const renderIndicatorGrid = (indicators, title, icon) => (
     <Box sx={{ mb: 5 }}>
@@ -509,7 +512,9 @@ const LeadingIndicatorsPanel = ({ data, isLoading, theme, yieldCurveData }) => {
   return (
     <Box>
       {renderIndicatorGrid(leiIndicators, "Leading Economic Indicators", <TrendingUp />)}
-      {renderIndicatorGrid(secondaryIndicators, "Secondary Indicators", <TrendingDown />)}
+      {renderIndicatorGrid(laggingIndicators, "Lagging Economic Indicators", <TrendingDown />)}
+      {renderIndicatorGrid(coincidentIndicators, "Coincident Economic Indicators", <TrendingFlat />)}
+      {renderIndicatorGrid(secondaryIndicators, "Secondary Indicators", <ShowChart />)}
     </Box>
   );
 };
