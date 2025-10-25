@@ -227,7 +227,7 @@ router.get("/", async (req, res) => {
     const actualColumns = `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
       bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
-      bsd.signal, bsd.signal_triggered, bsd.buylevel, bsd.stoplevel, bsd.inposition,
+      bsd.signal, bsd.buylevel, bsd.stoplevel, bsd.inposition,
       bsd.strength, bsd.signal_type, bsd.pivot_price,
       bsd.buy_zone_start, bsd.buy_zone_end,
       bsd.exit_trigger_1_price, bsd.exit_trigger_2_price,
@@ -316,7 +316,6 @@ router.get("/", async (req, res) => {
       symbol: row.symbol,
       signal_type: row.signal,
       signal: row.signal,
-      signal_triggered: row.signal_triggered || null,
       date: row.date,
       signal_date: row.date,
       timeframe: row.timeframe || timeframe,
