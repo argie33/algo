@@ -115,7 +115,7 @@ const AnalystTrendCard = ({ symbol }) => {
     const fetchAnalystInsights = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/sentiment/analyst/insights/${symbol}`);
+        const response = await fetch(`${API_BASE}/api/sentiment/analyst/insights/${symbol}`);
         if (!response.ok) throw new Error("Failed to fetch analyst insights");
         const result = await response.json();
         setData(result);
