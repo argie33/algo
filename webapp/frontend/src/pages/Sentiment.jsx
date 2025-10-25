@@ -1011,14 +1011,15 @@ function Sentiment() {
       };
     }
 
-    // Group by source type
+    // Group by source type - handle all source types
     const source = (item.source || "").toLowerCase();
-    if (source.includes("news") || source.includes("article")) {
-      acc[symbol].news.push(item);
-    } else if (source.includes("reddit") || source.includes("social") || source.includes("twitter") || source.includes("technical")) {
-      acc[symbol].social.push(item);
-    } else if (source.includes("analyst") || source.includes("rating")) {
+    if (source === "analyst" || source.includes("analyst") || source.includes("rating")) {
       acc[symbol].analyst.push(item);
+    } else if (source === "social" || source.includes("reddit") || source.includes("social") || source.includes("twitter")) {
+      acc[symbol].social.push(item);
+    } else if (source === "news" || source.includes("news") || source.includes("article") || source === "technical" || source.includes("technical")) {
+      // Treat technical and news as the same (news category)
+      acc[symbol].news.push(item);
     } else {
       // Default to social if source is unclear
       acc[symbol].social.push(item);
