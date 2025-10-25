@@ -115,7 +115,7 @@ const AnalystTrendCard = ({ symbol }) => {
     const fetchAnalystMetrics = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`${API_BASE}/api/analysts/${symbol}/metrics`);
+        const response = await fetch(`${API_BASE}/api/analysts/${symbol}`);
         if (!response.ok) throw new Error("Failed to fetch analyst metrics");
         const result = await response.json();
         setData(result);
@@ -440,13 +440,13 @@ function Sentiment() {
     const source = (item.source || "").toLowerCase();
     if (source.includes("news") || source.includes("article")) {
       acc[symbol].news.push(item);
-    } else if (source.includes("reddit") || source.includes("social") || source.includes("twitter")) {
+    } else if (source.includes("reddit") || source.includes("social") || source.includes("twitter") || source.includes("technical")) {
       acc[symbol].social.push(item);
     } else if (source.includes("analyst") || source.includes("rating")) {
       acc[symbol].analyst.push(item);
     } else {
-      // Default to news if source is unclear
-      acc[symbol].news.push(item);
+      // Default to social if source is unclear
+      acc[symbol].social.push(item);
     }
 
     return acc;

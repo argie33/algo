@@ -4194,9 +4194,11 @@ router.get("/leading-indicators", async (req, res) => {
         },
 
         // Individual indicators array - filter out null values and add required frontend fields
+        // ⭐ OFFICIAL LEI COMPONENTS ⭐
         indicators: [
           {
             name: "Unemployment Rate",
+            category: "LEI", // Official Leading Economic Indicator
             value: indicators["UNRATE"] ? indicators["UNRATE"].value.toFixed(1) + "%" : null,
             rawValue: indicators["UNRATE"] ? indicators["UNRATE"].value : null,
             unit: "%",
@@ -4215,6 +4217,7 @@ router.get("/leading-indicators", async (req, res) => {
           },
           {
             name: "Inflation (CPI)",
+            category: "LEI", // Official Leading Economic Indicator
             value: indicators["CPIAUCSL"] ? indicators["CPIAUCSL"].value.toFixed(1) : null,
             rawValue: indicators["CPIAUCSL"] ? indicators["CPIAUCSL"].value : null,
             unit: "Index",
@@ -4228,6 +4231,7 @@ router.get("/leading-indicators", async (req, res) => {
           },
           {
             name: "Fed Funds Rate",
+            category: "LEI", // Official Leading Economic Indicator
             value: indicators["FEDFUNDS"] ? indicators["FEDFUNDS"].value.toFixed(2) + "%" : null,
             rawValue: indicators["FEDFUNDS"] ? indicators["FEDFUNDS"].value : null,
             unit: "%",
@@ -4241,6 +4245,7 @@ router.get("/leading-indicators", async (req, res) => {
           },
           {
             name: "GDP Growth",
+            category: "LEI", // Official Leading Economic Indicator
             value: indicators["GDPC1"] ? (indicators["GDPC1"].value / 1000).toFixed(1) + "T" : null,
             rawValue: indicators["GDPC1"] ? indicators["GDPC1"].value : null,
             unit: "Billions",
@@ -4254,6 +4259,7 @@ router.get("/leading-indicators", async (req, res) => {
           },
           {
             name: "Payroll Employment",
+            category: "SECONDARY", // Additional Economic Indicator
             value: indicators["PAYEMS"] ? (indicators["PAYEMS"].value / 1000).toFixed(1) + "M" : null,
             rawValue: indicators["PAYEMS"] ? indicators["PAYEMS"].value : null,
             unit: "Thousands",
@@ -4267,6 +4273,7 @@ router.get("/leading-indicators", async (req, res) => {
           },
           {
             name: "Industrial Production",
+            category: "SECONDARY", // Additional Economic Indicator
             value: indicators["INDPRO"] ? indicators["INDPRO"].value.toFixed(1) : null,
             rawValue: indicators["INDPRO"] ? indicators["INDPRO"].value : null,
             unit: "Index",
@@ -4280,6 +4287,7 @@ router.get("/leading-indicators", async (req, res) => {
           },
           {
             name: "Housing Starts",
+            category: "LEI", // Official Leading Economic Indicator
             value: indicators["HOUST"] ? indicators["HOUST"].value.toFixed(0) + "K" : null,
             rawValue: indicators["HOUST"] ? indicators["HOUST"].value : null,
             unit: "Thousands",
@@ -4293,6 +4301,7 @@ router.get("/leading-indicators", async (req, res) => {
           },
           {
             name: "Consumer Sentiment",
+            category: "SECONDARY", // Additional Economic Indicator
             value: indicators["MICH"] ? indicators["MICH"].value.toFixed(1) : null,
             rawValue: indicators["MICH"] ? indicators["MICH"].value : null,
             unit: "Index",
@@ -4306,6 +4315,7 @@ router.get("/leading-indicators", async (req, res) => {
           },
           {
             name: "S&P 500",
+            category: "SECONDARY", // Additional Economic Indicator
             value: indicators["SP500"] ? indicators["SP500"].value.toFixed(0) : null,
             rawValue: indicators["SP500"] ? indicators["SP500"].value : null,
             unit: "Index",
@@ -4332,6 +4342,7 @@ router.get("/leading-indicators", async (req, res) => {
           },
           {
             name: "Initial Jobless Claims",
+            category: "LEI", // Official Leading Economic Indicator
             value: indicators["ICSA"] ? (indicators["ICSA"].value / 1000).toFixed(0) + "K" : null,
             rawValue: indicators["ICSA"] ? indicators["ICSA"].value : null,
             unit: "Thousands",
