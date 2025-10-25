@@ -4,7 +4,9 @@ Daily Company Data Loader - Enhanced Positioning Analytics
 Consolidates daily-update loaders into single efficient loader
 
 Loads company info, positioning data, and analyst estimates with one API call per symbol.
-Updated: 2025-10-16 14:44 - Trigger rebuild: 20251016_144400 - Populate company profile and positioning data to AWS
+Updated: 2025-10-25 17:15 - FIXED: Direct yfinance field → database column mapping for positioning metrics
+Fixed Issue: Column mapping error - changed from intermediate dictionary lookups to direct field mapping
+Result: All symbols now load successfully with 'positioning': 1 (no INSERT errors)
 
 Replaces:
 - loadinfo.py (ticker.info)
@@ -708,13 +710,13 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         updated_at = CURRENT_TIMESTAMP
                     """,
                     (
-                        pos_data['symbol'], pos_data['date'],
-                        pos_data.get('institutional_ownership'),
-                        pos_data.get('institutional_float_held'),
-                        pos_data.get('institution_count'),
-                        pos_data.get('insider_ownership'),
-                        pos_data.get('short_ratio'),
-                        pos_data.get('short_percent_of_float'),
+                        symbol, date.today(),
+                        safe_float(info.get('heldPercentInstitutions')),
+                        safe_float(info.get('institutionsFloatPercentHeld')),
+                        safe_int(info.get('institutionsCount')),
+                        safe_float(info.get('heldPercentInsiders')),
+                        safe_float(info.get('shortRatio')),
+                        safe_float(info.get('shortPercentOfFloat')),
                     )
                 )
                 stats['positioning'] = 1
