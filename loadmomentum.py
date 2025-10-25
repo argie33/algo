@@ -762,38 +762,37 @@ def create_momentum_metrics_table(cur, conn):
     conn.commit()
     logging.info("Momentum metrics table created successfully")
 
-def load_momentum_batch(symbols: List[str], conn, cur, batch_size: int = 5) -> Tuple[int, int]:
-    """Load momentum metrics in batches"""
+def load_momentum_batch(symbols: List[str], conn, cur, batch_size: int = 12) -> Tuple[int, int]:
+    """Load momentum metrics in batches with parallel processing"""
     total_processed = 0
     total_inserted = 0
     failed_symbols = []
-    
+
     for i in range(0, len(symbols), batch_size):
         batch = symbols[i:i + batch_size]
         batch_num = i // batch_size + 1
         total_batches = (len(symbols) + batch_size - 1) // batch_size
-        
-        logging.info(f"Processing momentum batch {batch_num}/{total_batches}: {len(batch)} symbols")
-        log_mem(f"Momentum batch {batch_num} start")
-        
-        # Process sequentially to avoid API limits
-        momentum_data = []
-        for symbol in batch:
-            try:
-                data = process_symbol_momentum(symbol, conn)
-                if data:
-                    momentum_data.append(data)
-                else:
-                    failed_symbols.append(symbol)
-                total_processed += 1
 
-                # Delay between symbols
-                time.sleep(0.5)
-                
-            except Exception as e:
-                failed_symbols.append(symbol)
-                logging.error(f"Exception processing momentum for {symbol}: {e}")
-                total_processed += 1
+        logging.info(f"Processing momentum batch {batch_num}/{total_batches}: {len(batch)} symbols (parallel)")
+        log_mem(f"Momentum batch {batch_num} start")
+
+        # Process in parallel with ThreadPoolExecutor (3 worker threads)
+        momentum_data = []
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = {executor.submit(process_symbol_momentum, symbol, conn): symbol for symbol in batch}
+            for future in as_completed(futures):
+                symbol = futures[future]
+                try:
+                    data = future.result()
+                    if data:
+                        momentum_data.append(data)
+                    else:
+                        failed_symbols.append(symbol)
+                    total_processed += 1
+                except Exception as e:
+                    failed_symbols.append(symbol)
+                    logging.error(f"Exception processing momentum for {symbol}: {e}")
+                    total_processed += 1
         
         # Insert to database
         if momentum_data:

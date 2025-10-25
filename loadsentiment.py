@@ -833,11 +833,12 @@ def load_sentiment_batch(symbols: List[str], conn, cur, batch_size: int = 10) ->
                     analyst_insert = """
                         INSERT INTO analyst_sentiment_analysis
                         (symbol, date, strong_buy_count, buy_count, hold_count, sell_count,
-                         strong_sell_count, total_analysts, avg_price_target,
-                         upgrades_last_30d, downgrades_last_30d,
-                         eps_revisions_up_last_30d, eps_revisions_down_last_30d,
-                         recommendation_mean, price_target_vs_current, analyst_count)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                         strong_sell_count, total_analysts, upgrades_last_30d, downgrades_last_30d, initiations_last_30d,
+                         avg_price_target, high_price_target, low_price_target,
+                         price_target_vs_current, eps_revisions_up_last_30d, eps_revisions_down_last_30d,
+                         revenue_revisions_up_last_30d, revenue_revisions_down_last_30d,
+                         recommendation_mean, analyst_count)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (symbol, date) DO UPDATE SET
                             strong_buy_count = EXCLUDED.strong_buy_count,
                             buy_count = EXCLUDED.buy_count,
@@ -845,13 +846,18 @@ def load_sentiment_batch(symbols: List[str], conn, cur, batch_size: int = 10) ->
                             sell_count = EXCLUDED.sell_count,
                             strong_sell_count = EXCLUDED.strong_sell_count,
                             total_analysts = EXCLUDED.total_analysts,
-                            avg_price_target = EXCLUDED.avg_price_target,
                             upgrades_last_30d = EXCLUDED.upgrades_last_30d,
                             downgrades_last_30d = EXCLUDED.downgrades_last_30d,
+                            initiations_last_30d = EXCLUDED.initiations_last_30d,
+                            avg_price_target = EXCLUDED.avg_price_target,
+                            high_price_target = EXCLUDED.high_price_target,
+                            low_price_target = EXCLUDED.low_price_target,
+                            price_target_vs_current = EXCLUDED.price_target_vs_current,
                             eps_revisions_up_last_30d = EXCLUDED.eps_revisions_up_last_30d,
                             eps_revisions_down_last_30d = EXCLUDED.eps_revisions_down_last_30d,
+                            revenue_revisions_up_last_30d = EXCLUDED.revenue_revisions_up_last_30d,
+                            revenue_revisions_down_last_30d = EXCLUDED.revenue_revisions_down_last_30d,
                             recommendation_mean = EXCLUDED.recommendation_mean,
-                            price_target_vs_current = EXCLUDED.price_target_vs_current,
                             analyst_count = EXCLUDED.analyst_count
                     """
                     for analyst_tuple in analyst_data:
@@ -869,21 +875,23 @@ def load_sentiment_batch(symbols: List[str], conn, cur, batch_size: int = 10) ->
                             total = analyst_tuple[7]
                             upgrades = analyst_tuple[8]
                             downgrades = analyst_tuple[9]
-                            # initiations = analyst_tuple[10]  # not used in table
+                            initiations = analyst_tuple[10]
                             avg_target = analyst_tuple[11]
-                            # high_target = analyst_tuple[12]  # not used in table
-                            # low_target = analyst_tuple[13]  # not used in table
+                            high_target = analyst_tuple[12]
+                            low_target = analyst_tuple[13]
                             price_vs_current = analyst_tuple[14]
                             eps_up = analyst_tuple[15]
                             eps_down = analyst_tuple[16]
-                            # rev_up = analyst_tuple[17]  # not used
-                            # rev_down = analyst_tuple[18]  # not used
+                            rev_up = analyst_tuple[17]
+                            rev_down = analyst_tuple[18]
                             rec_mean = analyst_tuple[19]
 
                             cur.execute(analyst_insert, (
                                 symbol, date_val, strong_buy, buy, hold, sell, strong_sell,
-                                total, avg_target, upgrades, downgrades,
-                                eps_up, eps_down, rec_mean, price_vs_current, total
+                                total, upgrades, downgrades, initiations,
+                                avg_target, high_target, low_target,
+                                price_vs_current, eps_up, eps_down, rev_up, rev_down,
+                                rec_mean, total
                             ))
                             logging.debug(f"✓ Inserted analyst data for {symbol}: {total} analysts")
                         except Exception as e:

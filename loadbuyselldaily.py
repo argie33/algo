@@ -137,17 +137,17 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn):
       INSERT INTO buy_sell_daily (
         symbol, timeframe, date,
         open, high, low, close, volume,
-        signal, signal_triggered, buylevel, stoplevel, inposition, strength,
+        signal, buylevel, stoplevel, inposition, strength,
         signal_type, pivot_price, buy_zone_start, buy_zone_end,
         exit_trigger_1_price, exit_trigger_2_price, exit_trigger_3_condition, exit_trigger_3_price,
         exit_trigger_4_condition, exit_trigger_4_price, initial_stop, trailing_stop,
         base_type, base_length_days, avg_volume_50d, volume_surge_pct,
         rs_rating, breakout_quality, risk_reward_ratio, current_gain_pct, days_in_position
-      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
       ON CONFLICT (symbol, timeframe, date) DO UPDATE SET
         open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low,
         close = EXCLUDED.close, volume = EXCLUDED.volume,
-        signal = EXCLUDED.signal, signal_triggered = EXCLUDED.signal_triggered, buylevel = EXCLUDED.buylevel,
+        signal = EXCLUDED.signal, buylevel = EXCLUDED.buylevel,
         stoplevel = EXCLUDED.stoplevel, inposition = EXCLUDED.inposition,
         strength = EXCLUDED.strength, signal_type = EXCLUDED.signal_type,
         pivot_price = EXCLUDED.pivot_price, buy_zone_start = EXCLUDED.buy_zone_start,
@@ -244,7 +244,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn):
             cur.execute(insert_q, (
                 symbol, timeframe, date_val,
                 open_val, high_val, low_val, close_val, vol,
-                signal_val, signal_triggered_val, buyLevel_val, stopLevel_val, inPos_val, strength_val,
+                signal_val, buyLevel_val, stopLevel_val, inPos_val, strength_val,
                 signal_type, pivot_price, buy_zone_start, buy_zone_end,
                 exit_1_price, exit_2_price, exit_3_cond, exit_3_price,
                 exit_4_cond, exit_4_price, initial_stop, trailing_stop,
