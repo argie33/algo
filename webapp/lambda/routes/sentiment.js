@@ -1025,8 +1025,8 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
       ),
       // Recent price targets
       query(
-        `SELECT symbol, analyst_firm, rating, target_price, current_price, date_updated
-         FROM analyst_price_targets WHERE symbol = $1 ORDER BY date_updated DESC LIMIT 20`,
+        `SELECT symbol, analyst_firm, target_price, previous_target_price, target_date
+         FROM analyst_price_targets WHERE symbol = $1 ORDER BY created_at DESC LIMIT 20`,
         [symbol]
       )
     ]);
