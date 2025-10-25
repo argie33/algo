@@ -7,7 +7,6 @@ import {
   CardContent,
   Grid,
   TextField,
-  Chip,
   Table,
   TableBody,
   TableCell,
@@ -23,13 +22,10 @@ import {
   AccordionSummary,
   AccordionDetails,
   InputAdornment,
-  Tab,
-  Tabs,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
-  useTheme,
   alpha,
 } from "@mui/material";
 import {
@@ -47,7 +43,7 @@ import {
   ShowChart as ShowChartIcon,
 } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, AreaChart, Area, XAxis, YAxis, CartesianGrid, Legend, LineChart, Line } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
 
 const API_BASE = (import.meta.env && import.meta.env.VITE_API_URL) || "http://localhost:3001";
 
@@ -394,7 +390,6 @@ function Sentiment() {
   const theme = useTheme();
   const [expandedSymbol, setExpandedSymbol] = useState(null);
   const [searchFilter, setSearchFilter] = useState("");
-  const [tabValue, setTabValue] = useState(0);
   const [sortBy, setSortBy] = useState("composite");
   const [filterSentiment, setFilterSentiment] = useState("all");
 
@@ -677,10 +672,6 @@ function Sentiment() {
     setExpandedSymbol(expandedSymbol === symbol ? null : symbol);
   };
 
-  const handleTabChange = (event, newValue) => {
-    setTabValue(newValue);
-  };
-
   return (
     <Container maxWidth="xl" sx={{ py: 3 }}>
       {/* Header */}
@@ -696,185 +687,102 @@ function Sentiment() {
         </Typography>
       </Box>
 
-      {/* Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
-        <Tabs
-          value={tabValue}
-          onChange={handleTabChange}
-          aria-label="sentiment views"
-          variant="scrollable"
-          scrollButtons="auto"
-        >
-          <Tab label="Analyst Insights & Actions" id="sentiment-tab-0" aria-controls="sentiment-tabpanel-0" />
-          <Tab label="Stock Details" id="sentiment-tab-1" aria-controls="sentiment-tabpanel-1" />
-          <Tab label="Comparative View" id="sentiment-tab-2" aria-controls="sentiment-tabpanel-2" />
-        </Tabs>
+      {/* Section 1: Comparative View Charts - AT THE TOP */}
+      <Box sx={{ mb: 4 }}>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Market Sentiment Overview
+            </Typography>
+            <Grid container spacing={3}>
+              {/* Left: Sentiment Statistics Cards */}
+              <Grid item xs={12} md={6}>
+                <Grid container spacing={2}>
+                  {/* Bullish Count */}
+                  <Grid item xs={6} sm={6}>
+                    <Box sx={{ p: 2, backgroundColor: '#e8f5e9', borderRadius: 1, textAlign: 'center' }}>
+                      <Typography variant="h4" sx={{ color: '#2e7d32', fontWeight: 'bold' }}>
+                        {stocksList.filter(s => s.compositeSentiment?.sentiment === 'bullish').length}
+                      </Typography>
+                      <Typography variant="body2" color="textSecondary">
+                        Bullish Stocks
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  {/* Neutral Count */}
+                  <Grid item xs={6} sm={6}>
+                    <Box sx={{ p: 2, backgroundColor: '#f5f5f5', borderRadius: 1, textAlign: 'center' }}>
+                      <Typography variant="h4" sx={{ color: '#616161', fontWeight: 'bold' }}>
+                        {stocksList.filter(s => s.compositeSentiment?.sentiment === 'neutral').length}
+                      </Typography>
+                      <Typography variant="body2" color="textSecondary">
+                        Neutral Stocks
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  {/* Bearish Count */}
+                  <Grid item xs={6} sm={6}>
+                    <Box sx={{ p: 2, backgroundColor: '#ffebee', borderRadius: 1, textAlign: 'center' }}>
+                      <Typography variant="h4" sx={{ color: '#c62828', fontWeight: 'bold' }}>
+                        {stocksList.filter(s => s.compositeSentiment?.sentiment === 'bearish').length}
+                      </Typography>
+                      <Typography variant="body2" color="textSecondary">
+                        Bearish Stocks
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  {/* Market Average */}
+                  <Grid item xs={6} sm={6}>
+                    <Box sx={{ p: 2, backgroundColor: '#e3f2fd', borderRadius: 1, textAlign: 'center' }}>
+                      <Typography variant="h4" sx={{ color: '#1565c0', fontWeight: 'bold' }}>
+                        {stocksList.length > 0 ? (stocksList.reduce((sum, s) => sum + (s.compositeScore || 0), 0) / stocksList.length).toFixed(2) : 'N/A'}
+                      </Typography>
+                      <Typography variant="body2" color="textSecondary">
+                        Avg Sentiment
+                      </Typography>
+                    </Box>
+                  </Grid>
+                </Grid>
+              </Grid>
+
+              {/* Right: Source-based Sentiment Pie Chart */}
+              <Grid item xs={12} md={6}>
+                <Typography variant="body2" color="textSecondary" paragraph>
+                  Sentiment Sources Distribution:
+                </Typography>
+                {stocksList.length > 0 && (
+                  <ResponsiveContainer width="100%" height={250}>
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: 'News', value: stocksList.filter(s => s.latestNews?.sentiment_score).length },
+                          { name: 'Analyst', value: stocksList.filter(s => s.latestAnalyst?.sentiment_score).length },
+                          { name: 'Social', value: stocksList.filter(s => s.latestSocial?.sentiment_score).length },
+                        ]}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, value, percent }) => `${name}: ${value}`}
+                        outerRadius={70}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {['#0088FE', '#00C49F', '#FFBB28'].map((fill, idx) => (
+                          <Cell key={`cell-${idx}`} fill={fill} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
       </Box>
 
-      {/* Tab 0: Analyst Insights & Actions - PRIMARY DETAILED VIEW */}
-      <TabPanel value={tabValue} index={0}>
-        {upgradesLoading ? (
-          <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 400 }}>
-            <CircularProgress />
-          </Box>
-        ) : upgradesError ? (
-          <Alert severity="error">{upgradesError}</Alert>
-        ) : (
-          <>
-            {/* Filters */}
-            <Box sx={{ mb: 3, display: "flex", gap: 2, flexWrap: "wrap" }}>
-              <TextField
-                placeholder="Search by symbol..."
-                variant="outlined"
-                size="small"
-                value={searchSymbol}
-                onChange={(e) => setSearchSymbol(e.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Search />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{ minWidth: 200 }}
-              />
-            </Box>
-
-            {/* Analyst Upgrades/Downgrades Table */}
-            {filteredUpgrades.length > 0 ? (
-              <Card sx={{ mb: 4 }}>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1, mb: 3 }}>
-                    <TimelineIcon />
-                    Recent Analyst Actions (Upgrades/Downgrades)
-                  </Typography>
-
-                  <TableContainer>
-                    <Table>
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Symbol</TableCell>
-                          <TableCell>Company Name</TableCell>
-                          <TableCell>Firm</TableCell>
-                          <TableCell>Action</TableCell>
-                          <TableCell>From Grade</TableCell>
-                          <TableCell>To Grade</TableCell>
-                          <TableCell>Date</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {(rowsPerPage > 0
-                          ? filteredUpgrades.slice(tablePage * rowsPerPage, tablePage * rowsPerPage + rowsPerPage)
-                          : filteredUpgrades
-                        ).map((upgrade, index) => (
-                          <TableRow key={upgrade.id || index} hover>
-                            <TableCell>
-                              <Typography variant="body2" fontWeight="bold" sx={{ color: "primary.main" }}>
-                                {upgrade.symbol}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2">{upgrade.company_name || "N/A"}</Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2">{upgrade.firm || "N/A"}</Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                {getActionIcon(upgrade.action, upgrade.from_grade, upgrade.to_grade)}
-                                <Chip
-                                  label={upgrade.action === "main" ? "maint" : (upgrade.action || "N/A")}
-                                  color={getActionColor(upgrade.action, upgrade.from_grade, upgrade.to_grade)}
-                                  size="small"
-                                />
-                              </Box>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2">{upgrade.from_grade || "N/A"}</Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2">{upgrade.to_grade || "N/A"}</Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2">{formatDate(upgrade.date)}</Typography>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                  <TablePagination
-                    component="div"
-                    count={filteredUpgrades.length}
-                    page={tablePage}
-                    onPageChange={(e, newPage) => setTablePage(newPage)}
-                    rowsPerPage={rowsPerPage}
-                    onRowsPerPageChange={(e) => {
-                      setRowsPerPage(parseInt(e.target.value, 10));
-                      setTablePage(0);
-                    }}
-                    rowsPerPageOptions={[10, 25, 50, 100, { label: "All", value: -1 }]}
-                  />
-                </CardContent>
-              </Card>
-            ) : (
-              <Alert severity="info">No analyst upgrades/downgrades found</Alert>
-            )}
-
-            {/* Analyst Insights by Symbol - Detailed Metrics */}
-            <Divider sx={{ my: 4 }} />
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="h6" sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
-                <TrendingUpRounded />
-                Detailed Analyst Metrics by Stock
-              </Typography>
-              <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
-                Browse detailed analyst sentiment metrics, price targets, and coverage statistics for each stock
-              </Typography>
-            </Box>
-
-            {isLoading ? (
-              <Box display="flex" justifyContent="center" py={4}>
-                <CircularProgress />
-              </Box>
-            ) : error ? (
-              <Alert severity="error" sx={{ mb: 3 }}>
-                Failed to load sentiment data: {error.message}
-              </Alert>
-            ) : filteredAndSortedStocks.length === 0 ? (
-              <Alert severity="info">No sentiment data available</Alert>
-            ) : (
-              <Box>
-                {filteredAndSortedStocks.slice(0, 10).map((stock) => (
-                  <Accordion key={stock.symbol} sx={{ mb: 2 }}>
-                    <AccordionSummary expandIcon={<ExpandMore />}>
-                      <Box sx={{ width: "100%", display: "flex", alignItems: "center", gap: 2 }}>
-                        <Typography variant="h6" fontWeight="bold" sx={{ minWidth: 80 }}>
-                          {stock.symbol}
-                        </Typography>
-                        <Box display="flex" alignItems="center" gap={1}>
-                          {stock.compositeSentiment.icon}
-                          <Chip
-                            label={stock.compositeSentiment.label}
-                            color={stock.compositeSentiment.color}
-                            size="small"
-                          />
-                        </Box>
-                      </Box>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      <AnalystTrendCard symbol={stock.symbol} />
-                    </AccordionDetails>
-                  </Accordion>
-                ))}
-              </Box>
-            )}
-          </>
-        )}
-      </TabPanel>
-
-      {/* Tab 1: Stock Details - Accordion with all sentiment sources */}
-      <TabPanel value={tabValue} index={1}>
+      {/* Section 2: Stock Details - Middle Section */}
+      <Box sx={{ mb: 4 }}>
         {/* Search and Filter Bar */}
         <Card sx={{ mb: 3 }}>
           <CardContent>
@@ -949,7 +857,7 @@ function Sentiment() {
           </Alert>
         )}
 
-        {/* Accordion List */}
+        {/* Accordion List - Stock Details */}
         {!isLoading && !error && (
           <>
             {filteredAndSortedStocks.length === 0 ? (
@@ -1279,56 +1187,169 @@ function Sentiment() {
           )}
         </>
       )}
-      </TabPanel>
+      </Box>
 
-      {/* Tab 2: Comparative View */}
-      <TabPanel value={tabValue} index={2}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Sentiment Distribution by Source
-            </Typography>
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={stocksList.slice(0, 10).map(s => ({
-                    symbol: s.symbol,
-                    news: s.latestNews?.sentiment_score || 0,
-                    analyst: s.latestAnalyst?.sentiment_score || 0,
-                    social: s.latestSocial?.sentiment_score || 0,
-                  }))}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="symbol" />
-                    <YAxis domain={[-1, 1]} />
-                    <Legend />
-                    <RechartsTooltip />
-                    <Line type="monotone" dataKey="news" stroke="#0088FE" name="News" />
-                    <Line type="monotone" dataKey="analyst" stroke="#00C49F" name="Analyst" />
-                    <Line type="monotone" dataKey="social" stroke="#FFBB28" name="Social" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Typography variant="body2" color="textSecondary" paragraph>
-                  Composite Sentiment Distribution:
-                </Typography>
-                <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={stocksList.map((s, i) => ({
-                    index: i,
-                    score: s.compositeScore || 0,
-                  }))}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="index" />
-                    <YAxis domain={[-1, 1]} />
-                    <RechartsTooltip />
-                    <Area type="monotone" dataKey="score" stroke={theme.palette.primary.main} fill={alpha(theme.palette.primary.main, 0.3)} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-      </TabPanel>
+      {/* Section 3: Analyst Insights & Actions - AT THE BOTTOM */}
+      <Box sx={{ mb: 4 }}>
+        {upgradesLoading ? (
+          <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 400 }}>
+            <CircularProgress />
+          </Box>
+        ) : upgradesError ? (
+          <Alert severity="error">{upgradesError}</Alert>
+        ) : (
+          <>
+            {/* Filters */}
+            <Box sx={{ mb: 3, display: "flex", gap: 2, flexWrap: "wrap" }}>
+              <TextField
+                placeholder="Search by symbol..."
+                variant="outlined"
+                size="small"
+                value={searchSymbol}
+                onChange={(e) => setSearchSymbol(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Search />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{ minWidth: 200 }}
+              />
+            </Box>
+
+            {/* Analyst Upgrades/Downgrades Table */}
+            {filteredUpgrades.length > 0 ? (
+              <Card sx={{ mb: 4 }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1, mb: 3 }}>
+                    <TimelineIcon />
+                    Recent Analyst Actions (Upgrades/Downgrades)
+                  </Typography>
+
+                  <TableContainer>
+                    <Table>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Symbol</TableCell>
+                          <TableCell>Company Name</TableCell>
+                          <TableCell>Firm</TableCell>
+                          <TableCell>Action</TableCell>
+                          <TableCell>From Grade</TableCell>
+                          <TableCell>To Grade</TableCell>
+                          <TableCell>Date</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {(rowsPerPage > 0
+                          ? filteredUpgrades.slice(tablePage * rowsPerPage, tablePage * rowsPerPage + rowsPerPage)
+                          : filteredUpgrades
+                        ).map((upgrade, index) => (
+                          <TableRow key={upgrade.id || index} hover>
+                            <TableCell>
+                              <Typography variant="body2" fontWeight="bold" sx={{ color: "primary.main" }}>
+                                {upgrade.symbol}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2">{upgrade.company_name || "N/A"}</Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2">{upgrade.firm || "N/A"}</Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                {getActionIcon(upgrade.action, upgrade.from_grade, upgrade.to_grade)}
+                                <Chip
+                                  label={upgrade.action === "main" ? "maint" : (upgrade.action || "N/A")}
+                                  color={getActionColor(upgrade.action, upgrade.from_grade, upgrade.to_grade)}
+                                  size="small"
+                                />
+                              </Box>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2">{upgrade.from_grade || "N/A"}</Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2">{upgrade.to_grade || "N/A"}</Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2">{formatDate(upgrade.date)}</Typography>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                  <TablePagination
+                    component="div"
+                    count={filteredUpgrades.length}
+                    page={tablePage}
+                    onPageChange={(e, newPage) => setTablePage(newPage)}
+                    rowsPerPage={rowsPerPage}
+                    onRowsPerPageChange={(e) => {
+                      setRowsPerPage(parseInt(e.target.value, 10));
+                      setTablePage(0);
+                    }}
+                    rowsPerPageOptions={[10, 25, 50, 100, { label: "All", value: -1 }]}
+                  />
+                </CardContent>
+              </Card>
+            ) : (
+              <Alert severity="info">No analyst upgrades/downgrades found</Alert>
+            )}
+
+            {/* Analyst Insights by Symbol - Detailed Metrics */}
+            <Divider sx={{ my: 4 }} />
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h6" sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+                <TrendingUpRounded />
+                Detailed Analyst Metrics by Stock
+              </Typography>
+              <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
+                Browse detailed analyst sentiment metrics, price targets, and coverage statistics for each stock
+              </Typography>
+            </Box>
+
+            {isLoading ? (
+              <Box display="flex" justifyContent="center" py={4}>
+                <CircularProgress />
+              </Box>
+            ) : error ? (
+              <Alert severity="error" sx={{ mb: 3 }}>
+                Failed to load sentiment data: {error.message}
+              </Alert>
+            ) : filteredAndSortedStocks.length === 0 ? (
+              <Alert severity="info">No sentiment data available</Alert>
+            ) : (
+              <Box>
+                {filteredAndSortedStocks.slice(0, 10).map((stock) => (
+                  <Accordion key={stock.symbol} sx={{ mb: 2 }}>
+                    <AccordionSummary expandIcon={<ExpandMore />}>
+                      <Box sx={{ width: "100%", display: "flex", alignItems: "center", gap: 2 }}>
+                        <Typography variant="h6" fontWeight="bold" sx={{ minWidth: 80 }}>
+                          {stock.symbol}
+                        </Typography>
+                        <Box display="flex" alignItems="center" gap={1}>
+                          {stock.compositeSentiment.icon}
+                          <Chip
+                            label={stock.compositeSentiment.label}
+                            color={stock.compositeSentiment.color}
+                            size="small"
+                          />
+                        </Box>
+                      </Box>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                      <AnalystTrendCard symbol={stock.symbol} />
+                    </AccordionDetails>
+                  </Accordion>
+                ))}
+              </Box>
+            )}
+          </>
+        )}
+      </Box>
 
     </Container>
   );
