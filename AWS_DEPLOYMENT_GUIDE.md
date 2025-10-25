@@ -1,130 +1,333 @@
-# AWS Data Deployment Guide
+# AWS Deployment Guide - Stocks Analysis Platform
 
 ## Overview
-This guide explains how to deploy the local stock data to AWS RDS and expose it through AWS Lambda API routes.
+This guide details the deployment of the Sentiment Analysis Platform to AWS. Current status shows the infrastructure is ready (RDS instance exists), but requires IAM permissions to complete the deployment.
 
-## Current Status
+## AWS Infrastructure Status
 
-### Local Data (READY TO SYNC)
-- ✅ **stock_scores**: 5,315/5,315 (100%) - COMPLETE
-- 🔄 **positioning_metrics**: 1,476/5,315 (27.77%) - Loading
-- 🔄 **momentum_metrics**: 1,261/5,307 (23.75%) - Loading
+### ✓ Existing Resources
+- **AWS Account**: 626216981288
+- **Region**: us-east-1
+- **RDS Database**: `stocks` (PostgreSQL 17.4)
+  - **Endpoint**: `stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com:5432`
+  - **Status**: available
+  - **Instance Class**: db.t3.micro
+  - **Storage**: 100GB
+- **S3 Buckets**:
+  - `stocks-webapp-frontend-dev-626216981288` (existing frontend bucket)
+  - `stocks-webapp-frontend-code-626216981288` (code bucket)
 
-### AWS Lambda Routes (LIVE NOW)
-```
-GET /api/momentum/stocks/:symbol
-GET /api/momentum/leaders
-GET /api/momentum/laggards
-GET /api/momentum/metrics
-GET /api/momentum/range
+### Current User Permissions
+- **IAM User**: `reader` (restricted read-only role)
+- **Available Actions**: Describe, List, Get operations
+- **Restricted Actions**:
+  - S3: PutObject, DeleteObject (need elevated privileges)
+  - RDS: Modify, Create instances (need admin)
+  - Lambda: CreateFunction, UpdateFunctionCode (need admin)
 
-GET /api/positioning-metrics/stocks/:symbol
-GET /api/positioning-metrics/institutional-holders
-GET /api/positioning-metrics/insider-ownership
-GET /api/positioning-metrics/short-interest
-GET /api/positioning-metrics/metrics
-GET /api/positioning-metrics/comparison
-```
+## Deployment Status
 
-## Prerequisites
+✓ **Completed**:
+- Frontend built for production (14.5 MB)
+- AWS credentials configured
+- RDS instance running and accessible
+- S3 buckets available
+- Backend API tested locally on port 3002
 
-### Option A: AWS Secrets Manager (Recommended)
-Requires AWS credentials with Secrets Manager access:
+⏳ **Pending** (Require Admin Privileges):
+- Load sentiment data to AWS RDS
+- Deploy backend to Lambda
+- Configure API Gateway
+- Upload frontend to S3
+- Set up CORS policies
+
+## Phase 1: Data Loading (Admin Only)
+
+### Export Data from Local PostgreSQL
+
 ```bash
-export AWS_SECRET_ARN="arn:aws:secretsmanager:us-east-1:123456789:secret:rds-stocks-xxxxx"
+# Export schema
+pg_dump -h localhost -U postgres -d stocks --schema-only \
+  > /tmp/stocks_schema.sql
+
+# Export sentiment and analyst data
+pg_dump -h localhost -U postgres -d stocks \
+  --table=analyst_sentiment_analysis \
+  --table=social_sentiment_analysis \
+  --table=sentiment_scores \
+  --table=analyst_upgrade_downgrade \
+  --table=analyst_estimates \
+  --table=analyst_price_targets \
+  --table=analyst_recommendations \
+  --table=analyst_coverage \
+  > /tmp/sentiment_data.sql
+
+# Export all other stock data tables
+pg_dump -h localhost -U postgres -d stocks \
+  --exclude-table-data="*_daily" \
+  > /tmp/all_schema.sql
 ```
 
-### Option B: Direct Credentials
+### RDS Setup Commands
+
 ```bash
-export AWS_RDS_ENDPOINT="stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com"
-export AWS_RDS_USER="postgres"
-export AWS_RDS_PASSWORD="your-password-here"
-export AWS_RDS_DATABASE="stocks"
+# First, modify RDS security group to allow your IP on port 5432
+
+# Create database
+PGPASSWORD="<admin_password>" psql \
+  -h stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com \
+  -U postgres -d postgres \
+  -c "CREATE DATABASE IF NOT EXISTS stocks;"
+
+# Load schema
+PGPASSWORD="<admin_password>" psql \
+  -h stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com \
+  -U postgres -d stocks \
+  -f /tmp/all_schema.sql
+
+# Load sentiment data
+PGPASSWORD="<admin_password>" psql \
+  -h stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com \
+  -U postgres -d stocks \
+  -f /tmp/sentiment_data.sql
+
+# Verify
+PGPASSWORD="<admin_password>" psql \
+  -h stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com \
+  -U postgres -d stocks -c \
+  "SELECT COUNT(*) FROM analyst_sentiment_analysis;"
 ```
 
-## Deployment Steps
+## Phase 2: Lambda Deployment (Admin Only)
 
-### Step 1: Create Data Dump (Optional but Recommended)
+### Prepare Function Package
+
 ```bash
-cd /home/stocks/algo
-bash aws_data_dump.sh
+cd /home/stocks/algo/webapp/lambda
+npm install --production
+zip -r /tmp/lambda-function.zip . -x "*.git*" "node_modules/aws-sdk/*"
+
+# Upload and create function (requires admin)
+aws lambda create-function \
+  --function-name stocks-sentiment-api \
+  --role arn:aws:iam::626216981288:role/lambda-execution-role \
+  --handler server.handler \
+  --runtime nodejs20.x \
+  --zip-file fileb:///tmp/lambda-function.zip \
+  --timeout 30 \
+  --memory-size 512 \
+  --environment Variables="{
+    AWS_RDS_ENDPOINT=stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com,
+    AWS_RDS_USER=postgres,
+    AWS_RDS_PASSWORD=<password>,
+    AWS_RDS_DATABASE=stocks,
+    NODE_ENV=production
+  }" \
+  --region us-east-1
 ```
 
-This will:
-- Verify local database connectivity
-- Export positioning_metrics, momentum_metrics, and stock_scores
-- Create compressed backup: `/tmp/aws_dumps/stocks_dump_*.sql.gz`
-- Show deployment options
+## Phase 3: API Gateway Setup (Admin Only)
 
-### Step 2: Sync Data to AWS RDS
-
-**Method 1: Using Secrets Manager (Recommended)**
 ```bash
-export AWS_SECRET_ARN="arn:aws:secretsmanager:us-east-1:123456789:secret:name"
-python3 /home/stocks/algo/sync_data_to_aws.py --full
+# Create REST API
+AWS_API_ID=$(aws apigateway create-rest-api \
+  --name "stocks-sentiment-api" \
+  --description "Sentiment analysis API" \
+  --endpoint-configuration '{"types":["REGIONAL"]}' \
+  --query 'id' --output text)
+
+echo "API ID: $AWS_API_ID"
+
+# Create deployment
+aws apigateway create-deployment \
+  --rest-api-id $AWS_API_ID \
+  --stage-name prod
+
+# Get endpoint
+echo "API Endpoint: https://${AWS_API_ID}.execute-api.us-east-1.amazonaws.com/prod"
 ```
 
-**Method 2: Direct Credentials**
+## Phase 4: Frontend Deployment to S3 (Admin Only)
+
 ```bash
-export AWS_RDS_ENDPOINT="stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com"
-export AWS_RDS_USER="postgres"
-export AWS_RDS_PASSWORD="your-password"
-python3 /home/stocks/algo/sync_data_to_aws.py --full
+# With elevated privileges
+aws s3 sync /home/stocks/algo/webapp/frontend/dist/ \
+  s3://stocks-webapp-frontend-dev-626216981288/ \
+  --delete
+
+# Enable static website
+aws s3 website s3://stocks-webapp-frontend-dev-626216981288/ \
+  --index-document index.html \
+  --error-document index.html
+
+# Set CORS
+aws s3api put-bucket-cors \
+  --bucket stocks-webapp-frontend-dev-626216981288 \
+  --cors-configuration '{
+    "CORSRules": [{
+      "AllowedHeaders": ["*"],
+      "AllowedMethods": ["GET", "POST"],
+      "AllowedOrigins": ["*"],
+      "MaxAgeSeconds": 3000
+    }]
+  }'
 ```
 
-**Method 3: Incremental Sync (Only New/Changed Data)**
+## Local Testing (Can Do Now)
+
+### Backend API
+
 ```bash
-python3 /home/stocks/algo/sync_data_to_aws.py --batch-size 500
+# Terminal 1: Start backend
+cd /home/stocks/algo/webapp/lambda
+PORT=3002 node server.js
+
+# Terminal 2: Test endpoints
+curl http://localhost:3002/api/sentiment/stocks
+curl http://localhost:3002/api/sentiment/analyst/insights/AAPL
+curl http://localhost:3002/api/analysts/AAPL/eps-revisions
+curl http://localhost:3002/api/analysts/AAPL/sentiment-trend
+curl http://localhost:3002/api/analysts/AAPL/analyst-momentum
 ```
 
-## API Usage Examples
+### Frontend
 
-All endpoints return JSON with data indexed by symbol or metric.
-
-### Momentum Endpoints
-
-**Get momentum for single stock:**
 ```bash
-curl http://lambda-api.endpoint.com/api/momentum/stocks/AAPL
+cd /home/stocks/algo/webapp/frontend
+npm run dev
+# Open http://localhost:5174
 ```
 
-**Get top momentum stocks:**
-```bash
-curl "http://lambda-api.endpoint.com/api/momentum/leaders?limit=10"
+## AWS Infrastructure Details
+
+### RDS Instance
+
+```
+Name: stocks
+Endpoint: stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com
+Port: 5432
+Engine: PostgreSQL 17.4
+Instance Class: db.t3.micro
+Storage: 100GB (gp2)
+Multi-AZ: No
+Public Access: Yes (but security group restricted)
+VPC: vpc-01bac8b5a4479dad9
 ```
 
-**Get stocks in momentum range:**
-```bash
-curl "http://lambda-api.endpoint.com/api/momentum/range?min=-0.1&max=0.1"
+### S3 Buckets Available
+
+```
+1. stocks-webapp-frontend-dev-626216981288
+   - Current: Old frontend build
+   - Will: Deployment target for new frontend
+   - Type: Static website hosting
+
+2. stocks-webapp-frontend-code-626216981288
+   - Type: Code/backup bucket
 ```
 
-### Positioning Metrics Endpoints
+## API Endpoints (After Deployment)
 
-**Get positioning for single stock:**
-```bash
-curl http://lambda-api.endpoint.com/api/positioning-metrics/stocks/AAPL
+```
+GET  /api/sentiment/stocks
+GET  /api/sentiment/analyst/insights/:symbol
+GET  /api/analysts/:symbol/eps-revisions
+GET  /api/analysts/:symbol/sentiment-trend
+GET  /api/analysts/:symbol/analyst-momentum
+GET  /health
 ```
 
-**Get stocks by institutional ownership:**
-```bash
-curl "http://lambda-api.endpoint.com/api/positioning-metrics/institutional-holders?limit=50"
+## Environment Files
+
+### Backend (.env)
+
+```
+AWS_RDS_ENDPOINT=stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com
+AWS_RDS_USER=postgres
+AWS_RDS_PASSWORD=<secure_password>
+AWS_RDS_DATABASE=stocks
+NODE_ENV=production
+PORT=3001
+CORS_ORIGIN=https://stocks-webapp-frontend-dev-626216981288.s3-website-us-east-1.amazonaws.com
 ```
 
-**Compare multiple stocks:**
-```bash
-curl "http://lambda-api.endpoint.com/api/positioning-metrics/comparison?symbols=AAPL,MSFT,GOOGL"
+### Frontend (.env.production)
+
+```
+VITE_API_BASE=https://<api-id>.execute-api.us-east-1.amazonaws.com/prod
+VITE_ENV=production
 ```
 
-## Files Involved
+## Troubleshooting
 
-- `/home/stocks/algo/sync_data_to_aws.py` - Main sync script
-- `/home/stocks/algo/aws_data_dump.sh` - Dump utility
-- `/home/stocks/algo/webapp/lambda/routes/momentum.js` - Lambda routes
-- `/home/stocks/algo/webapp/lambda/routes/positioning-metrics.js` - Lambda routes
+### Cannot Create Lambda Function
+- **Error**: "User is not authorized to perform: lambda:CreateFunction"
+- **Solution**: Request elevated IAM privileges (need lambda:CreateFunction, lambda:UpdateFunction)
+
+### Cannot Upload to S3
+- **Error**: "User: arn:aws:iam::626216981288:user/reader is not authorized"
+- **Solution**: Request S3 write permissions or ask admin to upload
+
+### RDS Connection Refused
+- **Error**: "no pg_hba.conf entry for host"
+- **Solution**: Modify RDS security group to allow your IP on port 5432
+
+### API Gateway CORS Issues
+- **Error**: "Access to XMLHttpRequest blocked by CORS policy"
+- **Solution**: Configure CORS on API Gateway and S3
+
+## Files Generated
+
+```
+/home/stocks/algo/deploy-to-aws-complete.sh
+  - Automated deployment script (needs admin)
+
+/home/stocks/algo/sync_data_to_aws.py
+  - Python script for incremental data sync
+
+/home/stocks/algo/AWS_DEPLOYMENT_GUIDE.md
+  - This file: comprehensive deployment guide
+
+/home/stocks/algo/webapp/frontend/dist/
+  - Production frontend build ready to upload
+
+/tmp/stocks_schema_*.sql
+  - Database schema exports
+
+/tmp/sentiment_data_*.sql
+  - Sentiment and analyst data exports
+```
 
 ## Next Steps
 
-1. Provide AWS credentials
-2. Run `bash aws_data_dump.sh`
-3. Run `python3 sync_data_to_aws.py --full`
-4. Verify data in AWS RDS
+1. **Contact AWS Admin** - Request:
+   - Elevated IAM privileges for this user
+   - Modify RDS security group for your IP
+   - Configure S3 bucket write access
+   - Set up Lambda execution role
+
+2. **After Admin Setup**:
+   - Run data loading commands
+   - Execute Lambda deployment
+   - Configure API Gateway
+   - Upload frontend to S3
+
+3. **Testing**:
+   - Test API endpoints
+   - Verify frontend loads
+   - Check sentiment data displays
+   - Test analyst metrics display
+
+4. **Production Hardening**:
+   - Change default RDS password
+   - Configure SSL/TLS certificates
+   - Set up CloudFront distribution
+   - Enable CloudWatch monitoring
+   - Configure API Gateway authentication
+
+---
+
+**Created**: 2025-10-25
+**Status**: Waiting for admin-level permissions
+**Tested Components**: Backend API (local), Frontend build (local)
+**Ready to Deploy**: Yes, once admin privileges granted
