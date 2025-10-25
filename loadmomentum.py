@@ -33,6 +33,7 @@ from psycopg2.extras import RealDictCursor, execute_values
 import pandas as pd
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import yfinance as yf
 
 # Script configuration
 SCRIPT_NAME = "loadmomentum.py"
@@ -140,6 +141,11 @@ class MomentumCalculator:
     def __init__(self, symbol: str, conn):
         self.symbol = symbol
         self.conn = conn
+        try:
+            self.ticker = yf.Ticker(symbol)
+        except Exception as e:
+            logging.warning(f"Failed to initialize Ticker for {symbol}: {e}")
+            self.ticker = None
 
     def get_price_momentum_data(self, conn) -> Optional[Dict]:
         """Get comprehensive price momentum analysis from database"""
@@ -529,7 +535,7 @@ class MomentumCalculator:
         """Get fundamental momentum based on earnings revisions and estimates"""
         result = {
             'symbol': self.symbol,
-            'date': date.today()
+            'date': str(date.today())
         }
         
         try:

@@ -103,15 +103,14 @@ const detectSentimentDivergence = (newsScore, analystScore, socialScore) => {
   return { isDiverged: false };
 };
 
-// Analyst Trend Card Component
+// Analyst Trend Card Component - Metrics-focused display
 const AnalystTrendCard = ({ symbol }) => {
   const theme = useTheme();
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
   const [data, setData] = React.useState(null);
-  const [expandedIndex, setExpandedIndex] = React.useState(null);
 
-  // Fetch analyst insights from new endpoint
+  // Fetch analyst insights from endpoint
   React.useEffect(() => {
     const fetchAnalystInsights = async () => {
       try {
@@ -133,41 +132,9 @@ const AnalystTrendCard = ({ symbol }) => {
     }
   }, [symbol]);
 
-  // Analyze recent activity momentum
-  const momentum = React.useMemo(() => {
-    if (!data?.recentActivity || data.recentActivity.length === 0) return null;
-
-    const last30Days = data.recentActivity
-      .filter(event => {
-        const eventDate = new Date(event.date);
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        return eventDate >= thirtyDaysAgo;
-      });
-
-    const upgrades = last30Days.filter(e => e.action === "up").length;
-    const downgrades = last30Days.filter(e => e.action === "down").length;
-    const net = upgrades - downgrades;
-    const sentiment = net > 0 ? "bullish" : net < 0 ? "bearish" : "neutral";
-    const count = upgrades + downgrades;
-
-    return { upgrades, downgrades, net, sentiment, count };
-  }, [data]);
-
-  // Calculate summary stats
-  const summary = React.useMemo(() => {
-    if (!data?.currentSentiment) return null;
-    const cs = data.currentSentiment;
-    const total = (cs.strong_buy_count || 0) + (cs.buy_count || 0) + (cs.hold_count || 0) +
-                  (cs.sell_count || 0) + (cs.strong_sell_count || 0);
-    const bullish = ((cs.strong_buy_count || 0) + (cs.buy_count || 0)) / (total || 1) * 100;
-    return {
-      bullish: bullish.toFixed(0),
-      total,
-      avgTarget: cs.avg_price_target,
-      targetVsCurrent: cs.price_target_vs_current
-    };
-  }, [data]);
+  // Use metrics directly from new endpoint
+  const metrics = data?.metrics || null;
+  const momentum = data?.momentum || null;
 
   if (loading) {
     return (

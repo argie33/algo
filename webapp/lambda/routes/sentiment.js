@@ -993,7 +993,7 @@ router.get("/stocks", async (req, res) => {
 });
 
 
-// Comprehensive analyst insights endpoint
+// Comprehensive analyst insights endpoint - returns metrics and data
 router.get("/analyst/insights/:symbol", async (req, res) => {
   try {
     const symbol = req.params.symbol?.toUpperCase();
@@ -1002,41 +1002,88 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
       return res.status(400).json({ error: "Symbol required" });
     }
 
-    // Fetch from 4 analyst tables
-    const [coverage, recommendations, priceTargets, upgradeDowngrades] = await Promise.all([
+    // Fetch from analyst tables with corrected queries
+    const [sentiment, coverage, upgrades, priceTargets] = await Promise.all([
+      // Latest sentiment analysis (bullish/bearish distribution)
+      query(
+        `SELECT strong_buy_count, buy_count, hold_count, sell_count, strong_sell_count,
+                total_analysts, avg_price_target, price_target_vs_current, date
+         FROM analyst_sentiment_analysis WHERE symbol = $1 ORDER BY date DESC LIMIT 1`,
+        [symbol]
+      ),
+      // Analyst coverage
       query(
         `SELECT symbol, analyst_firm, analyst_name, coverage_status, coverage_started
          FROM analyst_coverage WHERE symbol = $1 ORDER BY coverage_started DESC LIMIT 50`,
         [symbol]
       ),
+      // Recent upgrades/downgrades
       query(
-        `SELECT symbol, firm, action, from_grade, to_grade, target_price, details, date
-         FROM analyst_upgrade_downgrade WHERE symbol = $1 ORDER BY date DESC LIMIT 100`,
+        `SELECT symbol, firm, action, from_grade, to_grade, date, details
+         FROM analyst_upgrade_downgrade WHERE symbol = $1 ORDER BY date DESC LIMIT 30`,
         [symbol]
       ),
+      // Recent price targets
       query(
         `SELECT symbol, analyst_firm, rating, target_price, current_price, date_updated
-         FROM analyst_price_targets WHERE symbol = $1 ORDER BY date_updated DESC LIMIT 30`,
-        [symbol]
-      ),
-      query(
-        `SELECT symbol, analyst_sentiment_analysis.strong_buy_count, analyst_sentiment_analysis.buy_count,
-                analyst_sentiment_analysis.hold_count, analyst_sentiment_analysis.sell_count,
-                analyst_sentiment_analysis.strong_sell_count, analyst_sentiment_analysis.total_analysts,
-                analyst_sentiment_analysis.avg_price_target, analyst_sentiment_analysis.price_target_vs_current,
-                analyst_sentiment_analysis.date
-         FROM analyst_sentiment_analysis WHERE symbol = $1 ORDER BY date DESC LIMIT 1`,
+         FROM analyst_price_targets WHERE symbol = $1 ORDER BY date_updated DESC LIMIT 20`,
         [symbol]
       )
     ]);
 
+    // Extract latest sentiment data
+    const latestSentiment = sentiment.rows && sentiment.rows.length > 0 ? sentiment.rows[0] : null;
+
+    // Calculate metrics from latest sentiment
+    let metrics = {
+      bullish: 0,
+      bullishPercent: 0,
+      neutral: 0,
+      neutralPercent: 0,
+      bearish: 0,
+      bearishPercent: 0,
+      totalAnalysts: 0,
+      avgPriceTarget: null,
+      priceTargetVsCurrent: null
+    };
+
+    if (latestSentiment) {
+      metrics.bullish = (latestSentiment.strong_buy_count || 0) + (latestSentiment.buy_count || 0);
+      metrics.neutral = latestSentiment.hold_count || 0;
+      metrics.bearish = (latestSentiment.sell_count || 0) + (latestSentiment.strong_sell_count || 0);
+      metrics.totalAnalysts = latestSentiment.total_analysts || 0;
+
+      if (metrics.totalAnalysts > 0) {
+        metrics.bullishPercent = Math.round((metrics.bullish / metrics.totalAnalysts) * 100);
+        metrics.neutralPercent = Math.round((metrics.neutral / metrics.totalAnalysts) * 100);
+        metrics.bearishPercent = Math.round((metrics.bearish / metrics.totalAnalysts) * 100);
+      }
+
+      metrics.avgPriceTarget = latestSentiment.avg_price_target;
+      metrics.priceTargetVsCurrent = latestSentiment.price_target_vs_current;
+    }
+
+    // Calculate 30-day momentum from upgrades/downgrades
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const upgradesLast30 = (upgrades.rows || []).filter(r => new Date(r.date) >= thirtyDaysAgo);
+    const upgradeMomentum = {
+      upgrades30d: upgradesLast30.filter(r => r.action && r.action.toLowerCase() === 'up').length,
+      downgrades30d: upgradesLast30.filter(r => r.action && r.action.toLowerCase() === 'down').length,
+    };
+
     res.json({
       success: true,
       symbol,
-      coverage: coverage.rows || [],
-      recentActivity: recommendations.rows || [],
-      priceTargets: priceTargets.rows || [],
-      currentSentiment: upgradeDowngrades.rows[0] || null,
+      metrics,
+      momentum: upgradeMomentum,
+      recentUpgrades: (upgrades.rows || []).slice(0, 10),
+      priceTargets: (priceTargets.rows || []).slice(0, 10),
+      coverage: {
+        totalFirms: (coverage.rows || []).length,
+        firms: (coverage.rows || [])
+      },
       timestamp: new Date().toISOString()
     });
   } catch (error) {

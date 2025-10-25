@@ -323,11 +323,22 @@ const LeadingIndicatorsPanel = ({ data, isLoading, theme, yieldCurveData }) => {
   const getGradientColor = (signal) => {
     switch (signal) {
       case "Positive":
-        return "#4caf50";
+        return theme.palette.success.main;
       case "Negative":
-        return "#f44336";
+        return theme.palette.error.main;
       default:
-        return "#1976d2";
+        return theme.palette.primary.main;
+    }
+  };
+
+  const getTrendColor = (trend) => {
+    switch (trend) {
+      case "up":
+        return theme.palette.success.main;
+      case "down":
+        return theme.palette.error.main;
+      default:
+        return theme.palette.info.main;
     }
   };
 
@@ -341,8 +352,8 @@ const LeadingIndicatorsPanel = ({ data, isLoading, theme, yieldCurveData }) => {
       <Grid container spacing={3}>
         {data.map((indicator, idx) => {
           const gradColor = getGradientColor(indicator.signal);
-          const trendColor =
-            indicator.trend === "up" ? "#4caf50" : indicator.trend === "down" ? "#f44336" : "#1976d2";
+          const trendColor = getTrendColor(indicator.trend);
+          const changeColor = indicator.change > 0 ? theme.palette.success.main : indicator.change < 0 ? theme.palette.error.main : theme.palette.text.secondary;
 
           return (
             <Grid item xs={12} md={6} key={idx}>
@@ -351,10 +362,13 @@ const LeadingIndicatorsPanel = ({ data, isLoading, theme, yieldCurveData }) => {
                   height: "100%",
                   boxShadow: 1,
                   borderRadius: "8px",
-                  transition: "all 0.3s ease",
+                  background: `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 1)}, ${alpha(gradColor, 0.02)})`,
+                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                  border: `1px solid ${alpha(gradColor, 0.15)}`,
                   "&:hover": {
-                    boxShadow: 3,
-                    transform: "translateY(-2px)",
+                    boxShadow: theme.shadows[8],
+                    transform: "translateY(-4px)",
+                    borderColor: alpha(gradColor, 0.3),
                   },
                 }}
               >
@@ -362,17 +376,17 @@ const LeadingIndicatorsPanel = ({ data, isLoading, theme, yieldCurveData }) => {
                   {/* Header with Icon and Title */}
                   <Box display="flex" alignItems="center" gap={1.5} mb={2}>
                     {indicator.trend === "up" ? (
-                      <TrendingUp sx={{ color: "#4caf50", fontSize: 28 }} />
+                      <TrendingUp sx={{ color: theme.palette.success.main, fontSize: 28, fontWeight: 700 }} />
                     ) : indicator.trend === "down" ? (
-                      <TrendingDown sx={{ color: "#f44336", fontSize: 28 }} />
+                      <TrendingDown sx={{ color: theme.palette.error.main, fontSize: 28, fontWeight: 700 }} />
                     ) : (
-                      <TrendingFlat sx={{ color: "#1976d2", fontSize: 28 }} />
+                      <TrendingFlat sx={{ color: theme.palette.info.main, fontSize: 28, fontWeight: 700 }} />
                     )}
                     <Box flex={1}>
-                      <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 0.5 }}>
+                      <Typography variant="h6" gutterBottom sx={{ fontWeight: 700, mb: 0.5, color: theme.palette.text.primary }}>
                         {indicator.name}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontSize: "0.8rem" }}>
                         {indicator.description}
                       </Typography>
                     </Box>
@@ -383,10 +397,11 @@ const LeadingIndicatorsPanel = ({ data, isLoading, theme, yieldCurveData }) => {
                           ? "success"
                           : indicator.signal === "Negative"
                             ? "error"
-                            : "primary"
+                            : "info"
                       }
                       size="small"
                       variant="filled"
+                      sx={{ fontWeight: 600, fontSize: "0.75rem" }}
                     />
                   </Box>
 
@@ -394,21 +409,16 @@ const LeadingIndicatorsPanel = ({ data, isLoading, theme, yieldCurveData }) => {
                   <Box display="flex" alignItems="baseline" gap={2} mb={3}>
                     <Typography
                       variant="h4"
-                      sx={{ fontWeight: 700, color: trendColor }}
+                      sx={{ fontWeight: 700, color: trendColor, letterSpacing: "-0.5px" }}
                     >
                       {indicator.value}
                     </Typography>
                     <Typography
                       variant="body2"
                       sx={{
-                        fontWeight: 600,
+                        fontWeight: 700,
                         fontSize: "1rem",
-                        color:
-                          indicator.change > 0
-                            ? "#4caf50"
-                            : indicator.change < 0
-                              ? "#f44336"
-                              : "text.secondary",
+                        color: changeColor,
                       }}
                     >
                       {indicator.change > 0 ? "+" : ""}
@@ -416,41 +426,48 @@ const LeadingIndicatorsPanel = ({ data, isLoading, theme, yieldCurveData }) => {
                     </Typography>
                   </Box>
 
-                  {/* Large Chart */}
+                  {/* Large Chart - Professional Styling */}
                   {indicator.history && indicator.history.length > 1 && (
-                    <Box sx={{ width: "100%", height: 280, overflow: "hidden" }}>
+                    <Box sx={{ width: "100%", height: 280, overflow: "hidden", my: 1 }}>
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart
                           data={indicator.history}
                           margin={{ top: 5, right: 30, left: 60, bottom: 5 }}
                         >
                           <defs>
-                            <linearGradient id={`lei-area-${idx}`} x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor={gradColor} stopOpacity={0.2} />
+                            <linearGradient id={`lei-grad-${idx}`} x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={gradColor} stopOpacity={0.15} />
                               <stop offset="100%" stopColor={gradColor} stopOpacity={0.02} />
                             </linearGradient>
                           </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke={alpha(theme.palette.divider, 0.3)} />
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            stroke={alpha(theme.palette.divider, 0.25)}
+                            vertical={false}
+                          />
                           <XAxis
                             dataKey="date"
-                            tick={{ fontSize: 12 }}
+                            tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
+                            axisLine={{ stroke: alpha(theme.palette.divider, 0.2) }}
                             interval={Math.floor(indicator.history.length / 6)}
                           />
                           <YAxis
                             width={50}
-                            tick={{ fontSize: 12 }}
+                            tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
+                            axisLine={{ stroke: alpha(theme.palette.divider, 0.2) }}
                           />
                           <Tooltip
                             contentStyle={{
-                              backgroundColor: alpha(theme.palette.background.paper, 0.95),
-                              border: `1px solid ${alpha(gradColor, 0.3)}`,
-                              borderRadius: "6px",
-                              padding: "10px 14px",
+                              backgroundColor: alpha(theme.palette.background.paper, 0.98),
+                              border: `1.5px solid ${gradColor}`,
+                              borderRadius: "8px",
+                              padding: "12px 14px",
+                              boxShadow: theme.shadows[4],
                             }}
-                            labelStyle={{ color: theme.palette.text.primary, fontWeight: 600 }}
+                            labelStyle={{ color: theme.palette.text.primary, fontWeight: 700, fontSize: "12px" }}
                             formatter={(value) => [value.toFixed(2), "Value"]}
-                            labelFormatter={(label) => `Date: ${label}`}
-                            cursor={{ stroke: gradColor, strokeWidth: 2, opacity: 0.7 }}
+                            labelFormatter={(label) => `${label}`}
+                            cursor={{ stroke: gradColor, strokeWidth: 2.5, opacity: 0.8 }}
                           />
                           <Line
                             type="monotone"
@@ -458,17 +475,18 @@ const LeadingIndicatorsPanel = ({ data, isLoading, theme, yieldCurveData }) => {
                             stroke={gradColor}
                             strokeWidth={2.5}
                             dot={false}
-                            isAnimationActive={true}
+                            isAnimationActive={false}
+                            fill={`url(#lei-grad-${idx})`}
                           />
                         </LineChart>
                       </ResponsiveContainer>
                     </Box>
                   )}
 
-                  {/* Last Updated */}
+                  {/* Last Updated Footer */}
                   {indicator.date && (
-                    <Box sx={{ pt: 2, mt: 2, borderTop: `1px solid ${alpha(theme.palette.divider, 0.2)}` }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
+                    <Box sx={{ pt: 2, mt: 2, borderTop: `1px solid ${alpha(theme.palette.divider, 0.15)}` }}>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontSize: "0.7rem" }}>
                         Updated: {new Date(indicator.date).toLocaleDateString()}
                       </Typography>
                     </Box>

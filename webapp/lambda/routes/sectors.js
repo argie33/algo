@@ -1494,7 +1494,14 @@ router.get("/sectors-with-history", async (req, res) => {
         COALESCE(CAST(sp.performance_5d AS FLOAT), CAST(cp.perf_5d AS FLOAT)) as current_perf_5d,
         COALESCE(CAST(sp.performance_20d AS FLOAT), CAST(cp.perf_20d AS FLOAT)) as current_perf_20d,
         sr.date
-      FROM sector_ranking sr
+      FROM (
+        SELECT DISTINCT ON (sector)
+          sector, current_rank, rank_1w_ago, rank_4w_ago, rank_12w_ago,
+          daily_strength_score, trend, date
+        FROM sector_ranking
+        WHERE sector IS NOT NULL AND sector != ''
+        ORDER BY sector, date DESC
+      ) sr
       LEFT JOIN (
         SELECT DISTINCT ON (sector_name)
           sector_name,
@@ -1505,9 +1512,8 @@ router.get("/sectors-with-history", async (req, res) => {
         FROM sector_performance
         ORDER BY sector_name, fetched_at DESC
       ) sp ON LOWER(sr.sector) = LOWER(sp.sector_name)
-      LEFT JOIN calculated_performance cp ON sr.sector = cp.sector,
-      latest_data ld
-      WHERE sr.date = ld.date
+      LEFT JOIN calculated_performance cp ON sr.sector = cp.sector
+      WHERE sr.date = (SELECT MAX(date) FROM sector_ranking)
       ORDER BY sr.current_rank ASC NULLS LAST, sr.sector ASC
       LIMIT $1
     `;
