@@ -53,7 +53,7 @@ import {
   AreaChart,
   Area,
 } from "recharts";
-import { Add, Delete, Edit, FilterList, Refresh, CloudDownload, ShowChart, Assessment, TrendingUp, AccountBalance, Timeline, Warning, CheckCircle, Error as ErrorIcon } from "@mui/icons-material";
+import { Add, Delete, Edit, FilterList, Refresh, CloudDownload, ShowChart, Assessment, TrendingUp, TrendingDown, AccountBalance, Timeline, Warning, CheckCircle, Error as ErrorIcon, Info, BarChart as BarChartIcon } from "@mui/icons-material";
 import {
   getPortfolioHoldings,
   addHolding,
@@ -68,6 +68,7 @@ import {
   getVolatilityAnalytics,
   getTrendsAnalytics,
   getPortfolioSectorIndustryAnalysis,
+  getProfessionalMetrics,
 } from "../services/api";
 
 // Advanced Analytics Component with tabs
@@ -118,6 +119,12 @@ const AdvancedAnalyticsContent = ({ timeframe }) => {
     queryKey: ["portfolioSectorIndustryAnalysis"],
     queryFn: () => getPortfolioSectorIndustryAnalysis(),
     staleTime: 120000,
+  });
+
+  const { data: professionalMetricsData, isLoading: profMetricsLoading } = useQuery({
+    queryKey: ["professionalMetrics", apiTimeframe, benchmark],
+    queryFn: () => getProfessionalMetrics(apiTimeframe, benchmark),
+    staleTime: 60000,
   });
 
   const isLoading = perfLoading || riskLoading || allocLoading || corrLoading || volLoading || trendsLoading;
@@ -557,6 +564,247 @@ const AdvancedAnalyticsContent = ({ timeframe }) => {
     );
   };
 
+  const renderProfessionalMetricsTab = () => {
+    if (profMetricsLoading) {
+      return (
+        <Box display="flex" justifyContent="center" p={4}>
+          <CircularProgress />
+        </Box>
+      );
+    }
+
+    const summary = professionalMetricsData?.data?.summary || {};
+    const positions = professionalMetricsData?.data?.positions || [];
+    const metadata = professionalMetricsData?.data?.metadata || {};
+
+    // Check if we have any metrics calculated
+    const hasData = Object.values(summary).some(v => v !== 0 && v !== undefined);
+
+    return (
+      <Grid container spacing={3}>
+        {!hasData && (
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography color="textSecondary" align="center">
+                  No portfolio data available to calculate professional metrics. Add holdings to your portfolio to see advanced metrics.
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
+
+        {/* Risk-Adjusted Returns Metrics */}
+        <Grid item xs={12}>
+          <Typography variant="h6" gutterBottom>Risk-Adjusted Returns</Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box display="flex" alignItems="center" gap={2}>
+                    <TrendingUp color="primary" />
+                    <Box>
+                      <Typography variant="h6">{summary.alpha?.toFixed(2) || "0.00"}%</Typography>
+                      <Typography variant="body2" color="text.secondary">Alpha (Excess Return)</Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box display="flex" alignItems="center" gap={2}>
+                    <Assessment color="success" />
+                    <Box>
+                      <Typography variant="h6">{summary.sortino_ratio?.toFixed(2) || "0.00"}</Typography>
+                      <Typography variant="body2" color="text.secondary">Sortino Ratio</Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box display="flex" alignItems="center" gap={2}>
+                    <ShowChart color="info" />
+                    <Box>
+                      <Typography variant="h6">{summary.information_ratio?.toFixed(2) || "0.00"}</Typography>
+                      <Typography variant="body2" color="text.secondary">Information Ratio</Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box display="flex" alignItems="center" gap={2}>
+                    <AccountBalance color="warning" />
+                    <Box>
+                      <Typography variant="h6">{summary.calmar_ratio?.toFixed(2) || "0.00"}</Typography>
+                      <Typography variant="body2" color="text.secondary">Calmar Ratio</Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </Grid>
+
+        {/* Downside Risk Metrics */}
+        <Grid item xs={12}>
+          <Typography variant="h6" gutterBottom>Downside Risk Analysis</Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box display="flex" alignItems="center" gap={2}>
+                    <TrendingDown color="error" />
+                    <Box>
+                      <Typography variant="h6">{summary.downside_deviation?.toFixed(2) || "0.00"}%</Typography>
+                      <Typography variant="body2" color="text.secondary">Downside Deviation</Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box display="flex" alignItems="center" gap={2}>
+                    <Warning color="warning" />
+                    <Box>
+                      <Typography variant="h6">{summary.drawdown_analysis?.max_drawdown?.toFixed(2) || "0.00"}%</Typography>
+                      <Typography variant="body2" color="text.secondary">Max Drawdown</Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box display="flex" alignItems="center" gap={2}>
+                    <Info color="info" />
+                    <Box>
+                      <Typography variant="h6">{summary.risk_metrics?.var_95?.toFixed(2) || "0.00"}%</Typography>
+                      <Typography variant="body2" color="text.secondary">VaR (95% Confidence)</Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box display="flex" alignItems="center" gap={2}>
+                    <BarChartIcon color="secondary" />
+                    <Box>
+                      <Typography variant="h6">{summary.risk_metrics?.cvar_95?.toFixed(2) || "0.00"}%</Typography>
+                      <Typography variant="body2" color="text.secondary">CVaR (Expected Shortfall)</Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </Grid>
+
+        {/* Tail Risk Metrics */}
+        <Grid item xs={12}>
+          <Typography variant="h6" gutterBottom>Tail Risk & Distribution</Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6}>
+              <Card>
+                <CardContent>
+                  <Box display="flex" alignItems="center" gap={2}>
+                    <Assessment color="primary" />
+                    <Box>
+                      <Typography variant="h6">{summary.risk_metrics?.skewness?.toFixed(3) || "0.000"}</Typography>
+                      <Typography variant="body2" color="text.secondary">Skewness (Distribution Shape)</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {summary.risk_metrics?.skewness > 0.5 ? "Right-skewed (good)" : summary.risk_metrics?.skewness < -0.5 ? "Left-skewed (risky)" : "Neutral"}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <Card>
+                <CardContent>
+                  <Box display="flex" alignItems="center" gap={2}>
+                    <ShowChart color="secondary" />
+                    <Box>
+                      <Typography variant="h6">{summary.risk_metrics?.kurtosis?.toFixed(3) || "0.000"}</Typography>
+                      <Typography variant="body2" color="text.secondary">Kurtosis (Fat Tails Risk)</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {summary.risk_metrics?.kurtosis > 3.5 ? "High tail risk" : "Normal tail risk"}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </Grid>
+
+        {/* Position-Level Attribution */}
+        {positions.length > 0 && (
+          <Grid item xs={12}>
+            <Card>
+              <CardHeader title="Position-Level Metrics (Top 10)" />
+              <CardContent>
+                <Box sx={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "2px solid #ddd" }}>
+                        <th style={{ textAlign: "left", padding: "12px", fontWeight: 600 }}>Symbol</th>
+                        <th style={{ textAlign: "right", padding: "12px", fontWeight: 600 }}>Weight %</th>
+                        <th style={{ textAlign: "right", padding: "12px", fontWeight: 600 }}>Value $</th>
+                        <th style={{ textAlign: "right", padding: "12px", fontWeight: 600 }}>Risk Contrib %</th>
+                        <th style={{ textAlign: "right", padding: "12px", fontWeight: 600 }}>Return Contrib %</th>
+                        <th style={{ textAlign: "right", padding: "12px", fontWeight: 600 }}>Volatility %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {positions.slice(0, 10).map((pos, idx) => (
+                        <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
+                          <td style={{ padding: "12px", fontWeight: 500 }}>{pos.symbol}</td>
+                          <td style={{ textAlign: "right", padding: "12px" }}>{parseFloat(pos.weight || 0).toFixed(2)}%</td>
+                          <td style={{ textAlign: "right", padding: "12px" }}>${parseFloat(pos.value || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                          <td style={{ textAlign: "right", padding: "12px" }}>{parseFloat(pos.risk_contribution || 0).toFixed(2)}%</td>
+                          <td style={{ textAlign: "right", padding: "12px", color: parseFloat(pos.return_contribution || 0) >= 0 ? "#4caf50" : "#f44336" }}>{parseFloat(pos.return_contribution || 0).toFixed(2)}%</td>
+                          <td style={{ textAlign: "right", padding: "12px" }}>{parseFloat(pos.volatility || 0).toFixed(2)}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
+
+        {/* Metadata */}
+        <Grid item xs={12}>
+          <Card sx={{ bgcolor: "#f5f5f5" }}>
+            <CardContent>
+              <Typography variant="body2" color="text.secondary">
+                <strong>Calculation Basis:</strong> {metadata.calculation_basis || "N/A"} •
+                <strong> Benchmark:</strong> {metadata.benchmark || "SPY"} •
+                <strong> Risk-Free Rate:</strong> {metadata.risk_free_rate || "2%"} •
+                <strong> Data Points:</strong> {metadata.data_points || "0"}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    );
+  };
+
   return (
     <Box>
       <Paper sx={{ mb: 2 }}>
@@ -567,6 +815,7 @@ const AdvancedAnalyticsContent = ({ timeframe }) => {
           <Tab label="Correlation" />
           <Tab label="Volatility & Trends" />
           <Tab label="Sector & Industry" />
+          <Tab label="Professional Metrics" />
         </Tabs>
       </Paper>
       <Box mt={2}>
@@ -612,6 +861,7 @@ const AdvancedAnalyticsContent = ({ timeframe }) => {
         {analyticsTab === 3 && renderCorrelationTab()}
         {analyticsTab === 4 && renderVolatilityTab()}
         {analyticsTab === 5 && renderSectorIndustryTab()}
+        {analyticsTab === 6 && renderProfessionalMetricsTab()}
       </Box>
     </Box>
   );

@@ -694,19 +694,17 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 cur.execute(
                     """
                     INSERT INTO positioning_metrics (
-                        symbol, date, institutional_ownership, institutional_float_held,
-                        institution_count, insider_ownership, shares_short, shares_short_prior_month,
-                        short_ratio, short_percent_of_float, short_interest_change,
-                        short_interest_date, float_shares, shares_outstanding
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        symbol, date, institutional_ownership_pct, top_10_institutions_pct,
+                        institutional_holders_count, insider_ownership_pct,
+                        short_ratio, short_interest_pct
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
                     ON CONFLICT (symbol, date) DO UPDATE SET
-                        institutional_ownership = EXCLUDED.institutional_ownership,
-                        institutional_float_held = EXCLUDED.institutional_float_held,
-                        institution_count = EXCLUDED.institution_count,
-                        insider_ownership = EXCLUDED.insider_ownership,
-                        shares_short = EXCLUDED.shares_short,
+                        institutional_ownership_pct = EXCLUDED.institutional_ownership_pct,
+                        top_10_institutions_pct = EXCLUDED.top_10_institutions_pct,
+                        institutional_holders_count = EXCLUDED.institutional_holders_count,
+                        insider_ownership_pct = EXCLUDED.insider_ownership_pct,
                         short_ratio = EXCLUDED.short_ratio,
-                        short_percent_of_float = EXCLUDED.short_percent_of_float,
+                        short_interest_pct = EXCLUDED.short_interest_pct,
                         updated_at = CURRENT_TIMESTAMP
                     """,
                     (
@@ -715,14 +713,8 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         pos_data.get('institutional_float_held'),
                         pos_data.get('institution_count'),
                         pos_data.get('insider_ownership'),
-                        pos_data.get('shares_short'),
-                        pos_data.get('shares_short_prior_month'),
                         pos_data.get('short_ratio'),
                         pos_data.get('short_percent_of_float'),
-                        pos_data.get('short_interest_change'),
-                        pos_data.get('short_interest_date'),
-                        pos_data.get('float_shares'),
-                        pos_data.get('shares_outstanding'),
                     )
                 )
                 stats['positioning'] = 1

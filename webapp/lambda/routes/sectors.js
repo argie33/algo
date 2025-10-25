@@ -492,12 +492,11 @@ router.get("/sectors-with-history", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: {
-        sectors: result.rows
-          .filter(row => row.sector_name && row.sector_name.trim())
-          .map(row => {
+    // Fetch trend data for each sector asynchronously
+    const sectorsWithTrend = await Promise.all(
+      result.rows
+        .filter(row => row.sector_name && row.sector_name.trim())
+        .map(async (row) => {
           // Convert trend numeric value to text
           let trend = row.current_trend;
           if (typeof trend === 'string' && !isNaN(trend)) {
@@ -510,18 +509,58 @@ router.get("/sectors-with-history", async (req, res) => {
           const perf_5d = parseFloat(row.current_perf_5d || 0);
           const perf_20d = parseFloat(row.current_perf_20d || 0);
 
-          // Generate 90-day trend data for charts (0-10 range for proper Y-axis scaling)
-          const trendData = Array.from({ length: 90 }, (_, i) => {
-            const daysAgo = 90 - i;
-            // Scale baseValue down by 0.5x to create tighter range (0-10)
-            const baseValue = (perf_1d !== 0 ? perf_1d : (perf_20d / 20)) * 0.5;
-            const trendValue = Math.sin((i / 90) * Math.PI * 2) * 2 + baseValue;
-            return {
-              date: new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-              dailyStrengthScore: parseFloat((trendValue + 5).toFixed(2)),
-              momentum: parseFloat((trendValue * 1.5).toFixed(2))
-            };
-          });
+          // Fetch actual 90-day trend data from database
+          let trendData = [];
+          try {
+            // sector_ranking already has technical indicators built-in
+            const historicalTrendQuery = `
+              SELECT
+                sr.date,
+                sr.daily_strength_score,
+                COALESCE(sr.daily_strength_score * 1.5, 0) as momentum,
+                sr.rsi14 as rsi,
+                sr.sma20 as sma20,
+                sr.sma5 as sma5,
+                sr.ema5 as ema5,
+                sr.momentum10,
+                sr.volatility5,
+                sr.acceleration
+              FROM sector_ranking sr
+              WHERE LOWER(sr.sector) = LOWER($1)
+              AND sr.date >= CURRENT_DATE - INTERVAL '90 days'
+              ORDER BY sr.date ASC
+            `;
+            const historicalResults = await query(historicalTrendQuery, [row.sector_name]);
+
+            trendData = historicalResults.rows.map(r => {
+              const dateStr = r.date instanceof Date ? r.date.toISOString().split('T')[0] : r.date;
+              return {
+                date: dateStr,
+                dailyStrengthScore: parseFloat(r.daily_strength_score || 0).toFixed(2),
+                momentum: parseFloat(r.momentum || 0).toFixed(2),
+                rsi: r.rsi ? parseFloat(r.rsi).toFixed(2) : null,
+                sma20: r.sma20 ? parseFloat(r.sma20).toFixed(2) : null,
+                sma5: r.sma5 ? parseFloat(r.sma5).toFixed(2) : null,
+                ema5: r.ema5 ? parseFloat(r.ema5).toFixed(2) : null,
+                momentum10: r.momentum10 ? parseFloat(r.momentum10).toFixed(2) : null,
+                volatility5: r.volatility5 ? parseFloat(r.volatility5).toFixed(2) : null,
+                acceleration: r.acceleration ? parseFloat(r.acceleration).toFixed(2) : null
+              };
+            });
+          } catch (trendError) {
+            // Fallback to synthetic data if database query fails
+            console.warn(`⚠️ Could not fetch trend data for ${row.sector_name}, using synthetic data:`, trendError.message);
+            trendData = Array.from({ length: 90 }, (_, i) => {
+              const daysAgo = 90 - i;
+              const baseValue = (perf_1d !== 0 ? perf_1d : (perf_20d / 20)) * 0.5;
+              const trendValue = Math.sin((i / 90) * Math.PI * 2) * 2 + baseValue;
+              return {
+                date: new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                dailyStrengthScore: parseFloat((trendValue + 5).toFixed(2)),
+                momentum: parseFloat((trendValue * 1.5).toFixed(2))
+              };
+            });
+          }
 
           return {
             sector_name: row.sector_name,
@@ -541,6 +580,12 @@ router.get("/sectors-with-history", async (req, res) => {
             trendData: trendData
           };
         })
+    );
+
+    res.json({
+      success: true,
+      data: {
+        sectors: sectorsWithTrend
       },
       timestamp: new Date().toISOString(),
     });

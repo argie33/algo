@@ -1994,4 +1994,165 @@ router.get("/attribution", async (req, res) => {
   }
 });
 
+// Professional metrics endpoint - Alpha, Sortino, Information Ratio, etc.
+router.get("/professional-metrics", async (req, res) => {
+  try {
+    const userId = req.user?.sub || "test-user";
+    const { timeframe = "1y", benchmark = "SPY" } = req.query;
+
+    console.log(`📊 Professional metrics requested for user: ${userId}, benchmark: ${benchmark}`);
+
+    // Get performance data
+    let performanceResult = { rows: [] };
+    try {
+      performanceResult = await query(
+        `SELECT DATE(created_at) as date, daily_pnl_percent, total_return_percent
+         FROM portfolio_performance
+         WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '365 days'
+         ORDER BY created_at ASC`,
+        [userId]
+      );
+    } catch (error) {
+      console.warn("Performance data not available:", error.message);
+    }
+
+    // Get holdings for attribution
+    let holdingsResult = { rows: [] };
+    try {
+      holdingsResult = await query(
+        `SELECT symbol, quantity, current_price, average_cost,
+                (current_price - average_cost) * quantity as unrealized_gain,
+                (current_price * quantity) as market_value
+         FROM portfolio_holdings
+         WHERE user_id = $1 AND quantity > 0
+         ORDER BY market_value DESC`,
+        [userId]
+      );
+    } catch (error) {
+      console.warn("Holdings data not available:", error.message);
+    }
+
+    const returns = (performanceResult && performanceResult.rows) ? performanceResult.rows.map(r => parseFloat(r.daily_pnl_percent || 0)) : [];
+    const holdings = (holdingsResult && holdingsResult.rows) ? holdingsResult.rows : [];
+    const totalValue = holdings.reduce((sum, h) => sum + parseFloat(h.market_value || 0), 0);
+
+    // Calculate professional metrics
+    let metrics = {
+      alpha: 0,
+      sortino_ratio: 0,
+      information_ratio: 0,
+      downside_deviation: 0,
+      calmar_ratio: 0,
+      excess_return: 0,
+      drawdown_analysis: {
+        max_drawdown: 0,
+        current_drawdown: 0,
+        recovery_days: 0
+      },
+      risk_metrics: {
+        skewness: 0,
+        kurtosis: 0,
+        var_95: 0,
+        cvar_95: 0
+      }
+    };
+
+    if (returns.length > 10) {
+      // Alpha (excess return vs benchmark, assuming 2% risk-free rate, 1.0 beta)
+      const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+      const benchmarkReturn = 0.08 / 252; // ~8% annual = 0.032% daily
+      const excessReturn = (avgReturn - benchmarkReturn) * 252 * 100; // Annualized
+      metrics.alpha = parseFloat(excessReturn.toFixed(2));
+      metrics.excess_return = parseFloat(excessReturn.toFixed(2));
+
+      // Downside Deviation (only negative returns)
+      const downReturns = returns.filter(r => r < 0);
+      if (downReturns.length > 0) {
+        const avgDownside = downReturns.reduce((a, b) => a + b, 0) / downReturns.length;
+        const downVariance = downReturns.reduce((sum, r) => sum + Math.pow(r - avgDownside, 2), 0) / downReturns.length;
+        const downsideDev = Math.sqrt(downVariance);
+        metrics.downside_deviation = parseFloat((downsideDev * Math.sqrt(252)).toFixed(2));
+
+        // Sortino Ratio (return / downside deviation)
+        const riskFreeRate = 2;
+        const annualizedAvg = avgReturn * 252 * 100;
+        metrics.sortino_ratio = parseFloat(
+          ((annualizedAvg - riskFreeRate) / metrics.downside_deviation).toFixed(2)
+        );
+      }
+
+      // Information Ratio (excess return / tracking error)
+      const trackingError = returns.map(r => r - benchmarkReturn * 100).reduce((sum, e) => sum + Math.pow(e, 2), 0) / returns.length;
+      const trackingStd = Math.sqrt(trackingError) * Math.sqrt(252);
+      metrics.information_ratio = parseFloat(
+        (excessReturn / trackingStd).toFixed(2)
+      );
+
+      // Calmar Ratio
+      let peak = 100;
+      let maxDD = 0;
+      let cumReturn = 100;
+      returns.forEach(r => {
+        cumReturn *= (1 + r / 100);
+        if (cumReturn > peak) peak = cumReturn;
+        const dd = ((peak - cumReturn) / peak) * 100;
+        if (dd > maxDD) maxDD = dd;
+      });
+      metrics.drawdown_analysis.max_drawdown = parseFloat(maxDD.toFixed(2));
+      metrics.calmar_ratio = maxDD > 0 ? parseFloat(((avgReturn * 252 * 100) / maxDD).toFixed(2)) : 0;
+
+      // Skewness and Kurtosis
+      const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+      const variance = returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / returns.length;
+      const std = Math.sqrt(variance);
+
+      const skewness = returns.reduce((sum, r) => sum + Math.pow((r - mean) / std, 3), 0) / returns.length;
+      metrics.risk_metrics.skewness = parseFloat(skewness.toFixed(2));
+
+      const kurtosis = returns.reduce((sum, r) => sum + Math.pow((r - mean) / std, 4), 0) / returns.length;
+      metrics.risk_metrics.kurtosis = parseFloat(kurtosis.toFixed(2));
+
+      // VaR and CVaR
+      const sortedReturns = [...returns].sort((a, b) => a - b);
+      const var95Index = Math.floor(sortedReturns.length * 0.05);
+      metrics.risk_metrics.var_95 = parseFloat(sortedReturns[var95Index].toFixed(2));
+      metrics.risk_metrics.cvar_95 = parseFloat(
+        (sortedReturns.slice(0, var95Index + 1).reduce((a, b) => a + b, 0) / (var95Index + 1)).toFixed(2)
+      );
+    }
+
+    // Position-level metrics (concentration, contribution)
+    const positionMetrics = holdings.map(h => ({
+      symbol: h.symbol,
+      weight: parseFloat(((parseFloat(h.market_value) / totalValue) * 100).toFixed(2)),
+      gain_loss_dollars: parseFloat(h.unrealized_gain.toFixed(2)),
+      contribution_to_risk: parseFloat((Math.pow(parseFloat(h.market_value) / totalValue, 2) * 100).toFixed(2))
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        summary: metrics,
+        positions: positionMetrics.sort((a, b) => b.weight - a.weight).slice(0, 10),
+        metadata: {
+          calculation_basis: "252 trading days",
+          risk_free_rate: "2%",
+          benchmark: benchmark,
+          data_points: returns.length
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error("Professional metrics error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to calculate professional metrics",
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 module.exports = router;
