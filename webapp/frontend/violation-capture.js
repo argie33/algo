@@ -25,7 +25,6 @@ async function captureAndAnalyzeViolations() {
 
   const allPages = [
     { name: 'Dashboard', url: 'dashboard' },
-    { name: 'Real-Time Data', url: 'realtime' },
     { name: 'Portfolio', url: 'portfolio' },
     { name: 'Market Overview', url: 'market-overview' },
     { name: 'Settings', url: 'settings' },
@@ -102,8 +101,8 @@ async function captureAndAnalyzeViolations() {
 
   console.log('\n📊 FINAL RESULTS:');
   console.log('='.repeat(80));
-  console.log(`✅ Perfect pages: ${perfectPages}/16`);
-  console.log(`❌ Pages with issues: ${pagesWithIssues}/16`);
+  console.log(`✅ Perfect pages: ${perfectPages}/15`);
+  console.log(`❌ Pages with issues: ${pagesWithIssues}/15`);
   console.log(`🔢 Total violations: ${totalViolations}`);
 
   if (foundViolations.length > 0) {

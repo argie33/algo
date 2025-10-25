@@ -194,7 +194,7 @@ const AnalystTrendCard = ({ symbol }) => {
   const getMomentumColor = (velocity) => {
     if (velocity?.includes("↗️")) return theme.palette.success.main;
     if (velocity?.includes("↘️")) return theme.palette.error.main;
-    return theme.palette.warning.main;
+    return theme.palette.grey[600];
   };
 
   return (

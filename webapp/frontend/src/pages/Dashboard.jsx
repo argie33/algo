@@ -861,12 +861,6 @@ const Dashboard = () => {
             </Typography>
             <Box display="flex" gap={1} mt={1}>
               <Chip
-                icon={<Bolt />}
-                label="Real-Time"
-                color="success"
-                size="small"
-              />
-              <Chip
                 icon={<Psychology />}
                 label="AI-Powered"
                 color="primary"
@@ -1118,28 +1112,6 @@ const Dashboard = () => {
                 </Typography>
                 <Typography variant="body2" sx={{ opacity: 0.9 }}>
                   Discovery
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={2}>
-            <Card
-              sx={{
-                cursor: "pointer",
-                transition: "all 0.3s",
-                "&:hover": { transform: "translateY(-4px)", boxShadow: 6 },
-                background: "linear-gradient(135deg, #9c27b0 0%, #ba68c8 100%)",
-                color: "white",
-              }}
-              onClick={() => (window.location.href = "/realtime")}
-            >
-              <CardContent sx={{ textAlign: "center", py: 2 }}>
-                <Timeline sx={{ fontSize: 32, mb: 1 }} />
-                <Typography variant="h6" fontWeight="bold">
-                  Real-Time
-                </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                  Live Data
                 </Typography>
               </CardContent>
             </Card>
