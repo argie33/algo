@@ -207,10 +207,20 @@ const SignalCardAccordion = ({ signals = [] }) => {
                 </Box>
                 <Box sx={{ textAlign: 'right', minWidth: 100 }}>
                   <Typography variant="caption" color="text.secondary" display="block">
-                    Days In Position
+                    Market Stage
                   </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {signal.days_in_position || 0}
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontWeight: 700,
+                      fontSize: '1.1rem',
+                      color: signal.stage_number === 2 ? theme.palette.success.main :
+                             signal.stage_number === 3 ? theme.palette.warning.main :
+                             signal.stage_number === 4 ? theme.palette.error.main :
+                             'text.primary'
+                    }}
+                  >
+                    {signal.stage_number ? `Stage ${signal.stage_number}` : '—'}
                   </Typography>
                 </Box>
               </Box>
