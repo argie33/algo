@@ -589,62 +589,6 @@ const handleTabChange = (event, newValue) => {
   const SentimentHistoryPanel = () => (
     <Box>
       <Grid container spacing={3}>
-        {/* AAII Market Sentiment Summary Card */}
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-                <Typography variant="h6">AAII Market Sentiment</Typography>
-                <Chip label={aaiiSignal.label} color={aaiiSignal.color} icon={aaiiSignal.icon} />
-              </Box>
-              <Box>
-                <Box mb={2}>
-                  <Box display="flex" justifyContent="space-between" mb={1}>
-                    <Typography variant="body2" color="textSecondary">Bullish</Typography>
-                    <Typography variant="body2" fontWeight="bold" color="success.main">
-                      {latestAAII.bullish ?? "N/A"}%
-                    </Typography>
-                  </Box>
-                  <LinearProgress
-                    variant="determinate"
-                    value={latestAAII.bullish || 0}
-                    color="success"
-                    sx={{ height: 8, borderRadius: 1 }}
-                  />
-                </Box>
-                <Box mb={2}>
-                  <Box display="flex" justifyContent="space-between" mb={1}>
-                    <Typography variant="body2" color="textSecondary">Neutral</Typography>
-                    <Typography variant="body2" fontWeight="bold" color="warning.main">
-                      {latestAAII.neutral ?? "N/A"}%
-                    </Typography>
-                  </Box>
-                  <LinearProgress
-                    variant="determinate"
-                    value={latestAAII.neutral || 0}
-                    color="warning"
-                    sx={{ height: 8, borderRadius: 1 }}
-                  />
-                </Box>
-                <Box>
-                  <Box display="flex" justifyContent="space-between" mb={1}>
-                    <Typography variant="body2" color="textSecondary">Bearish</Typography>
-                    <Typography variant="body2" fontWeight="bold" color="error.main">
-                      {latestAAII.bearish ?? "N/A"}%
-                    </Typography>
-                  </Box>
-                  <LinearProgress
-                    variant="determinate"
-                    value={latestAAII.bearish || 0}
-                    color="error"
-                    sx={{ height: 8, borderRadius: 1 }}
-                  />
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
         {/* AAII Historical Sentiment Chart with Time Range Selector */}
         <Grid item xs={12}>
           <Card>

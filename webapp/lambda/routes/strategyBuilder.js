@@ -294,8 +294,8 @@ router.post("/validate", authenticateToken, async (req, res) => {
 });
 
 /**
- * Run backtest for AI-generated strategy
- * POST /api/backtest/run-ai-strategy
+ * Run AI strategy
+ * POST /api/strategies/run-ai-strategy
  */
 router.post("/run-ai-strategy", authenticateToken, async (req, res) => {
   try {

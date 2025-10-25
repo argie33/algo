@@ -576,13 +576,9 @@ function Sentiment() {
                     <AccordionSummary
                       expandIcon={<ExpandMore />}
                       sx={{
-                        backgroundColor: stock.divergence?.isDiverged
-                          ? alpha(theme.palette.warning.main, 0.1)
-                          : "grey.50",
+                        backgroundColor: "grey.50",
                         "&:hover": { backgroundColor: "grey.100" },
-                        borderLeft: stock.divergence?.isDiverged
-                          ? `3px solid ${theme.palette.warning.main}`
-                          : "none",
+                        borderLeft: "none",
                       }}
                     >
                       <Grid container alignItems="center" spacing={2} sx={{ width: "100%" }}>
@@ -657,16 +653,6 @@ function Sentiment() {
                     </AccordionSummary>
 
                     <AccordionDetails>
-                      {stock.divergence?.isDiverged && (
-                        <Alert severity={stock.divergence.severity === "critical" ? "error" : "warning"} sx={{ mb: 3, width: "100%" }}>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                            ⚠️ Source Divergence Detected
-                          </Typography>
-                          <Typography variant="body2" sx={{ mt: 1 }}>
-                            {stock.divergence.message}. News, analyst, and social media sources show significantly different sentiment. Consider reviewing the individual source scores below.
-                          </Typography>
-                        </Alert>
-                      )}
                       <Grid container spacing={3}>
                         {/* Composite Score Card */}
                         <Grid item xs={12} md={4}>
