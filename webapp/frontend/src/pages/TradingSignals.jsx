@@ -153,7 +153,7 @@ function TradingSignals() {
           params.append("symbol", symbolFilter);
         }
         // Note: date filtering happens client-side for better UX
-        const url = `${API_BASE}/api/trading/signals/${timeframe}?${params}`;
+        const url = `${API_BASE}/api/signals?${params}`;
         logger.info("fetchTradingSignals - Request started", {
           url,
           signalType,
