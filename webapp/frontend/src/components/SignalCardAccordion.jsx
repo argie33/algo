@@ -259,19 +259,21 @@ const SignalCardAccordion = ({ signals = [] }) => {
 
             <AccordionDetails
               sx={{
-                backgroundColor: 'background.paper',
+                backgroundColor: alpha(theme.palette.background.default, 0.6),
                 borderTop: `1px solid ${config.borderColor}`,
-                pt: 3,
-                pb: 3,
+                pt: 4,
+                pb: 4,
                 px: 3,
               }}
             >
-              <Grid container spacing={3}>
+              <Grid container spacing={2.5}>
                 {/* PRICE DATA */}
                 <Grid item xs={12} sm={6} md={4} lg={2.4}>
-                  <Typography variant="overline" sx={{ fontWeight: 700, color: 'primary.main', display: 'block', mb: 2 }}>
-                    Price Data
-                  </Typography>
+                  <Box sx={{ mb: 2.5, pb: 1.5, borderBottom: `2px solid ${theme.palette.primary.main}` }}>
+                    <Typography variant="overline" sx={{ fontWeight: 700, color: 'primary.main', display: 'block', fontSize: '0.85rem', letterSpacing: '0.5px' }}>
+                      💰 PRICE DATA
+                    </Typography>
+                  </Box>
                   <DataField label="Open" value={signal.open} format="currency" />
                   <DataField label="High" value={signal.high} format="currency" />
                   <DataField label="Low" value={signal.low} format="currency" />
@@ -281,9 +283,11 @@ const SignalCardAccordion = ({ signals = [] }) => {
 
                 {/* ENTRY & LEVELS */}
                 <Grid item xs={12} sm={6} md={4} lg={2.4}>
-                  <Typography variant="overline" sx={{ fontWeight: 700, color: 'primary.main', display: 'block', mb: 2 }}>
-                    Entry & Levels
-                  </Typography>
+                  <Box sx={{ mb: 2.5, pb: 1.5, borderBottom: `2px solid ${theme.palette.info.main}` }}>
+                    <Typography variant="overline" sx={{ fontWeight: 700, color: 'info.main', display: 'block', fontSize: '0.85rem', letterSpacing: '0.5px' }}>
+                      🎯 ENTRY & LEVELS
+                    </Typography>
+                  </Box>
                   <DataField label="Buy Level" value={signal.buylevel || signal.buy_level} format="currency" />
                   <DataField label="Entry Price" value={signal.entry_price} format="currency" />
                   <DataField label="Stop Level" value={signal.stoplevel || signal.stop_level} format="currency" />
@@ -293,9 +297,11 @@ const SignalCardAccordion = ({ signals = [] }) => {
 
                 {/* TECHNICAL INDICATORS */}
                 <Grid item xs={12} sm={6} md={4} lg={2.4}>
-                  <Typography variant="overline" sx={{ fontWeight: 700, color: 'primary.main', display: 'block', mb: 2 }}>
-                    Technical
-                  </Typography>
+                  <Box sx={{ mb: 2.5, pb: 1.5, borderBottom: `2px solid ${theme.palette.warning.main}` }}>
+                    <Typography variant="overline" sx={{ fontWeight: 700, color: 'warning.main', display: 'block', fontSize: '0.85rem', letterSpacing: '0.5px' }}>
+                      📊 TECHNICAL
+                    </Typography>
+                  </Box>
                   <DataField label="RSI" value={signal.rsi} format="number" />
                   <DataField label="ADX" value={signal.adx} format="number" />
                   <DataField label="ATR" value={signal.atr} format="number" />
@@ -305,9 +311,11 @@ const SignalCardAccordion = ({ signals = [] }) => {
 
                 {/* MOVING AVERAGES */}
                 <Grid item xs={12} sm={6} md={4} lg={2.4}>
-                  <Typography variant="overline" sx={{ fontWeight: 700, color: 'primary.main', display: 'block', mb: 2 }}>
-                    Moving Avg
-                  </Typography>
+                  <Box sx={{ mb: 2.5, pb: 1.5, borderBottom: `2px solid ${theme.palette.success.main}` }}>
+                    <Typography variant="overline" sx={{ fontWeight: 700, color: 'success.main', display: 'block', fontSize: '0.85rem', letterSpacing: '0.5px' }}>
+                      📈 MOVING AVG
+                    </Typography>
+                  </Box>
                   <DataField label="% from EMA21" value={signal.pct_from_ema_21} format="percent" />
                   <DataField label="% from SMA50" value={signal.pct_from_sma_50} format="percent" />
                   <DataField label="% from SMA200" value={signal.pct_from_sma_200} format="percent" />
@@ -316,9 +324,11 @@ const SignalCardAccordion = ({ signals = [] }) => {
 
                 {/* VOLUME ANALYSIS */}
                 <Grid item xs={12} sm={6} md={4} lg={2.4}>
-                  <Typography variant="overline" sx={{ fontWeight: 700, color: 'primary.main', display: 'block', mb: 2 }}>
-                    Volume
-                  </Typography>
+                  <Box sx={{ mb: 2.5, pb: 1.5, borderBottom: `2px solid ${theme.palette.error.main}` }}>
+                    <Typography variant="overline" sx={{ fontWeight: 700, color: 'error.main', display: 'block', fontSize: '0.85rem', letterSpacing: '0.5px' }}>
+                      📊 VOLUME
+                    </Typography>
+                  </Box>
                   <DataField label="Current Volume" value={signal.volume ? parseInt(signal.volume).toLocaleString() : null} />
                   <DataField label="Avg 50d" value={signal.avg_volume_50d ? parseInt(signal.avg_volume_50d).toLocaleString() : null} />
                   <DataField label="Volume Surge %" value={signal.volume_surge_pct} format="percent" />
@@ -328,9 +338,11 @@ const SignalCardAccordion = ({ signals = [] }) => {
 
                 {/* RISK & REWARD */}
                 <Grid item xs={12} sm={6} md={4} lg={2.4}>
-                  <Typography variant="overline" sx={{ fontWeight: 700, color: 'primary.main', display: 'block', mb: 2 }}>
-                    Risk & Reward
-                  </Typography>
+                  <Box sx={{ mb: 2.5, pb: 1.5, borderBottom: `2px solid ${theme.palette.secondary.main}` }}>
+                    <Typography variant="overline" sx={{ fontWeight: 700, color: 'secondary.main', display: 'block', fontSize: '0.85rem', letterSpacing: '0.5px' }}>
+                      ⚖️ RISK & REWARD
+                    </Typography>
+                  </Box>
                   <DataField label="Risk/Reward Ratio" value={signal.risk_reward_ratio} format="number" />
                   <DataField label="Risk %" value={signal.risk_pct} format="percent" />
                   <DataField label="Signal Strength" value={signal.strength} format="number" />
@@ -339,9 +351,11 @@ const SignalCardAccordion = ({ signals = [] }) => {
 
                 {/* ENTRY QUALITY */}
                 <Grid item xs={12} sm={6} md={4} lg={2.4}>
-                  <Typography variant="overline" sx={{ fontWeight: 700, color: 'primary.main', display: 'block', mb: 2 }}>
-                    Entry Quality
-                  </Typography>
+                  <Box sx={{ mb: 2.5, pb: 1.5, borderBottom: `2px solid ${theme.palette.primary.main}` }}>
+                    <Typography variant="overline" sx={{ fontWeight: 700, color: 'primary.main', display: 'block', fontSize: '0.85rem', letterSpacing: '0.5px' }}>
+                      ✅ ENTRY QUALITY
+                    </Typography>
+                  </Box>
                   <DataField label="Entry Quality Score" value={signal.entry_quality_score} format="number" />
                   <DataField label="Breakout Quality" value={signal.breakout_quality} format="number" />
                   <Box sx={{ mt: 1.5 }}>

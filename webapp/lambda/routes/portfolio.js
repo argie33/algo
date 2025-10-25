@@ -6505,6 +6505,189 @@ function _calculateAdvancedBenchmarkMetrics(
   }
 }
 
+// Portfolio Sector & Industry Analysis
+/**
+ * GET /portfolio/sector-industry-analysis
+ * Analyze portfolio holdings by sector and industry
+ * Provides sector/industry concentration, performance, and diversification metrics
+ */
+router.get("/sector-industry-analysis", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized",
+        message: "User ID is required",
+      });
+    }
+
+    console.log(`📊 Fetching sector/industry analysis for user: ${userId}`);
+
+    // Get portfolio holdings with company profile data
+    const holdingsQuery = `
+      SELECT
+        ph.symbol,
+        ph.quantity,
+        ph.average_cost,
+        ph.current_price,
+        cp.sector,
+        cp.industry
+      FROM portfolio_holdings ph
+      LEFT JOIN company_profile cp ON ph.symbol = cp.ticker
+      WHERE ph.user_id = $1
+      AND ph.quantity > 0
+    `;
+
+    const holdingsResult = await query(holdingsQuery, [userId]);
+
+    if (!holdingsResult || !holdingsResult.rows || holdingsResult.rows.length === 0) {
+      console.log(`ℹ️  No portfolio holdings found for user: ${userId}`);
+      // Return empty portfolio data
+      return res.json({
+        success: true,
+        data: {
+          summary: {
+            total_value: 0,
+            sector_count: 0,
+            industry_count: 0,
+            top_3_concentration: "0.00",
+            diversification_score: "0.00",
+            herfindahl_index: "0.0000",
+          },
+          sectors: [],
+          industries: [],
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const holdings = holdingsResult.rows;
+
+    // Calculate sector metrics
+    const sectorMetrics = {};
+    const industryMetrics = {};
+    let totalValue = 0;
+
+    holdings.forEach((h) => {
+      const marketValue = (h.quantity || 0) * (h.current_price || h.average_cost || 0);
+      const gainLoss = marketValue - ((h.quantity || 0) * (h.average_cost || 0));
+      const gainLossPercent = h.average_cost ? ((h.current_price || h.average_cost) - h.average_cost) / h.average_cost * 100 : 0;
+
+      const sector = h.sector || "Unknown";
+      const industry = h.industry || "Unknown";
+
+      totalValue += marketValue;
+
+      // Sector aggregation
+      if (!sectorMetrics[sector]) {
+        sectorMetrics[sector] = {
+          sector: sector,
+          holdings_count: 0,
+          market_value: 0,
+          gain_loss: 0,
+          gain_loss_percent_weighted: 0,
+          weight_sum: 0,
+        };
+      }
+      sectorMetrics[sector].holdings_count += 1;
+      sectorMetrics[sector].market_value += marketValue;
+      sectorMetrics[sector].gain_loss += gainLoss;
+      sectorMetrics[sector].gain_loss_percent_weighted += gainLossPercent * (marketValue / (totalValue || 1));
+      sectorMetrics[sector].weight_sum += marketValue;
+
+      // Industry aggregation
+      if (!industryMetrics[industry]) {
+        industryMetrics[industry] = {
+          industry: industry,
+          sector: sector,
+          holdings_count: 0,
+          market_value: 0,
+          gain_loss: 0,
+          gain_loss_percent_weighted: 0,
+          weight_sum: 0,
+        };
+      }
+      industryMetrics[industry].holdings_count += 1;
+      industryMetrics[industry].market_value += marketValue;
+      industryMetrics[industry].gain_loss += gainLoss;
+      industryMetrics[industry].gain_loss_percent_weighted += gainLossPercent * (marketValue / (totalValue || 1));
+      industryMetrics[industry].weight_sum += marketValue;
+    });
+
+    // Convert to arrays and calculate percentages
+    const sectors = Object.values(sectorMetrics)
+      .map((s) => ({
+        ...s,
+        allocation_percent: totalValue > 0 ? (s.market_value / totalValue) * 100 : 0,
+        gain_loss_percent: s.weight_sum > 0 ? s.gain_loss_percent_weighted : 0,
+      }))
+      .sort((a, b) => b.market_value - a.market_value);
+
+    const industries = Object.values(industryMetrics)
+      .map((i) => ({
+        ...i,
+        allocation_percent: totalValue > 0 ? (i.market_value / totalValue) * 100 : 0,
+        gain_loss_percent: i.weight_sum > 0 ? i.gain_loss_percent_weighted : 0,
+      }))
+      .sort((a, b) => b.market_value - a.market_value);
+
+    // Calculate diversification metrics
+    const sectorConcentration = sectors.length > 0
+      ? sectors.slice(0, 3).reduce((sum, s) => sum + s.allocation_percent, 0)
+      : 0;
+
+    const herfindahlIndex = sectors.reduce((sum, s) => sum + Math.pow(s.allocation_percent / 100, 2), 0);
+
+    // Diversification score (inverse of Herfindahl index normalized 0-100)
+    const diversificationScore = Math.max(0, Math.min(100, (1 - herfindahlIndex) * 100));
+
+    const response = {
+      success: true,
+      data: {
+        summary: {
+          total_value: totalValue,
+          sector_count: sectors.length,
+          industry_count: industries.length,
+          top_3_concentration: sectorConcentration.toFixed(2),
+          diversification_score: diversificationScore.toFixed(2),
+          herfindahl_index: herfindahlIndex.toFixed(4),
+        },
+        sectors: sectors.map((s) => ({
+          name: s.sector,
+          allocation: s.allocation_percent.toFixed(2),
+          market_value: s.market_value.toFixed(2),
+          gain_loss: s.gain_loss.toFixed(2),
+          gain_loss_percent: s.gain_loss_percent.toFixed(2),
+          holdings_count: s.holdings_count,
+        })),
+        industries: industries
+          .slice(0, 20)
+          .map((i) => ({
+            name: i.industry,
+            sector: i.sector,
+            allocation: i.allocation_percent.toFixed(2),
+            market_value: i.market_value.toFixed(2),
+            gain_loss: i.gain_loss.toFixed(2),
+            gain_loss_percent: i.gain_loss_percent.toFixed(2),
+            holdings_count: i.holdings_count,
+          })),
+      },
+      timestamp: new Date().toISOString(),
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Portfolio sector/industry analysis error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to analyze portfolio sectors/industries",
+      details: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 // Portfolio analysis endpoint - not implemented
 router.post("/analyze", async (req, res) => {
   try {

@@ -1408,8 +1408,6 @@ const SectorAnalysis = () => {
         </Grid>
       </Grid>
 
-
-
       {/* Sector Rankings */}
       <Card sx={{ mb: 4 }}>
         <CardContent>

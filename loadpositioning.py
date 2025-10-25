@@ -932,16 +932,13 @@ if __name__ == "__main__":
     # Create table
     create_positioning_metrics_table(cur, conn)
     
-    # Get symbols to process (focus on large/mid cap for positioning analysis)
+    # Get symbols to process (all active symbols from stock_symbols_enhanced)
     cur.execute("""
-        SELECT symbol FROM stock_symbols_enhanced 
-        WHERE is_active = TRUE 
-        AND market_cap > 2000000000  -- Only stocks with >$2B market cap
-        ORDER BY market_cap DESC 
-        LIMIT 80
+        SELECT symbol FROM stock_symbols_enhanced
+        ORDER BY symbol ASC
     """)
     symbols = [row['symbol'] for row in cur.fetchall()]
-    
+
     if not symbols:
         logging.warning("No symbols found in stock_symbols_enhanced table. Run loadsymbols.py first.")
         sys.exit(1)

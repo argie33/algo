@@ -434,7 +434,7 @@ router.get("/sectors-with-history", async (req, res) => {
             const trend = Math.sin((i / 90) * Math.PI * 2) * 2 + baseValue;
             return {
               date: new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-              dailyStrengthScore: parseFloat((trend + 50).toFixed(2)),
+              dailyStrengthScore: parseFloat((trend + 5).toFixed(2)),
               momentum: parseFloat((trend * 1.5).toFixed(2))
             };
           })
@@ -458,14 +458,14 @@ router.get("/sectors-with-history", async (req, res) => {
               const perfValue = parseFloat(trend);
               trend = perfValue > 0 ? 'Uptrend' : perfValue < 0 ? 'Downtrend' : 'Sideways';
             }
-            // Generate 90-day trend data for charts
+            // Generate 90-day trend data for charts (0-10 range for proper Y-axis scaling)
             const trendData = Array.from({ length: 90 }, (_, i) => {
               const daysAgo = 90 - i;
               const baseValue = parseFloat(row.current_perf_1d || 0);
               const trend = Math.sin((i / 90) * Math.PI * 2) * 2 + baseValue;
               return {
                 date: new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                dailyStrengthScore: parseFloat((trend + 50).toFixed(2)),
+                dailyStrengthScore: parseFloat((trend + 5).toFixed(2)),
                 momentum: parseFloat((trend * 1.5).toFixed(2))
               };
             });
@@ -510,14 +510,15 @@ router.get("/sectors-with-history", async (req, res) => {
           const perf_5d = parseFloat(row.current_perf_5d || 0);
           const perf_20d = parseFloat(row.current_perf_20d || 0);
 
-          // Generate 90-day trend data for charts
+          // Generate 90-day trend data for charts (0-10 range for proper Y-axis scaling)
           const trendData = Array.from({ length: 90 }, (_, i) => {
             const daysAgo = 90 - i;
-            const baseValue = perf_1d !== 0 ? perf_1d : (perf_20d / 20);
+            // Scale baseValue down by 0.5x to create tighter range (0-10)
+            const baseValue = (perf_1d !== 0 ? perf_1d : (perf_20d / 20)) * 0.5;
             const trendValue = Math.sin((i / 90) * Math.PI * 2) * 2 + baseValue;
             return {
               date: new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-              dailyStrengthScore: parseFloat((trendValue + 50).toFixed(2)),
+              dailyStrengthScore: parseFloat((trendValue + 5).toFixed(2)),
               momentum: parseFloat((trendValue * 1.5).toFixed(2))
             };
           });
@@ -708,24 +709,43 @@ router.get("/industries-with-history", async (req, res) => {
       return res.json({
         success: true,
         data: {
-          industries: (fallbackResult?.rows || []).map(row => ({
-            industry: row.industry,
-            sector: row.sector,
-            current_rank: row.current_rank,
-            rank_1w_ago: row.rank_1w_ago,
-            rank_4w_ago: row.rank_4w_ago,
-            rank_12w_ago: row.rank_12w_ago,
-            momentum: row.momentum,
-            trend: row.trend,
-            performance_1d: parseFloat(row.performance_1d || 0),
-            performance_5d: parseFloat(row.performance_5d || 0),
-            performance_20d: parseFloat(row.performance_20d || 0),
-            stock_count: row.stock_count,
-            rank_change_1w: row.rank_change_1w,
-            perf_1d_1w_ago: row.perf_1d_1w_ago,
-            perf_5d_1w_ago: row.perf_5d_1w_ago,
-            perf_20d_1w_ago: row.perf_20d_1w_ago,
-          })),
+          industries: (fallbackResult?.rows || []).map(row => {
+            // Generate 90-day trend data for charts (matching sectors endpoint pattern)
+            const perf_1d = parseFloat(row.performance_1d || 0);
+            const perf_20d = parseFloat(row.performance_20d || 0);
+
+            const trendData = Array.from({ length: 90 }, (_, i) => {
+              const daysAgo = 90 - i;
+              // Scale baseValue down by 0.5x to create tighter range (0-10)
+              const baseValue = (perf_1d !== 0 ? perf_1d : (perf_20d / 20)) * 0.5;
+              const trendValue = Math.sin((i / 90) * Math.PI * 2) * 2 + baseValue;
+              return {
+                date: new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                dailyStrengthScore: parseFloat((trendValue + 5).toFixed(2)),
+                momentum: parseFloat((trendValue * 1.5).toFixed(2))
+              };
+            });
+
+            return {
+              industry: row.industry,
+              sector: row.sector,
+              current_rank: row.current_rank,
+              rank_1w_ago: row.rank_1w_ago,
+              rank_4w_ago: row.rank_4w_ago,
+              rank_12w_ago: row.rank_12w_ago,
+              momentum: row.momentum,
+              trend: row.trend,
+              performance_1d: parseFloat(row.performance_1d || 0),
+              performance_5d: parseFloat(row.performance_5d || 0),
+              performance_20d: parseFloat(row.performance_20d || 0),
+              stock_count: row.stock_count,
+              rank_change_1w: row.rank_change_1w,
+              perf_1d_1w_ago: row.perf_1d_1w_ago,
+              perf_5d_1w_ago: row.perf_5d_1w_ago,
+              perf_20d_1w_ago: row.perf_20d_1w_ago,
+              trendData: trendData
+            };
+          }),
           summary: {
             total_industries: (fallbackResult?.rows || []).length
           }
@@ -739,24 +759,43 @@ router.get("/industries-with-history", async (req, res) => {
       data: {
         industries: result.rows
           .filter(row => row.industry && row.industry.trim())
-          .map(row => ({
-          industry: row.industry,
-          sector: row.sector,
-          current_rank: row.current_rank,
-          rank_1w_ago: row.rank_1w_ago,
-          rank_4w_ago: row.rank_4w_ago,
-          rank_8w_ago: row.rank_8w_ago,
-          momentum: row.momentum,
-          trend: row.trend,
-          stock_count: row.stock_count,
-          performance_1d: parseFloat(row.performance_1d || 0),
-          performance_5d: parseFloat(row.performance_5d || 0),
-          performance_20d: parseFloat(row.performance_20d || 0),
-          rank_change_1w: row.rank_change_1w,
-          perf_1d_1w_ago: row.perf_1d_1w_ago,
-          perf_5d_1w_ago: row.perf_5d_1w_ago,
-          perf_20d_1w_ago: row.perf_20d_1w_ago,
-        })),
+          .map(row => {
+            // Generate 90-day trend data for charts (matching sectors endpoint pattern)
+            const perf_1d = parseFloat(row.performance_1d || 0);
+            const perf_20d = parseFloat(row.performance_20d || 0);
+
+            const trendData = Array.from({ length: 90 }, (_, i) => {
+              const daysAgo = 90 - i;
+              // Scale baseValue down by 0.5x to create tighter range (0-10)
+              const baseValue = (perf_1d !== 0 ? perf_1d : (perf_20d / 20)) * 0.5;
+              const trendValue = Math.sin((i / 90) * Math.PI * 2) * 2 + baseValue;
+              return {
+                date: new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                dailyStrengthScore: parseFloat((trendValue + 5).toFixed(2)),
+                momentum: parseFloat((trendValue * 1.5).toFixed(2))
+              };
+            });
+
+            return {
+              industry: row.industry,
+              sector: row.sector,
+              current_rank: row.current_rank,
+              rank_1w_ago: row.rank_1w_ago,
+              rank_4w_ago: row.rank_4w_ago,
+              rank_8w_ago: row.rank_8w_ago,
+              momentum: row.momentum,
+              trend: row.trend,
+              stock_count: row.stock_count,
+              performance_1d: parseFloat(row.performance_1d || 0),
+              performance_5d: parseFloat(row.performance_5d || 0),
+              performance_20d: parseFloat(row.performance_20d || 0),
+              rank_change_1w: row.rank_change_1w,
+              perf_1d_1w_ago: row.perf_1d_1w_ago,
+              perf_5d_1w_ago: row.perf_5d_1w_ago,
+              perf_20d_1w_ago: row.perf_20d_1w_ago,
+              trendData: trendData
+            };
+          }),
         summary: {
           total_industries: result.rows.filter(row => row.industry && row.industry.trim()).length
         }

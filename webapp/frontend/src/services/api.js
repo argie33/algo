@@ -4245,6 +4245,17 @@ export const getTrendsAnalytics = async (period = "1m") => {
   }
 };
 
+// Portfolio Sector & Industry Analysis
+export const getPortfolioSectorIndustryAnalysis = async () => {
+  try {
+    const response = await api.get("/api/portfolio/sector-industry-analysis");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching portfolio sector/industry analysis:", error);
+    throw new Error(handleApiError(error, "Failed to fetch sector/industry analysis"));
+  }
+};
+
 export const getCustomAnalytics = async (
   analysisType,
   parameters = {},

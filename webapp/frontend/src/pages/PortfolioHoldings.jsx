@@ -67,6 +67,7 @@ import {
   getAllocationAnalytics,
   getVolatilityAnalytics,
   getTrendsAnalytics,
+  getPortfolioSectorIndustryAnalysis,
 } from "../services/api";
 
 // Advanced Analytics Component with tabs
@@ -111,6 +112,12 @@ const AdvancedAnalyticsContent = ({ timeframe }) => {
     queryKey: ["trendsAnalytics", apiTimeframe],
     queryFn: () => getTrendsAnalytics(apiTimeframe),
     staleTime: 60000,
+  });
+
+  const { data: sectorIndustryData, isLoading: sectorIndustryLoading } = useQuery({
+    queryKey: ["portfolioSectorIndustryAnalysis"],
+    queryFn: () => getPortfolioSectorIndustryAnalysis(),
+    staleTime: 120000,
   });
 
   const isLoading = perfLoading || riskLoading || allocLoading || corrLoading || volLoading || trendsLoading;
@@ -383,6 +390,173 @@ const AdvancedAnalyticsContent = ({ timeframe }) => {
     </Grid>
   );
 
+  const renderSectorIndustryTab = () => {
+    if (sectorIndustryLoading) {
+      return (
+        <Box display="flex" justifyContent="center" p={4}>
+          <CircularProgress />
+        </Box>
+      );
+    }
+
+    const summary = sectorIndustryData?.data?.summary || {};
+    const sectors = sectorIndustryData?.data?.sectors || [];
+    const industries = sectorIndustryData?.data?.industries || [];
+
+    // Check if we have any portfolio data
+    const hasData = sectors.length > 0 || industries.length > 0 || (summary.total_value && parseFloat(summary.total_value) > 0);
+
+    return (
+      <Grid container spacing={3}>
+        {!hasData && (
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography color="textSecondary" align="center">
+                  No portfolio holdings data available. Add holdings to your portfolio to see sector and industry analysis.
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
+        {/* Diversification Summary */}
+        <Grid item xs={12}>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box display="flex" alignItems="center" gap={2}>
+                    <Assessment color="primary" />
+                    <Box>
+                      <Typography variant="h6">{summary.diversification_score || "N/A"}</Typography>
+                      <Typography variant="body2" color="text.secondary">Diversification Score</Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box display="flex" alignItems="center" gap={2}>
+                    <ShowChart color="secondary" />
+                    <Box>
+                      <Typography variant="h6">{summary.top_3_concentration || "N/A"}%</Typography>
+                      <Typography variant="body2" color="text.secondary">Top 3 Concentration</Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box display="flex" alignItems="center" gap={2}>
+                    <TrendingUp color="info" />
+                    <Box>
+                      <Typography variant="h6">{summary.sector_count || "0"}</Typography>
+                      <Typography variant="body2" color="text.secondary">Sectors</Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent>
+                  <Box display="flex" alignItems="center" gap={2}>
+                    <AccountBalance color="success" />
+                    <Box>
+                      <Typography variant="h6">{summary.industry_count || "0"}</Typography>
+                      <Typography variant="body2" color="text.secondary">Industries</Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </Grid>
+
+        {/* Sector Allocation Chart */}
+        <Grid item xs={12} lg={6}>
+          <Card>
+            <CardHeader title="Sector Allocation" />
+            <CardContent>
+              <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={sectors}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
+                  <YAxis tickFormatter={(value) => `${value}%`} />
+                  <RechartChartTooltip formatter={(value) => [`${value}%`, "Allocation"]} />
+                  <Bar dataKey="allocation" fill="#8884d8" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Sector Performance */}
+        <Grid item xs={12} lg={6}>
+          <Card>
+            <CardHeader title="Sector Performance (Weighted)" />
+            <CardContent>
+              <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={sectors}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
+                  <YAxis tickFormatter={(value) => `${value}%`} />
+                  <RechartChartTooltip formatter={(value) => [`${value}%`, "Return"]} />
+                  <Bar dataKey="gain_loss_percent" fill="#82ca9d" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Industry Breakdown (Top 10) */}
+        <Grid item xs={12}>
+          <Card>
+            <CardHeader title="Top Industries Breakdown" />
+            <CardContent>
+              <Box sx={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "2px solid #ddd" }}>
+                      <th style={{ textAlign: "left", padding: "12px", fontWeight: 600 }}>Industry</th>
+                      <th style={{ textAlign: "left", padding: "12px", fontWeight: 600 }}>Sector</th>
+                      <th style={{ textAlign: "right", padding: "12px", fontWeight: 600 }}>Allocation</th>
+                      <th style={{ textAlign: "right", padding: "12px", fontWeight: 600 }}>Value</th>
+                      <th style={{ textAlign: "right", padding: "12px", fontWeight: 600 }}>Gain/Loss</th>
+                      <th style={{ textAlign: "right", padding: "12px", fontWeight: 600 }}>Return %</th>
+                      <th style={{ textAlign: "center", padding: "12px", fontWeight: 600 }}>Holdings</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {industries.slice(0, 10).map((industry, idx) => (
+                      <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
+                        <td style={{ padding: "12px" }}>{industry.name}</td>
+                        <td style={{ padding: "12px" }}>{industry.sector}</td>
+                        <td style={{ textAlign: "right", padding: "12px" }}>{parseFloat(industry.allocation).toFixed(2)}%</td>
+                        <td style={{ textAlign: "right", padding: "12px", fontWeight: 500 }}>${parseFloat(industry.market_value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td style={{ textAlign: "right", padding: "12px", color: parseFloat(industry.gain_loss) >= 0 ? "#4caf50" : "#f44336", fontWeight: 500 }}>
+                          ${parseFloat(industry.gain_loss).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td style={{ textAlign: "right", padding: "12px", color: parseFloat(industry.gain_loss_percent) >= 0 ? "#4caf50" : "#f44336", fontWeight: 500 }}>
+                          {parseFloat(industry.gain_loss_percent).toFixed(2)}%
+                        </td>
+                        <td style={{ textAlign: "center", padding: "12px" }}>{industry.holdings_count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    );
+  };
+
   return (
     <Box>
       <Paper sx={{ mb: 2 }}>
@@ -392,6 +566,7 @@ const AdvancedAnalyticsContent = ({ timeframe }) => {
           <Tab label="Asset Allocation" />
           <Tab label="Correlation" />
           <Tab label="Volatility & Trends" />
+          <Tab label="Sector & Industry" />
         </Tabs>
       </Paper>
       <Box mt={2}>
@@ -436,6 +611,7 @@ const AdvancedAnalyticsContent = ({ timeframe }) => {
         )}
         {analyticsTab === 3 && renderCorrelationTab()}
         {analyticsTab === 4 && renderVolatilityTab()}
+        {analyticsTab === 5 && renderSectorIndustryTab()}
       </Box>
     </Box>
   );

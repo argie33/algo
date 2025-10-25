@@ -43,8 +43,6 @@ import {
   TrendingUpRounded,
   ExpandMore,
   Info as InfoIcon,
-  Person as PersonIcon,
-  Business as BusinessIcon,
   Timeline as TimelineIcon,
   ShowChart as ShowChartIcon,
 } from "@mui/icons-material";
@@ -405,7 +403,6 @@ function Sentiment() {
   const [upgradesLoading, setUpgradesLoading] = useState(false);
   const [upgradesError, setUpgradesError] = useState(null);
   const [searchSymbol, setSearchSymbol] = useState("");
-  const [filterAction, setFilterAction] = useState("all");
   const [tablePage, setTablePage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
 
@@ -708,14 +705,176 @@ function Sentiment() {
           variant="scrollable"
           scrollButtons="auto"
         >
-          <Tab label="Stock Analysis" id="sentiment-tab-0" aria-controls="sentiment-tabpanel-0" />
-          <Tab label="Comparative View" id="sentiment-tab-1" aria-controls="sentiment-tabpanel-1" />
-          <Tab label="Analyst Upgrades/Downgrades" id="sentiment-tab-2" aria-controls="sentiment-tabpanel-2" />
+          <Tab label="Analyst Insights & Actions" id="sentiment-tab-0" aria-controls="sentiment-tabpanel-0" />
+          <Tab label="Stock Details" id="sentiment-tab-1" aria-controls="sentiment-tabpanel-1" />
+          <Tab label="Comparative View" id="sentiment-tab-2" aria-controls="sentiment-tabpanel-2" />
         </Tabs>
       </Box>
 
-      {/* Controls for Stock Analysis Tab */}
+      {/* Tab 0: Analyst Insights & Actions - PRIMARY DETAILED VIEW */}
       <TabPanel value={tabValue} index={0}>
+        {upgradesLoading ? (
+          <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 400 }}>
+            <CircularProgress />
+          </Box>
+        ) : upgradesError ? (
+          <Alert severity="error">{upgradesError}</Alert>
+        ) : (
+          <>
+            {/* Filters */}
+            <Box sx={{ mb: 3, display: "flex", gap: 2, flexWrap: "wrap" }}>
+              <TextField
+                placeholder="Search by symbol..."
+                variant="outlined"
+                size="small"
+                value={searchSymbol}
+                onChange={(e) => setSearchSymbol(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Search />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{ minWidth: 200 }}
+              />
+            </Box>
+
+            {/* Analyst Upgrades/Downgrades Table */}
+            {filteredUpgrades.length > 0 ? (
+              <Card sx={{ mb: 4 }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1, mb: 3 }}>
+                    <TimelineIcon />
+                    Recent Analyst Actions (Upgrades/Downgrades)
+                  </Typography>
+
+                  <TableContainer>
+                    <Table>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Symbol</TableCell>
+                          <TableCell>Company Name</TableCell>
+                          <TableCell>Firm</TableCell>
+                          <TableCell>Action</TableCell>
+                          <TableCell>From Grade</TableCell>
+                          <TableCell>To Grade</TableCell>
+                          <TableCell>Date</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {(rowsPerPage > 0
+                          ? filteredUpgrades.slice(tablePage * rowsPerPage, tablePage * rowsPerPage + rowsPerPage)
+                          : filteredUpgrades
+                        ).map((upgrade, index) => (
+                          <TableRow key={upgrade.id || index} hover>
+                            <TableCell>
+                              <Typography variant="body2" fontWeight="bold" sx={{ color: "primary.main" }}>
+                                {upgrade.symbol}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2">{upgrade.company_name || "N/A"}</Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2">{upgrade.firm || "N/A"}</Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                {getActionIcon(upgrade.action, upgrade.from_grade, upgrade.to_grade)}
+                                <Chip
+                                  label={upgrade.action === "main" ? "maint" : (upgrade.action || "N/A")}
+                                  color={getActionColor(upgrade.action, upgrade.from_grade, upgrade.to_grade)}
+                                  size="small"
+                                />
+                              </Box>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2">{upgrade.from_grade || "N/A"}</Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2">{upgrade.to_grade || "N/A"}</Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2">{formatDate(upgrade.date)}</Typography>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                  <TablePagination
+                    component="div"
+                    count={filteredUpgrades.length}
+                    page={tablePage}
+                    onPageChange={(e, newPage) => setTablePage(newPage)}
+                    rowsPerPage={rowsPerPage}
+                    onRowsPerPageChange={(e) => {
+                      setRowsPerPage(parseInt(e.target.value, 10));
+                      setTablePage(0);
+                    }}
+                    rowsPerPageOptions={[10, 25, 50, 100, { label: "All", value: -1 }]}
+                  />
+                </CardContent>
+              </Card>
+            ) : (
+              <Alert severity="info">No analyst upgrades/downgrades found</Alert>
+            )}
+
+            {/* Analyst Insights by Symbol - Detailed Metrics */}
+            <Divider sx={{ my: 4 }} />
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h6" sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+                <TrendingUpRounded />
+                Detailed Analyst Metrics by Stock
+              </Typography>
+              <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
+                Browse detailed analyst sentiment metrics, price targets, and coverage statistics for each stock
+              </Typography>
+            </Box>
+
+            {isLoading ? (
+              <Box display="flex" justifyContent="center" py={4}>
+                <CircularProgress />
+              </Box>
+            ) : error ? (
+              <Alert severity="error" sx={{ mb: 3 }}>
+                Failed to load sentiment data: {error.message}
+              </Alert>
+            ) : filteredAndSortedStocks.length === 0 ? (
+              <Alert severity="info">No sentiment data available</Alert>
+            ) : (
+              <Box>
+                {filteredAndSortedStocks.slice(0, 10).map((stock) => (
+                  <Accordion key={stock.symbol} sx={{ mb: 2 }}>
+                    <AccordionSummary expandIcon={<ExpandMore />}>
+                      <Box sx={{ width: "100%", display: "flex", alignItems: "center", gap: 2 }}>
+                        <Typography variant="h6" fontWeight="bold" sx={{ minWidth: 80 }}>
+                          {stock.symbol}
+                        </Typography>
+                        <Box display="flex" alignItems="center" gap={1}>
+                          {stock.compositeSentiment.icon}
+                          <Chip
+                            label={stock.compositeSentiment.label}
+                            color={stock.compositeSentiment.color}
+                            size="small"
+                          />
+                        </Box>
+                      </Box>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                      <AnalystTrendCard symbol={stock.symbol} />
+                    </AccordionDetails>
+                  </Accordion>
+                ))}
+              </Box>
+            )}
+          </>
+        )}
+      </TabPanel>
+
+      {/* Tab 1: Stock Details - Accordion with all sentiment sources */}
+      <TabPanel value={tabValue} index={1}>
         {/* Search and Filter Bar */}
         <Card sx={{ mb: 3 }}>
           <CardContent>
@@ -1123,7 +1282,7 @@ function Sentiment() {
       </TabPanel>
 
       {/* Tab 2: Comparative View */}
-      <TabPanel value={tabValue} index={1}>
+      <TabPanel value={tabValue} index={2}>
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
@@ -1169,119 +1328,6 @@ function Sentiment() {
             </Grid>
           </CardContent>
         </Card>
-      </TabPanel>
-
-      {/* Tab 3: Analyst Upgrades/Downgrades */}
-      <TabPanel value={tabValue} index={2}>
-        {upgradesLoading ? (
-          <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 400 }}>
-            <CircularProgress />
-          </Box>
-        ) : upgradesError ? (
-          <Alert severity="error">{upgradesError}</Alert>
-        ) : (
-          <>
-            {/* Filters */}
-            <Box sx={{ mb: 3, display: "flex", gap: 2, flexWrap: "wrap" }}>
-              <TextField
-                placeholder="Search by symbol..."
-                variant="outlined"
-                size="small"
-                value={searchSymbol}
-                onChange={(e) => setSearchSymbol(e.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Search />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{ minWidth: 200 }}
-              />
-            </Box>
-
-            {/* Table */}
-            {filteredUpgrades.length > 0 ? (
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <TimelineIcon />
-                    Recent Analyst Actions
-                  </Typography>
-
-                  <TableContainer>
-                    <Table>
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Symbol</TableCell>
-                          <TableCell>Company Name</TableCell>
-                          <TableCell>Firm</TableCell>
-                          <TableCell>Action</TableCell>
-                          <TableCell>From Grade</TableCell>
-                          <TableCell>To Grade</TableCell>
-                          <TableCell>Date</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {(rowsPerPage > 0
-                          ? filteredUpgrades.slice(tablePage * rowsPerPage, tablePage * rowsPerPage + rowsPerPage)
-                          : filteredUpgrades
-                        ).map((upgrade, index) => (
-                          <TableRow key={upgrade.id || index} hover>
-                            <TableCell>
-                              <Typography variant="body2" fontWeight="bold" sx={{ color: "primary.main" }}>
-                                {upgrade.symbol}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2">{upgrade.company_name || "N/A"}</Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2">{upgrade.firm || "N/A"}</Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                {getActionIcon(upgrade.action, upgrade.from_grade, upgrade.to_grade)}
-                                <Chip
-                                  label={upgrade.action === "main" ? "maint" : (upgrade.action || "N/A")}
-                                  color={getActionColor(upgrade.action, upgrade.from_grade, upgrade.to_grade)}
-                                  size="small"
-                                />
-                              </Box>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2">{upgrade.from_grade || "N/A"}</Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2">{upgrade.to_grade || "N/A"}</Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2">{formatDate(upgrade.date)}</Typography>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                  <TablePagination
-                    component="div"
-                    count={filteredUpgrades.length}
-                    page={tablePage}
-                    onPageChange={(e, newPage) => setTablePage(newPage)}
-                    rowsPerPage={rowsPerPage}
-                    onRowsPerPageChange={(e) => {
-                      setRowsPerPage(parseInt(e.target.value, 10));
-                      setTablePage(0);
-                    }}
-                    rowsPerPageOptions={[10, 25, 50, 100, { label: "All", value: -1 }]}
-                  />
-                </CardContent>
-              </Card>
-            ) : (
-              <Alert severity="info">No analyst upgrades/downgrades found</Alert>
-            )}
-          </>
-        )}
       </TabPanel>
 
     </Container>
