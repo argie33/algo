@@ -104,443 +104,376 @@ const detectSentimentDivergence = (newsScore, analystScore, socialScore) => {
 };
 
 // Analyst Trend Card Component
-const AnalystTrendCard = ({ symbol, allData }) => {
+const AnalystTrendCard = ({ symbol }) => {
   const theme = useTheme();
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(null);
+  const [data, setData] = React.useState(null);
+  const [expandedIndex, setExpandedIndex] = React.useState(null);
 
-  // Filter analyst data from the provided data
-  const analystData = React.useMemo(() => {
-    if (!allData || !Array.isArray(allData)) return [];
-    return allData.filter(item => item.source === "analyst");
-  }, [allData]);
-
-  // Calculate comprehensive analyst metrics
-  const analystMetrics = React.useMemo(() => {
-    if (analystData.length === 0) return null;
-
-    const currentData = analystData[0];
-    const metadata = currentData?.metadata || {};
-    const recentData = analystData.slice(0, 30);
-
-    // Calculate average sentiment score
-    const avgScore = recentData.reduce((sum, d) => sum + (d.sentiment_score || 0), 0) / recentData.length;
-    const sentimentScore = Math.max(0, Math.min(100, (avgScore + 1) * 50));
-
-    // Determine trend direction
-    const oldestData = recentData[recentData.length - 1];
-    const ratingChange = (currentData?.sentiment_score || 0) - (oldestData?.sentiment_score || 0);
-    const trendDirection = ratingChange > 0.1 ? "↗️ Improving" : ratingChange < -0.1 ? "↘️ Declining" : "→ Stable";
-
-    // Rating distribution from metadata
-    const strongBuy = metadata.strong_buy_count || 0;
-    const buy = metadata.buy_count || 0;
-    const hold = metadata.hold_count || 0;
-    const sell = metadata.sell_count || 0;
-    const strongSell = metadata.strong_sell_count || 0;
-    const totalRatings = strongBuy + buy + hold + sell + strongSell;
-
-    const bullishCount = strongBuy + buy;
-    const bearishCount = sell + strongSell;
-    const bullishPercentage = totalRatings > 0 ? (bullishCount / totalRatings) * 100 : 0;
-    const neutralPercentage = totalRatings > 0 ? (hold / totalRatings) * 100 : 0;
-    const bearishPercentage = totalRatings > 0 ? (bearishCount / totalRatings) * 100 : 0;
-
-    // Price target analysis
-    const avgPriceTarget = metadata.avg_price_target || null;
-    const priceTargetVsCurrent = metadata.price_target_vs_current || 0; // Percentage deviation
-
-    // Recent analyst activity
-    const upgradesLast30d = metadata.upgrades_last_30d || 0;
-    const downgradesLast30d = metadata.downgrades_last_30d || 0;
-    const activityNet = upgradesLast30d - downgradesLast30d;
-
-    // EPS revision momentum
-    const epsRevisionsUp = metadata.eps_revisions_up_last_30d || 0;
-    const epsRevisionsDown = metadata.eps_revisions_down_last_30d || 0;
-    const epsNetMomentum = epsRevisionsUp - epsRevisionsDown;
-
-    return {
-      sentimentScore,
-      trendDirection,
-      analystCount: metadata.analyst_count || 0,
-      totalAnalysts: metadata.total_analysts || 0,
-      // Rating distribution
-      strongBuy, buy, hold, sell, strongSell,
-      bullishPercentage,
-      neutralPercentage,
-      bearishPercentage,
-      totalRatings,
-      // Price target
-      avgPriceTarget,
-      priceTargetVsCurrent,
-      // Activity
-      upgradesLast30d,
-      downgradesLast30d,
-      activityNet,
-      // EPS momentum
-      epsRevisionsUp,
-      epsRevisionsDown,
-      epsNetMomentum,
+  // Fetch analyst insights from new endpoint
+  React.useEffect(() => {
+    const fetchAnalystInsights = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`/api/sentiment/analyst/insights/${symbol}`);
+        if (!response.ok) throw new Error("Failed to fetch analyst insights");
+        const result = await response.json();
+        setData(result);
+      } catch (err) {
+        setError(err.message);
+        setData(null);
+      } finally {
+        setLoading(false);
+      }
     };
-  }, [analystData]);
 
-  // Format chart data for trend visualization
-  const chartData = React.useMemo(() => {
-    if (analystData.length === 0) return [];
+    if (symbol) {
+      fetchAnalystInsights();
+    }
+  }, [symbol]);
 
-    return analystData
-      .slice(0, 90)
-      .reverse()
-      .map((item) => ({
-        date: new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-        recommendationMean: item.sentiment_score ? (item.sentiment_score + 1) * 2.5 : 3,
-      }));
-  }, [analystData]);
+  // Analyze recent activity momentum
+  const momentum = React.useMemo(() => {
+    if (!data?.recentActivity || data.recentActivity.length === 0) return null;
 
-  // Rating distribution pie chart data
-  const ratingDistributionData = React.useMemo(() => {
-    if (!analystMetrics) return [];
-    return [
-      { name: "Strong Buy", value: analystMetrics.strongBuy, color: theme.palette.success.main },
-      { name: "Buy", value: analystMetrics.buy, color: theme.palette.success.light },
-      { name: "Hold", value: analystMetrics.hold, color: theme.palette.warning.main },
-      { name: "Sell", value: analystMetrics.sell, color: theme.palette.error.light },
-      { name: "Strong Sell", value: analystMetrics.strongSell, color: theme.palette.error.main },
-    ].filter(item => item.value > 0);
-  }, [analystMetrics, theme]);
+    const last30Days = data.recentActivity
+      .filter(event => {
+        const eventDate = new Date(event.date);
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        return eventDate >= thirtyDaysAgo;
+      });
 
-  if (analystData.length === 0) {
+    const upgrades = last30Days.filter(e => e.action === "up").length;
+    const downgrades = last30Days.filter(e => e.action === "down").length;
+    const net = upgrades - downgrades;
+    const sentiment = net > 0 ? "bullish" : net < 0 ? "bearish" : "neutral";
+    const count = upgrades + downgrades;
+
+    return { upgrades, downgrades, net, sentiment, count };
+  }, [data]);
+
+  // Calculate summary stats
+  const summary = React.useMemo(() => {
+    if (!data?.currentSentiment) return null;
+    const cs = data.currentSentiment;
+    const total = (cs.strong_buy_count || 0) + (cs.buy_count || 0) + (cs.hold_count || 0) +
+                  (cs.sell_count || 0) + (cs.strong_sell_count || 0);
+    const bullish = ((cs.strong_buy_count || 0) + (cs.buy_count || 0)) / (total || 1) * 100;
+    return {
+      bullish: bullish.toFixed(0),
+      total,
+      avgTarget: cs.avg_price_target,
+      targetVsCurrent: cs.price_target_vs_current
+    };
+  }, [data]);
+
+  if (loading) {
     return (
       <Card variant="outlined">
         <CardContent>
           <Box display="flex" alignItems="center" gap={1} mb={2}>
             <TrendingUpRounded />
-            <Typography variant="h6">Analyst Trends</Typography>
+            <Typography variant="h6">Analyst Sentiment</Typography>
+          </Box>
+          <Typography variant="body2" color="textSecondary">Loading analyst data...</Typography>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <Card variant="outlined">
+        <CardContent>
+          <Box display="flex" alignItems="center" gap={1} mb={2}>
+            <TrendingUpRounded />
+            <Typography variant="h6">Analyst Sentiment</Typography>
           </Box>
           <Typography variant="body2" color="textSecondary">
-            No analyst trend data available for {symbol}
+            {error ? `Error: ${error}` : `No analyst data available for ${symbol}`}
           </Typography>
         </CardContent>
       </Card>
     );
   }
 
-  const getMomentumColor = (velocity) => {
-    if (velocity?.includes("↗️")) return theme.palette.success.main;
-    if (velocity?.includes("↘️")) return theme.palette.error.main;
+  const getActionColor = (action) => {
+    if (action === "up") return theme.palette.success.main;
+    if (action === "down") return theme.palette.error.main;
+    return theme.palette.info.main;
+  };
+
+  const getActionLabel = (action) => {
+    const labels = { up: "Upgrade", down: "Downgrade", main: "Maintained", init: "Initiated", reit: "Reiterated" };
+    return labels[action] || action;
+  };
+
+  const getGradeChangeColor = (fromGrade, toGrade) => {
+    if (!fromGrade || !toGrade) return theme.palette.grey[600];
+    const bullishGrades = ["Strong Buy", "Buy", "Overweight", "Positive"];
+    const isBullish = (grade) => bullishGrades.some(bg => grade?.includes(bg));
+
+    const fromBullish = isBullish(fromGrade);
+    const toBullish = isBullish(toGrade);
+
+    if (!fromBullish && toBullish) return theme.palette.success.main;
+    if (fromBullish && !toBullish) return theme.palette.error.main;
     return theme.palette.grey[600];
   };
 
-  const getActivityColor = (net) => {
-    if (net > 0) return theme.palette.success.main;
-    if (net < 0) return theme.palette.error.main;
-    return theme.palette.grey[600];
-  };
+  const recentActivityToDisplay = data.recentActivity?.slice(0, 25) || [];
 
   return (
-    <>
-      {/* Analyst Momentum Summary Card */}
-      <Card variant="outlined">
-        <CardContent>
-          <Box display="flex" alignItems="center" gap={1} mb={3}>
+    <Card variant="outlined">
+      <CardContent>
+        {/* Header with Summary Stats */}
+        <Box mb={3}>
+          <Box display="flex" alignItems="center" gap={1} mb={2}>
             <TrendingUpRounded />
-            <Typography variant="h6">Analyst Sentiment & Trends</Typography>
+            <Typography variant="h6">Analyst Sentiment & Activity</Typography>
           </Box>
 
-          <Grid container spacing={2}>
-            {/* Sentiment Score */}
-            <Grid item xs={12} sm={6} md={3}>
-              <Box textAlign="center">
-                <Typography variant="caption" color="textSecondary" display="block" mb={1}>
-                  Sentiment Score
-                </Typography>
-                <Chip
-                  label={`${analystMetrics?.sentimentScore?.toFixed(1) || 0}%`}
-                  color={analystMetrics?.sentimentScore > 60 ? "success" : analystMetrics?.sentimentScore > 40 ? "warning" : "error"}
-                  size="small"
-                />
-              </Box>
-            </Grid>
-
-            {/* Trend Direction */}
-            <Grid item xs={12} sm={6} md={3}>
-              <Box textAlign="center">
-                <Typography variant="caption" color="textSecondary" display="block" mb={1}>
-                  Trend
-                </Typography>
-                <Chip
-                  label={analystMetrics?.trendDirection || "Stable"}
-                  sx={{
-                    bgcolor: alpha(getMomentumColor(analystMetrics?.trendDirection), 0.2),
-                    color: getMomentumColor(analystMetrics?.trendDirection)
-                  }}
-                  size="small"
-                />
-              </Box>
-            </Grid>
-
-            {/* Analyst Coverage */}
-            <Grid item xs={12} sm={6} md={3}>
-              <Box textAlign="center">
-                <Typography variant="caption" color="textSecondary" display="block" mb={1}>
-                  Analyst Count
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: "bold" }}>
-                  {analystMetrics?.analystCount || 0}
-                </Typography>
-              </Box>
-            </Grid>
-
-            {/* Price Target Upside/Downside */}
-            <Grid item xs={12} sm={6} md={3}>
-              <Box textAlign="center">
-                <Typography variant="caption" color="textSecondary" display="block" mb={1}>
-                  Price Target
-                </Typography>
-                {analystMetrics?.priceTargetVsCurrent !== null ? (
-                  <Chip
-                    label={`${analystMetrics?.priceTargetVsCurrent > 0 ? "+" : ""}${analystMetrics?.priceTargetVsCurrent?.toFixed(1)}%`}
-                    color={analystMetrics?.priceTargetVsCurrent > 0 ? "success" : analystMetrics?.priceTargetVsCurrent < 0 ? "error" : "default"}
-                    size="small"
-                  />
-                ) : (
-                  <Typography variant="body2" color="textSecondary">N/A</Typography>
-                )}
-              </Box>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
-
-      {/* Rating Distribution Card */}
-      <Card variant="outlined" sx={{ mt: 2 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Rating Distribution
-          </Typography>
-          <Grid container spacing={2} alignItems="center">
-            {/* Pie Chart */}
-            <Grid item xs={12} sm={6}>
-              {ratingDistributionData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={250}>
-                  <PieChart>
-                    <Pie
-                      data={ratingDistributionData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {ratingDistributionData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip
-                      formatter={(value) => [`${value} analysts`, "Count"]}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <Box display="flex" alignItems="center" justifyContent="center" height={250}>
-                  <Typography color="textSecondary">No rating data available</Typography>
-                </Box>
-              )}
-            </Grid>
-
-            {/* Rating Details */}
-            <Grid item xs={12} sm={6}>
-              <Box display="flex" flexDirection="column" gap={1.5}>
-                {analystMetrics?.strongBuy > 0 && (
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Typography variant="body2">Strong Buy:</Typography>
-                    <Chip label={`${analystMetrics?.strongBuy}`} color="success" size="small" />
-                  </Box>
-                )}
-                {analystMetrics?.buy > 0 && (
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Typography variant="body2">Buy:</Typography>
-                    <Chip label={`${analystMetrics?.buy}`} color="success" size="small" variant="outlined" />
-                  </Box>
-                )}
-                {analystMetrics?.hold > 0 && (
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Typography variant="body2">Hold:</Typography>
-                    <Chip label={`${analystMetrics?.hold}`} size="small" variant="outlined" />
-                  </Box>
-                )}
-                {analystMetrics?.sell > 0 && (
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Typography variant="body2">Sell:</Typography>
-                    <Chip label={`${analystMetrics?.sell}`} color="error" size="small" variant="outlined" />
-                  </Box>
-                )}
-                {analystMetrics?.strongSell > 0 && (
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Typography variant="body2">Strong Sell:</Typography>
-                    <Chip label={`${analystMetrics?.strongSell}`} color="error" size="small" />
-                  </Box>
-                )}
-                <Divider sx={{ my: 1 }} />
-                <Box display="flex" justifyContent="space-between" alignItems="center">
-                  <Typography variant="body2" sx={{ fontWeight: "bold" }}>Bullish:</Typography>
+          {/* Quick Summary Grid */}
+          {summary && (
+            <Grid container spacing={1.5} sx={{ mb: 2 }}>
+              <Grid item xs={6} sm={3}>
+                <Box sx={{
+                  p: 1.5,
+                  bgcolor: alpha(theme.palette.success.main, 0.08),
+                  borderRadius: 1,
+                  border: `1px solid ${alpha(theme.palette.success.main, 0.2)}`
+                }}>
+                  <Typography variant="caption" color="textSecondary" display="block">Bullish</Typography>
                   <Typography variant="body2" sx={{ fontWeight: "bold", color: theme.palette.success.main }}>
-                    {analystMetrics?.bullishPercentage?.toFixed(0)}%
+                    {summary.bullish}%
                   </Typography>
                 </Box>
-              </Box>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Box sx={{
+                  p: 1.5,
+                  bgcolor: alpha(theme.palette.info.main, 0.08),
+                  borderRadius: 1,
+                  border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`
+                }}>
+                  <Typography variant="caption" color="textSecondary" display="block">Analysts</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: "bold" }}>
+                    {summary.total}
+                  </Typography>
+                </Box>
+              </Grid>
+              {summary.avgTarget && (
+                <Grid item xs={6} sm={3}>
+                  <Box sx={{
+                    p: 1.5,
+                    bgcolor: alpha(theme.palette.primary.main, 0.08),
+                    borderRadius: 1,
+                    border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
+                  }}>
+                    <Typography variant="caption" color="textSecondary" display="block">Avg Target</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: "bold" }}>
+                      ${summary.avgTarget?.toFixed(2)}
+                    </Typography>
+                  </Box>
+                </Grid>
+              )}
+              {summary.targetVsCurrent !== null && (
+                <Grid item xs={6} sm={3}>
+                  <Box sx={{
+                    p: 1.5,
+                    bgcolor: alpha(summary.targetVsCurrent > 0 ? theme.palette.success.main : theme.palette.error.main, 0.08),
+                    borderRadius: 1,
+                    border: `1px solid ${alpha(summary.targetVsCurrent > 0 ? theme.palette.success.main : theme.palette.error.main, 0.2)}`
+                  }}>
+                    <Typography variant="caption" color="textSecondary" display="block">Upside</Typography>
+                    <Typography variant="body2" sx={{
+                      fontWeight: "bold",
+                      color: summary.targetVsCurrent > 0 ? theme.palette.success.main : theme.palette.error.main
+                    }}>
+                      {summary.targetVsCurrent > 0 ? "+" : ""}{summary.targetVsCurrent?.toFixed(1)}%
+                    </Typography>
+                  </Box>
+                </Grid>
+              )}
             </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
+          )}
 
-      {/* Analyst Activity Card */}
-      <Card variant="outlined" sx={{ mt: 2 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Recent Analyst Activity (Last 30 Days)
-          </Typography>
-          <Grid container spacing={2}>
-            {/* Upgrades vs Downgrades */}
-            <Grid item xs={12} sm={6}>
-              <Box>
-                <Typography variant="subtitle2" color="textSecondary" mb={2}>
-                  Rating Changes
-                </Typography>
-                <Box display="flex" gap={2} alignItems="center">
-                  <Box flex={1}>
-                    <Box display="flex" justifyContent="space-between" mb={0.5}>
-                      <Typography variant="body2">Upgrades:</Typography>
-                      <Chip
-                        label={`${analystMetrics?.upgradesLast30d || 0}`}
-                        color="success"
-                        size="small"
-                      />
-                    </Box>
-                    <Box display="flex" justifyContent="space-between">
-                      <Typography variant="body2">Downgrades:</Typography>
-                      <Chip
-                        label={`${analystMetrics?.downgradesLast30d || 0}`}
-                        color="error"
-                        size="small"
-                      />
-                    </Box>
-                  </Box>
-                  <Box textAlign="center">
-                    <Chip
-                      label={`Net: ${analystMetrics?.activityNet > 0 ? "+" : ""}${analystMetrics?.activityNet || 0}`}
-                      sx={{
-                        bgcolor: alpha(getActivityColor(analystMetrics?.activityNet), 0.2),
-                        color: getActivityColor(analystMetrics?.activityNet),
-                        fontWeight: "bold"
-                      }}
-                    />
-                  </Box>
+          {/* 30-Day Activity Summary */}
+          {momentum && (
+            <Box sx={{
+              p: 1.5,
+              bgcolor: alpha(momentum.net > 0 ? theme.palette.success.main : momentum.net < 0 ? theme.palette.error.main : theme.palette.grey[500], 0.08),
+              borderRadius: 1,
+              border: `1px solid ${alpha(momentum.net > 0 ? theme.palette.success.main : momentum.net < 0 ? theme.palette.error.main : theme.palette.grey[500], 0.2)}`
+            }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: "bold", mb: 0.5 }}>
+                Last 30 Days: {momentum.count} Actions
+              </Typography>
+              <Box display="flex" gap={2}>
+                <Box>
+                  <Typography variant="caption" color="textSecondary">Upgrades</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: "bold", color: theme.palette.success.main }}>
+                    {momentum.upgrades}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography variant="caption" color="textSecondary">Downgrades</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: "bold", color: theme.palette.error.main }}>
+                    {momentum.downgrades}
+                  </Typography>
+                </Box>
+                <Box ml="auto">
+                  <Typography variant="caption" color="textSecondary">Net Momentum</Typography>
+                  <Chip
+                    label={`${momentum.net > 0 ? "+" : ""}${momentum.net}`}
+                    size="small"
+                    sx={{
+                      bgcolor: alpha(momentum.net > 0 ? theme.palette.success.main : momentum.net < 0 ? theme.palette.error.main : theme.palette.grey[500], 0.2),
+                      color: momentum.net > 0 ? theme.palette.success.main : momentum.net < 0 ? theme.palette.error.main : theme.palette.grey[700],
+                      fontWeight: "bold"
+                    }}
+                  />
                 </Box>
               </Box>
-            </Grid>
+            </Box>
+          )}
+        </Box>
 
-            {/* EPS Revisions */}
-            <Grid item xs={12} sm={6}>
-              <Box>
-                <Typography variant="subtitle2" color="textSecondary" mb={2}>
-                  EPS Revisions
-                </Typography>
-                <Box display="flex" gap={2} alignItems="center">
-                  <Box flex={1}>
-                    <Box display="flex" justifyContent="space-between" mb={0.5}>
-                      <Typography variant="body2">Revisions Up:</Typography>
-                      <Chip
-                        label={`${analystMetrics?.epsRevisionsUp || 0}`}
-                        color="success"
-                        size="small"
-                      />
-                    </Box>
-                    <Box display="flex" justifyContent="space-between">
-                      <Typography variant="body2">Revisions Down:</Typography>
-                      <Chip
-                        label={`${analystMetrics?.epsRevisionsDown || 0}`}
-                        color="error"
-                        size="small"
-                      />
-                    </Box>
-                  </Box>
-                  <Box textAlign="center">
-                    <Chip
-                      label={`Net: ${analystMetrics?.epsNetMomentum > 0 ? "+" : ""}${analystMetrics?.epsNetMomentum || 0}`}
-                      sx={{
-                        bgcolor: alpha(getActivityColor(analystMetrics?.epsNetMomentum), 0.2),
-                        color: getActivityColor(analystMetrics?.epsNetMomentum),
-                        fontWeight: "bold"
-                      }}
-                    />
-                  </Box>
-                </Box>
-              </Box>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
-
-      {/* 90-Day Trend Chart */}
-      {chartData && chartData.length > 0 && (
-        <Card variant="outlined" sx={{ mt: 2 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              90-Day Rating Trend
+        {/* Recent Activity Timeline */}
+        {recentActivityToDisplay.length > 0 ? (
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: "bold", mb: 1.5 }}>
+              Recent Analyst Actions
             </Typography>
-            <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 12 }}
-                  stroke={theme.palette.text.secondary}
-                />
-                <YAxis
-                  domain={[1, 5]}
-                  label={{
-                    value: "Average Rating",
-                    angle: -90,
-                    position: "insideLeft",
-                    style: { fontSize: 12 }
-                  }}
-                  stroke={theme.palette.text.secondary}
-                />
-                <RechartsTooltip
-                  contentStyle={{
-                    backgroundColor: theme.palette.background.paper,
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              {recentActivityToDisplay.map((event, idx) => (
+                <Box
+                  key={idx}
+                  onClick={() => setExpandedIndex(expandedIndex === idx ? null : idx)}
+                  sx={{
+                    p: 1.5,
+                    bgcolor: alpha(theme.palette.background.default, 0.5),
                     border: `1px solid ${theme.palette.divider}`,
-                    borderRadius: 4
+                    borderRadius: 1,
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    "&:hover": {
+                      bgcolor: alpha(theme.palette.primary.main, 0.05),
+                      borderColor: theme.palette.primary.main,
+                    }
                   }}
-                  formatter={(value) => {
-                    const ratingLabels = {
-                      1: "Strong Buy",
-                      2: "Buy",
-                      3: "Hold",
-                      4: "Sell",
-                      5: "Strong Sell"
-                    };
-                    return [ratingLabels[Math.round(value)] || value.toFixed(2), "Average Rating"];
-                  }}
-                />
-                <Legend wrapperStyle={{ paddingTop: 20 }} />
-                <Line
-                  type="monotone"
-                  dataKey="recommendationMean"
-                  stroke={theme.palette.primary.main}
-                  strokeWidth={2}
-                  dot={false}
-                  name="Average Rating"
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
-    </>
+                >
+                  <Box display="flex" gap={1.5} alignItems="flex-start">
+                    {/* Action indicator */}
+                    <Box sx={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: "50%",
+                      bgcolor: alpha(getActionColor(event.action), 0.2),
+                      border: `2px solid ${getActionColor(event.action)}`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                      mt: 0.25
+                    }}>
+                      <Typography variant="caption" sx={{ fontWeight: "bold", color: getActionColor(event.action), fontSize: 10 }}>
+                        {event.action === "up" ? "↑" : event.action === "down" ? "↓" : "→"}
+                      </Typography>
+                    </Box>
+
+                    {/* Main content */}
+                    <Box flex={1} minWidth={0}>
+                      {/* Firm and Action */}
+                      <Box display="flex" alignItems="center" gap={1} mb={0.5}>
+                        <Typography variant="body2" sx={{ fontWeight: "bold" }}>
+                          {event.firm}
+                        </Typography>
+                        <Chip
+                          label={getActionLabel(event.action)}
+                          size="small"
+                          sx={{
+                            bgcolor: alpha(getActionColor(event.action), 0.2),
+                            color: getActionColor(event.action),
+                            fontWeight: "bold",
+                            height: 22
+                          }}
+                        />
+                      </Box>
+
+                      {/* Grade change */}
+                      {event.from_grade && event.to_grade && (
+                        <Box display="flex" alignItems="center" gap={0.5} mb={0.5}>
+                          <Typography variant="caption" sx={{
+                            px: 0.75,
+                            py: 0.25,
+                            bgcolor: alpha(theme.palette.grey[500], 0.1),
+                            borderRadius: 0.5
+                          }}>
+                            {event.from_grade}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: getGradeChangeColor(event.from_grade, event.to_grade), fontWeight: "bold" }}>
+                            →
+                          </Typography>
+                          <Typography variant="caption" sx={{
+                            px: 0.75,
+                            py: 0.25,
+                            bgcolor: alpha(getGradeChangeColor(event.from_grade, event.to_grade), 0.15),
+                            borderRadius: 0.5,
+                            color: getGradeChangeColor(event.from_grade, event.to_grade)
+                          }}>
+                            {event.to_grade}
+                          </Typography>
+                        </Box>
+                      )}
+
+                      {/* Target price if available */}
+                      {event.target_price && (
+                        <Box display="flex" alignItems="center" gap={0.5} mb={0.5}>
+                          <Typography variant="caption" color="textSecondary">Target:</Typography>
+                          <Typography variant="caption" sx={{ fontWeight: "bold" }}>
+                            ${event.target_price}
+                          </Typography>
+                        </Box>
+                      )}
+
+                      {/* Date */}
+                      <Typography variant="caption" color="textSecondary">
+                        {new Date(event.date).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric"
+                        })}
+                      </Typography>
+
+                      {/* Expandable details */}
+                      {expandedIndex === idx && event.details && (
+                        <Box sx={{ mt: 1, pt: 1, borderTop: `1px solid ${theme.palette.divider}` }}>
+                          <Typography variant="caption" color="textSecondary" display="block" sx={{ fontStyle: "italic" }}>
+                            {event.details}
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+            {data.recentActivity.length > recentActivityToDisplay.length && (
+              <Typography variant="caption" color="textSecondary" sx={{ mt: 1.5, display: "block" }}>
+                Showing {recentActivityToDisplay.length} of {data.recentActivity.length} recent actions
+              </Typography>
+            )}
+          </Box>
+        ) : (
+          <Typography variant="body2" color="textSecondary">
+            No recent analyst activity
+          </Typography>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 
@@ -1071,7 +1004,7 @@ function Sentiment() {
 
                         {/* Analyst Sentiment Details with Trend */}
                         <Grid item xs={12} md={6}>
-                          <AnalystTrendCard symbol={stock.symbol} allData={stock.analyst} />
+                          <AnalystTrendCard symbol={stock.symbol} />
                         </Grid>
 
                         {/* Historical Sentiment Table */}

@@ -993,6 +993,58 @@ router.get("/stocks", async (req, res) => {
 });
 
 
+// Comprehensive analyst insights endpoint
+router.get("/analyst/insights/:symbol", async (req, res) => {
+  try {
+    const symbol = req.params.symbol?.toUpperCase();
+
+    if (!symbol) {
+      return res.status(400).json({ error: "Symbol required" });
+    }
+
+    // Fetch from 4 analyst tables
+    const [coverage, recommendations, priceTargets, upgradeDowngrades] = await Promise.all([
+      query(
+        `SELECT symbol, analyst_firm, analyst_name, coverage_status, coverage_started
+         FROM analyst_coverage WHERE symbol = $1 ORDER BY coverage_started DESC LIMIT 50`,
+        [symbol]
+      ),
+      query(
+        `SELECT symbol, firm, action, from_grade, to_grade, target_price, details, date
+         FROM analyst_upgrade_downgrade WHERE symbol = $1 ORDER BY date DESC LIMIT 100`,
+        [symbol]
+      ),
+      query(
+        `SELECT symbol, analyst_firm, rating, target_price, current_price, date_updated
+         FROM analyst_price_targets WHERE symbol = $1 ORDER BY date_updated DESC LIMIT 30`,
+        [symbol]
+      ),
+      query(
+        `SELECT symbol, analyst_sentiment_analysis.strong_buy_count, analyst_sentiment_analysis.buy_count,
+                analyst_sentiment_analysis.hold_count, analyst_sentiment_analysis.sell_count,
+                analyst_sentiment_analysis.strong_sell_count, analyst_sentiment_analysis.total_analysts,
+                analyst_sentiment_analysis.avg_price_target, analyst_sentiment_analysis.price_target_vs_current,
+                analyst_sentiment_analysis.date
+         FROM analyst_sentiment_analysis WHERE symbol = $1 ORDER BY date DESC LIMIT 1`,
+        [symbol]
+      )
+    ]);
+
+    res.json({
+      success: true,
+      symbol,
+      coverage: coverage.rows || [],
+      recentActivity: recommendations.rows || [],
+      priceTargets: priceTargets.rows || [],
+      currentSentiment: upgradeDowngrades.rows[0] || null,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Analyst insights error:", error);
+    res.status(500).json({ error: "Failed to fetch analyst insights" });
+  }
+});
+
 // Catch-all /:symbol endpoint removed - only real data sources allowed
 
 module.exports = router;

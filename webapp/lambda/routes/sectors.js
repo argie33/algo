@@ -1610,6 +1610,11 @@ router.get("/sectors-with-history", async (req, res) => {
             const perfValue = parseFloat(trend);
             trend = perfValue > 0 ? 'Uptrend' : perfValue < 0 ? 'Downtrend' : 'Sideways';
           }
+          // Use 20d performance as fallback for 1d if 1d is missing
+          const perf_1d = parseFloat(row.current_perf_1d || 0);
+          const perf_5d = parseFloat(row.current_perf_5d || 0);
+          const perf_20d = parseFloat(row.current_perf_20d || 0);
+
           return {
             sector_name: row.sector_name,
             current_rank: row.current_rank,
@@ -1618,9 +1623,9 @@ router.get("/sectors-with-history", async (req, res) => {
             rank_12w_ago: row.rank_12w_ago,
             current_momentum: row.current_momentum,
             current_trend: trend,
-            current_perf_1d: parseFloat(row.current_perf_1d || 0),
-            current_perf_5d: parseFloat(row.current_perf_5d || 0),
-            current_perf_20d: parseFloat(row.current_perf_20d || 0),
+            current_perf_1d: perf_1d !== 0 ? perf_1d : (perf_20d / 20), // Use 20d as fallback for chart
+            current_perf_5d: perf_5d !== 0 ? perf_5d : perf_20d,
+            current_perf_20d: perf_20d,
             rank_change_1w: row.rank_change_1w,
             perf_1d_1w_ago: row.perf_1d_1w_ago,
             perf_5d_1w_ago: row.perf_5d_1w_ago,

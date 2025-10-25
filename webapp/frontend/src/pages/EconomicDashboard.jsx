@@ -320,17 +320,6 @@ const LeadingIndicatorsPanel = ({ data, isLoading, theme, yieldCurveData }) => {
     );
   }
 
-  const getSignalColor = (signal) => {
-    switch (signal) {
-      case "Positive":
-        return { main: "#4caf50", light: alpha("#4caf50", 0.1) };
-      case "Negative":
-        return { main: "#f44336", light: alpha("#f44336", 0.1) };
-      default:
-        return { main: "#1976d2", light: alpha("#1976d2", 0.1) };
-    }
-  };
-
   const getGradientColor = (signal) => {
     switch (signal) {
       case "Positive":
@@ -348,59 +337,44 @@ const LeadingIndicatorsPanel = ({ data, isLoading, theme, yieldCurveData }) => {
         📈 Leading Economic Indicators
       </Typography>
 
+      {/* Grid with 2 indicators per row on desktop */}
       <Grid container spacing={3}>
         {data.map((indicator, idx) => {
-          const signalColor = getSignalColor(indicator.signal);
           const gradColor = getGradientColor(indicator.signal);
+          const trendColor =
+            indicator.trend === "up" ? "#4caf50" : indicator.trend === "down" ? "#f44336" : "#1976d2";
 
           return (
             <Grid item xs={12} md={6} key={idx}>
               <Card
                 sx={{
                   height: "100%",
-                  background: `linear-gradient(135deg, ${signalColor.light} 0%, ${alpha(signalColor.main, 0.03)} 100%)`,
-                  border: `1.5px solid ${signalColor.light}`,
-                  borderRadius: "12px",
+                  boxShadow: 1,
+                  borderRadius: "8px",
                   transition: "all 0.3s ease",
-                  boxShadow: `0 2px 8px ${alpha(signalColor.main, 0.08)}`,
                   "&:hover": {
-                    boxShadow: `0 4px 16px ${alpha(signalColor.main, 0.15)}`,
+                    boxShadow: 3,
                     transform: "translateY(-2px)",
                   },
                 }}
               >
-                <CardContent>
-                  {/* Header with Trend Icon and Signal Badge */}
-                  <Box display="flex" alignItems="flex-start" justifyContent="space-between" mb={2.5}>
-                    <Box display="flex" alignItems="flex-start" gap={1.5} flex={1}>
-                      <Box
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          width: 40,
-                          height: 40,
-                          borderRadius: "8px",
-                          background: signalColor.light,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {indicator.trend === "up" ? (
-                          <TrendingUp sx={{ color: "#4caf50", fontSize: 22 }} />
-                        ) : indicator.trend === "down" ? (
-                          <TrendingDown sx={{ color: "#f44336", fontSize: 22 }} />
-                        ) : (
-                          <TrendingFlat sx={{ color: "#1976d2", fontSize: 22 }} />
-                        )}
-                      </Box>
-                      <Box flex={1}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 700, fontSize: "0.95rem" }}>
-                          {indicator.name}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.75rem", lineHeight: 1.4 }}>
-                          {indicator.description}
-                        </Typography>
-                      </Box>
+                <CardContent sx={{ p: 3 }}>
+                  {/* Header with Icon and Title */}
+                  <Box display="flex" alignItems="center" gap={1.5} mb={2}>
+                    {indicator.trend === "up" ? (
+                      <TrendingUp sx={{ color: "#4caf50", fontSize: 28 }} />
+                    ) : indicator.trend === "down" ? (
+                      <TrendingDown sx={{ color: "#f44336", fontSize: 28 }} />
+                    ) : (
+                      <TrendingFlat sx={{ color: "#1976d2", fontSize: 28 }} />
+                    )}
+                    <Box flex={1}>
+                      <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 0.5 }}>
+                        {indicator.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {indicator.description}
+                      </Typography>
                     </Box>
                     <Chip
                       label={indicator.signal}
@@ -413,91 +387,89 @@ const LeadingIndicatorsPanel = ({ data, isLoading, theme, yieldCurveData }) => {
                       }
                       size="small"
                       variant="filled"
-                      sx={{
-                        fontWeight: 600,
-                        fontSize: "0.7rem",
-                        height: 24,
-                      }}
                     />
                   </Box>
 
                   {/* Value and Change */}
-                  <Box display="flex" alignItems="flex-end" justifyContent="space-between" mb={2.5}>
-                    <Box>
-                      <Typography variant="h5" sx={{ fontWeight: 700, color: signalColor.main }}>
-                        {indicator.value}
-                      </Typography>
-                    </Box>
+                  <Box display="flex" alignItems="baseline" gap={2} mb={3}>
+                    <Typography
+                      variant="h4"
+                      sx={{ fontWeight: 700, color: trendColor }}
+                    >
+                      {indicator.value}
+                    </Typography>
                     <Typography
                       variant="body2"
                       sx={{
-                        fontWeight: 700,
-                        fontSize: "0.9rem",
+                        fontWeight: 600,
+                        fontSize: "1rem",
                         color:
                           indicator.change > 0
                             ? "#4caf50"
                             : indicator.change < 0
                               ? "#f44336"
                               : "text.secondary",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 0.5,
                       }}
                     >
-                      {indicator.change > 0 ? "↑" : indicator.change < 0 ? "↓" : "→"}
                       {indicator.change > 0 ? "+" : ""}
                       {indicator.change}%
                     </Typography>
                   </Box>
 
-                  {/* Chart */}
+                  {/* Large Chart */}
                   {indicator.history && indicator.history.length > 1 && (
-                    <Box sx={{ mb: 2, mt: 2, mx: -2 }}>
-                      <ResponsiveContainer width="100%" height={160}>
-                        <AreaChart
+                    <Box sx={{ width: "100%", height: 280, overflow: "hidden" }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart
                           data={indicator.history}
-                          margin={{ top: 8, right: 12, bottom: 8, left: 45 }}
+                          margin={{ top: 5, right: 30, left: 60, bottom: 5 }}
                         >
                           <defs>
-                            <linearGradient id={`lei-grad-${idx}`} x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor={gradColor} stopOpacity={0.35} />
-                              <stop offset="70%" stopColor={gradColor} stopOpacity={0.15} />
-                              <stop offset="100%" stopColor={gradColor} stopOpacity={0.01} />
+                            <linearGradient id={`lei-area-${idx}`} x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={gradColor} stopOpacity={0.2} />
+                              <stop offset="100%" stopColor={gradColor} stopOpacity={0.02} />
                             </linearGradient>
                           </defs>
-                          <CartesianGrid
-                            strokeDasharray="3 3"
-                            stroke={alpha(theme.palette.divider, 0.4)}
-                            vertical={false}
-                            opacity={0.5}
-                          />
+                          <CartesianGrid strokeDasharray="3 3" stroke={alpha(theme.palette.divider, 0.3)} />
                           <XAxis
                             dataKey="date"
-                            hide
-                            tick={{ fontSize: 10 }}
-                            style={{ color: theme.palette.text.secondary }}
+                            tick={{ fontSize: 12 }}
+                            interval={Math.floor(indicator.history.length / 6)}
                           />
-                          <YAxis hide />
-                          <Area
+                          <YAxis
+                            width={50}
+                            tick={{ fontSize: 12 }}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: alpha(theme.palette.background.paper, 0.95),
+                              border: `1px solid ${alpha(gradColor, 0.3)}`,
+                              borderRadius: "6px",
+                              padding: "10px 14px",
+                            }}
+                            labelStyle={{ color: theme.palette.text.primary, fontWeight: 600 }}
+                            formatter={(value) => [value.toFixed(2), "Value"]}
+                            labelFormatter={(label) => `Date: ${label}`}
+                            cursor={{ stroke: gradColor, strokeWidth: 2, opacity: 0.7 }}
+                          />
+                          <Line
                             type="monotone"
                             dataKey="value"
                             stroke={gradColor}
                             strokeWidth={2.5}
-                            fill={`url(#lei-grad-${idx})`}
                             dot={false}
                             isAnimationActive={true}
-                            animationDuration={500}
                           />
-                        </AreaChart>
+                        </LineChart>
                       </ResponsiveContainer>
                     </Box>
                   )}
 
-                  {/* Last Updated Footer */}
+                  {/* Last Updated */}
                   {indicator.date && (
-                    <Box sx={{ pt: 1, borderTop: `1px solid ${alpha(theme.palette.divider, 0.3)}` }}>
+                    <Box sx={{ pt: 2, mt: 2, borderTop: `1px solid ${alpha(theme.palette.divider, 0.2)}` }}>
                       <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.7rem" }}>
-                        Last updated: {new Date(indicator.date).toLocaleDateString()}
+                        Updated: {new Date(indicator.date).toLocaleDateString()}
                       </Typography>
                     </Box>
                   )}
