@@ -12,7 +12,7 @@ export const getApiConfig = () => {
   const apiUrl =
     runtimeApiUrl ||
     (import.meta.env && import.meta.env.VITE_API_URL) ||
-    "http://localhost:3001";
+    "http://localhost:3002";
 
   // Only log in development, not in tests
   if (typeof process === "undefined" || process.env.NODE_ENV !== "test") {
@@ -4253,6 +4253,19 @@ export const getPortfolioSectorIndustryAnalysis = async () => {
   } catch (error) {
     console.error("Error fetching portfolio sector/industry analysis:", error);
     throw new Error(handleApiError(error, "Failed to fetch sector/industry analysis"));
+  }
+};
+
+// Professional Metrics (Alpha, Sortino, Information Ratio, etc.)
+export const getProfessionalMetrics = async (timeframe = "1y", benchmark = "SPY") => {
+  try {
+    const response = await api.get("/api/analytics/professional-metrics", {
+      params: { timeframe, benchmark },
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching professional metrics:", error);
+    throw new Error(handleApiError(error, "Failed to fetch professional metrics"));
   }
 };
 
