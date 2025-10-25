@@ -679,32 +679,39 @@ app.use("*", (req, res) => {
 // Error handling middleware (should be last)
 app.use(errorHandler);
 
-// Export Lambda handler
-module.exports.handler = serverless(app, {
-  // Lambda-specific options
-  request: (request, event, context) => {
-    // Add AWS event/context to request if needed
-    request.event = event;
-    request.context = context;
-  },
+// Cloud Run handler - listen directly on existing server (supports both HTTP and WebSocket)
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(
+    `✅ Financial Dashboard API running on port ${PORT} (Cloud Run mode with WebSocket support)`
+  );
+  console.log(`🌐 Health check: http://localhost:${PORT}/health`);
+  console.log(`📊 Stocks: http://localhost:${PORT}/api/stocks`);
+  console.log(`📈 Sectors: http://localhost:${PORT}/api/sectors`);
+  console.log(`💼 Scores: http://localhost:${PORT}/api/scores`);
+  console.log(`⚡ All endpoints available at http://localhost:${PORT}/api/*`);
+  console.log(`🔌 WebSocket: ws://localhost:${PORT}/ws`);
 });
 
-// Export app for local testing
-module.exports.app = app;
-
-// For local testing
-if (require.main === module) {
-  const PORT = process.env.PORT || 3001;
-  server.listen(PORT, () => {
-    console.log(
-      `Financial Dashboard API server running on port ${PORT} (local mode)`
-    );
-    console.log(`Health check: http://localhost:${PORT}/health`);
-    console.log(`Stocks: http://localhost:${PORT}/stocks`);
-    console.log(`Technical: http://localhost:${PORT}/technical/daily`);
-    console.log(`🔌 WebSocket endpoint: ws://localhost:${PORT}/ws`);
+// Handle graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
   });
-}
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully...');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});
+
+// Export app for testing/importing
+module.exports = app;
 // Force redeploy Thu Oct  2 18:22:58 CDT 2025
 // Emergency fix 1759448244
 // Trigger Lambda deployment - test schema fixes
