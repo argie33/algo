@@ -78,7 +78,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {signals.map((signal, index) => {
         const config = getSignalConfig(signal.signal);
-        const currentGain = signal.current_gain_pct;
+        const currentGain = signal.current_gain_loss_pct || signal.current_gain_pct || 0;
         const gainColor = currentGain >= 0 ? theme.palette.success.main : theme.palette.error.main;
 
         return (

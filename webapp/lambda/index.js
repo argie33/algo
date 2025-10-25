@@ -11,7 +11,6 @@ const express = require("express");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const WebSocket = require("ws");
-const serverless = require("serverless-http");
 
 const errorHandler = require("./middleware/errorHandler");
 const responseFormatterMiddleware = require("./middleware/responseFormatter");
@@ -679,11 +678,11 @@ app.use("*", (req, res) => {
 // Error handling middleware (should be last)
 app.use(errorHandler);
 
-// Cloud Run handler - listen directly on existing server (supports both HTTP and WebSocket)
+// AWS Lambda / EC2 handler - listen directly on existing server (supports both HTTP and WebSocket)
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(
-    `✅ Financial Dashboard API running on port ${PORT} (Cloud Run mode with WebSocket support)`
+    `✅ Financial Dashboard API running on port ${PORT} (AWS mode with WebSocket support)`
   );
   console.log(`🌐 Health check: http://localhost:${PORT}/health`);
   console.log(`📊 Stocks: http://localhost:${PORT}/api/stocks`);
