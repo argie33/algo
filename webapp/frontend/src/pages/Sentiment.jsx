@@ -166,277 +166,205 @@ const AnalystTrendCard = ({ symbol }) => {
     );
   }
 
-  const getActionColor = (action) => {
-    if (action === "up") return theme.palette.success.main;
-    if (action === "down") return theme.palette.error.main;
-    return theme.palette.info.main;
-  };
-
-  const getActionLabel = (action) => {
-    const labels = { up: "Upgrade", down: "Downgrade", main: "Maintained", init: "Initiated", reit: "Reiterated" };
-    return labels[action] || action;
-  };
-
-  const getGradeChangeColor = (fromGrade, toGrade) => {
-    if (!fromGrade || !toGrade) return theme.palette.grey[600];
-    const bullishGrades = ["Strong Buy", "Buy", "Overweight", "Positive"];
-    const isBullish = (grade) => bullishGrades.some(bg => grade?.includes(bg));
-
-    const fromBullish = isBullish(fromGrade);
-    const toBullish = isBullish(toGrade);
-
-    if (!fromBullish && toBullish) return theme.palette.success.main;
-    if (fromBullish && !toBullish) return theme.palette.error.main;
-    return theme.palette.grey[600];
-  };
-
-  const recentActivityToDisplay = data.recentActivity?.slice(0, 25) || [];
-
+  // Clean metrics-focused display for hedge fund quality analysis
   return (
     <Card variant="outlined">
       <CardContent>
-        {/* Header with Summary Stats */}
-        <Box mb={3}>
-          <Box display="flex" alignItems="center" gap={1} mb={2}>
-            <TrendingUpRounded />
-            <Typography variant="h6">Analyst Sentiment & Activity</Typography>
-          </Box>
-
-          {/* Quick Summary Grid */}
-          {summary && (
-            <Grid container spacing={1.5} sx={{ mb: 2 }}>
-              <Grid item xs={6} sm={3}>
-                <Box sx={{
-                  p: 1.5,
-                  bgcolor: alpha(theme.palette.success.main, 0.08),
-                  borderRadius: 1,
-                  border: `1px solid ${alpha(theme.palette.success.main, 0.2)}`
-                }}>
-                  <Typography variant="caption" color="textSecondary" display="block">Bullish</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: "bold", color: theme.palette.success.main }}>
-                    {summary.bullish}%
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={6} sm={3}>
-                <Box sx={{
-                  p: 1.5,
-                  bgcolor: alpha(theme.palette.info.main, 0.08),
-                  borderRadius: 1,
-                  border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`
-                }}>
-                  <Typography variant="caption" color="textSecondary" display="block">Analysts</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: "bold" }}>
-                    {summary.total}
-                  </Typography>
-                </Box>
-              </Grid>
-              {summary.avgTarget && (
-                <Grid item xs={6} sm={3}>
-                  <Box sx={{
-                    p: 1.5,
-                    bgcolor: alpha(theme.palette.primary.main, 0.08),
-                    borderRadius: 1,
-                    border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
-                  }}>
-                    <Typography variant="caption" color="textSecondary" display="block">Avg Target</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: "bold" }}>
-                      ${summary.avgTarget?.toFixed(2)}
-                    </Typography>
-                  </Box>
-                </Grid>
-              )}
-              {summary.targetVsCurrent !== null && (
-                <Grid item xs={6} sm={3}>
-                  <Box sx={{
-                    p: 1.5,
-                    bgcolor: alpha(summary.targetVsCurrent > 0 ? theme.palette.success.main : theme.palette.error.main, 0.08),
-                    borderRadius: 1,
-                    border: `1px solid ${alpha(summary.targetVsCurrent > 0 ? theme.palette.success.main : theme.palette.error.main, 0.2)}`
-                  }}>
-                    <Typography variant="caption" color="textSecondary" display="block">Upside</Typography>
-                    <Typography variant="body2" sx={{
-                      fontWeight: "bold",
-                      color: summary.targetVsCurrent > 0 ? theme.palette.success.main : theme.palette.error.main
-                    }}>
-                      {summary.targetVsCurrent > 0 ? "+" : ""}{summary.targetVsCurrent?.toFixed(1)}%
-                    </Typography>
-                  </Box>
-                </Grid>
-              )}
-            </Grid>
-          )}
-
-          {/* 30-Day Activity Summary */}
-          {momentum && (
-            <Box sx={{
-              p: 1.5,
-              bgcolor: alpha(momentum.net > 0 ? theme.palette.success.main : momentum.net < 0 ? theme.palette.error.main : theme.palette.grey[500], 0.08),
-              borderRadius: 1,
-              border: `1px solid ${alpha(momentum.net > 0 ? theme.palette.success.main : momentum.net < 0 ? theme.palette.error.main : theme.palette.grey[500], 0.2)}`
-            }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: "bold", mb: 0.5 }}>
-                Last 30 Days: {momentum.count} Actions
-              </Typography>
-              <Box display="flex" gap={2}>
-                <Box>
-                  <Typography variant="caption" color="textSecondary">Upgrades</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: "bold", color: theme.palette.success.main }}>
-                    {momentum.upgrades}
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="caption" color="textSecondary">Downgrades</Typography>
-                  <Typography variant="body2" sx={{ fontWeight: "bold", color: theme.palette.error.main }}>
-                    {momentum.downgrades}
-                  </Typography>
-                </Box>
-                <Box ml="auto">
-                  <Typography variant="caption" color="textSecondary">Net Momentum</Typography>
-                  <Chip
-                    label={`${momentum.net > 0 ? "+" : ""}${momentum.net}`}
-                    size="small"
-                    sx={{
-                      bgcolor: alpha(momentum.net > 0 ? theme.palette.success.main : momentum.net < 0 ? theme.palette.error.main : theme.palette.grey[500], 0.2),
-                      color: momentum.net > 0 ? theme.palette.success.main : momentum.net < 0 ? theme.palette.error.main : theme.palette.grey[700],
-                      fontWeight: "bold"
-                    }}
-                  />
-                </Box>
-              </Box>
-            </Box>
-          )}
+        {/* Header */}
+        <Box display="flex" alignItems="center" gap={1} mb={3}>
+          <TrendingUpRounded />
+          <Typography variant="h6">Analyst Sentiment & Metrics</Typography>
         </Box>
 
-        {/* Recent Activity Timeline */}
-        {recentActivityToDisplay.length > 0 ? (
-          <Box>
-            <Typography variant="subtitle2" sx={{ fontWeight: "bold", mb: 1.5 }}>
-              Recent Analyst Actions
-            </Typography>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-              {recentActivityToDisplay.map((event, idx) => (
-                <Box
-                  key={idx}
-                  onClick={() => setExpandedIndex(expandedIndex === idx ? null : idx)}
-                  sx={{
-                    p: 1.5,
-                    bgcolor: alpha(theme.palette.background.default, 0.5),
-                    border: `1px solid ${theme.palette.divider}`,
+        {/* Metrics Grid - Professional Hedge Fund Display */}
+        {metrics && (
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            {/* Bullish Distribution */}
+            <Grid item xs={12} sm={6} md={3}>
+              <Box sx={{
+                p: 2,
+                bgcolor: alpha(theme.palette.success.main, 0.08),
+                borderRadius: 1,
+                border: `1px solid ${alpha(theme.palette.success.main, 0.2)}`
+              }}>
+                <Typography variant="overline" color="textSecondary" display="block" sx={{ mb: 0.5 }}>
+                  Bullish
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: "bold", color: theme.palette.success.main, mb: 0.5 }}>
+                  {metrics.bullishPercent}%
+                </Typography>
+                <Typography variant="caption" color="textSecondary">
+                  {metrics.bullish} analysts
+                </Typography>
+              </Box>
+            </Grid>
+
+            {/* Neutral Distribution */}
+            <Grid item xs={12} sm={6} md={3}>
+              <Box sx={{
+                p: 2,
+                bgcolor: alpha(theme.palette.info.main, 0.08),
+                borderRadius: 1,
+                border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`
+              }}>
+                <Typography variant="overline" color="textSecondary" display="block" sx={{ mb: 0.5 }}>
+                  Neutral
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: "bold", color: theme.palette.info.main, mb: 0.5 }}>
+                  {metrics.neutralPercent}%
+                </Typography>
+                <Typography variant="caption" color="textSecondary">
+                  {metrics.neutral} analysts
+                </Typography>
+              </Box>
+            </Grid>
+
+            {/* Bearish Distribution */}
+            <Grid item xs={12} sm={6} md={3}>
+              <Box sx={{
+                p: 2,
+                bgcolor: alpha(theme.palette.error.main, 0.08),
+                borderRadius: 1,
+                border: `1px solid ${alpha(theme.palette.error.main, 0.2)}`
+              }}>
+                <Typography variant="overline" color="textSecondary" display="block" sx={{ mb: 0.5 }}>
+                  Bearish
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: "bold", color: theme.palette.error.main, mb: 0.5 }}>
+                  {metrics.bearishPercent}%
+                </Typography>
+                <Typography variant="caption" color="textSecondary">
+                  {metrics.bearish} analysts
+                </Typography>
+              </Box>
+            </Grid>
+
+            {/* Total Analysts */}
+            <Grid item xs={12} sm={6} md={3}>
+              <Box sx={{
+                p: 2,
+                bgcolor: alpha(theme.palette.primary.main, 0.08),
+                borderRadius: 1,
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
+              }}>
+                <Typography variant="overline" color="textSecondary" display="block" sx={{ mb: 0.5 }}>
+                  Coverage
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: "bold", mb: 0.5 }}>
+                  {metrics.totalAnalysts}
+                </Typography>
+                <Typography variant="caption" color="textSecondary">
+                  analysts covering
+                </Typography>
+              </Box>
+            </Grid>
+
+            {/* Price Target Metrics */}
+            {metrics.avgPriceTarget && (
+              <>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Box sx={{
+                    p: 2,
+                    bgcolor: alpha(theme.palette.warning.main, 0.08),
                     borderRadius: 1,
-                    cursor: "pointer",
-                    transition: "all 0.2s ease",
-                    "&:hover": {
-                      bgcolor: alpha(theme.palette.primary.main, 0.05),
-                      borderColor: theme.palette.primary.main,
-                    }
-                  }}
-                >
-                  <Box display="flex" gap={1.5} alignItems="flex-start">
-                    {/* Action indicator */}
-                    <Box sx={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: "50%",
-                      bgcolor: alpha(getActionColor(event.action), 0.2),
-                      border: `2px solid ${getActionColor(event.action)}`,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                      mt: 0.25
-                    }}>
-                      <Typography variant="caption" sx={{ fontWeight: "bold", color: getActionColor(event.action), fontSize: 10 }}>
-                        {event.action === "up" ? "↑" : event.action === "down" ? "↓" : "→"}
-                      </Typography>
-                    </Box>
-
-                    {/* Main content */}
-                    <Box flex={1} minWidth={0}>
-                      {/* Firm and Action */}
-                      <Box display="flex" alignItems="center" gap={1} mb={0.5}>
-                        <Typography variant="body2" sx={{ fontWeight: "bold" }}>
-                          {event.firm}
-                        </Typography>
-                        <Chip
-                          label={getActionLabel(event.action)}
-                          size="small"
-                          sx={{
-                            bgcolor: alpha(getActionColor(event.action), 0.2),
-                            color: getActionColor(event.action),
-                            fontWeight: "bold",
-                            height: 22
-                          }}
-                        />
-                      </Box>
-
-                      {/* Grade change */}
-                      {event.from_grade && event.to_grade && (
-                        <Box display="flex" alignItems="center" gap={0.5} mb={0.5}>
-                          <Typography variant="caption" sx={{
-                            px: 0.75,
-                            py: 0.25,
-                            bgcolor: alpha(theme.palette.grey[500], 0.1),
-                            borderRadius: 0.5
-                          }}>
-                            {event.from_grade}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: getGradeChangeColor(event.from_grade, event.to_grade), fontWeight: "bold" }}>
-                            →
-                          </Typography>
-                          <Typography variant="caption" sx={{
-                            px: 0.75,
-                            py: 0.25,
-                            bgcolor: alpha(getGradeChangeColor(event.from_grade, event.to_grade), 0.15),
-                            borderRadius: 0.5,
-                            color: getGradeChangeColor(event.from_grade, event.to_grade)
-                          }}>
-                            {event.to_grade}
-                          </Typography>
-                        </Box>
-                      )}
-
-                      {/* Target price if available */}
-                      {event.target_price && (
-                        <Box display="flex" alignItems="center" gap={0.5} mb={0.5}>
-                          <Typography variant="caption" color="textSecondary">Target:</Typography>
-                          <Typography variant="caption" sx={{ fontWeight: "bold" }}>
-                            ${event.target_price}
-                          </Typography>
-                        </Box>
-                      )}
-
-                      {/* Date */}
-                      <Typography variant="caption" color="textSecondary">
-                        {new Date(event.date).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric"
-                        })}
-                      </Typography>
-
-                      {/* Expandable details */}
-                      {expandedIndex === idx && event.details && (
-                        <Box sx={{ mt: 1, pt: 1, borderTop: `1px solid ${theme.palette.divider}` }}>
-                          <Typography variant="caption" color="textSecondary" display="block" sx={{ fontStyle: "italic" }}>
-                            {event.details}
-                          </Typography>
-                        </Box>
-                      )}
-                    </Box>
+                    border: `1px solid ${alpha(theme.palette.warning.main, 0.2)}`
+                  }}>
+                    <Typography variant="overline" color="textSecondary" display="block" sx={{ mb: 0.5 }}>
+                      Avg Price Target
+                    </Typography>
+                    <Typography variant="h5" sx={{ fontWeight: "bold", mb: 0.5 }}>
+                      ${metrics.avgPriceTarget?.toFixed(2) || "N/A"}
+                    </Typography>
+                    <Typography variant="caption" color="textSecondary">
+                      consensus target
+                    </Typography>
                   </Box>
-                </Box>
-              ))}
-            </Box>
-            {data.recentActivity.length > recentActivityToDisplay.length && (
-              <Typography variant="caption" color="textSecondary" sx={{ mt: 1.5, display: "block" }}>
-                Showing {recentActivityToDisplay.length} of {data.recentActivity.length} recent actions
-              </Typography>
+                </Grid>
+
+                {/* Upside/Downside Potential */}
+                {metrics.priceTargetVsCurrent !== null && (
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Box sx={{
+                      p: 2,
+                      bgcolor: alpha(
+                        metrics.priceTargetVsCurrent > 0 ? theme.palette.success.main : theme.palette.error.main,
+                        0.08
+                      ),
+                      borderRadius: 1,
+                      border: `1px solid ${alpha(
+                        metrics.priceTargetVsCurrent > 0 ? theme.palette.success.main : theme.palette.error.main,
+                        0.2
+                      )}`
+                    }}>
+                      <Typography variant="overline" color="textSecondary" display="block" sx={{ mb: 0.5 }}>
+                        Upside/Downside
+                      </Typography>
+                      <Typography variant="h5" sx={{
+                        fontWeight: "bold",
+                        color: metrics.priceTargetVsCurrent > 0 ? theme.palette.success.main : theme.palette.error.main,
+                        mb: 0.5
+                      }}>
+                        {metrics.priceTargetVsCurrent > 0 ? "+" : ""}{metrics.priceTargetVsCurrent?.toFixed(1)}%
+                      </Typography>
+                      <Typography variant="caption" color="textSecondary">
+                        vs current price
+                      </Typography>
+                    </Box>
+                  </Grid>
+                )}
+              </>
             )}
+          </Grid>
+        )}
+
+        {/* 30-Day Momentum */}
+        {momentum && (
+          <Box sx={{
+            p: 2,
+            bgcolor: alpha(theme.palette.grey[500], 0.05),
+            borderRadius: 1,
+            border: `1px solid ${theme.palette.divider}`,
+            mb: 2
+          }}>
+            <Typography variant="overline" color="textSecondary" display="block" sx={{ mb: 1 }}>
+              30-Day Analyst Actions
+            </Typography>
+            <Box display="flex" gap={3}>
+              <Box>
+                <Typography variant="body2" color="textSecondary" sx={{ mb: 0.5 }}>
+                  Upgrades
+                </Typography>
+                <Typography variant="h6" sx={{ fontWeight: "bold", color: theme.palette.success.main }}>
+                  {momentum.upgrades30d}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="body2" color="textSecondary" sx={{ mb: 0.5 }}>
+                  Downgrades
+                </Typography>
+                <Typography variant="h6" sx={{ fontWeight: "bold", color: theme.palette.error.main }}>
+                  {momentum.downgrades30d}
+                </Typography>
+              </Box>
+              <Box ml="auto">
+                <Typography variant="body2" color="textSecondary" sx={{ mb: 0.5 }}>
+                  Net Momentum
+                </Typography>
+                <Chip
+                  label={`${momentum.upgrades30d - momentum.downgrades30d > 0 ? "+" : ""}${momentum.upgrades30d - momentum.downgrades30d}`}
+                  color={momentum.upgrades30d > momentum.downgrades30d ? "success" : momentum.upgrades30d < momentum.downgrades30d ? "error" : "default"}
+                  variant="outlined"
+                  sx={{ fontWeight: "bold" }}
+                />
+              </Box>
+            </Box>
           </Box>
-        ) : (
+        )}
+
+        {/* No data message */}
+        {!metrics && !momentum && (
           <Typography variant="body2" color="textSecondary">
-            No recent analyst activity
+            No analyst sentiment data available
           </Typography>
         )}
       </CardContent>

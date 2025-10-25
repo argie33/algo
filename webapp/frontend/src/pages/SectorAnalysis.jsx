@@ -741,14 +741,6 @@ const SectorAnalysis = () => {
               #{maxRank || "N/A"}
             </Typography>
           </Box>
-          <Box sx={{ p: 1.5, backgroundColor: "grey.50", borderRadius: 1 }}>
-            <Typography variant="caption" color="text.secondary" fontWeight="bold">
-              Data Points
-            </Typography>
-            <Typography variant="body2">
-              {history.length} days
-            </Typography>
-          </Box>
         </Box>
 
         {/* Ranking Trend Chart - Rank only (no momentum) */}
