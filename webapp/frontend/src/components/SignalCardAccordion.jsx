@@ -176,85 +176,46 @@ const SignalCardAccordion = ({ signals = [] }) => {
                 />
               </Box>
 
-              {/* Performance Metrics - 2 Rows */}
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, ml: 'auto', minWidth: 700 }}>
-                {/* Row 1: Primary Metrics */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' }}>
-                  <Box sx={{ textAlign: 'right', minWidth: 90 }}>
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.75rem' }}>
-                      Entry Price
-                    </Typography>
-                    <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: 'text.primary' }}>
-                      ${(signal.entry_price || signal.buylevel || 0).toFixed(2)}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ textAlign: 'right', minWidth: 90 }}>
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.75rem' }}>
-                      Current Gain
-                    </Typography>
-                    <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: gainColor }}>
-                      {currentGain ? `${currentGain.toFixed(2)}%` : '—'}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ textAlign: 'right', minWidth: 90 }}>
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.75rem' }}>
-                      RS Rating
-                    </Typography>
-                    <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: 'text.primary' }}>
-                      {signal.rs_rating ? signal.rs_rating.toFixed(0) : '—'}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ textAlign: 'right', minWidth: 90 }}>
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.75rem' }}>
-                      Market Stage
-                    </Typography>
-                    <Typography sx={{
-                      fontWeight: 700,
-                      fontSize: '0.95rem',
-                      color: signal.stage_number === 2 ? theme.palette.success.main :
-                             signal.stage_number === 3 ? theme.palette.warning.main :
-                             signal.stage_number === 4 ? theme.palette.error.main :
-                             'text.primary'
-                    }}>
-                      {signal.stage_number ? `Stage ${signal.stage_number}` : '—'}
-                    </Typography>
-                  </Box>
+              {/* Performance Metrics - Single Row (Simplified) */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, ml: 'auto', minWidth: 450, justifyContent: 'flex-end' }}>
+                <Box sx={{ textAlign: 'right', minWidth: 100 }}>
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.75rem', mb: 0.3 }}>
+                    Entry Price
+                  </Typography>
+                  <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: 'text.primary' }}>
+                    ${(signal.entry_price || signal.buylevel || 0).toFixed(2)}
+                  </Typography>
                 </Box>
-
-                {/* Row 2: Quality Metrics */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' }}>
-                  <Box sx={{ textAlign: 'right', minWidth: 90 }}>
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.75rem' }}>
-                      Signal Strength
-                    </Typography>
-                    <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: 'text.primary' }}>
-                      {signal.strength ? signal.strength.toFixed(1) : '—'}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ textAlign: 'right', minWidth: 90 }}>
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.75rem' }}>
-                      Risk/Reward
-                    </Typography>
-                    <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: 'text.primary' }}>
-                      {signal.risk_reward_ratio ? signal.risk_reward_ratio.toFixed(2) : '—'}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ textAlign: 'right', minWidth: 90 }}>
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.75rem' }}>
-                      Entry Quality
-                    </Typography>
-                    <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: 'text.primary' }}>
-                      {signal.entry_quality_score ? signal.entry_quality_score.toFixed(1) : '—'}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ textAlign: 'right', minWidth: 90 }}>
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.75rem' }}>
-                      Breakout Q
-                    </Typography>
-                    <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: 'text.primary' }}>
-                      {signal.breakout_quality ? signal.breakout_quality.toFixed(1) : '—'}
-                    </Typography>
-                  </Box>
+                <Box sx={{ textAlign: 'right', minWidth: 100 }}>
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.75rem', mb: 0.3 }}>
+                    Current Gain
+                  </Typography>
+                  <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: gainColor }}>
+                    {currentGain ? `${currentGain.toFixed(2)}%` : '—'}
+                  </Typography>
+                </Box>
+                <Box sx={{ textAlign: 'right', minWidth: 100 }}>
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.75rem', mb: 0.3 }}>
+                    RS Rating
+                  </Typography>
+                  <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: 'text.primary' }}>
+                    {signal.rs_rating ? signal.rs_rating.toFixed(0) : '—'}
+                  </Typography>
+                </Box>
+                <Box sx={{ textAlign: 'right', minWidth: 110 }}>
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: '0.75rem', mb: 0.3 }}>
+                    Stage
+                  </Typography>
+                  <Typography sx={{
+                    fontWeight: 700,
+                    fontSize: '1rem',
+                    color: signal.stage_number === 2 ? theme.palette.success.main :
+                           signal.stage_number === 3 ? theme.palette.warning.main :
+                           signal.stage_number === 4 ? theme.palette.error.main :
+                           'text.primary'
+                  }}>
+                    {signal.stage_number ? `S${signal.stage_number}` : '—'}
+                  </Typography>
                 </Box>
               </Box>
             </AccordionSummary>
