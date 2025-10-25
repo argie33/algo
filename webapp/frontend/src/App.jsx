@@ -65,7 +65,6 @@ import PortfolioOptimization from "./pages/PortfolioOptimization";
 import TradeHistory from "./pages/TradeHistory";
 import OrderManagement from "./pages/OrderManagement";
 import Sentiment from "./pages/Sentiment";
-import AnalystInsights from "./pages/AnalystInsights";
 import EconomicDashboard from "./pages/EconomicDashboard";
 import Settings from "./pages/Settings";
 import ScoresDashboard from "./pages/ScoresDashboard";
@@ -150,13 +149,6 @@ const menuItems = [
     icon: <PsychologyIcon />,
     path: "/sentiment",
     category: "stocks",
-  },
-  {
-    text: "Analyst Insights",
-    icon: <PersonIcon />,
-    path: "/sentiment/analysts",
-    category: "stocks",
-    premium: true,
   },
 
   // Portfolio Section
@@ -634,7 +626,6 @@ function App() {
             <Route path="/sectors" element={<SectorAnalysis />} />
             <Route path="/watchlist" element={<Watchlist />} />
             <Route path="/sentiment" element={<Sentiment />} />
-            <Route path="/sentiment/analysts" element={<AnalystInsights />} />
             <Route path="/tools/ai" element={<AIAssistant />} />
           </Routes>
         </Container>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Container,
   Typography,
@@ -14,6 +14,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TablePagination,
   Paper,
   Alert,
   CircularProgress,
@@ -42,6 +43,10 @@ import {
   TrendingUpRounded,
   ExpandMore,
   Info as InfoIcon,
+  Person as PersonIcon,
+  Business as BusinessIcon,
+  Timeline as TimelineIcon,
+  ShowChart as ShowChartIcon,
 } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, AreaChart, Area, XAxis, YAxis, CartesianGrid, Legend, LineChart, Line } from "recharts";
@@ -395,6 +400,15 @@ function Sentiment() {
   const [sortBy, setSortBy] = useState("composite");
   const [filterSentiment, setFilterSentiment] = useState("all");
 
+  // Analyst upgrades/downgrades state
+  const [upgrades, setUpgrades] = useState([]);
+  const [upgradesLoading, setUpgradesLoading] = useState(false);
+  const [upgradesError, setUpgradesError] = useState(null);
+  const [searchSymbol, setSearchSymbol] = useState("");
+  const [filterAction, setFilterAction] = useState("all");
+  const [tablePage, setTablePage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+
   // Fetch all sentiment data
   const { data: sentimentData, isLoading, error } = useQuery({
     queryKey: ["sentimentStocks"],
@@ -409,6 +423,156 @@ function Sentiment() {
 
   // Parse sentiment data
   const rawData = sentimentData?.data || [];
+
+  // Fetch analyst upgrades/downgrades
+  useEffect(() => {
+    const fetchAnalystUpgrades = async () => {
+      try {
+        setUpgradesLoading(true);
+        const response = await fetch(`${API_BASE}/api/analysts/upgrades?limit=100`);
+        if (!response.ok) throw new Error("Failed to fetch analyst upgrades");
+        const data = await response.json();
+        if (data?.data) {
+          setUpgrades(data.data);
+        }
+      } catch (err) {
+        console.error("Error fetching analyst upgrades:", err);
+        setUpgradesError("Failed to load analyst upgrades");
+      } finally {
+        setUpgradesLoading(false);
+      }
+    };
+
+    fetchAnalystUpgrades();
+  }, []);
+
+  // Helper functions for analyst upgrades
+  const getActionIcon = (action, fromGrade, toGrade) => {
+    if (!action) return <ShowChartIcon />;
+
+    const actionLower = action.toLowerCase();
+
+    // Check action field first
+    if (actionLower === "up" || actionLower.includes("upgrade")) {
+      return <TrendingUp sx={{ color: "success.main" }} />;
+    } else if (actionLower === "down" || actionLower.includes("downgrade")) {
+      return <TrendingDown sx={{ color: "error.main" }} />;
+    }
+
+    // Check grade changes if action is maintain/reit/init
+    if (fromGrade && toGrade) {
+      const bullishGrades = ["Buy", "Outperform", "Overweight", "Strong Buy"];
+      const bearishGrades = ["Sell", "Underperform", "Underweight"];
+      const gradeOrder = [
+        "Strong Sell",
+        "Sell",
+        "Underweight",
+        "Underperform",
+        "Hold",
+        "Neutral",
+        "Equal-Weight",
+        "Market Perform",
+        "Sector Perform",
+        "Peer Perform",
+        "Perform",
+        "Buy",
+        "Outperform",
+        "Overweight",
+        "Strong Buy",
+      ];
+      const fromIndex = gradeOrder.findIndex((g) => fromGrade?.includes(g));
+      const toIndex = gradeOrder.findIndex((g) => toGrade?.includes(g));
+
+      // If grade changed, show upgrade/downgrade
+      if (toIndex > fromIndex && fromIndex !== -1) {
+        return <TrendingUp sx={{ color: "success.main" }} />;
+      } else if (toIndex < fromIndex && toIndex !== -1) {
+        return <TrendingDown sx={{ color: "error.main" }} />;
+      }
+
+      // If maintained/reiterated/initiated, check if grade is bullish or bearish
+      const isBullish = bullishGrades.some((g) => toGrade?.includes(g));
+      const isBearish = bearishGrades.some((g) => toGrade?.includes(g));
+
+      if (isBullish) {
+        return <TrendingUp sx={{ color: "success.main" }} />;
+      } else if (isBearish) {
+        return <TrendingDown sx={{ color: "error.main" }} />;
+      }
+    }
+
+    return <ShowChartIcon sx={{ color: "info.main" }} />;
+  };
+
+  const getActionColor = (action, fromGrade, toGrade) => {
+    if (!action) return "default";
+
+    const actionLower = action.toLowerCase();
+
+    // Check action field first
+    if (actionLower === "up" || actionLower.includes("upgrade")) {
+      return "success";
+    } else if (actionLower === "down" || actionLower.includes("downgrade")) {
+      return "error";
+    }
+
+    // Check grade changes if action is maintain/reit/init
+    if (fromGrade && toGrade) {
+      const bullishGrades = ["Buy", "Outperform", "Overweight", "Strong Buy"];
+      const bearishGrades = ["Sell", "Underperform", "Underweight"];
+      const gradeOrder = [
+        "Strong Sell",
+        "Sell",
+        "Underweight",
+        "Underperform",
+        "Hold",
+        "Neutral",
+        "Equal-Weight",
+        "Market Perform",
+        "Sector Perform",
+        "Peer Perform",
+        "Perform",
+        "Buy",
+        "Outperform",
+        "Overweight",
+        "Strong Buy",
+      ];
+      const fromIndex = gradeOrder.findIndex((g) => fromGrade?.includes(g));
+      const toIndex = gradeOrder.findIndex((g) => toGrade?.includes(g));
+
+      // If grade changed, show upgrade/downgrade
+      if (toIndex > fromIndex && fromIndex !== -1) {
+        return "success";
+      } else if (toIndex < fromIndex && toIndex !== -1) {
+        return "error";
+      }
+
+      // If maintained/reiterated/initiated, check if grade is bullish or bearish
+      const isBullish = bullishGrades.some((g) => toGrade?.includes(g));
+      const isBearish = bearishGrades.some((g) => toGrade?.includes(g));
+
+      if (isBullish) {
+        return "success";
+      } else if (isBearish) {
+        return "error";
+      }
+    }
+
+    return "info";
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "N/A";
+    try {
+      return new Date(dateString).toLocaleDateString();
+    } catch {
+      return dateString;
+    }
+  };
+
+  const filteredUpgrades = upgrades.filter((upgrade) =>
+    !searchSymbol || upgrade.symbol?.toLowerCase().includes(searchSymbol.toLowerCase())
+  );
 
   // Group by symbol and calculate composite scores
   const groupedBySymbol = rawData.reduce((acc, item) => {
@@ -546,6 +710,7 @@ function Sentiment() {
         >
           <Tab label="Stock Analysis" id="sentiment-tab-0" aria-controls="sentiment-tabpanel-0" />
           <Tab label="Comparative View" id="sentiment-tab-1" aria-controls="sentiment-tabpanel-1" />
+          <Tab label="Analyst Upgrades/Downgrades" id="sentiment-tab-2" aria-controls="sentiment-tabpanel-2" />
         </Tabs>
       </Box>
 
@@ -1004,6 +1169,119 @@ function Sentiment() {
             </Grid>
           </CardContent>
         </Card>
+      </TabPanel>
+
+      {/* Tab 3: Analyst Upgrades/Downgrades */}
+      <TabPanel value={tabValue} index={2}>
+        {upgradesLoading ? (
+          <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 400 }}>
+            <CircularProgress />
+          </Box>
+        ) : upgradesError ? (
+          <Alert severity="error">{upgradesError}</Alert>
+        ) : (
+          <>
+            {/* Filters */}
+            <Box sx={{ mb: 3, display: "flex", gap: 2, flexWrap: "wrap" }}>
+              <TextField
+                placeholder="Search by symbol..."
+                variant="outlined"
+                size="small"
+                value={searchSymbol}
+                onChange={(e) => setSearchSymbol(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Search />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{ minWidth: 200 }}
+              />
+            </Box>
+
+            {/* Table */}
+            {filteredUpgrades.length > 0 ? (
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <TimelineIcon />
+                    Recent Analyst Actions
+                  </Typography>
+
+                  <TableContainer>
+                    <Table>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Symbol</TableCell>
+                          <TableCell>Company Name</TableCell>
+                          <TableCell>Firm</TableCell>
+                          <TableCell>Action</TableCell>
+                          <TableCell>From Grade</TableCell>
+                          <TableCell>To Grade</TableCell>
+                          <TableCell>Date</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {(rowsPerPage > 0
+                          ? filteredUpgrades.slice(tablePage * rowsPerPage, tablePage * rowsPerPage + rowsPerPage)
+                          : filteredUpgrades
+                        ).map((upgrade, index) => (
+                          <TableRow key={upgrade.id || index} hover>
+                            <TableCell>
+                              <Typography variant="body2" fontWeight="bold" sx={{ color: "primary.main" }}>
+                                {upgrade.symbol}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2">{upgrade.company_name || "N/A"}</Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2">{upgrade.firm || "N/A"}</Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                {getActionIcon(upgrade.action, upgrade.from_grade, upgrade.to_grade)}
+                                <Chip
+                                  label={upgrade.action === "main" ? "maint" : (upgrade.action || "N/A")}
+                                  color={getActionColor(upgrade.action, upgrade.from_grade, upgrade.to_grade)}
+                                  size="small"
+                                />
+                              </Box>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2">{upgrade.from_grade || "N/A"}</Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2">{upgrade.to_grade || "N/A"}</Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2">{formatDate(upgrade.date)}</Typography>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                  <TablePagination
+                    component="div"
+                    count={filteredUpgrades.length}
+                    page={tablePage}
+                    onPageChange={(e, newPage) => setTablePage(newPage)}
+                    rowsPerPage={rowsPerPage}
+                    onRowsPerPageChange={(e) => {
+                      setRowsPerPage(parseInt(e.target.value, 10));
+                      setTablePage(0);
+                    }}
+                    rowsPerPageOptions={[10, 25, 50, 100, { label: "All", value: -1 }]}
+                  />
+                </CardContent>
+              </Card>
+            ) : (
+              <Alert severity="info">No analyst upgrades/downgrades found</Alert>
+            )}
+          </>
+        )}
       </TabPanel>
 
     </Container>
