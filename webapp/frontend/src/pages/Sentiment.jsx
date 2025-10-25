@@ -5,7 +5,6 @@ import {
   Box,
   Card,
   CardContent,
-  CardHeader,
   Grid,
   TextField,
   Chip,
@@ -43,8 +42,6 @@ import {
   TrendingUpRounded,
   ExpandMore,
   Info as InfoIcon,
-  ArrowUpward,
-  ArrowDownward,
 } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, AreaChart, Area, XAxis, YAxis, CartesianGrid, Legend, LineChart, Line } from "recharts";
@@ -116,17 +113,16 @@ const AnalystTrendCard = ({ symbol, allData }) => {
     return allData.filter(item => item.source === "analyst");
   }, [allData]);
 
-  // Calculate trend metrics from analyst data
-  const trendMetrics = React.useMemo(() => {
+  // Calculate comprehensive analyst metrics
+  const analystMetrics = React.useMemo(() => {
     if (analystData.length === 0) return null;
 
-    const recentData = analystData.slice(0, 30); // Last 30 data points
     const currentData = analystData[0];
+    const metadata = currentData?.metadata || {};
+    const recentData = analystData.slice(0, 30);
 
     // Calculate average sentiment score
     const avgScore = recentData.reduce((sum, d) => sum + (d.sentiment_score || 0), 0) / recentData.length;
-
-    // Normalize to 0-100 range (assuming -1 to 1 scale becomes 0-100)
     const sentimentScore = Math.max(0, Math.min(100, (avgScore + 1) * 50));
 
     // Determine trend direction
@@ -134,13 +130,56 @@ const AnalystTrendCard = ({ symbol, allData }) => {
     const ratingChange = (currentData?.sentiment_score || 0) - (oldestData?.sentiment_score || 0);
     const trendDirection = ratingChange > 0.1 ? "↗️ Improving" : ratingChange < -0.1 ? "↘️ Declining" : "→ Stable";
 
+    // Rating distribution from metadata
+    const strongBuy = metadata.strong_buy_count || 0;
+    const buy = metadata.buy_count || 0;
+    const hold = metadata.hold_count || 0;
+    const sell = metadata.sell_count || 0;
+    const strongSell = metadata.strong_sell_count || 0;
+    const totalRatings = strongBuy + buy + hold + sell + strongSell;
+
+    const bullishCount = strongBuy + buy;
+    const bearishCount = sell + strongSell;
+    const bullishPercentage = totalRatings > 0 ? (bullishCount / totalRatings) * 100 : 0;
+    const neutralPercentage = totalRatings > 0 ? (hold / totalRatings) * 100 : 0;
+    const bearishPercentage = totalRatings > 0 ? (bearishCount / totalRatings) * 100 : 0;
+
+    // Price target analysis
+    const avgPriceTarget = metadata.avg_price_target || null;
+    const priceTargetVsCurrent = metadata.price_target_vs_current || 0; // Percentage deviation
+
+    // Recent analyst activity
+    const upgradesLast30d = metadata.upgrades_last_30d || 0;
+    const downgradesLast30d = metadata.downgrades_last_30d || 0;
+    const activityNet = upgradesLast30d - downgradesLast30d;
+
+    // EPS revision momentum
+    const epsRevisionsUp = metadata.eps_revisions_up_last_30d || 0;
+    const epsRevisionsDown = metadata.eps_revisions_down_last_30d || 0;
+    const epsNetMomentum = epsRevisionsUp - epsRevisionsDown;
+
     return {
-      sentimentScore: sentimentScore,
-      ratingChangeVelocity: trendDirection,
-      analystCount: currentData?.metadata?.analyst_count || 0,
-      bullishPercentage: 40, // Placeholder
-      neutralPercentage: 35, // Placeholder
-      bearishPercentage: 25, // Placeholder
+      sentimentScore,
+      trendDirection,
+      analystCount: metadata.analyst_count || 0,
+      totalAnalysts: metadata.total_analysts || 0,
+      // Rating distribution
+      strongBuy, buy, hold, sell, strongSell,
+      bullishPercentage,
+      neutralPercentage,
+      bearishPercentage,
+      totalRatings,
+      // Price target
+      avgPriceTarget,
+      priceTargetVsCurrent,
+      // Activity
+      upgradesLast30d,
+      downgradesLast30d,
+      activityNet,
+      // EPS momentum
+      epsRevisionsUp,
+      epsRevisionsDown,
+      epsNetMomentum,
     };
   }, [analystData]);
 
@@ -151,11 +190,23 @@ const AnalystTrendCard = ({ symbol, allData }) => {
     return analystData
       .slice(0, 90)
       .reverse()
-      .map((item, idx) => ({
-        date: new Date(item.date).toLocaleDateString(),
-        recommendationMean: item.sentiment_score ? (item.sentiment_score + 1) * 2.5 : 3, // Scale to 1-5 rating
+      .map((item) => ({
+        date: new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        recommendationMean: item.sentiment_score ? (item.sentiment_score + 1) * 2.5 : 3,
       }));
   }, [analystData]);
+
+  // Rating distribution pie chart data
+  const ratingDistributionData = React.useMemo(() => {
+    if (!analystMetrics) return [];
+    return [
+      { name: "Strong Buy", value: analystMetrics.strongBuy, color: theme.palette.success.main },
+      { name: "Buy", value: analystMetrics.buy, color: theme.palette.success.light },
+      { name: "Hold", value: analystMetrics.hold, color: theme.palette.warning.main },
+      { name: "Sell", value: analystMetrics.sell, color: theme.palette.error.light },
+      { name: "Strong Sell", value: analystMetrics.strongSell, color: theme.palette.error.main },
+    ].filter(item => item.value > 0);
+  }, [analystMetrics, theme]);
 
   if (analystData.length === 0) {
     return (
@@ -179,79 +230,307 @@ const AnalystTrendCard = ({ symbol, allData }) => {
     return theme.palette.grey[600];
   };
 
+  const getActivityColor = (net) => {
+    if (net > 0) return theme.palette.success.main;
+    if (net < 0) return theme.palette.error.main;
+    return theme.palette.grey[600];
+  };
+
   return (
     <>
-      {/* Analyst Momentum Card */}
+      {/* Analyst Momentum Summary Card */}
       <Card variant="outlined">
         <CardContent>
-          <Box display="flex" alignItems="center" gap={1} mb={2}>
+          <Box display="flex" alignItems="center" gap={1} mb={3}>
             <TrendingUpRounded />
-            <Typography variant="h6">Analyst Momentum</Typography>
+            <Typography variant="h6">Analyst Sentiment & Trends</Typography>
           </Box>
 
-          {/* Sentiment Score */}
-          <Box display="flex" justifyContent="space-between" mb={2}>
-            <Typography variant="body2">Sentiment Score:</Typography>
-            <Chip
-              label={`${trendMetrics?.sentimentScore?.toFixed(1) || 0}%`}
-              color={trendMetrics?.sentimentScore > 60 ? "success" : trendMetrics?.sentimentScore > 40 ? "warning" : "error"}
-            />
-          </Box>
+          <Grid container spacing={2}>
+            {/* Sentiment Score */}
+            <Grid item xs={12} sm={6} md={3}>
+              <Box textAlign="center">
+                <Typography variant="caption" color="textSecondary" display="block" mb={1}>
+                  Sentiment Score
+                </Typography>
+                <Chip
+                  label={`${analystMetrics?.sentimentScore?.toFixed(1) || 0}%`}
+                  color={analystMetrics?.sentimentScore > 60 ? "success" : analystMetrics?.sentimentScore > 40 ? "warning" : "error"}
+                  size="small"
+                />
+              </Box>
+            </Grid>
 
-          {/* Momentum Velocity */}
-          <Box display="flex" justifyContent="space-between" mb={2}>
-            <Typography variant="body2">Trend Direction:</Typography>
-            <Chip
-              label={trendMetrics?.ratingChangeVelocity || "Stable"}
-              sx={{
-                bgcolor: alpha(getMomentumColor(trendMetrics?.ratingChangeVelocity), 0.2),
-                color: getMomentumColor(trendMetrics?.ratingChangeVelocity)
-              }}
-            />
-          </Box>
+            {/* Trend Direction */}
+            <Grid item xs={12} sm={6} md={3}>
+              <Box textAlign="center">
+                <Typography variant="caption" color="textSecondary" display="block" mb={1}>
+                  Trend
+                </Typography>
+                <Chip
+                  label={analystMetrics?.trendDirection || "Stable"}
+                  sx={{
+                    bgcolor: alpha(getMomentumColor(analystMetrics?.trendDirection), 0.2),
+                    color: getMomentumColor(analystMetrics?.trendDirection)
+                  }}
+                  size="small"
+                />
+              </Box>
+            </Grid>
 
-          {/* Analyst Coverage */}
-          <Box display="flex" justifyContent="space-between" mb={2}>
-            <Typography variant="body2">Analyst Coverage:</Typography>
-            <Chip label={`${trendMetrics?.analystCount || 0} analysts`} variant="outlined" />
-          </Box>
+            {/* Analyst Coverage */}
+            <Grid item xs={12} sm={6} md={3}>
+              <Box textAlign="center">
+                <Typography variant="caption" color="textSecondary" display="block" mb={1}>
+                  Analyst Count
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: "bold" }}>
+                  {analystMetrics?.analystCount || 0}
+                </Typography>
+              </Box>
+            </Grid>
 
-          {/* Rating Distribution */}
-          <Divider sx={{ my: 2 }} />
-          <Typography variant="caption" color="textSecondary" sx={{ display: "block", mb: 1 }}>
-            Current Rating Distribution:
-          </Typography>
-          <Box display="flex" gap={0.5} flexWrap="wrap">
-            <Chip label={`Bullish: ${trendMetrics?.bullishPercentage?.toFixed(1) || 0}%`} size="small" color="success" variant="outlined" />
-            <Chip label={`Neutral: ${trendMetrics?.neutralPercentage?.toFixed(1) || 0}%`} size="small" color="default" variant="outlined" />
-            <Chip label={`Bearish: ${trendMetrics?.bearishPercentage?.toFixed(1) || 0}%`} size="small" color="error" variant="outlined" />
-          </Box>
+            {/* Price Target Upside/Downside */}
+            <Grid item xs={12} sm={6} md={3}>
+              <Box textAlign="center">
+                <Typography variant="caption" color="textSecondary" display="block" mb={1}>
+                  Price Target
+                </Typography>
+                {analystMetrics?.priceTargetVsCurrent !== null ? (
+                  <Chip
+                    label={`${analystMetrics?.priceTargetVsCurrent > 0 ? "+" : ""}${analystMetrics?.priceTargetVsCurrent?.toFixed(1)}%`}
+                    color={analystMetrics?.priceTargetVsCurrent > 0 ? "success" : analystMetrics?.priceTargetVsCurrent < 0 ? "error" : "default"}
+                    size="small"
+                  />
+                ) : (
+                  <Typography variant="body2" color="textSecondary">N/A</Typography>
+                )}
+              </Box>
+            </Grid>
+          </Grid>
         </CardContent>
       </Card>
 
-      {/* Sentiment Trend Chart */}
+      {/* Rating Distribution Card */}
+      <Card variant="outlined" sx={{ mt: 2 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            Rating Distribution
+          </Typography>
+          <Grid container spacing={2} alignItems="center">
+            {/* Pie Chart */}
+            <Grid item xs={12} sm={6}>
+              {ratingDistributionData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={ratingDistributionData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {ratingDistributionData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip
+                      formatter={(value) => [`${value} analysts`, "Count"]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <Box display="flex" alignItems="center" justifyContent="center" height={250}>
+                  <Typography color="textSecondary">No rating data available</Typography>
+                </Box>
+              )}
+            </Grid>
+
+            {/* Rating Details */}
+            <Grid item xs={12} sm={6}>
+              <Box display="flex" flexDirection="column" gap={1.5}>
+                {analystMetrics?.strongBuy > 0 && (
+                  <Box display="flex" justifyContent="space-between" alignItems="center">
+                    <Typography variant="body2">Strong Buy:</Typography>
+                    <Chip label={`${analystMetrics?.strongBuy}`} color="success" size="small" />
+                  </Box>
+                )}
+                {analystMetrics?.buy > 0 && (
+                  <Box display="flex" justifyContent="space-between" alignItems="center">
+                    <Typography variant="body2">Buy:</Typography>
+                    <Chip label={`${analystMetrics?.buy}`} color="success" size="small" variant="outlined" />
+                  </Box>
+                )}
+                {analystMetrics?.hold > 0 && (
+                  <Box display="flex" justifyContent="space-between" alignItems="center">
+                    <Typography variant="body2">Hold:</Typography>
+                    <Chip label={`${analystMetrics?.hold}`} size="small" variant="outlined" />
+                  </Box>
+                )}
+                {analystMetrics?.sell > 0 && (
+                  <Box display="flex" justifyContent="space-between" alignItems="center">
+                    <Typography variant="body2">Sell:</Typography>
+                    <Chip label={`${analystMetrics?.sell}`} color="error" size="small" variant="outlined" />
+                  </Box>
+                )}
+                {analystMetrics?.strongSell > 0 && (
+                  <Box display="flex" justifyContent="space-between" alignItems="center">
+                    <Typography variant="body2">Strong Sell:</Typography>
+                    <Chip label={`${analystMetrics?.strongSell}`} color="error" size="small" />
+                  </Box>
+                )}
+                <Divider sx={{ my: 1 }} />
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Typography variant="body2" sx={{ fontWeight: "bold" }}>Bullish:</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: "bold", color: theme.palette.success.main }}>
+                    {analystMetrics?.bullishPercentage?.toFixed(0)}%
+                  </Typography>
+                </Box>
+              </Box>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
+      {/* Analyst Activity Card */}
+      <Card variant="outlined" sx={{ mt: 2 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            Recent Analyst Activity (Last 30 Days)
+          </Typography>
+          <Grid container spacing={2}>
+            {/* Upgrades vs Downgrades */}
+            <Grid item xs={12} sm={6}>
+              <Box>
+                <Typography variant="subtitle2" color="textSecondary" mb={2}>
+                  Rating Changes
+                </Typography>
+                <Box display="flex" gap={2} alignItems="center">
+                  <Box flex={1}>
+                    <Box display="flex" justifyContent="space-between" mb={0.5}>
+                      <Typography variant="body2">Upgrades:</Typography>
+                      <Chip
+                        label={`${analystMetrics?.upgradesLast30d || 0}`}
+                        color="success"
+                        size="small"
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography variant="body2">Downgrades:</Typography>
+                      <Chip
+                        label={`${analystMetrics?.downgradesLast30d || 0}`}
+                        color="error"
+                        size="small"
+                      />
+                    </Box>
+                  </Box>
+                  <Box textAlign="center">
+                    <Chip
+                      label={`Net: ${analystMetrics?.activityNet > 0 ? "+" : ""}${analystMetrics?.activityNet || 0}`}
+                      sx={{
+                        bgcolor: alpha(getActivityColor(analystMetrics?.activityNet), 0.2),
+                        color: getActivityColor(analystMetrics?.activityNet),
+                        fontWeight: "bold"
+                      }}
+                    />
+                  </Box>
+                </Box>
+              </Box>
+            </Grid>
+
+            {/* EPS Revisions */}
+            <Grid item xs={12} sm={6}>
+              <Box>
+                <Typography variant="subtitle2" color="textSecondary" mb={2}>
+                  EPS Revisions
+                </Typography>
+                <Box display="flex" gap={2} alignItems="center">
+                  <Box flex={1}>
+                    <Box display="flex" justifyContent="space-between" mb={0.5}>
+                      <Typography variant="body2">Revisions Up:</Typography>
+                      <Chip
+                        label={`${analystMetrics?.epsRevisionsUp || 0}`}
+                        color="success"
+                        size="small"
+                      />
+                    </Box>
+                    <Box display="flex" justifyContent="space-between">
+                      <Typography variant="body2">Revisions Down:</Typography>
+                      <Chip
+                        label={`${analystMetrics?.epsRevisionsDown || 0}`}
+                        color="error"
+                        size="small"
+                      />
+                    </Box>
+                  </Box>
+                  <Box textAlign="center">
+                    <Chip
+                      label={`Net: ${analystMetrics?.epsNetMomentum > 0 ? "+" : ""}${analystMetrics?.epsNetMomentum || 0}`}
+                      sx={{
+                        bgcolor: alpha(getActivityColor(analystMetrics?.epsNetMomentum), 0.2),
+                        color: getActivityColor(analystMetrics?.epsNetMomentum),
+                        fontWeight: "bold"
+                      }}
+                    />
+                  </Box>
+                </Box>
+              </Box>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
+      {/* 90-Day Trend Chart */}
       {chartData && chartData.length > 0 && (
         <Card variant="outlined" sx={{ mt: 2 }}>
           <CardContent>
             <Typography variant="h6" gutterBottom>
               90-Day Rating Trend
             </Typography>
-            <ResponsiveContainer width="100%" height={250}>
+            <ResponsiveContainer width="100%" height={280}>
               <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis domain={[1, 5]} label={{ value: "Rating (1=Buy, 5=Sell)", angle: -90, position: "insideLeft" }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 12 }}
+                  stroke={theme.palette.text.secondary}
+                />
+                <YAxis
+                  domain={[1, 5]}
+                  label={{
+                    value: "Average Rating",
+                    angle: -90,
+                    position: "insideLeft",
+                    style: { fontSize: 12 }
+                  }}
+                  stroke={theme.palette.text.secondary}
+                />
                 <RechartsTooltip
+                  contentStyle={{
+                    backgroundColor: theme.palette.background.paper,
+                    border: `1px solid ${theme.palette.divider}`,
+                    borderRadius: 4
+                  }}
                   formatter={(value) => {
-                    const ratingLabels = { 1: "Strong Buy", 2: "Buy", 3: "Hold", 4: "Sell", 5: "Strong Sell" };
-                    return ratingLabels[Math.round(value)] || value.toFixed(2);
+                    const ratingLabels = {
+                      1: "Strong Buy",
+                      2: "Buy",
+                      3: "Hold",
+                      4: "Sell",
+                      5: "Strong Sell"
+                    };
+                    return [ratingLabels[Math.round(value)] || value.toFixed(2), "Average Rating"];
                   }}
                 />
-                <Legend />
+                <Legend wrapperStyle={{ paddingTop: 20 }} />
                 <Line
                   type="monotone"
                   dataKey="recommendationMean"
                   stroke={theme.palette.primary.main}
+                  strokeWidth={2}
                   dot={false}
                   name="Average Rating"
                   isAnimationActive={false}
