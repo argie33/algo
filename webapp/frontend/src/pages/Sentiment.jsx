@@ -273,7 +273,7 @@ const AnalystTrendCard = ({ symbol }) => {
                       Avg Price Target
                     </Typography>
                     <Typography variant="h5" sx={{ fontWeight: "bold", mb: 0.5 }}>
-                      ${metrics.avgPriceTarget?.toFixed(2) || "N/A"}
+                      ${typeof metrics.avgPriceTarget === 'number' ? metrics.avgPriceTarget.toFixed(2) : parseFloat(metrics.avgPriceTarget || 0).toFixed(2)}
                     </Typography>
                     <Typography variant="caption" color="textSecondary">
                       consensus target
@@ -304,7 +304,7 @@ const AnalystTrendCard = ({ symbol }) => {
                         color: metrics.priceTargetVsCurrent > 0 ? theme.palette.success.main : theme.palette.error.main,
                         mb: 0.5
                       }}>
-                        {metrics.priceTargetVsCurrent > 0 ? "+" : ""}{metrics.priceTargetVsCurrent?.toFixed(1)}%
+                        {metrics.priceTargetVsCurrent > 0 ? "+" : ""}{typeof metrics.priceTargetVsCurrent === 'number' ? metrics.priceTargetVsCurrent.toFixed(1) : parseFloat(metrics.priceTargetVsCurrent || 0).toFixed(1)}%
                       </Typography>
                       <Typography variant="caption" color="textSecondary">
                         vs current price
