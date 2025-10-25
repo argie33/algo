@@ -342,21 +342,30 @@ const LeadingIndicatorsPanel = ({ data, isLoading, theme, yieldCurveData }) => {
     }
   };
 
-  return (
-    <Box sx={{ mb: 4 }}>
-      <Typography variant="h4" sx={{ fontWeight: 600, mb: 3, display: "flex", alignItems: "center", gap: 1 }}>
-        📈 Leading Economic Indicators
+  // Filter indicators by category
+  const leiIndicators = data.filter((ind) => ind.category === "LEI");
+  const secondaryIndicators = data.filter((ind) => ind.category === "SECONDARY");
+
+  const renderIndicatorGrid = (indicators, title, icon) => (
+    <Box sx={{ mb: 5 }}>
+      <Typography variant="h5" sx={{ fontWeight: 600, mb: 3, display: "flex", alignItems: "center", gap: 1, color: theme.palette.primary.main }}>
+        {icon} {title}
       </Typography>
-
-      {/* Grid with 2 indicators per row on desktop */}
       <Grid container spacing={3}>
-        {data.map((indicator, idx) => {
-          const gradColor = getGradientColor(indicator.signal);
-          const trendColor = getTrendColor(indicator.trend);
-          const changeColor = indicator.change > 0 ? theme.palette.success.main : indicator.change < 0 ? theme.palette.error.main : theme.palette.text.secondary;
+        {indicators.map((indicator, idx) => {
+          return renderIndicatorCard(indicator, idx);
+        })}
+      </Grid>
+    </Box>
+  );
 
-          return (
-            <Grid item xs={12} md={6} key={idx}>
+  const renderIndicatorCard = (indicator, idx) => {
+    const gradColor = getGradientColor(indicator.signal);
+    const trendColor = getTrendColor(indicator.trend);
+    const changeColor = indicator.change > 0 ? theme.palette.success.main : indicator.change < 0 ? theme.palette.error.main : theme.palette.text.secondary;
+
+    return (
+      <Grid item xs={12} md={6} key={idx}>
               <Card
                 sx={{
                   height: "100%",
@@ -493,10 +502,14 @@ const LeadingIndicatorsPanel = ({ data, isLoading, theme, yieldCurveData }) => {
                   )}
                 </CardContent>
               </Card>
-            </Grid>
-          );
-        })}
       </Grid>
+    );
+  };
+
+  return (
+    <Box>
+      {renderIndicatorGrid(leiIndicators, "Leading Economic Indicators", <TrendingUp />)}
+      {renderIndicatorGrid(secondaryIndicators, "Secondary Indicators", <TrendingDown />)}
     </Box>
   );
 };

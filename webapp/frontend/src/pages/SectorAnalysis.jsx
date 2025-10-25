@@ -43,42 +43,17 @@ import {
   getChangeColor,
 } from "../utils/formatters";
 
-// Helper component for sector momentum chart
+// Helper component for sector momentum chart - uses trendData already in sector prop
 const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
-  const sectorName = sector?.sector_name || sector?.sector;
-
-  const { data: trendDataResponse, isLoading } = useQuery({
-    queryKey: [`momentum-trend-sector`, sectorName],
-    queryFn: async () => {
-      try {
-        if (!sectorName) {
-          console.warn('No sector name provided to SectorMomentumChart');
-          return { trendData: [] };
-        }
-        const response = await api.get(
-          `/api/sectors/trend/sector/${encodeURIComponent(sectorName)}`
-        );
-        console.log(`Sector momentum data for ${sectorName}:`, response.data?.trendData?.length || 0, 'rows');
-        return response.data || { trendData: [] };
-      } catch (err) {
-        console.error(`Momentum fetch error for ${sectorName}:`, err.message);
-        return { trendData: [] };
-      }
-    },
-    staleTime: 300000,
-    enabled: !!sectorName,
-    retry: false,
-  });
-
-  // Get trendData array
-  const trendArray = trendDataResponse?.trendData || [];
+  // Use trendData directly from sector object (already loaded from /sectors-with-history)
+  const trendArray = sector?.trendData || [];
 
   let momentumData = trendArray.map(row => ({
-    date: row.label || row.date,
+    date: row.date,
     momentum: parseFloat(row.dailyStrengthScore || row.momentumScore || row.momentum || 0)
   }));
 
-  console.log(`[MOMENTUM CHART - SECTOR] ${sector.sector_name || sector.sector}: ${trendArray.length} rows, ${momentumData.length} mapped points`, momentumData.slice(0, 3));
+  console.log(`[MOMENTUM CHART - SECTOR] ${sector?.sector_name || sector?.sector}: ${trendArray.length} rows, ${momentumData.length} mapped points`, momentumData.slice(0, 3));
 
   // Use ALL data for momentum chart (no date filtering)
   if (aggregateToWeekly && momentumData.length > 0) {
@@ -90,11 +65,7 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
       <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
         ⚡ Daily Strength Score
       </Typography>
-      {isLoading ? (
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight={250}>
-          <Typography variant="caption" color="text.secondary">Loading...</Typography>
-        </Box>
-      ) : momentumData && momentumData.length > 0 ? (
+      {momentumData && momentumData.length > 0 ? (
         <Box sx={{ width: "100%", height: 250 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={momentumData} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
@@ -119,50 +90,25 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
           </ResponsiveContainer>
         </Box>
       ) : (
-        <Typography variant="body2" color="error" sx={{ py: 2 }}>
-          No momentum data: {trendArray.length === 0 ? 'API returned empty' : 'aggregation failed'}
+        <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+          No momentum data available for this sector
         </Typography>
       )}
     </Box>
   );
 };
 
-// Helper component for industry momentum chart
+// Helper component for industry momentum chart - uses trendData already in industry prop
 const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
-  const industryName = industry?.industry;
-
-  const { data: trendDataResponse, isLoading } = useQuery({
-    queryKey: [`momentum-trend-industry`, industryName],
-    queryFn: async () => {
-      try {
-        if (!industryName) {
-          console.warn('No industry name provided to IndustryMomentumChart');
-          return { trendData: [] };
-        }
-        const response = await api.get(
-          `/api/sectors/trend/industry/${encodeURIComponent(industryName)}`
-        );
-        console.log(`Industry momentum data for ${industryName}:`, response.data?.trendData?.length || 0, 'rows');
-        return response.data || { trendData: [] };
-      } catch (err) {
-        console.error(`Momentum fetch error for ${industryName}:`, err.message);
-        return { trendData: [] };
-      }
-    },
-    staleTime: 300000,
-    enabled: !!industryName,
-    retry: false,
-  });
-
-  // Get trendData array
-  const trendArray = trendDataResponse?.trendData || [];
+  // Use trendData directly from industry object (already loaded from /industries-with-history)
+  const trendArray = industry?.trendData || [];
 
   let momentumData = trendArray.map(row => ({
-    date: row.label || row.date,
+    date: row.date,
     momentum: parseFloat(row.dailyStrengthScore || row.momentumScore || row.momentum || 0)
   }));
 
-  console.log(`[MOMENTUM CHART - INDUSTRY] ${industry.industry}: ${trendArray.length} rows, ${momentumData.length} mapped points`, momentumData.slice(0, 3));
+  console.log(`[MOMENTUM CHART - INDUSTRY] ${industry?.industry}: ${trendArray.length} rows, ${momentumData.length} mapped points`, momentumData.slice(0, 3));
 
   // Use ALL data for momentum chart (no date filtering)
   if (aggregateToWeekly && momentumData.length > 0) {
@@ -174,11 +120,7 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
       <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
         ⚡ Daily Strength Score
       </Typography>
-      {isLoading ? (
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight={250}>
-          <Typography variant="caption" color="text.secondary">Loading...</Typography>
-        </Box>
-      ) : momentumData && momentumData.length > 0 ? (
+      {momentumData && momentumData.length > 0 ? (
         <Box sx={{ width: "100%", height: 250 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={momentumData} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
