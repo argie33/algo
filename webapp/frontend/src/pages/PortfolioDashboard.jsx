@@ -164,6 +164,40 @@ export default function PortfolioDashboard() {
     })) || [];
   }, [performanceData]);
 
+  // Compute sector data from positions
+  const sectorData = useMemo(() => {
+    if (!positions || positions.length === 0) {
+      return [];
+    }
+
+    const sectorMap = {};
+    let totalValue = 0;
+
+    // Aggregate positions by sector
+    positions.forEach((pos) => {
+      const sector = pos.sector || 'Other';
+      const value = Math.abs(pos.market_value || 0);
+      const return_pct = pos.unrealized_gain_loss_pct || 0;
+
+      if (!sectorMap[sector]) {
+        sectorMap[sector] = { weight: 0, return: 0, count: 0 };
+      }
+      sectorMap[sector].weight += value;
+      sectorMap[sector].return += return_pct;
+      sectorMap[sector].count += 1;
+      totalValue += value;
+    });
+
+    // Convert to chart data
+    return Object.entries(sectorMap)
+      .map(([sector, data]) => ({
+        sector,
+        weight: totalValue > 0 ? (data.weight / totalValue) * 100 : 0,
+        return: data.count > 0 ? data.return / data.count : 0,
+      }))
+      .sort((a, b) => b.weight - a.weight);
+  }, [positions]);
+
   // ============ MAIN RENDER ============
   if (metricsLoading || holdingsLoading) {
     return (
@@ -502,21 +536,12 @@ export default function PortfolioDashboard() {
           <Card sx={{ mb: 4 }}>
             <CardHeader
               title="Sector Performance Analysis"
-              subheader="Sector weights vs average performance"
+              subheader="Sector weights vs average performance (from real portfolio data)"
             />
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart
-                  data={[
-                    { sector: 'Technology', weight: 25, return: 18 },
-                    { sector: 'Healthcare', weight: 18, return: 12 },
-                    { sector: 'Financials', weight: 15, return: 8 },
-                    { sector: 'Consumer', weight: 12, return: 6 },
-                    { sector: 'Industrial', weight: 10, return: 14 },
-                    { sector: 'Energy', weight: 8, return: 22 },
-                    { sector: 'Utilities', weight: 7, return: 4 },
-                    { sector: 'Other', weight: 5, return: 10 },
-                  ]}
+                  data={sectorData.length > 0 ? sectorData : [{ sector: 'No Data', weight: 0, return: 0 }]}
                 >
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="sector" />
