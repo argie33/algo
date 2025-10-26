@@ -12,6 +12,7 @@ This script implements comprehensive momentum analysis including:
 Updated: 2025-10-25 17:15 - Production stable, running parallel batch processing
 Status: ✅ Working correctly - processes 11-12 symbols per batch with parallel execution
 Note: Symbols with <252 trading days are skipped (normal - not enough historical data)
+Trigger: 2025-10-26 AWS deployment - momentum metrics loader (batch processing enabled)
 
 Academic References:
 - Jegadeesh and Titman (1993) - Returns to Buying Winners and Selling Losers

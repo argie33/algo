@@ -4,6 +4,7 @@ Positioning Metrics Calculator
 
 Calculates derived positioning metrics from base institutional/insider/short data.
 Works with positioning_metrics table created by loaddailycompanydata.py
+Trigger: 2025-10-26 AWS deployment - positioning metrics calculator
 
 Calculates:
 - Institutional Quality Score: Based on holder types and concentration

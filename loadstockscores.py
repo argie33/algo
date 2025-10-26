@@ -2,7 +2,7 @@
 """
 Stock Scores Loader Script - Enhanced Scoring Logic v2.2 (Updated: 2025-10-16)
 VERIFIED: 2025-10-26 Fresh reload completed successfully - 5,315/5,315 rows (100%) ✅
-Trigger: 20251016_143200 - Populate all stock scores and quality metrics to AWS
+Trigger: 20251026_120000 - AWS deployment final scoring engine (all data ready)
 Calculates and stores improved stock scores using multi-factor analysis.
 Deploy stock scores calculation to populate comprehensive quality metrics.
 FIX: Trigger rebuild - Docker image has old code with scoring_engine import error.
@@ -138,6 +138,12 @@ def create_stock_scores_table(conn):
                 acc_dist_rating DECIMAL(5,2),
                 -- Value metrics inputs (percentile-ranked from loadvaluemetrics.py)
                 value_inputs JSONB,
+                -- Data completeness and flagging (Option 1: Exclude from scores with clear flagging)
+                score_status VARCHAR(50) DEFAULT 'complete',
+                available_metrics JSONB,
+                missing_metrics JSONB,
+                score_notes TEXT,
+                estimated_data_ready_date DATE,
                 score_date DATE DEFAULT CURRENT_DATE,
                 last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
@@ -155,6 +161,22 @@ def create_stock_scores_table(conn):
             logger.info("✅ value_inputs column ready")
         except psycopg2.Error as e:
             logger.warning(f"⚠️ Could not add value_inputs column: {e}")
+            conn.rollback()
+
+        # Add data completeness flagging columns (Option 1: Clear flagging for missing data)
+        try:
+            cur.execute("""
+                ALTER TABLE stock_scores
+                ADD COLUMN IF NOT EXISTS score_status VARCHAR(50) DEFAULT 'complete',
+                ADD COLUMN IF NOT EXISTS available_metrics JSONB,
+                ADD COLUMN IF NOT EXISTS missing_metrics JSONB,
+                ADD COLUMN IF NOT EXISTS score_notes TEXT,
+                ADD COLUMN IF NOT EXISTS estimated_data_ready_date DATE;
+            """)
+            conn.commit()
+            logger.info("✅ Data completeness flagging columns ready")
+        except psycopg2.Error as e:
+            logger.warning(f"⚠️ Could not add flagging columns: {e}")
             conn.rollback()
 
         # Create indexes (if not exists)
@@ -1838,6 +1860,64 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 return None
             return max(0, min(100, float(score)))
 
+        # Option 1 + API Flagging: Track missing metrics for data completeness flagging
+        # Identify available metrics and flag missing ones
+        available_metrics = []
+        missing_metrics = []
+        score_status = 'complete'
+        score_notes = None
+        estimated_data_ready_date = None
+
+        # Track which metrics are available
+        if momentum_score is not None:
+            available_metrics.append('momentum')
+        else:
+            missing_metrics.append('momentum')
+
+        if growth_score is not None:
+            available_metrics.append('growth')
+        else:
+            missing_metrics.append('growth')
+
+        if value_score is not None:
+            available_metrics.append('value')
+        else:
+            missing_metrics.append('value')
+
+        if quality_score is not None:
+            available_metrics.append('quality')
+        else:
+            missing_metrics.append('quality')
+
+        if stability_score is not None or risk_stability_score is not None:
+            available_metrics.append('stability')
+        else:
+            missing_metrics.append('stability')
+
+        if positioning_score is not None:
+            available_metrics.append('positioning')
+        else:
+            missing_metrics.append('positioning')
+
+        if sentiment_score is not None:
+            available_metrics.append('sentiment')
+        else:
+            missing_metrics.append('sentiment')
+
+        # Set status and notes based on missing data
+        if missing_metrics:
+            # Option 1: Don't calculate composite for stocks with missing key metrics
+            if 'momentum' in missing_metrics:
+                score_status = 'insufficient_data'
+                score_notes = f"Requires 12+ months of price history for momentum calculation. Currently available: {', '.join(available_metrics)}"
+                # Estimate when data will be available (~12 months from first price data)
+                estimated_data_ready_date = (datetime.now().date() + timedelta(days=365))
+                logger.info(f"{symbol}: ⏳ INSUFFICIENT_DATA - Missing momentum metric. Status: {score_status}")
+            else:
+                score_status = 'partial'
+                score_notes = f"Some metrics missing. Available: {', '.join(available_metrics)}. Missing: {', '.join(missing_metrics)}"
+                logger.warning(f"{symbol}: ⚠️ PARTIAL_DATA - Some metrics missing. Score calculated from available data only.")
+
         return {
             'symbol': symbol,
             'composite_score': float(round(clamp_score(composite_score), 2)) if composite_score is not None else None,
@@ -1875,7 +1955,13 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             'mom': float(round(mom_10d, 2)) if mom_10d is not None else None,
             'mansfield_rs': float(round(mansfield_rs, 2)) if mansfield_rs is not None else None,
             # Positioning component: Accumulation/Distribution Rating
-            'acc_dist_rating': float(round(acc_dist_rating, 2)) if acc_dist_rating is not None else None
+            'acc_dist_rating': float(round(acc_dist_rating, 2)) if acc_dist_rating is not None else None,
+            # Data completeness and flagging (Option 1)
+            'score_status': score_status,
+            'available_metrics': available_metrics,
+            'missing_metrics': missing_metrics,
+            'score_notes': score_notes,
+            'estimated_data_ready_date': estimated_data_ready_date.isoformat() if estimated_data_ready_date else None
         }
 
     except Exception as e:
