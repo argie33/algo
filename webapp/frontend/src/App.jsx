@@ -24,7 +24,6 @@ import {
 import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
-  PlayArrow,
   Settings as SettingsIcon,
   ExpandLess,
   ExpandMore,
@@ -32,13 +31,11 @@ import {
   TrendingUp as TrendingUpIcon,
   Business as BusinessIcon,
   Public as PublicIcon,
-  Search as _SearchIcon,
   FilterList as FilterListIcon,
   ShowChart as ShowChartIcon,
   Event as EventIcon,
   Timeline as TimelineIcon,
   Psychology as PsychologyIcon,
-  Person as PersonIcon,
   AccountBalance as AccountBalanceIcon,
   Analytics as AnalyticsIcon,
   HealthAndSafety as HealthAndSafetyIcon,
@@ -59,12 +56,10 @@ import EarningsCalendar from "./pages/EarningsCalendar";
 import FinancialData from "./pages/FinancialData";
 import ServiceHealth from "./pages/ServiceHealth";
 import TechnicalHistory from "./pages/TechnicalHistory";
-import TradingSignals from "./pages/TradingSignals";
 import PortfolioHoldings from "./pages/PortfolioHoldings";
 import PortfolioDashboard from "./pages/PortfolioDashboard";
 import PortfolioOptimization from "./pages/PortfolioOptimization";
 import TradeHistory from "./pages/TradeHistory";
-import OrderManagement from "./pages/OrderManagement";
 import Sentiment from "./pages/Sentiment";
 import EconomicDashboard from "./pages/EconomicDashboard";
 import Settings from "./pages/Settings";
@@ -131,12 +126,6 @@ const menuItems = [
     category: "stocks",
   },
   {
-    text: "Trading Signals",
-    icon: <TrendingUpIcon />,
-    path: "/trading-signals",
-    category: "stocks",
-  },
-  {
     text: "Financial Data",
     icon: <StorageIcon />,
     path: "/financial-data",
@@ -162,12 +151,6 @@ const menuItems = [
     text: "Trade History",
     icon: <TimelineIcon />,
     path: "/trade-history",
-    category: "portfolio",
-  },
-  {
-    text: "Order Management",
-    icon: <PlayArrow />,
-    path: "/orders",
     category: "portfolio",
   },
   {
@@ -596,7 +579,6 @@ function App() {
             <Route path="/portfolio" element={<ProtectedRoute><PortfolioDashboard /></ProtectedRoute>} />
             <Route path="/portfolio/holdings" element={<ProtectedRoute><PortfolioHoldings /></ProtectedRoute>} />
             <Route path="/trade-history" element={<ProtectedRoute><TradeHistory /></ProtectedRoute>} />
-            <Route path="/orders" element={<ProtectedRoute><OrderManagement /></ProtectedRoute>} />
             <Route
               path="/portfolio/optimize"
               element={<PortfolioOptimization />}
@@ -610,8 +592,6 @@ function App() {
             <Route path="/stock-explorer" element={<StockExplorer />} />
             <Route path="/stocks/:ticker" element={<StockDetail />} />
             <Route path="/screener" element={<StockExplorer />} />
-            <Route path="/trading" element={<TradingSignals />} />
-            <Route path="/trading-signals" element={<TradingSignals />} />
             <Route path="/technical" element={<TechnicalAnalysis />} />
             <Route path="/technical-analysis" element={<TechnicalAnalysis />} />
             <Route path="/earnings" element={<EarningsCalendar />} />

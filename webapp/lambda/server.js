@@ -44,7 +44,6 @@ const screenerRoutes = require("./routes/screener");
 const sectorsRoutes = require("./routes/sectors");
 const sentimentRoutes = require("./routes/sentiment");
 const settingsRoutes = require("./routes/settings");
-const signalsRoutes = require("./routes/signals");
 // const socialRoutes = require("./routes/social"); // Social trading removed - not implemented
 const stockRoutes = require("./routes/stocks");
 const strategyBuilderRoutes = require("./routes/strategyBuilder");
@@ -175,7 +174,6 @@ app.use("/api/screener", screenerRoutes);
 app.use("/api/sectors", sectorsRoutes);
 app.use("/api/sentiment", sentimentRoutes);
 app.use("/api/settings", settingsRoutes);
-app.use("/api/signals", signalsRoutes);
 // app.use("/api/social", socialRoutes); // Social trading removed - not implemented
 app.use("/api/technical", technicalRoutes);
 app.use("/api/trading", tradingRoutes);
@@ -212,7 +210,6 @@ app.get("/api", (req, res) => {
       trading: "/api/trading",
       technical: "/api/technical",
       calendar: "/api/calendar",
-      signals: "/api/signals",
       data: "/api/data",
     },
     timestamp: new Date().toISOString(),
@@ -241,7 +238,6 @@ app.get("/", (req, res) => {
         trading: "/api/trading",
         technical: "/api/technical",
         calendar: "/api/calendar",
-        signals: "/api/signals",
       },
     },
     notes:

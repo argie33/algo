@@ -32,6 +32,13 @@ import {
   Tooltip as RechartsTooltip,
   Legend,
   ComposedChart,
+  ScatterChart,
+  Scatter,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar,
 } from "recharts";
 import {
   TrendingUp,

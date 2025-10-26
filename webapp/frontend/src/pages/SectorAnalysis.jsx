@@ -55,12 +55,17 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
     if (sector?.sector_name) {
       api.get(`/api/sectors/technical-details/sector/${encodeURIComponent(sector.sector_name)}`)
         .then(response => {
-          if (response.data?.history) {
+          if (response.data?.history && Array.isArray(response.data.history)) {
             setTechnicalData(response.data.history);
-            console.log(`[TECHNICAL DATA] Fetched for ${sector.sector_name}: ${response.data.history.length} rows`);
+            console.log(`[TECHNICAL DATA] ✅ Fetched for ${sector.sector_name}: ${response.data.history.length} rows`);
+          } else {
+            console.log(`[TECHNICAL DATA] ⚠️ No history data in response for ${sector.sector_name}:`, response.data);
           }
         })
-        .catch(err => console.error(`Failed to fetch technical data for ${sector.sector_name}:`, err.message));
+        .catch(err => {
+          console.log(`[TECHNICAL DATA] ⚠️ No technical data available for ${sector.sector_name}: ${err.response?.status || err.message}`);
+          // This is OK - just means no technical data yet, will display momentum only
+        });
     }
   }, [sector?.sector_name]);
 
@@ -89,13 +94,13 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
   }
 
   return (
-    <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, minHeight: 450, mb: 3 }}>
+    <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, minHeight: 500, mb: 3 }}>
       <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
         ⚡ Daily Strength Score & Technical Indicators
       </Typography>
       {momentumData && momentumData.length > 0 ? (
-        <Box sx={{ width: "100%", height: 400 }}>
-          <ResponsiveContainer width="100%" height="100%">
+        <Box sx={{ width: "100%", height: 400, position: "relative" }}>
+          <ResponsiveContainer width="100%" height={400}>
             <LineChart data={momentumData} margin={{ top: 5, right: 120, left: 60, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" tick={{ fontSize: 12 }} />
@@ -141,12 +146,17 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
     if (industry?.industry) {
       api.get(`/api/sectors/technical-details/industry/${encodeURIComponent(industry.industry)}`)
         .then(response => {
-          if (response.data?.history) {
+          if (response.data?.history && Array.isArray(response.data.history)) {
             setTechnicalData(response.data.history);
-            console.log(`[TECHNICAL DATA] Fetched for ${industry.industry}: ${response.data.history.length} rows`);
+            console.log(`[TECHNICAL DATA] ✅ Fetched for ${industry.industry}: ${response.data.history.length} rows`);
+          } else {
+            console.log(`[TECHNICAL DATA] ⚠️ No history data in response for ${industry.industry}:`, response.data);
           }
         })
-        .catch(err => console.error(`Failed to fetch technical data for ${industry.industry}:`, err.message));
+        .catch(err => {
+          console.log(`[TECHNICAL DATA] ⚠️ No technical data available for ${industry.industry}: ${err.response?.status || err.message}`);
+          // This is OK - just means no technical data yet, will display momentum only
+        });
     }
   }, [industry?.industry]);
 
@@ -175,13 +185,13 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
   }
 
   return (
-    <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2, minHeight: 450, mb: 3 }}>
+    <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2, minHeight: 500, mb: 3 }}>
       <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
         ⚡ Daily Strength Score & Technical Indicators
       </Typography>
       {momentumData && momentumData.length > 0 ? (
-        <Box sx={{ width: "100%", height: 400 }}>
-          <ResponsiveContainer width="100%" height="100%">
+        <Box sx={{ width: "100%", height: 400, position: "relative" }}>
+          <ResponsiveContainer width="100%" height={400}>
             <LineChart data={momentumData} margin={{ top: 5, right: 120, left: 60, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" tick={{ fontSize: 12 }} />
@@ -206,7 +216,7 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
           </ResponsiveContainer>
         </Box>
       ) : (
-        <Typography variant="body2" color="error" sx={{ py: 2 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
           Loading chart data...
         </Typography>
       )}
