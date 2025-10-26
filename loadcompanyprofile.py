@@ -4,6 +4,7 @@ Unified Company & Market Data Loader - Loads stock tickers from Yahoo Finance
 Replaces deprecated loadinfo.py
 Loads BOTH company_profile and market_data tables for all 5,315 stocks
 Ensures data consistency by populating both from same yfinance API call
+Last triggered: 2025-10-26 (sectors site deployment)
 """
 
 import sys
