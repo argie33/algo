@@ -874,23 +874,18 @@ if __name__ == "__main__":
         """)
 
         # Create positioning_metrics table if not exists
+        # Note: shares_short fields belong in key_metrics, not here
         cur.execute("""
             CREATE TABLE IF NOT EXISTS positioning_metrics (
                 id SERIAL PRIMARY KEY,
                 symbol VARCHAR(20),
                 date DATE,
-                institutional_ownership DECIMAL(8,6),
-                institutional_float_held DECIMAL(8,6),
-                institution_count INTEGER,
-                insider_ownership DECIMAL(8,6),
-                shares_short BIGINT,
-                shares_short_prior_month BIGINT,
+                institutional_ownership_pct DECIMAL(8,6),
+                top_10_institutions_pct DECIMAL(8,6),
+                institutional_holders_count INTEGER,
+                insider_ownership_pct DECIMAL(8,6),
                 short_ratio DECIMAL(8,2),
-                short_percent_of_float DECIMAL(8,6),
-                short_interest_change DECIMAL(8,4),
-                short_interest_date DATE,
-                float_shares BIGINT,
-                shares_outstanding BIGINT,
+                short_interest_pct DECIMAL(8,6),
                 created_at TIMESTAMP DEFAULT NOW(),
                 updated_at TIMESTAMP DEFAULT NOW(),
                 UNIQUE(symbol, date)
