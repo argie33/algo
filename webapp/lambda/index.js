@@ -1,9 +1,9 @@
-// Load environment variables first - trigger Lambda deployment Mon Oct 6 22:30 CDT 2025
+// Load environment variables first - trigger Lambda deployment Oct 26 22:30 UTC 2025
 require("dotenv").config({ path: ".env.local" });
 require("dotenv").config(); // Also load from .env as fallback
 
 // Financial Dashboard API - Lambda Function
-// Updated: 2025-06-25 - Fixed CORS configuration for API Gateway
+// Updated: 2025-10-26 - Fixed CORS configuration (CloudFront: https://d1copuy2oqlazx.cloudfront.net)
 
 const { createServer } = require("http");
 
