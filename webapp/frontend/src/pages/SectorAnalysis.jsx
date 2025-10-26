@@ -43,18 +43,45 @@ import {
   getChangeColor,
 } from "../utils/formatters";
 
-// Helper component for sector momentum chart - uses trendData already in sector prop
+// Helper component for sector momentum chart - merges momentum and technical data
 const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
+  const [technicalData, setTechnicalData] = useState([]);
+
   // Use trendData directly from sector object (already loaded from /sectors-with-history)
   const trendArray = sector?.trendData || [];
 
-  let momentumData = trendArray.map(row => ({
-    date: row.date,
-    momentum: parseFloat(row.dailyStrengthScore || row.momentumScore || row.momentum || 0),
-    rank: row.rank
-  }));
+  // Fetch technical data on mount
+  useEffect(() => {
+    if (sector?.sector_name) {
+      api.get(`/api/sectors/technical-details/sector/${encodeURIComponent(sector.sector_name)}`)
+        .then(response => {
+          if (response.data?.history) {
+            setTechnicalData(response.data.history);
+            console.log(`[TECHNICAL DATA] Fetched for ${sector.sector_name}: ${response.data.history.length} rows`);
+          }
+        })
+        .catch(err => console.error(`Failed to fetch technical data for ${sector.sector_name}:`, err.message));
+    }
+  }, [sector?.sector_name]);
 
-  console.log(`[MOMENTUM CHART - SECTOR] ${sector?.sector_name || sector?.sector}: ${trendArray.length} rows, ${momentumData.length} mapped points`, momentumData.slice(0, 3));
+  // Merge momentum and technical data by date
+  let momentumData = trendArray.map(row => {
+    const date = row.date;
+    const techRow = technicalData.find(t => t.date === date);
+
+    return {
+      date,
+      momentum: parseFloat(row.dailyStrengthScore || 0),
+      rank: row.rank,
+      ma_20: techRow?.ma_20 ? parseFloat(techRow.ma_20) : null,
+      ma_50: techRow?.ma_50 ? parseFloat(techRow.ma_50) : null,
+      ma_200: techRow?.ma_200 ? parseFloat(techRow.ma_200) : null,
+      rsi: techRow?.rsi ? parseFloat(techRow.rsi) : null,
+      close: techRow?.close ? parseFloat(techRow.close) : null
+    };
+  });
+
+  console.log(`[MOMENTUM CHART - SECTOR] ${sector?.sector_name}: ${trendArray.length} momentum rows, ${technicalData.length} technical rows, ${momentumData.filter(m => m.ma_20).length} merged rows`);
 
   // Use ALL data for momentum chart (no date filtering)
   if (aggregateToWeekly && momentumData.length > 0) {
@@ -62,41 +89,39 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
   }
 
   return (
-    <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, minHeight: 350, mb: 3 }}>
+    <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, minHeight: 450, mb: 3 }}>
       <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-        ⚡ Daily Strength Score (90-day trend)
+        ⚡ Daily Strength Score & Technical Indicators
       </Typography>
       {momentumData && momentumData.length > 0 ? (
-        <Box sx={{ width: "100%", height: 300 }}>
+        <Box sx={{ width: "100%", height: 400 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={momentumData} margin={{ top: 5, right: 20, left: 60, bottom: 5 }}>
+            <LineChart data={momentumData} margin={{ top: 5, right: 120, left: 60, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-              <YAxis width={60} tick={{ fontSize: 12 }} yAxisId="left" label={{ value: "Momentum", angle: -90, position: "insideLeft" }} />
+              <YAxis width={60} tick={{ fontSize: 12 }} yAxisId="left" label={{ value: "Price/Momentum", angle: -90, position: "insideLeft" }} />
+              <YAxis width={50} tick={{ fontSize: 12 }} yAxisId="right" orientation="right" domain={[0, 100]} label={{ value: "RSI", angle: 90, position: "insideRight" }} />
               <Tooltip
                 formatter={(value) => typeof value === 'number' ? value.toFixed(2) : "N/A"}
                 labelFormatter={(label) => `Date: ${label}`}
               />
-              <Legend wrapperStyle={{ paddingTop: 10 }} />
+              <Legend wrapperStyle={{ paddingRight: 20 }} />
 
               {/* Daily Strength Score - Main Line */}
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="momentum"
-                stroke="#ff9800"
-                strokeWidth={2}
-                dot={false}
-                isAnimationActive={false}
-                name="Daily Strength Score"
-              />
+              <Line yAxisId="left" type="monotone" dataKey="momentum" stroke="#ff9800" strokeWidth={3} dot={false} isAnimationActive={false} name="Daily Strength Score" />
+
+              {/* Technical Indicators */}
+              <Line yAxisId="left" type="monotone" dataKey="ma_20" stroke="#1976d2" strokeWidth={2} dot={false} isAnimationActive={false} name="SMA 20" />
+              <Line yAxisId="left" type="monotone" dataKey="ma_50" stroke="#d32f2f" strokeWidth={2} dot={false} isAnimationActive={false} name="SMA 50" />
+              <Line yAxisId="left" type="monotone" dataKey="ma_200" stroke="#388e3c" strokeWidth={2} dot={false} isAnimationActive={false} strokeDasharray="5,5" name="SMA 200" />
+              <Line yAxisId="right" type="monotone" dataKey="rsi" stroke="#f57c00" strokeWidth={2} dot={false} isAnimationActive={false} name="RSI (14)" />
 
             </LineChart>
           </ResponsiveContainer>
         </Box>
       ) : (
         <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-          No momentum data available - technical data will load separately
+          Loading chart data...
         </Typography>
       )}
 

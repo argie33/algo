@@ -1165,6 +1165,7 @@ router.get("/technical-details/sector/:sectorName", async (req, res) => {
         ma_20: row.ma_20 ? parseFloat(row.ma_20) : null,
         ma_50: row.ma_50 ? parseFloat(row.ma_50) : null,
         ma_200: row.ma_200 ? parseFloat(row.ma_200) : null,
+        rsi: row.rsi ? parseFloat(row.rsi) : null,
         volume: parseInt(row.volume)
       })),
       timestamp: new Date().toISOString()
@@ -1250,6 +1251,7 @@ router.get("/technical-details/industry/:industryName", async (req, res) => {
         ma_20: row.ma_20 ? parseFloat(row.ma_20) : null,
         ma_50: row.ma_50 ? parseFloat(row.ma_50) : null,
         ma_200: row.ma_200 ? parseFloat(row.ma_200) : null,
+        rsi: row.rsi ? parseFloat(row.rsi) : null,
         volume: parseInt(row.volume)
       })),
       timestamp: new Date().toISOString()
