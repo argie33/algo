@@ -426,7 +426,11 @@ def handler(event, context):
             # — Alternative Financial Conditions —
             "TERMCBCCALLNS","TERMCBCCRMNRNRNXBD",
             # — U.S. Housing & Construction —
-            "HOUST","PERMIT","CSUSHPISA","RHORUSQ156N","RRVRUSQ156N","USHVAC"
+            "HOUST","PERMIT","CSUSHPISA","RHORUSQ156N","RRVRUSQ156N","USHVAC",
+            # — LAGGING ECONOMIC INDICATORS —
+            "UEMPMEAN","PRIME","MMNRNJ","ISITC","TOTALSA","IMPGS","LBMVRTQ",
+            # — COINCIDENT ECONOMIC INDICATORS —
+            "UMCSENT","RSXFS","EMSRATIO"
         ]
 
         fred = Fred(api_key=FRED_API_KEY)
