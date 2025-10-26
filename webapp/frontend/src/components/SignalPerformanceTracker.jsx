@@ -66,7 +66,7 @@ const SignalPerformanceTracker = ({ symbols = [], timeframe = "7d" }) => {
       // Fetch performance data for each symbol
       const performancePromises = symbols.map(async (symbol) => {
         try {
-          const response = await fetch(`/api/signals/performance/${symbol}?timeframe=${timeframe}`);
+          const response = await fetch(`http://localhost:3001/api/signals/performance/${symbol}?timeframe=${timeframe}`);
           if (response.ok) {
             return await response.json();
           }

@@ -33,7 +33,7 @@ const RealTimePriceWidget = ({
             try {
               // First try to get from stocks list API
               const stocksResponse = await fetch(
-                `/api/stocks?symbol=${symbol}`
+                `http://localhost:3001/api/stocks?symbol=${symbol}`
               );
               if (stocksResponse.ok) {
                 const stocksResult = await stocksResponse.json();
@@ -62,7 +62,7 @@ const RealTimePriceWidget = ({
               }
 
               // Fallback to price API
-              const priceResponse = await fetch(`/api/price/${symbol}`);
+              const priceResponse = await fetch(`http://localhost:3001/api/price/${symbol}`);
               if (priceResponse.ok) {
                 const priceResult = await priceResponse.json();
                 if (priceResult.success && priceResult.data) {

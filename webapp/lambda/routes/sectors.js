@@ -473,22 +473,17 @@ router.get("/sectors-with-history", async (req, res) => {
           const perf_5d = parseFloat(row.current_perf_5d || 0);
           const perf_20d = parseFloat(row.current_perf_20d || 0);
 
-          // Fetch actual 90-day trend data from database
+          // Fetch 90-day trend data from sector_ranking (historical rankings only)
           let trendData = [];
           try {
-            // sector_ranking already has technical indicators built-in
+            // sector_ranking has: date, daily_strength_score, trend
+            // Technical indicators (RSI, SMA) are in sector_technical_data table
             const historicalTrendQuery = `
               SELECT
                 sr.date,
                 sr.daily_strength_score,
-                COALESCE(sr.daily_strength_score * 1.5, 0) as momentum,
-                sr.rsi14 as rsi,
-                sr.sma20 as sma20,
-                sr.sma5 as sma5,
-                sr.ema5 as ema5,
-                sr.momentum10,
-                sr.volatility5,
-                sr.acceleration
+                sr.current_rank,
+                sr.trend
               FROM sector_ranking sr
               WHERE LOWER(sr.sector) = LOWER($1)
               AND sr.date >= CURRENT_DATE - INTERVAL '90 days'
@@ -501,18 +496,12 @@ router.get("/sectors-with-history", async (req, res) => {
               return {
                 date: dateStr,
                 dailyStrengthScore: parseFloat(r.daily_strength_score || 0).toFixed(2),
-                momentum: parseFloat(r.momentum || 0).toFixed(2),
-                rsi: r.rsi ? parseFloat(r.rsi).toFixed(2) : null,
-                sma20: r.sma20 ? parseFloat(r.sma20).toFixed(2) : null,
-                sma5: r.sma5 ? parseFloat(r.sma5).toFixed(2) : null,
-                ema5: r.ema5 ? parseFloat(r.ema5).toFixed(2) : null,
-                momentum10: r.momentum10 ? parseFloat(r.momentum10).toFixed(2) : null,
-                volatility5: r.volatility5 ? parseFloat(r.volatility5).toFixed(2) : null,
-                acceleration: r.acceleration ? parseFloat(r.acceleration).toFixed(2) : null
+                rank: r.current_rank,
+                trend: r.trend
               };
             });
           } catch (trendError) {
-            // No synthetic data allowed - log error and set empty trend
+            // Log error and set empty trend
             console.error(`❌ Could not fetch trend data for ${row.sector_name}:`, trendError.message);
             trendData = [];
           }

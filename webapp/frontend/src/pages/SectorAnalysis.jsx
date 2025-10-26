@@ -51,13 +51,7 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
   let momentumData = trendArray.map(row => ({
     date: row.date,
     momentum: parseFloat(row.dailyStrengthScore || row.momentumScore || row.momentum || 0),
-    rsi: row.rsi ? parseFloat(row.rsi) : null,
-    sma20: row.sma20 ? parseFloat(row.sma20) * 30 : null,  // Scale up 30x for visibility on left axis
-    sma5: row.sma5 ? parseFloat(row.sma5) * 30 : null,    // Scale up 30x for visibility on left axis
-    ema5: row.ema5 ? parseFloat(row.ema5) * 30 : null,    // Scale up 30x for visibility on left axis
-    momentum10: row.momentum10 ? parseFloat(row.momentum10) : null,
-    volatility5: row.volatility5 ? parseFloat(row.volatility5) : null,
-    acceleration: row.acceleration ? parseFloat(row.acceleration) : null
+    rank: row.rank
   }));
 
   console.log(`[MOMENTUM CHART - SECTOR] ${sector?.sector_name || sector?.sector}: ${trendArray.length} rows, ${momentumData.length} mapped points`, momentumData.slice(0, 3));
@@ -68,25 +62,22 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
   }
 
   return (
-    <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, minHeight: 450, mb: 3 }}>
+    <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, minHeight: 350, mb: 3 }}>
       <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-        ⚡ Daily Strength Score
+        ⚡ Daily Strength Score (90-day trend)
       </Typography>
       {momentumData && momentumData.length > 0 ? (
-        <Box sx={{ width: "100%", height: 400 }}>
+        <Box sx={{ width: "100%", height: 300 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={momentumData} margin={{ top: 5, right: 120, left: 60, bottom: 5 }}>
+            <LineChart data={momentumData} margin={{ top: 5, right: 20, left: 60, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-              {/* Primary Y-axis for Daily Strength Score */}
-              <YAxis width={50} tick={{ fontSize: 12 }} yAxisId="left" />
-              {/* Secondary Y-axis for RSI (0-100) */}
-              <YAxis width={50} tick={{ fontSize: 12 }} yAxisId="right" orientation="right" domain={[0, 100]} />
+              <YAxis width={60} tick={{ fontSize: 12 }} yAxisId="left" label={{ value: "Momentum", angle: -90, position: "insideLeft" }} />
               <Tooltip
-                formatter={(value) => value?.toFixed(2) || "N/A"}
+                formatter={(value) => typeof value === 'number' ? value.toFixed(2) : "N/A"}
                 labelFormatter={(label) => `Date: ${label}`}
               />
-              <Legend wrapperStyle={{ paddingRight: 20 }} />
+              <Legend wrapperStyle={{ paddingTop: 10 }} />
 
               {/* Daily Strength Score - Main Line */}
               <Line
@@ -94,53 +85,10 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
                 type="monotone"
                 dataKey="momentum"
                 stroke="#ff9800"
-                strokeWidth={3}
-                dot={false}
-                isAnimationActive={false}
-                name="Daily Strength"
-              />
-
-              {/* Technical Indicators */}
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="sma20"
-                stroke="#1976d2"
                 strokeWidth={2}
                 dot={false}
                 isAnimationActive={false}
-                name="SMA 20"
-              />
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="sma5"
-                stroke="#d32f2f"
-                strokeWidth={2}
-                dot={false}
-                isAnimationActive={false}
-                name="SMA 5"
-              />
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="ema5"
-                stroke="#f57c00"
-                strokeWidth={2}
-                dot={false}
-                isAnimationActive={false}
-                strokeDasharray="5,5"
-                name="EMA 5"
-              />
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="rsi"
-                stroke="#388e3c"
-                strokeWidth={2}
-                dot={false}
-                isAnimationActive={false}
-                name="RSI (14)"
+                name="Daily Strength Score"
               />
 
             </LineChart>
@@ -148,7 +96,7 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
         </Box>
       ) : (
         <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-          No momentum data available for this sector
+          No momentum data available - technical data will load separately
         </Typography>
       )}
 
@@ -164,13 +112,7 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
   let momentumData = trendArray.map(row => ({
     date: row.date,
     momentum: parseFloat(row.dailyStrengthScore || row.momentumScore || row.momentum || 0),
-    rsi: row.rsi ? parseFloat(row.rsi) : null,
-    sma20: row.sma20 ? parseFloat(row.sma20) * 30 : null,  // Scale up 30x for visibility on left axis
-    sma5: row.sma5 ? parseFloat(row.sma5) * 30 : null,    // Scale up 30x for visibility on left axis
-    ema5: row.ema5 ? parseFloat(row.ema5) * 30 : null,    // Scale up 30x for visibility on left axis
-    momentum10: row.momentum10 ? parseFloat(row.momentum10) : null,
-    volatility5: row.volatility5 ? parseFloat(row.volatility5) : null,
-    acceleration: row.acceleration ? parseFloat(row.acceleration) : null
+    rank: row.rank
   }));
 
   console.log(`[MOMENTUM CHART - INDUSTRY] ${industry?.industry}: ${trendArray.length} rows, ${momentumData.length} mapped points`, momentumData.slice(0, 3));
@@ -181,25 +123,22 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
   }
 
   return (
-    <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2, minHeight: 450, mb: 3 }}>
+    <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2, minHeight: 350, mb: 3 }}>
       <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-        ⚡ Daily Strength Score
+        ⚡ Daily Strength Score (90-day trend)
       </Typography>
       {momentumData && momentumData.length > 0 ? (
-        <Box sx={{ width: "100%", height: 400 }}>
+        <Box sx={{ width: "100%", height: 300 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={momentumData} margin={{ top: 5, right: 120, left: 60, bottom: 5 }}>
+            <LineChart data={momentumData} margin={{ top: 5, right: 20, left: 60, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-              {/* Primary Y-axis for Daily Strength Score */}
-              <YAxis width={50} tick={{ fontSize: 12 }} yAxisId="left" />
-              {/* Secondary Y-axis for RSI (0-100) */}
-              <YAxis width={50} tick={{ fontSize: 12 }} yAxisId="right" orientation="right" domain={[0, 100]} />
+              <YAxis width={60} tick={{ fontSize: 12 }} yAxisId="left" label={{ value: "Momentum", angle: -90, position: "insideLeft" }} />
               <Tooltip
-                formatter={(value) => value?.toFixed(2) || "N/A"}
+                formatter={(value) => typeof value === 'number' ? value.toFixed(2) : "N/A"}
                 labelFormatter={(label) => `Date: ${label}`}
               />
-              <Legend wrapperStyle={{ paddingRight: 20 }} />
+              <Legend wrapperStyle={{ paddingTop: 10 }} />
 
               {/* Daily Strength Score - Main Line */}
               <Line
@@ -207,53 +146,10 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
                 type="monotone"
                 dataKey="momentum"
                 stroke="#ff9800"
-                strokeWidth={3}
-                dot={false}
-                isAnimationActive={false}
-                name="Daily Strength"
-              />
-
-              {/* Technical Indicators */}
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="sma20"
-                stroke="#1976d2"
                 strokeWidth={2}
                 dot={false}
                 isAnimationActive={false}
-                name="SMA 20"
-              />
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="sma5"
-                stroke="#d32f2f"
-                strokeWidth={2}
-                dot={false}
-                isAnimationActive={false}
-                name="SMA 5"
-              />
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="ema5"
-                stroke="#f57c00"
-                strokeWidth={2}
-                dot={false}
-                isAnimationActive={false}
-                strokeDasharray="5,5"
-                name="EMA 5"
-              />
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="rsi"
-                stroke="#388e3c"
-                strokeWidth={2}
-                dot={false}
-                isAnimationActive={false}
-                name="RSI (14)"
+                name="Daily Strength Score"
               />
 
             </LineChart>
@@ -261,7 +157,7 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
         </Box>
       ) : (
         <Typography variant="body2" color="error" sx={{ py: 2 }}>
-          No momentum data: {trendArray.length === 0 ? 'API returned empty' : 'aggregation failed'}
+          No momentum data available - technical data will load separately
         </Typography>
       )}
 

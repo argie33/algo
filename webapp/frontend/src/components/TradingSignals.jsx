@@ -106,7 +106,7 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
         params.append("symbol", selectedSymbol);
       }
 
-      const response = await fetch(`/api/signals/ai-signals?${params}`);
+      const response = await fetch(`http://localhost:3001/api/signals/ai-signals?${params}`);
       const data = await response.json();
 
       if (data.success) {

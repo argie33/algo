@@ -142,7 +142,7 @@ const TradeHistory = () => {
         ...(searchTerm && { search: searchTerm }),
       });
 
-      const response = await fetch(`/api/trades/history?${params}`, {
+      const response = await fetch(`http://localhost:3001/api/trades/history?${params}`, {
         headers: {
           Authorization: `Bearer ${authToken}`,
         },
