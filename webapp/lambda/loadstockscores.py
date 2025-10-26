@@ -219,14 +219,12 @@ def _calculate_population_stats(conn):
         cur = conn.cursor()
         cur.execute("""
             SELECT
-                AVG(institutional_ownership) as inst_own_mean,
-                STDDEV(institutional_ownership) as inst_own_std,
-                AVG(insider_ownership) as insider_own_mean,
-                STDDEV(insider_ownership) as insider_own_std,
-                AVG(short_interest_change) as short_change_mean,
-                STDDEV(short_interest_change) as short_change_std,
-                AVG(short_percent_of_float) as short_pct_mean,
-                STDDEV(short_percent_of_float) as short_pct_std
+                AVG(institutional_ownership_pct) as inst_own_mean,
+                STDDEV(institutional_ownership_pct) as inst_own_std,
+                AVG(insider_ownership_pct) as insider_own_mean,
+                STDDEV(insider_ownership_pct) as insider_own_std,
+                AVG(short_interest_pct) as short_pct_mean,
+                STDDEV(short_interest_pct) as short_pct_std
             FROM positioning_metrics
             WHERE date >= CURRENT_DATE - INTERVAL '30 days'
         """)
@@ -234,41 +232,21 @@ def _calculate_population_stats(conn):
         cur.close()
 
         if not row or all(v is None for v in row):
-            # Return defaults if no data
-            return {
-                'inst_own_mean': 0.56,
-                'inst_own_std': 0.37,
-                'insider_own_mean': 0.15,
-                'insider_own_std': 0.21,
-                'short_change_mean': 0.0,
-                'short_change_std': 0.15,
-                'short_pct_mean': 0.067,
-                'short_pct_std': 0.095,
-            }
+            # Return None - no fallback defaults allowed
+            return None
 
         return {
-            'inst_own_mean': float(row[0] or 0.56),
-            'inst_own_std': float(row[1] or 0.37),
-            'insider_own_mean': float(row[2] or 0.15),
-            'insider_own_std': float(row[3] or 0.21),
-            'short_change_mean': float(row[4] or 0.0),
-            'short_change_std': float(row[5] or 0.15),
-            'short_pct_mean': float(row[6] or 0.067),
-            'short_pct_std': float(row[7] or 0.095),
+            'inst_own_mean': float(row[0]) if row[0] else None,
+            'inst_own_std': float(row[1]) if row[1] else None,
+            'insider_own_mean': float(row[2]) if row[2] else None,
+            'insider_own_std': float(row[3]) if row[3] else None,
+            'short_pct_mean': float(row[4]) if row[4] else None,
+            'short_pct_std': float(row[5]) if row[5] else None,
         }
     except Exception as e:
         logger.warning(f"Error calculating population stats: {e}")
-        # Return defaults on error
-        return {
-            'inst_own_mean': 0.56,
-            'inst_own_std': 0.37,
-            'insider_own_mean': 0.15,
-            'insider_own_std': 0.21,
-            'short_change_mean': 0.0,
-            'short_change_std': 0.15,
-            'short_pct_mean': 0.067,
-            'short_pct_std': 0.095,
-        }
+        # Return None on error - no fallback defaults allowed
+        return None
 
 def calculate_positioning_score(conn, symbol):
     """
@@ -291,10 +269,9 @@ def calculate_positioning_score(conn, symbol):
         # Get latest positioning data for this stock
         cur.execute("""
             SELECT
-                institutional_ownership,
-                insider_ownership,
-                short_interest_change,
-                short_percent_of_float
+                institutional_ownership_pct,
+                insider_ownership_pct,
+                short_interest_pct
             FROM positioning_metrics
             WHERE symbol = %s
             ORDER BY date DESC
@@ -307,7 +284,7 @@ def calculate_positioning_score(conn, symbol):
             cur.close()
             return None
 
-        inst_own, insider_own, short_change, short_pct = data
+        inst_own, insider_own, short_pct = data
 
         # Track available components
         percentiles = []
@@ -318,37 +295,34 @@ def calculate_positioning_score(conn, symbol):
 
         pop_stats = _calculate_population_stats(conn)
 
+        # Return None if no population stats available (no data for z-score normalization)
+        if not pop_stats:
+            cur.close()
+            return None
+
         # 1. Institutional Ownership - Higher is bullish
-        if inst_own is not None:
+        if inst_own is not None and pop_stats.get('inst_own_mean') is not None:
             # Convert Decimal to float if needed
             inst_own_val = float(inst_own)
             # Normalize to 0-100 using z-score
-            z = (inst_own_val - pop_stats['inst_own_mean']) / max(pop_stats['inst_own_std'], 0.01)
+            z = (inst_own_val - pop_stats['inst_own_mean']) / max(pop_stats['inst_own_std'] or 0.01, 0.01)
             # Convert z-score to 0-100 scale (z=-3 -> 0, z=+3 -> 100)
             percentile = 50 + (z / 6) * 50  # z-score of 1 std = ~58
             percentile = max(0, min(100, percentile))
             percentiles.append(percentile)
 
         # 2. Insider Ownership - Higher is bullish
-        if insider_own is not None:
+        if insider_own is not None and pop_stats.get('insider_own_mean') is not None:
             insider_own_val = float(insider_own)
-            z = (insider_own_val - pop_stats['insider_own_mean']) / max(pop_stats['insider_own_std'], 0.01)
+            z = (insider_own_val - pop_stats['insider_own_mean']) / max(pop_stats['insider_own_std'] or 0.01, 0.01)
             percentile = 50 + (z / 6) * 50
             percentile = max(0, min(100, percentile))
             percentiles.append(percentile)
 
-        # 3. Short Interest Change - Lower (more negative) is bullish, so INVERT
-        if short_change is not None:
-            short_change_val = float(short_change)
-            z = (short_change_val - pop_stats['short_change_mean']) / max(pop_stats['short_change_std'], 0.01)
-            percentile = 50 - (z / 6) * 50  # INVERTED: negative z-score = higher percentile
-            percentile = max(0, min(100, percentile))
-            percentiles.append(percentile)
-
-        # 4. Short % of Float - Lower is bullish, so INVERT
-        if short_pct is not None:
+        # 3. Short % of Float - Lower is bullish, so INVERT
+        if short_pct is not None and pop_stats.get('short_pct_mean') is not None:
             short_pct_val = float(short_pct)
-            z = (short_pct_val - pop_stats['short_pct_mean']) / max(pop_stats['short_pct_std'], 0.01)
+            z = (short_pct_val - pop_stats['short_pct_mean']) / max(pop_stats['short_pct_std'] or 0.01, 0.01)
             percentile = 50 - (z / 6) * 50  # INVERTED
             percentile = max(0, min(100, percentile))
             percentiles.append(percentile)
@@ -536,25 +510,48 @@ def get_stock_data_from_database(conn, symbol):
         # Each component ranked relative to population for automatic 0-100 spread
         positioning_score = calculate_positioning_score(conn, symbol)
 
-        # Sentiment Score - placeholder for future implementation
-        sentiment_score = None  # Requires real sentiment data source
+        # Sentiment Score - fetch from sentiment table (real data only)
+        # Note: sentiment_score is on -1 to +1 scale, convert to 0-100
+        sentiment_score = None
+        try:
+            cur.execute("""
+                SELECT sentiment_score
+                FROM sentiment
+                WHERE symbol = %s
+                ORDER BY date DESC
+                LIMIT 1
+            """, (symbol,))
+            sentiment_data = cur.fetchone()
+            if sentiment_data and sentiment_data[0] is not None:
+                # Convert from -1 to +1 scale to 0-100 scale
+                raw_sentiment = float(sentiment_data[0])
+                sentiment_score = (raw_sentiment + 1.0) * 50.0  # -1 -> 0, 0 -> 50, +1 -> 100
+        except Exception as e:
+            logger.warning(f"⚠️ Could not fetch sentiment score for {symbol}: {e}")
+            sentiment_score = None
 
-        # Composite Score (weighted average of all available factors)
+        # Composite Score (weighted average of REAL available factors ONLY - NO DEFAULTS)
         # Weights: momentum(25%) + value(20%) + quality(20%) + growth(20%) + positioning(10%)
-        # Total: 95% (5% buffer for future factors like risk or sentiment)
-        weights = [
-            (momentum_score, 0.25),
-            (value_score, 0.20),
-            (quality_score, 0.20),
-            (growth_score, 0.20),
-            (positioning_score if positioning_score is not None else 50, 0.10),  # Use neutral 50 if positioning unavailable
-        ]
+        # Only include factors that have REAL data, no fallbacks or neutral defaults
+        weights = []
+        weights.append((momentum_score, 0.25))
+        weights.append((value_score, 0.20))
+        weights.append((quality_score, 0.20))
+        weights.append((growth_score, 0.20))
 
-        composite_score = sum(score * weight for score, weight in weights)
+        # ONLY include positioning if we have real data (NOT the fallback 50)
+        if positioning_score is not None:
+            weights.append((positioning_score, 0.10))
+
+        # Calculate only with real data - no padding
+        if weights:
+            composite_score = sum(score * weight for score, weight in weights) / sum(weight for _, weight in weights)
+        else:
+            composite_score = None
 
         return {
             'symbol': symbol,
-            'composite_score': float(round(composite_score, 2)),
+            'composite_score': float(round(composite_score, 2)) if composite_score is not None else None,
             'momentum_score': float(round(momentum_score, 2)),
             'value_score': float(round(value_score, 2)),
             'quality_score': float(round(quality_score, 2)),

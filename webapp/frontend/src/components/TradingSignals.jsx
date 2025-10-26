@@ -56,7 +56,7 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
   const [loading, setLoading] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(null);
   const [signalType, setSignalType] = useState("all");
-  const [timeframe, setTimeframe] = useState("1h");
+  const [timeframe, setTimeframe] = useState("daily");
   const [isRealTime, setIsRealTime] = useState(false);
   const [selectedTab, setSelectedTab] = useState(0);
   const [selectedSignal, setSelectedSignal] = useState(null);
@@ -82,14 +82,11 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
     breakout: { name: "Breakout", color: "primary" },
   };
 
-  // Timeframe options
+  // Timeframe options - only supported timeframes from backend
   const timeframes = {
-    "5m": "5 Minutes",
-    "15m": "15 Minutes",
-    "1h": "1 Hour",
-    "4h": "4 Hours",
-    "1d": "Daily",
-    "1w": "Weekly",
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "monthly": "Monthly",
   };
 
   // Fetch trading signals
@@ -97,24 +94,35 @@ const TradingSignals = ({ onSignalAction, selectedSymbol = null }) => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
-        type: signalType,
         timeframe: timeframe,
         limit: 50,
       });
+
+      if (signalType && signalType !== "all") {
+        params.append("signal_type", signalType.toUpperCase());
+      }
 
       if (selectedSymbol) {
         params.append("symbol", selectedSymbol);
       }
 
-      const response = await fetch(`http://localhost:3001/api/signals/ai-signals?${params}`);
+      const response = await fetch(`http://localhost:3001/api/signals?${params}`);
       const data = await response.json();
 
-      if (data.success) {
+      if (data.success && data.signals) {
+        setSignals(data.signals || []);
+        setLastUpdate(new Date());
+      } else if (data.data?.signals) {
+        // Fallback for different response format
         setSignals(data.data.signals || []);
         setLastUpdate(new Date());
+      } else {
+        console.warn("No signals in response:", data);
+        setSignals([]);
       }
     } catch (error) {
       console.error("Failed to fetch signals:", error);
+      setSignals([]);
     }
     setLoading(false);
   }, [signalType, timeframe, selectedSymbol, isRealTime]);
