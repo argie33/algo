@@ -576,6 +576,110 @@ def get_stock_data_from_database(conn, symbol):
         logger.error(f"❌ Error calculating scores for {symbol}: {e}")
         return None
 
+def get_earnings_metrics(conn, symbol):
+    """
+    Calculate earnings metrics from earnings_metrics table.
+    Returns: {
+        'earnings_surprise_avg': average earnings surprise percentage,
+        'eps_growth_stability': standard deviation of EPS QoQ growth
+    }
+    """
+    try:
+        cur = conn.cursor()
+
+        # Fetch latest earnings data for the symbol
+        cur.execute("""
+            SELECT
+                earnings_surprise_pct,
+                eps_qoq_growth
+            FROM earnings_metrics
+            WHERE symbol = %s
+            ORDER BY report_date DESC
+            LIMIT 12  -- Last 12 quarters (3 years)
+        """, (symbol,))
+
+        earnings_data = cur.fetchall()
+        cur.close()
+
+        if not earnings_data:
+            return {'earnings_surprise_avg': None, 'eps_growth_stability': None}
+
+        # Calculate earnings_surprise_avg
+        surprise_values = [row[0] for row in earnings_data if row[0] is not None]
+        earnings_surprise_avg = sum(surprise_values) / len(surprise_values) if surprise_values else None
+
+        # Calculate eps_growth_stability (standard deviation of EPS QoQ growth)
+        eps_growth_values = [row[1] for row in earnings_data if row[1] is not None]
+        if eps_growth_values and len(eps_growth_values) > 1:
+            mean_growth = sum(eps_growth_values) / len(eps_growth_values)
+            variance = sum((x - mean_growth) ** 2 for x in eps_growth_values) / len(eps_growth_values)
+            eps_growth_stability = variance ** 0.5  # Standard deviation
+        else:
+            eps_growth_stability = None
+
+        return {
+            'earnings_surprise_avg': float(round(earnings_surprise_avg, 2)) if earnings_surprise_avg is not None else None,
+            'eps_growth_stability': float(round(eps_growth_stability, 2)) if eps_growth_stability is not None else None
+        }
+
+    except Exception as e:
+        logger.warning(f"⚠️ Could not fetch earnings metrics for {symbol}: {e}")
+        return {'earnings_surprise_avg': None, 'eps_growth_stability': None}
+
+def save_quality_metrics(conn, symbol, earnings_metrics):
+    """Save earnings metrics to quality_metrics table."""
+    save_conn = None
+    try:
+        # Create a fresh connection for this transaction
+        save_conn = get_db_connection()
+        if not save_conn:
+            logger.error(f"❌ Failed to get fresh connection for {symbol} quality metrics")
+            return False
+
+        cur = save_conn.cursor()
+
+        # Upsert earnings metrics into quality_metrics table
+        upsert_sql = """
+        INSERT INTO quality_metrics (
+            symbol, date, earnings_surprise_avg, eps_growth_stability, fetched_at
+        ) VALUES (
+            %(symbol)s, CURRENT_DATE, %(earnings_surprise_avg)s, %(eps_growth_stability)s, CURRENT_TIMESTAMP
+        ) ON CONFLICT (symbol, date) DO UPDATE SET
+            earnings_surprise_avg = EXCLUDED.earnings_surprise_avg,
+            eps_growth_stability = EXCLUDED.eps_growth_stability,
+            fetched_at = CURRENT_TIMESTAMP
+        """
+
+        data = {
+            'symbol': symbol,
+            'earnings_surprise_avg': earnings_metrics['earnings_surprise_avg'],
+            'eps_growth_stability': earnings_metrics['eps_growth_stability']
+        }
+
+        cur.execute(upsert_sql, data)
+        save_conn.commit()
+        cur.close()
+
+        if earnings_metrics['earnings_surprise_avg'] is not None or earnings_metrics['eps_growth_stability'] is not None:
+            logger.info(f"✅ {symbol}: earnings_surprise_avg={earnings_metrics['earnings_surprise_avg']}, eps_growth_stability={earnings_metrics['eps_growth_stability']}")
+
+        return True
+
+    except psycopg2.Error as e:
+        logger.warning(f"⚠️ Failed to save quality metrics for {symbol}: {e}")
+        try:
+            if save_conn:
+                save_conn.rollback()
+        except:
+            pass
+        return False
+    finally:
+        try:
+            if save_conn:
+                save_conn.close()
+        except:
+            pass
+
 def save_stock_score(conn, score_data):
     """Save stock score to database with isolated transaction."""
     save_conn = None
@@ -690,6 +794,10 @@ def main():
                         if save_stock_score(conn, score_data):
                             successful += 1
                             logger.info(f"✅ {symbol}: Composite Score = {score_data['composite_score']:.2f}, Growth Score = {score_data['growth_score']:.2f}")
+
+                            # Also calculate and save earnings metrics
+                            earnings_metrics = get_earnings_metrics(conn, symbol)
+                            save_quality_metrics(conn, symbol, earnings_metrics)
                         else:
                             failed += 1
                     else:

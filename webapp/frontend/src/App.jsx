@@ -72,6 +72,7 @@ import RootRedirect from "./components/RootRedirect";
 import Watchlist from "./pages/Watchlist";
 import SectorAnalysis from "./pages/SectorAnalysis";
 import AuthTest from "./pages/AuthTest";
+import TradingSignals from "./pages/TradingSignals";
 
 const drawerWidth = 240;
 
@@ -151,6 +152,12 @@ const menuItems = [
     text: "Trade History",
     icon: <TimelineIcon />,
     path: "/trade-history",
+    category: "portfolio",
+  },
+  {
+    text: "Trading Signals",
+    icon: <TrendingUpIcon />,
+    path: "/trading-signals",
     category: "portfolio",
   },
   {
@@ -609,6 +616,7 @@ function App() {
             <Route path="/sector-analysis" element={<SectorAnalysis />} />
             <Route path="/watchlist" element={<Watchlist />} />
             <Route path="/sentiment" element={<Sentiment />} />
+            <Route path="/trading-signals" element={<ProtectedRoute><TradingSignals /></ProtectedRoute>} />
           </Routes>
         </Container>
       </Box>

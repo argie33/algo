@@ -587,7 +587,7 @@ def populate_technical_data(conn):
     """
     Populate sector_technical_data and industry_technical_data tables
     with 200-day price history, moving averages, and RSI indicators
-    Uses market-cap filtering for accurate calculations
+    Uses MARKET-CAP WEIGHTED calculations for accuracy
     """
     logger.info("📊 Populating technical data tables...")
     cursor = conn.cursor()
@@ -600,14 +600,18 @@ def populate_technical_data(conn):
 
         for sector in sectors:
             try:
+                # Market-cap weighted average price calculation for each date
                 cursor.execute("""
-                    SELECT pd.date, AVG(pd.close) as avg_close, SUM(pd.volume) as total_vol
+                    SELECT
+                      pd.date,
+                      SUM(pd.close * md.market_cap) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN md.market_cap ELSE 0 END), 0) as weighted_close,
+                      SUM(pd.volume) as total_vol
                     FROM company_profile cp
                     JOIN price_daily pd ON cp.ticker = pd.symbol
                     INNER JOIN market_data md ON cp.ticker = md.ticker
                     WHERE cp.sector = %s AND md.market_cap > 0
                     GROUP BY pd.date
-                    ORDER BY pd.date ASC LIMIT 200
+                    ORDER BY pd.date ASC
                 """, (sector,))
 
                 data = cursor.fetchall()
@@ -622,12 +626,15 @@ def populate_technical_data(conn):
                 prices = np.array([float(row[1]) for row in valid_data])
                 volumes = [int(row[2]) if row[2] is not None else 0 for row in valid_data]
 
-                rsi = calculate_rsi(prices)
-
+                # Calculate moving averages and RSI for each row
                 for i, date in enumerate(dates):
+                    # Moving averages (only when sufficient data exists)
                     ma20 = float(np.mean(prices[max(0, i-19):i+1])) if i >= 19 else None
                     ma50 = float(np.mean(prices[max(0, i-49):i+1])) if i >= 49 else None
                     ma200 = float(np.mean(prices[max(0, i-199):i+1])) if i >= 199 else None
+
+                    # RSI (14-period) - calculate for each row if enough data
+                    rsi = calculate_rsi(prices[max(0, i-13):i+1]) if i >= 13 else None
 
                     cursor.execute("""
                         INSERT INTO sector_technical_data
@@ -636,8 +643,7 @@ def populate_technical_data(conn):
                         ON CONFLICT (sector, date) DO UPDATE SET
                         ma_20 = EXCLUDED.ma_20, ma_50 = EXCLUDED.ma_50, ma_200 = EXCLUDED.ma_200,
                         rsi = EXCLUDED.rsi, volume = EXCLUDED.volume
-                    """, (sector, date, float(prices[i]), ma20, ma50, ma200,
-                          rsi if i == len(dates)-1 else None, volumes[i]))
+                    """, (sector, date, float(prices[i]), ma20, ma50, ma200, rsi, volumes[i]))
 
                 conn.commit()
             except Exception as e:
@@ -654,14 +660,18 @@ def populate_technical_data(conn):
 
         for industry in industries:
             try:
+                # Market-cap weighted average price calculation for each date
                 cursor.execute("""
-                    SELECT pd.date, AVG(pd.close) as avg_close, SUM(pd.volume) as total_vol
+                    SELECT
+                      pd.date,
+                      SUM(pd.close * md.market_cap) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN md.market_cap ELSE 0 END), 0) as weighted_close,
+                      SUM(pd.volume) as total_vol
                     FROM company_profile cp
                     JOIN price_daily pd ON cp.ticker = pd.symbol
                     INNER JOIN market_data md ON cp.ticker = md.ticker
                     WHERE cp.industry = %s AND md.market_cap > 0
                     GROUP BY pd.date
-                    ORDER BY pd.date ASC LIMIT 200
+                    ORDER BY pd.date ASC
                 """, (industry,))
 
                 data = cursor.fetchall()
@@ -676,12 +686,15 @@ def populate_technical_data(conn):
                 prices = np.array([float(row[1]) for row in valid_data])
                 volumes = [int(row[2]) if row[2] is not None else 0 for row in valid_data]
 
-                rsi = calculate_rsi(prices)
-
+                # Calculate moving averages and RSI for each row
                 for i, date in enumerate(dates):
+                    # Moving averages (only when sufficient data exists)
                     ma20 = float(np.mean(prices[max(0, i-19):i+1])) if i >= 19 else None
                     ma50 = float(np.mean(prices[max(0, i-49):i+1])) if i >= 49 else None
                     ma200 = float(np.mean(prices[max(0, i-199):i+1])) if i >= 199 else None
+
+                    # RSI (14-period) - calculate for each row if enough data
+                    rsi = calculate_rsi(prices[max(0, i-13):i+1]) if i >= 13 else None
 
                     cursor.execute("""
                         INSERT INTO industry_technical_data
@@ -690,8 +703,7 @@ def populate_technical_data(conn):
                         ON CONFLICT (industry, date) DO UPDATE SET
                         ma_20 = EXCLUDED.ma_20, ma_50 = EXCLUDED.ma_50, ma_200 = EXCLUDED.ma_200,
                         rsi = EXCLUDED.rsi, volume = EXCLUDED.volume
-                    """, (industry, date, float(prices[i]), ma20, ma50, ma200,
-                          rsi if i == len(dates)-1 else None, volumes[i]))
+                    """, (industry, date, float(prices[i]), ma20, ma50, ma200, rsi, volumes[i]))
 
                 conn.commit()
             except Exception as e:
