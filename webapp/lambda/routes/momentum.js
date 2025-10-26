@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../db');
+const pool = require('../utils/database');
 
 /**
  * Momentum Metrics Routes
@@ -16,7 +16,7 @@ router.get('/stocks/:symbol', async (req, res) => {
     const { symbol } = req.params;
 
     const result = await pool.query(
-      'SELECT symbol, date, jt_momentum, volatility, turnover FROM momentum_metrics WHERE symbol = $1 ORDER BY date DESC LIMIT 1',
+      'SELECT symbol, date, jt_momentum_12_1, jt_momentum_volatility, risk_adjusted_momentum FROM momentum_metrics WHERE symbol = $1 ORDER BY date DESC LIMIT 1',
       [symbol.toUpperCase()]
     );
 
@@ -26,9 +26,9 @@ router.get('/stocks/:symbol', async (req, res) => {
 
     res.json({
       symbol: result.rows[0].symbol,
-      momentum: result.rows[0].jt_momentum,
-      volatility: result.rows[0].volatility,
-      turnover: result.rows[0].turnover,
+      momentum_12_1: parseFloat(result.rows[0].jt_momentum_12_1 || 0).toFixed(4),
+      volatility: parseFloat(result.rows[0].jt_momentum_volatility || 0).toFixed(4),
+      risk_adjusted_momentum: parseFloat(result.rows[0].risk_adjusted_momentum || 0).toFixed(4),
       date: result.rows[0].date
     });
   } catch (error) {
@@ -46,10 +46,10 @@ router.get('/leaders', async (req, res) => {
     const { limit = 20, minVol = 0 } = req.query;
 
     const result = await pool.query(
-      `SELECT symbol, jt_momentum, volatility, date
+      `SELECT symbol, jt_momentum_12_1, jt_momentum_volatility, date
        FROM momentum_metrics
-       WHERE jt_momentum > $1
-       ORDER BY jt_momentum DESC
+       WHERE jt_momentum_12_1 > $1
+       ORDER BY jt_momentum_12_1 DESC
        LIMIT $2`,
       [minVol, parseInt(limit)]
     );
@@ -58,8 +58,8 @@ router.get('/leaders', async (req, res) => {
       count: result.rows.length,
       data: result.rows.map(row => ({
         symbol: row.symbol,
-        momentum: row.jt_momentum,
-        volatility: row.volatility,
+        momentum_12_1: parseFloat(row.jt_momentum_12_1 || 0).toFixed(4),
+        volatility: parseFloat(row.jt_momentum_volatility || 0).toFixed(4),
         date: row.date
       }))
     });
@@ -78,9 +78,9 @@ router.get('/laggards', async (req, res) => {
     const { limit = 20 } = req.query;
 
     const result = await pool.query(
-      `SELECT symbol, jt_momentum, volatility, date
+      `SELECT symbol, jt_momentum_12_1, jt_momentum_volatility, date
        FROM momentum_metrics
-       ORDER BY jt_momentum ASC
+       ORDER BY jt_momentum_12_1 ASC
        LIMIT $1`,
       [parseInt(limit)]
     );
@@ -89,8 +89,8 @@ router.get('/laggards', async (req, res) => {
       count: result.rows.length,
       data: result.rows.map(row => ({
         symbol: row.symbol,
-        momentum: row.jt_momentum,
-        volatility: row.volatility,
+        momentum_12_1: parseFloat(row.jt_momentum_12_1 || 0).toFixed(4),
+        volatility: parseFloat(row.jt_momentum_volatility || 0).toFixed(4),
         date: row.date
       }))
     });
@@ -109,11 +109,11 @@ router.get('/metrics', async (req, res) => {
     const result = await pool.query(
       `SELECT
         COUNT(*) as total_symbols,
-        AVG(jt_momentum) as avg_momentum,
-        MIN(jt_momentum) as min_momentum,
-        MAX(jt_momentum) as max_momentum,
-        AVG(volatility) as avg_volatility,
-        MAX(volatility) as max_volatility
+        AVG(jt_momentum_12_1) as avg_momentum,
+        MIN(jt_momentum_12_1) as min_momentum,
+        MAX(jt_momentum_12_1) as max_momentum,
+        AVG(jt_momentum_volatility) as avg_volatility,
+        MAX(jt_momentum_volatility) as max_volatility
        FROM momentum_metrics`
     );
 
@@ -141,10 +141,10 @@ router.get('/range', async (req, res) => {
     const { min = -1, max = 1, limit = 100 } = req.query;
 
     const result = await pool.query(
-      `SELECT symbol, jt_momentum, volatility, date
+      `SELECT symbol, jt_momentum_12_1, jt_momentum_volatility, date
        FROM momentum_metrics
-       WHERE jt_momentum >= $1 AND jt_momentum <= $2
-       ORDER BY jt_momentum DESC
+       WHERE jt_momentum_12_1 >= $1 AND jt_momentum_12_1 <= $2
+       ORDER BY jt_momentum_12_1 DESC
        LIMIT $3`,
       [parseFloat(min), parseFloat(max), parseInt(limit)]
     );
@@ -154,8 +154,8 @@ router.get('/range', async (req, res) => {
       count: result.rows.length,
       data: result.rows.map(row => ({
         symbol: row.symbol,
-        momentum: parseFloat(row.jt_momentum).toFixed(4),
-        volatility: row.volatility,
+        momentum_12_1: parseFloat(row.jt_momentum_12_1).toFixed(4),
+        volatility: parseFloat(row.jt_momentum_volatility).toFixed(4),
         date: row.date
       }))
     });
