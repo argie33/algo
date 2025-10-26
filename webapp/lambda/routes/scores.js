@@ -96,11 +96,11 @@ router.get("/", async (req, res) => {
         CAST(ss.value_inputs->>'market_fcf_yield' AS NUMERIC) as market_fcf_yield,
         CAST(ss.value_inputs->>'market_dividend_yield' AS NUMERIC) as market_dividend_yield,
         -- Positioning metrics (from latest date)
-        pos.institutional_ownership,
-        pos.insider_ownership,
-        pos.short_percent_of_float,
+        pos.institutional_ownership_pct,
+        pos.insider_ownership_pct,
+        pos.short_interest_pct,
         pos.short_ratio,
-        pos.institution_count,
+        pos.institutional_holders_count,
         -- Quality metrics from quality_metrics table (from latest date)
         qm.return_on_equity_pct,
         qm.return_on_assets_pct,
@@ -200,12 +200,28 @@ router.get("/", async (req, res) => {
     stocksQuery += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     queryParams.push(limit, offset);
 
-    const stocksResult = await query(stocksQuery, queryParams);
+    let stocksResult;
+    try {
+      stocksResult = await query(stocksQuery, queryParams);
+    } catch (dbError) {
+      console.error("Stocks query error:", dbError);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to fetch stock scores",
+        details: dbError.message,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     if (!stocksResult || !stocksResult.rows) {
+      console.error("Stocks query returned null or empty rows:", {
+        result: stocksResult,
+        query: stocksQuery.substring(0, 200) + "...",
+      });
       return res.status(500).json({
         success: false,
         error: "Database query returned null result",
+        details: "No data available from stocks table",
         timestamp: new Date().toISOString(),
       });
     }
@@ -274,12 +290,12 @@ router.get("/", async (req, res) => {
       },
       // Add positioning components for frontend chart display - NO FALLBACKS
       positioning_components: {
-        institutional_ownership: row.institutional_ownership == null ? null : parseFloat(row.institutional_ownership),
-        insider_ownership: row.insider_ownership == null ? null : parseFloat(row.insider_ownership),
-        short_percent_of_float: row.short_percent_of_float == null ? null : parseFloat(row.short_percent_of_float),
+        institutional_ownership: row.institutional_ownership_pct == null ? null : parseFloat(row.institutional_ownership_pct),
+        insider_ownership: row.insider_ownership_pct == null ? null : parseFloat(row.insider_ownership_pct),
+        short_percent_of_float: row.short_interest_pct == null ? null : parseFloat(row.short_interest_pct),
         short_ratio: row.short_ratio == null ? null : parseFloat(row.short_ratio),
         days_to_cover: row.short_ratio == null ? null : parseFloat(row.short_ratio), // days_to_cover is same as short_ratio
-        institution_count: row.institution_count == null ? null : parseInt(row.institution_count),
+        institution_count: row.institutional_holders_count == null ? null : parseInt(row.institutional_holders_count),
         acc_dist_rating: row.acc_dist_rating == null ? null : parseFloat(row.acc_dist_rating)
       },
       // Add raw valuation inputs for frontend display (extracted from value_inputs JSONB column)

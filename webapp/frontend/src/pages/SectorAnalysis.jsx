@@ -52,9 +52,9 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
     date: row.date,
     momentum: parseFloat(row.dailyStrengthScore || row.momentumScore || row.momentum || 0),
     rsi: row.rsi ? parseFloat(row.rsi) : null,
-    sma20: row.sma20 ? parseFloat(row.sma20) : null,
-    sma5: row.sma5 ? parseFloat(row.sma5) : null,
-    ema5: row.ema5 ? parseFloat(row.ema5) : null,
+    sma20: row.sma20 ? parseFloat(row.sma20) * 10 : null,  // Scale up for visibility
+    sma5: row.sma5 ? parseFloat(row.sma5) * 10 : null,    // Scale up for visibility
+    ema5: row.ema5 ? parseFloat(row.ema5) * 10 : null,    // Scale up for visibility
     momentum10: row.momentum10 ? parseFloat(row.momentum10) : null,
     volatility5: row.volatility5 ? parseFloat(row.volatility5) : null,
     acceleration: row.acceleration ? parseFloat(row.acceleration) : null
@@ -106,37 +106,34 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
                 type="monotone"
                 dataKey="sma20"
                 stroke="#3f51b5"
-                strokeWidth={2}
+                strokeWidth={2.5}
                 dot={false}
                 isAnimationActive={false}
                 name="SMA 20"
                 connectNulls={true}
-                opacity={0.8}
               />
               <Line
                 yAxisId="left"
                 type="monotone"
                 dataKey="sma5"
                 stroke="#f44336"
-                strokeWidth={2}
+                strokeWidth={2.5}
                 dot={false}
                 isAnimationActive={false}
                 name="SMA 5"
                 connectNulls={true}
-                opacity={0.8}
               />
               <Line
                 yAxisId="left"
                 type="monotone"
                 dataKey="ema5"
                 stroke="#4caf50"
-                strokeWidth={2}
+                strokeWidth={2.5}
                 strokeDasharray="5 5"
                 dot={false}
                 isAnimationActive={false}
                 name="EMA 5"
                 connectNulls={true}
-                opacity={0.7}
               />
 
               {/* RSI - Right Y-axis */}
@@ -145,12 +142,11 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
                 type="monotone"
                 dataKey="rsi"
                 stroke="#ff6b00"
-                strokeWidth={2}
+                strokeWidth={2.5}
                 dot={false}
                 isAnimationActive={false}
                 name="RSI (14)"
                 connectNulls={true}
-                opacity={0.7}
                 strokeDasharray="3 3"
               />
             </LineChart>
@@ -186,9 +182,9 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
     date: row.date,
     momentum: parseFloat(row.dailyStrengthScore || row.momentumScore || row.momentum || 0),
     rsi: row.rsi ? parseFloat(row.rsi) : null,
-    sma20: row.sma20 ? parseFloat(row.sma20) : null,
-    sma5: row.sma5 ? parseFloat(row.sma5) : null,
-    ema5: row.ema5 ? parseFloat(row.ema5) : null,
+    sma20: row.sma20 ? parseFloat(row.sma20) * 10 : null,  // Scale up for visibility
+    sma5: row.sma5 ? parseFloat(row.sma5) * 10 : null,    // Scale up for visibility
+    ema5: row.ema5 ? parseFloat(row.ema5) * 10 : null,    // Scale up for visibility
     momentum10: row.momentum10 ? parseFloat(row.momentum10) : null,
     volatility5: row.volatility5 ? parseFloat(row.volatility5) : null,
     acceleration: row.acceleration ? parseFloat(row.acceleration) : null
@@ -240,37 +236,34 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
                 type="monotone"
                 dataKey="sma20"
                 stroke="#3f51b5"
-                strokeWidth={2}
+                strokeWidth={2.5}
                 dot={false}
                 isAnimationActive={false}
                 name="SMA 20"
                 connectNulls={true}
-                opacity={0.8}
               />
               <Line
                 yAxisId="left"
                 type="monotone"
                 dataKey="sma5"
                 stroke="#f44336"
-                strokeWidth={2}
+                strokeWidth={2.5}
                 dot={false}
                 isAnimationActive={false}
                 name="SMA 5"
                 connectNulls={true}
-                opacity={0.8}
               />
               <Line
                 yAxisId="left"
                 type="monotone"
                 dataKey="ema5"
                 stroke="#4caf50"
-                strokeWidth={2}
+                strokeWidth={2.5}
                 strokeDasharray="5 5"
                 dot={false}
                 isAnimationActive={false}
                 name="EMA 5"
                 connectNulls={true}
-                opacity={0.7}
               />
 
               {/* RSI - Right Y-axis */}
@@ -279,12 +272,11 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
                 type="monotone"
                 dataKey="rsi"
                 stroke="#ff6b00"
-                strokeWidth={2}
+                strokeWidth={2.5}
                 dot={false}
                 isAnimationActive={false}
                 name="RSI (14)"
                 connectNulls={true}
-                opacity={0.7}
                 strokeDasharray="3 3"
               />
             </LineChart>
