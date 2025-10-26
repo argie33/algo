@@ -237,7 +237,8 @@ router.get("/", async (req, res) => {
       bsd.base_type, bsd.base_length_days,
       bsd.avg_volume_50d, bsd.volume_surge_pct,
       bsd.rs_rating, bsd.breakout_quality,
-      bsd.risk_reward_ratio, bsd.current_gain_pct, bsd.days_in_position
+      bsd.risk_reward_ratio, bsd.current_gain_pct, bsd.days_in_position,
+      tdd.rsi, tdd.adx, tdd.atr, tdd.ema_21, tdd.sma_50, tdd.sma_200
     `;
 
     const signalsQuery = `
@@ -261,6 +262,7 @@ router.get("/", async (req, res) => {
           LIMIT 1
         ) as days_to_earnings
       FROM ${tableName} bsd
+      LEFT JOIN technical_data_daily tdd ON bsd.symbol = tdd.symbol AND bsd.date = tdd.date
       LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
       LEFT JOIN stock_symbols ss ON bsd.symbol = ss.symbol
       ${whereClause}
@@ -374,22 +376,22 @@ router.get("/", async (req, res) => {
       exit_trigger_4_price: parseFloat(row.exit_trigger_4_price || 0),
       exit_trigger_4_condition: row.exit_trigger_4_condition || null,
 
-      // Volume analysis - REAL DATA
-      volume_ratio: 0,
+      // Volume analysis - REAL DATA with calculations
+      volume_ratio: row.avg_volume_50d ? parseFloat((row.volume / row.avg_volume_50d).toFixed(2)) : 0,
       volume_analysis: null,
       avg_volume_50d: row.avg_volume_50d || 0,
       volume_surge_pct: parseFloat(row.volume_surge_pct || 0),
-      volume_percentile: 0,
+      volume_percentile: 0, // Would require percentile calculation across dataset
       volume_surge_on_breakout: false,
 
-      // Technical indicators - NOT IN buy_sell tables, would require separate calculation
-      pct_from_ema_21: 0,
-      pct_from_sma_50: 0,
-      pct_from_sma_200: 0,
-      rsi: 0,
-      adx: 0,
-      atr: 0,
-      daily_range_pct: 0,
+      // Technical indicators - FROM technical_data_daily JOIN
+      pct_from_ema_21: row.ema_21 ? parseFloat(((row.close - row.ema_21) / row.ema_21 * 100).toFixed(2)) : 0,
+      pct_from_sma_50: row.sma_50 ? parseFloat(((row.close - row.sma_50) / row.sma_50 * 100).toFixed(2)) : 0,
+      pct_from_sma_200: row.sma_200 ? parseFloat(((row.close - row.sma_200) / row.sma_200 * 100).toFixed(2)) : 0,
+      rsi: row.rsi ? parseFloat(row.rsi.toFixed(2)) : 0,
+      adx: row.adx ? parseFloat(row.adx.toFixed(2)) : 0,
+      atr: row.atr ? parseFloat(row.atr.toFixed(4)) : 0,
+      daily_range_pct: (row.high && row.low) ? parseFloat(((row.high - row.low) / row.low * 100).toFixed(2)) : 0,
 
       // Quality metrics - NOT in buy_sell_daily table
       entry_quality_score: 0, // Column doesn't exist
