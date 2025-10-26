@@ -132,6 +132,12 @@ const menuItems = [
     path: "/financial-data",
     category: "stocks",
   },
+  {
+    text: "Trading Signals",
+    icon: <TrendingUpIcon />,
+    path: "/trading-signals",
+    category: "stocks",
+  },
 
   // Sentiment Analysis Section
   {
@@ -152,12 +158,6 @@ const menuItems = [
     text: "Trade History",
     icon: <TimelineIcon />,
     path: "/trade-history",
-    category: "portfolio",
-  },
-  {
-    text: "Trading Signals",
-    icon: <TrendingUpIcon />,
-    path: "/trading-signals",
     category: "portfolio",
   },
   {
