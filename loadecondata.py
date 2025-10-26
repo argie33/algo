@@ -201,12 +201,6 @@ def get_scheduled_economic_events():
         })
     
     return events
-
-def get_mock_calendar_data():
-    """❌ DEPRECATED - Mock calendar data generation removed."""
-    logger.error("❌ get_mock_calendar_data() called - returning empty list (no synthetic data)")
-    return []
-
 def process_calendar_events(events):
     """Process raw calendar events into standardized format."""
     processed = []

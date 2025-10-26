@@ -77,31 +77,69 @@ def create_buy_sell_table(cur):
     cur.execute("DROP TABLE IF EXISTS buy_sell_weekly;")
     cur.execute("""
       CREATE TABLE buy_sell_weekly (
-        id           SERIAL PRIMARY KEY,
-        symbol       VARCHAR(20)    NOT NULL,
-        timeframe    VARCHAR(10)    NOT NULL,
-        date         DATE           NOT NULL,
-        open         REAL,
-        high         REAL,
-        low          REAL,
-        close        REAL,
-        volume       BIGINT,
-        signal       VARCHAR(10),
-        buylevel     REAL,
-        stoplevel    REAL,
-        inposition   BOOLEAN,
-        strength     REAL,
+        id                  SERIAL PRIMARY KEY,
+        symbol              VARCHAR(20)    NOT NULL,
+        timeframe           VARCHAR(10)    NOT NULL,
+        date                DATE           NOT NULL,
+        open                REAL,
+        high                REAL,
+        low                 REAL,
+        close               REAL,
+        volume              BIGINT,
+        signal              VARCHAR(10),
+        buylevel            REAL,
+        stoplevel           REAL,
+        inposition          BOOLEAN,
+        strength            REAL,
+        avg_volume_50d      BIGINT DEFAULT 0,
+        volume_surge_pct    FLOAT DEFAULT 0,
+        risk_reward_ratio   FLOAT DEFAULT 0,
+        breakout_quality    VARCHAR(10) DEFAULT 'WEAK',
         UNIQUE(symbol, timeframe, date)
       );
     """)
 
 def insert_symbol_results(cur, symbol, timeframe, df):
+    # Calculate metrics
+    df['avg_volume_50d'] = df['volume'].rolling(window=50).mean().astype('Int64')
+    df['avg_volume_50d'] = df['avg_volume_50d'].fillna(0).astype('int64')
+
+    df['volume_surge_pct'] = df.apply(
+        lambda row: round(((row['volume'] / row['avg_volume_50d'] - 1) * 100), 2)
+        if row['avg_volume_50d'] > 0 else 0,
+        axis=1
+    )
+
+    df['risk_reward_ratio'] = df.apply(
+        lambda row: round(
+            (((row['close'] * 1.25) - row['buyLevel']) / (row['buyLevel'] - row['stopLevel']))
+            if (row['stopLevel'] > 0 and row['buyLevel'] > 0 and (row['buyLevel'] - row['stopLevel']) != 0) else 0,
+            2
+        ),
+        axis=1
+    )
+
+    def calc_breakout_quality(row):
+        if row['low'] <= 0 or row['avg_volume_50d'] <= 0:
+            return 'WEAK'
+        daily_range_pct = ((row['high'] - row['low']) / row['low']) * 100
+        volume_surge = row['volume_surge_pct']
+        if daily_range_pct > 3.0 and volume_surge > 50:
+            return 'STRONG'
+        elif daily_range_pct > 1.5 and volume_surge > 25:
+            return 'MODERATE'
+        else:
+            return 'WEAK'
+
+    df['breakout_quality'] = df.apply(calc_breakout_quality, axis=1)
+
     insert_q = """
       INSERT INTO buy_sell_weekly (
         symbol, timeframe, date,
         open, high, low, close, volume,
-        signal, buylevel, stoplevel, inposition, strength
-      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        signal, buylevel, stoplevel, inposition, strength,
+        avg_volume_50d, volume_surge_pct, risk_reward_ratio, breakout_quality
+      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
       ON CONFLICT (symbol, timeframe, date) DO NOTHING;
     """
     inserted = 0
@@ -120,7 +158,9 @@ def insert_symbol_results(cur, symbol, timeframe, df):
                 float(row['open']), float(row['high']), float(row['low']),
                 float(row['close']), int(row['volume']),
                 row['Signal'], float(row['buyLevel']),
-                float(row['stopLevel']), bool(row['inPosition']), float(row['strength'])
+                float(row['stopLevel']), bool(row['inPosition']), float(row['strength']),
+                int(row['avg_volume_50d']), float(row['volume_surge_pct']),
+                float(row['risk_reward_ratio']), row['breakout_quality']
             ))
             inserted += 1
         except Exception as e:

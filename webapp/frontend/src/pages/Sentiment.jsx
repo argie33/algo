@@ -532,7 +532,7 @@ const AnalystTrendCard = ({ symbol }) => {
         {metrics && (
           <Grid container spacing={2} sx={{ mb: 3 }}>
             {/* Bullish Distribution */}
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid item xs={12} sm={6} md={2}>
               <Box sx={{
                 p: 2,
                 bgcolor: alpha(theme.palette.success.main, 0.08),
@@ -552,7 +552,7 @@ const AnalystTrendCard = ({ symbol }) => {
             </Grid>
 
             {/* Neutral Distribution */}
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid item xs={12} sm={6} md={2}>
               <Box sx={{
                 p: 2,
                 bgcolor: alpha(theme.palette.info.main, 0.08),
@@ -572,7 +572,7 @@ const AnalystTrendCard = ({ symbol }) => {
             </Grid>
 
             {/* Bearish Distribution */}
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid item xs={12} sm={6} md={2}>
               <Box sx={{
                 p: 2,
                 bgcolor: alpha(theme.palette.error.main, 0.08),
@@ -592,7 +592,7 @@ const AnalystTrendCard = ({ symbol }) => {
             </Grid>
 
             {/* Total Analysts */}
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid item xs={12} sm={6} md={2}>
               <Box sx={{
                 p: 2,
                 bgcolor: alpha(theme.palette.primary.main, 0.08),
@@ -614,7 +614,7 @@ const AnalystTrendCard = ({ symbol }) => {
             {/* Price Target Metrics */}
             {metrics.avgPriceTarget && (
               <>
-                <Grid item xs={12} sm={6} md={3}>
+                <Grid item xs={12} sm={6} md={2}>
                   <Box sx={{
                     p: 2,
                     bgcolor: alpha(theme.palette.warning.main, 0.08),
@@ -635,7 +635,7 @@ const AnalystTrendCard = ({ symbol }) => {
 
                 {/* Upside/Downside Potential */}
                 {metrics.priceTargetVsCurrent !== null && (
-                  <Grid item xs={12} sm={6} md={3}>
+                  <Grid item xs={12} sm={6} md={2}>
                     <Box sx={{
                       p: 2,
                       bgcolor: alpha(
@@ -661,6 +661,64 @@ const AnalystTrendCard = ({ symbol }) => {
                       <Typography variant="caption" color="textSecondary">
                         vs current price
                       </Typography>
+                    </Box>
+                  </Grid>
+                )}
+
+                {/* Coverage Firms Count */}
+                {insightsData && insightsData.coverage && (
+                  <Grid item xs={12} sm={6} md={2}>
+                    <Box sx={{
+                      p: 2,
+                      bgcolor: alpha(theme.palette.secondary.main, 0.08),
+                      borderRadius: 1,
+                      border: `1px solid ${alpha(theme.palette.secondary.main, 0.2)}`
+                    }}>
+                      <Typography variant="overline" color="textSecondary" display="block" sx={{ mb: 0.5 }}>
+                        Analyst Firms
+                      </Typography>
+                      <Typography variant="h5" sx={{ fontWeight: "bold", color: theme.palette.secondary.main, mb: 0.5 }}>
+                        {insightsData.coverage.totalFirms || 0}
+                      </Typography>
+                      <Typography variant="caption" color="textSecondary">
+                        firms covering
+                      </Typography>
+                    </Box>
+                  </Grid>
+                )}
+
+                {/* Recommendation Distribution Summary */}
+                {metrics && (
+                  <Grid item xs={12} sm={6} md={2}>
+                    <Box sx={{
+                      p: 2,
+                      bgcolor: alpha(theme.palette.primary.main, 0.04),
+                      borderRadius: 1,
+                      border: `1px solid ${alpha(theme.palette.primary.main, 0.15)}`
+                    }}>
+                      <Typography variant="overline" color="textSecondary" display="block" sx={{ mb: 1 }}>
+                        Distribution
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Typography variant="caption">Bull</Typography>
+                          <Typography variant="caption" sx={{ fontWeight: 'bold', color: theme.palette.success.main }}>
+                            {metrics.bullish}/{metrics.totalAnalysts}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Typography variant="caption">Neutral</Typography>
+                          <Typography variant="caption" sx={{ fontWeight: 'bold', color: theme.palette.info.main }}>
+                            {metrics.neutral}/{metrics.totalAnalysts}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Typography variant="caption">Bear</Typography>
+                          <Typography variant="caption" sx={{ fontWeight: 'bold', color: theme.palette.error.main }}>
+                            {metrics.bearish}/{metrics.totalAnalysts}
+                          </Typography>
+                        </Box>
+                      </Box>
                     </Box>
                   </Grid>
                 )}
@@ -920,7 +978,7 @@ const AnalystTrendCard = ({ symbol }) => {
                   {sentimentTrend.chartData.slice(0, 20).map((item, idx) => (
                     <TableRow key={idx}>
                       <TableCell>{new Date(item.date).toLocaleDateString()}</TableCell>
-                      <TableCell align="center">{item.ratingMean.toFixed(2)}</TableCell>
+                      <TableCell align="center">{item.ratingMean != null ? item.ratingMean.toFixed(2) : 'N/A'}</TableCell>
                       <TableCell align="center">{item.strongBuy}</TableCell>
                       <TableCell align="center">{item.buy}</TableCell>
                       <TableCell align="center">{item.hold}</TableCell>
@@ -1317,101 +1375,7 @@ function Sentiment() {
         </Typography>
       </Box>
 
-      {/* Section 1: Comparative View Charts - AT THE TOP */}
-      <Box sx={{ mb: 4 }}>
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Market Sentiment Overview
-            </Typography>
-            <Grid container spacing={3}>
-              {/* Left: Sentiment Statistics Cards */}
-              <Grid item xs={12} md={6}>
-                <Grid container spacing={2}>
-                  {/* Bullish Count */}
-                  <Grid item xs={6} sm={6}>
-                    <Box sx={{ p: 2, backgroundColor: '#e8f5e9', borderRadius: 1, textAlign: 'center' }}>
-                      <Typography variant="h4" sx={{ color: '#2e7d32', fontWeight: 'bold' }}>
-                        {stocksList.filter(s => s.compositeSentiment?.label === 'Bullish').length}
-                      </Typography>
-                      <Typography variant="body2" color="textSecondary">
-                        Bullish Stocks
-                      </Typography>
-                    </Box>
-                  </Grid>
-                  {/* Neutral Count */}
-                  <Grid item xs={6} sm={6}>
-                    <Box sx={{ p: 2, backgroundColor: '#f5f5f5', borderRadius: 1, textAlign: 'center' }}>
-                      <Typography variant="h4" sx={{ color: '#616161', fontWeight: 'bold' }}>
-                        {stocksList.filter(s => s.compositeSentiment?.label === 'Neutral').length}
-                      </Typography>
-                      <Typography variant="body2" color="textSecondary">
-                        Neutral Stocks
-                      </Typography>
-                    </Box>
-                  </Grid>
-                  {/* Bearish Count */}
-                  <Grid item xs={6} sm={6}>
-                    <Box sx={{ p: 2, backgroundColor: '#ffebee', borderRadius: 1, textAlign: 'center' }}>
-                      <Typography variant="h4" sx={{ color: '#c62828', fontWeight: 'bold' }}>
-                        {stocksList.filter(s => s.compositeSentiment?.label === 'Bearish').length}
-                      </Typography>
-                      <Typography variant="body2" color="textSecondary">
-                        Bearish Stocks
-                      </Typography>
-                    </Box>
-                  </Grid>
-                  {/* Market Average */}
-                  <Grid item xs={6} sm={6}>
-                    <Box sx={{ p: 2, backgroundColor: '#e3f2fd', borderRadius: 1, textAlign: 'center' }}>
-                      <Typography variant="h4" sx={{ color: '#1565c0', fontWeight: 'bold' }}>
-                        {stocksList.length > 0 ? (stocksList.reduce((sum, s) => sum + (s.compositeScore || 0), 0) / stocksList.length).toFixed(2) : 'N/A'}
-                      </Typography>
-                      <Typography variant="body2" color="textSecondary">
-                        Avg Sentiment
-                      </Typography>
-                    </Box>
-                  </Grid>
-                </Grid>
-              </Grid>
-
-              {/* Right: Source-based Sentiment Pie Chart */}
-              <Grid item xs={12} md={6}>
-                <Typography variant="body2" color="textSecondary" paragraph>
-                  Sentiment Sources Distribution:
-                </Typography>
-                {stocksList.length > 0 && (
-                  <ResponsiveContainer width="100%" height={250}>
-                    <PieChart>
-                      <Pie
-                        data={[
-                          { name: 'News', value: stocksList.filter(s => s.latestNews?.sentiment_score).length },
-                          { name: 'Analyst', value: stocksList.filter(s => s.latestAnalyst?.sentiment_score).length },
-                          { name: 'Social', value: stocksList.filter(s => s.latestSocial?.sentiment_score).length },
-                        ]}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, value, percent }) => `${name}: ${value}`}
-                        outerRadius={70}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {['#0088FE', '#00C49F', '#FFBB28'].map((fill, idx) => (
-                          <Cell key={`cell-${idx}`} fill={fill} />
-                        ))}
-                      </Pie>
-                      <RechartsTooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-      </Box>
-
-      {/* Section 2: Stock Details - Middle Section */}
+      {/* Section 1: Stock Details - Middle Section */}
       <Box sx={{ mb: 4 }}>
         {/* Search and Filter Bar */}
         <Card sx={{ mb: 3 }}>

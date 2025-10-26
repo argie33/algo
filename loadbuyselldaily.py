@@ -791,10 +791,46 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     df['exit_trigger_4_price'] = np.nan
     df['base_type'] = None
     df['base_length_days'] = 0
-    df['volume_surge_pct'] = 0
+
+    # === CALCULATE REAL METRICS ===
+    # Calculate 50-day rolling average volume
+    df['avg_volume_50d'] = df['volume'].rolling(window=50).mean().astype('Int64')
+    df['avg_volume_50d'] = df['avg_volume_50d'].fillna(0).astype('int64')
+
+    # Calculate volume surge percentage: (current_volume / avg_volume_50d - 1) * 100
+    df['volume_surge_pct'] = df.apply(
+        lambda row: round(((row['volume'] / row['avg_volume_50d'] - 1) * 100), 2)
+        if row['avg_volume_50d'] > 0 else 0,
+        axis=1
+    )
+
+    # Calculate risk/reward ratio: (target_price - entry_price) / (entry_price - stop_loss)
+    # target_price = close * 1.25 (25% profit target)
+    df['risk_reward_ratio'] = df.apply(
+        lambda row: round(
+            (((row['close'] * 1.25) - row['buylevel']) / (row['buylevel'] - row['stoplevel']))
+            if (row['stoplevel'] > 0 and row['buylevel'] > 0 and (row['buylevel'] - row['stoplevel']) != 0) else 0,
+            2
+        ),
+        axis=1
+    )
+
+    # Calculate breakout quality based on price range and volume
+    def calc_breakout_quality(row):
+        if row['low'] <= 0 or row['avg_volume_50d'] <= 0:
+            return 'WEAK'
+        daily_range_pct = ((row['high'] - row['low']) / row['low']) * 100
+        volume_surge = row['volume_surge_pct']
+        if daily_range_pct > 3.0 and volume_surge > 50:
+            return 'STRONG'
+        elif daily_range_pct > 1.5 and volume_surge > 25:
+            return 'MODERATE'
+        else:
+            return 'WEAK'
+
+    df['breakout_quality'] = df.apply(calc_breakout_quality, axis=1)
+
     df['rs_rating'] = 50
-    df['breakout_quality'] = None
-    df['risk_reward_ratio'] = 0
     df['current_gain_pct'] = 0
     df['days_in_position'] = 0
 

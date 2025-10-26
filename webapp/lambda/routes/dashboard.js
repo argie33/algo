@@ -1775,19 +1775,11 @@ router.get("/portfolio", authenticateToken, async (req, res) => {
       });
     }
 
-    // Mock portfolio data for now
-    const portfolioData = {
-      total_value: 50000,
-      total_gain_loss: 2500,
-      gain_loss_percent: 5.25,
-      positions: [],
-      top_performers: [],
-      recent_activity: []
-    };
-
-    res.json({
-      success: true,
-      data: portfolioData
+    // Return error - portfolio data requires real user account integration
+    // NO fallback to hardcoded/fake data allowed
+    return res.status(503).json({
+      success: false,
+      error: "Portfolio data not available - user account integration required"
     });
   } catch (error) {
     console.error("Dashboard portfolio error:", error);

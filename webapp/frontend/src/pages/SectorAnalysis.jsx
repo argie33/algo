@@ -52,9 +52,9 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
     date: row.date,
     momentum: parseFloat(row.dailyStrengthScore || row.momentumScore || row.momentum || 0),
     rsi: row.rsi ? parseFloat(row.rsi) : null,
-    sma20: row.sma20 ? parseFloat(row.sma20) * 10 : null,  // Scale up for visibility
-    sma5: row.sma5 ? parseFloat(row.sma5) * 10 : null,    // Scale up for visibility
-    ema5: row.ema5 ? parseFloat(row.ema5) * 10 : null,    // Scale up for visibility
+    sma20: row.sma20 ? parseFloat(row.sma20) * 30 : null,  // Scale up 30x for visibility on left axis
+    sma5: row.sma5 ? parseFloat(row.sma5) * 30 : null,    // Scale up 30x for visibility on left axis
+    ema5: row.ema5 ? parseFloat(row.ema5) * 30 : null,    // Scale up 30x for visibility on left axis
     momentum10: row.momentum10 ? parseFloat(row.momentum10) : null,
     volatility5: row.volatility5 ? parseFloat(row.volatility5) : null,
     acceleration: row.acceleration ? parseFloat(row.acceleration) : null
@@ -68,12 +68,12 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
   }
 
   return (
-    <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, minHeight: 400, mb: 3 }}>
+    <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, minHeight: 450, mb: 3 }}>
       <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-        ⚡ Daily Strength Score (with Moving Averages & RSI Overlay)
+        ⚡ Daily Strength Score
       </Typography>
       {momentumData && momentumData.length > 0 ? (
-        <Box sx={{ width: "100%", height: 350 }}>
+        <Box sx={{ width: "100%", height: 400 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={momentumData} margin={{ top: 5, right: 120, left: 60, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -100,55 +100,49 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
                 name="Daily Strength"
               />
 
-              {/* Moving Averages - Overlaid */}
+              {/* Technical Indicators */}
               <Line
                 yAxisId="left"
                 type="monotone"
                 dataKey="sma20"
-                stroke="#3f51b5"
-                strokeWidth={2.5}
+                stroke="#1976d2"
+                strokeWidth={2}
                 dot={false}
                 isAnimationActive={false}
                 name="SMA 20"
-                connectNulls={true}
               />
               <Line
                 yAxisId="left"
                 type="monotone"
                 dataKey="sma5"
-                stroke="#f44336"
-                strokeWidth={2.5}
+                stroke="#d32f2f"
+                strokeWidth={2}
                 dot={false}
                 isAnimationActive={false}
                 name="SMA 5"
-                connectNulls={true}
               />
               <Line
                 yAxisId="left"
                 type="monotone"
                 dataKey="ema5"
-                stroke="#4caf50"
-                strokeWidth={2.5}
-                strokeDasharray="5 5"
+                stroke="#f57c00"
+                strokeWidth={2}
                 dot={false}
                 isAnimationActive={false}
+                strokeDasharray="5,5"
                 name="EMA 5"
-                connectNulls={true}
               />
-
-              {/* RSI - Right Y-axis */}
               <Line
                 yAxisId="right"
                 type="monotone"
                 dataKey="rsi"
-                stroke="#ff6b00"
-                strokeWidth={2.5}
+                stroke="#388e3c"
+                strokeWidth={2}
                 dot={false}
                 isAnimationActive={false}
                 name="RSI (14)"
-                connectNulls={true}
-                strokeDasharray="3 3"
               />
+
             </LineChart>
           </ResponsiveContainer>
         </Box>
@@ -158,17 +152,6 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
         </Typography>
       )}
 
-      {/* Additional Indicators Info Below */}
-      {momentumData && momentumData.length > 0 && (
-        <Box sx={{ mt: 2, p: 1.5, bgcolor: "background.paper", borderRadius: 1, fontSize: "0.85rem" }}>
-          <Typography variant="caption" fontWeight="bold">Supporting Indicators:</Typography>
-          <ul style={{ margin: "8px 0", paddingLeft: "20px" }}>
-            <li>📈 Momentum (10): Measures rate of change over 10 periods</li>
-            <li>📊 Volatility (5): 5-period price volatility indicator</li>
-            <li>⚡ Acceleration: Rate of momentum change</li>
-          </ul>
-        </Box>
-      )}
     </Box>
   );
 };
@@ -182,9 +165,9 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
     date: row.date,
     momentum: parseFloat(row.dailyStrengthScore || row.momentumScore || row.momentum || 0),
     rsi: row.rsi ? parseFloat(row.rsi) : null,
-    sma20: row.sma20 ? parseFloat(row.sma20) * 10 : null,  // Scale up for visibility
-    sma5: row.sma5 ? parseFloat(row.sma5) * 10 : null,    // Scale up for visibility
-    ema5: row.ema5 ? parseFloat(row.ema5) * 10 : null,    // Scale up for visibility
+    sma20: row.sma20 ? parseFloat(row.sma20) * 30 : null,  // Scale up 30x for visibility on left axis
+    sma5: row.sma5 ? parseFloat(row.sma5) * 30 : null,    // Scale up 30x for visibility on left axis
+    ema5: row.ema5 ? parseFloat(row.ema5) * 30 : null,    // Scale up 30x for visibility on left axis
     momentum10: row.momentum10 ? parseFloat(row.momentum10) : null,
     volatility5: row.volatility5 ? parseFloat(row.volatility5) : null,
     acceleration: row.acceleration ? parseFloat(row.acceleration) : null
@@ -198,12 +181,12 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
   }
 
   return (
-    <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2, minHeight: 400, mb: 3 }}>
+    <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2, minHeight: 450, mb: 3 }}>
       <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-        ⚡ Daily Strength Score (with Moving Averages & RSI Overlay)
+        ⚡ Daily Strength Score
       </Typography>
       {momentumData && momentumData.length > 0 ? (
-        <Box sx={{ width: "100%", height: 350 }}>
+        <Box sx={{ width: "100%", height: 400 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={momentumData} margin={{ top: 5, right: 120, left: 60, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -230,55 +213,49 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
                 name="Daily Strength"
               />
 
-              {/* Moving Averages - Overlaid */}
+              {/* Technical Indicators */}
               <Line
                 yAxisId="left"
                 type="monotone"
                 dataKey="sma20"
-                stroke="#3f51b5"
-                strokeWidth={2.5}
+                stroke="#1976d2"
+                strokeWidth={2}
                 dot={false}
                 isAnimationActive={false}
                 name="SMA 20"
-                connectNulls={true}
               />
               <Line
                 yAxisId="left"
                 type="monotone"
                 dataKey="sma5"
-                stroke="#f44336"
-                strokeWidth={2.5}
+                stroke="#d32f2f"
+                strokeWidth={2}
                 dot={false}
                 isAnimationActive={false}
                 name="SMA 5"
-                connectNulls={true}
               />
               <Line
                 yAxisId="left"
                 type="monotone"
                 dataKey="ema5"
-                stroke="#4caf50"
-                strokeWidth={2.5}
-                strokeDasharray="5 5"
+                stroke="#f57c00"
+                strokeWidth={2}
                 dot={false}
                 isAnimationActive={false}
+                strokeDasharray="5,5"
                 name="EMA 5"
-                connectNulls={true}
               />
-
-              {/* RSI - Right Y-axis */}
               <Line
                 yAxisId="right"
                 type="monotone"
                 dataKey="rsi"
-                stroke="#ff6b00"
-                strokeWidth={2.5}
+                stroke="#388e3c"
+                strokeWidth={2}
                 dot={false}
                 isAnimationActive={false}
                 name="RSI (14)"
-                connectNulls={true}
-                strokeDasharray="3 3"
               />
+
             </LineChart>
           </ResponsiveContainer>
         </Box>
@@ -288,17 +265,6 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
         </Typography>
       )}
 
-      {/* Additional Indicators Info Below */}
-      {momentumData && momentumData.length > 0 && (
-        <Box sx={{ mt: 2, p: 1.5, bgcolor: "background.paper", borderRadius: 1, fontSize: "0.85rem" }}>
-          <Typography variant="caption" fontWeight="bold">Supporting Indicators:</Typography>
-          <ul style={{ margin: "8px 0", paddingLeft: "20px" }}>
-            <li>📈 Momentum (10): Measures rate of change over 10 periods</li>
-            <li>📊 Volatility (5): 5-period price volatility indicator</li>
-            <li>⚡ Acceleration: Rate of momentum change</li>
-          </ul>
-        </Box>
-      )}
     </Box>
   );
 };

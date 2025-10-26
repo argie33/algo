@@ -411,40 +411,12 @@ router.get("/sectors-with-history", async (req, res) => {
 
       const fallbackResult = await query(fallbackQuery, [parseInt(limit)]);
 
-      // If still no data, generate mock data for chart display
+      // No fallback data - return error if database is empty
       if (!fallbackResult || fallbackResult.rows.length === 0) {
-        const mockSectors = [
-          { sector_name: 'Technology', current_perf_1d: 1.24, current_trend: 'Uptrend', current_rank: 1 },
-          { sector_name: 'Healthcare', current_perf_1d: 0.87, current_trend: 'Uptrend', current_rank: 2 },
-          { sector_name: 'Financials', current_perf_1d: 0.45, current_trend: 'Sideways', current_rank: 3 },
-          { sector_name: 'Consumer Discretionary', current_perf_1d: -0.32, current_trend: 'Downtrend', current_rank: 4 },
-          { sector_name: 'Industrials', current_perf_1d: -0.58, current_trend: 'Downtrend', current_rank: 5 },
-          { sector_name: 'Utilities', current_perf_1d: 0.15, current_trend: 'Sideways', current_rank: 6 },
-          { sector_name: 'Real Estate', current_perf_1d: -0.92, current_trend: 'Downtrend', current_rank: 7 },
-          { sector_name: 'Materials', current_perf_1d: 0.33, current_trend: 'Uptrend', current_rank: 8 },
-          { sector_name: 'Energy', current_perf_1d: 1.15, current_trend: 'Uptrend', current_rank: 9 },
-          { sector_name: 'Consumer Staples', current_perf_1d: 0.22, current_trend: 'Sideways', current_rank: 10 },
-        ];
-        // Add mock trend data for each sector so charts display
-        const mockSectorsWithTrend = mockSectors.map(s => ({
-          ...s,
-          trendData: Array.from({ length: 90 }, (_, i) => {
-            const daysAgo = 90 - i;
-            const baseValue = s.current_perf_1d || 0;
-            const trend = Math.sin((i / 90) * Math.PI * 2) * 2 + baseValue;
-            return {
-              date: new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-              dailyStrengthScore: parseFloat((trend + 5).toFixed(2)),
-              momentum: parseFloat((trend * 1.5).toFixed(2))
-            };
-          })
-        }));
-
-        return res.json({
-          success: true,
-          data: { sectors: mockSectorsWithTrend },
-          timestamp: new Date().toISOString(),
-          note: 'Mock data - database tables empty'
+        return res.status(503).json({
+          success: false,
+          error: 'Sector data not available - database required',
+          data: { sectors: [] }
         });
       }
 
@@ -458,17 +430,9 @@ router.get("/sectors-with-history", async (req, res) => {
               const perfValue = parseFloat(trend);
               trend = perfValue > 0 ? 'Uptrend' : perfValue < 0 ? 'Downtrend' : 'Sideways';
             }
-            // Generate 90-day trend data for charts (0-10 range for proper Y-axis scaling)
-            const trendData = Array.from({ length: 90 }, (_, i) => {
-              const daysAgo = 90 - i;
-              const baseValue = parseFloat(row.current_perf_1d || 0);
-              const trend = Math.sin((i / 90) * Math.PI * 2) * 2 + baseValue;
-              return {
-                date: new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                dailyStrengthScore: parseFloat((trend + 5).toFixed(2)),
-                momentum: parseFloat((trend * 1.5).toFixed(2))
-              };
-            });
+            // Trend data from database - empty array if not available
+            // No synthetic chart data generation allowed
+            const trendData = [];
             return {
               sector_name: row.sector_name,
               current_rank: row.current_rank,
@@ -548,18 +512,9 @@ router.get("/sectors-with-history", async (req, res) => {
               };
             });
           } catch (trendError) {
-            // Fallback to synthetic data if database query fails
-            console.warn(`⚠️ Could not fetch trend data for ${row.sector_name}, using synthetic data:`, trendError.message);
-            trendData = Array.from({ length: 90 }, (_, i) => {
-              const daysAgo = 90 - i;
-              const baseValue = (perf_1d !== 0 ? perf_1d : (perf_20d / 20)) * 0.5;
-              const trendValue = Math.sin((i / 90) * Math.PI * 2) * 2 + baseValue;
-              return {
-                date: new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                dailyStrengthScore: parseFloat((trendValue + 5).toFixed(2)),
-                momentum: parseFloat((trendValue * 1.5).toFixed(2))
-              };
-            });
+            // No synthetic data allowed - log error and set empty trend
+            console.error(`❌ Could not fetch trend data for ${row.sector_name}:`, trendError.message);
+            trendData = [];
           }
 
           return {
@@ -570,8 +525,8 @@ router.get("/sectors-with-history", async (req, res) => {
             rank_12w_ago: row.rank_12w_ago,
             current_momentum: row.current_momentum,
             current_trend: trend,
-            current_perf_1d: perf_1d !== 0 ? perf_1d : (perf_20d / 20), // Use 20d as fallback for chart
-            current_perf_5d: perf_5d !== 0 ? perf_5d : perf_20d,
+            current_perf_1d: perf_1d || null,
+            current_perf_5d: perf_5d || null,
             current_perf_20d: perf_20d,
             rank_change_1w: row.rank_change_1w,
             perf_1d_1w_ago: row.perf_1d_1w_ago,
@@ -759,17 +714,8 @@ router.get("/industries-with-history", async (req, res) => {
             const perf_1d = parseFloat(row.performance_1d || 0);
             const perf_20d = parseFloat(row.performance_20d || 0);
 
-            const trendData = Array.from({ length: 90 }, (_, i) => {
-              const daysAgo = 90 - i;
-              // Scale baseValue down by 0.5x to create tighter range (0-10)
-              const baseValue = (perf_1d !== 0 ? perf_1d : (perf_20d / 20)) * 0.5;
-              const trendValue = Math.sin((i / 90) * Math.PI * 2) * 2 + baseValue;
-              return {
-                date: new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                dailyStrengthScore: parseFloat((trendValue + 5).toFixed(2)),
-                momentum: parseFloat((trendValue * 1.5).toFixed(2))
-              };
-            });
+            // No synthetic trend data generation - return empty
+            const trendData = [];
 
             return {
               industry: row.industry,
@@ -809,17 +755,8 @@ router.get("/industries-with-history", async (req, res) => {
             const perf_1d = parseFloat(row.performance_1d || 0);
             const perf_20d = parseFloat(row.performance_20d || 0);
 
-            const trendData = Array.from({ length: 90 }, (_, i) => {
-              const daysAgo = 90 - i;
-              // Scale baseValue down by 0.5x to create tighter range (0-10)
-              const baseValue = (perf_1d !== 0 ? perf_1d : (perf_20d / 20)) * 0.5;
-              const trendValue = Math.sin((i / 90) * Math.PI * 2) * 2 + baseValue;
-              return {
-                date: new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                dailyStrengthScore: parseFloat((trendValue + 5).toFixed(2)),
-                momentum: parseFloat((trendValue * 1.5).toFixed(2))
-              };
-            });
+            // No synthetic trend data generation - return empty
+            const trendData = [];
 
             return {
               industry: row.industry,

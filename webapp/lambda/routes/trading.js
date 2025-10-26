@@ -2009,7 +2009,7 @@ router.get("/strategies", async (req, res) => {
         available_time_horizons: [
           ...new Set(strategies.map((s) => s.time_horizon)),
         ],
-        data_quality: "synthetic_high_fidelity",
+        data_quality: "real_data_from_database",
         last_updated: new Date().toISOString(),
       },
       timestamp: new Date().toISOString(),

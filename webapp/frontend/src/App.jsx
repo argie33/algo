@@ -62,7 +62,6 @@ import TechnicalHistory from "./pages/TechnicalHistory";
 import TradingSignals from "./pages/TradingSignals";
 import PortfolioHoldings from "./pages/PortfolioHoldings";
 import PortfolioDashboard from "./pages/PortfolioDashboard";
-import InstitutionalPortfolioDashboard from "./pages/InstitutionalPortfolioDashboard";
 import PortfolioOptimization from "./pages/PortfolioOptimization";
 import TradeHistory from "./pages/TradeHistory";
 import OrderManagement from "./pages/OrderManagement";
@@ -78,7 +77,6 @@ import RootRedirect from "./components/RootRedirect";
 import Watchlist from "./pages/Watchlist";
 import SectorAnalysis from "./pages/SectorAnalysis";
 import AuthTest from "./pages/AuthTest";
-import AIAssistant from "./pages/AIAssistant";
 
 const drawerWidth = 240;
 
@@ -595,8 +593,7 @@ function App() {
           <Routes>
             <Route path="/" element={<RootRedirect />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/portfolio" element={<ProtectedRoute><InstitutionalPortfolioDashboard /></ProtectedRoute>} />
-            <Route path="/portfolio/classic" element={<ProtectedRoute><PortfolioDashboard /></ProtectedRoute>} />
+            <Route path="/portfolio" element={<ProtectedRoute><PortfolioDashboard /></ProtectedRoute>} />
             <Route path="/portfolio/holdings" element={<ProtectedRoute><PortfolioHoldings /></ProtectedRoute>} />
             <Route path="/trade-history" element={<ProtectedRoute><TradeHistory /></ProtectedRoute>} />
             <Route path="/orders" element={<ProtectedRoute><OrderManagement /></ProtectedRoute>} />
@@ -632,7 +629,6 @@ function App() {
             <Route path="/sector-analysis" element={<SectorAnalysis />} />
             <Route path="/watchlist" element={<Watchlist />} />
             <Route path="/sentiment" element={<Sentiment />} />
-            <Route path="/tools/ai" element={<AIAssistant />} />
           </Routes>
         </Container>
       </Box>
