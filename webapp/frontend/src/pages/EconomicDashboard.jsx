@@ -395,9 +395,12 @@ const LeadingIndicatorsPanel = ({ data, isLoading, theme, yieldCurveData }) => {
                           />
                           <XAxis
                             dataKey="date"
-                            tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
+                            tick={{ fontSize: 10, fill: theme.palette.text.secondary }}
                             axisLine={{ stroke: alpha(theme.palette.divider, 0.2) }}
-                            interval={Math.floor(indicator.history.length / 6)}
+                            interval={Math.floor(indicator.history.length / 6) || 0}
+                            angle={-45}
+                            textAnchor="end"
+                            height={70}
                           />
                           <YAxis
                             width={50}

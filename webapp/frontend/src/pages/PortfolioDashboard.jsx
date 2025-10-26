@@ -57,7 +57,9 @@ import {
   getProfessionalMetrics,
   getPortfolioHoldings,
   getPerformanceAnalytics,
+  getTradingSignalsDaily,
 } from "../services/api";
+import TradingSignal from "../components/TradingSignal";
 
 // ============ STAT CARD COMPONENT ============
 const StatCard = ({ icon: Icon, label, value, unit = "", color = "primary", interpretation = "" }) => {
@@ -142,12 +144,18 @@ export default function PortfolioDashboard() {
     staleTime: 60000,
   });
 
+  // Fetch trading signals
+  const { data: signalsData, isLoading: signalsLoading } = useQuery({
+    queryKey: ["tradingSignalsDaily"],
+    queryFn: () => getTradingSignalsDaily({ limit: 10 }),
+    staleTime: 60000,
+  });
+
   // Extract metrics
   const summary = metricsData?.data?.summary || {};
   const positions = metricsData?.data?.positions || [];
   const metadata = metricsData?.data?.metadata || {};
-
-  // Prepare chart data
+  const signals = signalsData?.data || [];
   const performanceChartData = useMemo(() => {
     return performanceData?.data?.daily_returns?.slice(-252).map((val, idx) => ({
       date: idx,
@@ -231,6 +239,57 @@ export default function PortfolioDashboard() {
               />
             </Grid>
           </Grid>
+
+          {/* ============ TRADING SIGNALS ============ */}
+          {signals && signals.length > 0 && (
+            <Card sx={{ mb: 4 }}>
+              <CardHeader
+                title="Trading Signals"
+                subheader={`Latest signal recommendations - ${signals.length} signals`}
+              />
+              <CardContent>
+                <Grid container spacing={2}>
+                  {signals.slice(0, 10).map((signal, idx) => (
+                    <Grid item xs={12} sm={6} md={4} lg={3} key={idx}>
+                      <Box sx={{
+                        p: 2,
+                        backgroundColor: (theme) => theme.palette.mode === 'dark' ? '#1e1e1e' : '#f5f5f5',
+                        borderRadius: 1,
+                        border: '1px solid',
+                        borderColor: (theme) => theme.palette.mode === 'dark' ? '#333' : '#ddd',
+                      }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                            {signal.symbol || signal.ticker}
+                          </Typography>
+                          <TradingSignal
+                            signal={signal.signal || signal.recommendation || 'HOLD'}
+                            confidence={signal.confidence || 0.5}
+                            size="small"
+                          />
+                        </Box>
+                        {signal.score && (
+                          <Typography variant="caption" color="text.secondary">
+                            Score: {(signal.score * 100).toFixed(1)}%
+                          </Typography>
+                        )}
+                        {signal.timestamp && (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                            {new Date(signal.timestamp).toLocaleDateString()}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Grid>
+                  ))}
+                </Grid>
+                {signals.length === 0 && (
+                  <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 2 }}>
+                    No trading signals available at this time.
+                  </Typography>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* ============ PORTFOLIO ALLOCATION PIE CHART ============ */}
           <Card sx={{ mb: 4 }}>
@@ -401,6 +460,71 @@ export default function PortfolioDashboard() {
                   <Legend />
                   <Line type="monotone" dataKey="return" stroke="#1976d2" strokeWidth={2} dot={{ fill: '#1976d2', r: 4 }} />
                 </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* ============ WIN RATE & DAILY PERFORMANCE ============ */}
+          <Card sx={{ mb: 4 }}>
+            <CardHeader title="Win Rate & Daily Performance Impact" />
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={[
+                  { metric: 'Win Rate', value: summary.win_rate || 0 },
+                  { metric: 'Best Day', value: summary.best_day_gain || 0 },
+                  { metric: 'Worst Day', value: Math.abs(summary.worst_day_loss) || 0 },
+                  { metric: 'Top 5 Days %', value: summary.top_5_days_contribution || 0 },
+                ]}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="metric" />
+                  <YAxis label={{ value: 'Percentage / Days', angle: -90, position: 'insideLeft' }} />
+                  <RechartsTooltip formatter={(value) => `${value?.toFixed(2)}%`} />
+                  <Bar dataKey="value" fill="#43a047" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* ============ RISK-ADJUSTED RETURNS COMPARISON ============ */}
+          <Card sx={{ mb: 4 }}>
+            <CardHeader title="Risk-Adjusted Performance Metrics" />
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={[
+                  { metric: 'Sharpe Ratio', value: (summary.sharpe_ratio || 0) * 2 },
+                  { metric: 'Sortino Ratio', value: (summary.sortino_ratio || 0) * 2 },
+                  { metric: 'Calmar Ratio', value: (summary.calmar_ratio || 0) * 10 },
+                  { metric: 'Info Ratio', value: (summary.information_ratio || 0) * 5 },
+                ]}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="metric" />
+                  <YAxis label={{ value: 'Ratio Value (normalized)', angle: -90, position: 'insideLeft' }} />
+                  <RechartsTooltip formatter={(value) => `${value?.toFixed(3)}`} />
+                  <Bar dataKey="value" fill="#1976d2" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* ============ RISK METRICS RADAR CHART ============ */}
+          <Card sx={{ mb: 4 }}>
+            <CardHeader title="Portfolio Risk Profile (Holistic View)" />
+            <CardContent>
+              <ResponsiveContainer width="100%" height={350}>
+                <RadarChart data={[
+                  { metric: 'Volatility', value: Math.min((summary.volatility_annualized || 0), 100) },
+                  { metric: 'Drawdown', value: Math.min((Math.abs(summary.max_drawdown) || 0), 100) },
+                  { metric: 'Skewness', value: Math.min(Math.abs((summary.skewness || 0) * 20), 100) },
+                  { metric: 'Kurtosis', value: Math.min((summary.kurtosis || 0) * 5, 100) },
+                  { metric: 'Beta', value: Math.min((summary.beta || 1) * 50, 100) },
+                  { metric: 'Diversification', value: Math.min((summary.diversification_ratio || 0) * 30, 100) },
+                ]}>
+                  <PolarGrid />
+                  <PolarAngleAxis dataKey="metric" />
+                  <PolarRadiusAxis angle={90} domain={[0, 100]} />
+                  <Radar name="Risk Profile" dataKey="value" stroke="#ff9800" fill="#ff9800" fillOpacity={0.6} />
+                  <RechartsTooltip formatter={(value) => `${value?.toFixed(1)}`} />
+                </RadarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>

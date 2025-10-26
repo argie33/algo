@@ -78,15 +78,25 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
       date,
       momentum: parseFloat(row.dailyStrengthScore || 0),
       rank: row.rank,
-      ma_20: techRow?.ma_20 ? parseFloat(techRow.ma_20) : null,
-      ma_50: techRow?.ma_50 ? parseFloat(techRow.ma_50) : null,
-      ma_200: techRow?.ma_200 ? parseFloat(techRow.ma_200) : null,
-      rsi: techRow?.rsi ? parseFloat(techRow.rsi) : null,
-      close: techRow?.close ? parseFloat(techRow.close) : null
+      ma_20: techRow?.ma_20 !== undefined && techRow?.ma_20 !== null ? parseFloat(techRow.ma_20) : undefined,
+      ma_50: techRow?.ma_50 !== undefined && techRow?.ma_50 !== null ? parseFloat(techRow.ma_50) : undefined,
+      ma_200: techRow?.ma_200 !== undefined && techRow?.ma_200 !== null ? parseFloat(techRow.ma_200) : undefined,
+      rsi: techRow?.rsi !== undefined && techRow?.rsi !== null ? parseFloat(techRow.rsi) : undefined,
+      close: techRow?.close !== undefined && techRow?.close !== null ? parseFloat(techRow.close) : undefined
     };
   });
 
-  console.log(`[MOMENTUM CHART - SECTOR] ${sector?.sector_name}: ${trendArray.length} momentum rows, ${technicalData.length} technical rows, ${momentumData.filter(m => m.ma_20).length} merged rows`);
+  // Debug: Check what's actually in the technical data
+  const hasMA20 = momentumData.some(m => m.ma_20 !== undefined);
+  const hasMA50 = momentumData.some(m => m.ma_50 !== undefined);
+  const hasMA200 = momentumData.some(m => m.ma_200 !== undefined);
+  const hasRSI = momentumData.some(m => m.rsi !== undefined);
+
+  if (technicalData.length > 0) {
+    console.log(`[TECHNICAL DEBUG] ${sector?.sector_name}: Sample technical row:`, technicalData[0]);
+  }
+
+  console.log(`[MOMENTUM CHART - SECTOR] ${sector?.sector_name}: ${trendArray.length} momentum rows, ${technicalData.length} technical rows, MA20=${hasMA20}, MA50=${hasMA50}, MA200=${hasMA200}, RSI=${hasRSI}`);
 
   // Use ALL data for momentum chart (no date filtering)
   if (aggregateToWeekly && momentumData.length > 0) {
