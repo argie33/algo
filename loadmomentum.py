@@ -9,10 +9,10 @@ This script implements comprehensive momentum analysis including:
 - Cross-sectional momentum ranking
 - Momentum persistence and mean reversion analysis
 
-Updated: 2025-10-25 17:15 - Production stable, running parallel batch processing
-Status: ✅ Working correctly - processes 11-12 symbols per batch with parallel execution
+Updated: 2025-10-26 - Optimized parallel batch processing (6 threads, batch size 20)
+Status: ✅ Working correctly - processes 20 symbols per batch with 6 parallel workers
 Note: Symbols with <252 trading days are skipped (normal - not enough historical data)
-Trigger: 2025-10-26 AWS deployment - momentum metrics loader (batch processing enabled)
+Trigger: 2025-10-26 AWS deployment - momentum metrics loader optimized (batch processing enabled)
 
 Academic References:
 - Jegadeesh and Titman (1993) - Returns to Buying Winners and Selling Losers
@@ -773,7 +773,7 @@ def create_momentum_metrics_table(cur, conn):
     conn.commit()
     logging.info("Momentum metrics table created successfully")
 
-def load_momentum_batch(symbols: List[str], conn, cur, batch_size: int = 12) -> Tuple[int, int]:
+def load_momentum_batch(symbols: List[str], conn, cur, batch_size: int = 20) -> Tuple[int, int]:
     """Load momentum metrics in batches with parallel processing"""
     total_processed = 0
     total_inserted = 0
@@ -787,9 +787,9 @@ def load_momentum_batch(symbols: List[str], conn, cur, batch_size: int = 12) -> 
         logging.info(f"Processing momentum batch {batch_num}/{total_batches}: {len(batch)} symbols (parallel)")
         log_mem(f"Momentum batch {batch_num} start")
 
-        # Process in parallel with ThreadPoolExecutor (3 worker threads)
+        # Process in parallel with ThreadPoolExecutor (6 worker threads for faster processing)
         momentum_data = []
-        with ThreadPoolExecutor(max_workers=3) as executor:
+        with ThreadPoolExecutor(max_workers=6) as executor:
             futures = {executor.submit(process_symbol_momentum, symbol, conn): symbol for symbol in batch}
             for future in as_completed(futures):
                 symbol = futures[future]
