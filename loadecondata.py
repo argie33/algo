@@ -416,6 +416,8 @@ def handler(event, context):
             "UNRATE","PAYEMS","CIVPART","CES0500000003","AWHAE","JTSJOL","ICSA","OPHNFB","U6RATE",
             # — U.S. Inflation & Prices —
             "CPIAUCSL","CPILFESL","PCEPI","PCEPILFE","PPIACO","MICH","T5YIFR",
+            # — Energy & Commodities —
+            "DCOILWTICO",
             # — U.S. Financial & Monetary —
             "FEDFUNDS","DGS3MO","DGS6MO","DGS1","DGS2","DGS3","DGS5","DGS7","DGS10","DGS20","DGS30",
             "T10Y2Y","MORTGAGE30US","BAA","AAA","SP500","VIXCLS","M2SL","WALCL","IOER","IORB",
