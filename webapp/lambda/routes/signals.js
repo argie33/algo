@@ -148,16 +148,16 @@ router.get("/", async (req, res) => {
     // PERFORMANCE FIX: Only query most recent date to avoid timeout on massive table
     // If symbol provided, use 90 days; otherwise just most recent date
     if (symbolFilter) {
-      whereClause = `WHERE date >= CURRENT_DATE - INTERVAL '90 days'`;
+      whereClause = `WHERE bsd.date >= CURRENT_DATE - INTERVAL '90 days'`;
     } else {
-      whereClause = `WHERE date >= CURRENT_DATE - INTERVAL '90 days'`;
+      whereClause = `WHERE bsd.date >= CURRENT_DATE - INTERVAL '90 days'`;
     }
 
     // Always exclude 'None' signals - only show Buy/Sell
-    whereClause += ` AND signal IN ('Buy', 'Sell')`;
+    whereClause += ` AND bsd.signal IN ('Buy', 'Sell')`;
 
     if (signalType) {
-      whereClause += ` AND signal = $${paramIndex}`;
+      whereClause += ` AND bsd.signal = $${paramIndex}`;
       queryParams.push(signalType.toUpperCase());
       paramIndex++;
     }
@@ -262,7 +262,7 @@ router.get("/", async (req, res) => {
           LIMIT 1
         ) as days_to_earnings
       FROM ${tableName} bsd
-      LEFT JOIN technical_data_daily tdd ON bsd.symbol = tdd.symbol AND bsd.date = tdd.date
+      LEFT JOIN technical_data_daily tdd ON bsd.symbol = tdd.symbol AND DATE(tdd.date) = bsd.date
       LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
       LEFT JOIN stock_symbols ss ON bsd.symbol = ss.symbol
       ${whereClause}
