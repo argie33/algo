@@ -183,11 +183,13 @@ def pyval(val):
 
 
 def calculate_missing_metrics(symbol: str, info: dict, ticker) -> dict:
-    """Calculate missing earnings_growth_pct and payout_ratio when not provided by yfinance"""
+    """Calculate missing earnings_growth_pct, payout_ratio, and debt_to_equity when not provided by yfinance"""
 
     metrics = {
         'earnings_growth': info.get('earningsGrowth'),
         'payout_ratio': info.get('payoutRatio'),
+        'debt_to_equity': info.get('debtToEquity'),
+        'de_source': 'YFINANCE',  # Track source: YFINANCE or CALCULATED
     }
 
     # If earningsGrowth is missing, try to calculate from earnings_estimate
@@ -203,15 +205,32 @@ def calculate_missing_metrics(symbol: str, info: dict, ticker) -> dict:
         except:
             pass
 
-    # If payoutRatio is missing, try to calculate from dividend and earnings data
+    # If payoutRatio is missing, try to calculate from dividend and earnings data (REAL DATA ONLY)
     if metrics['payout_ratio'] is None or metrics['payout_ratio'] == 0:
         try:
-            annual_dividend = info.get('trailingAnnualDividendRate', 0)
+            annual_dividend = info.get('trailingAnnualDividendRate')  # None if missing (NOT fake 0)
             trailing_eps = info.get('trailingEps')
-            if annual_dividend and annual_dividend > 0 and trailing_eps and trailing_eps > 0:
+            if annual_dividend is not None and annual_dividend > 0 and trailing_eps and trailing_eps > 0:
                 metrics['payout_ratio'] = min(1.0, annual_dividend / trailing_eps)
         except:
             pass
+
+    # NEW: If debt_to_equity missing from yfinance, calculate from balance sheet
+    # debt_to_equity = total_debt / book_value (shareholder equity)
+    if metrics['debt_to_equity'] is None:
+        try:
+            total_debt = safe_float(info.get('totalDebt'), min_val=0)
+            book_value = safe_float(info.get('bookValue'), min_val=0.01)
+
+            if total_debt is not None and book_value is not None and book_value > 0:
+                calculated_de = total_debt / book_value
+                # Sanity check: D/E should typically be between 0 and 10 for most companies
+                if 0 <= calculated_de <= 1000:  # Allow up to 1000:1 for extreme cases
+                    metrics['debt_to_equity'] = calculated_de
+                    metrics['de_source'] = 'CALCULATED'
+                    logging.info(f"{symbol}: Calculated D/E = {calculated_de:.2f} (debt={total_debt:,.0f} / book_value={book_value:,.0f})")
+        except Exception as e:
+            logging.debug(f"{symbol}: Could not calculate D/E: {e}")
 
     return metrics
 
@@ -416,6 +435,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         earnings_q_growth_pct = EXCLUDED.earnings_q_growth_pct,
                         revenue_growth_pct = EXCLUDED.revenue_growth_pct,
                         payout_ratio = EXCLUDED.payout_ratio,
+                        debt_to_equity = EXCLUDED.debt_to_equity,
                         last_annual_dividend_amt = EXCLUDED.last_annual_dividend_amt,
                         last_annual_dividend_yield = EXCLUDED.last_annual_dividend_yield,
                         held_percent_insiders = EXCLUDED.held_percent_insiders,
@@ -448,7 +468,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         info.get("totalCashPerShare"),
                         info.get("operatingCashflow"),
                         info.get("freeCashflow"),
-                        info.get("totalDebt"), info.get("debtToEquity"),
+                        info.get("totalDebt"), missing_metrics.get('debt_to_equity'),  # Use calculated D/E if yfinance didn't provide
                         info.get("quickRatio"), info.get("currentRatio"),
                         info.get("profitMargins"), info.get("grossMargins"),
                         info.get("ebitdaMargins"),
@@ -807,7 +827,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 logging.error(f"Error inserting revenue estimates for {symbol}: {e}")
                 conn.rollback()
 
-        # 9. Insert beta from yfinance into risk_metrics
+        # 9. Insert beta from yfinance into risk_metrics (REAL DATA ONLY - no fake defaults)
         try:
             beta = safe_float(info.get('beta'))
             if beta is not None:
@@ -821,12 +841,12 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     """,
                     (symbol, date.today(), beta)
                 )
-                stats['beta'] = 1
+                stats['beta'] = 1  # Indicates real beta data was fetched
             else:
-                stats['beta'] = 0
+                stats['beta'] = None  # No real beta data available (NOT fake 0)
         except Exception as e:
             logging.error(f"Error inserting beta for {symbol}: {e}")
-            stats['beta'] = 0
+            stats['beta'] = None  # Error - return None instead of fake 0
 
         conn.commit()
         return stats

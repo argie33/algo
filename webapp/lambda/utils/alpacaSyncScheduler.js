@@ -11,7 +11,7 @@ const { query } = require("./database");
 const AlpacaService = require("./alpacaService");
 
 // Default user ID for background syncs
-const DEFAULT_USER_ID = "test-user";
+const DEFAULT_USER_ID = "alpaca-user";
 
 // Scheduler instance
 let syncScheduler = null;

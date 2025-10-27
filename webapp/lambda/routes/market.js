@@ -101,15 +101,23 @@ router.get("/data", async (req, res) => {
                cp.ticker,
                cp.ticker as name,
                sp.close as current_price,
-               0 as change_percent,
-               0 as change_amount,
+               CASE
+                 WHEN sp.open > 0 AND sp.close IS NOT NULL
+                 THEN ((sp.close - sp.open) / sp.open * 100)
+                 ELSE NULL
+               END as change_percent,
+               CASE
+                 WHEN sp.close IS NOT NULL AND sp.open IS NOT NULL
+                 THEN (sp.close - sp.open)
+                 ELSE NULL
+               END as change_amount,
                sp.volume,
                md.market_cap
         FROM company_profile cp
         INNER JOIN market_data md ON cp.ticker = md.ticker
         LEFT JOIN (
           SELECT DISTINCT ON (symbol)
-            symbol, close, volume
+            symbol, open, close, volume
           FROM price_daily
           WHERE date >= CURRENT_DATE - INTERVAL '90 days'
           ORDER BY symbol, date DESC
@@ -121,15 +129,30 @@ router.get("/data", async (req, res) => {
       marketData = marketResult.rows || [];
     }
 
-    // Transform data to ensure proper types and field names
-    const transformedData = marketData.map((item) => ({
-      symbol: item.symbol || item.ticker,
-      price: parseFloat(item.current_price || item.price || 0),
-      change_percent: parseFloat(item.change_percent || 0),
-      change_amount: parseFloat(item.change_amount || 0),
-      volume: parseInt(item.volume || 0),
-      market_cap: parseFloat(item.market_cap || 0),
-    }));
+    // Transform data to ensure proper types and field names (REAL DATA ONLY - no fake defaults)
+    const transformedData = marketData.map((item) => {
+      // Helper function to safely parse numeric values - returns null if data unavailable
+      const safeParseFloat = (value) => {
+        if (value === null || value === undefined) return null;
+        const parsed = parseFloat(value);
+        return isFinite(parsed) ? parsed : null;
+      };
+
+      const safeParseInt = (value) => {
+        if (value === null || value === undefined) return null;
+        const parsed = parseInt(value, 10);
+        return isFinite(parsed) ? parsed : null;
+      };
+
+      return {
+        symbol: item.symbol || item.ticker,
+        price: safeParseFloat(item.current_price || item.price),
+        change_percent: safeParseFloat(item.change_percent),
+        change_amount: safeParseFloat(item.change_amount),
+        volume: safeParseInt(item.volume),
+        market_cap: safeParseFloat(item.market_cap),
+      };
+    });
 
     return res.json({
       success: true,

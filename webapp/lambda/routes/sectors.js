@@ -473,19 +473,26 @@ router.get("/sectors-with-history", async (req, res) => {
           const perf_5d = parseFloat(row.current_perf_5d || 0);
           const perf_20d = parseFloat(row.current_perf_20d || 0);
 
-          // Fetch trend data from sector_ranking (last 200+ trading days to match technical data)
+          // Fetch trend data + technical indicators in single query (no frontend merge needed)
           let trendData = [];
           try {
-            // sector_ranking has: date, daily_strength_score, trend
-            // Technical indicators (RSI, SMA) are in sector_technical_data table
-            // Must match date range with technical data endpoint (200+ days) for proper merging
+            // Join sector_ranking with sector_technical_data on date + sector
+            // This consolidates all data in one query, eliminating date range mismatches
             const historicalTrendQuery = `
               SELECT
                 sr.date,
                 sr.daily_strength_score,
                 sr.current_rank,
-                sr.trend
+                sr.trend,
+                std.ma_20,
+                std.ma_50,
+                std.ma_200,
+                std.rsi,
+                std.close
               FROM sector_ranking sr
+              LEFT JOIN sector_technical_data std
+                ON LOWER(sr.sector) = LOWER(std.sector)
+                AND sr.date = std.date
               WHERE LOWER(sr.sector) = LOWER($1)
               ORDER BY sr.date DESC
               LIMIT 200
@@ -498,7 +505,12 @@ router.get("/sectors-with-history", async (req, res) => {
                 date: dateStr,
                 dailyStrengthScore: parseFloat(r.daily_strength_score || 0).toFixed(2),
                 rank: r.current_rank,
-                trend: r.trend
+                trend: r.trend,
+                ma_20: r.ma_20 !== undefined && r.ma_20 !== null ? parseFloat(r.ma_20) : undefined,
+                ma_50: r.ma_50 !== undefined && r.ma_50 !== null ? parseFloat(r.ma_50) : undefined,
+                ma_200: r.ma_200 !== undefined && r.ma_200 !== null ? parseFloat(r.ma_200) : undefined,
+                rsi: r.rsi !== undefined && r.rsi !== null ? parseFloat(r.rsi) : undefined,
+                close: r.close !== undefined && r.close !== null ? parseFloat(r.close) : undefined
               };
             });
             // Reverse to get chronological order (oldest to newest, left to right on chart)
@@ -701,13 +713,48 @@ router.get("/industries-with-history", async (req, res) => {
       return res.json({
         success: true,
         data: {
-          industries: (fallbackResult?.rows || []).map(row => {
-            // Generate 90-day trend data for charts (matching sectors endpoint pattern)
-            const perf_1d = parseFloat(row.performance_1d || 0);
-            const perf_20d = parseFloat(row.performance_20d || 0);
-
-            // No synthetic trend data generation - return empty
-            const trendData = [];
+          industries: await Promise.all((fallbackResult?.rows || []).map(async row => {
+            // Fetch technical data for each industry
+            let trendData = [];
+            try {
+              const industryTrendQuery = `
+                SELECT
+                  ir.date,
+                  ir.daily_strength_score,
+                  ir.current_rank,
+                  ir.trend,
+                  itd.ma_20,
+                  itd.ma_50,
+                  itd.ma_200,
+                  itd.rsi,
+                  itd.close_price
+                FROM industry_ranking ir
+                LEFT JOIN industry_technical_data itd
+                  ON LOWER(ir.industry) = LOWER(itd.industry)
+                  AND ir.date = itd.date
+                WHERE LOWER(ir.industry) = LOWER($1)
+                ORDER BY ir.date DESC
+                LIMIT 200
+              `;
+              const trendResults = await query(industryTrendQuery, [row.industry]);
+              trendData = trendResults.rows.map(r => {
+                const dateStr = r.date instanceof Date ? r.date.toISOString().split('T')[0] : r.date;
+                return {
+                  date: dateStr,
+                  dailyStrengthScore: parseFloat(r.daily_strength_score || 0).toFixed(2),
+                  rank: r.current_rank,
+                  trend: r.trend,
+                  ma_20: r.ma_20 !== undefined && r.ma_20 !== null ? parseFloat(r.ma_20) : undefined,
+                  ma_50: r.ma_50 !== undefined && r.ma_50 !== null ? parseFloat(r.ma_50) : undefined,
+                  ma_200: r.ma_200 !== undefined && r.ma_200 !== null ? parseFloat(r.ma_200) : undefined,
+                  rsi: r.rsi !== undefined && r.rsi !== null ? parseFloat(r.rsi) : undefined,
+                  close: r.close_price !== undefined && r.close_price !== null ? parseFloat(r.close_price) : undefined
+                };
+              });
+              trendData.reverse();
+            } catch (err) {
+              console.error(`⚠️ Could not fetch trend data for industry ${row.industry}:`, err.message);
+            }
 
             return {
               industry: row.industry,
@@ -728,7 +775,7 @@ router.get("/industries-with-history", async (req, res) => {
               perf_20d_1w_ago: row.perf_20d_1w_ago,
               trendData: trendData
             };
-          }),
+          })),
           summary: {
             total_industries: (fallbackResult?.rows || []).length
           }
@@ -737,18 +784,50 @@ router.get("/industries-with-history", async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      data: {
-        industries: result.rows
+    const industries = await Promise.all(result.rows
           .filter(row => row.industry && row.industry.trim())
-          .map(row => {
-            // Generate 90-day trend data for charts (matching sectors endpoint pattern)
-            const perf_1d = parseFloat(row.performance_1d || 0);
-            const perf_20d = parseFloat(row.performance_20d || 0);
-
-            // No synthetic trend data generation - return empty
-            const trendData = [];
+          .map(async row => {
+            // Fetch technical data for each industry (20+ days matching sectors)
+            let trendData = [];
+            try {
+              const industryTrendQuery = `
+                SELECT
+                  ir.date,
+                  ir.daily_strength_score,
+                  ir.current_rank,
+                  ir.trend,
+                  itd.ma_20,
+                  itd.ma_50,
+                  itd.ma_200,
+                  itd.rsi,
+                  itd.close_price
+                FROM industry_ranking ir
+                LEFT JOIN industry_technical_data itd
+                  ON LOWER(ir.industry) = LOWER(itd.industry)
+                  AND ir.date = itd.date
+                WHERE LOWER(ir.industry) = LOWER($1)
+                ORDER BY ir.date DESC
+                LIMIT 200
+              `;
+              const trendResults = await query(industryTrendQuery, [row.industry]);
+              trendData = trendResults.rows.map(r => {
+                const dateStr = r.date instanceof Date ? r.date.toISOString().split('T')[0] : r.date;
+                return {
+                  date: dateStr,
+                  dailyStrengthScore: parseFloat(r.daily_strength_score || 0).toFixed(2),
+                  rank: r.current_rank,
+                  trend: r.trend,
+                  ma_20: r.ma_20 !== undefined && r.ma_20 !== null ? parseFloat(r.ma_20) : undefined,
+                  ma_50: r.ma_50 !== undefined && r.ma_50 !== null ? parseFloat(r.ma_50) : undefined,
+                  ma_200: r.ma_200 !== undefined && r.ma_200 !== null ? parseFloat(r.ma_200) : undefined,
+                  rsi: r.rsi !== undefined && r.rsi !== null ? parseFloat(r.rsi) : undefined,
+                  close: r.close_price !== undefined && r.close_price !== null ? parseFloat(r.close_price) : undefined
+                };
+              });
+              trendData.reverse();
+            } catch (err) {
+              console.error(`⚠️ Could not fetch trend data for industry ${row.industry}:`, err.message);
+            }
 
             return {
               industry: row.industry,
@@ -769,9 +848,14 @@ router.get("/industries-with-history", async (req, res) => {
               perf_20d_1w_ago: row.perf_20d_1w_ago,
               trendData: trendData
             };
-          }),
+          }));
+
+    res.json({
+      success: true,
+      data: {
+        industries: industries,
         summary: {
-          total_industries: result.rows.filter(row => row.industry && row.industry.trim()).length
+          total_industries: industries.length
         }
       },
       timestamp: new Date().toISOString(),

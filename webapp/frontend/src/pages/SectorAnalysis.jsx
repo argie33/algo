@@ -43,46 +43,25 @@ import {
   getChangeColor,
 } from "../utils/formatters";
 
-// Helper component for sector momentum chart - merges momentum and technical data
+// Helper component for sector momentum chart
+// Technical data is now consolidated in trendData from /sectors-with-history endpoint
 const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
-  const [technicalData, setTechnicalData] = useState([]);
-
-  // Use trendData directly from sector object (already loaded from /sectors-with-history)
+  // Use trendData directly from sector object (already includes technical indicators)
   const trendArray = sector?.trendData || [];
 
-  // Fetch technical data on mount
-  useEffect(() => {
-    if (sector?.sector_name) {
-      api.get(`/api/sectors/technical-details/sector/${encodeURIComponent(sector.sector_name)}`)
-        .then(response => {
-          if (response.data?.history && Array.isArray(response.data.history)) {
-            setTechnicalData(response.data.history);
-            console.log(`[TECHNICAL DATA] ✅ Fetched for ${sector.sector_name}: ${response.data.history.length} rows`);
-          } else {
-            console.log(`[TECHNICAL DATA] ⚠️ No history data in response for ${sector.sector_name}:`, response.data);
-          }
-        })
-        .catch(err => {
-          console.log(`[TECHNICAL DATA] ⚠️ No technical data available for ${sector.sector_name}: ${err.response?.status || err.message}`);
-          // This is OK - just means no technical data yet, will display momentum only
-        });
-    }
-  }, [sector?.sector_name]);
-
-  // Merge momentum and technical data by date
+  // No need for separate technical data fetch - it's already in trendArray
+  // Each row in trendArray includes: date, momentum, rank, trend, ma_20, ma_50, ma_200, rsi, close
   let momentumData = trendArray.map(row => {
-    const date = row.date;
-    const techRow = technicalData.find(t => t.date === date);
-
     return {
-      date,
+      date: row.date,
       momentum: parseFloat(row.dailyStrengthScore || 0),
       rank: row.rank,
-      ma_20: techRow?.ma_20 !== undefined && techRow?.ma_20 !== null ? parseFloat(techRow.ma_20) : undefined,
-      ma_50: techRow?.ma_50 !== undefined && techRow?.ma_50 !== null ? parseFloat(techRow.ma_50) : undefined,
-      ma_200: techRow?.ma_200 !== undefined && techRow?.ma_200 !== null ? parseFloat(techRow.ma_200) : undefined,
-      rsi: techRow?.rsi !== undefined && techRow?.rsi !== null ? parseFloat(techRow.rsi) : undefined,
-      close: techRow?.close !== undefined && techRow?.close !== null ? parseFloat(techRow.close) : undefined
+      trend: row.trend,
+      ma_20: row.ma_20 !== undefined && row.ma_20 !== null ? parseFloat(row.ma_20) : undefined,
+      ma_50: row.ma_50 !== undefined && row.ma_50 !== null ? parseFloat(row.ma_50) : undefined,
+      ma_200: row.ma_200 !== undefined && row.ma_200 !== null ? parseFloat(row.ma_200) : undefined,
+      rsi: row.rsi !== undefined && row.rsi !== null ? parseFloat(row.rsi) : undefined,
+      close: row.close !== undefined && row.close !== null ? parseFloat(row.close) : undefined
     };
   });
 
@@ -145,49 +124,29 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
 };
 
 // Helper component for industry momentum chart - merges momentum and technical data
+// Helper component for industry momentum chart
+// Technical data is now consolidated in trendData from /industries-with-history endpoint
 const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
-  const [technicalData, setTechnicalData] = useState([]);
-
-  // Use trendData directly from industry object (already loaded from /industries-with-history)
+  // Use trendData directly from industry object (already includes technical indicators)
   const trendArray = industry?.trendData || [];
 
-  // Fetch technical data on mount
-  useEffect(() => {
-    if (industry?.industry) {
-      api.get(`/api/sectors/technical-details/industry/${encodeURIComponent(industry.industry)}`)
-        .then(response => {
-          if (response.data?.history && Array.isArray(response.data.history)) {
-            setTechnicalData(response.data.history);
-            console.log(`[TECHNICAL DATA] ✅ Fetched for ${industry.industry}: ${response.data.history.length} rows`);
-          } else {
-            console.log(`[TECHNICAL DATA] ⚠️ No history data in response for ${industry.industry}:`, response.data);
-          }
-        })
-        .catch(err => {
-          console.log(`[TECHNICAL DATA] ⚠️ No technical data available for ${industry.industry}: ${err.response?.status || err.message}`);
-          // This is OK - just means no technical data yet, will display momentum only
-        });
-    }
-  }, [industry?.industry]);
-
-  // Merge momentum and technical data by date
+  // No need for separate technical data fetch - it's already in trendArray
+  // Each row in trendArray includes: date, momentum, rank, trend, ma_20, ma_50, ma_200, rsi, close
   let momentumData = trendArray.map(row => {
-    const date = row.date;
-    const techRow = technicalData.find(t => t.date === date);
-
     return {
-      date,
+      date: row.date,
       momentum: parseFloat(row.dailyStrengthScore || 0),
       rank: row.rank,
-      ma_20: techRow?.ma_20 !== undefined && techRow?.ma_20 !== null ? parseFloat(techRow.ma_20) : undefined,
-      ma_50: techRow?.ma_50 !== undefined && techRow?.ma_50 !== null ? parseFloat(techRow.ma_50) : undefined,
-      ma_200: techRow?.ma_200 !== undefined && techRow?.ma_200 !== null ? parseFloat(techRow.ma_200) : undefined,
-      rsi: techRow?.rsi !== undefined && techRow?.rsi !== null ? parseFloat(techRow.rsi) : undefined,
-      close: techRow?.close !== undefined && techRow?.close !== null ? parseFloat(techRow.close) : undefined
+      trend: row.trend,
+      ma_20: row.ma_20 !== undefined && row.ma_20 !== null ? parseFloat(row.ma_20) : undefined,
+      ma_50: row.ma_50 !== undefined && row.ma_50 !== null ? parseFloat(row.ma_50) : undefined,
+      ma_200: row.ma_200 !== undefined && row.ma_200 !== null ? parseFloat(row.ma_200) : undefined,
+      rsi: row.rsi !== undefined && row.rsi !== null ? parseFloat(row.rsi) : undefined,
+      close: row.close !== undefined && row.close !== null ? parseFloat(row.close) : undefined
     };
   });
 
-  console.log(`[MOMENTUM CHART - INDUSTRY] ${industry?.industry}: ${trendArray.length} momentum rows, ${technicalData.length} technical rows, ${momentumData.filter(m => m.ma_20).length} merged rows`);
+  console.log(`[MOMENTUM CHART - INDUSTRY] ${industry?.industry}: ${trendArray.length} rows with technical data`);
 
   // Use ALL data for momentum chart (no date filtering)
   if (aggregateToWeekly && momentumData.length > 0) {

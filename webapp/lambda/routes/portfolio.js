@@ -6772,27 +6772,43 @@ router.post("/import/alpaca", authenticateToken, async (req, res) => {
 
     // Store portfolio data in database
     if (holdings.length > 0) {
-      // Delete existing holdings for this user
-      await query("DELETE FROM portfolio_holdings WHERE user_id = $1", [userId]);
+      try {
+        // Delete existing holdings for this user
+        const deleteResult = await query("DELETE FROM portfolio_holdings WHERE user_id = $1", [userId]);
+        if (!deleteResult) {
+          console.warn("⚠️  Delete returned null, portfolio may be empty");
+        }
 
-      // Insert new holdings
-      for (const holding of holdings) {
-        await query(
-          `INSERT INTO portfolio_holdings
-          (user_id, symbol, quantity, current_price, average_cost, market_value, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-          [
-            userId,
-            holding.symbol,
-            holding.quantity,
-            holding.current_price,
-            holding.average_cost,
-            holding.market_value,
-          ]
-        );
+        // Insert new holdings
+        let insertedCount = 0;
+        for (const holding of holdings) {
+          try {
+            const insertResult = await query(
+              `INSERT INTO portfolio_holdings
+              (user_id, symbol, quantity, current_price, average_cost, market_value, created_at, updated_at)
+              VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+              [
+                userId,
+                holding.symbol,
+                holding.quantity,
+                holding.current_price,
+                holding.average_cost,
+                holding.market_value,
+              ]
+            );
+            if (insertResult) {
+              insertedCount++;
+            }
+          } catch (insertErr) {
+            console.warn(`⚠️  Failed to insert ${holding.symbol}:`, insertErr.message);
+          }
+        }
+
+        console.log(`✅ Inserted ${insertedCount} holdings into database`);
+      } catch (dbErr) {
+        console.error("❌ Database error storing holdings:", dbErr.message);
+        throw dbErr;
       }
-
-      console.log(`✅ Stored ${holdings.length} holdings in database`);
     }
 
     // Store account summary

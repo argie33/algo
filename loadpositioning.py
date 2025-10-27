@@ -120,15 +120,24 @@ def calculate_institutional_quality_score(conn, symbol: str) -> float:
             'INDIVIDUAL': 0.5,       # Variable quality
         }
 
-        total_position = sum(safe_float(h.get('position_size'), 0) for h in holders)
-        if total_position == 0:
+        # REAL DATA ONLY - only count holders with actual position data
+        positions = [safe_float(h.get('position_size')) for h in holders if h.get('position_size') is not None]
+        if not positions:
             return None  # No real position data - return None instead of fake 0.5
 
-        # Weighted quality score
+        total_position = sum(positions)
+        if total_position <= 0:
+            return None  # No real position data
+
+        # Weighted quality score - REAL DATA ONLY
         quality_score = 0
         for holder in holders:
+            position_size = safe_float(holder.get('position_size'))
+            if position_size is None or position_size <= 0:
+                continue  # Skip holders without real position data
+
             holder_type = holder.get('institution_type', 'INDIVIDUAL').upper()
-            weight = safe_float(holder.get('position_size'), 0) / total_position if total_position > 0 else 0
+            weight = position_size / total_position
             score = quality_scores.get(holder_type, 0.5)
             quality_score += score * weight
 
@@ -165,7 +174,11 @@ def calculate_insider_sentiment_score(conn, symbol: str) -> float:
         total_sell_value = 0
 
         for tx in transactions:
-            value = safe_float(tx.get('value', 0))
+            # REAL DATA ONLY - skip transactions without value data
+            value = safe_float(tx.get('value'))
+            if value is None or value <= 0:
+                continue  # Skip transactions without real value data
+
             tx_type = str(tx.get('transaction_type', '')).upper()
 
             if 'BUY' in tx_type:
@@ -211,27 +224,44 @@ def calculate_smart_money_score(conn, symbol: str, institutional_quality: float,
         if not row:
             return None  # No real data - return None instead of fake 0.5
 
-        inst_ownership = safe_float(row.get('institutional_ownership_pct'), 0)
-        inst_count = safe_int(row.get('institutional_holders_count'), 0)
+        # REAL DATA ONLY - get actual values, not defaults
+        inst_ownership = safe_float(row.get('institutional_ownership_pct'))
+        inst_count = safe_int(row.get('institutional_holders_count'))
 
-        # Normalize institutional ownership (0-1)
-        # Typical range: 0-100%, normalize to 0-1
-        ownership_score = min(inst_ownership / 100, 1.0) if inst_ownership else 0
+        # Build score from ONLY real data components
+        score_components = []
+        component_weights = []
 
-        # Institution count is good up to ~500
-        count_score = min(inst_count / 500, 1.0) if inst_count else 0
+        # Normalize institutional ownership (0-1) - ONLY if data exists
+        if inst_ownership is not None and inst_ownership > 0:
+            ownership_score = min(inst_ownership / 100, 1.0)
+            score_components.append(ownership_score)
+            component_weights.append(0.25)
 
-        # Handle None values from parameters - only use real data
-        qual_score = institutional_quality * 0.35 if institutional_quality is not None else 0
-        sentiment_score = max(insider_sentiment, 0) * 0.25 if insider_sentiment is not None else 0
+        # Institution count is good up to ~500 - ONLY if data exists
+        if inst_count is not None and inst_count > 0:
+            count_score = min(inst_count / 500, 1.0)
+            score_components.append(count_score)
+            component_weights.append(0.15)
 
-        # Combine: quality + insider sentiment + ownership + count
-        smart_score = (
-            qual_score +
-            sentiment_score +
-            ownership_score * 0.25 +
-            count_score * 0.15
-        )
+        # Add institutional quality - ONLY if real data
+        if institutional_quality is not None:
+            score_components.append(institutional_quality)
+            component_weights.append(0.35)
+
+        # Add insider sentiment - ONLY if real data
+        if insider_sentiment is not None:
+            sentiment_score = max(insider_sentiment, 0)
+            score_components.append(sentiment_score)
+            component_weights.append(0.25)
+
+        # Return None if no real data, or weighted average of what we have
+        if not score_components:
+            return None  # No real data available
+
+        # Combine available components with normalized weights
+        total_weight = sum(component_weights)
+        smart_score = sum(c * w for c, w in zip(score_components, component_weights)) / total_weight
 
         return min(max(smart_score, 0), 1)
 
@@ -344,20 +374,24 @@ def process_symbol_positioning(conn, symbol: str) -> bool:
         if not row:
             return False
 
-        # Calculate derived metrics
+        # Calculate derived metrics - REAL DATA ONLY
         institutional_quality = calculate_institutional_quality_score(conn, symbol)
         insider_sentiment = calculate_insider_sentiment_score(conn, symbol)
         smart_money = calculate_smart_money_score(conn, symbol, institutional_quality, insider_sentiment)
-        short_squeeze = calculate_short_squeeze_score(
-            safe_float(row.get('short_interest_pct'), 0),
-            safe_float(row.get('short_ratio'), 0)
-        )
+
+        # Only calculate short squeeze if we have real short data
+        short_interest_pct = safe_float(row.get('short_interest_pct'))
+        short_ratio = safe_float(row.get('short_ratio'))
+        short_squeeze = calculate_short_squeeze_score(short_interest_pct, short_ratio)
+
+        # Only calculate composite if we have real ownership data
+        inst_ownership_pct = safe_float(row.get('institutional_ownership_pct'))
         composite = calculate_composite_positioning_score(
             institutional_quality,
             smart_money,
             insider_sentiment,
             short_squeeze,
-            safe_float(row.get('institutional_ownership_pct'), 0)
+            inst_ownership_pct
         )
 
         # Update positioning_metrics with calculated scores
