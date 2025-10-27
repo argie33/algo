@@ -473,11 +473,12 @@ router.get("/sectors-with-history", async (req, res) => {
           const perf_5d = parseFloat(row.current_perf_5d || 0);
           const perf_20d = parseFloat(row.current_perf_20d || 0);
 
-          // Fetch 90-day trend data from sector_ranking (historical rankings only)
+          // Fetch trend data from sector_ranking (last 200+ trading days to match technical data)
           let trendData = [];
           try {
             // sector_ranking has: date, daily_strength_score, trend
             // Technical indicators (RSI, SMA) are in sector_technical_data table
+            // Must match date range with technical data endpoint (200+ days) for proper merging
             const historicalTrendQuery = `
               SELECT
                 sr.date,
@@ -486,8 +487,8 @@ router.get("/sectors-with-history", async (req, res) => {
                 sr.trend
               FROM sector_ranking sr
               WHERE LOWER(sr.sector) = LOWER($1)
-              AND sr.date >= CURRENT_DATE - INTERVAL '90 days'
-              ORDER BY sr.date ASC
+              ORDER BY sr.date DESC
+              LIMIT 200
             `;
             const historicalResults = await query(historicalTrendQuery, [row.sector_name]);
 
@@ -500,6 +501,8 @@ router.get("/sectors-with-history", async (req, res) => {
                 trend: r.trend
               };
             });
+            // Reverse to get chronological order (oldest to newest, left to right on chart)
+            trendData.reverse();
           } catch (trendError) {
             // Log error and set empty trend
             console.error(`❌ Could not fetch trend data for ${row.sector_name}:`, trendError.message);
