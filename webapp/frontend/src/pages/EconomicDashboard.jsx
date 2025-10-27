@@ -676,11 +676,11 @@ const CreditMarketPanel = ({ data, isLoading, theme }) => {
   const spreadHistory = creditData?.history?.BAMLH0A0HYM2 && creditData?.history?.BAMLH0A0IG
     ? creditData.history.BAMLH0A0HYM2.map((hy, idx) => {
         const igValue = creditData.history.BAMLH0A0IG[idx]?.value || 0;
-        // Calculate BAA-AAA spread: BAA yield minus AAA yield (both in %)
+        // Calculate BAA-AAA spread: BAA yield minus AAA yield (already in correct scale)
         const baaValue = creditData.history.BAA?.[idx]?.value || null;
         const aaaValue = creditData.history.AAA?.[idx]?.value || null;
         const baaAaaSpread = (baaValue !== null && aaaValue !== null)
-          ? (baaValue - aaaValue) * 100  // Convert to basis points (% to bps)
+          ? (baaValue - aaaValue)
           : null;
         return {
           date: hy.date,

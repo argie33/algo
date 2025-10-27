@@ -40,6 +40,7 @@ import {
 } from "recharts";
 import { getStockPrices } from "../services/api";
 import { format } from "date-fns";
+import { formatXAxisDate } from "../utils/dateFormatters";
 
 const HistoricalPriceChart = ({ symbol = "AAPL", defaultPeriod = 30 }) => {
   const [period, setPeriod] = useState(defaultPeriod);
@@ -88,15 +89,6 @@ const HistoricalPriceChart = ({ symbol = "AAPL", defaultPeriod = 30 }) => {
     if (!dateString) return "";
     try {
       return format(new Date(dateString), "MMM dd, yyyy, h:mm a");
-    } catch {
-      return dateString;
-    }
-  };
-
-  const formatXAxisDate = (dateString) => {
-    if (!dateString) return "";
-    try {
-      return format(new Date(dateString), "MMM dd");
     } catch {
       return dateString;
     }

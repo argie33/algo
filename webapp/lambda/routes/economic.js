@@ -1018,9 +1018,9 @@ router.get("/credit-spreads-full", async (req, res) => {
     const igSpreadLatest = dataBySeriesAndDate['BAMLH0A0IG']?.[dataBySeriesAndDate['BAMLH0A0IG'].length - 1]?.value || null;
     const baaYieldLatest = dataBySeriesAndDate['BAA']?.[dataBySeriesAndDate['BAA'].length - 1]?.value || null;
     const aaaYieldLatest = dataBySeriesAndDate['AAA']?.[dataBySeriesAndDate['AAA'].length - 1]?.value || null;
-    // Calculate BAA-AAA spread as (BAA - AAA) * 100 to convert from % to basis points
+    // Calculate BAA-AAA spread (yields are already in basis points/appropriate scale)
     const corporateSpreadLatest = (baaYieldLatest !== null && aaaYieldLatest !== null)
-      ? (baaYieldLatest - aaaYieldLatest) * 100
+      ? (baaYieldLatest - aaaYieldLatest)
       : null;
     const vixLatest = dataBySeriesAndDate['VIXCLS']?.[dataBySeriesAndDate['VIXCLS'].length - 1]?.value || null;
 
@@ -1036,14 +1036,14 @@ router.get("/credit-spreads-full", async (req, res) => {
     };
 
     // Calculate trend for computed spreads (e.g., BAA-AAA)
-    const calculateComputedSpreadTrend = (series1, series2, multiplier = 100) => {
+    const calculateComputedSpreadTrend = (series1, series2) => {
       if (!series1 || !series2 || series1.length < 2 || series2.length < 2) {
         return { current: null, trend: 'stable' };
       }
-      const current = (series1[series1.length - 1].value - series2[series2.length - 1].value) * multiplier;
+      const current = series1[series1.length - 1].value - series2[series2.length - 1].value;
       const last30Spread = series1.slice(-31).map((d, idx) => {
         const s2val = series2[series2.length - 31 + idx];
-        return s2val ? (d.value - s2val.value) * multiplier : null;
+        return s2val ? d.value - s2val.value : null;
       }).filter(v => v !== null);
       if (last30Spread.length < 2) return { current, trend: 'stable' };
       const avg30 = last30Spread.reduce((a, b) => a + b, 0) / last30Spread.length;

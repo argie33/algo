@@ -143,10 +143,8 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn):
         exit_trigger_1_price, exit_trigger_2_price, exit_trigger_3_condition, exit_trigger_3_price,
         exit_trigger_4_condition, exit_trigger_4_price, initial_stop, trailing_stop,
         base_type, base_length_days, avg_volume_50d, volume_surge_pct,
-        rs_rating, breakout_quality, risk_reward_ratio, current_gain_pct, days_in_position,
-        market_stage, stage_number, stage_confidence, substage, entry_quality_score,
-        risk_pct, position_size_pct, profit_target_8pct, profit_target_20pct, profit_target_25pct
-      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        rs_rating, breakout_quality, risk_reward_ratio, current_gain_pct, days_in_position
+      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
       ON CONFLICT (symbol, timeframe, date) DO UPDATE SET
         open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low,
         close = EXCLUDED.close, volume = EXCLUDED.volume,
@@ -162,12 +160,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn):
         base_length_days = EXCLUDED.base_length_days, avg_volume_50d = EXCLUDED.avg_volume_50d,
         volume_surge_pct = EXCLUDED.volume_surge_pct, rs_rating = EXCLUDED.rs_rating,
         breakout_quality = EXCLUDED.breakout_quality, risk_reward_ratio = EXCLUDED.risk_reward_ratio,
-        current_gain_pct = EXCLUDED.current_gain_pct, days_in_position = EXCLUDED.days_in_position,
-        market_stage = EXCLUDED.market_stage, stage_number = EXCLUDED.stage_number,
-        stage_confidence = EXCLUDED.stage_confidence, substage = EXCLUDED.substage,
-        entry_quality_score = EXCLUDED.entry_quality_score, risk_pct = EXCLUDED.risk_pct,
-        position_size_pct = EXCLUDED.position_size_pct, profit_target_8pct = EXCLUDED.profit_target_8pct,
-        profit_target_20pct = EXCLUDED.profit_target_20pct, profit_target_25pct = EXCLUDED.profit_target_25pct;
+        current_gain_pct = EXCLUDED.current_gain_pct, days_in_position = EXCLUDED.days_in_position;
     """
     inserted = 0
     skipped = 0
@@ -251,18 +244,6 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn):
             current_gain = float(row.get('current_gain_pct')) if pd.notna(row.get('current_gain_pct')) else None
             days_held = int(row.get('days_in_position')) if pd.notna(row.get('days_in_position')) else None
 
-            # Extract calculated fields (REAL DATA - None if missing)
-            market_stage = row.get('market_stage') or None
-            stage_number = int(row.get('stage_number')) if pd.notna(row.get('stage_number')) else None
-            stage_confidence = int(row.get('stage_confidence')) if pd.notna(row.get('stage_confidence')) else None
-            substage = row.get('substage') or None
-            entry_quality_score = int(row.get('entry_quality_score')) if pd.notna(row.get('entry_quality_score')) else None
-            risk_pct = float(row.get('risk_pct')) if pd.notna(row.get('risk_pct')) else None
-            position_size_pct = float(row.get('position_size_pct')) if pd.notna(row.get('position_size_pct')) else None
-            profit_target_8pct = float(row.get('profit_target_8pct')) if pd.notna(row.get('profit_target_8pct')) else None
-            profit_target_20pct = float(row.get('profit_target_20pct')) if pd.notna(row.get('profit_target_20pct')) else None
-            profit_target_25pct = float(row.get('profit_target_25pct')) if pd.notna(row.get('profit_target_25pct')) else None
-
             cur.execute(insert_q, (
                 symbol, timeframe, date_val,
                 open_val, high_val, low_val, close_val, vol,
@@ -271,9 +252,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn):
                 exit_1_price, exit_2_price, exit_3_cond, exit_3_price,
                 exit_4_cond, exit_4_price, initial_stop, trailing_stop,
                 base_type, base_length, avg_vol, vol_surge,
-                rs_rating, breakout_qual, risk_reward, current_gain, days_held,
-                market_stage, stage_number, stage_confidence, substage, entry_quality_score,
-                risk_pct, position_size_pct, profit_target_8pct, profit_target_20pct, profit_target_25pct
+                rs_rating, breakout_qual, risk_reward, current_gain, days_held
             ))
             inserted += 1
 

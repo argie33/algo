@@ -43,42 +43,41 @@ import {
   formatPercentage,
   getChangeColor,
 } from "../utils/formatters";
+import { formatXAxisDate } from "../utils/dateFormatters";
 
 // Helper component for sector momentum chart
 // Technical data is now consolidated in trendData from /sectors-with-history endpoint
-const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
-  // Use trendData directly from sector object (already includes technical indicators)
-  const trendArray = sector?.trendData || [];
+// Consolidated momentum chart for both sectors and industries
+const MomentumChart = ({ type = 'sector', data, aggregateToWeekly }) => {
+  const identifierName = type === 'sector' ? data?.sector_name : data?.industry;
+  const trendArray = data?.trendData || [];
 
-  // No need for separate technical data fetch - it's already in trendArray
-  // Each row in trendArray includes: date, momentum, rank, trend, ma_5, ma_10, ma_20, rsi
-  let momentumData = trendArray.map(row => {
-    return {
-      date: row.date,
-      momentum: parseFloat(row.dailyStrengthScore || 0),
-      rank: row.rank,
-      trend: row.trend,
-      ma_5: row.ma_5 !== undefined && row.ma_5 !== null ? parseFloat(row.ma_5) : undefined,
-      ma_10: row.ma_10 !== undefined && row.ma_10 !== null ? parseFloat(row.ma_10) : undefined,
-      ma_20: row.ma_20 !== undefined && row.ma_20 !== null ? parseFloat(row.ma_20) : undefined,
-      rsi: row.rsi !== undefined && row.rsi !== null ? parseFloat(row.rsi) : undefined
-    };
-  });
+  // Transform trend data to chart data format
+  let momentumData = trendArray.map(row => ({
+    date: row.date,
+    momentum: parseFloat(row.dailyStrengthScore || 0),
+    rank: row.rank,
+    trend: row.trend,
+    ma_5: row.ma_5 !== undefined && row.ma_5 !== null ? parseFloat(row.ma_5) : undefined,
+    ma_10: row.ma_10 !== undefined && row.ma_10 !== null ? parseFloat(row.ma_10) : undefined,
+    ma_20: row.ma_20 !== undefined && row.ma_20 !== null ? parseFloat(row.ma_20) : undefined,
+    rsi: row.rsi !== undefined && row.rsi !== null ? parseFloat(row.rsi) : undefined
+  }));
 
-  // Check what's actually in the technical data
+  // Check what technical indicators are available
   const hasMA5 = momentumData.some(m => m.ma_5 !== undefined);
   const hasMA10 = momentumData.some(m => m.ma_10 !== undefined);
   const hasMA20 = momentumData.some(m => m.ma_20 !== undefined);
   const hasRSI = momentumData.some(m => m.rsi !== undefined);
 
   if (momentumData.length > 0) {
-    console.log(`[SECTOR MOMENTUM CHART] ${sector?.sector_name}:`);
+    console.log(`[${type.toUpperCase()} MOMENTUM CHART] ${identifierName}:`);
     console.log(`  Total rows: ${momentumData.length}`);
     console.log(`  Has MA5: ${hasMA5}, Has MA10: ${hasMA10}, Has MA20: ${hasMA20}, Has RSI: ${hasRSI}`);
     console.log(`  First row:`, momentumData[0]);
   }
 
-  // Use ALL data for momentum chart (no date filtering)
+  // Aggregate to weekly if requested
   if (aggregateToWeekly && momentumData.length > 0) {
     momentumData = aggregateToWeekly(momentumData);
   }
@@ -116,7 +115,6 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
                 <Line yAxisId="left" type="monotone" dataKey="ma_5" stroke="#2196f3" strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls={true} name="MA 5" />
                 <Line yAxisId="left" type="monotone" dataKey="ma_10" stroke="#1976d2" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={true} name="MA 10" />
                 <Line yAxisId="left" type="monotone" dataKey="ma_20" stroke="#d32f2f" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={true} name="MA 20" />
-
               </LineChart>
             </ResponsiveContainer>
           </Box>
@@ -156,7 +154,6 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
                 {/* Overbought/Oversold Reference Lines */}
                 <ReferenceLine y={70} stroke="#ff6b6b" strokeDasharray="5,5" label={{ value: "Overbought (70)", position: "right", fontSize: 11 }} />
                 <ReferenceLine y={30} stroke="#51cf66" strokeDasharray="5,5" label={{ value: "Oversold (30)", position: "right", fontSize: 11 }} />
-
               </LineChart>
             </ResponsiveContainer>
           </Box>
@@ -170,129 +167,14 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
   );
 };
 
-// Helper component for industry momentum chart
-// Technical data is now consolidated in trendData from /industries-with-history endpoint
-const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
-  // Use trendData directly from industry object (already includes technical indicators)
-  const trendArray = industry?.trendData || [];
+// Legacy wrappers for backwards compatibility
+const SectorMomentumChart = ({ sector, aggregateToWeekly }) => (
+  <MomentumChart type="sector" data={sector} aggregateToWeekly={aggregateToWeekly} />
+);
 
-  // No need for separate technical data fetch - it's already in trendArray
-  // Each row in trendArray includes: date, momentum, rank, trend, ma_5, ma_10, ma_20, rsi
-  let momentumData = trendArray.map(row => {
-    return {
-      date: row.date,
-      momentum: parseFloat(row.dailyStrengthScore || 0),
-      rank: row.rank,
-      trend: row.trend,
-      ma_5: row.ma_5 !== undefined && row.ma_5 !== null ? parseFloat(row.ma_5) : undefined,
-      ma_10: row.ma_10 !== undefined && row.ma_10 !== null ? parseFloat(row.ma_10) : undefined,
-      ma_20: row.ma_20 !== undefined && row.ma_20 !== null ? parseFloat(row.ma_20) : undefined,
-      rsi: row.rsi !== undefined && row.rsi !== null ? parseFloat(row.rsi) : undefined
-    };
-  });
-
-  console.log(`[INDUSTRY MOMENTUM CHART] ${industry?.industry}:`);
-  console.log(`  Total rows: ${trendArray.length}`);
-  const hasMA5ind = momentumData.some(m => m.ma_5 !== undefined);
-  const hasMA10ind = momentumData.some(m => m.ma_10 !== undefined);
-  const hasMA20ind = momentumData.some(m => m.ma_20 !== undefined);
-  const hasRSIind = momentumData.some(m => m.rsi !== undefined);
-  console.log(`  Has MA5: ${hasMA5ind}, Has MA10: ${hasMA10ind}, Has MA20: ${hasMA20ind}, Has RSI: ${hasRSIind}`);
-  if (momentumData.length > 0) {
-    console.log(`  First row:`, momentumData[0]);
-  }
-
-  // Use ALL data for momentum chart (no date filtering)
-  if (aggregateToWeekly && momentumData.length > 0) {
-    momentumData = aggregateToWeekly(momentumData);
-  }
-
-  return (
-    <>
-      {/* Main Price & Moving Averages Chart */}
-      <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2, mb: 2 }}>
-        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-          ⚡ Daily Strength Score & Moving Averages
-        </Typography>
-        {momentumData && momentumData.length > 0 ? (
-          <Box sx={{ width: "100%", height: 350, position: "relative", display: "block", overflow: "hidden" }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={momentumData} margin={{ top: 20, right: 100, left: 80, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                <YAxis
-                  width={75}
-                  yAxisId="left"
-                  tick={{ fontSize: 11 }}
-                  label={{ value: "Momentum (-10 to 10)", angle: -90, position: "insideLeft", offset: 5 }}
-                  domain={['dataMin', 'dataMax']}
-                />
-                <Tooltip
-                  formatter={(value) => typeof value === 'number' ? value.toFixed(2) : "N/A"}
-                  labelFormatter={(label) => `Date: ${label}`}
-                />
-                <Legend wrapperStyle={{ paddingTop: 10 }} />
-
-                {/* Daily Strength Score */}
-                <Line yAxisId="left" type="monotone" dataKey="momentum" stroke="#ff9800" strokeWidth={3} dot={false} isAnimationActive={false} connectNulls={true} name="Daily Strength Score" />
-
-                {/* Moving Averages */}
-                <Line yAxisId="left" type="monotone" dataKey="ma_5" stroke="#2196f3" strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls={true} name="MA 5" />
-                <Line yAxisId="left" type="monotone" dataKey="ma_10" stroke="#1976d2" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={true} name="MA 10" />
-                <Line yAxisId="left" type="monotone" dataKey="ma_20" stroke="#d32f2f" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={true} name="MA 20" />
-
-              </LineChart>
-            </ResponsiveContainer>
-          </Box>
-        ) : (
-          <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-            Loading chart data...
-          </Typography>
-        )}
-      </Box>
-
-      {/* RSI Chart - Separate Bottom Panel */}
-      <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mb: 3 }}>
-        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-          📊 RSI (14) - Relative Strength Index
-        </Typography>
-        {momentumData && momentumData.length > 0 ? (
-          <Box sx={{ width: "100%", height: 250, position: "relative", display: "block", overflow: "hidden" }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={momentumData} margin={{ top: 20, right: 80, left: 80, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                <YAxis
-                  width={75}
-                  tick={{ fontSize: 11 }}
-                  label={{ value: "RSI", angle: -90, position: "insideLeft", offset: 5 }}
-                  domain={[0, 100]}
-                />
-                <Tooltip
-                  formatter={(value) => typeof value === 'number' ? value.toFixed(2) : "N/A"}
-                  labelFormatter={(label) => `Date: ${label}`}
-                />
-                <Legend wrapperStyle={{ paddingTop: 10 }} />
-
-                {/* RSI Line */}
-                <Line type="monotone" dataKey="rsi" stroke="#9c27b0" strokeWidth={2.5} dot={false} isAnimationActive={false} connectNulls={true} name="RSI (14)" />
-
-                {/* Overbought/Oversold Reference Lines */}
-                <ReferenceLine y={70} stroke="#ff6b6b" strokeDasharray="5,5" label={{ value: "Overbought (70)", position: "right", fontSize: 11 }} />
-                <ReferenceLine y={30} stroke="#51cf66" strokeDasharray="5,5" label={{ value: "Oversold (30)", position: "right", fontSize: 11 }} />
-
-              </LineChart>
-            </ResponsiveContainer>
-          </Box>
-        ) : (
-          <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-            Loading chart data...
-          </Typography>
-        )}
-      </Box>
-    </>
-  );
-};
+const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => (
+  <MomentumChart type="industry" data={industry} aggregateToWeekly={aggregateToWeekly} />
+);
 
 const SectorAnalysis = () => {
   const [lastUpdate, setLastUpdate] = useState(null);
@@ -795,16 +677,6 @@ const SectorAnalysis = () => {
     history = aggregateToWeekly(history);
 
     // Format date for x-axis display
-    const formatXAxisDate = (dateString) => {
-      if (!dateString) return "";
-      try {
-        const date = new Date(dateString);
-        return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      } catch {
-        return dateString;
-      }
-    };
-
     // Find min and max ranks for better visualization
     const ranks = history.map(h => h.rank).filter(r => r !== null && r !== undefined);
     const minRank = ranks.length > 0 ? Math.min(...ranks) : 1;
@@ -881,22 +753,47 @@ const SectorAnalysis = () => {
     );
   };
 
-  const SectorTrendChart = ({ sector }) => {
+  // Consolidated trend chart wrapper for both sectors and industries
+  const TrendChartWrapper = ({ type = 'sector', data, width, height }) => {
+    // Determine query key and identifier based on type
+    const identifier = type === 'sector'
+      ? (data.sector || data.sector_name)
+      : data.industry;
+
+    // API endpoint and query configuration
+    const queryConfig = type === 'sector'
+      ? { endpoint: `/api/sectors/trend/sector/${encodeURIComponent(identifier)}`, key: ["sector-trend", identifier] }
+      : { endpoint: `/api/sectors/trend/industry/${encodeURIComponent(identifier)}`, key: ["industry-trend", identifier] };
+
+    // Fallback periods based on type
+    const fallbackPeriods = type === 'sector'
+      ? [
+          { period: "12W", rank: data.rank_12w_ago || data.rank_12w_ago === 0 ? data.rank_12w_ago : null },
+          { period: "4W", rank: data.rank_4w_ago || data.rank_4w_ago === 0 ? data.rank_4w_ago : null },
+          { period: "1W", rank: data.rank_1w_ago || data.rank_1w_ago === 0 ? data.rank_1w_ago : null },
+          { period: "Now", rank: data.current_rank || data.overall_rank },
+        ]
+      : [
+          { period: "8W", rank: data.rank_8w_ago || data.rank_8w_ago === 0 ? data.rank_8w_ago : null },
+          { period: "4W", rank: data.rank_4w_ago || data.rank_4w_ago === 0 ? data.rank_4w_ago : null },
+          { period: "1W", rank: data.rank_1w_ago || data.rank_1w_ago === 0 ? data.rank_1w_ago : null },
+          { period: "Now", rank: data.current_rank },
+        ];
+
     // Fetch full trend data from API
     const { data: trendResponse } = useQuery({
-      queryKey: ["sector-trend", sector.sector || sector.sector_name],
+      queryKey: queryConfig.key,
       queryFn: async () => {
         try {
-          const sectorName = sector.sector || sector.sector_name;
-          const response = await api.get(`/api/sectors/trend/sector/${encodeURIComponent(sectorName)}`);
+          const response = await api.get(queryConfig.endpoint);
           return response.data;
         } catch (error) {
-          console.error("Failed to fetch sector trend:", error);
+          console.error(`Failed to fetch ${type} trend:`, error);
           return null;
         }
       },
       staleTime: 300000, // 5 minutes
-      enabled: !!(sector.sector || sector.sector_name),
+      enabled: !!identifier,
       retry: false,
     });
 
@@ -907,12 +804,7 @@ const SectorAnalysis = () => {
           label: row.label,
           rank: row.rank
         }))
-      : [
-          { period: "12W", rank: sector.rank_12w_ago || sector.rank_12w_ago === 0 ? sector.rank_12w_ago : null },
-          { period: "4W", rank: sector.rank_4w_ago || sector.rank_4w_ago === 0 ? sector.rank_4w_ago : null },
-          { period: "1W", rank: sector.rank_1w_ago || sector.rank_1w_ago === 0 ? sector.rank_1w_ago : null },
-          { period: "Now", rank: sector.current_rank || sector.overall_rank },
-        ].filter(d => d.rank !== null);
+      : fallbackPeriods.filter(d => d.rank !== null);
 
     // Filter to last 3 months only
     if (trendData.length > 0 && trendData[0].date) {
@@ -931,60 +823,15 @@ const SectorAnalysis = () => {
     // Aggregate to weekly data for smoother visualization
     trendData = aggregateToWeekly(trendData);
 
-    return <TrendChart data={trendData} />;
+    const props = { data: trendData };
+    if (width) props.width = width;
+    if (height) props.height = height;
+    return <TrendChart {...props} />;
   };
 
-  const IndustryTrendChart = ({ industry }) => {
-    // Fetch full trend data from API
-    const { data: trendResponse } = useQuery({
-      queryKey: ["industry-trend", industry.industry],
-      queryFn: async () => {
-        try {
-          const response = await api.get(`/api/sectors/trend/industry/${encodeURIComponent(industry.industry)}`);
-          return response.data;
-        } catch (error) {
-          console.error("Failed to fetch industry trend:", error);
-          return null;
-        }
-      },
-      staleTime: 300000, // 5 minutes
-      enabled: !!industry.industry,
-      retry: false,
-    });
-
-    // Use API data if available, otherwise fall back to summary data
-    let trendData = trendResponse?.trendData && trendResponse.trendData.length > 0
-      ? trendResponse.trendData.map(row => ({
-          date: row.date,
-          label: row.label,
-          rank: row.rank
-        }))
-      : [
-          { period: "8W", rank: industry.rank_8w_ago || industry.rank_8w_ago === 0 ? industry.rank_8w_ago : null },
-          { period: "4W", rank: industry.rank_4w_ago || industry.rank_4w_ago === 0 ? industry.rank_4w_ago : null },
-          { period: "1W", rank: industry.rank_1w_ago || industry.rank_1w_ago === 0 ? industry.rank_1w_ago : null },
-          { period: "Now", rank: industry.current_rank },
-        ].filter(d => d.rank !== null);
-
-    // Filter to last 3 months only
-    if (trendData.length > 0 && trendData[0].date) {
-      const threeMonthsAgo = new Date();
-      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-      trendData = trendData.filter(row => {
-        try {
-          const rowDate = new Date(row.date);
-          return rowDate >= threeMonthsAgo;
-        } catch {
-          return true;
-        }
-      });
-    }
-
-    // Aggregate to weekly data for smoother visualization
-    trendData = aggregateToWeekly(trendData);
-
-    return <TrendChart data={trendData} width={90} height={35} />;
-  };
+  // Legacy component wrappers for backwards compatibility
+  const SectorTrendChart = ({ sector }) => <TrendChartWrapper type="sector" data={sector} />;
+  const IndustryTrendChart = ({ industry }) => <TrendChartWrapper type="industry" data={industry} width={90} height={35} />;
 
   // Component to render top performing companies for an industry
   const TopPerformingCompaniesGrid = ({ industry }) => {
