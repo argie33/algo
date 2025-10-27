@@ -16,6 +16,7 @@ const WebSocket = require("ws");
 const errorHandler = require("./middleware/errorHandler");
 const responseFormatterMiddleware = require("./middleware/responseFormatter");
 const { initializeDatabase } = require("./utils/database");
+const { initializeAlpacaSync } = require("./utils/alpacaSyncScheduler");
 const alertsRoutes = require("./routes/alerts");
 const analystRoutes = require("./routes/analysts");
 const analyticsRoutes = require("./routes/analytics");
@@ -695,6 +696,10 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`💼 Scores: http://localhost:${PORT}/api/scores`);
   console.log(`⚡ All endpoints available at http://localhost:${PORT}/api/*`);
   console.log(`🔌 WebSocket: ws://localhost:${PORT}/ws`);
+
+  // Initialize Alpaca portfolio sync scheduler
+  // Syncs every 10 minutes automatically
+  initializeAlpacaSync();
 });
 
 // Handle graceful shutdown

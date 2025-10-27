@@ -450,13 +450,14 @@ def create_connection_pool():
     )
 
 def get_memory_usage():
-    """Get current memory usage in MB"""
+    """Get current memory usage in MB. Returns None if psutil unavailable."""
     try:
         import psutil
         process = psutil.Process(os.getpid())
         return process.memory_info().rss / 1024 / 1024
     except ImportError:
-        return 0
+        logging.debug("psutil not available, cannot monitor memory usage")
+        return None
 
 def process_symbol(symbol, conn_pool):
     """Process a single symbol and return the number of rows inserted"""
@@ -726,16 +727,19 @@ def process_symbol(symbol, conn_pool):
         
         # Additional memory cleanup for small ECS tasks
         final_memory = get_memory_usage()
-        memory_used = final_memory - initial_memory
-        
-        if final_memory > MEMORY_THRESHOLD_MB:
-            logging.warning(f"High memory usage: {final_memory:.1f}MB/{ECS_MEMORY_MB}MB after {symbol} (+{memory_used:.1f}MB)")
-            # Force aggressive garbage collection
-            gc.collect()
-            gc.collect()  # Call twice for more thorough cleanup
-            
-        if final_memory > ECS_MEMORY_MB * 0.9:  # Using >90% of available memory
-            logging.error(f"CRITICAL: Memory usage {final_memory:.1f}MB exceeds 90% of {ECS_MEMORY_MB}MB")
+
+        # Only perform memory checks if data is available
+        if final_memory is not None:
+            memory_used = final_memory - (initial_memory if initial_memory is not None else 0)
+
+            if final_memory > MEMORY_THRESHOLD_MB:
+                logging.warning(f"High memory usage: {final_memory:.1f}MB/{ECS_MEMORY_MB}MB after {symbol} (+{memory_used:.1f}MB)")
+                # Force aggressive garbage collection
+                gc.collect()
+                gc.collect()  # Call twice for more thorough cleanup
+
+            if final_memory > ECS_MEMORY_MB * 0.9:  # Using >90% of available memory
+                logging.error(f"CRITICAL: Memory usage {final_memory:.1f}MB exceeds 90% of {ECS_MEMORY_MB}MB")
         
         return num_inserted
         
@@ -809,7 +813,7 @@ def main():
                         try:
                             # Check memory before processing each symbol
                             current_memory = get_memory_usage()
-                            if current_memory > ECS_MEMORY_MB * 0.85:  # >85% memory usage
+                            if current_memory is not None and current_memory > ECS_MEMORY_MB * 0.85:  # >85% memory usage
                                 logging.warning(f"High memory before {symbol}: {current_memory:.1f}MB")
                                 gc.collect()
                                 

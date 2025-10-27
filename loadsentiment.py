@@ -518,8 +518,18 @@ def calculate_rsi(prices, period=14):
     seed = deltas[:period+1]
     up = seed[seed >= 0].sum() / period
     down = -seed[seed < 0].sum() / period
-    rs = up / down if down != 0 else 1
-    rsi = 100.0 - (100.0 / (1.0 + rs))
+
+    # Calculate RSI properly for all cases
+    if down == 0:
+        # No declines = perfect uptrend = RSI of 100
+        rsi = 100.0 if up > 0 else 50.0  # 50 if no movement at all
+    elif up == 0:
+        # No gains = perfect downtrend = RSI of 0
+        rsi = 0.0
+    else:
+        # Normal case: both up and down movements exist
+        rs = up / down
+        rsi = 100.0 - (100.0 / (1.0 + rs))
 
     # Convert RSI to sentiment: RSI > 70 = overbought (negative), RSI < 30 = oversold (positive)
     # Neutral at 50 (RSI of 50 = 0.0 sentiment)
@@ -528,11 +538,15 @@ def calculate_rsi(prices, period=14):
     return max(-1.0, min(1.0, sentiment))
 
 def calculate_macd_sentiment(prices):
-    """Calculate MACD-based sentiment from prices"""
+    """Calculate MACD-based sentiment from prices. Normalized by price level to prevent scale bias."""
     if len(prices) < 26:
         return None
 
     prices_array = np.array(prices, dtype=float)
+
+    # Validate prices are positive and non-zero
+    if np.any(prices_array <= 0):
+        return None
 
     # Calculate EMAs
     ema_12 = pd.Series(prices_array).ewm(span=12, adjust=False).mean().values
@@ -544,13 +558,27 @@ def calculate_macd_sentiment(prices):
     # Get the latest MACD value and the previous one
     current_macd = float(macd[-1])
     prev_macd = float(macd[-2]) if len(macd) > 1 else current_macd
+    current_price = float(prices_array[-1])
 
     # Momentum: positive if MACD is increasing, negative if decreasing
     macd_momentum = current_macd - prev_macd
 
-    # Convert to sentiment between -1 and 1
-    # Normalize based on typical MACD ranges
-    sentiment = float(np.tanh(current_macd / 0.5))  # Tanh keeps output in -1 to 1 range
+    # Normalize MACD by current price to account for different stock price levels
+    # A stock at $5 and $500 will have very different MACD scales
+    # Normalized: MACD as % of current price
+    normalized_macd = current_macd / current_price if current_price > 0 else 0
+
+    # Also consider momentum (direction of MACD change)
+    normalized_momentum = macd_momentum / current_price if current_price > 0 else 0
+
+    # Convert to sentiment: use both MACD level and momentum
+    # Weight: 70% level, 30% momentum
+    combined_signal = (normalized_macd * 0.7) + (normalized_momentum * 0.3)
+
+    # Use tanh to bound to -1 to 1 range
+    # Scaling factor: typical normalized MACD ranges from -0.02 to 0.02
+    sentiment = float(np.tanh(combined_signal * 50))  # Scale up to use tanh effectively
+
     return max(-1.0, min(1.0, sentiment))
 
 def get_fallback_sentiment(symbol: str) -> Dict:
@@ -649,23 +677,23 @@ def create_sentiment_tables(cur, conn):
     CREATE TABLE IF NOT EXISTS analyst_sentiment_analysis (
         symbol VARCHAR(20),
         date DATE,
-        strong_buy_count INTEGER DEFAULT 0,
-        buy_count INTEGER DEFAULT 0,
-        hold_count INTEGER DEFAULT 0,
-        sell_count INTEGER DEFAULT 0,
-        strong_sell_count INTEGER DEFAULT 0,
-        total_analysts INTEGER DEFAULT 0,
-        upgrades_last_30d INTEGER DEFAULT 0,
-        downgrades_last_30d INTEGER DEFAULT 0,
-        initiations_last_30d INTEGER DEFAULT 0,
+        strong_buy_count INTEGER,
+        buy_count INTEGER,
+        hold_count INTEGER,
+        sell_count INTEGER,
+        strong_sell_count INTEGER,
+        total_analysts INTEGER,
+        upgrades_last_30d INTEGER,
+        downgrades_last_30d INTEGER,
+        initiations_last_30d INTEGER,
         avg_price_target DECIMAL(10,4),
         high_price_target DECIMAL(10,4),
         low_price_target DECIMAL(10,4),
         price_target_vs_current DECIMAL(8,4),
-        eps_revisions_up_last_30d INTEGER DEFAULT 0,
-        eps_revisions_down_last_30d INTEGER DEFAULT 0,
-        revenue_revisions_up_last_30d INTEGER DEFAULT 0,
-        revenue_revisions_down_last_30d INTEGER DEFAULT 0,
+        eps_revisions_up_last_30d INTEGER,
+        eps_revisions_down_last_30d INTEGER,
+        revenue_revisions_up_last_30d INTEGER,
+        revenue_revisions_down_last_30d INTEGER,
         recommendation_mean DECIMAL(4,2),
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -678,17 +706,17 @@ def create_sentiment_tables(cur, conn):
     CREATE TABLE IF NOT EXISTS social_sentiment_analysis (
         symbol VARCHAR(20),
         date DATE,
-        reddit_mention_count INTEGER DEFAULT 0,
-        reddit_sentiment_score DECIMAL(6,4) DEFAULT 0,
-        reddit_volume_normalized_sentiment DECIMAL(6,4) DEFAULT 0,
-        search_volume_index INTEGER DEFAULT 0,
-        search_trend_7d DECIMAL(8,4) DEFAULT 0,
-        search_trend_30d DECIMAL(8,4) DEFAULT 0,
-        news_article_count INTEGER DEFAULT 0,
-        news_sentiment_score DECIMAL(6,4) DEFAULT 0,
-        news_source_quality_weight DECIMAL(5,2) DEFAULT 0,
-        social_media_volume INTEGER DEFAULT 0,
-        viral_score DECIMAL(5,2) DEFAULT 0,
+        reddit_mention_count INTEGER,
+        reddit_sentiment_score DECIMAL(6,4),
+        reddit_volume_normalized_sentiment DECIMAL(6,4),
+        search_volume_index INTEGER,
+        search_trend_7d DECIMAL(8,4),
+        search_trend_30d DECIMAL(8,4),
+        news_article_count INTEGER,
+        news_sentiment_score DECIMAL(6,4),
+        news_source_quality_weight DECIMAL(5,2),
+        social_media_volume INTEGER,
+        viral_score DECIMAL(5,2),
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (symbol, date)
@@ -787,45 +815,45 @@ def load_sentiment_batch(symbols: List[str], conn, cur, batch_size: int = 10) ->
                     symbol = item['symbol']
                     date_val = item['date']
                     
-                    # Analyst sentiment data
+                    # Analyst sentiment data - REAL DATA ONLY, no defaults
                     analyst = item['analyst_sentiment']
                     analyst_data.append((
                         symbol, date_val,
-                        analyst.get('strong_buy_count', 0),
-                        analyst.get('buy_count', 0),
-                        analyst.get('hold_count', 0),
-                        analyst.get('sell_count', 0),
-                        analyst.get('strong_sell_count', 0),
-                        analyst.get('total_analysts', 0),
-                        analyst.get('upgrades_last_30d', 0),
-                        analyst.get('downgrades_last_30d', 0),
-                        analyst.get('initiations_last_30d', 0),
-                        analyst.get('avg_price_target'),
-                        analyst.get('high_price_target'),
-                        analyst.get('low_price_target'),
-                        analyst.get('price_target_vs_current'),
-                        analyst.get('eps_revisions_up_last_30d', 0),
-                        analyst.get('eps_revisions_down_last_30d', 0),
-                        analyst.get('revenue_revisions_up_last_30d', 0),
-                        analyst.get('revenue_revisions_down_last_30d', 0),
-                        analyst.get('recommendation_mean')
+                        analyst.get('strong_buy_count'),  # None if missing
+                        analyst.get('buy_count'),  # None if missing
+                        analyst.get('hold_count'),  # None if missing
+                        analyst.get('sell_count'),  # None if missing
+                        analyst.get('strong_sell_count'),  # None if missing
+                        analyst.get('total_analysts'),  # None if missing
+                        analyst.get('upgrades_last_30d'),  # None if missing
+                        analyst.get('downgrades_last_30d'),  # None if missing
+                        analyst.get('initiations_last_30d'),  # None if missing
+                        analyst.get('avg_price_target'),  # None if missing
+                        analyst.get('high_price_target'),  # None if missing
+                        analyst.get('low_price_target'),  # None if missing
+                        analyst.get('price_target_vs_current'),  # None if missing
+                        analyst.get('eps_revisions_up_last_30d'),  # None if missing
+                        analyst.get('eps_revisions_down_last_30d'),  # None if missing
+                        analyst.get('revenue_revisions_up_last_30d'),  # None if missing
+                        analyst.get('revenue_revisions_down_last_30d'),  # None if missing
+                        analyst.get('recommendation_mean')  # None if missing
                     ))
                     
-                    # Social sentiment data
+                    # Social sentiment data - REAL DATA ONLY, no fake defaults
                     social = item['social_sentiment']
                     social_data.append((
                         symbol, date_val,
-                        social.get('reddit_mention_count', 0),
-                        social.get('reddit_sentiment_score', 0.0),
-                        social.get('reddit_volume_normalized_sentiment', 0.0),
-                        social.get('search_volume_index', 0),
-                        social.get('search_trend_7d', 0.0),
-                        social.get('search_trend_30d', 0.0),
-                        social.get('news_article_count', 0),
-                        social.get('news_sentiment_score', 0.0),
-                        social.get('news_source_quality_weight', 0.0),
-                        0,  # social_media_volume (placeholder)
-                        0.0  # viral_score (placeholder)
+                        social.get('reddit_mention_count'),  # None if missing
+                        social.get('reddit_sentiment_score'),  # None if missing (NOT fake 0.0)
+                        social.get('reddit_volume_normalized_sentiment'),  # None if missing (NOT fake 0.0)
+                        social.get('search_volume_index'),  # None if missing
+                        social.get('search_trend_7d'),  # None if missing (NOT fake 0.0)
+                        social.get('search_trend_30d'),  # None if missing (NOT fake 0.0)
+                        social.get('news_article_count'),  # None if missing
+                        social.get('news_sentiment_score'),  # None if missing (NOT fake 0.0)
+                        social.get('news_source_quality_weight'),  # None if missing (NOT fake 0.0)
+                        social.get('social_media_volume'),  # None if missing (NOT fake 0)
+                        social.get('viral_score')  # None if missing (NOT fake 0.0)
                     ))
                 
                 # Execute batch inserts for analyst data

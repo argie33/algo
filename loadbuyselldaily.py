@@ -165,20 +165,21 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn):
     skipped = 0
     for idx, row in df.iterrows():
         try:
-            # Validate and convert core fields before insertion
+            # Validate and convert core fields before insertion (REAL DATA ONLY - no fake defaults)
             try:
                 date_val = row['date'].date() if hasattr(row['date'], 'date') else row['date']
-                open_val = float(row.get('open', 0)) or 0
-                high_val = float(row.get('high', 0)) or 0
-                low_val = float(row.get('low', 0)) or 0
-                close_val = float(row.get('close', 0)) or 0
+                # REAL DATA ONLY - if price is missing, return None (not fake 0.0)
+                open_val = float(row.get('open')) if row.get('open') is not None else None
+                high_val = float(row.get('high')) if row.get('high') is not None else None
+                low_val = float(row.get('low')) if row.get('low') is not None else None
+                close_val = float(row.get('close')) if row.get('close') is not None else None
 
-                # Validate volume - critical for BIGINT
-                vol = row.get('volume', 0)
+                # Validate volume - REAL DATA ONLY (not fake 0)
+                vol = row.get('volume')
                 if pd.isna(vol) or vol is None:
-                    vol = 0
+                    vol = None
                 elif isinstance(vol, (float, np.floating)):
-                    vol = int(vol) if not np.isnan(vol) else 0
+                    vol = int(vol) if not np.isnan(vol) else None
                 else:
                     vol = int(vol)
 
@@ -355,18 +356,25 @@ def calculate_signal_strength(df, index):
 
         if signal_type == 'None':
             return None  # No real signal - return None instead of fake 50.0
-        
-        # Get required values
-        rsi = row.get('rsi', 50)
-        adx = row.get('adx', 25)
-        close = row.get('close', 0)
-        high = row.get('high', close)
-        low = row.get('low', close)
-        volume = row.get('volume', 0)
-        sma_50 = row.get('sma_50', close)
-        atr = row.get('atr', 0)
-        pivot_high = row.get('pivot_high', 0)
-        pivot_low = row.get('pivot_low', 0)
+
+        # Get required values - REAL DATA ONLY
+        # Return None if critical technical data is missing
+        rsi = row.get('rsi')
+        close = row.get('close')
+        volume = row.get('volume')
+
+        # If critical data missing, can't calculate meaningful signal strength
+        if rsi is None or close is None or volume is None:
+            return None
+
+        # Optional technical indicators (use None if missing, not fake defaults)
+        adx = row.get('adx')
+        high = row.get('high')
+        low = row.get('low')
+        sma_50 = row.get('sma_50')
+        atr = row.get('atr')
+        pivot_high = row.get('pivot_high')
+        pivot_low = row.get('pivot_low')
         
         # Calculate average volume (20-period rolling average)
         start_idx = max(0, index - 19)
@@ -394,28 +402,41 @@ def calculate_signal_strength(df, index):
             else:
                 strength += 3   # Weak
         
-        # ADX trend strength
-        if adx > 40:
-            strength += 9   # Very strong trend
-        elif adx > 30:
-            strength += 6   # Strong trend
-        elif adx > 20:
-            strength += 3   # Moderate trend
-        else:
-            strength += 1   # Weak trend
-        
-        # Price vs SMA-50
-        if signal_type == 'Buy' and close > sma_50:
-            price_above_sma = ((close - sma_50) / sma_50) * 100
-            strength += min(9, max(0, price_above_sma * 3))
-        elif signal_type == 'Sell' and close < sma_50:
-            price_below_sma = ((sma_50 - close) / sma_50) * 100
-            strength += min(9, max(0, price_below_sma * 3))
+        # ADX trend strength (only if ADX data available)
+        if adx is not None:
+            if adx > 40:
+                strength += 9   # Very strong trend
+            elif adx > 30:
+                strength += 6   # Strong trend
+            elif adx > 20:
+                strength += 3   # Moderate trend
+            else:
+                strength += 1   # Weak trend
+
+        # Price vs SMA-50 (only if SMA-50 data available)
+        if sma_50 is not None and sma_50 > 0:
+            if signal_type == 'Buy' and close > sma_50:
+                price_above_sma = ((close - sma_50) / sma_50) * 100
+                # Validate result is not inf/nan
+                if np.isfinite(price_above_sma):
+                    strength += min(9, max(0, price_above_sma * 3))
+            elif signal_type == 'Sell' and close < sma_50:
+                price_below_sma = ((sma_50 - close) / sma_50) * 100
+                # Validate result is not inf/nan
+                if np.isfinite(price_below_sma):
+                    strength += min(9, max(0, price_below_sma * 3))
         
         # 2. Volume Confirmation (25%)
-        if avg_volume > 0:
+        if avg_volume > 0 and volume is not None and volume >= 0:
             volume_ratio = volume / avg_volume
-            if volume_ratio > 2.0:
+
+            # Validate ratio is not inf/nan and reasonable
+            if not np.isfinite(volume_ratio) or volume_ratio < 0:
+                strength += 5  # Invalid volume data, minimal score
+            elif volume_ratio > 5.0:
+                # Cap extreme volume spikes (stock split, exchange halt, data error)
+                strength += 25  # Treat 5x+ same as 2x+ to prevent skew
+            elif volume_ratio > 2.0:
                 strength += 25  # Exceptional volume
             elif volume_ratio > 1.5:
                 strength += 20  # High volume
@@ -426,50 +447,69 @@ def calculate_signal_strength(df, index):
             else:
                 strength += 5   # Low volume
         else:
-            strength += 12.5  # Default if no volume data
-        
-        # 3. Price Action (25%)
-        if high != low:
-            close_position = (close - low) / (high - low)
-            if signal_type == 'Buy':
-                if close_position > 0.8:
-                    strength += 25  # Strong bullish close
-                elif close_position > 0.6:
-                    strength += 19  # Good bullish close
-                elif close_position > 0.4:
-                    strength += 12  # Neutral
-                else:
-                    strength += 6   # Weak bullish close
-            elif signal_type == 'Sell':
-                if close_position < 0.2:
-                    strength += 25  # Strong bearish close
-                elif close_position < 0.4:
-                    strength += 19  # Good bearish close
-                elif close_position < 0.6:
-                    strength += 12  # Neutral
-                else:
-                    strength += 6   # Weak bearish close
-        else:
-            strength += 12.5  # Default if no price action
-        
-        # 4. Volatility Context (10%)
-        if close > 0 and atr > 0:
-            atr_percentage = (atr / close) * 100
-            if 1.5 <= atr_percentage <= 3.0:
-                strength += 10  # Ideal volatility
-            elif 1.0 <= atr_percentage <= 4.0:
-                strength += 8   # Good volatility
-            elif 0.5 <= atr_percentage <= 5.0:
-                strength += 6   # Acceptable volatility
-            elif atr_percentage > 5.0:
-                strength += 3   # High volatility (risky)
+            # Only add default if data is truly missing (avg_volume=0)
+            # Don't reward invalid/missing volume data
+            if avg_volume == 0 and volume is None:
+                strength += 12.5  # Default if no volume data available
             else:
-                strength += 4   # Low volatility (less opportunity)
+                strength += 0  # No reward for bad/missing volume
+        
+        # 3. Price Action (25%) - only if high/low data available
+        if high is not None and low is not None and high > 0 and low > 0 and high >= low:
+            # Validate OHLC range
+            if high == low:
+                # No range, can't calculate close position
+                strength += 5
+            else:
+                close_position = (close - low) / (high - low)
+
+                # Validate result is not inf/nan and within 0-1 range
+                if not (0 <= close_position <= 1) or not np.isfinite(close_position):
+                    strength += 5  # Invalid calculation
+                else:
+                    # Use the valid close_position
+                    if signal_type == 'Buy':
+                        if close_position > 0.8:
+                            strength += 25  # Strong bullish close
+                        elif close_position > 0.6:
+                            strength += 19  # Good bullish close
+                        elif close_position > 0.4:
+                            strength += 12  # Neutral
+                        else:
+                            strength += 6   # Weak bullish close
+                    elif signal_type == 'Sell':
+                        if close_position < 0.2:
+                            strength += 25  # Strong bearish close
+                        elif close_position < 0.4:
+                            strength += 19  # Good bearish close
+                        elif close_position < 0.6:
+                            strength += 12  # Neutral
+                        else:
+                            strength += 6   # Weak bearish close
+        
+        # 4. Volatility Context (10%) - only if ATR data available
+        if atr is not None and close > 0 and atr > 0:
+            atr_percentage = (atr / close) * 100
+
+            # Validate result is not inf/nan
+            if np.isfinite(atr_percentage):
+                if 1.5 <= atr_percentage <= 3.0:
+                    strength += 10  # Ideal volatility
+                elif 1.0 <= atr_percentage <= 4.0:
+                    strength += 8   # Good volatility
+                elif 0.5 <= atr_percentage <= 5.0:
+                    strength += 6   # Acceptable volatility
+                elif atr_percentage > 5.0:
+                    strength += 3   # High volatility (risky)
+                else:
+                    strength += 4   # Low volatility (less opportunity)
+            else:
+                strength += 2  # Invalid ATR calculation
         else:
             strength += 5  # Default if no volatility data
         
-        # 5. Breakout Magnitude (10%)
-        if signal_type == 'Buy' and pivot_high > 0:
+        # 5. Breakout Magnitude (10%) - only if pivot data available
+        if signal_type == 'Buy' and pivot_high is not None and pivot_high > 0:
             breakout_percent = ((close - pivot_high) / pivot_high) * 100
             if breakout_percent > 3.0:
                 strength += 10  # Strong breakout
@@ -479,7 +519,7 @@ def calculate_signal_strength(df, index):
                 strength += 5   # Moderate breakout
             else:
                 strength += 2   # Weak breakout
-        elif signal_type == 'Sell' and pivot_low > 0:
+        elif signal_type == 'Sell' and pivot_low is not None and pivot_low > 0:
             breakdown_percent = ((pivot_low - close) / pivot_low) * 100
             if breakdown_percent > 3.0:
                 strength += 10  # Strong breakdown
@@ -817,10 +857,33 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
 
     # Calculate breakout quality based on price range and volume
     def calc_breakout_quality(row):
-        if row['low'] <= 0 or row['avg_volume_50d'] <= 0:
+        # Validate OHLC invariants
+        low = row.get('low')
+        high = row.get('high')
+        volume_surge = row.get('volume_surge_pct')
+
+        # Check for invalid OHLC data
+        if low is None or high is None or volume_surge is None:
+            return 'WEAK'  # Insufficient data
+
+        if low <= 0 or high <= 0:
+            return 'WEAK'  # Invalid price data
+
+        if high < low:
+            logging.warning(f"Invalid OHLC: high ({high}) < low ({low})")
+            return 'WEAK'  # Inverted prices = data error
+
+        if row.get('avg_volume_50d', 0) <= 0:
+            return 'WEAK'  # No volume data
+
+        # Calculate daily range percentage
+        daily_range_pct = ((high - low) / low) * 100
+
+        # Validate result is reasonable (not inf or nan)
+        if not (0 <= daily_range_pct <= 100):
+            logging.warning(f"Invalid daily_range_pct: {daily_range_pct}")
             return 'WEAK'
-        daily_range_pct = ((row['high'] - row['low']) / row['low']) * 100
-        volume_surge = row['volume_surge_pct']
+
         if daily_range_pct > 3.0 and volume_surge > 50:
             return 'STRONG'
         elif daily_range_pct > 1.5 and volume_surge > 25:

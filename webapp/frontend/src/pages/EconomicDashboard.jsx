@@ -551,9 +551,9 @@ const YieldCurvePanel = ({ data, isLoading, theme }) => {
 
         <Grid item xs={12} md={6}>
           <Card>
-            <CardHeader title="Curve Status & Spreads" />
+            <CardHeader title="Curve Status & Historical Trend" />
             <CardContent>
-              <Box sx={{ mb: 2 }}>
+              <Box sx={{ mb: 3 }}>
                 <Typography variant="subtitle2" color="textSecondary" sx={{ mb: 1, fontWeight: 600 }}>
                   Current Status
                 </Typography>
@@ -585,6 +585,37 @@ const YieldCurvePanel = ({ data, isLoading, theme }) => {
                   )}
                 </Box>
               </Box>
+
+              {data.yieldCurveFullData?.history?.T10Y2Y && (
+                <Box>
+                  <Divider sx={{ my: 2 }} />
+                  <Typography variant="subtitle2" color="textSecondary" sx={{ mb: 2, fontWeight: 600 }}>
+                    Spread History (Last 12 Months)
+                  </Typography>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={data.yieldCurveFullData.history.T10Y2Y.slice(-12)}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} opacity={0.2} />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 10 }}
+                        tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short' })}
+                      />
+                      <YAxis tick={{ fontSize: 10 }} />
+                      <Tooltip
+                        formatter={(value) => `${value.toFixed(2)} bps`}
+                        labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="value"
+                        stroke={theme.palette.primary.main}
+                        dot={false}
+                        strokeWidth={2}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </Box>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -808,6 +839,54 @@ const CreditMarketPanel = ({ data, isLoading, theme }) => {
                   30d Avg: {formatBasisPoints(data.creditSpreads?.investmentGrade?.trend?.avg30)} bps
                 </Typography>
               </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Credit Spreads Trend Chart */}
+        <Grid item xs={12}>
+          <Card>
+            <CardHeader title="Credit Spreads History & Trends" />
+            <CardContent>
+              {data.creditSpreadsFullData?.highYield?.history && data.creditSpreadsFullData?.investmentGrade?.history ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart>
+                    <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} opacity={0.2} />
+                    <XAxis
+                      dataKey="date"
+                      data={data.creditSpreadsFullData.highYield.history}
+                      tick={{ fontSize: 10 }}
+                      tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short' })}
+                    />
+                    <YAxis tick={{ fontSize: 10 }} label={{ value: 'OAS (bps)', angle: -90, position: 'insideLeft', offset: 10 }} />
+                    <Tooltip
+                      formatter={(value) => `${value.toFixed(0)} bps`}
+                      labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                    />
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="value"
+                      name="High Yield OAS"
+                      data={data.creditSpreadsFullData.highYield.history}
+                      stroke="#d32f2f"
+                      dot={false}
+                      strokeWidth={2}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="value"
+                      name="Investment Grade OAS"
+                      data={data.creditSpreadsFullData.investmentGrade.history}
+                      stroke="#1976d2"
+                      dot={false}
+                      strokeWidth={2}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <Typography color="textSecondary">Historical spread data not available</Typography>
+              )}
             </CardContent>
           </Card>
         </Grid>

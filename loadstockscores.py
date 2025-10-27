@@ -916,6 +916,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             analyst_score = None
 
         # Get market-level AAII sentiment for market sentiment component
+        # REAL DATA ONLY - None if no data available
         try:
             cur.execute("""
                 SELECT bullish, neutral, bearish
@@ -924,16 +925,16 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 LIMIT 1
             """)
             aaii_data = cur.fetchone()
-            aaii_sentiment_component = 0
-            if aaii_data:
-                bullish = float(aaii_data[0]) if aaii_data[0] else 0
-                bearish = float(aaii_data[2]) if aaii_data[2] else 0
+            aaii_sentiment_component = None  # Start with None (no data)
+            if aaii_data and aaii_data[0] is not None and aaii_data[2] is not None:
+                bullish = float(aaii_data[0])
+                bearish = float(aaii_data[2])
                 # Convert AAII bullish/bearish to sentiment score: -25 to +25
                 # If bullish > 50%, positive sentiment; if bearish > 50%, negative
                 aaii_sentiment_component = ((bullish - bearish) / 100) * 50
         except psycopg2.Error as e:
             logger.debug(f"AAII sentiment table query failed: {e}")
-            aaii_sentiment_component = 0
+            aaii_sentiment_component = None  # Error - return None instead of fake 0
 
         # Get real positioning data from positioning_metrics table
         try:
@@ -1812,8 +1813,8 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
         # Market-level AAII sentiment component (up to ±25 points)
         # This provides market context for the sentiment score
-        # ONLY add AAII if we have real analyst/news data to build on
-        if aaii_sentiment_component != 0 and sentiment_score is not None:
+        # ONLY add AAII if we have real analyst/news data AND real AAII data (REAL DATA ONLY)
+        if aaii_sentiment_component is not None and sentiment_score is not None:
             # Add AAII component to existing sentiment (only with real data)
             sentiment_score += aaii_sentiment_component * 0.5  # Weight at 50% to avoid over-influence
         # If no analyst/news data, sentiment_score remains None - no fallback defaults

@@ -253,18 +253,25 @@ def calculate_signal_strength(df, index):
 
         if signal_type == 'None':
             return None  # No real signal - return None instead of fake 50.0
-        
-        # Get required values
-        rsi = row.get('rsi', 50)
-        adx = row.get('adx', 25)
-        close = row.get('close', 0)
-        high = row.get('high', close)
-        low = row.get('low', close)
-        volume = row.get('volume', 0)
-        sma_50 = row.get('sma_50', close)
-        atr = row.get('atr', 0)
-        pivot_high = row.get('pivot_high', 0)
-        pivot_low = row.get('pivot_low', 0)
+
+        # Get required values - REAL DATA ONLY
+        # Return None if critical technical data is missing
+        rsi = row.get('rsi')
+        close = row.get('close')
+        volume = row.get('volume')
+
+        # If critical data missing, can't calculate meaningful signal strength
+        if rsi is None or close is None or volume is None:
+            return None
+
+        # Optional technical indicators (use None if missing, not fake defaults)
+        adx = row.get('adx')
+        high = row.get('high')
+        low = row.get('low')
+        sma_50 = row.get('sma_50')
+        atr = row.get('atr')
+        pivot_high = row.get('pivot_high')
+        pivot_low = row.get('pivot_low')
         
         # Calculate average volume (20-period rolling average)
         start_idx = max(0, index - 19)
@@ -292,23 +299,25 @@ def calculate_signal_strength(df, index):
             else:
                 strength += 3   # Weak
         
-        # ADX trend strength
-        if adx > 40:
-            strength += 9   # Very strong trend
-        elif adx > 30:
-            strength += 6   # Strong trend
-        elif adx > 20:
-            strength += 3   # Moderate trend
-        else:
-            strength += 1   # Weak trend
-        
-        # Price vs SMA-50
-        if signal_type == 'Buy' and close > sma_50:
-            price_above_sma = ((close - sma_50) / sma_50) * 100
-            strength += min(9, max(0, price_above_sma * 3))
-        elif signal_type == 'Sell' and close < sma_50:
-            price_below_sma = ((sma_50 - close) / sma_50) * 100
-            strength += min(9, max(0, price_below_sma * 3))
+        # ADX trend strength (only if ADX data available)
+        if adx is not None:
+            if adx > 40:
+                strength += 9   # Very strong trend
+            elif adx > 30:
+                strength += 6   # Strong trend
+            elif adx > 20:
+                strength += 3   # Moderate trend
+            else:
+                strength += 1   # Weak trend
+
+        # Price vs SMA-50 (only if SMA-50 data available)
+        if sma_50 is not None:
+            if signal_type == 'Buy' and close > sma_50:
+                price_above_sma = ((close - sma_50) / sma_50) * 100
+                strength += min(9, max(0, price_above_sma * 3))
+            elif signal_type == 'Sell' and close < sma_50:
+                price_below_sma = ((sma_50 - close) / sma_50) * 100
+                strength += min(9, max(0, price_below_sma * 3))
         
         # 2. Volume Confirmation (25%)
         if avg_volume > 0:
@@ -326,8 +335,8 @@ def calculate_signal_strength(df, index):
         else:
             strength += 12.5  # Default if no volume data
         
-        # 3. Price Action (25%)
-        if high != low:
+        # 3. Price Action (25%) - only if high/low data available
+        if high is not None and low is not None and high != low:
             close_position = (close - low) / (high - low)
             if signal_type == 'Buy':
                 if close_position > 0.8:
@@ -347,11 +356,9 @@ def calculate_signal_strength(df, index):
                     strength += 12  # Neutral
                 else:
                     strength += 6   # Weak bearish close
-        else:
-            strength += 12.5  # Default if no price action
-        
-        # 4. Volatility Context (10%)
-        if close > 0 and atr > 0:
+
+        # 4. Volatility Context (10%) - only if ATR data available
+        if atr is not None and close > 0 and atr > 0:
             atr_percentage = (atr / close) * 100
             if 1.5 <= atr_percentage <= 3.0:
                 strength += 10  # Ideal volatility
@@ -366,8 +373,8 @@ def calculate_signal_strength(df, index):
         else:
             strength += 5  # Default if no volatility data
         
-        # 5. Breakout Magnitude (10%)
-        if signal_type == 'Buy' and pivot_high > 0:
+        # 5. Breakout Magnitude (10%) - only if pivot data available
+        if signal_type == 'Buy' and pivot_high is not None and pivot_high > 0:
             breakout_percent = ((close - pivot_high) / pivot_high) * 100
             if breakout_percent > 3.0:
                 strength += 10  # Strong breakout
@@ -377,7 +384,7 @@ def calculate_signal_strength(df, index):
                 strength += 5   # Moderate breakout
             else:
                 strength += 2   # Weak breakout
-        elif signal_type == 'Sell' and pivot_low > 0:
+        elif signal_type == 'Sell' and pivot_low is not None and pivot_low > 0:
             breakdown_percent = ((pivot_low - close) / pivot_low) * 100
             if breakdown_percent > 3.0:
                 strength += 10  # Strong breakdown
@@ -387,8 +394,6 @@ def calculate_signal_strength(df, index):
                 strength += 5   # Moderate breakdown
             else:
                 strength += 2   # Weak breakdown
-        else:
-            strength += 5  # Default if no breakout data
         
         return min(100.0, max(0.0, strength))
         

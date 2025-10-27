@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../contexts/AuthContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
@@ -151,6 +151,36 @@ export default function PortfolioDashboard() {
     staleTime: 60000,
   });
 
+  // Alpaca sync state
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState(null);
+
+  // Handle Alpaca portfolio sync
+  const handleAlpacaSync = async () => {
+    setIsSyncing(true);
+    setSyncStatus(null);
+    try {
+      const response = await fetch("/api/portfolio/import/alpaca", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setSyncStatus({ type: "success", message: `✅ Synced ${result.data?.imported_holdings || 0} holdings from Alpaca` });
+        // Refetch all queries to show updated data
+        refetchMetrics();
+      } else {
+        setSyncStatus({ type: "error", message: `❌ Sync failed: ${result.error}` });
+      }
+    } catch (error) {
+      setSyncStatus({ type: "error", message: `❌ Sync error: ${error.message}` });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   // Extract metrics
   const summary = metricsData?.data?.summary || {};
   const positions = metricsData?.data?.positions || [];
@@ -227,12 +257,45 @@ export default function PortfolioDashboard() {
     <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Header */}
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
-          Portfolio Dashboard
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Professional-grade portfolio analytics - All metrics on one page
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+          <Box>
+            <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
+              Portfolio Dashboard
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Professional-grade portfolio analytics - All metrics on one page
+            </Typography>
+          </Box>
+          <Button
+            variant="contained"
+            startIcon={<Refresh />}
+            onClick={handleAlpacaSync}
+            disabled={isSyncing}
+            sx={{
+              backgroundColor: (theme) => theme.palette.primary.main,
+              '&:hover': { backgroundColor: (theme) => theme.palette.primary.dark },
+              '&:disabled': { opacity: 0.6 }
+            }}
+          >
+            {isSyncing ? 'Syncing...' : 'Sync with Alpaca'}
+          </Button>
+        </Box>
+
+        {/* Sync Status Message */}
+        {syncStatus && (
+          <Card sx={{
+            p: 2,
+            mb: 2,
+            backgroundColor: syncStatus.type === 'success'
+              ? (theme) => theme.palette.success.light
+              : (theme) => theme.palette.error.light,
+            border: `1px solid ${syncStatus.type === 'success' ? '#4caf50' : '#f44336'}`
+          }}>
+            <Typography variant="body2" sx={{ color: syncStatus.type === 'success' ? '#2e7d32' : '#c62828' }}>
+              {syncStatus.message}
+            </Typography>
+          </Card>
+        )}
       </Box>
 
       {/* No Data State */}
