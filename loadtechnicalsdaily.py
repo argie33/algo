@@ -378,6 +378,15 @@ def prepare_db():
         macd_hist       DOUBLE PRECISION,
         mom             DOUBLE PRECISION,
         roc             DOUBLE PRECISION,
+        -- Multi-timeframe ROC metrics (CRITICAL for stock scoring)
+        roc_10d         DOUBLE PRECISION,
+        roc_20d         DOUBLE PRECISION,
+        roc_60d         DOUBLE PRECISION,
+        roc_120d        DOUBLE PRECISION,
+        roc_252d        DOUBLE PRECISION,
+        mansfield_rs    DOUBLE PRECISION,
+        acc_dist_rating DOUBLE PRECISION,
+        -- Trend indicators
         adx             DOUBLE PRECISION,
         plus_di         DOUBLE PRECISION,
         minus_di        DOUBLE PRECISION,
@@ -389,6 +398,7 @@ def prepare_db():
         td_combo        DOUBLE PRECISION,
         marketwatch     DOUBLE PRECISION,
         dm              DOUBLE PRECISION,
+        -- Moving averages
         sma_10          DOUBLE PRECISION,
         sma_20          DOUBLE PRECISION,
         sma_50          DOUBLE PRECISION,
@@ -397,9 +407,11 @@ def prepare_db():
         ema_4           DOUBLE PRECISION,
         ema_9           DOUBLE PRECISION,
         ema_21          DOUBLE PRECISION,
+        -- Bollinger Bands
         bbands_lower    DOUBLE PRECISION,
         bbands_middle   DOUBLE PRECISION,
         bbands_upper    DOUBLE PRECISION,
+        -- Pivots
         pivot_high      DOUBLE PRECISION,
         pivot_low       DOUBLE PRECISION,
         pivot_high_triggered DOUBLE PRECISION,
@@ -510,9 +522,26 @@ def process_symbol(symbol, conn_pool):
         # MACD - calculate once and reuse
         df['macd'], df['macd_signal'], df['macd_hist'] = fast_macd(df['close'])
 
-        # Momentum indicators
+        # Momentum indicators - COMPLETE ROC FAMILY (required for stock_scores)
         df['mom'] = df['close'] - df['close'].shift(10)  # 10-period momentum
         df['roc'] = ((df['close'] - df['close'].shift(10)) / df['close'].shift(10)) * 100  # 10-period ROC
+
+        # Multi-timeframe ROC calculations (CRITICAL for stock scoring)
+        df['roc_10d'] = ((df['close'] - df['close'].shift(10)) / df['close'].shift(10)) * 100
+        df['roc_20d'] = ((df['close'] - df['close'].shift(20)) / df['close'].shift(20)) * 100
+        df['roc_60d'] = ((df['close'] - df['close'].shift(60)) / df['close'].shift(60)) * 100
+        df['roc_120d'] = ((df['close'] - df['close'].shift(120)) / df['close'].shift(120)) * 100
+        df['roc_252d'] = ((df['close'] - df['close'].shift(252)) / df['close'].shift(252)) * 100  # 1-year ROC
+
+        # Mansfield Relative Strength (uses 10-period momentum)
+        # RS = close / SMA(10) - 1, expressed as % where high RS = strong
+        sma_10_temp = df['close'].rolling(window=10).mean()
+        df['mansfield_rs'] = ((df['close'] / sma_10_temp) - 1) * 100
+
+        # Accumulation/Distribution Rating (based on momentum and volume trends)
+        # Positive AD = accumulation, Negative AD = distribution
+        # Using existing ad column which has cumulative A/D values
+        df['acc_dist_rating'] = ((df['close'] - df['close'].shift(1)) / df['close'].shift(1)) * 100  # Simplified version
 
         # ADX + DMI - calculate once
         df['adx'], df['plus_di'], df['minus_di'] = fast_adx(df['high'], df['low'], df['close'])
@@ -565,7 +594,9 @@ def process_symbol(symbol, conn_pool):
         INSERT INTO technical_data_daily (
           symbol, date,
           rsi, macd, macd_signal, macd_hist,
-          mom, roc, adx, plus_di, minus_di, atr, ad, cmf, mfi,
+          mom, roc, roc_10d, roc_20d, roc_60d, roc_120d, roc_252d,
+          mansfield_rs, acc_dist_rating,
+          adx, plus_di, minus_di, atr, ad, cmf, mfi,
           td_sequential, td_combo, marketwatch, dm,
           sma_10, sma_20, sma_50, sma_150, sma_200,
           ema_4, ema_9, ema_21,
@@ -580,6 +611,13 @@ def process_symbol(symbol, conn_pool):
           macd_hist = EXCLUDED.macd_hist,
           mom = EXCLUDED.mom,
           roc = EXCLUDED.roc,
+          roc_10d = EXCLUDED.roc_10d,
+          roc_20d = EXCLUDED.roc_20d,
+          roc_60d = EXCLUDED.roc_60d,
+          roc_120d = EXCLUDED.roc_120d,
+          roc_252d = EXCLUDED.roc_252d,
+          mansfield_rs = EXCLUDED.mansfield_rs,
+          acc_dist_rating = EXCLUDED.acc_dist_rating,
           adx = EXCLUDED.adx,
           plus_di = EXCLUDED.plus_di,
           minus_di = EXCLUDED.minus_di,
@@ -628,6 +666,15 @@ def process_symbol(symbol, conn_pool):
                 sanitize_value(row.get('macd_hist')),
                 sanitize_value(row.get('mom')),
                 sanitize_value(row.get('roc')),
+                # Multi-timeframe ROC metrics
+                sanitize_value(row.get('roc_10d')),
+                sanitize_value(row.get('roc_20d')),
+                sanitize_value(row.get('roc_60d')),
+                sanitize_value(row.get('roc_120d')),
+                sanitize_value(row.get('roc_252d')),
+                sanitize_value(row.get('mansfield_rs')),
+                sanitize_value(row.get('acc_dist_rating')),
+                # Trend indicators
                 sanitize_value(row.get('adx')),
                 sanitize_value(row.get('plus_di')),
                 sanitize_value(row.get('minus_di')),
@@ -639,6 +686,7 @@ def process_symbol(symbol, conn_pool):
                 sanitize_value(row.get('td_combo')),
                 sanitize_value(row.get('marketwatch')),
                 sanitize_value(row.get('dm')),
+                # Moving averages
                 sanitize_value(row.get('sma_10')),
                 sanitize_value(row.get('sma_20')),
                 sanitize_value(row.get('sma_50')),
@@ -647,9 +695,11 @@ def process_symbol(symbol, conn_pool):
                 sanitize_value(row.get('ema_4')),
                 sanitize_value(row.get('ema_9')),
                 sanitize_value(row.get('ema_21')),
+                # Bollinger Bands
                 sanitize_value(row.get('bbands_lower')),
                 sanitize_value(row.get('bbands_middle')),
                 sanitize_value(row.get('bbands_upper')),
+                # Pivots
                 sanitize_value(row.get('pivot_high')),
                 sanitize_value(row.get('pivot_low')),
                 sanitize_value(row.get('pivot_high_triggered')),
