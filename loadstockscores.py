@@ -2177,7 +2177,7 @@ def save_stock_score(conn, score_data):
 
     except psycopg2.Error as e:
         logger.error(f"❌ Failed to save score for {score_data['symbol']}: {e}")
-        conn.rollback()  # Rollback aborted transaction
+        # In autocommit mode, no need to rollback - error is already isolated
         return False
 
 def main():
@@ -2191,8 +2191,9 @@ def main():
         return False
 
     try:
-        # Disable autocommit - use explicit commits for data persistence
-        conn.autocommit = False
+        # Enable autocommit to avoid "transaction is aborted" errors when one stock fails
+        # Each operation commits immediately, preventing cascade failures
+        conn.autocommit = True
 
         # Create stock_scores table
         if not create_stock_scores_table(conn):
@@ -2243,8 +2244,7 @@ def main():
                 if score_data:
                     # Save to database
                     if save_stock_score(conn, score_data):
-                        # Commit after each stock to prevent long transaction abort cascades
-                        conn.commit()
+                        # Autocommit mode handles commits automatically
                         successful += 1
 
                         # Safe logging with diagnostic info - handle None values gracefully
@@ -2271,17 +2271,12 @@ def main():
                         except Exception as e:
                             logger.warning(f"⚠️ {symbol}: Score calculation completed but logging failed: {e}")
                     else:
-                        # Rollback on save failure to keep transaction clean
-                        conn.rollback()
+                        # Save failed - already logged in save_stock_score
                         failed += 1
                 else:
                     failed += 1
             except Exception as e:
-                # Rollback on error to clean up transaction state
-                try:
-                    conn.rollback()
-                except:
-                    pass
+                # In autocommit mode, errors don't affect other stocks
                 logger.error(f"❌ Error processing {symbol}: {e}")
                 failed += 1
 

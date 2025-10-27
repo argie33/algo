@@ -25,7 +25,7 @@ OUTPUTS:
   • market page: Market sentiment indicators
 
 Version: v5.3
-Last Updated: 2025-10-27 (AWS/local fallback support)
+Last Updated: 2025-10-27 - AWS TESTED
 """
 import sys
 import time

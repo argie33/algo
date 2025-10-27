@@ -26,7 +26,7 @@ OUTPUTS:
   • market page: NAAIM fund manager sentiment indicators
 
 Version: v1.0
-Last Updated: 2025-10-27 (AWS/local fallback support)
+Last Updated: 2025-10-27 - AWS TESTED
 """
 import sys
 import time
