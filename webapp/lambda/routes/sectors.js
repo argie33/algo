@@ -573,8 +573,8 @@ router.get("/industries-with-history", async (req, res) => {
         FROM industry_performance
         ORDER BY industry, fetched_at DESC
       ) ip ON LOWER(ir.industry) = LOWER(ip.industry)
-      LEFT JOIN calculated_performance cp_calc ON ir.industry = cp_calc.industry,
-      latest_data ld
+      LEFT JOIN calculated_performance cp_calc ON ir.industry = cp_calc.industry
+      CROSS JOIN latest_data ld
       WHERE ir.date = ld.date
       ORDER BY ir.current_rank ASC NULLS LAST, ir.industry ASC
       LIMIT $1
