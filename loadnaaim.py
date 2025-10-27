@@ -1,6 +1,33 @@
 #!/usr/bin/env python3
-# NAAIM exposure data loader - advisor sentiment and market exposure
-# Trigger deploy-app-stocks workflow - loadnaaim update v5.3 - ECR URI ERROR HANDLING
+"""
+NAAIM Exposure Index Loader - Fund Manager Positioning
+
+DEPLOYMENT MODES:
+  • AWS Production: Uses DB_SECRET_ARN environment variable (Lambda/ECS)
+    └─ Fetches DB credentials from AWS Secrets Manager
+    └─ Scrapes NAAIM exposure index via HTTPS
+    └─ Browser-based extraction with pyppeteer
+    └─ Writes to PostgreSQL RDS database
+
+  • Local Development: Uses DB_HOST/DB_USER/DB_PASSWORD env vars
+    └─ Falls back if DB_SECRET_ARN not set
+    └─ Same data fetching & processing logic
+    └─ Perfect for testing without AWS infrastructure
+
+DATA SOURCE:
+  • NAAIM Exposure Index (https://www.naaim.org/programs/naaim-exposure-index/)
+  • Weekly fund manager equity exposure polling
+  • Extracts: date, bullish%, neutral%, bearish%
+
+TABLES:
+  • naaim_exposure: Stores weekly fund manager positioning
+
+OUTPUTS:
+  • market page: NAAIM fund manager sentiment indicators
+
+Version: v1.0
+Last Updated: 2025-10-27 (AWS/local fallback support)
+"""
 import sys
 import time
 import logging

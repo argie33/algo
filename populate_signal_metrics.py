@@ -1,23 +1,51 @@
 #!/usr/bin/env python3
 """
-Populate missing calculated fields in buy_sell_daily, buy_sell_weekly, buy_sell_monthly tables.
+Signal Metrics Population - Post-Processing Data Quality
 
-Calculates:
-- avg_volume_50d: 50-day average volume from price_daily
-- volume_surge_pct: (current_volume / avg_volume_50d - 1) * 100
-- risk_reward_ratio: (target_price - entry_price) / (entry_price - stop_loss)
-- breakout_quality: Based on price range and volume surge
-- risk_pct: Percentage risk from entry to stop
-- entry_quality_score: Quality assessment (0-100)
-- position_size_recommendation: Recommended position size %
-- market_stage: Current market stage analysis
-- stage_number: Market stage number (1-4)
-- stage_confidence: Confidence in stage assessment %
-- substage: Market substage name
-- profit_target_8pct, 20pct, 25pct: Profit target prices
-- sell_level: Sell/exit level
+DEPLOYMENT MODES:
+  • AWS Production: Uses DB_SECRET_ARN environment variable (Lambda/ECS)
+    └─ Fetches DB credentials from AWS Secrets Manager
+    └─ Post-processes trading signal data with technical analysis
+    └─ Writes calculated metrics to PostgreSQL RDS database
 
-This is a post-processing step to fill in metrics that the loader didn't calculate.
+  • Local Development: Uses DB_HOST/DB_USER/DB_PASSWORD env vars
+    └─ Falls back if DB_SECRET_ARN not set
+    └─ Same calculation logic and database operations
+    └─ Perfect for testing and validation
+
+OPERATION:
+  This script processes buy_sell_daily, buy_sell_weekly, buy_sell_monthly tables,
+  calculating technical analysis metrics for each signal.
+
+CRITICAL FIXES (2025-10-27):
+  ✓ Removed fake default rs_rating = 50 (no neutral defaults)
+  ✓ Returns None when rs_rating missing (skip records instead of corrupting)
+  ✓ Records with incomplete data are properly logged and skipped
+  ✓ All market stage calculations use ONLY REAL DATA
+
+METRICS CALCULATED:
+  • avg_volume_50d: 50-day average volume from price_daily
+  • volume_surge_pct: (current_volume / avg_volume_50d - 1) * 100
+  • risk_reward_ratio: (target_price - entry_price) / (entry_price - stop_loss)
+  • breakout_quality: Based on price range and volume surge
+  • risk_pct: Percentage risk from entry to stop
+  • entry_quality_score: Quality assessment (0-100)
+  • position_size_recommendation: Recommended position size %
+  • market_stage: Current market stage analysis
+  • stage_number: Market stage number (1-4)
+  • stage_confidence: Confidence in stage assessment %
+  • substage: Market substage name
+  • profit_target_8pct, 20pct, 25pct: Profit target prices
+  • sell_level: Sell/exit level
+
+DATA INTEGRITY:
+  • No fake "neutral" values (50) used as defaults
+  • Missing required data (rs_rating) causes record to skip (not corrupt)
+  • All calculations use real price/volume data only
+  • Logging tracks all skipped records for audit trail
+
+Version: v2.0
+Last Updated: 2025-10-27 (Critical data integrity fixes)
 """
 
 import os

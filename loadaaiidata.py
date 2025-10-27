@@ -1,6 +1,33 @@
 #!/usr/bin/env python3
-# AAII data loader - sentiment and allocation data
-# Trigger deploy-app-stocks workflow - loadaaiidata update v5.3 - ECR URI ERROR HANDLING
+"""
+AAII Sentiment Survey Loader - Investor Sentiment Indicators
+
+DEPLOYMENT MODES:
+  • AWS Production: Uses DB_SECRET_ARN environment variable (Lambda/ECS)
+    └─ Fetches DB credentials from AWS Secrets Manager
+    └─ Downloads AAII sentiment Excel file via HTTPS
+    └─ Extracts bullish/neutral/bearish percentages
+    └─ Writes to PostgreSQL RDS database
+
+  • Local Development: Uses DB_HOST/DB_USER/DB_PASSWORD env vars
+    └─ Falls back if DB_SECRET_ARN not set
+    └─ Same data fetching & processing logic
+    └─ Perfect for testing without AWS infrastructure
+
+DATA SOURCE:
+  • AAII Sentiment Survey (https://www.aaii.com/files/surveys/sentiment.xls)
+  • Excel file with historical sentiment data
+  • Extracts: date, bullish%, neutral%, bearish%
+
+TABLES:
+  • aaii_sentiment: Stores weekly sentiment survey results
+
+OUTPUTS:
+  • market page: AAII investor sentiment indicators
+
+Version: v1.0
+Last Updated: 2025-10-27 (AWS/local fallback support)
+"""
 import sys
 import time
 import logging

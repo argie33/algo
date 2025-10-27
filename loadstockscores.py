@@ -1,6 +1,18 @@
 #!/usr/bin/env python3
 """
-Stock Scores Loader Script - Enhanced Scoring Logic v2.2 (Updated: 2025-10-16)
+Stock Scores Loader - Multi-Factor Stock Scoring System
+
+DEPLOYMENT MODES:
+  • AWS Production: Uses DB_SECRET_ARN (Lambda/ECS)
+    └─ Fetches DB credentials from AWS Secrets Manager
+    └─ Calculates comprehensive stock scores
+    └─ Writes to PostgreSQL RDS database
+
+  • Local Development: Uses DB_HOST/DB_USER/DB_PASSWORD env vars
+    └─ Falls back if DB_SECRET_ARN not set
+    └─ Same calculation logic for testing
+
+VERSION INFO:
 VERIFIED: 2025-10-26 Fresh reload completed successfully - 5,315/5,315 rows (100%) ✅
 Trigger: 20251026_120000 - AWS deployment final scoring engine (all data ready)
 Calculates and stores improved stock scores using multi-factor analysis.
@@ -1512,101 +1524,62 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         # Uses adjusted thresholds to utilize full 0-25 point scale
         short_term_momentum = 12.5  # Start neutral
 
-        if momentum_3m is not None:
-            # Linear transformation: Scale typical -20% to +20% range to 0-25 points
-            # This maps -20% → 0 pts, 0% → 12.5 pts, +20% → 25 pts
-            # Formula: (momentum_3m + 20) / 40 * 25 (clamped to 0-25)
-            short_term_momentum = ((momentum_3m + 20) / 40) * 25
-            short_term_momentum = max(0, min(25, short_term_momentum))
+        # Component 2-4: Momentum Returns using Percentile Normalization (like other scores)
+        # Three timeframes weighted equally (1/3 each of total momentum score)
+        momentum_components = []
+        momentum_weights = []
 
-        # Component 3: Medium-Term Momentum (25 points) - Weeks/Months
-        # Primary: 6-month return from momentum_metrics (industry standard)
-        # Uses adjusted thresholds to utilize full 0-25 point scale
-        medium_term_momentum = 12.5  # Start neutral
+        # Get all momentum values for percentile calculation
+        # Load all momentum metrics from database for percentile ranking
+        momentum_metrics = []
+        try:
+            cur.execute("""SELECT momentum_3m, momentum_6m, momentum_12m_1
+                          FROM momentum_metrics
+                          WHERE momentum_3m IS NOT NULL OR momentum_6m IS NOT NULL OR momentum_12m_1 IS NOT NULL
+                          LIMIT 5000""")
+            for row in cur.fetchall():
+                momentum_metrics.append({
+                    'momentum_3m': row[0],
+                    'momentum_6m': row[1],
+                    'momentum_12m_1': row[2]
+                })
+        except Exception as e:
+            momentum_metrics = []
 
-        if momentum_6m is not None:
-            # Linear transformation: Scale typical -30% to +30% range to 0-25 points
-            # This maps -30% → 0 pts, 0% → 12.5 pts, +30% → 25 pts
-            # Formula: (momentum_6m + 30) / 60 * 25 (clamped to 0-25)
-            medium_term_momentum = ((momentum_6m + 30) / 60) * 25
-            medium_term_momentum = max(0, min(25, medium_term_momentum))
+        all_3m = [m['momentum_3m'] for m in momentum_metrics if m.get('momentum_3m') is not None]
+        all_6m = [m['momentum_6m'] for m in momentum_metrics if m.get('momentum_6m') is not None]
+        all_12m_1 = [m['momentum_12m_1'] for m in momentum_metrics if m.get('momentum_12m_1') is not None]
 
-        # Component 4: Long-Term Momentum (15 points) - Months
-        # Primary: 12-month return excluding last month from momentum_metrics (academic standard)
-        # Uses adjusted thresholds to utilize full 0-15 point scale
-        longer_term_momentum = 7.5  # Start neutral
+        # 3-month momentum (1/3 of score)
+        if momentum_3m is not None and all_3m:
+            momentum_3m_percentile = calculate_percentile_rank(float(momentum_3m), all_3m)
+            momentum_3m_score = (momentum_3m_percentile / 100) * 100
+            momentum_components.append(momentum_3m_score)
+            momentum_weights.append(0.33)
 
-        if momentum_12m_1 is not None:
-            # Linear transformation: Scale typical -50% to +50% range to 0-15 points
-            # This maps -50% → 0 pts, 0% → 7.5 pts, +50% → 15 pts
-            # Formula: (momentum_12m_1 + 50) / 100 * 15 (clamped to 0-15)
-            longer_term_momentum = ((momentum_12m_1 + 50) / 100) * 15
-            longer_term_momentum = max(0, min(15, longer_term_momentum))
+        # 6-month momentum (1/3 of score)
+        if momentum_6m is not None and all_6m:
+            momentum_6m_percentile = calculate_percentile_rank(float(momentum_6m), all_6m)
+            momentum_6m_score = (momentum_6m_percentile / 100) * 100
+            momentum_components.append(momentum_6m_score)
+            momentum_weights.append(0.33)
 
-        # Component 5: Momentum Stability (10 points) - Multi-timeframe alignment
-        # Primary: Check alignment across 3M, 6M, 12M returns from momentum_metrics
-        # Fallback: Check alignment across ROC timeframes from technical indicators
-        stability_score = 5  # Start neutral
+        # 12-month momentum excluding last month (1/3 of score)
+        if momentum_12m_1 is not None and all_12m_1:
+            momentum_12m_1_percentile = calculate_percentile_rank(float(momentum_12m_1), all_12m_1)
+            momentum_12m_1_score = (momentum_12m_1_percentile / 100) * 100
+            momentum_components.append(momentum_12m_1_score)
+            momentum_weights.append(0.34)  # 0.34 to sum to 1.0
 
-        # Check alignment across timeframes
-        timeframe_signals = []
-
-        # Use dual momentum metrics if available (preferred)
-        if momentum_3m is not None and momentum_6m is not None and momentum_12m_1 is not None:
-            timeframe_signals.append(1 if momentum_3m > 0 else -1)
-            timeframe_signals.append(1 if momentum_6m > 0 else -1)
-            timeframe_signals.append(1 if momentum_12m_1 > 0 else -1)
-
-            # Bonus for trend strength alignment (price vs MA alignment)
-            trend_alignment_bonus = 0
-            if price_vs_sma_50 is not None and price_vs_sma_200 is not None:
-                if price_vs_sma_50 > 0 and price_vs_sma_200 > 0:
-                    trend_alignment_bonus = 2  # Price above both MAs
-                elif price_vs_sma_50 < 0 and price_vs_sma_200 < 0:
-                    trend_alignment_bonus = -1  # Price below both MAs (bearish consistency)
-        else:
-            # Fallback to ROC-based signals
-            if roc_10d is not None:
-                timeframe_signals.append(1 if roc_10d > 0 else -1)
-            if roc_60d is not None:
-                timeframe_signals.append(1 if roc_60d > 0 else -1)
-            if roc_120d is not None:
-                timeframe_signals.append(1 if roc_120d > 0 else -1)
-            trend_alignment_bonus = 0
-
-        # Initialize momentum_consistency for use later in return dict
-        momentum_consistency = None
-
-        if len(timeframe_signals) >= 2:
-            signal_sum = sum(timeframe_signals)
-            signal_count = len(timeframe_signals)
-
-            if abs(signal_sum) == signal_count:
-                # All timeframes agree (all positive or all negative)
-                momentum_consistency = 8 + trend_alignment_bonus
-            elif abs(signal_sum) == signal_count - 1:
-                # Mostly aligned (2 out of 3 agree)
-                momentum_consistency = 6 + (trend_alignment_bonus * 0.5)
-            elif signal_sum == 0:
-                # Mixed signals - conflicting momentum
-                momentum_consistency = 3
-            else:
-                momentum_consistency = 5
-
-            momentum_consistency = max(0, min(10, momentum_consistency))
-
-        # Calculate final momentum score (0-100 scale)
-        # Components: 10 + 25 + 25 + 15 + 10 = 85 pts (scaled to 100)
-        # Check if all momentum components are available
-        if any(x is None for x in [intraweek_confirmation, short_term_momentum, medium_term_momentum,
-                                    longer_term_momentum, momentum_consistency]):
-            momentum_score = None
-        else:
-            raw_momentum_score = (intraweek_confirmation + short_term_momentum + medium_term_momentum +
-                                 longer_term_momentum + momentum_consistency)
-            # Scale from 85-point scale to 100-point scale
-            momentum_score = (raw_momentum_score / 85) * 100
+        # Calculate momentum score using percentile normalization (consistent with other scores)
+        # Momentum score is the weighted average of 3 timeframe percentiles (0-100 scale)
+        if momentum_components and momentum_weights:
+            total_weight = sum(momentum_weights)
+            normalized_momentum_weights = [w / total_weight for w in momentum_weights]
+            momentum_score = sum(score * weight for score, weight in zip(momentum_components, normalized_momentum_weights))
             momentum_score = max(0, min(100, momentum_score))
+        else:
+            momentum_score = None
 
         # ============================================================
         # Value Score - Enhanced Percentile-Based Valuation with Quality Modifiers

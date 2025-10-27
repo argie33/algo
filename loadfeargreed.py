@@ -1,6 +1,32 @@
 #!/usr/bin/env python3
-# Fear & Greed Index loader - market sentiment indicators  
-# Trigger deploy-app-stocks workflow - loadfeargreed update v5.3 - ECR URI ERROR HANDLING
+"""
+Fear & Greed Index Loader - Market Sentiment Indicators
+
+DEPLOYMENT MODES:
+  • AWS Production: Uses DB_SECRET_ARN environment variable (Lambda/ECS)
+    └─ Fetches DB credentials from AWS Secrets Manager
+    └─ Fetches CNN Fear & Greed data via HTTPS
+    └─ Writes to PostgreSQL RDS database
+
+  • Local Development: Uses DB_HOST/DB_USER/DB_PASSWORD env vars
+    └─ Falls back if DB_SECRET_ARN not set
+    └─ Same data fetching & processing logic
+    └─ Perfect for testing without AWS infrastructure
+
+DATA SOURCE:
+  • CNN Fear & Greed Index (https://production.dataviz.cnn.io/index/fearandgreed/graphdata)
+  • Browser-based scraping using pyppeteer (headless Chrome)
+  • Extracts: date, index_value (0-100), rating (Fear/Greed)
+
+TABLES:
+  • fear_greed: Stores daily sentiment index
+
+OUTPUTS:
+  • market page: Market sentiment indicators
+
+Version: v5.3
+Last Updated: 2025-10-27 (AWS/local fallback support)
+"""
 import sys
 import time
 import logging
