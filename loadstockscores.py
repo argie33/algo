@@ -617,6 +617,74 @@ def fetch_all_growth_metrics(conn):
         logger.error(f"❌ Failed to fetch growth metrics for percentile ranking: {e}")
         return None
 
+def fetch_all_value_metrics(conn):
+    """
+    Fetch value metrics for all stocks to enable percentile ranking.
+    Returns a dictionary with lists of values for each valuation metric.
+    """
+    try:
+        cur = conn.cursor()
+
+        # Fetch valuation metrics from key_metrics table
+        cur.execute("""
+            SELECT
+                km.trailing_pe,
+                km.price_to_book,
+                km.price_to_sales_ttm,
+                km.peg_ratio,
+                km.ev_to_revenue,
+                pd.symbol
+            FROM key_metrics km
+            INNER JOIN (
+                SELECT DISTINCT symbol FROM price_daily
+            ) pd ON km.ticker = pd.symbol
+            WHERE km.trailing_pe IS NOT NULL
+               OR km.price_to_book IS NOT NULL
+               OR km.price_to_sales_ttm IS NOT NULL
+               OR km.peg_ratio IS NOT NULL
+               OR km.ev_to_revenue IS NOT NULL
+        """)
+
+        rows = cur.fetchall()
+        cur.close()
+
+        # Build metrics dictionary
+        metrics = {
+            'pe': [],
+            'pb': [],
+            'ps': [],
+            'peg': [],
+            'ev_revenue': []
+        }
+
+        # Process valuation metrics - collect all non-None values for percentile calculation
+        for row in rows:
+            pe, pb, ps, peg, ev_rev, symbol = row
+
+            if pe is not None and pe > 0 and pe < 500:  # Filter out invalid values
+                metrics['pe'].append(float(pe))
+            if pb is not None and pb > 0 and pb < 100:
+                metrics['pb'].append(float(pb))
+            if ps is not None and ps > 0 and ps < 100:
+                metrics['ps'].append(float(ps))
+            if peg is not None and peg > 0 and peg < 500:
+                metrics['peg'].append(float(peg))
+            if ev_rev is not None and ev_rev > 0 and ev_rev < 100:
+                metrics['ev_revenue'].append(float(ev_rev))
+
+        logger.info(f"📊 Loaded value metrics for percentile calculation:")
+        logger.info(f"   P/E Ratio: {len(metrics['pe'])} stocks")
+        logger.info(f"   P/B Ratio: {len(metrics['pb'])} stocks")
+        logger.info(f"   P/S Ratio: {len(metrics['ps'])} stocks")
+        logger.info(f"   PEG Ratio: {len(metrics['peg'])} stocks")
+        logger.info(f"   EV/Revenue: {len(metrics['ev_revenue'])} stocks")
+
+        return metrics
+
+    except Exception as e:
+        logger.error(f"❌ Failed to fetch value metrics for percentile ranking: {e}")
+        return None
+
 def calculate_accumulation_distribution(df, lookback_days=65):
     """
     Calculate IBD-style Accumulation/Distribution Rating (0-100 scale).
@@ -718,7 +786,7 @@ def calculate_accumulation_distribution(df, lookback_days=65):
 
     return round(normalized_score, 2)
 
-def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metrics=None):
+def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metrics=None, value_metrics=None):
     """Get stock data from database tables and calculate all scores."""
     try:
         cur = conn.cursor()
@@ -1494,38 +1562,57 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 dividend_yield_val = km[6]
                 payout_ratio = km[7]
 
-                # COMPONENT 1: Simple Valuation Score (0-100)
-                # Lower multiples = better values
-                value_components = []
+                # COMPONENT 1: Percentile-Based Valuation Score (Percentile Ranking - Industry Standard)
+                # Lower multiples = better values (inverted percentile calculation)
+                value_score_components = []
+                value_weights = []
 
-                # PE ratio scoring: lower is better (typically 5-50 range, median ~20)
+                # PE ratio scoring: lower is better
+                # Invert for percentile: lower PE should get higher percentile score
                 if trailing_pe is not None and trailing_pe > 0 and trailing_pe < 500:
-                    # Invert: low PE = high score. 5 = 100%, 50 = 10%, >100 = 0%
-                    pe_score = max(0, min(100, (50.0 - float(trailing_pe)) / 50.0 * 100)) * 0.3
-                    value_components.append(pe_score)
+                    pe_percentile = calculate_percentile_rank(-float(trailing_pe),
+                                                             [-pe for pe in value_metrics.get('pe', [])])
+                    pe_score = (pe_percentile / 100) * 100 * 0.3
+                    value_score_components.append(pe_score)
+                    value_weights.append(0.3)
 
-                # PB ratio scoring: lower is better (typically 0.5-10 range)
+                # PB ratio scoring: lower is better
                 if price_to_book is not None and price_to_book > 0 and price_to_book < 100:
-                    pb_score = max(0, min(100, (10.0 - float(price_to_book)) / 10.0 * 100)) * 0.2
-                    value_components.append(pb_score)
+                    pb_percentile = calculate_percentile_rank(-float(price_to_book),
+                                                             [-pb for pb in value_metrics.get('pb', [])])
+                    pb_score = (pb_percentile / 100) * 100 * 0.2
+                    value_score_components.append(pb_score)
+                    value_weights.append(0.2)
 
-                # PS ratio scoring: lower is better (typically 0.5-20 range)
+                # PS ratio scoring: lower is better
                 if price_to_sales_ttm is not None and price_to_sales_ttm > 0 and price_to_sales_ttm < 100:
-                    ps_score = max(0, min(100, (20.0 - float(price_to_sales_ttm)) / 20.0 * 100)) * 0.15
-                    value_components.append(ps_score)
+                    ps_percentile = calculate_percentile_rank(-float(price_to_sales_ttm),
+                                                             [-ps for ps in value_metrics.get('ps', [])])
+                    ps_score = (ps_percentile / 100) * 100 * 0.25
+                    value_score_components.append(ps_score)
+                    value_weights.append(0.25)
 
-                # PEG ratio scoring: <1.0 = value, >2.0 = expensive
+                # PEG ratio scoring: lower is better (<1.0 = value, >2.0 = expensive)
                 if peg_ratio_val is not None and peg_ratio_val > 0 and peg_ratio_val < 500:
-                    peg_score = max(0, min(100, (3.0 - float(peg_ratio_val)) / 3.0 * 100)) * 0.15
-                    value_components.append(peg_score)
+                    peg_percentile = calculate_percentile_rank(-float(peg_ratio_val),
+                                                              [-peg for peg in value_metrics.get('peg', [])])
+                    peg_score = (peg_percentile / 100) * 100 * 0.15
+                    value_score_components.append(peg_score)
+                    value_weights.append(0.15)
 
                 # EV/Revenue scoring: lower is better
                 if ev_to_revenue is not None and ev_to_revenue > 0 and ev_to_revenue < 100:
-                    ev_score = max(0, min(100, (10.0 - float(ev_to_revenue)) / 10.0 * 100)) * 0.2
-                    value_components.append(ev_score)
+                    ev_percentile = calculate_percentile_rank(-float(ev_to_revenue),
+                                                             [-ev for ev in value_metrics.get('ev_revenue', [])])
+                    ev_score = (ev_percentile / 100) * 100 * 0.1
+                    value_score_components.append(ev_score)
+                    value_weights.append(0.1)
 
-                if value_components:
-                    base_value_score = sum(value_components)
+                if value_score_components:
+                    # Re-normalize weights based on available components
+                    total_weight = sum(value_weights)
+                    normalized_weights = [w / total_weight for w in value_weights]
+                    base_value_score = sum(score * weight for score, weight in zip(value_score_components, normalized_weights))
 
                     # COMPONENT 2: FCF Quality Modifier (0.8 - 1.2x)
                     fcf_modifier = 1.0
@@ -1546,7 +1633,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                     # Calculate final value score
                     value_score = base_value_score * fcf_modifier * dividend_modifier
                     value_score = max(0, min(100, value_score))
-                    logger.debug(f"{symbol} Value Score: base={base_value_score:.1f}, fcf_mod={fcf_modifier:.2f}, div_mod={dividend_modifier:.2f}, final={value_score:.1f}")
+                    logger.debug(f"{symbol} Value Score: PE={trailing_pe:.1f}, PB={price_to_book:.1f}, PS={price_to_sales_ttm:.1f}, base={base_value_score:.1f}, fcf_mod={fcf_modifier:.2f}, div_mod={dividend_modifier:.2f}, final={value_score:.1f}")
 
         except (psycopg2.Error, TypeError, ValueError) as e:
             logger.debug(f"{symbol}: Could not calculate value score from key_metrics: {e}")
@@ -2155,6 +2242,13 @@ def main():
             logger.warning("⚠️  Failed to fetch growth metrics - will continue with partial metrics allowed")
             growth_metrics = {}  # Use empty dict - allow partial metrics for OR logic
 
+        # Fetch all value metrics for percentile-based value scoring
+        logger.info("📊 Fetching value metrics for percentile-based scoring...")
+        value_metrics = fetch_all_value_metrics(conn)
+        if value_metrics is None:
+            logger.warning("⚠️  Failed to fetch value metrics - will continue with partial metrics allowed")
+            value_metrics = {}  # Use empty dict - allow partial metrics for OR logic
+
         # Process each symbol
         successful = 0
         failed = 0
@@ -2164,7 +2258,7 @@ def main():
                 logger.info(f"📈 Processing {symbol} ({i}/{len(symbols)})")
 
                 # Create a fresh cursor for each stock to avoid transaction abort issues
-                score_data = get_stock_data_from_database(conn, symbol, quality_metrics, growth_metrics)
+                score_data = get_stock_data_from_database(conn, symbol, quality_metrics, growth_metrics, value_metrics)
                 if score_data:
                     # Save to database
                     if save_stock_score(conn, score_data):

@@ -30,17 +30,25 @@ FRED_API_KEY = os.environ.get('FRED_API_KEY')
 if not FRED_API_KEY:
     logging.warning('FRED_API_KEY environment variable is not set. Risk-free rate will be set to 0.')
 
-SECRET_ARN   = os.environ["DB_SECRET_ARN"]
-
-sm_client   = boto3.client("secretsmanager")
-secret_resp = sm_client.get_secret_value(SecretId=SECRET_ARN)
-creds       = json.loads(secret_resp["SecretString"])
-
-DB_USER     = creds["username"]
-DB_PASSWORD = creds["password"]
-DB_HOST     = creds["host"]
-DB_PORT     = int(creds.get("port", 5432))
-DB_NAME     = creds["dbname"]
+# Support both local environment variables and AWS Secrets Manager
+if os.environ.get("DB_HOST"):
+    logging.info("Using local environment DB configuration")
+    DB_HOST     = os.environ.get("DB_HOST", "localhost")
+    DB_USER     = os.environ.get("DB_USER", "postgres")
+    DB_PASSWORD = os.environ.get("DB_PASSWORD", "password")
+    DB_PORT     = int(os.environ.get("DB_PORT", 5432))
+    DB_NAME     = os.environ.get("DB_NAME", "stocks")
+else:
+    logging.info("Using AWS Secrets Manager for DB configuration")
+    SECRET_ARN   = os.environ["DB_SECRET_ARN"]
+    sm_client   = boto3.client("secretsmanager")
+    secret_resp = sm_client.get_secret_value(SecretId=SECRET_ARN)
+    creds       = json.loads(secret_resp["SecretString"])
+    DB_USER     = creds["username"]
+    DB_PASSWORD = creds["password"]
+    DB_HOST     = creds["host"]
+    DB_PORT     = int(creds.get("port", 5432))
+    DB_NAME     = creds["dbname"]
 
 def get_db_connection():
     # Set statement timeout to 30 seconds (30000 ms)
@@ -94,9 +102,9 @@ def create_buy_sell_table(cur):
         stoplevel           REAL,
         inposition          BOOLEAN,
         strength            REAL,
-        avg_volume_50d      BIGINT,  # REAL DATA ONLY
-        volume_surge_pct    FLOAT,  # REAL DATA ONLY
-        risk_reward_ratio   FLOAT,  # REAL DATA ONLY
+        avg_volume_50d      BIGINT,
+        volume_surge_pct    FLOAT,
+        risk_reward_ratio   FLOAT,
         breakout_quality    VARCHAR(10) DEFAULT 'WEAK',
         UNIQUE(symbol, timeframe, date)
       );
@@ -549,13 +557,12 @@ def main():
 
     for sym in symbols:
         logging.info(f"=== {sym} ===")
-        for tf in ['Daily','Weekly','Monthly']:
-            logging.info(f"  [main] Processing {sym} {tf}")
-            df = process_symbol(sym, tf)
-            logging.info(f"  [main] Done processing {sym} {tf}")
-            if df.empty:
-                logging.info(f"[{tf}] no data")
-                continue
+        # Monthly loader processes only Monthly timeframe
+        tf = 'Monthly'
+        logging.info(f"  [main] Processing {sym} {tf}")
+        df = process_symbol(sym, tf)
+        logging.info(f"  [main] Done processing {sym} {tf}")
+        if not df.empty:
             insert_symbol_results(cur, sym, tf, df)
             conn.commit()
             _, rets, durs, _, _ = backtest_fixed_capital(df)

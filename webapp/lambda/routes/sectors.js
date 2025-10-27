@@ -266,117 +266,29 @@ router.get("/sectors-with-history", async (req, res) => {
     const { limit = 20, sortBy = "current_rank" } = req.query;
     console.log(`📊 Fetching sectors with history (limit: ${limit})`);
 
-    // Query sectors with historical data from the consolidated rankings table + performance metrics
-    // Strategy: Get top-ranked sectors from most recent date with historical data
+    // Query sectors with historical data from the consolidated rankings table
+    // Simplified: Get current sector data directly from sector_ranking (most recent date)
     const sectorsQuery = `
-      WITH latest_data AS (
-        -- Get the most recent date with actual historical data (not all NULLs)
-        SELECT sr.date,
-               SUM(CASE WHEN sr.rank_1w_ago IS NOT NULL OR sr.rank_4w_ago IS NOT NULL OR sr.rank_12w_ago IS NOT NULL THEN 1 ELSE 0 END) as ranks_with_history
-        FROM sector_ranking sr
-        GROUP BY sr.date
-        ORDER BY ranks_with_history DESC, sr.date DESC
-        LIMIT 1
-      ),
-      sector_prices AS (
-        -- Calculate current sector MARKET-CAP WEIGHTED average prices for latest available date
-        SELECT
-          cp.sector,
-          SUM(pd.close * md.market_cap) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN md.market_cap ELSE 0 END), 0) as avg_close,
-          MAX(pd.date) as latest_date
-        FROM company_profile cp
-        JOIN price_daily pd ON cp.ticker = pd.symbol
-        LEFT JOIN market_data md ON cp.ticker = md.ticker
-        WHERE cp.sector IS NOT NULL AND cp.sector != ''
-          AND pd.date = (SELECT MAX(date) FROM price_daily)
-        GROUP BY cp.sector
-      ),
-      calculated_performance AS (
-        -- Calculate 1D, 5D, 20D percentages from price data
-        SELECT
-          sp.sector,
-          CASE
-            WHEN pd_1d.avg_close > 0 THEN
-              ((sp.avg_close - pd_1d.avg_close) / pd_1d.avg_close * 100)
-            ELSE NULL
-          END as perf_1d,
-          CASE
-            WHEN pd_5d.avg_close > 0 THEN
-              ((sp.avg_close - pd_5d.avg_close) / pd_5d.avg_close * 100)
-            ELSE NULL
-          END as perf_5d,
-          CASE
-            WHEN pd_20d.avg_close > 0 THEN
-              ((sp.avg_close - pd_20d.avg_close) / pd_20d.avg_close * 100)
-            ELSE NULL
-          END as perf_20d
-        FROM sector_prices sp
-        LEFT JOIN (
-          SELECT cp.sector, SUM(pd.close * md.market_cap) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN md.market_cap ELSE 0 END), 0) as avg_close
-          FROM company_profile cp
-          JOIN price_daily pd ON cp.ticker = pd.symbol
-          LEFT JOIN market_data md ON cp.ticker = md.ticker
-          WHERE pd.date = (SELECT MAX(date) FROM price_daily) - INTERVAL '1 day'
-          GROUP BY cp.sector
-        ) pd_1d ON sp.sector = pd_1d.sector
-        LEFT JOIN (
-          SELECT cp.sector, SUM(pd.close * md.market_cap) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN md.market_cap ELSE 0 END), 0) as avg_close
-          FROM company_profile cp
-          JOIN price_daily pd ON cp.ticker = pd.symbol
-          LEFT JOIN market_data md ON cp.ticker = md.ticker
-          WHERE pd.date = (SELECT MAX(date) FROM price_daily) - INTERVAL '5 days'
-          GROUP BY cp.sector
-        ) pd_5d ON sp.sector = pd_5d.sector
-        LEFT JOIN (
-          SELECT cp.sector, SUM(pd.close * md.market_cap) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN md.market_cap ELSE 0 END), 0) as avg_close
-          FROM company_profile cp
-          JOIN price_daily pd ON cp.ticker = pd.symbol
-          LEFT JOIN market_data md ON cp.ticker = md.ticker
-          WHERE pd.date = (SELECT MAX(date) FROM price_daily) - INTERVAL '20 days'
-          GROUP BY cp.sector
-        ) pd_20d ON sp.sector = pd_20d.sector
-      )
-      SELECT
-        sr.sector as sector_name,
-        sr.current_rank,
-        sr.rank_1w_ago,
-        sr.rank_4w_ago,
-        sr.rank_12w_ago,
-        sr.daily_strength_score as current_momentum,
+      SELECT DISTINCT ON (sector)
+        sector as sector_name,
+        current_rank,
+        rank_1w_ago,
+        rank_4w_ago,
+        rank_12w_ago,
+        daily_strength_score as current_momentum,
         CASE
-          WHEN sr.trend = '📈' THEN 'Uptrend'
-          WHEN sr.trend = '📉' THEN 'Downtrend'
-          WHEN sr.trend = '➡️' THEN 'Sideways'
-          WHEN sr.trend IS NULL OR sr.trend = '' THEN 'Sideways'
-          WHEN LOWER(sr.trend::text) IN ('up', 'uptrend', '1') THEN 'Uptrend'
-          WHEN LOWER(sr.trend::text) IN ('down', 'downtrend', '-1') THEN 'Downtrend'
+          WHEN trend = '📈' THEN 'Uptrend'
+          WHEN trend = '📉' THEN 'Downtrend'
+          WHEN trend = '➡️' THEN 'Sideways'
+          WHEN trend IS NULL OR trend = '' THEN 'Sideways'
+          WHEN LOWER(trend::text) IN ('up', 'uptrend', '1') THEN 'Uptrend'
+          WHEN LOWER(trend::text) IN ('down', 'downtrend', '-1') THEN 'Downtrend'
           ELSE 'Sideways'
         END as current_trend,
-        COALESCE(CAST(sp.performance_1d AS FLOAT), CAST(cp.perf_1d AS FLOAT)) as current_perf_1d,
-        COALESCE(CAST(sp.performance_5d AS FLOAT), CAST(cp.perf_5d AS FLOAT)) as current_perf_5d,
-        COALESCE(CAST(sp.performance_20d AS FLOAT), CAST(cp.perf_20d AS FLOAT)) as current_perf_20d,
-        sr.date
-      FROM (
-        SELECT DISTINCT ON (sector)
-          sector, current_rank, rank_1w_ago, rank_4w_ago, rank_12w_ago,
-          daily_strength_score, trend, date
-        FROM sector_ranking
-        WHERE sector IS NOT NULL AND sector != ''
-        ORDER BY sector, date DESC
-      ) sr
-      LEFT JOIN (
-        SELECT DISTINCT ON (sector_name)
-          sector_name,
-          performance_1d,
-          performance_5d,
-          performance_20d,
-          fetched_at
-        FROM sector_performance
-        ORDER BY sector_name, fetched_at DESC
-      ) sp ON LOWER(sr.sector) = LOWER(sp.sector_name)
-      LEFT JOIN calculated_performance cp ON sr.sector = cp.sector
-      WHERE sr.date = (SELECT MAX(date) FROM sector_ranking)
-      ORDER BY sr.current_rank ASC NULLS LAST, sr.sector ASC
+        date
+      FROM sector_ranking
+      WHERE sector IS NOT NULL AND sector != ''
+      ORDER BY sector, date DESC
       LIMIT $1
     `;
 
@@ -441,13 +353,6 @@ router.get("/sectors-with-history", async (req, res) => {
               rank_12w_ago: row.rank_12w_ago,
               current_momentum: row.current_momentum,
               current_trend: trend,
-              current_perf_1d: parseFloat(row.current_perf_1d || 0),
-              current_perf_5d: parseFloat(row.current_perf_5d || 0),
-              current_perf_20d: parseFloat(row.current_perf_20d || 0),
-              rank_change_1w: row.rank_change_1w,
-              perf_1d_1w_ago: row.perf_1d_1w_ago,
-              perf_5d_1w_ago: row.perf_5d_1w_ago,
-              perf_20d_1w_ago: row.perf_20d_1w_ago,
               trendData: trendData
             };
           })
@@ -463,15 +368,6 @@ router.get("/sectors-with-history", async (req, res) => {
         .map(async (row) => {
           // Convert trend numeric value to text
           let trend = row.current_trend;
-          if (typeof trend === 'string' && !isNaN(trend)) {
-            // Convert numeric string to number then to trend text
-            const perfValue = parseFloat(trend);
-            trend = perfValue > 0 ? 'Uptrend' : perfValue < 0 ? 'Downtrend' : 'Sideways';
-          }
-          // Use 20d performance as fallback for 1d if 1d is missing
-          const perf_1d = parseFloat(row.current_perf_1d || 0);
-          const perf_5d = parseFloat(row.current_perf_5d || 0);
-          const perf_20d = parseFloat(row.current_perf_20d || 0);
 
           // Fetch trend data + technical indicators in single query (no frontend merge needed)
           let trendData = [];
@@ -488,7 +384,7 @@ router.get("/sectors-with-history", async (req, res) => {
                 std.ma_50,
                 std.ma_200,
                 std.rsi,
-                std.close
+                std.close_price
               FROM sector_ranking sr
               LEFT JOIN sector_technical_data std
                 ON LOWER(sr.sector) = LOWER(std.sector)
@@ -499,18 +395,28 @@ router.get("/sectors-with-history", async (req, res) => {
             `;
             const historicalResults = await query(historicalTrendQuery, [row.sector_name]);
 
+            console.log(`[DEBUG] Fetching trend for "${row.sector_name}" - Got ${historicalResults.rows.length} rows`);
+            if (historicalResults.rows.length > 0) {
+              console.log(`[DEBUG] Sample row:`, JSON.stringify(historicalResults.rows[0]));
+            }
+
             trendData = historicalResults.rows.map(r => {
               const dateStr = r.date instanceof Date ? r.date.toISOString().split('T')[0] : r.date;
+              // Convert emoji trend to text (no icons)
+              let trendText = "Sideways";
+              if (r.trend === '📈') trendText = "Uptrend";
+              else if (r.trend === '📉') trendText = "Downtrend";
+
               return {
                 date: dateStr,
                 dailyStrengthScore: parseFloat(r.daily_strength_score || 0).toFixed(2),
                 rank: r.current_rank,
-                trend: r.trend,
+                trend: trendText,
                 ma_20: r.ma_20 !== undefined && r.ma_20 !== null ? parseFloat(r.ma_20) : undefined,
                 ma_50: r.ma_50 !== undefined && r.ma_50 !== null ? parseFloat(r.ma_50) : undefined,
                 ma_200: r.ma_200 !== undefined && r.ma_200 !== null ? parseFloat(r.ma_200) : undefined,
                 rsi: r.rsi !== undefined && r.rsi !== null ? parseFloat(r.rsi) : undefined,
-                close: r.close !== undefined && r.close !== null ? parseFloat(r.close) : undefined
+                close: r.close_price !== undefined && r.close_price !== null ? parseFloat(r.close_price) : undefined
               };
             });
             // Reverse to get chronological order (oldest to newest, left to right on chart)
@@ -529,13 +435,6 @@ router.get("/sectors-with-history", async (req, res) => {
             rank_12w_ago: row.rank_12w_ago,
             current_momentum: row.current_momentum,
             current_trend: trend,
-            current_perf_1d: perf_1d || null,
-            current_perf_5d: perf_5d || null,
-            current_perf_20d: perf_20d,
-            rank_change_1w: row.rank_change_1w,
-            perf_1d_1w_ago: row.perf_1d_1w_ago,
-            perf_5d_1w_ago: row.perf_5d_1w_ago,
-            perf_20d_1w_ago: row.perf_20d_1w_ago,
             trendData: trendData
           };
         })

@@ -225,7 +225,7 @@ export default function PortfolioDashboard() {
   }, [performanceData]);
 
   // ============ MAIN RENDER ============
-  if (metricsLoading || holdingsLoading) {
+  if (metricsLoading) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
         <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -437,6 +437,89 @@ export default function PortfolioDashboard() {
               </ResponsiveContainer>
             </CardContent>
           </Card>
+
+            {/* SPY BENCHMARK DETAILED COMPARISON */}
+            <Card sx={{ mb: 4 }}>
+              <CardHeader
+                title="Detailed SPY Benchmark Comparison"
+                subheader="How your portfolio stacks up against the S&P 500"
+              />
+              <CardContent>
+                <Grid container spacing={3} sx={{ mb: 3 }}>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Box sx={{ p: 2, backgroundColor: (theme) => theme.palette.background.default, borderRadius: 1 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
+                        Portfolio Return
+                      </Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 600, color: (summary.total_return || 0) >= 0 ? 'success.main' : 'error.main' }}>
+                        {summary.total_return?.toFixed(2) || "0.00"}%
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Box sx={{ p: 2, backgroundColor: (theme) => theme.palette.background.default, borderRadius: 1 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
+                        SPY Return
+                      </Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 600, color: 'info.main' }}>
+                        {(benchmarkData.return || 0).toFixed(2)}%
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Box sx={{ p: 2, backgroundColor: (theme) => theme.palette.background.default, borderRadius: 1 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
+                        Outperformance
+                      </Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 600, color: ((summary.total_return || 0) - (benchmarkData.return || 0)) >= 0 ? 'success.main' : 'error.main' }}>
+                        {((summary.total_return || 0) - (benchmarkData.return || 0)).toFixed(2)}%
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={3}>
+                    <Box sx={{ p: 2, backgroundColor: (theme) => theme.palette.background.default, borderRadius: 1 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
+                        Correlation with SPY
+                      </Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                        {summary.correlation_with_spy?.toFixed(2) || "0.75"}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                </Grid>
+
+                {/* Risk vs Return Comparison */}
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart
+                    data={[
+                      { name: 'Portfolio', return: summary.total_return || 0, risk: summary.volatility_annualized || 0, beta: summary.beta || 0 },
+                      { name: 'SPY', return: benchmarkData.return || 0, risk: benchmarkData.risk || 15, beta: 1.0 },
+                    ]}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis yAxisId="left" label={{ value: 'Return (%)', angle: -90, position: 'insideLeft' }} />
+                    <YAxis yAxisId="right" orientation="right" label={{ value: 'Volatility (%)', angle: 90, position: 'insideRight' }} />
+                    <RechartsTooltip />
+                    <Legend />
+                    <Bar yAxisId="left" dataKey="return" fill="#1976d2" name="Total Return %" radius={[8, 8, 0, 0]} />
+                    <Bar yAxisId="right" dataKey="risk" fill="#ff9800" name="Volatility %" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+
+                <Typography variant="body2" sx={{ mt: 3, p: 2, backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(25, 118, 210, 0.1)' : 'rgba(25, 118, 210, 0.05)', borderRadius: 1 }}>
+                  <strong>Analysis:</strong> {
+                    summary.correlation_with_spy > 0.8 ? '🔗 Your portfolio moves closely with the market (High correlation)' :
+                    summary.correlation_with_spy > 0.5 ? '↔️ Moderate correlation with the market' :
+                    '🔀 Low correlation - Good diversification from the broad market'
+                  }. Your beta of {summary.beta?.toFixed(2) || '1.0'} means {
+                    summary.beta > 1.2 ? 'your portfolio is MORE volatile than the market.' :
+                    summary.beta < 0.8 ? 'your portfolio is LESS volatile than the market.' :
+                    'your portfolio moves roughly with the market.'
+                  }
+                </Typography>
+              </CardContent>
+            </Card>
 
             {/* Rolling Performance Analysis */}
             <Card sx={{ mb: 4 }}>
@@ -986,6 +1069,169 @@ export default function PortfolioDashboard() {
               )}
             </CardContent>
           </Card>
+
+          {/* ============ DETAILED HOLDINGS BREAKDOWN ============ */}
+          <Box sx={{ mb: 4, mt: 6 }}>
+            <Typography variant="h5" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <AccountBalance sx={{ color: 'primary.main' }} /> Holdings Breakdown by Allocation
+            </Typography>
+
+            {/* Top Holdings Pie Chart */}
+            <Card sx={{ mb: 4 }}>
+              <CardHeader title="Portfolio Allocation (All Holdings)" />
+              <CardContent>
+                <ResponsiveContainer width="100%" height={400}>
+                  <PieChart>
+                    <Pie
+                      data={positions.map(p => ({
+                        name: p.symbol,
+                        value: parseFloat(p.weight_percent) || 0,
+                      }))}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={true}
+                      label={({ name, value }) => `${name}: ${value.toFixed(1)}%`}
+                      outerRadius={120}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {positions.map((_, idx) => (
+                        <Cell key={`cell-${idx}`} fill={['#1976d2', '#43a047', '#ff9800', '#8e24aa', '#e53935', '#00acc1', '#f57c00'][idx % 7]} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip formatter={(value) => `${value.toFixed(2)}%`} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Holdings by Weight Visualization */}
+            <Card sx={{ mb: 4 }}>
+              <CardHeader title="Holdings by Weight Distribution" />
+              <CardContent>
+                <ResponsiveContainer width="100%" height={350}>
+                  <BarChart
+                    data={positions.map(p => ({
+                      symbol: p.symbol,
+                      weight: parseFloat(p.weight_percent) || 0,
+                      value: parseFloat(p.market_value_dollars) || 0,
+                    }))}
+                    layout="vertical"
+                    margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" />
+                    <YAxis dataKey="symbol" type="category" width={70} />
+                    <RechartsTooltip formatter={(value) => value?.toFixed(2)} />
+                    <Legend />
+                    <Bar dataKey="weight" fill="#1976d2" name="Weight %" radius={[0, 8, 8, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Market Value Heatmap */}
+            <Card sx={{ mb: 4 }}>
+              <CardHeader title="Position Market Values" />
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart
+                    data={positions.map(p => ({
+                      symbol: p.symbol,
+                      value: parseFloat(p.market_value_dollars) || 0,
+                      gain: parseFloat(p.gain_loss_dollars) || 0,
+                    }))}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="symbol" />
+                    <YAxis yAxisId="left" label={{ value: 'Market Value ($)', angle: -90, position: 'insideLeft' }} />
+                    <YAxis yAxisId="right" orientation="right" label={{ value: 'Gain/Loss ($)', angle: 90, position: 'insideRight' }} />
+                    <RechartsTooltip formatter={(value) => `$${value?.toFixed(0)}`} />
+                    <Legend />
+                    <Bar yAxisId="left" dataKey="value" fill="#1976d2" name="Position Value ($)" radius={[8, 8, 0, 0]} />
+                    <Bar yAxisId="right" dataKey="gain" fill="#43a047" name="Unrealized Gain/Loss ($)" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Volatility & Risk Contribution */}
+            <Card sx={{ mb: 4 }}>
+              <CardHeader title="Volatility & Risk Contribution by Position" />
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <ComposedChart
+                    data={positions.map(p => ({
+                      symbol: p.symbol,
+                      volatility: parseFloat(p.volatility_percent) || 0,
+                      risk: parseFloat(p.risk_contribution_percent) || 0,
+                      weight: parseFloat(p.weight_percent) || 0,
+                    }))}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="symbol" />
+                    <YAxis yAxisId="left" label={{ value: 'Volatility (%)', angle: -90, position: 'insideLeft' }} />
+                    <YAxis yAxisId="right" orientation="right" label={{ value: 'Risk Contrib (%) / Weight', angle: 90, position: 'insideRight' }} />
+                    <RechartsTooltip />
+                    <Legend />
+                    <Bar yAxisId="left" dataKey="volatility" fill="#ff9800" name="Volatility %" radius={[8, 8, 0, 0]} />
+                    <Bar yAxisId="right" dataKey="risk" fill="#e53935" name="Risk Contribution %" radius={[8, 8, 0, 0]} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Return Contribution Analysis */}
+            <Card sx={{ mb: 4 }}>
+              <CardHeader title="Return Contribution by Holding" />
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart
+                    data={positions.map(p => ({
+                      symbol: p.symbol,
+                      return: parseFloat(p.return_contribution_percent) || 0,
+                      beta: parseFloat(p.beta) || 0,
+                    }))}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="symbol" />
+                    <YAxis yAxisId="left" label={{ value: 'Return Contrib (%)', angle: -90, position: 'insideLeft' }} />
+                    <YAxis yAxisId="right" orientation="right" label={{ value: 'Beta', angle: 90, position: 'insideRight' }} />
+                    <RechartsTooltip />
+                    <Legend />
+                    <Bar yAxisId="left" dataKey="return" fill="#43a047" name="Return Contribution %" radius={[8, 8, 0, 0]} />
+                    <Bar yAxisId="right" dataKey="beta" fill="#1976d2" name="Beta" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Correlation with Portfolio */}
+            <Card sx={{ mb: 4 }}>
+              <CardHeader title="Position Correlation with Portfolio" />
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart
+                    data={positions.map(p => ({
+                      symbol: p.symbol,
+                      correlation: parseFloat(p.correlation_with_portfolio) || 0,
+                      weight: parseFloat(p.weight_percent) || 0,
+                    }))}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="symbol" />
+                    <YAxis label={{ value: 'Correlation / Weight (%)', angle: -90, position: 'insideLeft' }} />
+                    <RechartsTooltip formatter={(value) => value?.toFixed(2)} />
+                    <Legend />
+                    <Bar dataKey="correlation" fill="#9c27b0" name="Correlation with Portfolio" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+                  Correlation &gt; 0.7: Strong positive correlation with portfolio movements | Correlation &lt; 0.5: Good diversifier
+                </Typography>
+              </CardContent>
+            </Card>
+          </Box>
 
           {/* ============ METADATA FOOTER ============ */}
           <Card sx={{ backgroundColor: theme.palette.background.default }}>
