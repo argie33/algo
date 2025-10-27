@@ -59,7 +59,7 @@ jobs:
           python -m py_compile loadpricemonthly.py
           python -m py_compile loadtechnicalsdaily.py
           python -m py_compile loadtechnicalsweekly.py
-          python -m py_compile loadtechnicalmonthly.py
+          python -m py_compile loadtechnicalsmonthly.py
           python -m py_compile loadfundamentalmetrics.py
           python -m py_compile loadqualitymetrics.py
           python -m py_compile loadvaluemetrics.py
@@ -307,7 +307,7 @@ jobs:
       - name: Run price and technicals loaders
         run: |
           echo "🚀 Running price and technical analysis loaders..."
-          for loader in loadpricedaily.py loadpriceweekly.py loadpricemonthly.py loadtechnicalsdaily.py loadtechnicalsweekly.py loadtechnicalmonthly.py; do
+          for loader in loadpricedaily.py loadpriceweekly.py loadpricemonthly.py loadtechnicalsdaily.py loadtechnicalsweekly.py loadtechnicalsmonthly.py; do
             echo "  → Running $loader..."
             aws ecs run-task \
               --cluster stocks-ecs-cluster \
@@ -417,21 +417,55 @@ jobs:
           cat >> $GITHUB_STEP_SUMMARY << 'EOF'
           ## Data Loaders Execution Summary
 
-          ### Loaders Run
+          ### Core Loaders
           - ✅ Stock Scores (loadstockscores.py)
+
+          ### Sentiment & Market Data
           - ✅ AAII Sentiment (loadaaiidata.py)
           - ✅ NAAIM Exposure (loadnaaim.py)
           - ✅ Fear & Greed (loadfeargreed.py)
+          - ✅ Social Sentiment (loadsentiment.py)
+          - ✅ Analyst Sentiment (loadanalystsentiment.py)
+          - ✅ News Sentiment (loadnews.py)
+
+          ### Price & Technical Data
+          - ✅ Daily Prices (loadpricedaily.py)
+          - ✅ Weekly Prices (loadpriceweekly.py)
+          - ✅ Monthly Prices (loadpricemonthly.py)
+          - ✅ Daily Technicals (loadtechnicalsdaily.py)
+          - ✅ Weekly Technicals (loadtechnicalsweekly.py)
+          - ✅ Monthly Technicals (loadtechnicalmonthly.py)
+
+          ### Fundamental Metrics
+          - ✅ Fundamental Metrics (loadfundamentalmetrics.py)
+          - ✅ Quality Metrics (loadqualitymetrics.py)
+          - ✅ Value Metrics (loadvaluemetrics.py)
+          - ✅ Growth Metrics (loadgrowthmetrics.py)
+
+          ### Market Indicators
+          - ✅ Momentum (loadmomentum.py)
+          - ✅ Positioning (loadpositioning.py)
+
+          ### Post-Processing
           - ✅ Signal Metrics (populate_signal_metrics.py)
 
           ### Execution Method
           - Platform: AWS ECS Fargate
           - Compute: 256 CPU, 512 MB RAM
           - Logs: CloudWatch `/ecs/stocks-data-loader`
+          - **Total Loaders**: 21 data sources running daily
+
+          ### API Endpoints Updated
+          - `/api/stocks` - Enhanced with prices & technicals
+          - `/api/sentiment` - Social, analyst, market sentiment
+          - `/api/metrics` - Fundamental metrics
+          - `/api/momentum` - Momentum indicators
+          - `/api/positioning` - Market positioning data
+          - `/api/signals` - Trading signals with updated metrics
 
           ### Next Steps
           - Check CloudWatch Logs Insights for execution details
           - Verify database records were inserted
-          - Monitor API responses for sentiment data
+          - Monitor API responses for enriched data
 
           EOF
