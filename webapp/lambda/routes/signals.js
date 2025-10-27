@@ -195,6 +195,7 @@ router.get("/", async (req, res) => {
       `;
     } else {
       // Daily table has all columns including technical indicators from technical_data_daily join
+      // + calculated analysis fields (stages, quality scores, profit targets)
       actualColumns = `
         bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
         bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
@@ -209,6 +210,9 @@ router.get("/", async (req, res) => {
         bsd.avg_volume_50d, bsd.volume_surge_pct,
         bsd.rs_rating, bsd.breakout_quality,
         bsd.risk_reward_ratio, bsd.current_gain_pct, bsd.days_in_position,
+        bsd.market_stage, bsd.stage_number, bsd.stage_confidence, bsd.substage,
+        bsd.entry_quality_score, bsd.risk_pct, bsd.position_size_pct,
+        bsd.profit_target_8pct, bsd.profit_target_20pct, bsd.profit_target_25pct,
         tdd.rsi, tdd.adx, tdd.atr, tdd.ema_21, tdd.sma_50, tdd.sma_200
       `;
     }

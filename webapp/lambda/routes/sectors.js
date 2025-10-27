@@ -372,25 +372,16 @@ router.get("/sectors-with-history", async (req, res) => {
           // Fetch trend data + technical indicators in single query (no frontend merge needed)
           let trendData = [];
           try {
-            // Join sector_ranking with sector_technical_data on date + sector
-            // This consolidates all data in one query, eliminating date range mismatches
+            // Fetch raw data - will calculate SMAs and RSI on daily_strength_score
             const historicalTrendQuery = `
               SELECT
                 sr.date,
                 sr.daily_strength_score,
                 sr.current_rank,
-                sr.trend,
-                std.ma_20,
-                std.ma_50,
-                std.ma_200,
-                std.rsi,
-                std.close_price
+                sr.trend
               FROM sector_ranking sr
-              LEFT JOIN sector_technical_data std
-                ON LOWER(sr.sector) = LOWER(std.sector)
-                AND sr.date = std.date
               WHERE LOWER(sr.sector) = LOWER($1)
-              ORDER BY sr.date DESC
+              ORDER BY sr.date ASC
               LIMIT 200
             `;
             const historicalResults = await query(historicalTrendQuery, [row.sector_name]);
@@ -400,9 +391,50 @@ router.get("/sectors-with-history", async (req, res) => {
               console.log(`[DEBUG] Sample row:`, JSON.stringify(historicalResults.rows[0]));
             }
 
-            trendData = historicalResults.rows.map(r => {
+            // Calculate SMA and RSI based on daily_strength_score
+            trendData = historicalResults.rows.map((r, idx, arr) => {
               const dateStr = r.date instanceof Date ? r.date.toISOString().split('T')[0] : r.date;
-              // Convert emoji trend to text (no icons)
+              const dss = parseFloat(r.daily_strength_score || 0);
+
+              // Calculate MA_5 (average of last 5 values) - only when we have 5+ points
+              let ma_5 = undefined;
+              if (idx >= 4) {
+                const ma5Values = arr.slice(idx - 4, idx + 1).map(x => parseFloat(x.daily_strength_score || 0));
+                ma_5 = ma5Values.reduce((a, b) => a + b, 0) / ma5Values.length;
+              }
+
+              // Calculate MA_10 (average of last 10 values) - only when we have 10+ points
+              let ma_10 = undefined;
+              if (idx >= 9) {
+                const ma10Values = arr.slice(idx - 9, idx + 1).map(x => parseFloat(x.daily_strength_score || 0));
+                ma_10 = ma10Values.reduce((a, b) => a + b, 0) / ma10Values.length;
+              }
+
+              // Calculate MA_20 (average of last 20 values) - only when we have 20+ points
+              let ma_20 = undefined;
+              if (idx >= 19) {
+                const ma20Values = arr.slice(idx - 19, idx + 1).map(x => parseFloat(x.daily_strength_score || 0));
+                ma_20 = ma20Values.reduce((a, b) => a + b, 0) / ma20Values.length;
+              }
+
+              // Calculate RSI(14) based on daily_strength_score
+              let rsi = undefined;
+              const rsiPeriod = 14;
+              if (idx >= rsiPeriod - 1) {
+                const rsiValues = arr.slice(idx - rsiPeriod + 1, idx + 1).map(x => parseFloat(x.daily_strength_score || 0));
+                let gains = 0, losses = 0;
+                for (let i = 1; i < rsiValues.length; i++) {
+                  const diff = rsiValues[i] - rsiValues[i - 1];
+                  if (diff > 0) gains += diff;
+                  else losses += Math.abs(diff);
+                }
+                const avgGain = gains / rsiPeriod;
+                const avgLoss = losses / rsiPeriod;
+                const rs = avgLoss !== 0 ? avgGain / avgLoss : avgGain > 0 ? 100 : 0;
+                rsi = 100 - (100 / (1 + rs));
+              }
+
+              // Convert emoji trend to text
               let trendText = "Sideways";
               if (r.trend === '📈') trendText = "Uptrend";
               else if (r.trend === '📉') trendText = "Downtrend";
@@ -412,15 +444,13 @@ router.get("/sectors-with-history", async (req, res) => {
                 dailyStrengthScore: parseFloat(r.daily_strength_score || 0).toFixed(2),
                 rank: r.current_rank,
                 trend: trendText,
-                ma_20: r.ma_20 !== undefined && r.ma_20 !== null ? parseFloat(r.ma_20) : undefined,
-                ma_50: r.ma_50 !== undefined && r.ma_50 !== null ? parseFloat(r.ma_50) : undefined,
-                ma_200: r.ma_200 !== undefined && r.ma_200 !== null ? parseFloat(r.ma_200) : undefined,
-                rsi: r.rsi !== undefined && r.rsi !== null ? parseFloat(r.rsi) : undefined,
-                close: r.close_price !== undefined && r.close_price !== null ? parseFloat(r.close_price) : undefined
+                ma_5: ma_5 !== undefined ? parseFloat(ma_5.toFixed(2)) : undefined,
+                ma_10: ma_10 !== undefined ? parseFloat(ma_10.toFixed(2)) : undefined,
+                ma_20: ma_20 !== undefined ? parseFloat(ma_20.toFixed(2)) : undefined,
+                rsi: rsi !== undefined ? parseFloat(rsi.toFixed(2)) : undefined
               };
             });
-            // Reverse to get chronological order (oldest to newest, left to right on chart)
-            trendData.reverse();
+            // Data already in chronological order (ASC)
           } catch (trendError) {
             // Log error and set empty trend
             console.error(`❌ Could not fetch trend data for ${row.sector_name}:`, trendError.message);
@@ -616,41 +646,80 @@ router.get("/industries-with-history", async (req, res) => {
             // Fetch technical data for each industry
             let trendData = [];
             try {
+              // Fetch raw data - will calculate SMAs and RSI on daily_strength_score
               const industryTrendQuery = `
                 SELECT
                   ir.date,
                   ir.daily_strength_score,
                   ir.current_rank,
-                  ir.trend,
-                  itd.ma_20,
-                  itd.ma_50,
-                  itd.ma_200,
-                  itd.rsi,
-                  itd.close_price
+                  ir.trend
                 FROM industry_ranking ir
-                LEFT JOIN industry_technical_data itd
-                  ON LOWER(ir.industry) = LOWER(itd.industry)
-                  AND ir.date = itd.date
                 WHERE LOWER(ir.industry) = LOWER($1)
-                ORDER BY ir.date DESC
+                ORDER BY ir.date ASC
                 LIMIT 200
               `;
               const trendResults = await query(industryTrendQuery, [row.industry]);
-              trendData = trendResults.rows.map(r => {
+
+              // Calculate SMA and RSI based on daily_strength_score
+              trendData = trendResults.rows.map((r, idx, arr) => {
                 const dateStr = r.date instanceof Date ? r.date.toISOString().split('T')[0] : r.date;
+                const dss = parseFloat(r.daily_strength_score || 0);
+
+                // Calculate MA_5 (average of last 5 values) - only when we have 5+ points
+                let ma_5 = undefined;
+                if (idx >= 4) {
+                  const ma5Values = arr.slice(idx - 4, idx + 1).map(x => parseFloat(x.daily_strength_score || 0));
+                  ma_5 = ma5Values.reduce((a, b) => a + b, 0) / ma5Values.length;
+                }
+
+                // Calculate MA_10 (average of last 10 values) - only when we have 10+ points
+                let ma_10 = undefined;
+                if (idx >= 9) {
+                  const ma10Values = arr.slice(idx - 9, idx + 1).map(x => parseFloat(x.daily_strength_score || 0));
+                  ma_10 = ma10Values.reduce((a, b) => a + b, 0) / ma10Values.length;
+                }
+
+                // Calculate MA_20 (average of last 20 values) - only when we have 20+ points
+                let ma_20 = undefined;
+                if (idx >= 19) {
+                  const ma20Values = arr.slice(idx - 19, idx + 1).map(x => parseFloat(x.daily_strength_score || 0));
+                  ma_20 = ma20Values.reduce((a, b) => a + b, 0) / ma20Values.length;
+                }
+
+                // Calculate RSI(14) based on daily_strength_score
+                let rsi = undefined;
+                const rsiPeriod = 14;
+                if (idx >= rsiPeriod - 1) {
+                  const rsiValues = arr.slice(idx - rsiPeriod + 1, idx + 1).map(x => parseFloat(x.daily_strength_score || 0));
+                  let gains = 0, losses = 0;
+                  for (let i = 1; i < rsiValues.length; i++) {
+                    const diff = rsiValues[i] - rsiValues[i - 1];
+                    if (diff > 0) gains += diff;
+                    else losses += Math.abs(diff);
+                  }
+                  const avgGain = gains / rsiPeriod;
+                  const avgLoss = losses / rsiPeriod;
+                  const rs = avgLoss !== 0 ? avgGain / avgLoss : avgGain > 0 ? 100 : 0;
+                  rsi = 100 - (100 / (1 + rs));
+                }
+
+                // Convert emoji trend to text
+                let trendText = "Sideways";
+                if (r.trend === '📈') trendText = "Uptrend";
+                else if (r.trend === '📉') trendText = "Downtrend";
+
                 return {
                   date: dateStr,
                   dailyStrengthScore: parseFloat(r.daily_strength_score || 0).toFixed(2),
                   rank: r.current_rank,
-                  trend: r.trend,
-                  ma_20: r.ma_20 !== undefined && r.ma_20 !== null ? parseFloat(r.ma_20) : undefined,
-                  ma_50: r.ma_50 !== undefined && r.ma_50 !== null ? parseFloat(r.ma_50) : undefined,
-                  ma_200: r.ma_200 !== undefined && r.ma_200 !== null ? parseFloat(r.ma_200) : undefined,
-                  rsi: r.rsi !== undefined && r.rsi !== null ? parseFloat(r.rsi) : undefined,
-                  close: r.close_price !== undefined && r.close_price !== null ? parseFloat(r.close_price) : undefined
+                  trend: trendText,
+                  ma_5: ma_5 !== undefined ? parseFloat(ma_5.toFixed(2)) : undefined,
+                  ma_10: ma_10 !== undefined ? parseFloat(ma_10.toFixed(2)) : undefined,
+                  ma_20: ma_20 !== undefined ? parseFloat(ma_20.toFixed(2)) : undefined,
+                  rsi: rsi !== undefined ? parseFloat(rsi.toFixed(2)) : undefined
                 };
               });
-              trendData.reverse();
+              // Data already in chronological order (ASC)
             } catch (err) {
               console.error(`⚠️ Could not fetch trend data for industry ${row.industry}:`, err.message);
             }
@@ -689,41 +758,80 @@ router.get("/industries-with-history", async (req, res) => {
             // Fetch technical data for each industry (20+ days matching sectors)
             let trendData = [];
             try {
+              // Fetch raw data - will calculate SMAs and RSI on daily_strength_score
               const industryTrendQuery = `
                 SELECT
                   ir.date,
                   ir.daily_strength_score,
                   ir.current_rank,
-                  ir.trend,
-                  itd.ma_20,
-                  itd.ma_50,
-                  itd.ma_200,
-                  itd.rsi,
-                  itd.close_price
+                  ir.trend
                 FROM industry_ranking ir
-                LEFT JOIN industry_technical_data itd
-                  ON LOWER(ir.industry) = LOWER(itd.industry)
-                  AND ir.date = itd.date
                 WHERE LOWER(ir.industry) = LOWER($1)
-                ORDER BY ir.date DESC
+                ORDER BY ir.date ASC
                 LIMIT 200
               `;
               const trendResults = await query(industryTrendQuery, [row.industry]);
-              trendData = trendResults.rows.map(r => {
+
+              // Calculate SMA and RSI based on daily_strength_score
+              trendData = trendResults.rows.map((r, idx, arr) => {
                 const dateStr = r.date instanceof Date ? r.date.toISOString().split('T')[0] : r.date;
+                const dss = parseFloat(r.daily_strength_score || 0);
+
+                // Calculate MA_5 (average of last 5 values) - only when we have 5+ points
+                let ma_5 = undefined;
+                if (idx >= 4) {
+                  const ma5Values = arr.slice(idx - 4, idx + 1).map(x => parseFloat(x.daily_strength_score || 0));
+                  ma_5 = ma5Values.reduce((a, b) => a + b, 0) / ma5Values.length;
+                }
+
+                // Calculate MA_10 (average of last 10 values) - only when we have 10+ points
+                let ma_10 = undefined;
+                if (idx >= 9) {
+                  const ma10Values = arr.slice(idx - 9, idx + 1).map(x => parseFloat(x.daily_strength_score || 0));
+                  ma_10 = ma10Values.reduce((a, b) => a + b, 0) / ma10Values.length;
+                }
+
+                // Calculate MA_20 (average of last 20 values) - only when we have 20+ points
+                let ma_20 = undefined;
+                if (idx >= 19) {
+                  const ma20Values = arr.slice(idx - 19, idx + 1).map(x => parseFloat(x.daily_strength_score || 0));
+                  ma_20 = ma20Values.reduce((a, b) => a + b, 0) / ma20Values.length;
+                }
+
+                // Calculate RSI(14) based on daily_strength_score
+                let rsi = undefined;
+                const rsiPeriod = 14;
+                if (idx >= rsiPeriod - 1) {
+                  const rsiValues = arr.slice(idx - rsiPeriod + 1, idx + 1).map(x => parseFloat(x.daily_strength_score || 0));
+                  let gains = 0, losses = 0;
+                  for (let i = 1; i < rsiValues.length; i++) {
+                    const diff = rsiValues[i] - rsiValues[i - 1];
+                    if (diff > 0) gains += diff;
+                    else losses += Math.abs(diff);
+                  }
+                  const avgGain = gains / rsiPeriod;
+                  const avgLoss = losses / rsiPeriod;
+                  const rs = avgLoss !== 0 ? avgGain / avgLoss : avgGain > 0 ? 100 : 0;
+                  rsi = 100 - (100 / (1 + rs));
+                }
+
+                // Convert emoji trend to text
+                let trendText = "Sideways";
+                if (r.trend === '📈') trendText = "Uptrend";
+                else if (r.trend === '📉') trendText = "Downtrend";
+
                 return {
                   date: dateStr,
                   dailyStrengthScore: parseFloat(r.daily_strength_score || 0).toFixed(2),
                   rank: r.current_rank,
-                  trend: r.trend,
-                  ma_20: r.ma_20 !== undefined && r.ma_20 !== null ? parseFloat(r.ma_20) : undefined,
-                  ma_50: r.ma_50 !== undefined && r.ma_50 !== null ? parseFloat(r.ma_50) : undefined,
-                  ma_200: r.ma_200 !== undefined && r.ma_200 !== null ? parseFloat(r.ma_200) : undefined,
-                  rsi: r.rsi !== undefined && r.rsi !== null ? parseFloat(r.rsi) : undefined,
-                  close: r.close_price !== undefined && r.close_price !== null ? parseFloat(r.close_price) : undefined
+                  trend: trendText,
+                  ma_5: ma_5 !== undefined ? parseFloat(ma_5.toFixed(2)) : undefined,
+                  ma_10: ma_10 !== undefined ? parseFloat(ma_10.toFixed(2)) : undefined,
+                  ma_20: ma_20 !== undefined ? parseFloat(ma_20.toFixed(2)) : undefined,
+                  rsi: rsi !== undefined ? parseFloat(rsi.toFixed(2)) : undefined
                 };
               });
-              trendData.reverse();
+              // Data already in chronological order (ASC)
             } catch (err) {
               console.error(`⚠️ Could not fetch trend data for industry ${row.industry}:`, err.message);
             }

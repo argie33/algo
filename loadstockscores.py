@@ -1509,71 +1509,39 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
         # Component 2: Short-Term Momentum (25 points) - Days/Weeks
         # Primary: 3-month return from momentum_metrics (industry standard shortest window)
+        # Uses adjusted thresholds to utilize full 0-25 point scale
         short_term_momentum = 12.5  # Start neutral
 
         if momentum_3m is not None:
-            # Use 3-month return from momentum_metrics
-            # 3M return thresholds: >10%=excellent, >5%=strong, >0%=positive
-            if momentum_3m > 10:
-                short_term_momentum = 25  # Excellent 3M performance
-            elif momentum_3m > 5:
-                short_term_momentum = 18 + (momentum_3m - 5) * 1.4
-            elif momentum_3m > 0:
-                short_term_momentum = 12.5 + (momentum_3m) * 1.0
-            elif momentum_3m > -5:
-                short_term_momentum = 6.5 + (momentum_3m + 5) * 1.2
-            elif momentum_3m > -10:
-                short_term_momentum = 1.5 + (momentum_3m + 10) * 1.0
-            else:
-                short_term_momentum = 0  # Poor 3M performance
+            # Linear transformation: Scale typical -20% to +20% range to 0-25 points
+            # This maps -20% → 0 pts, 0% → 12.5 pts, +20% → 25 pts
+            # Formula: (momentum_3m + 20) / 40 * 25 (clamped to 0-25)
+            short_term_momentum = ((momentum_3m + 20) / 40) * 25
+            short_term_momentum = max(0, min(25, short_term_momentum))
 
         # Component 3: Medium-Term Momentum (25 points) - Weeks/Months
         # Primary: 6-month return from momentum_metrics (industry standard)
+        # Uses adjusted thresholds to utilize full 0-25 point scale
         medium_term_momentum = 12.5  # Start neutral
 
         if momentum_6m is not None:
-            # Use 6-month return from momentum_metrics (primary)
-            # 6M return thresholds: >15%=excellent, >10%=strong, >5%=good, >0%=positive
-            if momentum_6m > 15:
-                medium_term_momentum = 25  # Excellent 6M performance
-            elif momentum_6m > 10:
-                medium_term_momentum = 20 + (momentum_6m - 10) * 1.0
-            elif momentum_6m > 5:
-                medium_term_momentum = 15 + (momentum_6m - 5) * 1.0
-            elif momentum_6m > 0:
-                medium_term_momentum = 12.5 + (momentum_6m) * 0.5
-            elif momentum_6m > -5:
-                medium_term_momentum = 8 + (momentum_6m + 5) * 0.9
-            elif momentum_6m > -10:
-                medium_term_momentum = 4 + (momentum_6m + 10) * 0.8
-            elif momentum_6m > -15:
-                medium_term_momentum = 1 + (momentum_6m + 15) * 0.6
-            else:
-                medium_term_momentum = 0  # Poor 6M performance
+            # Linear transformation: Scale typical -30% to +30% range to 0-25 points
+            # This maps -30% → 0 pts, 0% → 12.5 pts, +30% → 25 pts
+            # Formula: (momentum_6m + 30) / 60 * 25 (clamped to 0-25)
+            medium_term_momentum = ((momentum_6m + 30) / 60) * 25
+            medium_term_momentum = max(0, min(25, medium_term_momentum))
 
         # Component 4: Long-Term Momentum (15 points) - Months
         # Primary: 12-month return excluding last month from momentum_metrics (academic standard)
+        # Uses adjusted thresholds to utilize full 0-15 point scale
         longer_term_momentum = 7.5  # Start neutral
 
         if momentum_12m_1 is not None:
-            # Use 12M-1 return from momentum_metrics (academic standard for momentum factor)
-            # 12M-1 thresholds: >25%=excellent, >15%=strong, >10%=good, >0%=positive
-            if momentum_12m_1 > 25:
-                longer_term_momentum = 15  # Excellent 12M performance
-            elif momentum_12m_1 > 15:
-                longer_term_momentum = 12 + (momentum_12m_1 - 15) * 0.3
-            elif momentum_12m_1 > 10:
-                longer_term_momentum = 9.5 + (momentum_12m_1 - 10) * 0.5
-            elif momentum_12m_1 > 0:
-                longer_term_momentum = 7.5 + (momentum_12m_1) * 0.2
-            elif momentum_12m_1 > -10:
-                longer_term_momentum = 4.5 + (momentum_12m_1 + 10) * 0.3
-            elif momentum_12m_1 > -15:
-                longer_term_momentum = 2.5 + (momentum_12m_1 + 15) * 0.4
-            elif momentum_12m_1 > -25:
-                longer_term_momentum = 0.5 + (momentum_12m_1 + 25) * 0.1
-            else:
-                longer_term_momentum = 0  # Poor 12M performance
+            # Linear transformation: Scale typical -50% to +50% range to 0-15 points
+            # This maps -50% → 0 pts, 0% → 7.5 pts, +50% → 15 pts
+            # Formula: (momentum_12m_1 + 50) / 100 * 15 (clamped to 0-15)
+            longer_term_momentum = ((momentum_12m_1 + 50) / 100) * 15
+            longer_term_momentum = max(0, min(15, longer_term_momentum))
 
         # Component 5: Momentum Stability (10 points) - Multi-timeframe alignment
         # Primary: Check alignment across 3M, 6M, 12M returns from momentum_metrics
@@ -1912,22 +1880,22 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             count_score = 0
 
             # Institutional ownership component (0-25 points) - 25%
-            # Optimal range: 40-70% (strong institutional support but not too crowded)
+            # Adjusted thresholds to expand scale and better distribute scores
             if institutional_ownership is not None:
-                if 40 <= institutional_ownership <= 70:
-                    inst_score = 25  # Optimal institutional ownership
-                elif 30 <= institutional_ownership < 40:
-                    inst_score = 22  # Good institutional ownership
-                elif 70 < institutional_ownership <= 80:
-                    inst_score = 20  # High but acceptable
-                elif 20 <= institutional_ownership < 30:
+                if institutional_ownership >= 50:
+                    inst_score = 25  # Strong institutional ownership
+                elif institutional_ownership >= 40:
+                    inst_score = 20  # Good institutional ownership
+                elif institutional_ownership >= 30:
                     inst_score = 16  # Moderate institutional ownership
-                elif 80 < institutional_ownership <= 90:
-                    inst_score = 14  # Very high (crowded trade risk)
-                elif institutional_ownership < 20:
-                    inst_score = 10  # Low institutional interest
-                else:  # > 90%
-                    inst_score = 7   # Extremely crowded
+                elif institutional_ownership >= 20:
+                    inst_score = 12  # Low-moderate institutional ownership
+                elif institutional_ownership >= 10:
+                    inst_score = 8   # Low institutional ownership
+                elif institutional_ownership >= 5:
+                    inst_score = 4   # Very low institutional ownership
+                else:  # < 5%
+                    inst_score = 0   # Minimal institutional ownership
 
             # Insider ownership component (0-20 points) - 20%
             # Higher is better (skin in the game)
@@ -1969,19 +1937,19 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 acc_dist_score = (acc_dist_rating / 100) * 25
 
             # Institution count component (0-10 points) - 10%
-            # More institutions = broader confidence
+            # More institutions = broader confidence (adjusted thresholds)
             if institution_count is not None:
-                if institution_count >= 500:
+                if institution_count >= 100:
                     count_score = 10  # Very broad institutional support
-                elif institution_count >= 300:
-                    count_score = 9   # Broad institutional support
-                elif institution_count >= 200:
-                    count_score = 7   # Good institutional support
-                elif institution_count >= 100:
-                    count_score = 5   # Moderate institutional support
+                elif institution_count >= 75:
+                    count_score = 8   # Broad institutional support
                 elif institution_count >= 50:
-                    count_score = 3   # Limited institutional support
-                else:
+                    count_score = 6   # Good institutional support
+                elif institution_count >= 30:
+                    count_score = 4   # Moderate institutional support
+                elif institution_count >= 15:
+                    count_score = 2   # Limited institutional support
+                else:  # < 15
                     count_score = 0   # Very limited institutional support
 
             positioning_score = inst_score + insider_score + short_score + acc_dist_score + count_score

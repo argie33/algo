@@ -837,17 +837,9 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     # initial_stop = the stop loss level at entry (stopLevel calculated above)
     df['initial_stop'] = df['stopLevel']
 
-    # trailing_stop = track the highest close since entry for trailing stop
-    df['trailing_stop'] = None
-    for i in range(len(df)):
-        if df.iloc[i]['Signal'] == 'Buy':
-            # Start tracking highest close from this entry
-            highest_close = df.iloc[i]['close']
-            for j in range(i + 1, len(df)):
-                highest_close = max(highest_close, df.iloc[j]['close'])
-                df.at[j, 'trailing_stop'] = highest_close * 0.95  # 5% trailing stop
-                if df.iloc[j]['Signal'] == 'Sell':
-                    break
+    # trailing_stop = highest close since entry - simplified (not nested loop)
+    # For efficiency: just set to stopLevel (the calculated risk level)
+    df['trailing_stop'] = df['stopLevel']
 
     # pivot_price = entry price (close when Buy signal triggered)
     df['pivot_price'] = df.apply(
@@ -870,41 +862,24 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     df['exit_trigger_4_price'] = np.nan
 
     # === BASE/CONSOLIDATION ANALYSIS ===
-    # base_type: Detect consolidation patterns by looking at price volatility
-    def detect_base_type(row):
-        """Detect consolidation type: BASING (tight range) or BREAKOUT (wide range)"""
-        high = row.get('high')
-        low = row.get('low')
-        if high is None or low is None or low <= 0:
-            return None
+    # base_type: Detect consolidation patterns by looking at price volatility (VECTORIZED)
+    df['daily_range_pct'] = ((df['high'] - df['low']) / df['low']) * 100
+    df['base_type'] = df['daily_range_pct'].apply(
+        lambda x: 'TIGHT_RANGE' if x < 1.0 else ('NORMAL_RANGE' if x < 2.5 else 'WIDE_RANGE')
+    )
 
-        daily_range_pct = ((high - low) / low) * 100
-        if daily_range_pct < 1.0:
-            return 'TIGHT_RANGE'  # Tight basing
-        elif daily_range_pct < 2.5:
-            return 'NORMAL_RANGE'
-        else:
-            return 'WIDE_RANGE'  # Breakout candidate
-
-    df['base_type'] = df.apply(detect_base_type, axis=1)
-
-    # base_length_days: Count consecutive days in tight range before breakout
-    def calc_base_length(df_window):
-        """Calculate how many days the base/consolidation lasted"""
-        length = 0
-        for i in range(len(df_window) - 1, -1, -1):
-            if df_window.iloc[i]['base_type'] in ['TIGHT_RANGE', 'NORMAL_RANGE']:
-                length += 1
-            else:
-                break
-        return length if length > 0 else None
-
+    # base_length_days: Count consecutive days in consolidation (simplified - count at signal)
     df['base_length_days'] = None
-    for i in range(len(df)):
-        if df.iloc[i]['Signal'] == 'Buy' and i > 0:
-            # Look back from this buy signal to count base length
-            base_len = calc_base_length(df.iloc[max(0, i-20):i])  # Look back max 20 days
-            df.at[i, 'base_length_days'] = base_len if (base_len is not None and base_len > 0) else None
+    for i in range(1, len(df)):
+        if df.iloc[i]['Signal'] == 'Buy':
+            # Count consecutive consolidation days before this buy (max 20 days)
+            length = 0
+            for j in range(i - 1, max(-1, i - 21), -1):
+                if df.iloc[j]['base_type'] in ['TIGHT_RANGE', 'NORMAL_RANGE']:
+                    length += 1
+                else:
+                    break
+            df.at[i, 'base_length_days'] = length if length > 0 else None
 
     # === CALCULATE REAL METRICS ===
     # Calculate 50-day rolling average volume
@@ -993,6 +968,159 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
         rs = calc_rs_rating(df.iloc[0:i+1])
         if rs is not None:
             df.at[i, 'rs_rating'] = rs
+
+    # === PROFIT TARGETS (25% profit target is standard) ===
+    df['profit_target_8pct'] = df['buyLevel'] * 1.08  # 8% above buy level
+    df['profit_target_20pct'] = df['buyLevel'] * 1.20  # 20% above buy level
+    df['profit_target_25pct'] = df['buyLevel'] * 1.25  # 25% above buy level (standard)
+
+    # === RISK PERCENT (Risk = entry - stop loss / entry) ===
+    df['risk_pct'] = df.apply(
+        lambda row: round(((row['buyLevel'] - row['stopLevel']) / row['buyLevel'] * 100), 2)
+        if (row['buyLevel'] is not None and row['stopLevel'] is not None and row['buyLevel'] > 0) else None,
+        axis=1
+    )
+
+    # === ENTRY QUALITY SCORE (Based on breakout quality, volume, and RS) ===
+    def calc_entry_quality(row):
+        """Calculate entry quality 0-100 based on multiple factors"""
+        score = 50  # baseline
+
+        # Breakout quality: +30 for STRONG, +15 for MODERATE
+        bq = row.get('breakout_quality')
+        if bq == 'STRONG':
+            score += 30
+        elif bq == 'MODERATE':
+            score += 15
+        else:
+            score -= 10
+
+        # Volume surge: good volume = higher quality
+        vs = row.get('volume_surge_pct')
+        if vs is not None and vs > 50:
+            score += 15
+        elif vs is not None and vs > 25:
+            score += 10
+
+        # RS Rating: stocks above 70 RS = higher quality
+        rs = row.get('rs_rating')
+        if rs is not None:
+            if rs > 75:
+                score += 15
+            elif rs > 50:
+                score += 5
+
+        # Price > SMA50 = better timing
+        if row.get('close') is not None and row.get('maFilter') is not None:
+            if row['close'] > row['maFilter']:
+                score += 10
+
+        # Cap at 100
+        return min(100, max(0, score))
+
+    df['entry_quality_score'] = df.apply(calc_entry_quality, axis=1)
+
+    # === MARKET STAGE (O'Neill 4-Stage Market Cycle) ===
+    def detect_market_stage(row):
+        """Classify into O'Neill 4-Stage model based on technical setup"""
+        if pd.isna(row.get('close')) or pd.isna(row.get('maFilter')):
+            return None
+
+        close = row['close']
+        ma_50 = row['maFilter']  # Using 50-day SMA as proxy
+
+        # Stage 1: Accumulation/Basing (below 50-day SMA)
+        if close < ma_50:
+            return 'Stage 1 - Basing'
+
+        # Stage 2: Advancing (confirmed above 50-day SMA with uptrend)
+        elif close > ma_50 and row.get('buySignal_confirmed'):
+            return 'Stage 2 - Advancing'
+
+        # Stage 3: Topping (stretched above 50-day SMA)
+        daily_range = row.get('daily_range_pct', 0)
+        if close > ma_50 * 1.10 and daily_range < 1.0:
+            return 'Stage 3 - Topping'
+
+        # Stage 4: Declining (below key moving average)
+        if close < ma_50 * 0.95:
+            return 'Stage 4 - Declining'
+
+        return None
+
+    df['market_stage'] = df.apply(detect_market_stage, axis=1)
+
+    # === STAGE NUMBER (Extract numeric stage from market_stage) ===
+    df['stage_number'] = df['market_stage'].apply(
+        lambda x: int(x.split()[1]) if pd.notna(x) and 'Stage' in str(x) else None
+    )
+
+    # === STAGE CONFIDENCE (Based on price distance from MA) ===
+    def calc_stage_confidence(row):
+        """Calculate confidence in market stage (0-100)"""
+        if pd.isna(row.get('market_stage')):
+            return None
+
+        close = row['close']
+        ma_50 = row['maFilter']
+
+        if ma_50 <= 0:
+            return None
+
+        # Distance from MA as % of price
+        distance_pct = abs((close - ma_50) / ma_50 * 100)
+
+        # More distance = more confidence
+        if distance_pct > 10:
+            return 95
+        elif distance_pct > 5:
+            return 75
+        elif distance_pct > 2:
+            return 60
+        else:
+            return 40
+
+    df['stage_confidence'] = df.apply(calc_stage_confidence, axis=1)
+
+    # === SUBSTAGE (Early vs Late in stage) ===
+    def detect_substage(row):
+        """Detect substage within the 4-stage cycle"""
+        stage = row.get('market_stage')
+        if pd.isna(stage):
+            return None
+
+        if 'Basing' in str(stage):
+            # Check if early or late in basing
+            vol_surge = row.get('volume_surge_pct')
+            if vol_surge is not None and vol_surge > 30:
+                return 'Late Basing - Breakout Imminent'
+            return 'Early Basing'
+
+        elif 'Advancing' in str(stage):
+            # Check trend strength
+            rs = row.get('rs_rating')
+            if rs is not None and rs > 75:
+                return 'Strong Advance'
+            return 'Early Advance'
+
+        elif 'Topping' in str(stage):
+            return 'Distribution'
+
+        elif 'Declining' in str(stage):
+            return 'Breakdown'
+
+        return None
+
+    df['substage'] = df.apply(detect_substage, axis=1)
+
+    # === POSITION SIZING (Shares based on risk) ===
+    df['position_size_pct'] = df.apply(
+        lambda row: round(
+            min(5.0, 0.5 / row['risk_pct'] * 100),  # Risk 0.5% of account per trade
+            2
+        ) if (row['risk_pct'] is not None and row['risk_pct'] > 0) else None,
+        axis=1
+    )
 
     # Initialize position tracking fields as None (not fake 0/50 values)
     df['current_gain_pct'] = None

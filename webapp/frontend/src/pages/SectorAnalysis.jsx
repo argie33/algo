@@ -36,6 +36,7 @@ import {
   LineChart,
   ComposedChart,
   Line,
+  ReferenceLine,
 } from "recharts";
 import api from "../services/api";
 import {
@@ -50,34 +51,31 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
   const trendArray = sector?.trendData || [];
 
   // No need for separate technical data fetch - it's already in trendArray
-  // Each row in trendArray includes: date, momentum, rank, trend, ma_20, ma_50, ma_200, rsi, close
+  // Each row in trendArray includes: date, momentum, rank, trend, ma_5, ma_10, ma_20, rsi
   let momentumData = trendArray.map(row => {
     return {
       date: row.date,
       momentum: parseFloat(row.dailyStrengthScore || 0),
       rank: row.rank,
       trend: row.trend,
+      ma_5: row.ma_5 !== undefined && row.ma_5 !== null ? parseFloat(row.ma_5) : undefined,
+      ma_10: row.ma_10 !== undefined && row.ma_10 !== null ? parseFloat(row.ma_10) : undefined,
       ma_20: row.ma_20 !== undefined && row.ma_20 !== null ? parseFloat(row.ma_20) : undefined,
-      ma_50: row.ma_50 !== undefined && row.ma_50 !== null ? parseFloat(row.ma_50) : undefined,
-      ma_200: row.ma_200 !== undefined && row.ma_200 !== null ? parseFloat(row.ma_200) : undefined,
-      rsi: row.rsi !== undefined && row.rsi !== null ? parseFloat(row.rsi) : undefined,
-      close: row.close !== undefined && row.close !== null ? parseFloat(row.close) : undefined
+      rsi: row.rsi !== undefined && row.rsi !== null ? parseFloat(row.rsi) : undefined
     };
   });
 
   // Check what's actually in the technical data
+  const hasMA5 = momentumData.some(m => m.ma_5 !== undefined);
+  const hasMA10 = momentumData.some(m => m.ma_10 !== undefined);
   const hasMA20 = momentumData.some(m => m.ma_20 !== undefined);
-  const hasMA50 = momentumData.some(m => m.ma_50 !== undefined);
-  const hasMA200 = momentumData.some(m => m.ma_200 !== undefined);
   const hasRSI = momentumData.some(m => m.rsi !== undefined);
 
   if (momentumData.length > 0) {
     console.log(`[SECTOR MOMENTUM CHART] ${sector?.sector_name}:`);
     console.log(`  Total rows: ${momentumData.length}`);
-    console.log(`  Has MA20: ${hasMA20}, Has MA50: ${hasMA50}, Has MA200: ${hasMA200}, Has RSI: ${hasRSI}`);
+    console.log(`  Has MA5: ${hasMA5}, Has MA10: ${hasMA10}, Has MA20: ${hasMA20}, Has RSI: ${hasRSI}`);
     console.log(`  First row:`, momentumData[0]);
-    console.log(`  All momentum values:`, momentumData.map(m => m.momentum));
-    console.log(`  All ma_20 values (first 5):`, momentumData.slice(0, 5).map(m => m.ma_20));
   }
 
   // Use ALL data for momentum chart (no date filtering)
@@ -86,56 +84,89 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
   }
 
   return (
-    <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, minHeight: 500, mb: 3 }}>
-      <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-        ⚡ Daily Strength Score
-      </Typography>
-      {momentumData && momentumData.length > 0 ? (
-        <Box sx={{ width: "100%", height: 400, position: "relative", display: "block", overflow: "hidden" }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={momentumData} margin={{ top: 20, right: 100, left: 80, bottom: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-              <YAxis
-                width={75}
-                yAxisId="left"
-                tick={{ fontSize: 11 }}
-                label={{ value: "Momentum (-10 to 10)", angle: -90, position: "insideLeft", offset: 5 }}
-                domain={[-10, 10]}
-              />
-              <YAxis
-                width={75}
-                yAxisId="right"
-                orientation="right"
-                tick={{ fontSize: 11 }}
-                label={{ value: "Price / RSI", angle: 90, position: "insideRight", offset: 5 }}
-                domain={['dataMin', 'dataMax']}
-              />
-              <Tooltip
-                formatter={(value) => typeof value === 'number' ? value.toFixed(2) : "N/A"}
-                labelFormatter={(label) => `Date: ${label}`}
-              />
-              <Legend wrapperStyle={{ paddingTop: 10 }} />
-
-              {/* Daily Strength Score - Momentum Axis */}
-              <Line yAxisId="left" type="monotone" dataKey="momentum" stroke="#ff9800" strokeWidth={3} dot={false} isAnimationActive={false} connectNulls={true} name="Daily Strength Score" />
-
-              {/* Technical Indicators - All on Right Axis */}
-              <Line yAxisId="right" type="monotone" dataKey="ma_20" stroke="#1976d2" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={true} name="SMA 20" />
-              <Line yAxisId="right" type="monotone" dataKey="ma_50" stroke="#d32f2f" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={true} name="SMA 50" />
-              <Line yAxisId="right" type="monotone" dataKey="ma_200" stroke="#388e3c" strokeWidth={2} dot={false} isAnimationActive={false} strokeDasharray="5,5" connectNulls={true} name="SMA 200" />
-              <Line yAxisId="right" type="monotone" dataKey="rsi" stroke="#9c27b0" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={true} name="RSI (14)" />
-
-            </LineChart>
-          </ResponsiveContainer>
-        </Box>
-      ) : (
-        <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-          Loading chart data...
+    <>
+      {/* Main Price & Moving Averages Chart */}
+      <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mb: 2 }}>
+        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
+          ⚡ Daily Strength Score & Moving Averages
         </Typography>
-      )}
+        {momentumData && momentumData.length > 0 ? (
+          <Box sx={{ width: "100%", height: 350, position: "relative", display: "block", overflow: "hidden" }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={momentumData} margin={{ top: 20, right: 100, left: 80, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                <YAxis
+                  width={75}
+                  yAxisId="left"
+                  tick={{ fontSize: 11 }}
+                  label={{ value: "Momentum (-10 to 10)", angle: -90, position: "insideLeft", offset: 5 }}
+                  domain={['dataMin', 'dataMax']}
+                />
+                <Tooltip
+                  formatter={(value) => typeof value === 'number' ? value.toFixed(2) : "N/A"}
+                  labelFormatter={(label) => `Date: ${label}`}
+                />
+                <Legend wrapperStyle={{ paddingTop: 10 }} />
 
-    </Box>
+                {/* Daily Strength Score */}
+                <Line yAxisId="left" type="monotone" dataKey="momentum" stroke="#ff9800" strokeWidth={3} dot={false} isAnimationActive={false} connectNulls={true} name="Daily Strength Score" />
+
+                {/* Moving Averages */}
+                <Line yAxisId="left" type="monotone" dataKey="ma_5" stroke="#2196f3" strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls={true} name="MA 5" />
+                <Line yAxisId="left" type="monotone" dataKey="ma_10" stroke="#1976d2" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={true} name="MA 10" />
+                <Line yAxisId="left" type="monotone" dataKey="ma_20" stroke="#d32f2f" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={true} name="MA 20" />
+
+              </LineChart>
+            </ResponsiveContainer>
+          </Box>
+        ) : (
+          <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+            Loading chart data...
+          </Typography>
+        )}
+      </Box>
+
+      {/* RSI Chart - Separate Bottom Panel */}
+      <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mb: 3 }}>
+        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
+          📊 RSI (14) - Relative Strength Index
+        </Typography>
+        {momentumData && momentumData.length > 0 ? (
+          <Box sx={{ width: "100%", height: 250, position: "relative", display: "block", overflow: "hidden" }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={momentumData} margin={{ top: 20, right: 80, left: 80, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                <YAxis
+                  width={75}
+                  tick={{ fontSize: 11 }}
+                  label={{ value: "RSI", angle: -90, position: "insideLeft", offset: 5 }}
+                  domain={[0, 100]}
+                />
+                <Tooltip
+                  formatter={(value) => typeof value === 'number' ? value.toFixed(2) : "N/A"}
+                  labelFormatter={(label) => `Date: ${label}`}
+                />
+                <Legend wrapperStyle={{ paddingTop: 10 }} />
+
+                {/* RSI Line */}
+                <Line type="monotone" dataKey="rsi" stroke="#9c27b0" strokeWidth={2.5} dot={false} isAnimationActive={false} connectNulls={true} name="RSI (14)" />
+
+                {/* Overbought/Oversold Reference Lines */}
+                <ReferenceLine y={70} stroke="#ff6b6b" strokeDasharray="5,5" label={{ value: "Overbought (70)", position: "right", fontSize: 11 }} />
+                <ReferenceLine y={30} stroke="#51cf66" strokeDasharray="5,5" label={{ value: "Oversold (30)", position: "right", fontSize: 11 }} />
+
+              </LineChart>
+            </ResponsiveContainer>
+          </Box>
+        ) : (
+          <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+            Loading chart data...
+          </Typography>
+        )}
+      </Box>
+    </>
   );
 };
 
@@ -146,28 +177,27 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
   const trendArray = industry?.trendData || [];
 
   // No need for separate technical data fetch - it's already in trendArray
-  // Each row in trendArray includes: date, momentum, rank, trend, ma_20, ma_50, ma_200, rsi, close
+  // Each row in trendArray includes: date, momentum, rank, trend, ma_5, ma_10, ma_20, rsi
   let momentumData = trendArray.map(row => {
     return {
       date: row.date,
       momentum: parseFloat(row.dailyStrengthScore || 0),
       rank: row.rank,
       trend: row.trend,
+      ma_5: row.ma_5 !== undefined && row.ma_5 !== null ? parseFloat(row.ma_5) : undefined,
+      ma_10: row.ma_10 !== undefined && row.ma_10 !== null ? parseFloat(row.ma_10) : undefined,
       ma_20: row.ma_20 !== undefined && row.ma_20 !== null ? parseFloat(row.ma_20) : undefined,
-      ma_50: row.ma_50 !== undefined && row.ma_50 !== null ? parseFloat(row.ma_50) : undefined,
-      ma_200: row.ma_200 !== undefined && row.ma_200 !== null ? parseFloat(row.ma_200) : undefined,
-      rsi: row.rsi !== undefined && row.rsi !== null ? parseFloat(row.rsi) : undefined,
-      close: row.close !== undefined && row.close !== null ? parseFloat(row.close) : undefined
+      rsi: row.rsi !== undefined && row.rsi !== null ? parseFloat(row.rsi) : undefined
     };
   });
 
   console.log(`[INDUSTRY MOMENTUM CHART] ${industry?.industry}:`);
   console.log(`  Total rows: ${trendArray.length}`);
+  const hasMA5ind = momentumData.some(m => m.ma_5 !== undefined);
+  const hasMA10ind = momentumData.some(m => m.ma_10 !== undefined);
   const hasMA20ind = momentumData.some(m => m.ma_20 !== undefined);
-  const hasMA50ind = momentumData.some(m => m.ma_50 !== undefined);
-  const hasMA200ind = momentumData.some(m => m.ma_200 !== undefined);
   const hasRSIind = momentumData.some(m => m.rsi !== undefined);
-  console.log(`  Has MA20: ${hasMA20ind}, Has MA50: ${hasMA50ind}, Has MA200: ${hasMA200ind}, Has RSI: ${hasRSIind}`);
+  console.log(`  Has MA5: ${hasMA5ind}, Has MA10: ${hasMA10ind}, Has MA20: ${hasMA20ind}, Has RSI: ${hasRSIind}`);
   if (momentumData.length > 0) {
     console.log(`  First row:`, momentumData[0]);
   }
@@ -178,56 +208,89 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
   }
 
   return (
-    <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2, minHeight: 500, mb: 3 }}>
-      <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-        ⚡ Daily Strength Score
-      </Typography>
-      {momentumData && momentumData.length > 0 ? (
-        <Box sx={{ width: "100%", height: 400, position: "relative", display: "block", overflow: "hidden" }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={momentumData} margin={{ top: 20, right: 100, left: 80, bottom: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-              <YAxis
-                width={75}
-                yAxisId="left"
-                tick={{ fontSize: 11 }}
-                label={{ value: "Momentum (-10 to 10)", angle: -90, position: "insideLeft", offset: 5 }}
-                domain={[-10, 10]}
-              />
-              <YAxis
-                width={75}
-                yAxisId="right"
-                orientation="right"
-                tick={{ fontSize: 11 }}
-                label={{ value: "Price / RSI", angle: 90, position: "insideRight", offset: 5 }}
-                domain={['dataMin', 'dataMax']}
-              />
-              <Tooltip
-                formatter={(value) => typeof value === 'number' ? value.toFixed(2) : "N/A"}
-                labelFormatter={(label) => `Date: ${label}`}
-              />
-              <Legend wrapperStyle={{ paddingTop: 10 }} />
-
-              {/* Daily Strength Score - Momentum Axis */}
-              <Line yAxisId="left" type="monotone" dataKey="momentum" stroke="#ff9800" strokeWidth={3} dot={false} isAnimationActive={false} connectNulls={true} name="Daily Strength Score" />
-
-              {/* Technical Indicators - All on Right Axis */}
-              <Line yAxisId="right" type="monotone" dataKey="ma_20" stroke="#1976d2" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={true} name="SMA 20" />
-              <Line yAxisId="right" type="monotone" dataKey="ma_50" stroke="#d32f2f" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={true} name="SMA 50" />
-              <Line yAxisId="right" type="monotone" dataKey="ma_200" stroke="#388e3c" strokeWidth={2} dot={false} isAnimationActive={false} strokeDasharray="5,5" connectNulls={true} name="SMA 200" />
-              <Line yAxisId="right" type="monotone" dataKey="rsi" stroke="#9c27b0" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={true} name="RSI (14)" />
-
-            </LineChart>
-          </ResponsiveContainer>
-        </Box>
-      ) : (
-        <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-          Loading chart data...
+    <>
+      {/* Main Price & Moving Averages Chart */}
+      <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2, mb: 2 }}>
+        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
+          ⚡ Daily Strength Score & Moving Averages
         </Typography>
-      )}
+        {momentumData && momentumData.length > 0 ? (
+          <Box sx={{ width: "100%", height: 350, position: "relative", display: "block", overflow: "hidden" }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={momentumData} margin={{ top: 20, right: 100, left: 80, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                <YAxis
+                  width={75}
+                  yAxisId="left"
+                  tick={{ fontSize: 11 }}
+                  label={{ value: "Momentum (-10 to 10)", angle: -90, position: "insideLeft", offset: 5 }}
+                  domain={['dataMin', 'dataMax']}
+                />
+                <Tooltip
+                  formatter={(value) => typeof value === 'number' ? value.toFixed(2) : "N/A"}
+                  labelFormatter={(label) => `Date: ${label}`}
+                />
+                <Legend wrapperStyle={{ paddingTop: 10 }} />
 
-    </Box>
+                {/* Daily Strength Score */}
+                <Line yAxisId="left" type="monotone" dataKey="momentum" stroke="#ff9800" strokeWidth={3} dot={false} isAnimationActive={false} connectNulls={true} name="Daily Strength Score" />
+
+                {/* Moving Averages */}
+                <Line yAxisId="left" type="monotone" dataKey="ma_5" stroke="#2196f3" strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls={true} name="MA 5" />
+                <Line yAxisId="left" type="monotone" dataKey="ma_10" stroke="#1976d2" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={true} name="MA 10" />
+                <Line yAxisId="left" type="monotone" dataKey="ma_20" stroke="#d32f2f" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={true} name="MA 20" />
+
+              </LineChart>
+            </ResponsiveContainer>
+          </Box>
+        ) : (
+          <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+            Loading chart data...
+          </Typography>
+        )}
+      </Box>
+
+      {/* RSI Chart - Separate Bottom Panel */}
+      <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mb: 3 }}>
+        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
+          📊 RSI (14) - Relative Strength Index
+        </Typography>
+        {momentumData && momentumData.length > 0 ? (
+          <Box sx={{ width: "100%", height: 250, position: "relative", display: "block", overflow: "hidden" }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={momentumData} margin={{ top: 20, right: 80, left: 80, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                <YAxis
+                  width={75}
+                  tick={{ fontSize: 11 }}
+                  label={{ value: "RSI", angle: -90, position: "insideLeft", offset: 5 }}
+                  domain={[0, 100]}
+                />
+                <Tooltip
+                  formatter={(value) => typeof value === 'number' ? value.toFixed(2) : "N/A"}
+                  labelFormatter={(label) => `Date: ${label}`}
+                />
+                <Legend wrapperStyle={{ paddingTop: 10 }} />
+
+                {/* RSI Line */}
+                <Line type="monotone" dataKey="rsi" stroke="#9c27b0" strokeWidth={2.5} dot={false} isAnimationActive={false} connectNulls={true} name="RSI (14)" />
+
+                {/* Overbought/Oversold Reference Lines */}
+                <ReferenceLine y={70} stroke="#ff6b6b" strokeDasharray="5,5" label={{ value: "Overbought (70)", position: "right", fontSize: 11 }} />
+                <ReferenceLine y={30} stroke="#51cf66" strokeDasharray="5,5" label={{ value: "Oversold (30)", position: "right", fontSize: 11 }} />
+
+              </LineChart>
+            </ResponsiveContainer>
+          </Box>
+        ) : (
+          <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+            Loading chart data...
+          </Typography>
+        )}
+      </Box>
+    </>
   );
 };
 
@@ -809,188 +872,6 @@ const SectorAnalysis = () => {
                 name="Ranking"
                 dot={false}
                 strokeWidth={2}
-                isAnimationActive={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </Box>
-      </Box>
-    );
-  };
-
-  // Detailed technical analysis chart with moving averages
-  const DetailedTechnicalChart = ({ sectorOrIndustry, type = "sector" }) => {
-    const { data: technicalData, isLoading } = useQuery({
-      queryKey: [
-        `technical-details-${type}`,
-        type === "sector" ? (sectorOrIndustry.sector_name || sectorOrIndustry.sector) : sectorOrIndustry.industry
-      ],
-      queryFn: async () => {
-        try {
-          const name = type === "sector" ? (sectorOrIndustry.sector_name || sectorOrIndustry.sector) : sectorOrIndustry.industry;
-          const response = await api.get(
-            `/api/sectors/technical-details/${type}/${encodeURIComponent(name)}`
-          );
-          return response.data;
-        } catch (error) {
-          console.error(`Failed to fetch ${type} technical details:`, error);
-          return null;
-        }
-      },
-      staleTime: 300000, // 5 minutes
-      enabled: !!(type === "sector" ? (sectorOrIndustry.sector_name || sectorOrIndustry.sector) : sectorOrIndustry.industry),
-      retry: false,
-    });
-
-    if (isLoading) {
-      return (
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight={300}>
-          <LinearProgress sx={{ width: "50%" }} />
-        </Box>
-      );
-    }
-
-    if (!technicalData?.history || technicalData.history.length === 0) {
-      return (
-        <Typography variant="body2" color="text.secondary" align="center">
-          No technical data available
-        </Typography>
-      );
-    }
-
-    const summaryData = technicalData.summary || {};
-    const history = technicalData.history || [];
-
-    // Format date for x-axis display
-    const formatXAxisDate = (dateString) => {
-      if (!dateString) return "";
-      try {
-        const date = new Date(dateString);
-        return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      } catch {
-        return dateString;
-      }
-    };
-
-    return (
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        {/* Technical Summary Metrics */}
-        <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 1 }}>
-          <Box sx={{ p: 1.5, backgroundColor: "grey.50", borderRadius: 1 }}>
-            <Typography variant="caption" color="text.secondary" fontWeight="bold">
-              Current Price
-            </Typography>
-            <Typography variant="body2">
-              ${summaryData.current_price?.toFixed(2) || "N/A"}
-            </Typography>
-          </Box>
-          <Box sx={{ p: 1.5, backgroundColor: "grey.50", borderRadius: 1 }}>
-            <Typography variant="caption" color="text.secondary" fontWeight="bold">
-              20-Day MA
-            </Typography>
-            <Typography variant="body2">
-              ${summaryData.ma_20?.toFixed(2) || "N/A"} ({summaryData.price_vs_ma20})
-            </Typography>
-          </Box>
-          <Box sx={{ p: 1.5, backgroundColor: "grey.50", borderRadius: 1 }}>
-            <Typography variant="caption" color="text.secondary" fontWeight="bold">
-              50-Day MA
-            </Typography>
-            <Typography variant="body2">
-              ${summaryData.ma_50?.toFixed(2) || "N/A"}
-            </Typography>
-          </Box>
-          <Box sx={{ p: 1.5, backgroundColor: "grey.50", borderRadius: 1 }}>
-            <Typography variant="caption" color="text.secondary" fontWeight="bold">
-              200-Day MA
-            </Typography>
-            <Typography variant="body2">
-              ${summaryData.ma_200?.toFixed(2) || "N/A"} ({summaryData.price_vs_ma200})
-            </Typography>
-          </Box>
-          <Box sx={{ p: 1.5, backgroundColor: "grey.50", borderRadius: 1 }}>
-            <Typography variant="caption" color="text.secondary" fontWeight="bold">
-              RSI (14)
-            </Typography>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Typography variant="body2">
-                {summaryData.rsi ? `${summaryData.rsi.toFixed(2)}` : "N/A"}
-              </Typography>
-              <Chip
-                label={
-                  summaryData.rsi && summaryData.rsi > 70
-                    ? "Overbought"
-                    : summaryData.rsi && summaryData.rsi < 30
-                    ? "Oversold"
-                    : "Neutral"
-                }
-                size="small"
-                sx={{ height: "20px" }}
-                color={
-                  summaryData.rsi && summaryData.rsi > 70
-                    ? "error"
-                    : summaryData.rsi && summaryData.rsi < 30
-                    ? "warning"
-                    : "default"
-                }
-              />
-            </Box>
-          </Box>
-        </Box>
-
-        {/* Price and Moving Averages Chart */}
-        <Box sx={{ width: "100%", height: 300, minHeight: 300 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={history} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 12 }}
-                interval={Math.floor(history.length / 8)}
-                tickFormatter={formatXAxisDate}
-              />
-              <YAxis width={50} tick={{ fontSize: 12 }} />
-              <Tooltip
-                formatter={(value) => value ? `$${parseFloat(value).toFixed(2)}` : "N/A"}
-                labelFormatter={(label) => `Date: ${formatXAxisDate(label)}`}
-              />
-              <Line
-                type="monotone"
-                dataKey="close"
-                stroke="#2196F3"
-                name="Price"
-                dot={false}
-                strokeWidth={2}
-                isAnimationActive={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="ma_20"
-                stroke="#FFA726"
-                name="MA 20"
-                dot={false}
-                strokeWidth={1.5}
-                strokeDasharray="5 5"
-                isAnimationActive={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="ma_50"
-                stroke="#66BB6A"
-                name="MA 50"
-                dot={false}
-                strokeWidth={1.5}
-                strokeDasharray="5 5"
-                isAnimationActive={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="ma_200"
-                stroke="#EF5350"
-                name="MA 200"
-                dot={false}
-                strokeWidth={1.5}
-                strokeDasharray="5 5"
                 isAnimationActive={false}
               />
             </LineChart>
@@ -1729,14 +1610,6 @@ const SectorAnalysis = () => {
                         {/* Momentum Score Chart - Same Historical Data as Trend Chart */}
                         <SectorMomentumChart sector={sector} aggregateToWeekly={aggregateToWeekly} />
 
-                        {/* Technical Analysis Section */}
-                        <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2 }}>
-                          <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-                            📈 Technical Analysis (200-Day History with Moving Averages)
-                          </Typography>
-                          <DetailedTechnicalChart sectorOrIndustry={sector} type="sector" />
-                        </Box>
-
                         {/* Industries Section */}
                         <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2 }}>
                           <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1 }}>
@@ -1990,14 +1863,6 @@ const SectorAnalysis = () => {
 
                         {/* Momentum Score Chart - Same Historical Data as Trend Chart */}
                         <IndustryMomentumChart industry={industry} aggregateToWeekly={aggregateToWeekly} />
-
-                        {/* Technical Analysis Section */}
-                        <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2 }}>
-                          <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-                            📈 Technical Analysis (200-Day History with Moving Averages)
-                          </Typography>
-                          <DetailedTechnicalChart sectorOrIndustry={industry} type="industry" />
-                        </Box>
 
                         {/* Top Performing Companies Section */}
                         <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2 }}>
