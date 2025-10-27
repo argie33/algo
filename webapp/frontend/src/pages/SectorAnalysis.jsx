@@ -179,11 +179,11 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
       date,
       momentum: parseFloat(row.dailyStrengthScore || 0),
       rank: row.rank,
-      ma_20: techRow?.ma_20 ? parseFloat(techRow.ma_20) : null,
-      ma_50: techRow?.ma_50 ? parseFloat(techRow.ma_50) : null,
-      ma_200: techRow?.ma_200 ? parseFloat(techRow.ma_200) : null,
-      rsi: techRow?.rsi ? parseFloat(techRow.rsi) : null,
-      close: techRow?.close ? parseFloat(techRow.close) : null
+      ma_20: techRow?.ma_20 !== undefined && techRow?.ma_20 !== null ? parseFloat(techRow.ma_20) : undefined,
+      ma_50: techRow?.ma_50 !== undefined && techRow?.ma_50 !== null ? parseFloat(techRow.ma_50) : undefined,
+      ma_200: techRow?.ma_200 !== undefined && techRow?.ma_200 !== null ? parseFloat(techRow.ma_200) : undefined,
+      rsi: techRow?.rsi !== undefined && techRow?.rsi !== null ? parseFloat(techRow.rsi) : undefined,
+      close: techRow?.close !== undefined && techRow?.close !== null ? parseFloat(techRow.close) : undefined
     };
   });
 
