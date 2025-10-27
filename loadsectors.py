@@ -626,6 +626,12 @@ def populate_technical_data(conn):
                 prices = np.array([float(row[1]) for row in valid_data])
                 volumes = [int(row[2]) if row[2] is not None else 0 for row in valid_data]
 
+                # Pre-calculate RSI for all prices if enough data
+                rsi_values = [None] * len(prices)
+                if len(prices) >= 14:
+                    for rsi_i in range(len(prices)):
+                        rsi_values[rsi_i] = calculate_rsi(prices[:rsi_i+1])
+
                 # Calculate moving averages and RSI for each row
                 for i, date in enumerate(dates):
                     # Moving averages (only when sufficient data exists)
@@ -633,8 +639,8 @@ def populate_technical_data(conn):
                     ma50 = float(np.mean(prices[max(0, i-49):i+1])) if i >= 49 else None
                     ma200 = float(np.mean(prices[max(0, i-199):i+1])) if i >= 199 else None
 
-                    # RSI (14-period) - calculate for each row if enough data
-                    rsi = calculate_rsi(prices[max(0, i-13):i+1]) if i >= 13 else None
+                    # RSI from pre-calculated values
+                    rsi = rsi_values[i]
 
                     cursor.execute("""
                         INSERT INTO sector_technical_data
@@ -686,6 +692,12 @@ def populate_technical_data(conn):
                 prices = np.array([float(row[1]) for row in valid_data])
                 volumes = [int(row[2]) if row[2] is not None else 0 for row in valid_data]
 
+                # Pre-calculate RSI for all prices if enough data
+                rsi_values = [None] * len(prices)
+                if len(prices) >= 14:
+                    for rsi_i in range(len(prices)):
+                        rsi_values[rsi_i] = calculate_rsi(prices[:rsi_i+1])
+
                 # Calculate moving averages and RSI for each row
                 for i, date in enumerate(dates):
                     # Moving averages (only when sufficient data exists)
@@ -693,8 +705,8 @@ def populate_technical_data(conn):
                     ma50 = float(np.mean(prices[max(0, i-49):i+1])) if i >= 49 else None
                     ma200 = float(np.mean(prices[max(0, i-199):i+1])) if i >= 199 else None
 
-                    # RSI (14-period) - calculate for each row if enough data
-                    rsi = calculate_rsi(prices[max(0, i-13):i+1]) if i >= 13 else None
+                    # RSI from pre-calculated values
+                    rsi = rsi_values[i]
 
                     cursor.execute("""
                         INSERT INTO industry_technical_data

@@ -7611,7 +7611,7 @@ router.get("/internals", async (req, res) => {
             naaim_bullish: positioning.naaim_bullish !== null && positioning.naaim_bullish !== undefined ? parseFloat(positioning.naaim_bullish).toFixed(2) : null,
             naaim_bearish: positioning.naaim_bearish !== null && positioning.naaim_bearish !== undefined ? parseFloat(positioning.naaim_bearish).toFixed(2) : null
           },
-          fear_greed_index: parseFloat(positioning.fear_greed_value || 50).toFixed(0)
+          fear_greed_index: positioning.fear_greed_value !== null && positioning.fear_greed_value !== undefined ? parseFloat(positioning.fear_greed_value).toFixed(0) : null
         }
       },
       metadata: {

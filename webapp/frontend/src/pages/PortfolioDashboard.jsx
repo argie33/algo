@@ -439,6 +439,7 @@ export default function PortfolioDashboard() {
               </Grid>
             </CardContent>
           </Card>
+        </Box>
 
           {/* ============ HOLDINGS PERFORMANCE HEATMAP ============ */}
           <Card sx={{ mb: 4 }}>
