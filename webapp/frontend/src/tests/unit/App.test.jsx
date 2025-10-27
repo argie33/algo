@@ -23,7 +23,7 @@ vi.mock("../../components/RootRedirect", () => ({
   default: () => <div data-testid="market-overview-page">Market Overview</div>,
 }));
 
-vi.mock("../../pages/PortfolioHoldings", () => ({
+vi.mock("../../pages/PortfolioDashboard", () => ({
   default: () => <div data-testid="portfolio-page">Portfolio</div>,
 }));
 

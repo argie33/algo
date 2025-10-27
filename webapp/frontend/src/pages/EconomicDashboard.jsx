@@ -13,6 +13,7 @@ import {
   IconButton,
   LinearProgress,
   Paper,
+  Stack,
   Table,
   TableBody,
   TableCell,
@@ -1375,6 +1376,131 @@ export default function EconomicDashboard() {
           <LeadingIndicatorsPanel data={economicData.leadingIndicators} isLoading={false} theme={theme} />
           <YieldCurvePanel data={economicData} isLoading={false} theme={theme} />
           <CreditMarketPanel data={economicData} isLoading={false} theme={theme} />
+
+          {/* Additional Expanded Metrics */}
+          <Box sx={{ mt: 4, mb: 2 }}>
+            <Typography variant="h4" sx={{ fontWeight: 600, display: "flex", alignItems: "center", gap: 1 }}>
+              📊 Comprehensive Economic Indicators
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Money supply, inflation, and production capacity metrics
+            </Typography>
+          </Box>
+
+          <Grid container spacing={3}>
+            {/* Money Supply & Fed Policy */}
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardHeader title="💰 Money Supply & Fed Policy" />
+                <CardContent>
+                  <Stack spacing={2}>
+                    {economicData.leadingIndicators.filter(i =>
+                      ['M1NS', 'M2SL', 'WALCL'].includes(i.name)
+                    ).length > 0 ? (
+                      economicData.leadingIndicators.filter(i =>
+                        i.rawValue !== null && ['M1NS', 'M2SL', 'WALCL', 'FEDFUNDS'].some(id => i.name.includes(id) || i.description?.includes(id))
+                      ).map((indicator, idx) => (
+                        <Box key={idx} sx={{ p: 1.5, backgroundColor: alpha(theme.palette.primary.main, 0.05), borderRadius: 1 }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{indicator.name}</Typography>
+                          <Typography variant="h6" sx={{ fontWeight: 700, color: "primary.main", mt: 0.5 }}>
+                            {indicator.value || 'N/A'}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">{indicator.description}</Typography>
+                        </Box>
+                      ))
+                    ) : (
+                      <Alert severity="info">Money supply data not yet available in dashboard</Alert>
+                    )}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* Inflation Indicators */}
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardHeader title="📈 Inflation Indicators" />
+                <CardContent>
+                  <Stack spacing={2}>
+                    {economicData.leadingIndicators.filter(i =>
+                      i.name.includes('CPI') || i.name.includes('PCE') || i.name.includes('PPI') || i.name.includes('CPILFESL') || i.name.includes('PPIACO')
+                    ).length > 0 ? (
+                      economicData.leadingIndicators.filter(i =>
+                        (i.name.includes('CPI') || i.name.includes('PCE') || i.name.includes('PPI')) && i.rawValue !== null
+                      ).map((indicator, idx) => (
+                        <Box key={idx} sx={{ p: 1.5, backgroundColor: alpha(theme.palette.warning.main, 0.05), borderRadius: 1 }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{indicator.name}</Typography>
+                          <Typography variant="h6" sx={{ fontWeight: 700, color: "warning.main", mt: 0.5 }}>
+                            {indicator.value || 'N/A'}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">{indicator.description}</Typography>
+                        </Box>
+                      ))
+                    ) : (
+                      <Alert severity="info">Inflation data available in leading indicators</Alert>
+                    )}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* Production & Capacity */}
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardHeader title="⚙️ Production & Capacity" />
+                <CardContent>
+                  <Stack spacing={2}>
+                    {economicData.leadingIndicators.filter(i =>
+                      i.name.includes('INDPRO') || i.name.includes('CUMFSL') || i.name.includes('Industrial') || i.name.includes('Capacity')
+                    ).length > 0 ? (
+                      economicData.leadingIndicators.filter(i =>
+                        (i.name.includes('Industrial') || i.name.includes('Capacity')) && i.rawValue !== null
+                      ).map((indicator, idx) => (
+                        <Box key={idx} sx={{ p: 1.5, backgroundColor: alpha(theme.palette.info.main, 0.05), borderRadius: 1 }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{indicator.name}</Typography>
+                          <Typography variant="h6" sx={{ fontWeight: 700, color: "info.main", mt: 0.5 }}>
+                            {indicator.value || 'N/A'}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">{indicator.description}</Typography>
+                        </Box>
+                      ))
+                    ) : (
+                      <Alert severity="info">Production data available in indicators</Alert>
+                    )}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* Housing & Sentiment */}
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardHeader title="🏠 Housing & Consumer Sentiment" />
+                <CardContent>
+                  <Stack spacing={2}>
+                    {economicData.leadingIndicators.filter(i =>
+                      i.name.includes('Housing') || i.name.includes('Sentiment') || i.name.includes('Consumer')
+                    ).length > 0 ? (
+                      economicData.leadingIndicators.filter(i =>
+                        (i.name.includes('Housing') || i.name.includes('Sentiment') || i.name.includes('Consumer')) && i.rawValue !== null
+                      ).map((indicator, idx) => (
+                        <Box key={idx} sx={{ p: 1.5, backgroundColor: alpha(theme.palette.success.main, 0.05), borderRadius: 1 }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>{indicator.name}</Typography>
+                          <Typography variant="h6" sx={{ fontWeight: 700, color: "success.main", mt: 0.5 }}>
+                            {indicator.value || 'N/A'}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">{indicator.description}</Typography>
+                        </Box>
+                      ))
+                    ) : (
+                      <Alert severity="info">Housing and sentiment data available in indicators</Alert>
+                    )}
+                  </Stack>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+
           <EconomicCalendarPanel events={economicData.upcomingEvents} isLoading={false} />
         </>
       )}

@@ -2,7 +2,7 @@ import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi, describe, test, expect, beforeEach } from "vitest";
 import { AuthContext } from "../../../contexts/AuthContext";
-import PortfolioHoldings from "../../../pages/PortfolioHoldings";
+import PortfolioDashboard from "../../../pages/PortfolioDashboard";
 import * as api from "../../../services/api";
 
 // Mock the API services
@@ -201,10 +201,10 @@ vi.mock("recharts", () => ({
   },
 }));
 
-const renderPortfolioHoldings = () => {
+const renderPortfolioDashboard = () => {
   return render(
     <AuthContext.Provider value={mockAuthContext}>
-      <PortfolioHoldings />
+      <PortfolioDashboard />
     </AuthContext.Provider>
   );
 };
@@ -232,7 +232,7 @@ describe("Portfolio Import Functionality", () => {
   });
 
   test("should display import portfolio button", async () => {
-    renderPortfolioHoldings();
+    renderPortfolioDashboard();
 
     await waitFor(() => {
       expect(screen.getByTestId("import-portfolio-button")).toBeInTheDocument();
@@ -243,7 +243,7 @@ describe("Portfolio Import Functionality", () => {
   });
 
   test("should open import dialog when import button is clicked", async () => {
-    renderPortfolioHoldings();
+    renderPortfolioDashboard();
 
     await waitFor(() => {
       expect(screen.getByTestId("import-portfolio-button")).toBeInTheDocument();
@@ -261,7 +261,7 @@ describe("Portfolio Import Functionality", () => {
   });
 
   test("should display broker selection dropdown in import dialog", async () => {
-    renderPortfolioHoldings();
+    renderPortfolioDashboard();
 
     await waitFor(() => {
       expect(screen.getByTestId("import-portfolio-button")).toBeInTheDocument();
@@ -289,7 +289,7 @@ describe("Portfolio Import Functionality", () => {
       success: true,
     });
 
-    renderPortfolioHoldings();
+    renderPortfolioDashboard();
 
     await waitFor(() => {
       expect(screen.getByTestId("import-portfolio-button")).toBeInTheDocument();
@@ -318,7 +318,7 @@ describe("Portfolio Import Functionality", () => {
   test("should show error message when import fails", async () => {
     api.importPortfolioFromBroker.mockRejectedValue(new Error("No API key found for this broker"));
 
-    renderPortfolioHoldings();
+    renderPortfolioDashboard();
 
     await waitFor(() => {
       expect(screen.getByTestId("import-portfolio-button")).toBeInTheDocument();
@@ -346,7 +346,7 @@ describe("Portfolio Import Functionality", () => {
   });
 
   test("should disable import button when no broker is selected", async () => {
-    renderPortfolioHoldings();
+    renderPortfolioDashboard();
 
     await waitFor(() => {
       expect(screen.getByTestId("import-portfolio-button")).toBeInTheDocument();
@@ -370,7 +370,7 @@ describe("Portfolio Import Functionality", () => {
       success: true,
     });
 
-    renderPortfolioHoldings();
+    renderPortfolioDashboard();
 
     await waitFor(() => {
       expect(screen.getByTestId("import-portfolio-button")).toBeInTheDocument();

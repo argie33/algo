@@ -56,7 +56,6 @@ import EarningsCalendar from "./pages/EarningsCalendar";
 import FinancialData from "./pages/FinancialData";
 import ServiceHealth from "./pages/ServiceHealth";
 import TechnicalHistory from "./pages/TechnicalHistory";
-import PortfolioHoldings from "./pages/PortfolioHoldings";
 import PortfolioDashboard from "./pages/PortfolioDashboard";
 import PortfolioOptimization from "./pages/PortfolioOptimization";
 import TradeHistory from "./pages/TradeHistory";
@@ -584,7 +583,6 @@ function App() {
             <Route path="/" element={<RootRedirect />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/portfolio" element={<ProtectedRoute><PortfolioDashboard /></ProtectedRoute>} />
-            <Route path="/portfolio/holdings" element={<ProtectedRoute><PortfolioHoldings /></ProtectedRoute>} />
             <Route path="/trade-history" element={<ProtectedRoute><TradeHistory /></ProtectedRoute>} />
             <Route
               path="/portfolio/optimize"

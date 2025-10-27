@@ -1144,6 +1144,12 @@ router.get("/leading-indicators", async (req, res) => {
         'FEDFUNDS',
         -- NEW ECONOMIC INDICATORS (4) - Labor, Commodity, Credit, Housing
         'CIVPART', 'DCOILWTICO', 'MORTGAGE30US', 'BAMLH0A0HYM2',
+        -- MONEY SUPPLY & FEDERAL POLICY
+        'M1NS', 'M2SL', 'WALCL',
+        -- INFLATION INDICATORS
+        'CPILFESL', 'PPIACO',
+        -- PRODUCTION & CAPACITY
+        'CUMFSL', 'PERMIT',
         -- Full yield curve maturities for comprehensive chart
         'DGS3MO', 'DGS6MO', 'DGS1', 'DGS2', 'DGS3', 'DGS5', 'DGS7',
         'DGS10', 'DGS20', 'DGS30'

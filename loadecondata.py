@@ -424,7 +424,7 @@ def handler(event, context):
             "DCOILWTICO",
             # — U.S. Financial & Monetary —
             "FEDFUNDS","DGS3MO","DGS6MO","DGS1","DGS2","DGS3","DGS5","DGS7","DGS10","DGS20","DGS30",
-            "T10Y2Y","MORTGAGE30US","BAA","AAA","SP500","VIXCLS","M2SL","WALCL","IOER","IORB",
+            "T10Y2Y","MORTGAGE30US","BAA","AAA","SP500","VIXCLS","M1NS","M2SL","WALCL","IOER","IORB",
             # — Credit Spreads (indicators of financial stress) —
             "BAMLH0A0HYM2","BAMLH0A1HYBB","BAMLH0A2HY","BAMLH0A0IG","BAMLH0A1IG","BAMLH0A2IG",
             # — Treasury Spreads (recession indicators) —
@@ -433,6 +433,8 @@ def handler(event, context):
             "TERMCBCCALLNS","TERMCBCCRMNRNRNXBD",
             # — U.S. Housing & Construction —
             "HOUST","PERMIT","CSUSHPISA","RHORUSQ156N","RRVRUSQ156N","USHVAC",
+            # — Manufacturing & Production (ISM/Capacity) —
+            "INDPRO","CUMFSL","A371RE1Q156NBEA",
             # — LAGGING ECONOMIC INDICATORS —
             "UEMPMEAN","PRIME","MMNRNJ","ISITC","TOTALSA","IMPGS","LBMVRTQ",
             # — COINCIDENT ECONOMIC INDICATORS —
