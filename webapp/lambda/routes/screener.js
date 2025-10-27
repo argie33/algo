@@ -467,12 +467,11 @@ router.get("/screen", async (req, res) => {
     }
 
     const stocks = results.rows;
-    const totalCount = parseInt(
+    const totalCount = safeInt(
       (countResult &&
         countResult.rows &&
         countResult.rows[0] &&
-        countResult.rows[0].total) ||
-        0
+        countResult.rows[0].total)
     );
 
     // Calculate factor scores for stocks that don't have them
@@ -1224,12 +1223,12 @@ router.get("/results", async (req, res) => {
     ]);
 
     const stocks = results.rows;
-    const totalCount = parseInt(countResult.rows?.[0]?.total || 0);
+    const totalCount = safeInt(countResult.rows?.[0]?.total);
 
     // Enhanced stock data
     const enhancedStocks = stocks.map((stock) => ({
       ...stock,
-      price: parseFloat(stock.price || 0).toFixed(2),
+      price: safeFixed(stock.price, 2),
       market_cap: stock.market_cap ? parseInt(stock.market_cap) : null,
       pe_ratio: null,
       dividend_yield_percent: stock.dividend_yield_percent
@@ -1885,12 +1884,12 @@ router.get("/stocks", async (req, res) => {
       ticker: row.symbol,
       fullName: row.fullname || row.symbol,
       industry: row.industry,
-      price: parseFloat(row.price) || 0,
-      volume: parseInt(row.volume) || 0,
-      open: parseFloat(row.open) || 0,
-      high: parseFloat(row.high) || 0,
-      low: parseFloat(row.low) || 0,
-      change_percent: parseFloat(row.change_percent) || 0,
+      price: safeFloat(row.price),
+      volume: safeInt(row.volume),
+      open: safeFloat(row.open),
+      high: safeFloat(row.high),
+      low: safeFloat(row.low),
+      change_percent: safeFloat(row.change_percent),
       date: row.date,
       technical_score: parseFloat(row.technical_score) || null,
       fundamental_score: parseFloat(row.fundamental_score) || null,
@@ -2114,10 +2113,10 @@ router.get("/stocks", async (req, res) => {
     const formattedStocks = (result.rows || []).map(stock => ({
       symbol: stock.symbol,
       company_name: stock.company_name,
-      price: parseFloat(stock.price) || 0,
-      change_percent: parseFloat(stock.change_percent) || 0,
-      volume: parseInt(stock.volume) || 0,
-      market_cap: parseFloat(stock.market_cap) || 0,
+      price: safeFloat(stock.price),
+      change_percent: safeFloat(stock.change_percent),
+      volume: safeInt(stock.volume),
+      market_cap: safeFloat(stock.market_cap),
       sector: stock.sector || "Unknown",
       industry: stock.industry || "Unknown",
       pe_ratio: null,
@@ -2483,7 +2482,7 @@ router.post("/custom", authenticateToken, async (req, res) => {
     `;
 
     const countResult = await query(countQuery, params.slice(0, -2));
-    const totalCount = parseInt(countResult?.rows?.[0]?.total || 0);
+    const totalCount = safeInt(countResult?.rows?.[0]?.total);
     const totalPages = Math.ceil(totalCount / limit);
 
     // Perform additional analysis if requested

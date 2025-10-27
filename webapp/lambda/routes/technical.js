@@ -1,6 +1,6 @@
 const express = require("express");
 
-const { query } = require("../utils/database");
+const { query, safeFloat, safeInt, safeFixed } = require("../utils/database");
 const responseFormatter = require("../middleware/responseFormatter");
 
 const router = express.Router();
@@ -287,7 +287,7 @@ router.get("/daily", async (req, res) => {
       countParams
     );
 
-    const total = parseInt(countResult?.rows?.[0]?.total || 0);
+    const total = safeInt(countResult?.rows?.[0]?.total);
     const totalPages = Math.ceil(total / limitNum);
 
     res.json({
@@ -826,12 +826,12 @@ router.get("/chart/:symbol", async (req, res) => {
     const chartData = chartResult.rows.map(row => ({
       timestamp: row.date,
       date: row.date,
-      open: parseFloat(row.open) || 0,
-      high: parseFloat(row.high) || 0,
-      low: parseFloat(row.low) || 0,
-      close: parseFloat(row.close) || 0,
-      adj_close: parseFloat(row.adj_close) || 0,
-      volume: parseInt(row.volume) || 0
+      open: safeFloat(row.open),
+      high: safeFloat(row.high),
+      low: safeFloat(row.low),
+      close: safeFloat(row.close),
+      adj_close: safeFloat(row.adj_close),
+      volume: safeInt(row.volume)
     }));
 
     return res.status(200).json({
@@ -989,7 +989,7 @@ router.get("/chart", async (req, res) => {
 
     // Calculate summary statistics from real database data
     const prices = chartData.map((d) => parseFloat(d.close));
-    const volumes = chartData.map((d) => parseInt(d.volume) || 0);
+    const volumes = chartData.map((d) => safeInt(d.volume));
 
     if (prices.length === 0) {
       return res.status(500).json({
@@ -1225,11 +1225,11 @@ router.get("/compare", async (req, res) => {
           const data = techResult.rows[0];
           comparison.push({
             symbol: data.symbol,
-            rsi: parseFloat(data.rsi || 0).toFixed(2),
-            macd: parseFloat(data.macd || 0).toFixed(4),
-            sma_20: parseFloat(data.sma_20 || 0).toFixed(2),
-            volume: parseInt(data.volume || 0),
-            price: parseFloat(data.price || 0).toFixed(2),
+            rsi: safeFixed(data.rsi, 2),
+            macd: safeFixed(data.macd, 4),
+            sma_20: safeFixed(data.sma_20, 2),
+            volume: safeInt(data.volume),
+            price: safeFixed(data.price, 2),
             date: data.date,
           });
         } else {
@@ -1396,7 +1396,7 @@ router.get("/analysis/:symbol", async (req, res) => {
 
     // Calculate basic technical indicators
     const prices = priceData.map((row) => parseFloat(row.close));
-    const volumes = priceData.map((row) => parseInt(row.volume || 0));
+    const volumes = priceData.map((row) => safeInt(row.volume));
 
     // Simple Moving Averages
     const sma20 =
@@ -1439,7 +1439,7 @@ router.get("/analysis/:symbol", async (req, res) => {
           parseFloat(latest.open)) *
         100
       ).toFixed(2),
-      volume: parseInt(latest.volume || 0),
+      volume: safeInt(latest.volume),
       technical_indicators: {
         sma_20: parseFloat(sma20.toFixed(2)),
         sma_50: parseFloat(sma50.toFixed(2)),
@@ -2963,7 +2963,7 @@ router.post("/indicators", async (req, res) => {
         }
 
         const prices = priceResult.rows.map(row => parseFloat(row.price));
-        const volumes = priceResult.rows.map(row => parseFloat(row.volume) || 0);
+        const volumes = priceResult.rows.map(row => safeFloat(row.volume));
 
         const symbolResults = {};
 
@@ -3171,7 +3171,7 @@ router.get("/alerts", async (req, res) => {
         indicator: row.indicator,
         condition: row.condition,
         value: parseFloat(row.value),
-        threshold: parseFloat(row.threshold || 0),
+        threshold: safeFloat(row.threshold),
         status: row.status,
         created_at: row.created_at,
       }));
@@ -4134,10 +4134,10 @@ function detectFlagPennant(priceData) {
   let volumeConfirmation = 0;
   if (recentData[0].volume) {
     const poleVolume =
-      prePoleData.reduce((sum, d) => sum + (parseFloat(d.volume) || 0), 0) /
+      prePoleData.reduce((sum, d) => sum + safeFloat(d.volume), 0) /
       prePoleData.length;
     const consolidationVolume =
-      recentData.reduce((sum, d) => sum + (parseFloat(d.volume) || 0), 0) /
+      recentData.reduce((sum, d) => sum + safeFloat(d.volume), 0) /
       recentData.length;
 
     // Volume should decrease during consolidation
@@ -4329,11 +4329,11 @@ function detectWedgePatterns(priceData) {
       const earlyVolume =
         priceData
           .slice(0, 10)
-          .reduce((sum, d) => sum + (parseFloat(d.volume) || 0), 0) / 10;
+          .reduce((sum, d) => sum + safeFloat(d.volume), 0) / 10;
       const recentVolume =
         priceData
           .slice(-10)
-          .reduce((sum, d) => sum + (parseFloat(d.volume) || 0), 0) / 10;
+          .reduce((sum, d) => sum + safeFloat(d.volume), 0) / 10;
 
       if (recentVolume < earlyVolume) {
         confidence += 15; // Volume should decrease in wedge patterns
@@ -4388,7 +4388,7 @@ function detectSupportResistanceBreakout(priceData) {
       const avgVolume =
         priceData
           .slice(-20)
-          .reduce((sum, d) => sum + (parseFloat(d.volume) || 0), 0) / 20;
+          .reduce((sum, d) => sum + safeFloat(d.volume), 0) / 20;
 
       let confidence = 70;
       if (volume > avgVolume * 1.5) confidence += 20; // Volume confirmation
@@ -4421,7 +4421,7 @@ function detectSupportResistanceBreakout(priceData) {
       const avgVolume =
         priceData
           .slice(-20)
-          .reduce((sum, d) => sum + (parseFloat(d.volume) || 0), 0) / 20;
+          .reduce((sum, d) => sum + safeFloat(d.volume), 0) / 20;
 
       let confidence = 70;
       if (volume > avgVolume * 1.5) confidence += 20;

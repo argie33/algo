@@ -1,6 +1,6 @@
 const express = require("express");
 
-const { query } = require("../utils/database");
+const { query, safeFloat, safeInt, safeFixed } = require("../utils/database");
 const router = express.Router();
 
 
@@ -457,15 +457,15 @@ router.get("/futures", async (req, res) => {
       expiration_date: row.expiration_date,
 
       price_data: {
-        last_price: parseFloat(row.last_price || 0),
-        change: parseFloat(row.price_change || 0),
-        change_percent: parseFloat(row.change_percent || 0),
-        bid: parseFloat(row.bid_price || 0),
-        ask: parseFloat(row.ask_price || 0),
-        high: parseFloat(row.high_price || 0),
-        low: parseFloat(row.low_price || 0),
-        volume: parseInt(row.volume || 0),
-        open_interest: parseInt(row.open_interest || 0),
+        last_price: safeFloat(row.last_price),
+        change: safeFloat(row.price_change),
+        change_percent: safeFloat(row.change_percent),
+        bid: safeFloat(row.bid_price),
+        ask: safeFloat(row.ask_price),
+        high: safeFloat(row.high_price),
+        low: safeFloat(row.low_price),
+        volume: safeInt(row.volume),
+        open_interest: safeInt(row.open_interest),
       },
 
       contract_specs: {
@@ -623,10 +623,10 @@ router.get("/trends", async (req, res) => {
           sector: row.sector,
           trend_direction: trendDirection,
           strength: Math.round(Math.abs(row.avg_performance || 0) * 10),
-          contract_count: parseInt(row.contract_count || 0),
-          avg_performance: parseFloat((row.avg_performance || 0).toFixed(2)),
-          volatility: parseFloat((row.volatility || 0).toFixed(2)),
-          positive_contracts: parseInt(row.positive_count || 0),
+          contract_count: safeInt(row.contract_count),
+          avg_performance: safeFixed((row.avg_performance, 2)),
+          volatility: safeFixed((row.volatility, 2)),
+          positive_contracts: safeInt(row.positive_count),
         };
       });
 
@@ -634,23 +634,23 @@ router.get("/trends", async (req, res) => {
       const allMovers =
         moversResult && moversResult.rows ? moversResult.rows : [];
       const gainers = allMovers
-        .filter((row) => parseFloat(row.change_percent || 0) > 0)
+        .filter((row) => safeFloat(row.change_percent) > 0)
         .slice(0, 5)
         .map((row) => ({
           symbol: row.symbol,
           name: row.name || row.symbol,
-          change_percent: parseFloat((row.change_percent || 0).toFixed(2)),
-          volume: parseInt(row.volume || 0),
+          change_percent: safeFixed((row.change_percent, 2)),
+          volume: safeInt(row.volume),
         }));
 
       const losers = allMovers
-        .filter((row) => parseFloat(row.change_percent || 0) < 0)
+        .filter((row) => safeFloat(row.change_percent) < 0)
         .slice(0, 5)
         .map((row) => ({
           symbol: row.symbol,
           name: row.name || row.symbol,
-          change_percent: parseFloat((row.change_percent || 0).toFixed(2)),
-          volume: parseInt(row.volume || 0),
+          change_percent: safeFixed((row.change_percent, 2)),
+          volume: safeInt(row.volume),
         }));
 
       trendsData = {

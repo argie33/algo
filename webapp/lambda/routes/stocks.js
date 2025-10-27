@@ -1,6 +1,6 @@
 const express = require("express");
 
-const { query } = require("../utils/database");
+const { query, safeFloat, safeInt, safeFixed } = require("../utils/database");
 const { authenticateToken } = require("../middleware/auth");
 const { tableExists } = require("../utils/routeHelpers");
 
@@ -104,7 +104,7 @@ router.get("/sectors", async (req, res) => {
     const sectors = result.rows.map((row) => ({
       sector: row.sector,
       count: parseInt(row.count),
-      avg_market_cap: parseFloat(row.avg_market_cap) || 0,
+      avg_market_cap: safeFloat(row.avg_market_cap),
       avg_pe_ratio: parseFloat(row.avg_pe_ratio) || null,
     }));
 
@@ -207,17 +207,17 @@ router.get("/popular", async (req, res) => {
     const popularStocks = result.rows.map(row => ({
       symbol: row.symbol,
       name: row.name || row.symbol,
-      price: parseFloat(row.price) || 0,
-      change: parseFloat(row.change) || 0,
-      change_percent: parseFloat(row.change_percent) || 0,
+      price: safeFloat(row.price),
+      change: safeFloat(row.change),
+      change_percent: safeFloat(row.change_percent),
       market_cap: row.market_cap,
       volume: row.volume,
       keyMetrics: {
         marketCap: row.market_cap,
-        pe: parseFloat(row.pe) || 0,
-        revenue: parseFloat(row.revenue) || 0,
-        profitMargin: parseFloat(row.profitMargin) || 0,
-        dividendYield: parseFloat(row.dividendYield) || 0,
+        pe: safeFloat(row.pe),
+        revenue: safeFloat(row.revenue),
+        profitMargin: safeFloat(row.profitMargin),
+        dividendYield: safeFloat(row.dividendYield),
       },
     }));
 
@@ -1623,7 +1623,7 @@ router.get("/screen", async (req, res) => {
       });
     }
 
-    const totalStocks = parseInt(countResult.rows[0]?.total || 0);
+    const totalStocks = safeInt(countResult.rows[0]?.total);
 
     // Get the actual stocks using stocks table (Python loader schema ONLY)
     const stocksQuery = `
@@ -1946,9 +1946,9 @@ router.get("/analysis", async (req, res) => {
           sector: stock.sector,
           exchange: stock.exchange,
           market_cap: stock.market_cap,
-          current_price: parseFloat(stock.current_price || 0),
-          daily_change_percent: parseFloat(stock.daily_change_percent || 0),
-          volume: parseFloat(stock.volume || 0),
+          current_price: safeFloat(stock.current_price),
+          daily_change_percent: safeFloat(stock.daily_change_percent),
+          volume: safeFloat(stock.volume),
         },
         analysis_type: type,
         generated_at: new Date().toISOString(),
@@ -2040,13 +2040,13 @@ router.get("/analysis/:symbol", async (req, res) => {
     const recentPrices = priceData.slice(0, 5);
     const avgVolume =
       priceData.length > 0
-        ? priceData.reduce((sum, row) => sum + (parseInt(row.volume) || 0), 0) /
+        ? priceData.reduce((sum, row) => sum + safeInt(row.volume), 0) /
           priceData.length
         : 0;
 
     const returns = priceData
       .slice(0, 20)
-      .map((row) => parseFloat(row.change_percent) || 0);
+      .map((row) => safeFloat(row.change_percent));
     const volatility =
       returns.length > 0
         ? Math.sqrt(
@@ -2197,7 +2197,7 @@ router.get("/recommendations", async (req, res) => {
       company_name: stock.name,
       sector: stock.sector,
       market_cap: stock.market_cap,
-      current_price: parseFloat(stock.current_price || 0),
+      current_price: safeFloat(stock.current_price),
       recommendation: stock.recommendation,
       reason: stock.reason,
       confidence_score: stock.confidence_score !== null && stock.confidence_score !== undefined ? parseFloat(stock.confidence_score) : null,
@@ -3605,7 +3605,7 @@ router.get("/:symbol/prices", async (req, res) => {
       low: parseFloat(row.low),
       close: parseFloat(row.close),
       adjClose: parseFloat(row.adjusted_close),
-      volume: parseInt(row.volume) || 0,
+      volume: safeInt(row.volume),
       priceChange: row.price_change ? parseFloat(row.price_change) : null,
       priceChangePct: row.price_change_pct
         ? parseFloat(row.price_change_pct)
@@ -3751,7 +3751,7 @@ router.get("/:symbol/prices/recent", async (req, res) => {
         low: parseFloat(price.low),
         close: parseFloat(price.close),
         adjClose: parseFloat(price.adjusted_close),
-        volume: parseInt(price.volume) || 0,
+        volume: safeInt(price.volume),
         priceChange,
         priceChangePct,
       };
@@ -3769,7 +3769,7 @@ router.get("/:symbol/prices/recent", async (req, res) => {
         latestPrice: parseFloat(latest.close),
         latestDate: latest.date,
         periodReturn: parseFloat(periodReturn.toFixed(2)),
-        latestVolume: parseInt(latest.volume) || 0,
+        latestVolume: safeInt(latest.volume),
       },
       timestamp: new Date().toISOString(),
     });
@@ -3934,15 +3934,15 @@ router.get("/screen/stats", async (req, res) => {
       res.json({
         success: true,
         data: {
-          total_stocks: parseInt(stats.total_stocks) || 0,
+          total_stocks: safeInt(stats.total_stocks),
           ranges: {
             market_cap: {
-              min: parseInt(stats.min_market_cap) || 0,
-              max: parseInt(stats.max_market_cap) || 0,
+              min: safeInt(stats.min_market_cap),
+              max: safeInt(stats.max_market_cap),
             },
             pe_ratio: {
-              min: parseFloat(stats.min_pe_ratio) || 0,
-              max: Math.min(parseFloat(stats.max_pe_ratio) || 0, 100),
+              min: safeFloat(stats.min_pe_ratio),
+              max: Math.min(safeFloat(stats.max_pe_ratio), 100),
             },
             price_to_book: {
               min: parseFloat(stats.min_pb_ratio) || 0.1,
@@ -4079,7 +4079,7 @@ router.get("/:symbol/quote", async (req, res) => {
               parseFloat(quote.open)) *
             100
           ).toFixed(2),
-          volume: parseInt(quote.volume || 0),
+          volume: safeInt(quote.volume),
           high: parseFloat(quote.high),
           low: parseFloat(quote.low),
           open: parseFloat(quote.open),
@@ -4138,7 +4138,7 @@ router.get("/:symbol/price", async (req, res) => {
           symbol: priceData.symbol,
           current_price: parseFloat(priceData.close),
           date: priceData.date,
-          volume: parseInt(priceData.volume || 0),
+          volume: safeInt(priceData.volume),
           high: parseFloat(priceData.high),
           low: parseFloat(priceData.low),
           open: parseFloat(priceData.open),
@@ -4187,7 +4187,7 @@ router.get("/:symbol/technical", async (req, res) => {
 
     const prices = result.rows.map((row) => parseFloat(row.close)).reverse();
     const volumes = result.rows
-      .map((row) => parseInt(row.volume || 0))
+      .map((row) => safeInt(row.volume))
       .reverse();
 
     // Calculate basic technical indicators

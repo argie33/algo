@@ -211,7 +211,7 @@ router.get("/", async (req, res) => {
         bsd.rs_rating, bsd.breakout_quality,
         bsd.risk_reward_ratio, bsd.current_gain_pct, bsd.days_in_position,
         bsd.market_stage, bsd.stage_number, bsd.stage_confidence, bsd.substage,
-        bsd.entry_quality_score, bsd.risk_pct, bsd.position_size_pct,
+        bsd.entry_quality_score, bsd.risk_pct, bsd.position_size_recommendation,
         bsd.profit_target_8pct, bsd.profit_target_20pct, bsd.profit_target_25pct,
         tdd.rsi, tdd.adx, tdd.atr, tdd.ema_21, tdd.sma_50, tdd.sma_200
       `;
@@ -330,11 +330,11 @@ router.get("/", async (req, res) => {
       position_size_recommendation: null, // REAL DATA ONLY: null if missing
 
       // Swing Trading Setup Analysis - REAL DATA from database
-      market_stage: null, // Not in buy_sell tables, but included in query via LEFT JOIN
+      market_stage: row.market_stage || null,
       stage_confidence: null, // REAL DATA ONLY: null if missing
-      substage: null,
+      substage: row.substage || null,
       sata_score: 0,
-      stage_number: null, // REAL DATA ONLY: null if missing
+      stage_number: row.stage_number !== null && row.stage_number !== undefined ? parseInt(row.stage_number) : null,
       mansfield_rs: 0,
       rs_rating: row.rs_rating !== null && row.rs_rating !== undefined ? parseInt(row.rs_rating) : null,
       strength: row.strength !== null && row.strength !== undefined ? parseFloat(row.strength) : null,
@@ -374,14 +374,14 @@ router.get("/", async (req, res) => {
       atr: row.atr ? parseFloat(row.atr.toFixed(4)) : null, // REAL DATA ONLY
       daily_range_pct: (row.high && row.low) ? parseFloat(((row.high - row.low) / row.low * 100).toFixed(2)) : null, // REAL DATA ONLY
 
-      // Quality metrics - NOT in buy_sell_daily table (REAL DATA ONLY - null if missing)
-      entry_quality_score: null, // REAL DATA ONLY - Column doesn't exist
+      // Quality metrics - REAL DATA from database
+      entry_quality_score: row.entry_quality_score !== null && row.entry_quality_score !== undefined ? parseInt(row.entry_quality_score) : null,
       passes_minervini_template: null, // REAL DATA ONLY
 
-      // Profit targets - NOT in buy_sell_daily table (REAL DATA ONLY - null if missing)
-      profit_target_8pct: null, // REAL DATA ONLY - Column doesn't exist
-      profit_target_20pct: null, // REAL DATA ONLY - Column doesn't exist
-      profit_target_25pct: null, // REAL DATA ONLY - Column doesn't exist
+      // Profit targets - REAL DATA from database
+      profit_target_8pct: row.profit_target_8pct !== null && row.profit_target_8pct !== undefined ? parseFloat(row.profit_target_8pct) : null,
+      profit_target_20pct: row.profit_target_20pct !== null && row.profit_target_20pct !== undefined ? parseFloat(row.profit_target_20pct) : null,
+      profit_target_25pct: row.profit_target_25pct !== null && row.profit_target_25pct !== undefined ? parseFloat(row.profit_target_25pct) : null,
       current_gain_loss_pct: row.current_gain_pct !== null && row.current_gain_pct !== undefined ? parseFloat(row.current_gain_pct) : null,
 
       // Volatility - NOT IN buy_sell tables

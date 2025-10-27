@@ -1,6 +1,6 @@
 const express = require("express");
 
-const { query } = require("../utils/database");
+const { query, safeFloat, safeInt, safeFixed } = require("../utils/database");
 const { authenticateToken } = require("../middleware/auth");
 
 const router = express.Router();
@@ -501,7 +501,7 @@ router.post("/", authenticateToken, async (req, res) => {
 
     // Calculate estimated value
     const estimatedValue =
-      parseFloat(quantity) * parseFloat(limitPrice || stopPrice || 0);
+      parseFloat(quantity) * safeFloat(limitPrice || stopPrice);
 
     // Store order in database
     const insertOrderQuery = `
@@ -1193,8 +1193,8 @@ router.get("/recent", authenticateToken, async (req, res) => {
       side: order.transaction_type?.toLowerCase() || 'buy',
       quantity: parseFloat(order.quantity),
       price: parseFloat(order.price),
-      total_amount: parseFloat(order.total_amount || 0),
-      fees: parseFloat(order.fees || 0),
+      total_amount: safeFloat(order.total_amount),
+      fees: safeFloat(order.fees),
       order_date: order.transaction_date,
       status: "filled", // portfolio_transactions table doesn't have status - all are completed transactions
       order_type: order.order_type || "market",
@@ -1203,8 +1203,8 @@ router.get("/recent", authenticateToken, async (req, res) => {
       filled_quantity: parseFloat(order.quantity),
       remaining_quantity: 0,
       current_price: parseFloat(order.current_price || order.price),
-      price_distance_pct: parseFloat(order.price_distance_pct || 0),
-      unrealized_pnl: parseFloat(order.unrealized_pnl || 0),
+      price_distance_pct: safeFloat(order.price_distance_pct),
+      unrealized_pnl: safeFloat(order.unrealized_pnl),
       hours_since_created: Math.floor(
         (Date.now() - new Date(order.created_at)) / (1000 * 60 * 60)
       ),
@@ -1802,13 +1802,13 @@ router.get("/:orderId", authenticateToken, async (req, res) => {
         symbol: order.symbol,
         side: order.side,
         quantity: parseFloat(order.quantity),
-        price: parseFloat(order.price || 0),
+        price: safeFloat(order.price),
         status: order.status,
         type: order.type,
         created_at: order.created_at,
         updated_at: order.updated_at,
-        filled_quantity: parseFloat(order.filled_quantity || 0),
-        avg_fill_price: parseFloat(order.avg_fill_price || 0),
+        filled_quantity: safeFloat(order.filled_quantity),
+        avg_fill_price: safeFloat(order.avg_fill_price),
       },
       timestamp: new Date().toISOString(),
     });

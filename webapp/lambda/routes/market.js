@@ -260,22 +260,22 @@ router.get("/summary", async (req, res) => {
 
     const indices = indicesResult.rows.map((row) => ({
       symbol: row.symbol,
-      price: parseFloat(row.close || 0).toFixed(2),
-      change: parseFloat(row.change_amount || 0).toFixed(2),
-      change_percent: parseFloat(row.change_percent || 0).toFixed(2),
-      volume: parseInt(row.volume || 0),
+      price: safeFixed(row.close, 2),
+      change: safeFixed(row.change_amount, 2),
+      change_percent: safeFixed(row.change_percent, 2),
+      volume: safeInt(row.volume),
     }));
 
     const breadth = breadthResult.rows[0];
     const advanceDeclineRatio =
       parseInt(breadth.declining) > 0
         ? parseInt(breadth.advancing) / parseInt(breadth.declining)
-        : parseInt(breadth.advancing) || 0;
+        : null;
 
     const sectors = sectorResult.rows.slice(0, 10).map((row) => ({
       sector: row.sector,
       stock_count: parseInt(row.stock_count),
-      avg_change_percent: parseFloat(row.avg_change_percent || 0).toFixed(2),
+      avg_change_percent: safeFixed(row.avg_change_percent, 2),
       total_volume: parseInt(row.total_volume),
     }));
 
@@ -289,10 +289,8 @@ router.get("/summary", async (req, res) => {
           advancing: parseInt(breadth.advancing),
           declining: parseInt(breadth.declining),
           unchanged: parseInt(breadth.unchanged),
-          advance_decline_ratio: (advanceDeclineRatio || 0).toFixed(2),
-          avg_change_percent: parseFloat(
-            breadth.avg_change_percent || 0
-          ).toFixed(2),
+          advance_decline_ratio: advanceDeclineRatio !== null ? advanceDeclineRatio.toFixed(2) : null,
+          avg_change_percent: safeFixed(breadth.avg_change_percent, 2),
           total_volume: parseInt(breadth.total_volume),
         },
         top_sectors: sectors,
@@ -607,25 +605,25 @@ router.get("/overview", async (req, res) => {
     const indices = indicesResult && indicesResult.rows ? indicesResult.rows.map(row => ({
       symbol: row.symbol,
       name: row.name || row.symbol,
-      price: parseFloat(row.price) || 0,
-      change: parseFloat(row.change) || 0,
-      changePercent: parseFloat(row.changepercent) || 0
+      price: safeFloat(row.price),
+      change: safeFloat(row.change),
+      changePercent: safeFloat(row.changepercent)
     })) : [];
 
     // Process market breadth
     let marketBreadth = {};
     if (breadthResult.rows.length > 0) {
       const breadth = breadthResult.rows[0];
-      const advancing = parseInt(breadth.advancing) || 0;
-      const declining = parseInt(breadth.declining) || 0;
+      const advancing = safeInt(breadth.advancing);
+      const declining = safeInt(breadth.declining);
 
       marketBreadth = {
-        total_stocks: parseInt(breadth.total_stocks) || 0,
+        total_stocks: safeInt(breadth.total_stocks),
         advancing: advancing,
         declining: declining,
-        unchanged: parseInt(breadth.unchanged) || 0,
-        advance_decline_ratio: declining > 0 ? (advancing / declining).toFixed(2) : "N/A",
-        average_change_percent: "0.00"
+        unchanged: safeInt(breadth.unchanged),
+        advance_decline_ratio: declining !== null && declining > 0 && advancing !== null ? (advancing / declining).toFixed(2) : null,
+        average_change_percent: safeFixed(breadth.avg_change_percent, 2)
       };
     }
 
@@ -634,10 +632,10 @@ router.get("/overview", async (req, res) => {
     if (marketCapResult.rows.length > 0 && marketCapResult.rows[0].total > 0) {
       const cap = marketCapResult.rows[0];
       marketCap = {
-        large_cap: parseFloat(cap.large_cap) || 0,
-        mid_cap: parseFloat(cap.mid_cap) || 0,
-        small_cap: parseFloat(cap.small_cap) || 0,
-        total: parseFloat(cap.total) || 0
+        large_cap: safeFloat(cap.large_cap),
+        mid_cap: safeFloat(cap.mid_cap),
+        small_cap: safeFloat(cap.small_cap),
+        total: safeFloat(cap.total)
       };
     }
 
@@ -1229,7 +1227,7 @@ router.get("/mcclellan-oscillator", async (req, res) => {
     }
 
     // Extract advance-decline line values
-    const adLineData = result.rows.map(row => parseFloat(row.advance_decline_line) || 0);
+    const adLineData = result.rows.map(row => safeFloat(row.advance_decline_line));
 
     // Calculate 19-day and 39-day EMAs
     const ema19 = calculateEMA(adLineData, 19);
@@ -1850,9 +1848,9 @@ router.get("/aaii", async (req, res) => {
     // Transform data to match expected format
     const transformedData = result.rows.map((row) => ({
       date: row.date,
-      bullish: parseFloat(row.bullish) || 0,
-      neutral: parseFloat(row.neutral) || 0,
-      bearish: parseFloat(row.bearish) || 0,
+      bullish: safeFloat(row.bullish),
+      neutral: safeFloat(row.neutral),
+      bearish: safeFloat(row.bearish),
       fetched_at: row.fetched_at,
     }));
 
@@ -4936,10 +4934,10 @@ router.get("/movers", async (req, res) => {
     // Format the data
     const movers = result.rows.map((row) => ({
       symbol: row.symbol,
-      price: parseFloat(row.price) || 0,
-      change_percent: parseFloat(row.change_percent) || 0,
-      price_change: parseFloat(row.change_amount) || 0,
-      volume: parseInt(row.volume) || 0,
+      price: safeFloat(row.price),
+      change_percent: safeFloat(row.change_percent),
+      price_change: safeFloat(row.change_amount),
+      volume: safeInt(row.volume),
       date: row.date,
     }));
 
@@ -5520,10 +5518,10 @@ router.get("/news", async (req, res) => {
     ).length;
     const neutralNews = totalNews - positiveNews - negativeNews;
     const avgSentiment =
-      newsData.reduce((sum, n) => sum + parseFloat(n.sentiment_score || 0), 0) /
+      newsData.reduce((sum, n) => sum + safeFloat(n.sentiment_score), 0) /
       totalNews;
     const avgImpact =
-      newsData.reduce((sum, n) => sum + parseFloat(n.impact_score || 0), 0) /
+      newsData.reduce((sum, n) => sum + safeFloat(n.impact_score), 0) /
       totalNews;
 
     // Get category distribution
@@ -6218,8 +6216,8 @@ router.get("/quote/:symbol", async (req, res) => {
         open: parseFloat(quote.open || quote.price),
         high: parseFloat(quote.high || quote.price),
         low: parseFloat(quote.low || quote.price),
-        volume: parseInt(quote.volume || 0),
-        change_percent: parseFloat(quote.change_percent || 0),
+        volume: safeInt(quote.volume),
+        change_percent: safeFloat(quote.change_percent),
         last_updated: quote.date,
       },
       timestamp: new Date().toISOString(),
@@ -6300,8 +6298,8 @@ router.get("/quotes", async (req, res) => {
         open: parseFloat(row.open || row.price),
         high: parseFloat(row.high || row.price),
         low: parseFloat(row.low || row.price),
-        volume: parseInt(row.volume || 0),
-        change_percent: parseFloat(row.change_percent || 0),
+        volume: safeInt(row.volume),
+        change_percent: safeFloat(row.change_percent),
         last_updated: row.date,
       }));
     }
@@ -6390,7 +6388,7 @@ router.get("/historical/:symbol", async (req, res) => {
         high: parseFloat(row.high),
         low: parseFloat(row.low),
         close: parseFloat(row.close),
-        volume: parseInt(row.volume || 0),
+        volume: safeInt(row.volume),
       }));
     }
 
@@ -6460,9 +6458,9 @@ router.get("/trending", async (req, res) => {
       const trending = result.rows.map((row) => ({
         symbol: row.symbol,
         name: row.name,
-        price: parseFloat(row.price || 0),
-        change_percent: parseFloat(row.change_percent || 0),
-        volume: parseInt(row.volume || 0),
+        price: safeFloat(row.price),
+        change_percent: safeFloat(row.change_percent),
+        volume: safeInt(row.volume),
         trending_score: Math.round(row.volume * Math.abs(row.change_percent)),
       }));
 
@@ -6546,7 +6544,7 @@ router.get("/gainers", async (req, res) => {
         symbol: row.symbol,
         price: parseFloat(row.price),
         changePercent: parseFloat(row.change_percent),
-        volume: parseInt(row.volume || 0),
+        volume: safeInt(row.volume),
       }));
     }
 
@@ -6615,7 +6613,7 @@ router.get("/losers", async (req, res) => {
         symbol: row.symbol,
         price: parseFloat(row.price),
         changePercent: parseFloat(row.change_percent),
-        volume: parseInt(row.volume || 0),
+        volume: safeInt(row.volume),
       }));
     }
 
@@ -6651,7 +6649,7 @@ router.get("/search", async (req, res) => {
     const sanitizedQuery = q.replace(/<[^>]*>/g, "").replace(/[<>"'&]/g, "");
     const searchTerm = `%${sanitizedQuery.toUpperCase()}%`;
     const maxLimit = Math.min(parseInt(limit) || 10, 50);
-    const searchOffset = Math.max(parseInt(offset) || 0, 0);
+    const searchOffset = Math.max(safeInt(offset), 0);
 
     // Search in company_profile table
     const result = await query(
@@ -7318,47 +7316,49 @@ router.get("/internals", async (req, res) => {
       success: true,
       data: {
         market_breadth: {
-          total_stocks: parseInt(breadth.total_stocks || 0),
-          advancing: parseInt(breadth.advancing || 0),
-          declining: parseInt(breadth.declining || 0),
-          unchanged: parseInt(breadth.unchanged || 0),
-          strong_up: parseInt(breadth.strong_up || 0),
-          strong_down: parseInt(breadth.strong_down || 0),
+          total_stocks: safeInt(breadth.total_stocks),
+          advancing: safeInt(breadth.advancing),
+          declining: safeInt(breadth.declining),
+          unchanged: safeInt(breadth.unchanged),
+          strong_up: safeInt(breadth.strong_up),
+          strong_down: safeInt(breadth.strong_down),
           advancing_percent: parseFloat(advancingPct).toFixed(2),
           decline_advance_ratio: breadth.declining > 0 ? parseFloat(breadth.declining / breadth.advancing).toFixed(2) : "N/A",
-          avg_daily_change: parseFloat(breadth.avg_daily_change || 0).toFixed(3),
-          total_volume: parseInt(breadth.total_volume || 0)
+          avg_daily_change: safeFixed(breadth.avg_daily_change, 3),
+          total_volume: safeInt(breadth.total_volume)
         },
         moving_average_analysis: {
           above_sma20: {
-            count: parseInt(maAnalysis.above_sma20 || 0),
-            total: parseInt(maAnalysis.total_with_sma20 || 0),
+            count: safeInt(maAnalysis.above_sma20),
+            total: safeInt(maAnalysis.total_with_sma20),
             percent: maAnalysis.total_with_sma20 ? parseFloat(advancingPercAboveMA20).toFixed(2) : "N/A",
-            avg_distance_pct: parseFloat(maAnalysis.avg_dist_from_sma20 || 0).toFixed(2)
+            avg_distance_pct: safeFixed(maAnalysis.avg_dist_from_sma20, 2)
           },
           above_sma50: {
-            count: parseInt(maAnalysis.above_sma50 || 0),
-            total: parseInt(maAnalysis.total_with_sma50 || 0),
+            count: safeInt(maAnalysis.above_sma50),
+            total: safeInt(maAnalysis.total_with_sma50),
             percent: maAnalysis.total_with_sma50 ? parseFloat((maAnalysis.above_sma50 / maAnalysis.total_with_sma50 * 100)).toFixed(2) : "N/A",
-            avg_distance_pct: parseFloat(maAnalysis.avg_dist_from_sma50 || 0).toFixed(2)
+            avg_distance_pct: safeFixed(maAnalysis.avg_dist_from_sma50, 2)
           },
           above_sma200: {
-            count: parseInt(maAnalysis.above_sma200 || 0),
-            total: parseInt(maAnalysis.total_with_sma200 || 0),
+            count: safeInt(maAnalysis.above_sma200),
+            total: safeInt(maAnalysis.total_with_sma200),
             percent: maAnalysis.total_with_sma200 ? parseFloat(advancingPercAboveMA200).toFixed(2) : "N/A",
-            avg_distance_pct: parseFloat(maAnalysis.avg_dist_from_sma200 || 0).toFixed(2)
+            avg_distance_pct: safeFixed(maAnalysis.avg_dist_from_sma200, 2)
           }
         },
         market_extremes: {
           current_breadth_percentile: advancingPct.toFixed(2),
-          percentile_25: parseFloat(historicalBreadth.percentile_25_advancing || 0).toFixed(2),
-          percentile_50: parseFloat(historicalBreadth.percentile_50_advancing || 0).toFixed(2),
-          percentile_75: parseFloat(historicalBreadth.percentile_75_advancing || 0).toFixed(2),
-          percentile_90: parseFloat(historicalBreadth.percentile_90_advancing || 0).toFixed(2),
-          avg_breadth_30d: parseFloat(historicalBreadth.avg_advancing_pct || 0).toFixed(2),
-          stddev_breadth_30d: parseFloat(historicalBreadth.stddev_advancing_pct || 0).toFixed(2),
+          percentile_25: safeFixed(historicalBreadth.percentile_25_advancing, 2),
+          percentile_50: safeFixed(historicalBreadth.percentile_50_advancing, 2),
+          percentile_75: safeFixed(historicalBreadth.percentile_75_advancing, 2),
+          percentile_90: safeFixed(historicalBreadth.percentile_90_advancing, 2),
+          avg_breadth_30d: safeFixed(historicalBreadth.avg_advancing_pct, 2),
+          stddev_breadth_30d: safeFixed(historicalBreadth.stddev_advancing_pct, 2),
           stddev_from_mean: stdDevsFromMean,
-          breadth_rank: Math.round(((advancingPct - historicalBreadth.min_advancing_pct) / (historicalBreadth.max_advancing_pct - historicalBreadth.min_advancing_pct) * 100)) || 50
+          breadth_rank: historicalBreadth.max_advancing_pct !== historicalBreadth.min_advancing_pct ?
+            Math.round(((advancingPct - historicalBreadth.min_advancing_pct) / (historicalBreadth.max_advancing_pct - historicalBreadth.min_advancing_pct) * 100)) :
+            null
         },
         overextension_indicator: {
           level: overextensionLevel,
@@ -7369,10 +7369,10 @@ router.get("/internals", async (req, res) => {
         },
         positioning_metrics: {
           institutional: {
-            high_ownership_symbols: parseInt(positioning.high_inst_ownership_count || 0),
-            avg_ownership_pct: (parseFloat(positioning.avg_inst_ownership || 0) * 100).toFixed(2),
-            avg_short_interest: (parseFloat(positioning.avg_short_interest || 0) * 100).toFixed(2),
-            short_change_trend: parseFloat(positioning.avg_short_change || 0).toFixed(3)
+            high_ownership_symbols: safeInt(positioning.high_inst_ownership_count),
+            avg_ownership_pct: (safeFloat(positioning.avg_inst_ownership) * 100).toFixed(2),
+            avg_short_interest: (safeFloat(positioning.avg_short_interest) * 100).toFixed(2),
+            short_change_trend: safeFixed(positioning.avg_short_change, 3)
           },
           retail_sentiment: {
             aaii_bullish: positioning.aaii_bullish !== null && positioning.aaii_bullish !== undefined ? parseFloat(positioning.aaii_bullish).toFixed(2) : null,

@@ -565,8 +565,8 @@ class TradeAnalyticsService {
         ],
         metrics: {
           total_trades: totalTrades,
-          buy_trades: parseInt(summary.buy_trades) || 0,
-          sell_trades: parseInt(summary.sell_trades) || 0,
+          buy_trades: safeInt(summary.buy_trades),
+          sell_trades: safeInt(summary.sell_trades),
           win_rate: winRate,
           total_pnl: parseFloat(summary.total_pnl || 0),
           avg_pnl: parseFloat(summary.avg_pnl || 0),
@@ -1572,7 +1572,7 @@ router.get("/analytics/overview", authenticateToken, async (req, res) => {
       responseData = {
         timeframe,
         overview: {
-          totalTrades: parseInt(dbMetrics.total_trades) || 0,
+          totalTrades: safeInt(dbMetrics.total_trades),
           winRate:
             dbMetrics.total_trades > 0
               ? (
@@ -1580,20 +1580,20 @@ router.get("/analytics/overview", authenticateToken, async (req, res) => {
                   100
                 ).toFixed(2)
               : 0,
-          totalPnL: parseFloat(dbMetrics.total_pnl) || 0,
-          avgPnL: parseFloat(dbMetrics.avg_pnl) || 0,
-          avgROI: parseFloat(dbMetrics.avg_roi) || 0,
-          bestTrade: parseFloat(dbMetrics.best_trade) || 0,
-          worstTrade: parseFloat(dbMetrics.worst_trade) || 0,
-          avgHoldingPeriod: parseFloat(dbMetrics.avg_holding_period) || 0,
-          totalVolume: parseFloat(dbMetrics.total_volume) || 0,
+          totalPnL: safeFloat(dbMetrics.total_pnl),
+          avgPnL: safeFloat(dbMetrics.avg_pnl),
+          avgROI: safeFloat(dbMetrics.avg_roi),
+          bestTrade: safeFloat(dbMetrics.best_trade),
+          worstTrade: safeFloat(dbMetrics.worst_trade),
+          avgHoldingPeriod: safeFloat(dbMetrics.avg_holding_period),
+          totalVolume: safeFloat(dbMetrics.total_volume),
         },
         sectorBreakdown: sectorBreakdown.map((sector) => ({
           sector: sector.sector,
-          tradeCount: parseInt(sector.trade_count) || 0,
-          pnl: parseFloat(sector.sector_pnl) || 0,
-          avgROI: parseFloat(sector.avg_roi) || 0,
-          volume: parseFloat(sector.total_volume) || 0,
+          tradeCount: safeInt(sector.trade_count),
+          pnl: safeFloat(sector.sector_pnl),
+          avgROI: safeFloat(sector.avg_roi),
+          volume: safeFloat(sector.total_volume),
         })),
         dataSource: "stored_trades",
         message: "Analytics from stored trade history",

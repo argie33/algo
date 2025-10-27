@@ -1,6 +1,6 @@
 const express = require("express");
 
-const { query } = require("../utils/database");
+const { query, safeFloat, safeInt, safeFixed } = require("../utils/database");
 
 const router = express.Router();
 
@@ -714,11 +714,11 @@ router.get("/correlations", async (req, res) => {
       }
       correlationsByMarket[category].push({
         series: row.series_id,
-        correlation: parseFloat(row.correlation || 0).toFixed(3),
+        correlation: safeFixed(row.correlation, 3),
         strength:
-          Math.abs(parseFloat(row.correlation || 0)) > 0.7
+          Math.abs(safeFloat(row.correlation)) > 0.7
             ? "Strong"
-            : Math.abs(parseFloat(row.correlation || 0)) > 0.3
+            : Math.abs(safeFloat(row.correlation)) > 0.3
               ? "Moderate"
               : "Weak",
         data_points: parseInt(row.data_points),

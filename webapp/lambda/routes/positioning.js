@@ -1,6 +1,6 @@
 const express = require("express");
 
-const { query } = require("../utils/database");
+const { query, safeFloat, safeInt, safeFixed } = require("../utils/database");
 const { authenticateToken } = require("../middleware/auth");
 
 const router = express.Router();
@@ -169,8 +169,8 @@ router.get("/stocks", async (req, res) => {
       let score = 50; // Start neutral
 
       // 1. Institutional Quality Score (0-25 points)
-      const instOwn = parseFloat(metrics.institutional_ownership || 0);
-      const instCount = parseInt(metrics.institution_count || 0);
+      const instOwn = safeFloat(metrics.institutional_ownership);
+      const instCount = safeInt(metrics.institution_count);
 
       // Base institutional ownership score
       let instScore = 0;
@@ -189,7 +189,7 @@ router.get("/stocks", async (req, res) => {
       scoreBreakdown.institutional = Math.min(25, instScore);
 
       // 2. Insider Conviction Score (0-25 points)
-      const insiderOwn = parseFloat(metrics.insider_ownership || 0);
+      const insiderOwn = safeFloat(metrics.insider_ownership);
 
       // Base insider ownership score
       let insiderScore = 0;
@@ -211,8 +211,8 @@ router.get("/stocks", async (req, res) => {
       const sells = recentTxns.filter(t => t.transaction_type?.toLowerCase().includes('sell') ||
                                             t.transaction_type?.toLowerCase().includes('sale'));
 
-      const buyValue = buys.reduce((sum, t) => sum + (parseFloat(t.value) || 0), 0);
-      const sellValue = sells.reduce((sum, t) => sum + (parseFloat(t.value) || 0), 0);
+      const buyValue = buys.reduce((sum, t) => sum + safeFloat(t.value), 0);
+      const sellValue = sells.reduce((sum, t) => sum + safeFloat(t.value), 0);
 
       if (buyValue > sellValue * 2) insiderScore += 15; // Heavy buying
       else if (buyValue > sellValue) insiderScore += 10; // Net buying
@@ -223,8 +223,8 @@ router.get("/stocks", async (req, res) => {
       scoreBreakdown.insider = Math.min(25, Math.max(-10, insiderScore));
 
       // 3. Short Interest Score (0-25 points)
-      const shortPct = parseFloat(metrics.short_percent_of_float || 0);
-      const shortChange = parseFloat(metrics.short_interest_change || 0);
+      const shortPct = safeFloat(metrics.short_percent_of_float);
+      const shortChange = safeFloat(metrics.short_interest_change);
 
       let shortScore = 0;
       // Short interest level
@@ -251,8 +251,8 @@ router.get("/stocks", async (req, res) => {
       const mutualFunds = institutionalResult.rows.filter(i => i.institution_type === 'MUTUAL_FUND');
       const hedgeFunds = institutionalResult.rows.filter(i => i.institution_type === 'HEDGE_FUND');
 
-      const mfAccumulating = mutualFunds.filter(mf => (parseFloat(mf.position_change_percent) || 0) > 5).length;
-      const mfDistributing = mutualFunds.filter(mf => (parseFloat(mf.position_change_percent) || 0) < -5).length;
+      const mfAccumulating = mutualFunds.filter(mf => safeFloat(mf.position_change_percent) > 5).length;
+      const mfDistributing = mutualFunds.filter(mf => safeFloat(mf.position_change_percent) < -5).length;
 
       if (mfAccumulating > mfDistributing * 2) smartMoneyScore += 10; // Heavy accumulation
       else if (mfAccumulating > mfDistributing) smartMoneyScore += 5; // Net accumulation
@@ -260,8 +260,8 @@ router.get("/stocks", async (req, res) => {
       else if (mfDistributing > mfAccumulating) smartMoneyScore -= 5; // Net distribution
 
       // Hedge fund positioning
-      const hfAccumulating = hedgeFunds.filter(hf => (parseFloat(hf.position_change_percent) || 0) > 5).length;
-      const hfDistributing = hedgeFunds.filter(hf => (parseFloat(hf.position_change_percent) || 0) < -5).length;
+      const hfAccumulating = hedgeFunds.filter(hf => safeFloat(hf.position_change_percent) > 5).length;
+      const hfDistributing = hedgeFunds.filter(hf => safeFloat(hf.position_change_percent) < -5).length;
 
       if (hfAccumulating > hfDistributing * 2) smartMoneyScore += 15;
       else if (hfAccumulating > hfDistributing) smartMoneyScore += 10;
@@ -335,9 +335,9 @@ router.get("/summary", authenticateToken, async (req, res) => {
     const retail = retailSummary.rows[0];
 
     // Calculate institutional flow (bullish if high ownership, bearish if high short interest)
-    const inst_ownership_score = parseFloat(institutional.avg_institutional_ownership || 0) * 100;
-    const short_interest_score = parseFloat(institutional.avg_short_interest || 0) * 100;
-    const short_change_score = parseFloat(institutional.avg_short_change || 0) * 100;
+    const inst_ownership_score = safeFloat(institutional.avg_institutional_ownership) * 100;
+    const short_interest_score = safeFloat(institutional.avg_short_interest) * 100;
+    const short_change_score = safeFloat(institutional.avg_short_change) * 100;
 
     let institutional_flow = "NEUTRAL";
     if (inst_ownership_score > 60 && short_change_score < -5) {
@@ -351,7 +351,7 @@ router.get("/summary", authenticateToken, async (req, res) => {
     }
 
     // Calculate overall positioning
-    const retail_sentiment_value = parseFloat(retail.avg_net_sentiment || 0);
+    const retail_sentiment_value = safeFloat(retail.avg_net_sentiment);
     let overall_positioning = "NEUTRAL";
 
     if (institutional_flow === "BULLISH" && retail_sentiment_value > 40) {
@@ -382,17 +382,17 @@ router.get("/summary", authenticateToken, async (req, res) => {
         overall_positioning: overall_positioning,
       },
       key_metrics: {
-        avg_institutional_ownership: parseFloat(institutional.avg_institutional_ownership || 0),
-        avg_insider_ownership: parseFloat(institutional.avg_insider_ownership || 0),
-        avg_short_interest: parseFloat(institutional.avg_short_interest || 0),
-        avg_short_change: parseFloat(institutional.avg_short_change || 0),
+        avg_institutional_ownership: safeFloat(institutional.avg_institutional_ownership),
+        avg_insider_ownership: safeFloat(institutional.avg_insider_ownership),
+        avg_short_interest: safeFloat(institutional.avg_short_interest),
+        avg_short_change: safeFloat(institutional.avg_short_change),
         retail_net_sentiment: retail_sentiment_value,
       },
       data_freshness: {
-        institutional_positions: parseInt(institutional.total_positions || 0),
-        retail_readings: parseInt(retail.total_readings || 0),
-        high_institutional_count: parseInt(institutional.high_institutional_count || 0),
-        high_short_count: parseInt(institutional.high_short_count || 0),
+        institutional_positions: safeInt(institutional.total_positions),
+        retail_readings: safeInt(retail.total_readings),
+        high_institutional_count: safeInt(institutional.high_institutional_count),
+        high_short_count: safeInt(institutional.high_short_count),
       },
       last_updated: new Date().toISOString(),
     });

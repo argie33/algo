@@ -2,7 +2,7 @@ const crypto = require("crypto");
 
 const express = require("express");
 
-const { query } = require("../utils/database");
+const { query, safeFloat, safeInt, safeFixed } = require("../utils/database");
 const { authenticateToken } = require("../middleware/auth");
 const { addTradingModeContext } = require("../utils/tradingModeHelper");
 const { tableExists } = require("../utils/routeHelpers");

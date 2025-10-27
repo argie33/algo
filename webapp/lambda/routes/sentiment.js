@@ -1,6 +1,6 @@
 const express = require("express");
 
-const { query } = require("../utils/database");
+const { query, safeFloat, safeInt, safeFixed } = require("../utils/database");
 const { authenticateToken } = require("../middleware/auth");
 
 const router = express.Router();
@@ -473,7 +473,7 @@ router.get("/social/reddit", async (req, res) => {
           created_utc: row.created_utc,
           url: row.url,
           flair: row.flair,
-          mention_count: parseInt(row.mention_count) || 0,
+          mention_count: safeInt(row.mention_count),
         })),
         total: redditData.length,
       },
@@ -605,10 +605,10 @@ router.get("/social/:symbol", async (req, res) => {
         posts: socialData.map(row => ({
           date: row.date,
           sentiment_score: parseFloat(row.sentiment_score),
-          positive_mentions: parseInt(row.positive_mentions) || 0,
-          negative_mentions: parseInt(row.negative_mentions) || 0,
-          neutral_mentions: parseInt(row.neutral_mentions) || 0,
-          total_mentions: parseInt(row.total_mentions) || 0,
+          positive_mentions: safeInt(row.positive_mentions),
+          negative_mentions: safeInt(row.negative_mentions),
+          neutral_mentions: safeInt(row.neutral_mentions),
+          total_mentions: safeInt(row.total_mentions),
           source: row.source || "Unknown",
           sentiment_label: parseFloat(row.sentiment_score) > 0.3 ? "positive" : parseFloat(row.sentiment_score) < -0.3 ? "negative" : "neutral"
         })),

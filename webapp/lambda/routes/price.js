@@ -1,6 +1,6 @@
 const express = require("express");
 
-const { query } = require("../utils/database");
+const { query, safeFloat, safeInt, safeFixed } = require("../utils/database");
 const responseFormatter = require("../middleware/responseFormatter");
 const { tableExists } = require("../utils/routeHelpers");
 

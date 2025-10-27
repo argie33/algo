@@ -1,6 +1,6 @@
 const express = require("express");
 
-const { query } = require("../utils/database");
+const { query, safeFloat, safeInt, safeFixed } = require("../utils/database");
 const { authenticateToken, _optionalAuth } = require("../middleware/auth");
 const { tableExists, emptyResultResponse } = require("../utils/routeHelpers");
 
@@ -80,16 +80,16 @@ router.get("/data", authenticateToken, async (req, res) => {
     const dashboardData = {
       portfolio: {
         total_value: portfolioValue,
-        total_positions: parseInt(portfolio.total_positions) || 0,
+        total_positions: safeInt(portfolio.total_positions),
         total_gain_loss: gainLoss,
         gain_loss_percent: Math.round(gainLossPercent * 100) / 100
       },
       watchlists: {
-        total_items: parseInt(watchlistResult.rows[0]?.total_items) || 0,
+        total_items: safeInt(watchlistResult.rows[0]?.total_items),
         performance: []
       },
       alerts: {
-        active_alerts: parseInt(alertResult.rows[0]?.active_alerts) || 0,
+        active_alerts: safeInt(alertResult.rows[0]?.active_alerts),
         recent_alerts: []
       },
       timestamp: new Date().toISOString()
@@ -526,26 +526,23 @@ router.get("/holdings", authenticateToken, async (req, res) => {
     // Process and convert data types properly
     const processedHoldings = holdingsResult.rows.map((holding) => ({
       ...holding,
-      shares: parseFloat(holding.shares) || 0,
-      avg_price: parseFloat(holding.avg_price) || 0,
-      current_price: parseFloat(holding.current_price) || 0,
-      total_value: parseFloat(holding.total_value) || 0,
-      gain_loss: parseFloat(holding.gain_loss) || 0,
-      gain_loss_percent: parseFloat(holding.gain_loss_percent) || 0,
+      shares: safeFloat(holding.shares),
+      avg_price: safeFloat(holding.avg_price),
+      current_price: safeFloat(holding.current_price),
+      total_value: safeFloat(holding.total_value),
+      gain_loss: safeFloat(holding.gain_loss),
+      gain_loss_percent: safeFloat(holding.gain_loss_percent),
     }));
 
     // Process summary data with proper type conversion
     const processedSummary = summaryResult.rows[0]
       ? {
           ...summaryResult.rows[0],
-          total_positions: parseInt(summaryResult.rows[0].total_positions) || 0,
-          total_portfolio_value:
-            parseFloat(summaryResult.rows[0].total_portfolio_value) || 0,
-          total_gain_loss:
-            parseFloat(summaryResult.rows[0].total_gain_loss) || 0,
-          avg_gain_loss_percent:
-            parseFloat(summaryResult.rows[0].avg_gain_loss_percent) || 0,
-          market_value: parseFloat(summaryResult.rows[0].market_value) || 0,
+          total_positions: safeInt(summaryResult.rows[0].total_positions),
+          total_portfolio_value: safeFloat(summaryResult.rows[0].total_portfolio_value),
+          total_gain_loss: safeFloat(summaryResult.rows[0].total_gain_loss),
+          avg_gain_loss_percent: safeFloat(summaryResult.rows[0].avg_gain_loss_percent),
+          market_value: safeFloat(summaryResult.rows[0].market_value),
         }
       : null;
 
@@ -691,21 +688,21 @@ router.get("/performance", authenticateToken, async (req, res) => {
     // Process and convert data types properly for performance data
     const performance = performanceResult.rows.map((row) => ({
       ...row,
-      total_value: parseFloat(row.total_value) || 0,
-      daily_return: parseFloat(row.daily_return) || 0,
-      cumulative_return: parseFloat(row.cumulative_return) || 0,
-      benchmark_return: parseFloat(row.benchmark_return) || 0,
-      excess_return: parseFloat(row.excess_return) || 0,
+      total_value: safeFloat(row.total_value),
+      daily_return: safeFloat(row.daily_return),
+      cumulative_return: safeFloat(row.cumulative_return),
+      benchmark_return: safeFloat(row.benchmark_return),
+      excess_return: safeFloat(row.excess_return),
     }));
 
     // Process metrics with proper type conversion
     const metrics = {
       ...metricsResult.rows[0],
-      avg_daily_return: parseFloat(metricsResult.rows[0].avg_daily_return) || 0,
-      volatility: parseFloat(metricsResult.rows[0].volatility) || 0,
-      max_return: parseFloat(metricsResult.rows[0].max_return) || 0,
-      min_return: parseFloat(metricsResult.rows[0].min_return) || 0,
-      trading_days: parseInt(metricsResult.rows[0].trading_days) || 0,
+      avg_daily_return: safeFloat(metricsResult.rows[0].avg_daily_return),
+      volatility: safeFloat(metricsResult.rows[0].volatility),
+      max_return: safeFloat(metricsResult.rows[0].max_return),
+      min_return: safeFloat(metricsResult.rows[0].min_return),
+      trading_days: safeInt(metricsResult.rows[0].trading_days),
     };
 
     res.json({
@@ -922,16 +919,16 @@ router.get("/market-data", async (req, res) => {
     // Convert count strings to numbers for market_internals
     const processedInternalsData = internalsData.map(item => ({
       ...item,
-      count: parseInt(item.count) || 0
+      count: safeInt(item.count)
     }));
 
     // Convert numeric strings to numbers for sector rotation
     const processedSectorData = sectorData.map(item => ({
       ...item,
-      stock_count: parseInt(item.stock_count) || 0,
-      avg_change: parseFloat(item.avg_change) || 0,
-      avg_volume: parseFloat(item.avg_volume) || 0,
-      total_value: parseFloat(item.total_value) || 0
+      stock_count: safeInt(item.stock_count),
+      avg_change: safeFloat(item.avg_change),
+      avg_volume: safeFloat(item.avg_volume),
+      total_value: safeFloat(item.total_value)
     }));
 
     res.json({
@@ -1065,9 +1062,9 @@ router.get("/overview", authenticateToken, async (req, res) => {
     const keyMetricsObj = {};
     keyMetrics.forEach((row) => {
       keyMetricsObj[row.symbol.toLowerCase()] = {
-        value: parseFloat(row.value) || 0,
-        change: parseFloat(row.change) || 0,
-        change_percent: parseFloat(row.change_percent) || 0,
+        value: safeFloat(row.value),
+        change: safeFloat(row.change),
+        change_percent: safeFloat(row.change_percent),
       };
     });
 
@@ -1085,19 +1082,19 @@ router.get("/overview", authenticateToken, async (req, res) => {
       top_movers: {
         gainers: gainers.map((row) => ({
           symbol: row.symbol,
-          price: parseFloat(row.price) || 0,
-          change_percent: parseFloat(row.change_percent) || 0,
+          price: safeFloat(row.price),
+          change_percent: safeFloat(row.change_percent),
         })),
         losers: losers.map((row) => ({
           symbol: row.symbol,
-          price: parseFloat(row.price) || 0,
-          change_percent: parseFloat(row.change_percent) || 0,
+          price: safeFloat(row.price),
+          change_percent: safeFloat(row.change_percent),
         })),
       },
       sector_performance: sectors.map((row) => ({
         sector: row.sector,
-        stock_count: parseInt(row.stock_count) || 0,
-        change_percent: parseFloat(row.change_percent) || 0,
+        stock_count: safeInt(row.stock_count),
+        change_percent: safeFloat(row.change_percent),
       })),
       alerts_summary: {
         total_active: 0,
@@ -1497,16 +1494,16 @@ router.get("/metrics", authenticateToken, async (req, res) => {
       success: true,
       data: {
         market: {
-          total_symbols: parseInt(marketMetrics.total_symbols) || 0,
-          total_volume: parseInt(marketMetrics.total_volume) || 0,
-          avg_price: parseFloat(marketMetrics.avg_price) || 0,
-          max_price: parseFloat(marketMetrics.max_price) || 0,
-          min_price: parseFloat(marketMetrics.min_price) || 0,
+          total_symbols: safeInt(marketMetrics.total_symbols),
+          total_volume: safeInt(marketMetrics.total_volume),
+          avg_price: safeFloat(marketMetrics.avg_price),
+          max_price: safeFloat(marketMetrics.max_price),
+          min_price: safeFloat(marketMetrics.min_price),
         },
         portfolio: {
-          total_holdings: parseInt(portfolioMetrics.total_holdings) || 0,
-          total_value: parseFloat(portfolioMetrics.total_value) || 0,
-          avg_return: parseFloat(portfolioMetrics.avg_return) || 0,
+          total_holdings: safeInt(portfolioMetrics.total_holdings),
+          total_value: safeFloat(portfolioMetrics.total_value),
+          avg_return: safeFloat(portfolioMetrics.avg_return),
         },
         system: {
           uptime: process.uptime(),
@@ -1685,8 +1682,8 @@ router.get("/watchlists/performance", authenticateToken, async (req, res) => {
       summary: {
         total_watchlists: performance.length,
         avg_return: performance.reduce((sum, w) => sum + (parseFloat(w.avg_daily_return) || 0), 0) / performance.length,
-        best_performer: performance[0]?.watchlist_name || "N/A",
-        worst_performer: performance[performance.length - 1]?.watchlist_name || "N/A"
+        best_performer: performance[0]?.watchlist_name  ?? null,
+        worst_performer: performance[performance.length - 1]?.watchlist_name  ?? null
       },
       timestamp: new Date().toISOString(),
     });

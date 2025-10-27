@@ -2,7 +2,7 @@ const express = require("express");
 
 const responseFormatter = require("../middleware/responseFormatter");
 const { authenticateToken } = require("../middleware/auth");
-const { query } = require("../utils/database");
+const { query, safeFloat, safeInt, safeFixed } = require("../utils/database");
 
 const router = express.Router();
 
@@ -75,7 +75,7 @@ router.get("/analytics", async (req, res) => {
           alpha: Math.max(0, avgReturn - 0.08),
           beta: volatility > 0 ? Math.min(2, volatility * 10) : 1.0
         },
-        total_transactions: parseInt(analytics.total_transactions) || 0
+        total_transactions: safeInt(analytics.total_transactions)
       },
       timestamp: new Date().toISOString()
     });
@@ -196,15 +196,15 @@ router.get("/portfolio", authenticateToken, async (req, res) => {
       data: {
         performance: {
           period: period,
-          total_pnl: parseFloat(data.total_pnl) || 0,
-          total_return: parseFloat(data.total_pnl) || 0,
-          average_return: parseFloat(data.avg_return) || 0,
+          total_pnl: safeFloat(data.total_pnl),
+          total_return: safeFloat(data.total_pnl),
+          average_return: safeFloat(data.avg_return),
           daily_returns: [{ date: new Date().toISOString().split('T')[0], return: (parseFloat(data.avg_return) || 0) / 365 }],
           portfolio_value: 100000 + (parseFloat(data.total_pnl) || 0),
-          volatility: parseFloat(data.volatility) || 0,
-          max_return: parseFloat(data.max_return) || 0,
-          min_return: parseFloat(data.min_return) || 0,
-          total_positions: parseInt(data.total_positions) || 0,
+          volatility: safeFloat(data.volatility),
+          max_return: safeFloat(data.max_return),
+          min_return: safeFloat(data.min_return),
+          total_positions: safeInt(data.total_positions),
           sharpe_ratio: parseFloat(data.volatility) > 0 ? parseFloat(data.avg_return) / parseFloat(data.volatility) : 0
         }
       },

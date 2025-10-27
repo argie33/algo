@@ -1,6 +1,6 @@
 const express = require("express");
 
-const { query } = require("../utils/database");
+const { query, safeFloat, safeInt, safeFixed } = require("../utils/database");
 const responseFormatter = require("../middleware/responseFormatter");
 const { tableExists } = require("../utils/routeHelpers");
 
@@ -157,12 +157,12 @@ router.get("/calendar", async (req, res) => {
             date: row.date,
             quarter: row.quarter,
             year: row.year,
-            estimated_eps: parseFloat(row.estimated_eps || 0),
+            estimated_eps: safeFloat(row.estimated_eps),
             actual_eps: row.actual_eps ? parseFloat(row.actual_eps) : null,
-            estimated_revenue: parseFloat(row.estimated_revenue || 0),
+            estimated_revenue: safeFloat(row.estimated_revenue),
             actual_revenue: row.actual_revenue ? parseFloat(row.actual_revenue) : null,
             sector: row.sector || "Unknown",
-            market_cap: parseFloat(row.market_cap || 0),
+            market_cap: safeFloat(row.market_cap),
             earnings_quality_score: row.earnings_quality_score ? parseFloat(row.earnings_quality_score) : null,
             is_reported: !!row.is_reported
           })),
@@ -265,24 +265,24 @@ router.get("/surprises", async (req, res) => {
             quarter: row.quarter,
             year: row.year,
             earnings: {
-              estimated_eps: parseFloat(row.estimated_eps || 0),
-              actual_eps: parseFloat(row.actual_eps || 0),
-              eps_surprise: parseFloat(row.actual_eps || 0) - parseFloat(row.estimated_eps || 0),
-              eps_surprise_percent: Math.round(parseFloat(row.eps_surprise_percent || 0) * 100) / 100
+              estimated_eps: safeFloat(row.estimated_eps),
+              actual_eps: safeFloat(row.actual_eps),
+              eps_surprise: safeFloat(row.actual_eps) - safeFloat(row.estimated_eps),
+              eps_surprise_percent: Math.round(safeFloat(row.eps_surprise_percent) * 100) / 100
             },
             revenue: {
-              estimated_revenue: parseFloat(row.estimated_revenue || 0),
-              actual_revenue: parseFloat(row.actual_revenue || 0),
-              revenue_surprise: parseFloat(row.actual_revenue || 0) - parseFloat(row.estimated_revenue || 0),
-              revenue_surprise_percent: Math.round(parseFloat(row.revenue_surprise_percent || 0) * 100) / 100
+              estimated_revenue: safeFloat(row.estimated_revenue),
+              actual_revenue: safeFloat(row.actual_revenue),
+              revenue_surprise: safeFloat(row.actual_revenue) - safeFloat(row.estimated_revenue),
+              revenue_surprise_percent: Math.round(safeFloat(row.revenue_surprise_percent) * 100) / 100
             },
             sector: row.sector || "Unknown",
-            market_cap: parseFloat(row.market_cap || 0)
+            market_cap: safeFloat(row.market_cap)
           })),
           filters: {
             symbol: symbol || null,
             period,
-            minSurprise: parseFloat(minSurprise || 0)
+            minSurprise: safeFloat(minSurprise)
           },
           total: result.rows.length
         },

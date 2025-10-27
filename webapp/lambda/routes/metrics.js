@@ -1,6 +1,6 @@
 const express = require("express");
 
-const { query } = require("../utils/database");
+const { query, safeFloat, safeInt, safeFixed } = require("../utils/database");
 const responseFormatter = require("../middleware/responseFormatter");
 
 const router = express.Router();
@@ -68,11 +68,11 @@ router.get("/market", async (req, res) => {
     res.json({
       success: true,
       data: {
-        market_cap: parseFloat(marketData.total_market_cap) || 0,
-        volume: parseFloat(marketData.total_volume) || 0,
+        market_cap: safeFloat(marketData.total_market_cap),
+        volume: safeFloat(marketData.total_volume),
         volatility: 18.5, // Could be calculated from price data
         fear_greed_index: 52, // External API integration needed
-        active_stocks: parseInt(marketData.active_stocks) || 0,
+        active_stocks: safeInt(marketData.active_stocks),
         gainers: gainers,
         decliners: decliners,
         market_status: "open", // Could check trading hours
@@ -449,18 +449,18 @@ router.get("/top/:category", async (req, res) => {
       symbol: (stock.symbol || "").toUpperCase(),
       companyName: stock.companyname || stock.company_name || stock.display_name || "",
       sector: stock.sector || "N/A",
-      currentPrice: parseFloat(stock.currentprice) || 0,
-      volume: parseInt(stock.volume) || 0,
+      currentPrice: safeFloat(stock.currentprice),
+      volume: safeInt(stock.volume),
       categoryMetric: parseFloat(stock[metricColumn.toLowerCase()] || stock.composite_score) || 0,
-      compositeScore: parseFloat(stock.composite_score) || 0,
-      qualityScore: parseFloat(stock.quality_score) || 0,
-      valueScore: parseFloat(stock.value_score) || 0,
-      growthScore: parseFloat(stock.growth_score) || 0,
-      momentumScore: parseFloat(stock.momentum_score) || 0,
-      positioningScore: parseFloat(stock.positioning_score) || 0,
-      sentimentScore: parseFloat(stock.sentiment_score) || 0,
-      stabilityScore: parseFloat(stock.stability_score) || 0,
-      marketCap: parseFloat(stock.market_cap) || 0,
+      compositeScore: safeFloat(stock.composite_score),
+      qualityScore: safeFloat(stock.quality_score),
+      valueScore: safeFloat(stock.value_score),
+      growthScore: safeFloat(stock.growth_score),
+      momentumScore: safeFloat(stock.momentum_score),
+      positioningScore: safeFloat(stock.positioning_score),
+      sentimentScore: safeFloat(stock.sentiment_score),
+      stabilityScore: safeFloat(stock.stability_score),
+      marketCap: safeFloat(stock.market_cap),
       peRatio: parseFloat(stock.pe_ratio) || null,
       dividendYield: null,
       lastUpdated: new Date().toISOString(),
@@ -702,8 +702,8 @@ router.get("/:symbol", async (req, res) => {
       success: true,
       data: {
         symbol: metric.symbol,
-        currentPrice: parseFloat(metric.currentprice) || 0,
-        volume: parseInt(metric.volume) || 0,
+        currentPrice: safeFloat(metric.currentprice),
+        volume: safeInt(metric.volume),
 
         // Valuation metrics
         market_capitalization: parseFloat(metric.market_capitalization) || null,
