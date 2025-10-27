@@ -176,6 +176,7 @@ router.get("/", async (req, res) => {
     if (timeframe === 'monthly' || timeframe === 'weekly') {
       // Weekly and Monthly tables only have: id, symbol, timeframe, date, open, high, low, close, volume, signal, buylevel, stoplevel, inposition, strength, avg_volume_50d, volume_surge_pct, risk_reward_ratio, breakout_quality
       // NO signal_type, pivot_price, buy_zone_*, exit_trigger_*, initial_stop, trailing_stop, base_*, rs_rating, current_gain_pct, days_in_position columns
+      // NO technical data for weekly/monthly (must come from daily table only)
       actualColumns = `
         bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
         bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
@@ -189,10 +190,11 @@ router.get("/", async (req, res) => {
         NULL::text as exit_trigger_4_condition, NULL::numeric as exit_trigger_4_price,
         NULL::numeric as initial_stop, NULL::numeric as trailing_stop,
         NULL::text as base_type, NULL::integer as base_length_days,
-        NULL::integer as rs_rating, NULL::numeric as current_gain_pct, NULL::integer as days_in_position
+        NULL::integer as rs_rating, NULL::numeric as current_gain_pct, NULL::integer as days_in_position,
+        NULL::numeric as rsi, NULL::numeric as adx, NULL::numeric as atr, NULL::numeric as ema_21, NULL::numeric as sma_50, NULL::numeric as sma_200
       `;
     } else {
-      // Daily table has all columns
+      // Daily table has all columns including technical indicators from technical_data_daily join
       actualColumns = `
         bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
         bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
@@ -206,7 +208,8 @@ router.get("/", async (req, res) => {
         bsd.base_type, bsd.base_length_days,
         bsd.avg_volume_50d, bsd.volume_surge_pct,
         bsd.rs_rating, bsd.breakout_quality,
-        bsd.risk_reward_ratio, bsd.current_gain_pct, bsd.days_in_position
+        bsd.risk_reward_ratio, bsd.current_gain_pct, bsd.days_in_position,
+        tdd.rsi, tdd.adx, tdd.atr, tdd.ema_21, tdd.sma_50, tdd.sma_200
       `;
     }
 

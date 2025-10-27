@@ -892,4 +892,9 @@ router.get("/compare", async (req, res) => {
   }
 });
 
+// Note: Leading indicators, yield curve, and credit spreads data
+// are also available at /api/market/ endpoints but should be
+// accessed through /api/economic/ for this dashboard feature.
+// Update frontend calls to use /api/economic/ paths when available.
+
 module.exports = router;

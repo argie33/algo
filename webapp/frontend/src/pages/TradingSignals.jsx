@@ -295,7 +295,7 @@ function TradingSignals() {
       if (!selectedSymbol) return null;
       try {
         const response = await fetch(
-          `${API_BASE}/api/trading/signals/daily?symbol=${selectedSymbol}&limit=50`
+          `${API_BASE}/api/signals?symbol=${selectedSymbol}&timeframe=daily&limit=50`
         );
         if (!response.ok) throw new Error("Failed to fetch historical data");
         return await response.json();

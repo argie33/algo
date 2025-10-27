@@ -649,7 +649,9 @@ def process_symbol_sentiment(symbol: str, reddit_client=None) -> Optional[Dict]:
         # Collect social sentiment (Reddit + Google Trends only, NO news)
         social_collector = SocialSentimentCollector(symbol)
         reddit_data = social_collector.get_reddit_sentiment(reddit_client)
-        trends_data = social_collector.get_google_trends()
+        # SKIP Google Trends - causes 429 rate limiting (adds 2-3 sec per symbol, extends load from 3h to 13h)
+        # trends_data = social_collector.get_google_trends()
+        trends_data = {'search_volume_index': None, 'search_trend_7d': None, 'search_trend_30d': None}
 
         # Always try fallback sentiment - it's our most reliable source
         fallback_data = get_fallback_sentiment(symbol)

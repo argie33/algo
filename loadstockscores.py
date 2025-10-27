@@ -1130,7 +1130,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             short_percent_of_float = None
             institution_count = None
 
-            # Query positioning data from institutional_positioning table
+            # 1. Get institutional ownership from institutional_positioning table
             try:
                 cur.execute("""
                     SELECT
@@ -1141,12 +1141,35 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 """, (symbol,))
                 inst_data = cur.fetchone()
                 if inst_data:
-                    # CRITICAL: Convert decimal (0-1) to percentage (0-100) for scoring
-                    # market_share is stored as decimal, but threshold checks expect percentage
-                    institutional_ownership = (float(inst_data[0]) * 100) if inst_data[0] is not None and inst_data[0] > 0 else None
+                    # institutional_positioning.market_share is stored as percentage (0-100) directly
+                    institutional_ownership = float(inst_data[0]) if inst_data[0] is not None and inst_data[0] > 0 else None
                     institution_count = int(inst_data[1]) if inst_data[1] is not None and inst_data[1] > 0 else None
             except psycopg2.Error as e:
                 logger.debug(f"Institutional positioning query failed for {symbol}: {e}")
+
+            # 2. Get insider ownership from key_metrics table (stored as decimal 0-1, convert to percentage)
+            try:
+                cur.execute("""
+                    SELECT held_percent_insiders FROM key_metrics WHERE ticker = %s
+                """, (symbol,))
+                insider_data = cur.fetchone()
+                if insider_data and insider_data[0] is not None:
+                    # key_metrics.held_percent_insiders is stored as DECIMAL (0-1), multiply by 100
+                    insider_ownership = float(insider_data[0]) * 100
+            except psycopg2.Error as e:
+                logger.debug(f"Insider ownership query failed for {symbol}: {e}")
+
+            # 3. Get short interest from key_metrics table (stored as decimal 0-1, convert to percentage)
+            try:
+                cur.execute("""
+                    SELECT short_percent_of_float FROM key_metrics WHERE ticker = %s
+                """, (symbol,))
+                short_data = cur.fetchone()
+                if short_data and short_data[0] is not None:
+                    # key_metrics.short_percent_of_float is stored as DECIMAL (0-1), multiply by 100
+                    short_percent_of_float = float(short_data[0]) * 100
+            except psycopg2.Error as e:
+                logger.debug(f"Short interest query failed for {symbol}: {e}")
 
         except psycopg2.Error as e:
             conn.rollback()

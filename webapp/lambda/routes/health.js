@@ -364,7 +364,7 @@ router.get("/", async (req, res) => {
         const countQueries = existingTables.map((tableName) =>
           Promise.race([
             query(
-              `SELECT  as estimated_count
+              `SELECT reltuples::bigint as estimated_count
                FROM pg_class
                WHERE relname = $1`,
               [tableName]
