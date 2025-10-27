@@ -233,8 +233,8 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn):
             else:
                 avg_vol = int(avg_vol) if not isinstance(avg_vol, float) else int(float(avg_vol))
 
-            if avg_vol < 0 or avg_vol > 9223372036854775807:
-                avg_vol = 0
+            if avg_vol is not None and (avg_vol < 0 or avg_vol > 9223372036854775807):
+                avg_vol = None  # REAL DATA ONLY: None instead of fake 0
 
             vol_surge = float(row.get('volume_surge_pct')) if pd.notna(row.get('volume_surge_pct')) else None
             rs_rating = int(row.get('rs_rating')) if pd.notna(row.get('rs_rating')) else None
@@ -278,14 +278,21 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn):
 # 2) RISK-FREE RATE (FRED)
 ###############################################################################
 def get_risk_free_rate_fred(api_key):
+    """Get risk-free rate from FRED. Returns None if data unavailable (REAL DATA ONLY - no fake 0)."""
+    if not api_key:
+        return None  # No API key - can't get real data, so return None
     url = (
       "https://api.stlouisfed.org/fred/series/observations"
       f"?series_id=DGS3MO&api_key={api_key}&file_type=json"
     )
-    r = requests.get(url, timeout=10)
-    r.raise_for_status()
-    obs = [o for o in r.json().get("observations", []) if o["value"] != "."]
-    return float(obs[-1]["value"]) / 100.0 if obs else 0.0
+    try:
+        r = requests.get(url, timeout=10)
+        r.raise_for_status()
+        obs = [o for o in r.json().get("observations", []) if o["value"] != "."]
+        return float(obs[-1]["value"]) / 100.0 if obs else None  # None if no data (not fake 0.0)
+    except Exception as e:
+        logging.warning(f"Failed to get FRED data: {e}")
+        return None  # Error - return None (REAL DATA ONLY)
 
 ###############################################################################
 # 3) FETCH FROM DB (prices + technicals)
@@ -448,12 +455,9 @@ def calculate_signal_strength(df, index):
             else:
                 strength += 5   # Low volume
         else:
-            # Only add default if data is truly missing (avg_volume=0)
-            # Don't reward invalid/missing volume data
-            if avg_volume == 0 and volume is None:
-                strength += 12.5  # Default if no volume data available
-            else:
-                strength += 0  # No reward for bad/missing volume
+            # REAL DATA ONLY: If critical volume data missing, can't calculate meaningful strength
+            if avg_volume <= 0 or volume is None:
+                return None  # Insufficient volume data for real strength calculation
         
         # 3. Price Action (25%) - only if high/low data available
         if high is not None and low is not None and high > 0 and low > 0 and high >= low:
@@ -505,9 +509,9 @@ def calculate_signal_strength(df, index):
                 else:
                     strength += 4   # Low volatility (less opportunity)
             else:
-                strength += 2  # Invalid ATR calculation
+                return None  # Invalid ATR calculation - can't calculate meaningful strength
         else:
-            strength += 5  # Default if no volatility data
+            return None  # REAL DATA ONLY: ATR data missing - can't calculate meaningful strength
         
         # 5. Breakout Magnitude (10%) - only if pivot data available
         if signal_type == 'Buy' and pivot_high is not None and pivot_high > 0:
@@ -547,11 +551,15 @@ def calculate_signal_strength_enhanced(df, index):
 
         if signal_type == 'None':
             return None  # No real signal - return None instead of fake 50.0
-        
+
+        # REAL DATA ONLY: Must have volume surge data (not fake default)
+        volume_surge = row.get('volume_surge_pct')
+        if volume_surge is None:
+            return None  # Can't calculate meaningful strength without real volume data
+
         strength = 0.0
-        
+
         # 1. Volume Surge (30%) - Critical for O'Neill
-        volume_surge = row.get('volume_surge_pct', 0)
         if volume_surge >= 100:
             strength += 30
         elif volume_surge >= 50:
@@ -669,9 +677,13 @@ def calculate_pivot_price(df, current_idx, base_type):
         return df.iloc[current_idx - lookback:current_idx + 1]['high'].max()
 
 def rate_breakout_quality(row, base_info, volume_surge):
-    """Rate breakout quality A+ to C based on O'Neill criteria"""
+    """Rate breakout quality A+ to C based on O'Neill criteria. Returns None if critical data missing."""
+    # REAL DATA ONLY: Must have volume surge to calculate quality
+    if volume_surge is None:
+        return None  # Can't calculate quality without real volume data
+
     score = 0
-    
+
     # Volume (0-30 points)
     if volume_surge >= 100:
         score += 30
@@ -679,7 +691,7 @@ def rate_breakout_quality(row, base_info, volume_surge):
         score += 20
     elif volume_surge >= 40:
         score += 10
-    
+
     # RS Rating (0-30 points) - REAL DATA ONLY, no fake defaults
     rs_rating = row.get('rs_rating')  # Returns None if not available (no fake 50)
     if rs_rating is not None and rs_rating >= 90:

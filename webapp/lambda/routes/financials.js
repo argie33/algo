@@ -2568,7 +2568,7 @@ router.get("/cash-flow/:symbol", async (req, res) => {
           items: {},
         };
       }
-      groupedData[dateKey].items[row.item_name] = parseFloat(row.value || 0);
+      groupedData[dateKey].items[row.item_name] = row.value !== null && row.value !== undefined ? parseFloat(row.value) : null;
     });
 
     res.json({

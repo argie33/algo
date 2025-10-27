@@ -156,14 +156,40 @@ def insert_symbol_results(cur, symbol, timeframe, df):
       ON CONFLICT (symbol, timeframe, date) DO NOTHING;
     """
     inserted = 0
+    skipped = 0
     for idx, row in df.iterrows():
         try:
-            # Check for NaNs or missing values
+            # Check for NaNs or missing values in core fields
             vals = [row.get('open'), row.get('high'), row.get('low'), row.get('close'), row.get('volume'),
                     row.get('Signal'), row.get('buyLevel'), row.get('stopLevel'), row.get('inPosition'), row.get('strength')]
             if any(pd.isnull(v) for v in vals):
-                logging.warning(f"Skipping row {idx} for {symbol} {timeframe} due to NaN: {vals}")
+                logging.debug(f"Skipping row {idx} for {symbol} {timeframe} due to NaN: {vals}")
+                skipped += 1
                 continue
+
+            # Handle optional fields with None (REAL DATA ONLY)
+            avg_vol = row.get('avg_volume_50d')
+            if pd.isna(avg_vol) or avg_vol is None:
+                avg_vol = None
+            else:
+                avg_vol = int(avg_vol)
+
+            vol_surge = row.get('volume_surge_pct')
+            if pd.isna(vol_surge) or vol_surge is None:
+                vol_surge = None
+            else:
+                vol_surge = float(vol_surge)
+
+            risk_reward = row.get('risk_reward_ratio')
+            if pd.isna(risk_reward) or risk_reward is None:
+                risk_reward = None
+            else:
+                risk_reward = float(risk_reward)
+
+            breakout_qual = row.get('breakout_quality')
+            if pd.isna(breakout_qual) or breakout_qual is None:
+                breakout_qual = None
+
             cur.execute(insert_q, (
                 symbol,
                 timeframe,
@@ -172,13 +198,13 @@ def insert_symbol_results(cur, symbol, timeframe, df):
                 float(row['close']), int(row['volume']),
                 row['Signal'], float(row['buyLevel']),
                 float(row['stopLevel']), bool(row['inPosition']), float(row['strength']),
-                int(row['avg_volume_50d']), float(row['volume_surge_pct']),
-                float(row['risk_reward_ratio']), row['breakout_quality']
+                avg_vol, vol_surge, risk_reward, breakout_qual
             ))
             inserted += 1
         except Exception as e:
             logging.error(f"Insert failed for {symbol} {timeframe} row {idx}: {e} | row={row}")
-    logging.info(f"Inserted {inserted} rows for {symbol} {timeframe}")
+            skipped += 1
+    logging.info(f"Inserted {inserted} rows, skipped {skipped} rows for {symbol} {timeframe}")
 
 ###############################################################################
 # 2) RISK-FREE RATE (FRED)

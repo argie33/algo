@@ -307,23 +307,26 @@ const ComprehensiveAnalystMetrics = ({ symbol }) => {
   );
 };
 
-// Comprehensive Social Sentiment Component
+// Comprehensive Social Sentiment Component - Matching Analyst Panel
 const ComprehensiveSocialSentiment = ({ symbol }) => {
-  const [socialData, setSocialData] = React.useState(null);
+  const [insightsData, setInsightsData] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
+  const theme = useTheme();
 
   React.useEffect(() => {
-    const fetchSocialData = async () => {
+    const fetchSocialInsights = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        // Fetch sentiment analysis data which includes social metrics
-        const response = await fetch(`${API_BASE}/api/sentiment/analysis?symbol=${symbol}`);
+        // Fetch comprehensive social sentiment insights
+        const response = await fetch(`${API_BASE}/api/sentiment/social/insights/${symbol}`);
         if (response.ok) {
           const data = await response.json();
-          setSocialData(data?.data || data);
+          setInsightsData(data);
+        } else {
+          setError("No social sentiment data available");
         }
       } catch (err) {
         setError(err.message);
@@ -333,7 +336,7 @@ const ComprehensiveSocialSentiment = ({ symbol }) => {
     };
 
     if (symbol) {
-      fetchSocialData();
+      fetchSocialInsights();
     }
   }, [symbol]);
 
@@ -348,74 +351,434 @@ const ComprehensiveSocialSentiment = ({ symbol }) => {
     );
   }
 
-  if (error) {
+  if (error || !insightsData?.metrics) {
     return (
       <Card variant="outlined">
         <CardContent>
-          <Typography variant="body2" color="error">Error loading social data: {error}</Typography>
+          <Typography variant="h6" gutterBottom>Social Media & Alternative Sentiment</Typography>
+          <Typography variant="body2" color="error">
+            {error || "No social sentiment data available for this symbol"}
+          </Typography>
         </CardContent>
       </Card>
     );
   }
 
+  const { metrics, trends, historical } = insightsData;
+
   return (
-    <Box>
-      {socialData && Array.isArray(socialData) ? (
-        <Card variant="outlined">
-          <CardContent>
-            <Typography variant="h6" gutterBottom>Social Media & Alternative Data Sentiment</Typography>
-            <TableContainer>
-              <Table size="small">
+    <Card variant="outlined">
+      <CardContent>
+        {/* Header */}
+        <Box display="flex" alignItems="center" gap={1} mb={3}>
+          <TrendingUpRounded />
+          <Typography variant="h6">Social Media & Alternative Sentiment</Typography>
+        </Box>
+
+        {/* Metrics Grid - Professional Display */}
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          {/* Reddit Mentions */}
+          <Grid item xs={12} sm={6} md={2}>
+            <Box sx={{
+              p: 2,
+              bgcolor: alpha(theme.palette.info.main, 0.08),
+              borderRadius: 1,
+              border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`
+            }}>
+              <Typography variant="overline" color="textSecondary" display="block" sx={{ mb: 0.5 }}>
+                Reddit Mentions
+              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: "bold", color: theme.palette.info.main, mb: 0.5 }}>
+                {metrics.reddit.mention_count || 0}
+              </Typography>
+              <Typography variant="caption" color="textSecondary">
+                total mentions
+              </Typography>
+            </Box>
+          </Grid>
+
+          {/* Reddit Sentiment */}
+          {metrics.reddit.sentiment_score && (
+            <Grid item xs={12} sm={6} md={2}>
+              <Box sx={{
+                p: 2,
+                bgcolor: alpha(
+                  parseFloat(metrics.reddit.sentiment_score) > 0 ? theme.palette.success.main : theme.palette.error.main,
+                  0.08
+                ),
+                borderRadius: 1,
+                border: `1px solid ${alpha(
+                  parseFloat(metrics.reddit.sentiment_score) > 0 ? theme.palette.success.main : theme.palette.error.main,
+                  0.2
+                )}`
+              }}>
+                <Typography variant="overline" color="textSecondary" display="block" sx={{ mb: 0.5 }}>
+                  Reddit Sentiment
+                </Typography>
+                <Typography variant="h5" sx={{
+                  fontWeight: "bold",
+                  color: parseFloat(metrics.reddit.sentiment_score) > 0 ? theme.palette.success.main : theme.palette.error.main,
+                  mb: 0.5
+                }}>
+                  {parseFloat(metrics.reddit.sentiment_score) > 0 ? "+" : ""}{metrics.reddit.sentiment_score}
+                </Typography>
+                <Typography variant="caption" color="textSecondary">
+                  -1.0 to +1.0 scale
+                </Typography>
+              </Box>
+            </Grid>
+          )}
+
+          {/* Search Volume */}
+          <Grid item xs={12} sm={6} md={2}>
+            <Box sx={{
+              p: 2,
+              bgcolor: alpha(theme.palette.warning.main, 0.08),
+              borderRadius: 1,
+              border: `1px solid ${alpha(theme.palette.warning.main, 0.2)}`
+            }}>
+              <Typography variant="overline" color="textSecondary" display="block" sx={{ mb: 0.5 }}>
+                Search Volume
+              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: "bold", color: theme.palette.warning.main, mb: 0.5 }}>
+                {metrics.search.volume_index || 0}
+              </Typography>
+              <Typography variant="caption" color="textSecondary">
+                Google Trends index
+              </Typography>
+            </Box>
+          </Grid>
+
+          {/* 7-Day Trend */}
+          {metrics.search.trend_7d_percent && (
+            <Grid item xs={12} sm={6} md={2}>
+              <Box sx={{
+                p: 2,
+                bgcolor: alpha(
+                  parseFloat(metrics.search.trend_7d_percent) > 0 ? theme.palette.success.main : theme.palette.error.main,
+                  0.08
+                ),
+                borderRadius: 1,
+                border: `1px solid ${alpha(
+                  parseFloat(metrics.search.trend_7d_percent) > 0 ? theme.palette.success.main : theme.palette.error.main,
+                  0.2
+                )}`
+              }}>
+                <Typography variant="overline" color="textSecondary" display="block" sx={{ mb: 0.5 }}>
+                  7-Day Trend
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+                  <Typography variant="h5" sx={{
+                    fontWeight: "bold",
+                    color: parseFloat(metrics.search.trend_7d_percent) > 0 ? theme.palette.success.main : theme.palette.error.main,
+                  }}>
+                    {metrics.search.trend_7d_direction}
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: "bold" }}>
+                    {Math.abs(parseFloat(metrics.search.trend_7d_percent))}%
+                  </Typography>
+                </Box>
+                <Typography variant="caption" color="textSecondary">
+                  vs previous week
+                </Typography>
+              </Box>
+            </Grid>
+          )}
+
+          {/* 30-Day Trend */}
+          {metrics.search.trend_30d_percent && (
+            <Grid item xs={12} sm={6} md={2}>
+              <Box sx={{
+                p: 2,
+                bgcolor: alpha(
+                  parseFloat(metrics.search.trend_30d_percent) > 0 ? theme.palette.success.main : theme.palette.error.main,
+                  0.08
+                ),
+                borderRadius: 1,
+                border: `1px solid ${alpha(
+                  parseFloat(metrics.search.trend_30d_percent) > 0 ? theme.palette.success.main : theme.palette.error.main,
+                  0.2
+                )}`
+              }}>
+                <Typography variant="overline" color="textSecondary" display="block" sx={{ mb: 0.5 }}>
+                  30-Day Trend
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+                  <Typography variant="h5" sx={{
+                    fontWeight: "bold",
+                    color: parseFloat(metrics.search.trend_30d_percent) > 0 ? theme.palette.success.main : theme.palette.error.main,
+                  }}>
+                    {metrics.search.trend_30d_direction}
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: "bold" }}>
+                    {Math.abs(parseFloat(metrics.search.trend_30d_percent))}%
+                  </Typography>
+                </Box>
+                <Typography variant="caption" color="textSecondary">
+                  vs period avg
+                </Typography>
+              </Box>
+            </Grid>
+          )}
+
+          {/* News Articles */}
+          <Grid item xs={12} sm={6} md={2}>
+            <Box sx={{
+              p: 2,
+              bgcolor: alpha(theme.palette.secondary.main, 0.08),
+              borderRadius: 1,
+              border: `1px solid ${alpha(theme.palette.secondary.main, 0.2)}`
+            }}>
+              <Typography variant="overline" color="textSecondary" display="block" sx={{ mb: 0.5 }}>
+                News Articles
+              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: "bold", color: theme.palette.secondary.main, mb: 0.5 }}>
+                {metrics.news.article_count || 0}
+              </Typography>
+              <Typography variant="caption" color="textSecondary">
+                last 7 days
+              </Typography>
+            </Box>
+          </Grid>
+
+          {/* News Sentiment */}
+          {metrics.news.sentiment_score && (
+            <Grid item xs={12} sm={6} md={2}>
+              <Box sx={{
+                p: 2,
+                bgcolor: alpha(
+                  parseFloat(metrics.news.sentiment_score) > 0 ? theme.palette.success.main : theme.palette.error.main,
+                  0.08
+                ),
+                borderRadius: 1,
+                border: `1px solid ${alpha(
+                  parseFloat(metrics.news.sentiment_score) > 0 ? theme.palette.success.main : theme.palette.error.main,
+                  0.2
+                )}`
+              }}>
+                <Typography variant="overline" color="textSecondary" display="block" sx={{ mb: 0.5 }}>
+                  News Sentiment
+                </Typography>
+                <Typography variant="h5" sx={{
+                  fontWeight: "bold",
+                  color: parseFloat(metrics.news.sentiment_score) > 0 ? theme.palette.success.main : theme.palette.error.main,
+                  mb: 0.5
+                }}>
+                  {parseFloat(metrics.news.sentiment_score) > 0 ? "+" : ""}{metrics.news.sentiment_score}
+                </Typography>
+                <Typography variant="caption" color="textSecondary">
+                  quality-weighted
+                </Typography>
+              </Box>
+            </Grid>
+          )}
+
+          {/* Viral Score */}
+          {metrics.social.viral_score && (
+            <Grid item xs={12} sm={6} md={2}>
+              <Box sx={{
+                p: 2,
+                bgcolor: alpha(theme.palette.error.main, 0.08),
+                borderRadius: 1,
+                border: `1px solid ${alpha(theme.palette.error.main, 0.2)}`
+              }}>
+                <Typography variant="overline" color="textSecondary" display="block" sx={{ mb: 0.5 }}>
+                  Viral Score
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: "bold", color: theme.palette.error.main, mb: 0.5 }}>
+                  {metrics.social.viral_score}
+                </Typography>
+                <Typography variant="caption" color="textSecondary">
+                  virality index
+                </Typography>
+              </Box>
+            </Grid>
+          )}
+
+          {/* Social Volume */}
+          <Grid item xs={12} sm={6} md={2}>
+            <Box sx={{
+              p: 2,
+              bgcolor: alpha(theme.palette.primary.main, 0.08),
+              borderRadius: 1,
+              border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
+            }}>
+              <Typography variant="overline" color="textSecondary" display="block" sx={{ mb: 0.5 }}>
+                Social Volume
+              </Typography>
+              <Typography variant="h5" sx={{ fontWeight: "bold", color: theme.palette.primary.main, mb: 0.5 }}>
+                {metrics.social.volume || 0}
+              </Typography>
+              <Typography variant="caption" color="textSecondary">
+                total mentions
+              </Typography>
+            </Box>
+          </Grid>
+        </Grid>
+
+        {/* Historical Trend Summary */}
+        {trends && (
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold', mb: 2 }}>
+              Sentiment Trends (7-day vs 30-day average)
+            </Typography>
+            <Grid container spacing={2}>
+              {/* Reddit Trend */}
+              {trends.reddit_sentiment && (
+                <Grid item xs={12} sm={6} md={4}>
+                  <Box sx={{
+                    p: 2,
+                    bgcolor: alpha(theme.palette.info.main, 0.04),
+                    borderRadius: 1,
+                    border: `1px solid ${alpha(theme.palette.info.main, 0.1)}`
+                  }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 'bold' }}>Reddit Sentiment</Typography>
+                      <Typography variant="caption" sx={{ color: trends.reddit_sentiment.direction === '↑' ? theme.palette.success.main : theme.palette.error.main }}>
+                        {trends.reddit_sentiment.direction}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                      <Typography variant="caption" color="textSecondary">Recent (7d avg)</Typography>
+                      <Typography variant="caption" sx={{ fontWeight: 'bold' }}>{trends.reddit_sentiment.current_avg}</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="caption" color="textSecondary">Period (30d avg)</Typography>
+                      <Typography variant="caption" sx={{ fontWeight: 'bold' }}>{trends.reddit_sentiment.period_avg}</Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+              )}
+
+              {/* News Trend */}
+              {trends.news_sentiment && (
+                <Grid item xs={12} sm={6} md={4}>
+                  <Box sx={{
+                    p: 2,
+                    bgcolor: alpha(theme.palette.secondary.main, 0.04),
+                    borderRadius: 1,
+                    border: `1px solid ${alpha(theme.palette.secondary.main, 0.1)}`
+                  }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 'bold' }}>News Sentiment</Typography>
+                      <Typography variant="caption" sx={{ color: trends.news_sentiment.direction === '↑' ? theme.palette.success.main : theme.palette.error.main }}>
+                        {trends.news_sentiment.direction}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                      <Typography variant="caption" color="textSecondary">Recent (7d avg)</Typography>
+                      <Typography variant="caption" sx={{ fontWeight: 'bold' }}>{trends.news_sentiment.current_avg}</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="caption" color="textSecondary">Period (30d avg)</Typography>
+                      <Typography variant="caption" sx={{ fontWeight: 'bold' }}>{trends.news_sentiment.period_avg}</Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+              )}
+
+              {/* Search Volume Trend */}
+              {trends.search_volume && (
+                <Grid item xs={12} sm={6} md={4}>
+                  <Box sx={{
+                    p: 2,
+                    bgcolor: alpha(theme.palette.warning.main, 0.04),
+                    borderRadius: 1,
+                    border: `1px solid ${alpha(theme.palette.warning.main, 0.1)}`
+                  }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 'bold' }}>Search Volume</Typography>
+                      <Typography variant="caption" sx={{ color: trends.search_volume.direction === '↑' ? theme.palette.success.main : theme.palette.error.main }}>
+                        {trends.search_volume.direction}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                      <Typography variant="caption" color="textSecondary">Recent (7d avg)</Typography>
+                      <Typography variant="caption" sx={{ fontWeight: 'bold' }}>{trends.search_volume.current_avg}</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="caption" color="textSecondary">Period (30d avg)</Typography>
+                      <Typography variant="caption" sx={{ fontWeight: 'bold' }}>{trends.search_volume.period_avg}</Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+              )}
+            </Grid>
+          </Box>
+        )}
+
+        {/* Historical Data Table */}
+        {historical && historical.length > 0 && (
+          <Box>
+            <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold', mb: 2 }}>
+              Historical Social Sentiment Data (Last 30 Days)
+            </Typography>
+            <TableContainer sx={{ maxHeight: 400 }}>
+              <Table size="small" stickyHeader>
                 <TableHead>
-                  <TableRow>
-                    <TableCell>Date</TableCell>
-                    <TableCell>Source</TableCell>
-                    <TableCell align="center">Sentiment Score</TableCell>
-                    <TableCell align="center">Positive</TableCell>
-                    <TableCell align="center">Neutral</TableCell>
-                    <TableCell align="center">Negative</TableCell>
-                    <TableCell align="center">Total Volume</TableCell>
+                  <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
+                    <TableCell><Typography variant="caption" sx={{ fontWeight: 'bold' }}>Date</Typography></TableCell>
+                    <TableCell align="center"><Typography variant="caption" sx={{ fontWeight: 'bold' }}>Reddit</Typography></TableCell>
+                    <TableCell align="center"><Typography variant="caption" sx={{ fontWeight: 'bold' }}>Reddit Mentions</Typography></TableCell>
+                    <TableCell align="center"><Typography variant="caption" sx={{ fontWeight: 'bold' }}>News</Typography></TableCell>
+                    <TableCell align="center"><Typography variant="caption" sx={{ fontWeight: 'bold' }}>News Articles</Typography></TableCell>
+                    <TableCell align="center"><Typography variant="caption" sx={{ fontWeight: 'bold' }}>Search Vol</Typography></TableCell>
+                    <TableCell align="center"><Typography variant="caption" sx={{ fontWeight: 'bold' }}>Viral</Typography></TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {socialData.slice(0, 15).map((item, idx) => (
-                    <TableRow key={idx}>
-                      <TableCell>{new Date(item.date || item.timestamp).toLocaleDateString()}</TableCell>
+                  {historical.slice(0, 30).map((item, idx) => (
+                    <TableRow key={idx} hover>
                       <TableCell>
-                        <Chip
-                          label={item.source || 'Social'}
-                          size="small"
-                          variant="outlined"
-                        />
+                        <Typography variant="caption">
+                          {new Date(item.date).toLocaleDateString()}
+                        </Typography>
                       </TableCell>
                       <TableCell align="center">
-                        <Chip
-                          label={item.sentiment_score?.toFixed(2) || 'N/A'}
-                          size="small"
-                          color={item.sentiment_score > 0.2 ? 'success' : item.sentiment_score < -0.2 ? 'error' : 'warning'}
-                        />
+                        {item.reddit_sentiment ? (
+                          <Chip
+                            label={parseFloat(item.reddit_sentiment).toFixed(2)}
+                            size="small"
+                            color={parseFloat(item.reddit_sentiment) > 0.1 ? 'success' : parseFloat(item.reddit_sentiment) < -0.1 ? 'error' : 'default'}
+                            variant="outlined"
+                          />
+                        ) : (
+                          <Typography variant="caption" color="textSecondary">—</Typography>
+                        )}
                       </TableCell>
                       <TableCell align="center">
-                        <Chip label={item.positive_mentions || 0} size="small" color="success" variant="outlined" />
+                        <Typography variant="caption">{item.reddit_mentions || 0}</Typography>
                       </TableCell>
                       <TableCell align="center">
-                        <Chip label={item.neutral_mentions || 0} size="small" variant="outlined" />
+                        {item.news_sentiment ? (
+                          <Chip
+                            label={parseFloat(item.news_sentiment).toFixed(2)}
+                            size="small"
+                            color={parseFloat(item.news_sentiment) > 0.1 ? 'success' : parseFloat(item.news_sentiment) < -0.1 ? 'error' : 'default'}
+                            variant="outlined"
+                          />
+                        ) : (
+                          <Typography variant="caption" color="textSecondary">—</Typography>
+                        )}
                       </TableCell>
                       <TableCell align="center">
-                        <Chip label={item.negative_mentions || 0} size="small" color="error" variant="outlined" />
+                        <Typography variant="caption">{item.news_articles || 0}</Typography>
                       </TableCell>
-                      <TableCell align="center">{item.total_mentions || 0}</TableCell>
+                      <TableCell align="center">
+                        <Typography variant="caption">{item.search_volume || 0}</Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography variant="caption">{item.viral_score ? parseFloat(item.viral_score).toFixed(2) : '—'}</Typography>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </TableContainer>
-          </CardContent>
-        </Card>
-      ) : (
-        <Alert severity="info">No social sentiment data available for {symbol}</Alert>
-      )}
-    </Box>
+          </Box>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 
@@ -1724,8 +2087,13 @@ function Sentiment() {
                         )}
 
                         {/* Analyst Sentiment Details with Trend */}
-                        <Grid item xs={12} md={6}>
+                        <Grid item xs={12}>
                           <AnalystTrendCard symbol={stock.symbol} />
+                        </Grid>
+
+                        {/* Social Sentiment Comprehensive Panel */}
+                        <Grid item xs={12}>
+                          <ComprehensiveSocialSentiment symbol={stock.symbol} />
                         </Grid>
 
                         {/* Historical Sentiment Table */}

@@ -865,8 +865,8 @@ def load_sentiment_batch(symbols: List[str], conn, cur, batch_size: int = 10) ->
                          avg_price_target, high_price_target, low_price_target,
                          price_target_vs_current, eps_revisions_up_last_30d, eps_revisions_down_last_30d,
                          revenue_revisions_up_last_30d, revenue_revisions_down_last_30d,
-                         recommendation_mean, analyst_count)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                         recommendation_mean)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (symbol, date) DO UPDATE SET
                             strong_buy_count = EXCLUDED.strong_buy_count,
                             buy_count = EXCLUDED.buy_count,
@@ -885,8 +885,7 @@ def load_sentiment_batch(symbols: List[str], conn, cur, batch_size: int = 10) ->
                             eps_revisions_down_last_30d = EXCLUDED.eps_revisions_down_last_30d,
                             revenue_revisions_up_last_30d = EXCLUDED.revenue_revisions_up_last_30d,
                             revenue_revisions_down_last_30d = EXCLUDED.revenue_revisions_down_last_30d,
-                            recommendation_mean = EXCLUDED.recommendation_mean,
-                            analyst_count = EXCLUDED.analyst_count
+                            recommendation_mean = EXCLUDED.recommendation_mean
                     """
                     for analyst_tuple in analyst_data:
                         try:
@@ -919,7 +918,7 @@ def load_sentiment_batch(symbols: List[str], conn, cur, batch_size: int = 10) ->
                                 total, upgrades, downgrades, initiations,
                                 avg_target, high_target, low_target,
                                 price_vs_current, eps_up, eps_down, rev_up, rev_down,
-                                rec_mean, total
+                                rec_mean
                             ))
                             logging.debug(f"✓ Inserted analyst data for {symbol}: {total} analysts")
                         except Exception as e:
@@ -928,13 +927,23 @@ def load_sentiment_batch(symbols: List[str], conn, cur, batch_size: int = 10) ->
                 if social_data:
                     social_insert = """
                         INSERT INTO social_sentiment_analysis
-                        (symbol, date, reddit_sentiment_score, search_volume_index, news_sentiment_score, news_article_count)
-                        VALUES (%s, %s, %s, %s, %s, %s)
+                        (symbol, date, reddit_mention_count, reddit_sentiment_score, reddit_volume_normalized_sentiment,
+                         search_volume_index, search_trend_7d, search_trend_30d,
+                         news_article_count, news_sentiment_score, news_source_quality_weight,
+                         social_media_volume, viral_score)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (symbol, date) DO UPDATE SET
+                            reddit_mention_count = EXCLUDED.reddit_mention_count,
                             reddit_sentiment_score = EXCLUDED.reddit_sentiment_score,
+                            reddit_volume_normalized_sentiment = EXCLUDED.reddit_volume_normalized_sentiment,
                             search_volume_index = EXCLUDED.search_volume_index,
+                            search_trend_7d = EXCLUDED.search_trend_7d,
+                            search_trend_30d = EXCLUDED.search_trend_30d,
+                            news_article_count = EXCLUDED.news_article_count,
                             news_sentiment_score = EXCLUDED.news_sentiment_score,
-                            news_article_count = EXCLUDED.news_article_count
+                            news_source_quality_weight = EXCLUDED.news_source_quality_weight,
+                            social_media_volume = EXCLUDED.social_media_volume,
+                            viral_score = EXCLUDED.viral_score
                     """
                     for social_tuple in social_data:
                         try:
@@ -947,18 +956,21 @@ def load_sentiment_batch(symbols: List[str], conn, cur, batch_size: int = 10) ->
                             reddit_sentiment = social_tuple[3]
                             reddit_volume_norm = social_tuple[4]
                             search_volume = social_tuple[5]
-                            # search_7d = social_tuple[6]  # not used in table
-                            # search_30d = social_tuple[7]  # not used in table
+                            search_7d = social_tuple[6]
+                            search_30d = social_tuple[7]
                             news_count = social_tuple[8]
                             news_sentiment = social_tuple[9]
-                            # news_quality = social_tuple[10]  # not used in table
-                            # social_media_volume = social_tuple[11]  # not used in table
-                            # viral_score = social_tuple[12]  # not used in table
+                            news_quality = social_tuple[10]
+                            social_media_volume = social_tuple[11]
+                            viral_score = social_tuple[12]
 
                             cur.execute(social_insert, (
-                                symbol, date_val, reddit_sentiment, search_volume, news_sentiment, news_count
+                                symbol, date_val, reddit_mention_count, reddit_sentiment, reddit_volume_norm,
+                                search_volume, search_7d, search_30d,
+                                news_count, news_sentiment, news_quality,
+                                social_media_volume, viral_score
                             ))
-                            logging.debug(f"✓ Inserted social data for {symbol}: reddit={reddit_sentiment}, search_vol={search_volume}")
+                            logging.debug(f"✓ Inserted social data for {symbol}: reddit={reddit_sentiment}, search_vol={search_volume}, news={news_sentiment}")
                         except Exception as e:
                             logging.debug(f"Could not insert social data for {symbol}: {e}")
 

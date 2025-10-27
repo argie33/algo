@@ -324,63 +324,63 @@ router.get("/", async (req, res) => {
       timestamp: row.date || new Date().toISOString(),
 
       // Price data - REAL DATA from buy_sell_* tables
-      open: parseFloat(row.open || 0),
-      high: parseFloat(row.high || 0),
-      low: parseFloat(row.low || 0),
-      close: parseFloat(row.close || 0),
-      current_price: parseFloat(row.close || 0),
-      currentPrice: parseFloat(row.close || 0),
-      volume: row.volume || 0,
+      open: row.open !== null && row.open !== undefined ? parseFloat(row.open) : null,
+      high: row.high !== null && row.high !== undefined ? parseFloat(row.high) : null,
+      low: row.low !== null && row.low !== undefined ? parseFloat(row.low) : null,
+      close: row.close !== null && row.close !== undefined ? parseFloat(row.close) : null,
+      current_price: row.close !== null && row.close !== undefined ? parseFloat(row.close) : null,
+      currentPrice: row.close !== null && row.close !== undefined ? parseFloat(row.close) : null,
+      volume: row.volume !== null && row.volume !== undefined ? row.volume : null,
 
       // Entry/Exit levels - REAL DATA
-      buy_level: parseFloat(row.buylevel || 0),
-      buylevel: parseFloat(row.buylevel || 0),
-      stop_level: parseFloat(row.stoplevel || 0),
-      stoplevel: parseFloat(row.stoplevel || 0),
-      sell_level: 0,
+      buy_level: row.buylevel !== null && row.buylevel !== undefined ? parseFloat(row.buylevel) : null,
+      buylevel: row.buylevel !== null && row.buylevel !== undefined ? parseFloat(row.buylevel) : null,
+      stop_level: row.stoplevel !== null && row.stoplevel !== undefined ? parseFloat(row.stoplevel) : null,
+      stoplevel: row.stoplevel !== null && row.stoplevel !== undefined ? parseFloat(row.stoplevel) : null,
+      sell_level: null, // REAL DATA ONLY: null if missing
       selllevel: 0,
-      target_price: parseFloat(row.target_price || 0),
+      target_price: row.target_price !== null && row.target_price !== undefined ? parseFloat(row.target_price) : null,
       in_position: row.inposition || false,
       inposition: row.inposition || false,
 
       // Risk management - REAL DATA
-      risk_reward_ratio: parseFloat(row.risk_reward_ratio || 0),
-      risk_pct: 0, // Column doesn't exist in buy_sell_daily
-      position_size_recommendation: 0,
+      risk_reward_ratio: row.risk_reward_ratio !== null && row.risk_reward_ratio !== undefined ? parseFloat(row.risk_reward_ratio) : null,
+      risk_pct: null, // REAL DATA ONLY: null if missing // Column doesn't exist in buy_sell_daily
+      position_size_recommendation: null, // REAL DATA ONLY: null if missing
 
       // Swing Trading Setup Analysis - REAL DATA from database
       market_stage: null, // Not in buy_sell tables, but included in query via LEFT JOIN
-      stage_confidence: 0,
+      stage_confidence: null, // REAL DATA ONLY: null if missing
       substage: null,
       sata_score: 0,
-      stage_number: 0,
+      stage_number: null, // REAL DATA ONLY: null if missing
       mansfield_rs: 0,
-      rs_rating: parseInt(row.rs_rating || 0),
-      strength: parseFloat(row.strength || 0),
+      rs_rating: row.rs_rating !== null && row.rs_rating !== undefined ? parseInt(row.rs_rating) : null,
+      strength: row.strength !== null && row.strength !== undefined ? parseFloat(row.strength) : null,
       breakout_quality: row.breakout_quality || null,
 
       // Setup fundamentals - REAL DATA
-      pivot_price: parseFloat(row.pivot_price || 0),
-      buy_zone_start: parseFloat(row.buy_zone_start || 0),
-      buy_zone_end: parseFloat(row.buy_zone_end || 0),
-      initial_stop: parseFloat(row.initial_stop || 0),
-      trailing_stop: parseFloat(row.trailing_stop || 0),
+      pivot_price: row.pivot_price !== null && row.pivot_price !== undefined ? parseFloat(row.pivot_price) : null,
+      buy_zone_start: row.buy_zone_start !== null && row.buy_zone_start !== undefined ? parseFloat(row.buy_zone_start) : null,
+      buy_zone_end: row.buy_zone_end !== null && row.buy_zone_end !== undefined ? parseFloat(row.buy_zone_end) : null,
+      initial_stop: row.initial_stop !== null && row.initial_stop !== undefined ? parseFloat(row.initial_stop) : null,
+      trailing_stop: row.trailing_stop !== null && row.trailing_stop !== undefined ? parseFloat(row.trailing_stop) : null,
       base_type: row.base_type || null,
-      base_length_days: parseInt(row.base_length_days || 0),
+      base_length_days: row.base_length_days !== null && row.base_length_days !== undefined ? parseInt(row.base_length_days) : null,
 
       // Exit triggers - REAL DATA
-      exit_trigger_1_price: parseFloat(row.exit_trigger_1_price || 0),
-      exit_trigger_2_price: parseFloat(row.exit_trigger_2_price || 0),
-      exit_trigger_3_price: parseFloat(row.exit_trigger_3_price || 0),
+      exit_trigger_1_price: row.exit_trigger_1_price !== null && row.exit_trigger_1_price !== undefined ? parseFloat(row.exit_trigger_1_price) : null,
+      exit_trigger_2_price: row.exit_trigger_2_price !== null && row.exit_trigger_2_price !== undefined ? parseFloat(row.exit_trigger_2_price) : null,
+      exit_trigger_3_price: row.exit_trigger_3_price !== null && row.exit_trigger_3_price !== undefined ? parseFloat(row.exit_trigger_3_price) : null,
       exit_trigger_3_condition: row.exit_trigger_3_condition || null,
-      exit_trigger_4_price: parseFloat(row.exit_trigger_4_price || 0),
+      exit_trigger_4_price: row.exit_trigger_4_price !== null && row.exit_trigger_4_price !== undefined ? parseFloat(row.exit_trigger_4_price) : null,
       exit_trigger_4_condition: row.exit_trigger_4_condition || null,
 
       // Volume analysis - REAL DATA with calculations
       volume_ratio: row.avg_volume_50d ? parseFloat((row.volume / row.avg_volume_50d).toFixed(2)) : 0,
       volume_analysis: null,
-      avg_volume_50d: row.avg_volume_50d || 0,
-      volume_surge_pct: parseFloat(row.volume_surge_pct || 0),
+      avg_volume_50d: row.avg_volume_50d !== null && row.avg_volume_50d !== undefined ? row.avg_volume_50d : null,
+      volume_surge_pct: row.volume_surge_pct !== null && row.volume_surge_pct !== undefined ? parseFloat(row.volume_surge_pct) : null,
       volume_percentile: 0, // Would require percentile calculation across dataset
       volume_surge_on_breakout: false,
 
@@ -401,7 +401,7 @@ router.get("/", async (req, res) => {
       profit_target_8pct: 0, // Column doesn't exist
       profit_target_20pct: 0, // Column doesn't exist
       profit_target_25pct: 0, // Column doesn't exist
-      current_gain_loss_pct: parseFloat(row.current_gain_pct || 0),
+      current_gain_loss_pct: row.current_gain_pct !== null && row.current_gain_pct !== undefined ? parseFloat(row.current_gain_pct) : null,
 
       // Volatility - NOT IN buy_sell tables
       volatility_profile: null,
@@ -412,10 +412,10 @@ router.get("/", async (req, res) => {
       days_to_earnings: row.days_to_earnings || null,
 
       // Position tracking - REAL DATA
-      entry_price: parseFloat(row.close || 0),
+      entry_price: row.close !== null && row.close !== undefined ? parseFloat(row.close) : null,
       entry_date: null,
       entry_quality_grade: null,
-      days_in_position: parseInt(row.days_in_position || 0),
+      days_in_position: row.days_in_position !== null && row.days_in_position !== undefined ? parseInt(row.days_in_position) : null,
       current_pnl_pct: 0,
       current_r_multiple: 0,
       max_favorable_excursion_pct: 0,
@@ -610,14 +610,14 @@ router.get("/buy", async (req, res) => {
       signal: 'BUY', // Keep both for compatibility
       date: row.date,
       signal_date: row.date,
-      current_price: parseFloat(row.close || 0),
+      current_price: row.close !== null && row.close !== undefined ? parseFloat(row.close) : null,
       confidence: 0.75, // Real confidence calculation
-      buy_level: parseFloat(row.buylevel || 0),
-      stop_level: parseFloat(row.stoplevel || 0),
+      buy_level: row.buylevel !== null && row.buylevel !== undefined ? parseFloat(row.buylevel) : null,
+      stop_level: row.stoplevel !== null && row.stoplevel !== undefined ? parseFloat(row.stoplevel) : null,
       timeframe: row.timeframe || timeframe,
       in_position: row.inposition || false,
-      volume: row.volume || 0,
-      entry_price: parseFloat(row.close || 0),
+      volume: row.volume !== null && row.volume !== undefined ? row.volume : null,
+      entry_price: row.close !== null && row.close !== undefined ? parseFloat(row.close) : null,
       sector: "Technology", // Would come from company_profile JOIN
       timestamp: row.date || new Date().toISOString(),
     }));
@@ -760,14 +760,14 @@ router.get("/sell", async (req, res) => {
       signal: 'SELL', // Keep both for compatibility
       date: row.date,
       signal_date: row.date,
-      current_price: parseFloat(row.close || 0),
+      current_price: row.close !== null && row.close !== undefined ? parseFloat(row.close) : null,
       confidence: 0.75, // Real confidence calculation
-      buy_level: parseFloat(row.buylevel || 0),
-      stop_level: parseFloat(row.stoplevel || 0),
+      buy_level: row.buylevel !== null && row.buylevel !== undefined ? parseFloat(row.buylevel) : null,
+      stop_level: row.stoplevel !== null && row.stoplevel !== undefined ? parseFloat(row.stoplevel) : null,
       timeframe: row.timeframe || timeframe,
       in_position: row.inposition || false,
-      volume: row.volume || 0,
-      entry_price: parseFloat(row.close || 0),
+      volume: row.volume !== null && row.volume !== undefined ? row.volume : null,
+      entry_price: row.close !== null && row.close !== undefined ? parseFloat(row.close) : null,
       sector: "Technology", // Would come from company_profile JOIN
       timestamp: row.date || new Date().toISOString(),
     }));

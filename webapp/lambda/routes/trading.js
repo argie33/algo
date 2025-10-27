@@ -2319,39 +2319,42 @@ router.get("/risk/portfolio", async (req, res) => {
 
     const positions = holdingsResult.rows;
 
-    // Calculate portfolio metrics
-    const totalValue = positions.reduce(
-      (sum, pos) => sum + (pos.current_value || 0),
+    // Calculate portfolio metrics (REAL DATA ONLY - filter null values)
+    const validPositions = positions.filter(p => p.current_value !== null && p.current_value !== undefined);
+    const totalValue = validPositions.reduce(
+      (sum, pos) => sum + parseFloat(pos.current_value),
       0
     );
 
-    // Concentration risk - check if any single position exceeds 25% of portfolio
+    // Concentration risk - check if any single position exceeds 25% of portfolio (REAL DATA ONLY)
     const maxPositionPct =
-      Math.max(
-        ...positions.map((pos) => (pos.current_value || 0) / totalValue)
-      ) * 100;
+      totalValue > 0 ?
+        (Math.max(
+          ...validPositions.map((pos) => parseFloat(pos.current_value) / totalValue)
+        ) * 100)
+        : 0;
     const concentrationRisk =
       maxPositionPct > 25 ? Math.min((maxPositionPct - 25) * 2, 100) : 0;
 
-    // Portfolio volatility (weighted average)
+    // Portfolio volatility (weighted average) (REAL DATA ONLY)
     const portfolioVolatility =
-      positions.reduce((sum, pos) => {
-        const weight = (pos.current_value || 0) / totalValue;
+      validPositions.reduce((sum, pos) => {
+        const weight = totalValue > 0 ? (parseFloat(pos.current_value) / totalValue) : 0;
         return sum + weight * (pos.volatility || 0.15);
       }, 0) * 100;
 
-    // Portfolio beta (weighted average)
-    const portfolioBeta = positions.reduce((sum, pos) => {
-      const weight = (pos.current_value || 0) / totalValue;
+    // Portfolio beta (weighted average) (REAL DATA ONLY)
+    const portfolioBeta = validPositions.reduce((sum, pos) => {
+      const weight = totalValue > 0 ? (parseFloat(pos.current_value) / totalValue) : 0;
       return sum + weight * (pos.beta || 1.0);
     }, 0);
 
-    // Sector diversification
+    // Sector diversification (REAL DATA ONLY - skip null values)
     const sectorCounts = {};
-    positions.forEach((pos) => {
+    validPositions.forEach((pos) => {
       const sector = pos.sector || "Unknown";
       sectorCounts[sector] =
-        (sectorCounts[sector] || 0) + (pos.current_value || 0);
+        (sectorCounts[sector] || 0) + parseFloat(pos.current_value);
     });
 
     const sectors = Object.keys(sectorCounts);

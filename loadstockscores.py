@@ -1122,58 +1122,38 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             aaii_sentiment_component = None  # Error - return None instead of fake 0
 
         # Get real positioning data from positioning_metrics table
+        # CRITICAL FIX: positioning_metrics stores values as decimals (0-1),
+        # but scoring thresholds expect percentages (0-100)
+        # Convert all decimal values to percentages before using in scoring logic
         try:
-            # Query positioning data directly from yfinance-sourced tables
-            # NO positioning_metrics table needed - get data from yfinance tables instead
-
             institutional_ownership = None
             insider_ownership = None
-            short_percent_of_float = None  # Will remain None if not available in data
+            short_percent_of_float = None
             institution_count = None
 
-            # 1. Get institutional ownership & count from institutional_positioning (yfinance data)
+            # Query latest positioning metrics from positioning_metrics table (aggregated data)
             try:
                 cur.execute("""
                     SELECT
-                        SUM(CASE WHEN market_share IS NOT NULL THEN market_share ELSE 0 END) as total_market_share,
-                        COUNT(DISTINCT institution_name) as count
-                    FROM institutional_positioning
+                        institutional_ownership_pct,
+                        insider_ownership_pct,
+                        short_interest_pct,
+                        institutional_holders_count
+                    FROM positioning_metrics
                     WHERE symbol = %s
+                    ORDER BY date DESC
+                    LIMIT 1
                 """, (symbol,))
-                inst_data = cur.fetchone()
-                if inst_data:
-                    # market_share is already as decimal (0.0-1.0)
-                    institutional_ownership = float(inst_data[0]) if inst_data[0] is not None and inst_data[0] > 0 else None
-                    institution_count = int(inst_data[1]) if inst_data[1] is not None and inst_data[1] > 0 else None
+                pos_data = cur.fetchone()
+                if pos_data:
+                    # CRITICAL: Convert decimal (0-1) to percentage (0-100) for scoring
+                    # positioning_metrics stores as decimal, but scoring logic expects percentages
+                    institutional_ownership = (float(pos_data[0]) * 100) if pos_data[0] is not None and pos_data[0] > 0 else None
+                    insider_ownership = (float(pos_data[1]) * 100) if pos_data[1] is not None and pos_data[1] > 0 else None
+                    short_percent_of_float = (float(pos_data[2]) * 100) if pos_data[2] is not None and pos_data[2] > 0 else None
+                    institution_count = int(pos_data[3]) if pos_data[3] is not None and pos_data[3] > 0 else None
             except psycopg2.Error as e:
-                logger.debug(f"Institutional positioning query failed for {symbol}: {e}")
-
-            # 2. Get insider ownership count from insider_roster (yfinance data)
-            # NOTE: We can't calculate true insider ownership % without market cap/shares outstanding
-            # So we use insider_count as a presence indicator instead
-            insider_count = None
-            try:
-                cur.execute("""
-                    SELECT COUNT(DISTINCT insider_name) as insider_count
-                    FROM insider_roster
-                    WHERE symbol = %s AND shares_owned_directly > 0
-                """, (symbol,))
-                insider_count_data = cur.fetchone()
-                if insider_count_data and insider_count_data[0] is not None:
-                    insider_count = int(insider_count_data[0]) if insider_count_data[0] > 0 else None
-            except psycopg2.Error as e:
-                logger.debug(f"Insider count query failed for {symbol}: {e}")
-
-            # Use insider_count as a proxy for insider_ownership score
-            # (more insiders = more confidence in the company)
-            # This will be scored using the institution_count thresholds (50+ = good support)
-            if insider_count is not None and insider_count >= 5:
-                insider_ownership = 5  # Presence of 5+ insiders with holdings = good sign
-            elif insider_count is not None and insider_count >= 3:
-                insider_ownership = 3  # 3-4 insiders = moderate confidence
-            # else: insider_ownership stays None if <3 or no data
-
-            # Note: short_percent_of_float may not exist in yfinance tables and will remain None
+                logger.debug(f"Positioning metrics query failed for {symbol}: {e}")
 
         except psycopg2.Error as e:
             conn.rollback()

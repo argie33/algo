@@ -43,6 +43,7 @@ def get_db_creds():
             logger.warning(f"Failed to fetch from Secrets Manager: {e}, falling back to environment variables")
 
     # Fall back to environment variables (for local development)
+    # For local development, try postgres superuser with password first
     return (
         os.environ.get("DB_USER", "postgres"),
         os.environ.get("DB_PASSWORD", "password"),
@@ -77,6 +78,11 @@ def get_economic_calendar_data():
 def get_fred_release_calendar():
     """Get upcoming economic releases from FRED API (completely free)."""
     try:
+        # Check if FRED API key is available
+        if not FRED_API_KEY:
+            logger.warning("FRED_API_KEY not set - skipping FRED release calendar")
+            return []
+
         # FRED releases/dates endpoint
         url = "https://api.stlouisfed.org/fred/releases/dates"
         params = {
@@ -85,21 +91,21 @@ def get_fred_release_calendar():
             'include_release_dates_with_no_data': 'true',  # Include future dates
             'limit': '50'
         }
-        
+
         response = requests.get(url, params=params, timeout=30)
         response.raise_for_status()
-        
+
         data = response.json()
         if 'release_dates' not in data:
             logger.warning("No release_dates in FRED response")
             return []
-        
+
         events = []
         today = datetime.now().date()
-        
+
         for release in data['release_dates']:
             release_date = datetime.strptime(release['date'], '%Y-%m-%d').date()
-            
+
             # Only include future dates within next 30 days
             if release_date >= today and release_date <= today + timedelta(days=30):
                 event = {
@@ -117,10 +123,10 @@ def get_fred_release_calendar():
                     'Source': 'Federal Reserve Economic Data (FRED)'
                 }
                 events.append(event)
-        
-        logger.info(f"Found {len(events)} upcoming FRED releases")
+
+        logger.info(f"✓ Found {len(events)} upcoming FRED releases")
         return events
-        
+
     except Exception as e:
         logger.error(f"Failed to fetch FRED release calendar: {e}")
         return []
@@ -344,25 +350,29 @@ def get_next_cpi_dates(today):
 
 def handler(event, context):
     try:
-        # Check FRED API key
+        # Check FRED API key - if not set, use fallback methods
         if not FRED_API_KEY:
-            error_msg = "FRED_API_KEY environment variable is not set. Please set it to load economic data."
-            logger.error(error_msg)
-            return {
-                "statusCode": 500,
-                "body": json.dumps({"error": error_msg})
-            }
+            logger.warning("⚠️ FRED_API_KEY not set - using fallback calendar methods only")
+        else:
+            logger.info("✓ FRED_API_KEY found - will fetch full economic calendar")
 
         # 1) Connect
         user, pwd, host, port, db = get_db_creds()
-        conn = psycopg2.connect(
-            host=host,
-            port=port,
-            dbname=db,
-            user=user,
-            password=pwd,
-            sslmode="require"
-        )
+
+        # For local connections, use disable SSL; for remote use require
+        ssl_mode = "disable" if host == "localhost" else "require"
+
+        # Build connection parameters
+        conn_params = {
+            "host": host,
+            "port": port,
+            "dbname": db,
+            "user": user,
+            "password": pwd,
+            "sslmode": ssl_mode
+        }
+
+        conn = psycopg2.connect(**conn_params)
         cur = conn.cursor()
 
         # 2) Ensure tables exist
@@ -429,37 +439,50 @@ def handler(event, context):
             "UMCSENT","RSXFS","EMSRATIO"
         ]
 
-        fred = Fred(api_key=FRED_API_KEY)
-
-        # 4) Fetch & upsert each
-        for sid in series_ids:
-            logger.info(f"Fetching {sid} …")
+        # Initialize FRED client if API key is available
+        fred = None
+        if FRED_API_KEY:
             try:
-                ts = fred.get_series(sid)
+                fred = Fred(api_key=FRED_API_KEY)
+                logger.info("✓ FRED API initialized")
             except Exception as e:
-                logger.error(f"Failed to fetch {sid}: {e}")
-                continue
+                logger.error(f"Failed to initialize FRED: {e}")
+                fred = None
+        else:
+            logger.info("FRED_API_KEY not set, skipping FRED data fetching")
 
-            if ts is None or ts.empty:
-                logger.warning(f"No data for {sid}")
-                continue
+        # 4) Fetch & upsert each series
+        if fred:
+            for sid in series_ids:
+                logger.info(f"Fetching {sid} …")
+                try:
+                    ts = fred.get_series(sid)
+                except Exception as e:
+                    logger.error(f"Failed to fetch {sid}: {e}")
+                    continue
 
-            ts = ts.dropna()
-            rows = [(sid, pd.to_datetime(dt).date(), float(val)) for dt, val in ts.items()]
+                if ts is None or ts.empty:
+                    logger.warning(f"No data for {sid}")
+                    continue
 
-            # bulk upsert
-            execute_values(
-                cur,
-                """
-                INSERT INTO economic_data (series_id, date, value)
-                VALUES %s
-                ON CONFLICT (series_id, date) DO UPDATE
-                  SET value = EXCLUDED.value;
-                """,
-                rows
-            )
-            conn.commit()
-            logger.info(f"✓ {len(rows)} rows upserted for {sid}")
+                ts = ts.dropna()
+                rows = [(sid, pd.to_datetime(dt).date(), float(val)) for dt, val in ts.items()]
+
+                # bulk upsert
+                execute_values(
+                    cur,
+                    """
+                    INSERT INTO economic_data (series_id, date, value)
+                    VALUES %s
+                    ON CONFLICT (series_id, date) DO UPDATE
+                      SET value = EXCLUDED.value;
+                    """,
+                    rows
+                )
+                conn.commit()
+                logger.info(f"✓ {len(rows)} rows upserted for {sid}")
+        else:
+            logger.warning("⚠️ Skipping FRED data fetching - no API key available")
 
         # 5) Load economic calendar data
         logger.info("Loading economic calendar data...")

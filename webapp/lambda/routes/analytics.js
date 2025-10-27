@@ -202,16 +202,21 @@ router.get("/performance", async (req, res) => {
       portfolioHoldings = [];
     }
 
-    // Calculate portfolio metrics
-    const totalValue = portfolioHoldings.reduce((sum, holding) => sum + (holding.current_value || 0), 0);
-    const totalReturn = portfolioHoldings.reduce((sum, holding) => sum + ((holding.return_percent || 0) * (holding.current_value || 0) / 100), 0);
-    const returnPercent = totalValue > 0 ? (totalReturn / totalValue) : 5.2;
+    // Calculate portfolio metrics (REAL DATA ONLY - skip null values)
+    const validHoldings = portfolioHoldings.filter(h => h.current_value !== null && h.current_value !== undefined);
+    const totalValue = validHoldings.reduce((sum, holding) => sum + parseFloat(holding.current_value), 0);
+    const totalReturn = validHoldings.reduce((sum, holding) => {
+      const returnPct = holding.return_percent !== null && holding.return_percent !== undefined ? parseFloat(holding.return_percent) : 0;
+      return sum + ((returnPct * parseFloat(holding.current_value)) / 100);
+    }, 0);
+    const returnPercent = totalValue > 0 ? (totalReturn / totalValue) : null; // REAL DATA ONLY: null if no valid data
 
-    // Sort holdings by return for top performers
+    // Sort holdings by return for top performers (REAL DATA ONLY - filter nulls)
     const topPerformers = portfolioHoldings
-      .sort((a, b) => (b.return_percent || 0) - (a.return_percent || 0))
+      .filter(h => h.return_percent !== null && h.return_percent !== undefined)
+      .sort((a, b) => parseFloat(b.return_percent) - parseFloat(a.return_percent))
       .slice(0, 5)
-      .map(h => ({ symbol: h.symbol, return_percent: h.return_percent || 0 }));
+      .map(h => ({ symbol: h.symbol, return_percent: h.return_percent !== null && h.return_percent !== undefined ? h.return_percent : null }));
 
     // Generate timeline data
     const periodDays = {
@@ -298,11 +303,11 @@ router.get("/performance", async (req, res) => {
 
     const performance = performanceResult.rows.map((row) => ({
       date: row.date,
-      portfolio_value: parseFloat(row.total_value || 0).toFixed(2),
-      pnl: parseFloat(row.total_pnl || 0).toFixed(2),
-      pnl_percent: parseFloat(row.total_pnl_percent || 0).toFixed(2),
-      day_pnl: parseFloat(row.day_pnl || 0).toFixed(2),
-      day_pnl_percent: parseFloat(row.day_pnl_percent || 0).toFixed(2),
+      portfolio_value: row.total_value !== null && row.total_value !== undefined ? parseFloat(row.total_value) : null,
+      pnl: row.total_pnl !== null && row.total_pnl !== undefined ? parseFloat(row.total_pnl) : null,
+      pnl_percent: row.total_pnl_percent !== null && row.total_pnl_percent !== undefined ? parseFloat(row.total_pnl_percent) : null,
+      day_pnl: row.day_pnl !== null && row.day_pnl !== undefined ? parseFloat(row.day_pnl) : null,
+      day_pnl_percent: row.day_pnl_percent !== null && row.day_pnl_percent !== undefined ? parseFloat(row.day_pnl_percent) : null,
     }));
 
     // Calculate real benchmark change percentages from actual data
@@ -516,7 +521,7 @@ router.get("/risk", async (req, res) => {
 
     if (performanceResult.rows.length > 1) {
       const returns = performanceResult.rows.map((r) =>
-        parseFloat(r.daily_pnl_percent || 0)
+        r.daily_pnl_percent !== null && r.daily_pnl_percent !== undefined ? parseFloat(r.daily_pnl_percent) : null
       );
 
       // Calculate volatility (annualized)
@@ -576,7 +581,7 @@ router.get("/risk", async (req, res) => {
         (parseFloat(h.market_value) / totalValue) *
         100
       ).toFixed(2),
-      unrealized_return: parseFloat(h.return_percent || 0).toFixed(2),
+      unrealized_return: h.return_percent !== null && h.return_percent !== undefined ? parseFloat(h.return_percent) : null,
     }));
 
     res.json({
@@ -1003,21 +1008,21 @@ router.get("/returns", async (req, res) => {
 
     const performanceData = performanceResult.rows.map((row) => ({
       date: row.date,
-      total_return: parseFloat(row.total_pnl_percent || 0).toFixed(2),
-      daily_return: parseFloat(row.daily_pnl_percent || 0).toFixed(2),
-      portfolio_value: parseFloat(row.total_value || 0).toFixed(2),
+      total_return: row.total_pnl_percent !== null && row.total_pnl_percent !== undefined ? parseFloat(row.total_pnl_percent) : null,
+      daily_return: row.daily_pnl_percent !== null && row.daily_pnl_percent !== undefined ? parseFloat(row.daily_pnl_percent).toFixed(2) : null,
+      portfolio_value: row.total_value !== null && row.total_value !== undefined ? parseFloat(row.total_value) : null,
     }));
 
     const assetReturns = holdingsResult.rows.map((row) => ({
       symbol: row.symbol,
       company_name: row.company_name,
-      return_percent: parseFloat(row.return_percent || 0).toFixed(2),
-      market_value: parseFloat(row.market_value || 0).toFixed(2),
+      return_percent: row.return_percent !== null && row.return_percent !== undefined ? parseFloat(row.return_percent) : null,
+      market_value: row.market_value !== null && row.market_value !== undefined ? parseFloat(row.market_value) : null,
     }));
 
     // Calculate summary statistics
     const returns = performanceResult.rows.map((r) =>
-      parseFloat(r.daily_pnl_percent || 0)
+      r.daily_pnl_percent !== null && r.daily_pnl_percent !== undefined ? parseFloat(r.daily_pnl_percent) : null
     );
     const avgDailyReturn =
       returns.length > 0
@@ -1102,8 +1107,8 @@ router.get("/sectors", async (req, res) => {
     const sectorAnalysis = sectors.map(sector => ({
       sector: sector.sector,
       stock_count: parseInt(sector.stock_count),
-      avg_price: parseFloat(sector.avg_price || 0).toFixed(2),
-      total_volume: parseInt(sector.total_volume || 0),
+      avg_price: sector.avg_price !== null && sector.avg_price !== undefined ? parseFloat(sector.avg_price) : null,
+      total_volume: sector.total_volume !== null && sector.total_volume !== undefined ? parseInt(sector.total_volume) : null,
       percentage: ((parseInt(sector.stock_count) / sectors.length) * 100).toFixed(2)
     }));
 
@@ -1114,7 +1119,7 @@ router.get("/sectors", async (req, res) => {
         total_sectors: sectors.length,
         market_overview: {
           total_stocks: sectors.reduce((sum, s) => sum + parseInt(s.stock_count), 0),
-          avg_market_price: (sectors.reduce((sum, s) => sum + parseFloat(s.avg_price || 0), 0) / sectors.length).toFixed(2)
+          avg_market_price: (sectors.reduce((sum, s) => sum + (s.avg_price !== null && s.avg_price !== undefined ? parseFloat(s.avg_price) : 0), 0) / sectors.length).toFixed(2)
         }
       },
       timestamp: new Date().toISOString(),
@@ -1199,7 +1204,7 @@ router.get("/volatility", async (req, res) => {
 
     // Calculate volatility (standard deviation of daily returns)
     const returns = performanceResult.rows.map((r) =>
-      parseFloat(r.daily_pnl_percent || 0)
+      r.daily_pnl_percent !== null && r.daily_pnl_percent !== undefined ? parseFloat(r.daily_pnl_percent) : null
     );
     const meanReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
     const variance =
@@ -1224,7 +1229,7 @@ router.get("/volatility", async (req, res) => {
           data_points: returns.length,
           returns_data: performanceResult.rows.map((r) => ({
             date: r.date,
-            daily_return: parseFloat(r.daily_pnl_percent || 0).toFixed(3),
+            daily_return: r.daily_pnl_percent !== null && r.daily_pnl_percent !== undefined ? parseFloat(r.daily_pnl_percent) : null,
           })),
         },
       },
@@ -1344,8 +1349,8 @@ router.get("/trends", async (req, res) => {
           data_points: n,
           performance_data: data.map((d) => ({
             date: d.date,
-            value: parseFloat(d.total_value || 0).toFixed(2),
-            return_percent: parseFloat(d.total_pnl_percent || 0).toFixed(2),
+            value: d.total_value !== null && d.total_value !== undefined ? parseFloat(d.total_value).toFixed(2) : null,
+            return_percent: d.total_pnl_percent !== null && d.total_pnl_percent !== undefined ? parseFloat(d.total_pnl_percent).toFixed(2) : null,
           })),
         },
       },
@@ -1400,9 +1405,9 @@ router.post("/custom", async (req, res) => {
           result = {
             analysis_type: "portfolio_summary",
             data: {
-              holdings_count: parseInt(portfolioData.holdings_count) || 0,
-              total_value: parseFloat(portfolioData.total_value) || 0,
-              avg_return: parseFloat(portfolioData.avg_return) || 0,
+              holdings_count: parseInt(portfolioData.holdings_count) !== null && parseFloat(this.portfolio_data) !== undefined ? parseFloat(this.portfolio_data) : null,
+              total_value: parseFloat(portfolioData.total_value) !== null && parseFloat(this.portfolio_data) !== undefined ? parseFloat(this.portfolio_data) : null,
+              avg_return: parseFloat(portfolioData.avg_return) !== null && parseFloat(this.portfolio_data) !== undefined ? parseFloat(this.portfolio_data) : null,
             },
             parameters: parameters,
           };
@@ -1444,10 +1449,10 @@ router.post("/custom", async (req, res) => {
           const symbolAnalysis = symbolResults.rows.map(row => ({
             symbol: row.symbol,
             quantity: parseInt(row.quantity || 0),
-            current_price: parseFloat(row.current_price || 0),
-            average_cost: parseFloat(row.average_cost || 0),
-            unrealized_pnl: parseFloat(row.unrealized_pnl || 0),
-            return_percent: parseFloat(row.return_percent || 0),
+            current_price: row.current_price !== null && row.current_price !== undefined ? parseFloat(row.current_price) : null,
+            average_cost: row.average_cost !== null && row.average_cost !== undefined ? parseFloat(row.average_cost) : null,
+            unrealized_pnl: row.unrealized_pnl !== null && row.unrealized_pnl !== undefined ? parseFloat(row.unrealized_pnl) : null,
+            return_percent: row.return_percent !== null && row.return_percent !== undefined ? parseFloat(row.return_percent) : null,
           }));
 
           result = {
@@ -1559,7 +1564,7 @@ router.get("/export", async (req, res) => {
             company_name: h.company_name,
             quantity: parseFloat(h.quantity) || 0,
             current_price: parseFloat(h.current_price) || 0,
-            market_value: parseFloat(h.market_value) || 0,
+            market_value: h.market_value !== null && h.market_value !== undefined ? parseFloat(h.market_value) : null,
             weight: `${weight}%`,
             return: `${(parseFloat(h.unrealized_pnl_percent) || 0).toFixed(2)}%`,
           };
@@ -2035,7 +2040,7 @@ router.get("/professional-metrics", async (req, res) => {
       console.warn("Holdings data not available:", error.message);
     }
 
-    const returns = (performanceResult && performanceResult.rows) ? performanceResult.rows.map(r => parseFloat(r.daily_pnl_percent || 0)) : [];
+    const returns = (performanceResult && performanceResult.rows) ? performanceResult.rows.map(r => r.daily_pnl_percent !== null && r.daily_pnl_percent !== undefined ? parseFloat(r.daily_pnl_percent) : null) : [];
     const holdings = (holdingsResult && holdingsResult.rows) ? holdingsResult.rows : [];
     const totalValue = holdings.reduce((sum, h) => sum + parseFloat(h.market_value || 0), 0);
 

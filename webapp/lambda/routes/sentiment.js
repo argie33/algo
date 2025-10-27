@@ -602,7 +602,7 @@ router.get("/social/:symbol", async (req, res) => {
     const positive = socialData.filter(p => parseFloat(p.sentiment_score) > 0.3).length;
     const negative = socialData.filter(p => parseFloat(p.sentiment_score) < -0.3).length;
     const neutral = socialData.length - positive - negative;
-    const avgSentiment = socialData.reduce((sum, p) => sum + parseFloat(p.sentiment_score || 0), 0) / socialData.length;
+    const avgSentiment = socialData.reduce((sum, p) => sum + p.sentiment_score !== null && p.sentiment_score !== undefined ? parseFloat(p.sentiment_score) : null, 0) / socialData.length;
     const totalMentions = socialData.reduce((sum, p) => sum + (parseInt(p.total_mentions) || 0), 0);
 
     res.json({
@@ -919,14 +919,19 @@ router.get("/stocks", async (req, res) => {
       console.warn("Warning: Failed to fetch analyst sentiment data:", err.message);
     }
 
-    // Query 3: Social/Reddit sentiment from social_sentiment_analysis table
+    // Query 3: Social/Reddit sentiment from social_sentiment_analysis table - ALL FIELDS
     try {
       let socialQuery;
       let params = [];
 
       if (symbol) {
         socialQuery = `
-          SELECT symbol, date, reddit_sentiment_score as sentiment_score, news_sentiment_score, search_volume_index, news_article_count, 'social' as source
+          SELECT symbol, date,
+                 reddit_mention_count, reddit_sentiment_score, reddit_volume_normalized_sentiment,
+                 search_volume_index, search_trend_7d, search_trend_30d,
+                 news_article_count, news_sentiment_score, news_source_quality_weight,
+                 social_media_volume, viral_score,
+                 'social' as source
           FROM social_sentiment_analysis
           WHERE symbol = $1
           ORDER BY date DESC
@@ -935,7 +940,12 @@ router.get("/stocks", async (req, res) => {
         params = [symbol.toUpperCase()];
       } else {
         socialQuery = `
-          SELECT symbol, date, reddit_sentiment_score as sentiment_score, news_sentiment_score, search_volume_index, news_article_count, 'social' as source
+          SELECT symbol, date,
+                 reddit_mention_count, reddit_sentiment_score, reddit_volume_normalized_sentiment,
+                 search_volume_index, search_trend_7d, search_trend_30d,
+                 news_article_count, news_sentiment_score, news_source_quality_weight,
+                 social_media_volume, viral_score,
+                 'social' as source
           FROM social_sentiment_analysis
           ORDER BY date DESC, symbol
           LIMIT 100
@@ -947,11 +957,21 @@ router.get("/stocks", async (req, res) => {
         allData = allData.concat(socialResult.rows.map(row => ({
           symbol: row.symbol,
           date: row.date,
-          sentiment_score: row.sentiment_score ? parseFloat(row.sentiment_score) : null,
-          news_sentiment_score: row.news_sentiment_score ? parseFloat(row.news_sentiment_score) : null,
-          search_volume_index: row.search_volume_index || 0,
-          news_article_count: row.news_article_count || 0,
+          sentiment_score: row.reddit_sentiment_score ? parseFloat(row.reddit_sentiment_score) : null,
           source: "social",
+          metadata: {
+            reddit_mention_count: row.reddit_mention_count || 0,
+            reddit_sentiment_score: row.reddit_sentiment_score ? parseFloat(row.reddit_sentiment_score) : null,
+            reddit_volume_normalized_sentiment: row.reddit_volume_normalized_sentiment ? parseFloat(row.reddit_volume_normalized_sentiment) : null,
+            search_volume_index: row.search_volume_index || 0,
+            search_trend_7d: row.search_trend_7d ? parseFloat(row.search_trend_7d) : null,
+            search_trend_30d: row.search_trend_30d ? parseFloat(row.search_trend_30d) : null,
+            news_article_count: row.news_article_count || 0,
+            news_sentiment_score: row.news_sentiment_score ? parseFloat(row.news_sentiment_score) : null,
+            news_source_quality_weight: row.news_source_quality_weight ? parseFloat(row.news_source_quality_weight) : null,
+            social_media_volume: row.social_media_volume || 0,
+            viral_score: row.viral_score ? parseFloat(row.viral_score) : null
+          }
         })));
       }
     } catch (err) {
@@ -992,6 +1012,132 @@ router.get("/stocks", async (req, res) => {
   }
 });
 
+
+// Comprehensive social sentiment insights endpoint - returns all social metrics and data
+router.get("/social/insights/:symbol", async (req, res) => {
+  try {
+    const symbol = req.params.symbol?.toUpperCase();
+
+    if (!symbol) {
+      return res.status(400).json({ error: "Symbol required" });
+    }
+
+    // Fetch all social sentiment data for the symbol
+    const result = await query(
+      `SELECT date,
+              reddit_mention_count, reddit_sentiment_score, reddit_volume_normalized_sentiment,
+              search_volume_index, search_trend_7d, search_trend_30d,
+              news_article_count, news_sentiment_score, news_source_quality_weight,
+              social_media_volume, viral_score
+       FROM social_sentiment_analysis
+       WHERE symbol = $1
+       ORDER BY date DESC
+       LIMIT 90`,
+      [symbol]
+    );
+
+    if (!result || !result.rows || result.rows.length === 0) {
+      return res.json({
+        success: true,
+        symbol,
+        message: "No social sentiment data available for this symbol",
+        data: null,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const data = result.rows;
+    const latest = data[0];
+
+    // Calculate metrics
+    const metrics = {
+      reddit: {
+        mention_count: latest.reddit_mention_count || 0,
+        sentiment_score: latest.reddit_sentiment_score ? parseFloat(latest.reddit_sentiment_score).toFixed(3) : null,
+        volume_sentiment: latest.reddit_volume_normalized_sentiment ? parseFloat(latest.reddit_volume_normalized_sentiment).toFixed(3) : null,
+      },
+      search: {
+        volume_index: latest.search_volume_index || 0,
+        trend_7d_percent: latest.search_trend_7d ? (parseFloat(latest.search_trend_7d) * 100).toFixed(1) : null,
+        trend_30d_percent: latest.search_trend_30d ? (parseFloat(latest.search_trend_30d) * 100).toFixed(1) : null,
+        trend_7d_direction: latest.search_trend_7d ? (parseFloat(latest.search_trend_7d) > 0 ? '↑' : '↓') : null,
+        trend_30d_direction: latest.search_trend_30d ? (parseFloat(latest.search_trend_30d) > 0 ? '↑' : '↓') : null,
+      },
+      news: {
+        article_count: latest.news_article_count || 0,
+        sentiment_score: latest.news_sentiment_score ? parseFloat(latest.news_sentiment_score).toFixed(3) : null,
+        quality_weight: latest.news_source_quality_weight ? parseFloat(latest.news_source_quality_weight).toFixed(2) : null,
+      },
+      social: {
+        volume: latest.social_media_volume || 0,
+        viral_score: latest.viral_score ? parseFloat(latest.viral_score).toFixed(2) : null,
+      }
+    };
+
+    // Calculate 30-day trends
+    const thirtyDaysAgo = data.slice(0, 30);
+    const recentSevenDays = data.slice(0, 7);
+
+    const redditSentimentTrend = recentSevenDays.length > 0 && thirtyDaysAgo.length > 0
+      ? {
+          current_avg: (recentSevenDays.reduce((sum, d) => sum + (parseFloat(d.reddit_sentiment_score) || 0), 0) / recentSevenDays.length).toFixed(3),
+          period_avg: (thirtyDaysAgo.reduce((sum, d) => sum + (parseFloat(d.reddit_sentiment_score) || 0), 0) / thirtyDaysAgo.length).toFixed(3),
+          direction: recentSevenDays[0].reddit_sentiment_score > thirtyDaysAgo[Math.floor(thirtyDaysAgo.length / 2)].reddit_sentiment_score ? '↑' : '↓'
+        }
+      : null;
+
+    const newsSentimentTrend = recentSevenDays.length > 0 && thirtyDaysAgo.length > 0
+      ? {
+          current_avg: (recentSevenDays.reduce((sum, d) => sum + (parseFloat(d.news_sentiment_score) || 0), 0) / recentSevenDays.length).toFixed(3),
+          period_avg: (thirtyDaysAgo.reduce((sum, d) => sum + (parseFloat(d.news_sentiment_score) || 0), 0) / thirtyDaysAgo.length).toFixed(3),
+          direction: recentSevenDays[0].news_sentiment_score > thirtyDaysAgo[Math.floor(thirtyDaysAgo.length / 2)].news_sentiment_score ? '↑' : '↓'
+        }
+      : null;
+
+    const searchVolumeTrend = recentSevenDays.length > 0 && thirtyDaysAgo.length > 0
+      ? {
+          current_avg: Math.round(recentSevenDays.reduce((sum, d) => sum + (d.search_volume_index || 0), 0) / recentSevenDays.length),
+          period_avg: Math.round(thirtyDaysAgo.reduce((sum, d) => sum + (d.search_volume_index || 0), 0) / thirtyDaysAgo.length),
+          direction: recentSevenDays[0].search_volume_index > thirtyDaysAgo[Math.floor(thirtyDaysAgo.length / 2)].search_volume_index ? '↑' : '↓'
+        }
+      : null;
+
+    // Compile historical data for charts
+    const historicalData = data.map(row => ({
+      date: row.date,
+      reddit_sentiment: row.reddit_sentiment_score ? parseFloat(row.reddit_sentiment_score) : null,
+      news_sentiment: row.news_sentiment_score ? parseFloat(row.news_sentiment_score) : null,
+      search_volume: row.search_volume_index || 0,
+      reddit_mentions: row.reddit_mention_count || 0,
+      news_articles: row.news_article_count || 0,
+      viral_score: row.viral_score ? parseFloat(row.viral_score) : null,
+      social_volume: row.social_media_volume || 0,
+    }));
+
+    res.json({
+      success: true,
+      symbol,
+      metrics,
+      trends: {
+        reddit_sentiment: redditSentimentTrend,
+        news_sentiment: newsSentimentTrend,
+        search_volume: searchVolumeTrend,
+      },
+      historical: historicalData,
+      last_updated: latest.date,
+      timestamp: new Date().toISOString(),
+    });
+
+  } catch (error) {
+    console.error("Social sentiment insights error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch social sentiment insights",
+      details: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
 
 // Comprehensive analyst insights endpoint - returns metrics and data
 router.get("/analyst/insights/:symbol", async (req, res) => {

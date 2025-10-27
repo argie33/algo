@@ -921,7 +921,7 @@ router.get("/feed", async (req, res) => {
       url: row.url,
       published_at: row.published_at,
       sentiment_score: convertSentimentToScore(row.sentiment || 0),
-      relevance_score: parseFloat(row.relevance_score || 0.5),
+      relevance_score: row.relevance_score !== null && row.relevance_score !== undefined ? parseFloat(row.relevance_score) : null,
     }));
 
     res.json({
@@ -1216,7 +1216,7 @@ router.get("/headlines", async (req, res) => {
       url: row.url,
       published_at: row.published_at,
       sentiment_score: convertSentimentToScore(row.sentiment || 0),
-      relevance_score: parseFloat(row.relevance_score || 0.5),
+      relevance_score: row.relevance_score !== null && row.relevance_score !== undefined ? parseFloat(row.relevance_score) : null,
     }));
 
     res.json({
@@ -1619,8 +1619,8 @@ router.get("/search", async (req, res) => {
       published_at: row.published_at,
       sentiment: convertScoreToLabel(row.sentiment),
       sentiment_score: convertSentimentToScore(row.sentiment),
-      relevance_score: parseFloat(row.relevance_score || 0),
-      search_relevance_score: parseFloat(row.search_relevance_score || 0),
+      relevance_score: row.relevance_score !== null && row.relevance_score !== undefined ? parseFloat(row.relevance_score) : null,
+      search_relevance_score: row.search_relevance_score !== null && row.search_relevance_score !== undefined ? parseFloat(row.search_relevance_score) : null,
       matching_snippet: row.matching_snippet,
       time_ago: getTimeAgo(row.published_at),
     }));
@@ -2078,7 +2078,7 @@ router.get("/trending", async (req, res) => {
       published_at: row.published_at,
       sentiment: convertScoreToLabel(row.sentiment),
       sentiment_score: convertSentimentToScore(row.sentiment),
-      relevance_score: parseFloat(row.relevance_score || 0),
+      relevance_score: row.relevance_score !== null && row.relevance_score !== undefined ? parseFloat(row.relevance_score) : null,
     }));
 
     // Calculate trending analytics from real data

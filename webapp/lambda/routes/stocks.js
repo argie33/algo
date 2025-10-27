@@ -2200,7 +2200,7 @@ router.get("/recommendations", async (req, res) => {
       current_price: parseFloat(stock.current_price || 0),
       recommendation: stock.recommendation,
       reason: stock.reason,
-      confidence_score: parseFloat(stock.confidence_score || 0),
+      confidence_score: stock.confidence_score !== null && stock.confidence_score !== undefined ? parseFloat(stock.confidence_score) : null,
     }));
 
     res.json({

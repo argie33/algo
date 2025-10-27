@@ -1299,9 +1299,9 @@ router.get("/analytics", authenticateToken, async (req, res) => {
         sectors: (sectorResult.rows || []).map((row) => ({
           sector: row.sector,
           positions: parseInt(row.positions),
-          total_value: parseFloat(row.total_value || 0),
+          total_value: row.total_value !== null && row.total_value !== undefined ? parseFloat(row.total_value) : null, // REAL DATA ONLY: null if missing
           avg_performance:
-            parseFloat(row.avg_performance || 0).toFixed(2) + "%",
+            (row.avg_performance !== null && row.avg_performance !== undefined ? parseFloat(row.avg_performance) : null) + "%", // REAL DATA ONLY
         })),
         diversification_score:
           (sectorResult.rows || []).length >= 5 ? "Good" : "Needs Improvement",
@@ -1343,14 +1343,12 @@ router.get("/analytics", authenticateToken, async (req, res) => {
 
     const dashboardAnalytics = {
       overview: {
-        portfolio_value: parseFloat(portfolioData.total_value || 0).toFixed(2),
-        total_positions: parseInt(portfolioData.total_positions || 0),
-        total_gain_loss: parseFloat(portfolioData.total_gain_loss || 0).toFixed(
-          2
-        ),
+        portfolio_value: (portfolioData.total_value !== null && portfolioData.total_value !== undefined ? parseFloat(portfolioData.total_value) : null) ? parseFloat(portfolioData.total_value).toFixed(2) : null, // REAL DATA ONLY
+        total_positions: parseInt(portfolioData.total_positions || 0), // 0 is acceptable for position count
+        total_gain_loss: (portfolioData.total_gain_loss !== null && portfolioData.total_gain_loss !== undefined ? parseFloat(portfolioData.total_gain_loss) : null) ? parseFloat(portfolioData.total_gain_loss).toFixed(2) : null, // REAL DATA ONLY
         portfolio_performance:
-          parseFloat(portfolioData.avg_gain_loss_percent || 0).toFixed(2) + "%",
-        watchlist_size: parseInt(watchlistData.total_watchlist_items || 0),
+          (portfolioData.avg_gain_loss_percent !== null && portfolioData.avg_gain_loss_percent !== undefined ? parseFloat(portfolioData.avg_gain_loss_percent).toFixed(2) : null) + "%", // REAL DATA ONLY
+        watchlist_size: parseInt(watchlistData.total_watchlist_items || 0), // 0 is acceptable for count
       },
 
       trading_activity: {

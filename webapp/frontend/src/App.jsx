@@ -592,15 +592,11 @@ function App() {
             />
             <Route path="/market" element={<MarketOverview />} />
             <Route path="/scores" element={<ScoresDashboard />} />
-            <Route path="/stock-scores" element={<ScoresDashboard />} />
             <Route path="/economic" element={<EconomicDashboard />} />
             <Route path="/metrics" element={<MetricsDashboard />} />
             <Route path="/stocks" element={<StockExplorer />} />
-            <Route path="/stock-explorer" element={<StockExplorer />} />
             <Route path="/stocks/:ticker" element={<StockDetail />} />
-            <Route path="/screener" element={<StockExplorer />} />
             <Route path="/technical" element={<TechnicalAnalysis />} />
-            <Route path="/technical-analysis" element={<TechnicalAnalysis />} />
             <Route path="/earnings" element={<EarningsCalendar />} />
             <Route path="/financial-data" element={<FinancialData />} />
             <Route path="/trading-signals" element={<ProtectedRoute><TradingSignals /></ProtectedRoute>} />
@@ -614,7 +610,6 @@ function App() {
 
             {/* Missing pages - Coming Soon */}
             <Route path="/sectors" element={<SectorAnalysis />} />
-            <Route path="/sector-analysis" element={<SectorAnalysis />} />
             <Route path="/watchlist" element={<Watchlist />} />
             <Route path="/sentiment" element={<Sentiment />} />
           </Routes>

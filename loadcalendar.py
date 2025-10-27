@@ -34,24 +34,34 @@ logger = logging.getLogger(__name__)
 # Environment-driven configuration
 # -------------------------------
 DB_SECRET_ARN = os.getenv("DB_SECRET_ARN")
-if not DB_SECRET_ARN:
-    logger.error("DB_SECRET_ARN environment variable is not set")
-    sys.exit(1)
 
 def get_db_config():
     """
-    Fetch host, port, dbname, username & password from Secrets Manager.
-    SecretString must be JSON with keys: username, password, host, port, dbname.
+    Fetch host, port, dbname, username & password from Secrets Manager or environment.
     """
-    client = boto3.client("secretsmanager")
-    resp = client.get_secret_value(SecretId=DB_SECRET_ARN)
-    sec = json.loads(resp["SecretString"])
+    # Try Secrets Manager first (for production/Lambda)
+    if DB_SECRET_ARN:
+        try:
+            client = boto3.client("secretsmanager")
+            resp = client.get_secret_value(SecretId=DB_SECRET_ARN)
+            sec = json.loads(resp["SecretString"])
+            return (
+                sec["username"],
+                sec["password"],
+                sec["host"],
+                int(sec["port"]),
+                sec["dbname"]
+            )
+        except Exception as e:
+            logger.warning(f"Failed to fetch from Secrets Manager: {e}, falling back to environment variables")
+
+    # Fall back to environment variables (for local development)
     return (
-        sec["username"],
-        sec["password"],
-        sec["host"],
-        int(sec["port"]),
-        sec["dbname"]
+        os.getenv("DB_USER", "postgres"),
+        os.getenv("DB_PASSWORD", "password"),
+        os.getenv("DB_HOST", "localhost"),
+        int(os.getenv("DB_PORT", 5432)),
+        os.getenv("DB_NAME", "stocks")
     )
 
 def retry(max_attempts=3, initial_delay=2, backoff=2):
@@ -233,13 +243,17 @@ def main():
     conn = None
     try:
         user, pwd, host, port, dbname = get_db_config()
+
+        # For local connections, use disable SSL; for remote use require
+        ssl_mode = "disable" if host == "localhost" else "require"
+
         conn = psycopg2.connect(
             host=host,
             port=port,
             user=user,
             password=pwd,
             dbname=dbname,
-            sslmode="require",
+            sslmode=ssl_mode,
             cursor_factory=DictCursor
         )
         
@@ -250,11 +264,10 @@ def main():
 
         log_mem("Before fetching symbols")
         with conn.cursor() as cur:
-            # Only get active symbols to reduce processing
+            # Get all stock symbols
             cur.execute("""
-                SELECT DISTINCT symbol 
-                FROM stock_symbols 
-                WHERE is_active = true
+                SELECT DISTINCT symbol
+                FROM stock_symbols
                 ORDER BY symbol;
             """)
             symbols = [r["symbol"] for r in cur.fetchall()]
