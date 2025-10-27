@@ -98,77 +98,129 @@ const MomentumChart = ({ type = 'sector', data, aggregateToWeekly }) => {
       {chartData && chartData.length > 0 ? (
         <>
           {/* CHART 1: PRICE + SMAs */}
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="body2" fontWeight="600" sx={{ mb: 1, color: "text.secondary" }}>
-              Price & Moving Averages
+          <Box sx={{ width: "100%", mb: 3 }}>
+            <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1.5 }}>
+              💹 Price & Moving Averages
             </Typography>
-            <Box sx={{ width: "100%", height: 320, position: "relative", display: "block", overflow: "hidden" }}>
+            <Box sx={{ width: "100%", height: 320, minHeight: 320, overflow: "hidden" }}>
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 20, right: 100, left: 80, bottom: 20 }}>
+                <LineChart data={chartData} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                  <YAxis width={75} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(val) => typeof val === 'number' ? val.toFixed(2) : val} />
+                  <XAxis dataKey="date" tick={{ fontSize: 12 }} interval={Math.floor(chartData.length / 8)} />
+                  <YAxis width={50} tick={{ fontSize: 12 }} />
+                  <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', border: '1px solid #ccc' }} formatter={(val) => typeof val === 'number' ? val.toFixed(2) : val} />
                   <Legend />
-                  {hasPrice && <Line type="monotone" dataKey="close" stroke="#2E7D32" strokeWidth={2.5} dot={false} connectNulls name="Close Price" />}
-                  {hasPriceSMA5 && <Line type="monotone" dataKey="sma_5" stroke="#004E89" strokeWidth={2} dot={false} connectNulls name="SMA 5" />}
-                  {hasPriceSMA10 && <Line type="monotone" dataKey="sma_10" stroke="#1ABC9C" strokeWidth={2} dot={false} connectNulls name="SMA 10" />}
-                  {hasPriceSMA20 && <Line type="monotone" dataKey="sma_20" stroke="#E74C3C" strokeWidth={2} dot={false} connectNulls name="SMA 20" />}
+                  {hasPrice && <Line type="monotone" dataKey="close" stroke="#2E7D32" strokeWidth={2} dot={false} connectNulls name="Close Price" isAnimationActive={false} />}
+                  {hasPriceSMA5 && <Line type="monotone" dataKey="sma_5" stroke="#004E89" strokeWidth={2} dot={false} connectNulls name="SMA 5" isAnimationActive={false} />}
+                  {hasPriceSMA10 && <Line type="monotone" dataKey="sma_10" stroke="#1ABC9C" strokeWidth={2} dot={false} connectNulls name="SMA 10" isAnimationActive={false} />}
+                  {hasPriceSMA20 && <Line type="monotone" dataKey="sma_20" stroke="#E74C3C" strokeWidth={2} dot={false} connectNulls name="SMA 20" isAnimationActive={false} />}
                 </LineChart>
               </ResponsiveContainer>
             </Box>
           </Box>
 
-          {/* CHART 2: DAILY STRENGTH + MAs + RSI (FUSED) */}
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="body2" fontWeight="600" sx={{ mb: 1, color: "text.secondary" }}>
-              Daily Strength & RSI Indicator
+          {/* CHART 2: DAILY STRENGTH + MAs */}
+          <Box sx={{ width: "100%", mb: 3 }}>
+            <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1.5 }}>
+              📊 Daily Strength & Moving Averages
             </Typography>
-            <Box sx={{ width: "100%", height: 420, position: "relative", display: "block", overflow: "hidden" }}>
+            <Box sx={{ width: "100%", height: 320, minHeight: 320, overflow: "hidden" }}>
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData} margin={{ top: 20, right: 120, left: 80, bottom: 60 }}>
+                <LineChart data={chartData} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                  {/* Left Y-axis for Daily Strength & MAs */}
-                  <YAxis
-                    yAxisId="left"
-                    width={75}
-                    tick={{ fontSize: 11 }}
-                    label={{ value: 'Strength Score', angle: -90, position: 'insideLeft' }}
-                  />
-                  {/* Right Y-axis for RSI [0-100] */}
-                  {hasRSI && (
-                    <YAxis
-                      yAxisId="right"
-                      orientation="right"
-                      width={75}
-                      tick={{ fontSize: 11 }}
-                      domain={[0, 100]}
-                      label={{ value: 'RSI', angle: 90, position: 'insideRight' }}
-                    />
-                  )}
-                  <Tooltip formatter={(val) => typeof val === 'number' ? val.toFixed(2) : val} />
-                  <Legend wrapperStyle={{ paddingTop: '20px' }} />
-
-                  {/* Daily Strength Score and MAs on left axis */}
-                  {hasStrength && <Line yAxisId="left" type="monotone" dataKey="momentum" stroke="#FF6B35" strokeWidth={2.5} dot={false} connectNulls name="Daily Strength" />}
-                  {hasMA5 && <Line yAxisId="left" type="monotone" dataKey="ma_5" stroke="#004E89" strokeWidth={2} dot={false} connectNulls name="MA 5" />}
-                  {hasMA10 && <Line yAxisId="left" type="monotone" dataKey="ma_10" stroke="#1ABC9C" strokeWidth={2} dot={false} connectNulls name="MA 10" />}
-                  {hasMA20 && <Line yAxisId="left" type="monotone" dataKey="ma_20" stroke="#E74C3C" strokeWidth={2} dot={false} connectNulls name="MA 20" />}
-
-                  {/* RSI on right axis with reference lines */}
-                  {hasRSI && (
-                    <>
-                      <ReferenceLine yAxisId="right" y={70} stroke="#E74C3C" strokeDasharray="4,4" label={{ value: '70', position: 'right', fill: '#E74C3C', fontSize: 11 }} />
-                      <ReferenceLine yAxisId="right" y={30} stroke="#004E89" strokeDasharray="4,4" label={{ value: '30', position: 'right', fill: '#004E89', fontSize: 11 }} />
-                      <ReferenceLine yAxisId="right" y={50} stroke="#999" strokeDasharray="2,2" opacity={0.3} />
-                      <Line yAxisId="right" type="monotone" dataKey="rsi" stroke="#9C27B0" strokeWidth={2} dot={false} connectNulls name="RSI (14)" />
-                    </>
-                  )}
-                </ComposedChart>
+                  <XAxis dataKey="date" tick={{ fontSize: 12 }} interval={Math.floor(chartData.length / 8)} />
+                  <YAxis width={50} tick={{ fontSize: 12 }} />
+                  <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', border: '1px solid #ccc' }} formatter={(val) => typeof val === 'number' ? val.toFixed(2) : val} />
+                  <Legend />
+                  {hasStrength && <Line type="monotone" dataKey="momentum" stroke="#FF6B35" strokeWidth={2} dot={false} connectNulls name="Daily Strength" isAnimationActive={false} />}
+                  {hasMA5 && <Line type="monotone" dataKey="ma_5" stroke="#004E89" strokeWidth={2} dot={false} connectNulls name="MA 5" isAnimationActive={false} />}
+                  {hasMA10 && <Line type="monotone" dataKey="ma_10" stroke="#1ABC9C" strokeWidth={2} dot={false} connectNulls name="MA 10" isAnimationActive={false} />}
+                  {hasMA20 && <Line type="monotone" dataKey="ma_20" stroke="#E74C3C" strokeWidth={2} dot={false} connectNulls name="MA 20" isAnimationActive={false} />}
+                </LineChart>
               </ResponsiveContainer>
             </Box>
           </Box>
+
+          {/* CHART 3: RSI INDICATOR */}
+          {hasRSI && (
+            <Box sx={{ width: "100%", mb: 2 }}>
+              <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1.5 }}>
+                📈 RSI (14) Indicator
+              </Typography>
+              <Box sx={{ width: "100%", height: 280, minHeight: 280, overflow: "hidden" }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" tick={{ fontSize: 12 }} interval={Math.floor(chartData.length / 8)} />
+                    <YAxis width={50} tick={{ fontSize: 12 }} domain={[0, 100]} />
+                    <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', border: '1px solid #ccc' }} formatter={(val) => typeof val === 'number' ? val.toFixed(0) : val} />
+                    <Legend />
+                    <ReferenceLine y={70} stroke="#E74C3C" strokeDasharray="4,4" label={{ value: 'Overbought (70)', position: 'right', fill: '#E74C3C', fontSize: 10 }} />
+                    <ReferenceLine y={30} stroke="#004E89" strokeDasharray="4,4" label={{ value: 'Oversold (30)', position: 'right', fill: '#004E89', fontSize: 10 }} />
+                    <ReferenceLine y={50} stroke="#999" strokeDasharray="2,2" opacity={0.3} />
+                    <Line type="monotone" dataKey="rsi" stroke="#9C27B0" strokeWidth={2} dot={false} connectNulls name="RSI (14)" isAnimationActive={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </Box>
+              {/* UNIFIED LEGEND BELOW ALL CHARTS */}
+              <Box sx={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 3, mt: 2.5, px: 2 }}>
+                {hasPrice && (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box sx={{ width: 16, height: 2, backgroundColor: "#2E7D32" }} />
+                    <Typography variant="caption" fontSize="11px">Close Price</Typography>
+                  </Box>
+                )}
+                {hasPriceSMA5 && (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box sx={{ width: 16, height: 2, backgroundColor: "#004E89" }} />
+                    <Typography variant="caption" fontSize="11px">SMA 5</Typography>
+                  </Box>
+                )}
+                {hasPriceSMA10 && (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box sx={{ width: 16, height: 2, backgroundColor: "#1ABC9C" }} />
+                    <Typography variant="caption" fontSize="11px">SMA 10</Typography>
+                  </Box>
+                )}
+                {hasPriceSMA20 && (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box sx={{ width: 16, height: 2, backgroundColor: "#E74C3C" }} />
+                    <Typography variant="caption" fontSize="11px">SMA 20</Typography>
+                  </Box>
+                )}
+                {hasStrength && (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box sx={{ width: 16, height: 2, backgroundColor: "#FF6B35" }} />
+                    <Typography variant="caption" fontSize="11px">Daily Strength</Typography>
+                  </Box>
+                )}
+                {hasMA5 && (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box sx={{ width: 16, height: 2, backgroundColor: "#004E89" }} />
+                    <Typography variant="caption" fontSize="11px">MA 5</Typography>
+                  </Box>
+                )}
+                {hasMA10 && (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box sx={{ width: 16, height: 2, backgroundColor: "#1ABC9C" }} />
+                    <Typography variant="caption" fontSize="11px">MA 10</Typography>
+                  </Box>
+                )}
+                {hasMA20 && (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box sx={{ width: 16, height: 2, backgroundColor: "#E74C3C" }} />
+                    <Typography variant="caption" fontSize="11px">MA 20</Typography>
+                  </Box>
+                )}
+                {hasRSI && (
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box sx={{ width: 16, height: 2, backgroundColor: "#9C27B0" }} />
+                    <Typography variant="caption" fontSize="11px">RSI (14)</Typography>
+                  </Box>
+                )}
+              </Box>
+            </Box>
+          )}
         </>
       ) : (
         <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>

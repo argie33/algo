@@ -51,6 +51,21 @@ jobs:
           python -m py_compile loadaaiidata.py
           python -m py_compile loadnaaim.py
           python -m py_compile loadfeargreed.py
+          python -m py_compile loadsentiment.py
+          python -m py_compile loadanalystsentiment.py
+          python -m py_compile loadnews.py
+          python -m py_compile loadpricedaily.py
+          python -m py_compile loadpriceweekly.py
+          python -m py_compile loadpricemonthly.py
+          python -m py_compile loadtechnicalsdaily.py
+          python -m py_compile loadtechnicalsweekly.py
+          python -m py_compile loadtechnicalmonthly.py
+          python -m py_compile loadfundamentalmetrics.py
+          python -m py_compile loadqualitymetrics.py
+          python -m py_compile loadvaluemetrics.py
+          python -m py_compile loadgrowthmetrics.py
+          python -m py_compile loadmomentum.py
+          python -m py_compile loadpositioning.py
           python -m py_compile populate_signal_metrics.py
           echo "✅ All loaders valid"
 
@@ -271,7 +286,70 @@ jobs:
       - name: Run sentiment loaders
         run: |
           echo "🚀 Running sentiment loaders..."
-          for loader in loadaaiidata.py loadnaaim.py loadfeargreed.py; do
+          for loader in loadaaiidata.py loadnaaim.py loadfeargreed.py loadsentiment.py loadanalystsentiment.py loadnews.py; do
+            echo "  → Running $loader..."
+            aws ecs run-task \
+              --cluster stocks-ecs-cluster \
+              --task-definition stocks-data-loader \
+              --launch-type FARGATE \
+              --network-configuration "awsvpcConfiguration={subnets=[${{ steps.vpc.outputs.subnet }}],securityGroups=[${{ steps.vpc.outputs.security_group }}],assignPublicIp=ENABLED}" \
+              --region us-east-1 \
+              --overrides "{
+                \"containerOverrides\": [
+                  {
+                    \"name\": \"data-loader\",
+                    \"command\": [\"$loader\"]
+                  }
+                ]
+              }" || echo "⚠️ Task submission may have issues for $loader"
+          done
+
+      - name: Run price and technicals loaders
+        run: |
+          echo "🚀 Running price and technical analysis loaders..."
+          for loader in loadpricedaily.py loadpriceweekly.py loadpricemonthly.py loadtechnicalsdaily.py loadtechnicalsweekly.py loadtechnicalmonthly.py; do
+            echo "  → Running $loader..."
+            aws ecs run-task \
+              --cluster stocks-ecs-cluster \
+              --task-definition stocks-data-loader \
+              --launch-type FARGATE \
+              --network-configuration "awsvpcConfiguration={subnets=[${{ steps.vpc.outputs.subnet }}],securityGroups=[${{ steps.vpc.outputs.security_group }}],assignPublicIp=ENABLED}" \
+              --region us-east-1 \
+              --overrides "{
+                \"containerOverrides\": [
+                  {
+                    \"name\": \"data-loader\",
+                    \"command\": [\"$loader\"]
+                  }
+                ]
+              }" || echo "⚠️ Task submission may have issues for $loader"
+          done
+
+      - name: Run fundamental metrics loaders
+        run: |
+          echo "🚀 Running fundamental metrics loaders..."
+          for loader in loadfundamentalmetrics.py loadqualitymetrics.py loadvaluemetrics.py loadgrowthmetrics.py; do
+            echo "  → Running $loader..."
+            aws ecs run-task \
+              --cluster stocks-ecs-cluster \
+              --task-definition stocks-data-loader \
+              --launch-type FARGATE \
+              --network-configuration "awsvpcConfiguration={subnets=[${{ steps.vpc.outputs.subnet }}],securityGroups=[${{ steps.vpc.outputs.security_group }}],assignPublicIp=ENABLED}" \
+              --region us-east-1 \
+              --overrides "{
+                \"containerOverrides\": [
+                  {
+                    \"name\": \"data-loader\",
+                    \"command\": [\"$loader\"]
+                  }
+                ]
+              }" || echo "⚠️ Task submission may have issues for $loader"
+          done
+
+      - name: Run momentum and positioning loaders
+        run: |
+          echo "🚀 Running momentum and positioning loaders..."
+          for loader in loadmomentum.py loadpositioning.py; do
             echo "  → Running $loader..."
             aws ecs run-task \
               --cluster stocks-ecs-cluster \
