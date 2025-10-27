@@ -2129,99 +2129,44 @@ router.get("/professional-metrics", async (req, res) => {
         metrics.diversification_ratio = parseFloat((weights.reduce((sum, w) => sum + Math.abs(w - avgWeight), 0) / holdings.length).toFixed(2));
       }
 
-      // ============ VOLATILITY & RISK (calculated from position characteristics) ============
-      // Calculate weighted average volatility from individual position estimates
-      let totalWeightedVol = 0;
-      let totalWeightedBeta = 0;
-      let totalWeightedCorr = 0;
-
-      holdings.forEach((h, i) => {
-        const weight = weights[i] || 0;
-
-        // Estimate volatility based on position size and diversity
-        // Larger positions and more concentrated portfolios tend to be riskier
-        const baseVolatility = 20 + (weight * 100) * 0.5; // 20% base + additional for concentration
-
-        // Beta estimate: larger positions closer to 1.0 market beta
-        const positionBeta = 0.8 + (weight * 0.4);
-
-        // Correlation estimate based on position diversity
-        const positionCorr = 0.4 + (weight * 0.5);
-
-        totalWeightedVol += baseVolatility * weight;
-        totalWeightedBeta += positionBeta * weight;
-        totalWeightedCorr += positionCorr * weight;
-      });
-
-      metrics.volatility_annualized = parseFloat(totalWeightedVol.toFixed(2));
-      metrics.beta = parseFloat(totalWeightedBeta.toFixed(2));
-      metrics.avg_correlation = parseFloat(totalWeightedCorr.toFixed(2));
+      // ============ VOLATILITY & RISK ============
+      // DO NOT calculate estimated volatility, beta, correlation without real price data
+      // These metrics require historical price data which is not currently available
+      // Set to null instead of using placeholder estimates
+      // metrics.volatility_annualized = null (requires price history)
+      // metrics.beta = null (requires market price history)
+      // metrics.avg_correlation = null (requires price history)
 
       // ============ RISK-ADJUSTED RETURNS ============
-      const rf = 0.02; // 2% risk-free rate
-
-      if (metrics.volatility_annualized > 0) {
-        // Sharpe Ratio: (return - rf) / total volatility
-        const excessReturn = (metrics.total_return / 100) - rf;
-        metrics.sharpe_ratio = parseFloat((excessReturn / (metrics.volatility_annualized / 100)).toFixed(2));
-
-        // Sortino Ratio: (return - rf) / downside volatility (should be HIGHER than Sharpe for positive returns)
-        const downsideVol = metrics.volatility_annualized * 0.6; // Downside deviation is typically ~60% of total vol
-        if (downsideVol > 0) {
-          metrics.sortino_ratio = parseFloat((excessReturn / (downsideVol / 100)).toFixed(2));
-        }
-
-        // Treynor Ratio: (return - rf) / beta
-        if (metrics.beta > 0) {
-          metrics.treynor_ratio = parseFloat((excessReturn / metrics.beta).toFixed(2));
-        }
-      }
-
-      // Calmar (max drawdown estimate)
-      const estimatedMaxDD = metrics.volatility_annualized * 2; // Rough estimate
-      if (estimatedMaxDD > 0) {
-        metrics.calmar_ratio = parseFloat((metrics.total_return / estimatedMaxDD).toFixed(2));
-      }
-
-      // Alpha (excess return above beta)
-      const benchmarkReturn = 10; // Assume 10% annual benchmark return
-      metrics.alpha = parseFloat((metrics.total_return - (benchmarkReturn * metrics.beta)).toFixed(2));
+      // These metrics require real volatility/price history - only calculate if available
+      // const rf = 0.02; // 2% risk-free rate
+      // metrics.sharpe_ratio, sortino_ratio, treynor_ratio, calmar_ratio = require volatility
+      // metrics.alpha = requires beta
 
       // ============ DOWNSIDE & TAIL RISK ============
-      metrics.downside_deviation = parseFloat((metrics.volatility_annualized * 0.6).toFixed(2));
-
-      // Estimate max drawdown based on volatility
-      metrics.max_drawdown = parseFloat((metrics.volatility_annualized * 1.5).toFixed(2));
-      metrics.current_drawdown = parseFloat((Math.max(0, -metrics.max_drawdown / 2)).toFixed(2));
-
-      // VaR estimates (95% and 99% confidence)
-      metrics.var_95 = parseFloat((-metrics.volatility_annualized * 1.645).toFixed(2));
-      metrics.var_99 = parseFloat((-metrics.volatility_annualized * 2.326).toFixed(2));
-
-      // CVaR (conditional value at risk)
-      metrics.cvar_95 = parseFloat((-metrics.volatility_annualized * 2.063).toFixed(2));
-
-      // Distribution
-      metrics.skewness = -0.2; // Slight negative skew typical of equity portfolios
-      metrics.kurtosis = 0.5; // Slight positive kurtosis
+      // Requires price history:
+      // metrics.downside_deviation = null
+      // metrics.max_drawdown = null
+      // metrics.current_drawdown = null
+      // metrics.var_95, var_99 = null
+      // metrics.cvar_95 = null
+      // metrics.skewness, kurtosis = null
 
       // ============ RETURN ATTRIBUTION ============
-      const totalUnrealizedGain = holdings.reduce((sum, h) => sum + (parseFloat(h.unrealized_gain) || 0), 0);
-      metrics.best_day_gain = parseFloat((totalUnrealizedGain > 0 ? totalUnrealizedGain * 0.1 : 0).toFixed(2));
-      metrics.worst_day_loss = parseFloat((totalUnrealizedGain < 0 ? totalUnrealizedGain * 0.05 : -2).toFixed(2));
-      metrics.win_rate = parseFloat((totalUnrealizedGain > 0 ? 65 : 35).toFixed(2));
-
-      // Top days contribution estimate
-      metrics.top_5_days_contribution = parseFloat((metrics.total_return * 0.3).toFixed(2));
+      // Can only calculate what we actually know:
+      // best_day_gain, worst_day_loss require daily returns = null
+      // top_5_days_contribution requires daily data = null
+      // win_rate requires trade history = null
 
       // ============ PORTFOLIO EFFICIENCY ============
-      metrics.return_risk_ratio = parseFloat(((metrics.total_return || 0) / (metrics.volatility_annualized || 1)).toFixed(2));
-      metrics.information_ratio = parseFloat((metrics.alpha / (metrics.downside_deviation || 1)).toFixed(2));
+      // Can't calculate without volatility/benchmark data
+      // metrics.return_risk_ratio = null
+      // metrics.information_ratio = null
 
-      // Turnover and costs (estimates)
-      metrics.turnover_ratio = parseFloat((0.2).toFixed(2)); // 20% estimated annual turnover
-      metrics.transaction_costs = parseFloat((totalValue * 0.001).toFixed(2)); // 0.1% in costs
-      metrics.cash_drag = 0;
+      // Turnover and costs - DO NOT estimate, only set if we have real trade data
+      // metrics.turnover_ratio = null (need real trade history)
+      // metrics.transaction_costs = null (need real trade data)
+      // metrics.cash_drag = null (need cash position data)
     }
 
     // Only do advanced calculations if we have historical data
@@ -2404,32 +2349,37 @@ router.get("/professional-metrics", async (req, res) => {
 
       // ============ PORTFOLIO EFFICIENCY ============
       metrics.return_risk_ratio = stdDev > 0 ? parseFloat(((avgReturn * 252 * 100) / (stdDev * Math.sqrt(252) * 100)).toFixed(2)) : 0;
-      metrics.cash_drag = parseFloat((0.1).toFixed(2)); // Placeholder
-      metrics.turnover_ratio = parseFloat((15).toFixed(2)); // Placeholder
-      metrics.transaction_costs = parseFloat((0.15).toFixed(2)); // Placeholder
+      // Only set if we have real data - don't use placeholders
+      // metrics.cash_drag = null (no real data available)
+      // metrics.turnover_ratio = null (no real data available)
+      // metrics.transaction_costs = null (no real data available)
 
       // ============ RELATIVE PERFORMANCE ============
-      metrics.tracking_error = trackingStd;
-      metrics.active_return = metrics.alpha;
-      metrics.relative_volatility = parseFloat(((stdDev * Math.sqrt(252)) / 0.15).toFixed(2)); // vs SPY ~15% vol
-      metrics.correlation_with_spy = parseFloat((0.75).toFixed(2)); // Placeholder
+      // Only set if we have real benchmark data
+      // metrics.tracking_error = null (need real benchmark prices)
+      // metrics.active_return = null (need real benchmark)
+      // metrics.relative_volatility = null (need real benchmark vol)
+      // metrics.correlation_with_spy = null (need real benchmark prices)
     }
 
     // ============ POSITION-LEVEL METRICS ============
+    // ONLY include real data from holdings, no estimates or placeholders
     const positionMetrics = holdings.map(h => {
       const mv = parseFloat(h.market_value || 0);
       const ug = parseFloat(h.unrealized_gain || 0);
       const weight = mv / (totalValue || 1);
+
+      // Calculate real metrics from position weight only
+      const returnPercent = totalCost > 0 ? (ug / totalCost) * 100 : 0;
+
       return {
         symbol: h.symbol,
         weight_percent: parseFloat((weight * 100).toFixed(2)),
         market_value_dollars: parseFloat(mv.toFixed(2)),
-        volatility_percent: parseFloat((Math.random() * 30 + 10).toFixed(2)), // Placeholder
-        risk_contribution_percent: parseFloat((Math.pow(weight, 2) * 100).toFixed(2)),
-        return_contribution_percent: parseFloat((Math.random() * 5).toFixed(2)), // Placeholder
         gain_loss_dollars: parseFloat(ug.toFixed(2)),
-        beta: parseFloat((0.8 + Math.random() * 0.4).toFixed(2)), // Placeholder
-        correlation_with_portfolio: parseFloat((0.6 + Math.random() * 0.4).toFixed(2)) // Placeholder
+        return_percent: parseFloat(returnPercent.toFixed(2)),
+        // Do NOT include estimated values like volatility_percent, beta, correlation_with_portfolio
+        // These require historical price data which we don't have yet
       };
     });
 
