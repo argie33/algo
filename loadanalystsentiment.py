@@ -2,6 +2,7 @@
 """
 Analyst Sentiment Data Loader for yfinance
 Extracts analyst consensus ratings, price targets, and calculates rating distribution
+Works with AWS Lambda/RDS via Secrets Manager and local PostgreSQL via environment variables
 """
 import sys
 import time
