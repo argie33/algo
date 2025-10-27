@@ -991,9 +991,9 @@ export default function PortfolioDashboard() {
                 <ComposedChart
                   data={positions.slice(0, 8).map((pos, idx) => ({
                     symbol: pos.symbol,
-                    correlation_market: Math.random() * 0.8 + 0.2, // Simulated correlation
-                    volatility: (Math.random() * 20 + 10),
-                    weight: parseFloat(pos.weight || 0),
+                    correlation_market: parseFloat(pos.correlation_with_portfolio || 0),
+                    volatility: parseFloat(pos.volatility_percent || 0),
+                    weight: parseFloat(pos.weight_percent || 0),
                   }))}
                   layout="vertical"
                   margin={{ top: 5, right: 30, left: 100, bottom: 5 }}

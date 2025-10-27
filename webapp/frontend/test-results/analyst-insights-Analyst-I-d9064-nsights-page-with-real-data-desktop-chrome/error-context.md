@@ -1,0 +1,84 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - generic: Dashboard
+      - button "Sign In" [ref=e6] [cursor=pointer]:
+        - img [ref=e8]
+        - text: Sign In
+  - navigation [ref=e10]:
+    - generic [ref=e12]:
+      - generic [ref=e14]: Financial Platform
+      - list [ref=e15]:
+        - listitem [ref=e16]:
+          - button "Collapse Markets section" [ref=e17] [cursor=pointer]:
+            - heading "Markets" [level=6] [ref=e19]
+            - img [ref=e20]
+        - listitem [ref=e22]:
+          - button "Market Overview" [ref=e23] [cursor=pointer]:
+            - img [ref=e25]
+            - paragraph [ref=e28]: Market Overview
+        - listitem [ref=e29]:
+          - button "Sector Analysis" [ref=e30] [cursor=pointer]:
+            - img [ref=e32]
+            - paragraph [ref=e35]: Sector Analysis
+        - listitem [ref=e36]:
+          - button "Economic Indicators" [ref=e37] [cursor=pointer]:
+            - img [ref=e39]
+            - paragraph [ref=e42]: Economic Indicators
+        - listitem [ref=e43]:
+          - button "Collapse Stocks section" [ref=e44] [cursor=pointer]:
+            - heading "Stocks" [level=6] [ref=e46]
+            - img [ref=e47]
+        - listitem [ref=e49]:
+          - button "Stock Analysis" [ref=e50] [cursor=pointer]:
+            - img [ref=e52]
+            - paragraph [ref=e55]: Stock Analysis
+        - listitem [ref=e56]:
+          - button "Technical Analysis" [ref=e57] [cursor=pointer]:
+            - img [ref=e59]
+            - paragraph [ref=e62]: Technical Analysis
+        - listitem [ref=e63]:
+          - button "Stock Scores" [ref=e64] [cursor=pointer]:
+            - img [ref=e66]
+            - paragraph [ref=e69]: Stock Scores
+        - listitem [ref=e70]:
+          - button "Earnings Hub" [ref=e71] [cursor=pointer]:
+            - img [ref=e73]
+            - paragraph [ref=e76]: Earnings Hub
+        - listitem [ref=e77]:
+          - button "Financial Data" [ref=e78] [cursor=pointer]:
+            - img [ref=e80]
+            - paragraph [ref=e83]: Financial Data
+        - listitem [ref=e84]:
+          - button "Trading Signals" [ref=e85] [cursor=pointer]:
+            - img [ref=e87]
+            - paragraph [ref=e90]: Trading Signals
+        - listitem [ref=e91]:
+          - button "Sentiment Analysis" [ref=e92] [cursor=pointer]:
+            - img [ref=e94]
+            - paragraph [ref=e98]: Sentiment Analysis
+        - listitem [ref=e99]:
+          - button "Collapse Portfolio section" [ref=e100] [cursor=pointer]:
+            - heading "Portfolio" [level=6] [ref=e102]
+            - img [ref=e103]
+        - listitem [ref=e105]:
+          - button "Portfolio Holdings" [ref=e106] [cursor=pointer]:
+            - img [ref=e108]
+            - paragraph [ref=e111]: Portfolio Holdings
+        - listitem [ref=e112]:
+          - button "Trade History" [ref=e113] [cursor=pointer]:
+            - img [ref=e115]
+            - paragraph [ref=e118]: Trade History
+        - listitem [ref=e119]:
+          - button "Optimization Tools" [ref=e120] [cursor=pointer]:
+            - img [ref=e122]
+            - paragraph [ref=e125]: Optimization Tools
+        - listitem [ref=e126]:
+          - button "Expand Tools section" [ref=e127] [cursor=pointer]:
+            - heading "Tools" [level=6] [ref=e129]
+            - img [ref=e130]
+  - main [ref=e132]
+```

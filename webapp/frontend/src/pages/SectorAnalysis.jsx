@@ -65,13 +65,17 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
     };
   });
 
-  // Verify technical data is available in consolidated trendData
+  // Debug: Check what's actually in the technical data
   const hasMA20 = momentumData.some(m => m.ma_20 !== undefined);
   const hasMA50 = momentumData.some(m => m.ma_50 !== undefined);
   const hasMA200 = momentumData.some(m => m.ma_200 !== undefined);
   const hasRSI = momentumData.some(m => m.rsi !== undefined);
 
-  console.log(`[MOMENTUM CHART] ${sector?.sector_name}: ${momentumData.length} rows with MA20=${hasMA20}, MA50=${hasMA50}, MA200=${hasMA200}, RSI=${hasRSI}`);
+  if (technicalData.length > 0) {
+    console.log(`[TECHNICAL DEBUG] ${sector?.sector_name}: Sample technical row:`, technicalData[0]);
+  }
+
+  console.log(`[MOMENTUM CHART - SECTOR] ${sector?.sector_name}: ${trendArray.length} momentum rows, ${technicalData.length} technical rows, MA20=${hasMA20}, MA50=${hasMA50}, MA200=${hasMA200}, RSI=${hasRSI}`);
 
   // Use ALL data for momentum chart (no date filtering)
   if (aggregateToWeekly && momentumData.length > 0) {
@@ -578,12 +582,6 @@ const SectorAnalysis = () => {
             label: row.label,
             rank: row.rank,
             momentum: row.momentum,
-            ma_20: row.ma_20,
-            ma_50: row.ma_50,
-            ma_200: row.ma_200,
-            rsi: row.rsi,
-            close: row.close,
-            trend: row.trend,
             weekStart: currentWeek.toISOString().split('T')[0]
           });
         } else {
@@ -593,12 +591,6 @@ const SectorAnalysis = () => {
             label: row.label,
             rank: row.rank,
             momentum: row.momentum,
-            ma_20: row.ma_20,
-            ma_50: row.ma_50,
-            ma_200: row.ma_200,
-            rsi: row.rsi,
-            close: row.close,
-            trend: row.trend,
             weekStart: currentWeek.toISOString().split('T')[0]
           };
         }
