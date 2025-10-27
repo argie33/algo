@@ -63,7 +63,7 @@ def create_buy_sell_table_if_not_exists(cur):
             date DATE NOT NULL,
             timeframe VARCHAR(10) NOT NULL DEFAULT 'monthly',
             signal_type VARCHAR(10) NOT NULL,
-            confidence DECIMAL(5,2) NOT NULL DEFAULT 0.0,
+            confidence DECIMAL(5,2),  # REAL DATA ONLY - NULL if no confidence data
             price DECIMAL(12,4),
             rsi DECIMAL(5,2),
             macd DECIMAL(10,6),
