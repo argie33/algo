@@ -1102,10 +1102,11 @@ export default function EconomicDashboard() {
       setLoading(true);
       setError(null);
 
-      // Fetch all three endpoints in parallel
+      // Fetch all four endpoints in parallel
       let leadingIndicators = null;
       let yieldCurveFullData = null;
       let creditSpreadsFullData = null;
+      let economicCalendarData = null;
 
       try {
         const response = await api.get("/api/market/leading-indicators");
@@ -1147,11 +1148,25 @@ export default function EconomicDashboard() {
         creditSpreadsFullData = null;
       }
 
+      // Fetch economic calendar data (optional - use empty defaults if fails)
+      try {
+        const response = await api.get("/api/economic/calendar");
+        economicCalendarData = response?.data?.data || response?.data?.events || [];
+        console.log("✅ Economic Calendar Data Fetched:", {
+          count: economicCalendarData?.length || 0,
+          data: economicCalendarData
+        });
+      } catch (err) {
+        console.warn("❌ Failed to fetch economic calendar:", err?.message || err);
+        economicCalendarData = [];
+      }
+
       // Extract data from available endpoints
       const leadData = leadingIndicators?.data?.data || {};
 
       // Process yield curve data - transform into chart format
       let processedYieldCurveData = [];
+      let transformedYieldHistory = {};
       if (yieldCurveFullData?.currentCurve) {
         const maturityMap = {
           '3M': '3 Month',
@@ -1164,12 +1179,44 @@ export default function EconomicDashboard() {
           maturity: maturityMap[key] || key,
           yield: value || 0
         }));
+
+        // Transform history data from series IDs to maturity keys
+        // Map series IDs to maturity keys
+        const seriesMaturityMap = {
+          'DGS3MO': '3M',
+          'DGS2': '2Y',
+          'DGS5': '5Y',
+          'DGS10': '10Y',
+          'DGS30': '30Y',
+          'T10Y2Y': 'spread_10y2y',
+          'T10Y3M': 'spread_10y3m'
+        };
+
+        if (yieldCurveFullData?.history) {
+          Object.entries(yieldCurveFullData.history).forEach(([seriesId, data]) => {
+            const maturityKey = seriesMaturityMap[seriesId] || seriesId;
+            transformedYieldHistory[maturityKey] = data || [];
+          });
+        }
       }
 
       // Process credit spreads data
       let processedCreditSpreads = {};
       if (creditSpreadsFullData?.currentSpreads) {
         processedCreditSpreads = creditSpreadsFullData.currentSpreads;
+      }
+
+      // Transform calendar events to match frontend expectations
+      let transformedCalendarEvents = [];
+      if (economicCalendarData && Array.isArray(economicCalendarData)) {
+        transformedCalendarEvents = economicCalendarData.map((event) => ({
+          date: event.event_date || event.date,
+          event: event.event_name || event.Event || event.event,
+          importance: event.importance || event.Importance,
+          forecast: event.forecast_value || event.Forecast,
+          previous: event.previous_value || event.Previous,
+          category: event.category || event.Category
+        }));
       }
 
       const combinedData = {
@@ -1190,7 +1237,10 @@ export default function EconomicDashboard() {
         employment: leadData.employment || {},
 
         // Yield curve - NEW: full data from dedicated endpoint
-        yieldCurveFullData: yieldCurveFullData,
+        yieldCurveFullData: {
+          ...yieldCurveFullData,
+          history: transformedYieldHistory // Use transformed history with maturity keys
+        },
         yieldCurveData: processedYieldCurveData,
         yieldCurve: yieldCurveFullData ? {
           isInverted: (yieldCurveFullData.spreads?.T10Y2Y || 0) < 0,
@@ -1207,8 +1257,8 @@ export default function EconomicDashboard() {
           level: creditSpreadsFullData?.summary?.creditConditions || 'Neutral'
         },
 
-        // Calendar - empty for now
-        upcomingEvents: [],
+        // Calendar - FIXED: now fetching from API
+        upcomingEvents: transformedCalendarEvents,
       };
 
       setEconomicData(combinedData);

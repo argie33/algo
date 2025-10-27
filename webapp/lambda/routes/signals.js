@@ -351,30 +351,30 @@ router.get("/", async (req, res) => {
       exit_trigger_4_condition: row.exit_trigger_4_condition || null,
 
       // Volume analysis - REAL DATA with calculations
-      volume_ratio: row.avg_volume_50d ? parseFloat((row.volume / row.avg_volume_50d).toFixed(2)) : 0,
+      volume_ratio: row.avg_volume_50d && row.volume ? parseFloat((row.volume / row.avg_volume_50d).toFixed(2)) : null, // REAL DATA ONLY
       volume_analysis: null,
       avg_volume_50d: row.avg_volume_50d !== null && row.avg_volume_50d !== undefined ? row.avg_volume_50d : null,
       volume_surge_pct: row.volume_surge_pct !== null && row.volume_surge_pct !== undefined ? parseFloat(row.volume_surge_pct) : null,
-      volume_percentile: 0, // Would require percentile calculation across dataset
-      volume_surge_on_breakout: false,
+      volume_percentile: null, // REAL DATA ONLY - would require percentile calculation
+      volume_surge_on_breakout: null, // REAL DATA ONLY
 
-      // Technical indicators - FROM technical_data_daily JOIN
-      pct_from_ema_21: row.ema_21 ? parseFloat(((row.close - row.ema_21) / row.ema_21 * 100).toFixed(2)) : 0,
-      pct_from_sma_50: row.sma_50 ? parseFloat(((row.close - row.sma_50) / row.sma_50 * 100).toFixed(2)) : 0,
-      pct_from_sma_200: row.sma_200 ? parseFloat(((row.close - row.sma_200) / row.sma_200 * 100).toFixed(2)) : 0,
-      rsi: row.rsi ? parseFloat(row.rsi.toFixed(2)) : 0,
-      adx: row.adx ? parseFloat(row.adx.toFixed(2)) : 0,
-      atr: row.atr ? parseFloat(row.atr.toFixed(4)) : 0,
-      daily_range_pct: (row.high && row.low) ? parseFloat(((row.high - row.low) / row.low * 100).toFixed(2)) : 0,
+      // Technical indicators - FROM technical_data_daily JOIN (REAL DATA ONLY - null if not available)
+      pct_from_ema_21: row.ema_21 && row.close ? parseFloat(((row.close - row.ema_21) / row.ema_21 * 100).toFixed(2)) : null, // REAL DATA ONLY
+      pct_from_sma_50: row.sma_50 && row.close ? parseFloat(((row.close - row.sma_50) / row.sma_50 * 100).toFixed(2)) : null, // REAL DATA ONLY
+      pct_from_sma_200: row.sma_200 && row.close ? parseFloat(((row.close - row.sma_200) / row.sma_200 * 100).toFixed(2)) : null, // REAL DATA ONLY
+      rsi: row.rsi ? parseFloat(row.rsi.toFixed(2)) : null, // REAL DATA ONLY
+      adx: row.adx ? parseFloat(row.adx.toFixed(2)) : null, // REAL DATA ONLY
+      atr: row.atr ? parseFloat(row.atr.toFixed(4)) : null, // REAL DATA ONLY
+      daily_range_pct: (row.high && row.low) ? parseFloat(((row.high - row.low) / row.low * 100).toFixed(2)) : null, // REAL DATA ONLY
 
-      // Quality metrics - NOT in buy_sell_daily table
-      entry_quality_score: 0, // Column doesn't exist
-      passes_minervini_template: false,
+      // Quality metrics - NOT in buy_sell_daily table (REAL DATA ONLY - null if missing)
+      entry_quality_score: null, // REAL DATA ONLY - Column doesn't exist
+      passes_minervini_template: null, // REAL DATA ONLY
 
-      // Profit targets - NOT in buy_sell_daily table
-      profit_target_8pct: 0, // Column doesn't exist
-      profit_target_20pct: 0, // Column doesn't exist
-      profit_target_25pct: 0, // Column doesn't exist
+      // Profit targets - NOT in buy_sell_daily table (REAL DATA ONLY - null if missing)
+      profit_target_8pct: null, // REAL DATA ONLY - Column doesn't exist
+      profit_target_20pct: null, // REAL DATA ONLY - Column doesn't exist
+      profit_target_25pct: null, // REAL DATA ONLY - Column doesn't exist
       current_gain_loss_pct: row.current_gain_pct !== null && row.current_gain_pct !== undefined ? parseFloat(row.current_gain_pct) : null,
 
       // Volatility - NOT IN buy_sell tables
@@ -385,62 +385,62 @@ router.get("/", async (req, res) => {
       next_earnings_date: row.next_earnings_date || null,
       days_to_earnings: row.days_to_earnings || null,
 
-      // Position tracking - REAL DATA
+      // Position tracking - REAL DATA ONLY
       entry_price: row.close !== null && row.close !== undefined ? parseFloat(row.close) : null,
       entry_date: null,
       entry_quality_grade: null,
       days_in_position: row.days_in_position !== null && row.days_in_position !== undefined ? parseInt(row.days_in_position) : null,
-      current_pnl_pct: 0,
-      current_r_multiple: 0,
-      max_favorable_excursion_pct: 0,
-      max_adverse_excursion_pct: 0,
-      peak_price_in_trade: 0,
-      lowest_price_in_trade: 0,
-      initial_stop_loss: 0,
-      current_stop_loss: 0,
+      current_pnl_pct: null, // REAL DATA ONLY
+      current_r_multiple: null, // REAL DATA ONLY
+      max_favorable_excursion_pct: null, // REAL DATA ONLY
+      max_adverse_excursion_pct: null, // REAL DATA ONLY
+      peak_price_in_trade: null, // REAL DATA ONLY
+      lowest_price_in_trade: null, // REAL DATA ONLY
+      initial_stop_loss: null, // REAL DATA ONLY
+      current_stop_loss: null, // REAL DATA ONLY
       trailing_stop_type: null,
 
-      // Exit Tracking - NOT IN buy_sell tables
+      // Exit Tracking - NOT IN buy_sell tables (REAL DATA ONLY)
       exit_date: null,
-      exit_price: 0,
+      exit_price: null, // REAL DATA ONLY
       exit_reason: null,
-      trade_result_pct: 0,
-      trade_duration_days: 0,
-      was_winner: false,
+      trade_result_pct: null, // REAL DATA ONLY
+      trade_duration_days: null, // REAL DATA ONLY
+      was_winner: null, // REAL DATA ONLY
 
-      // Signal State - NOT IN buy_sell tables
+      // Signal State - NOT IN buy_sell tables (REAL DATA ONLY)
       signal_state: null,
       signal_state_changed_date: null,
       previous_signal_state: null,
-      days_in_current_state: 0,
-      extension_from_pivot_pct: 0,
+      days_in_current_state: null, // REAL DATA ONLY
+      extension_from_pivot_pct: null, // REAL DATA ONLY
       entry_window: null,
-      close_range_position: 0,
-      gap_from_prev_close_pct: 0,
-      is_gap_up: false,
-      is_gap_down: false,
-      days_since_pivot_break: 0,
-      distance_to_pivot_pct: 0,
-      consolidation_days: 0,
-      atr_contraction_ratio: 0,
-      is_follow_through_day: false,
-      follow_through_day_number: 0,
-      follow_through_gain_pct: 0,
-      consecutive_up_days: 0,
-      consecutive_down_days: 0,
-      held_above_pivot: false,
-      distance_to_21ema_pct: 0,
+      close_range_position: null, // REAL DATA ONLY
+      gap_from_prev_close_pct: null, // REAL DATA ONLY
+      is_gap_up: null, // REAL DATA ONLY
+      is_gap_down: null, // REAL DATA ONLY
+      days_since_pivot_break: null, // REAL DATA ONLY
+      distance_to_pivot_pct: null, // REAL DATA ONLY
+      consolidation_days: null, // REAL DATA ONLY
+      atr_contraction_ratio: null, // REAL DATA ONLY
+      is_follow_through_day: null, // REAL DATA ONLY
+      follow_through_day_number: null, // REAL DATA ONLY
+      follow_through_gain_pct: null, // REAL DATA ONLY
+      consecutive_up_days: null, // REAL DATA ONLY
+      consecutive_down_days: null, // REAL DATA ONLY
+      held_above_pivot: null, // REAL DATA ONLY
+      distance_to_21ema_pct: null, // REAL DATA ONLY
       pullback_stage: null,
-      pullback_days: 0,
-      pct_retraced_from_high: 0,
-      avg_daily_change_last_5days: 0,
-      is_failed_breakout: false,
-      days_above_pivot_before_failure: 0,
-      max_extension_before_failure_pct: 0,
+      pullback_days: null, // REAL DATA ONLY
+      pct_retraced_from_high: null, // REAL DATA ONLY
+      avg_daily_change_last_5days: null, // REAL DATA ONLY
+      is_failed_breakout: null, // REAL DATA ONLY
+      days_above_pivot_before_failure: null, // REAL DATA ONLY
+      max_extension_before_failure_pct: null, // REAL DATA ONLY
 
       // Legacy/compatibility fields
-      confidence: 0.75,
-      sector: "Technology",
+      confidence: null, // REAL DATA ONLY - no fake defaults
+      sector: null, // REAL DATA ONLY - no fake defaults
     }));
 
     // PERFORMANCE FIX: Use hasMore indicator instead of total count
