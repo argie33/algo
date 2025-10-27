@@ -109,7 +109,7 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
                 orientation="right"
                 tick={{ fontSize: 11 }}
                 label={{ value: "Price / RSI", angle: 90, position: "insideRight", offset: 5 }}
-                domain={[0, 'dataMax']}
+                domain={['dataMin', 'dataMax']}
               />
               <Tooltip
                 formatter={(value) => typeof value === 'number' ? value.toFixed(2) : "N/A"}
@@ -201,6 +201,7 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
                 orientation="right"
                 tick={{ fontSize: 11 }}
                 label={{ value: "Price / RSI", angle: 90, position: "insideRight", offset: 5 }}
+                domain={['dataMin', 'dataMax']}
               />
               <Tooltip
                 formatter={(value) => typeof value === 'number' ? value.toFixed(2) : "N/A"}
