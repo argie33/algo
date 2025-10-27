@@ -134,12 +134,33 @@ async def get_fear_greed_data():
     Returns a list of dictionaries with date, index_value, and rating.
     """
     logging.info(f"🔄 Starting Fear & Greed data scraping from: {FEAR_GREED_URL}")
-    
+
+    # Try multiple chromium paths in order of preference
+    chromium_paths = [
+        '/usr/bin/chromium',
+        '/usr/bin/chromium-browser',
+        '/usr/bin/google-chrome',
+        '/home/stocks/.cache/ms-playwright/chromium-1194/chrome-linux/chrome',
+        '/home/stocks/.cache/ms-playwright/chromium-1187/chrome-linux/chrome',
+        '/snap/bin/chromium',
+    ]
+
     browser = None
     for attempt in range(1, MAX_BROWSER_RETRIES + 1):
         try:
             logging.info(f"🌐 Browser attempt {attempt}/{MAX_BROWSER_RETRIES}")
-            
+
+            # Find available chromium executable
+            available_chromium = None
+            for path in chromium_paths:
+                if os.path.exists(path):
+                    available_chromium = path
+                    logging.info(f"✓ Found chromium at: {available_chromium}")
+                    break
+
+            if not available_chromium:
+                raise FileNotFoundError(f"No chromium browser found. Tried: {chromium_paths}")
+
             # Launch browser with comprehensive arguments for containerized environment
             browser_args = [
                 "--no-sandbox",
@@ -170,10 +191,10 @@ async def get_fear_greed_data():
                 "--use-mock-keychain",
                 "--disable-blink-features=AutomationControlled"
             ]
-            
+
             logging.info(f"🚀 Launching browser with {len(browser_args)} arguments")
             browser = await launch(
-                executablePath='/usr/bin/chromium',
+                executablePath=available_chromium,
                 args=browser_args,
                 headless=True,
                 timeout=60000,  # 60 second timeout
