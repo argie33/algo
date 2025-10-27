@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Daily price data loader - fetches OHLCV data for all symbols
 # CRITICAL: Database has 0 price records. Must run to populate price_daily table for all pages/APIs
+# TRIGGER: 2025-10-27 - Loading price history for volatility, beta, Sharpe ratio calculations
 import sys
 import time
 import logging
