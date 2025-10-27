@@ -35,13 +35,18 @@ class CryptoDataLoader:
         })
         
     def get_db_config(self):
-        """Get database configuration from AWS Secrets Manager"""
+        """Get database configuration from AWS Secrets Manager or local environment.
+
+        AWS Production: Requires DB_SECRET_ARN environment variable (Lambda/ECS)
+        Local Development: Uses DB_HOST, DB_USER, DB_PASSWORD, DB_NAME environment variables
+        Defaults: localhost:5432 (postgres/password)
+        """
         try:
             secret_arn = os.environ["DB_SECRET_ARN"]
             client = boto3.client("secretsmanager")
             response = client.get_secret_value(SecretId=secret_arn)
             secret = json.loads(response["SecretString"])
-            
+
             return {
                 "host": secret["host"],
                 "port": int(secret.get("port", 5432)),
@@ -49,9 +54,16 @@ class CryptoDataLoader:
                 "password": secret["password"],
                 "dbname": secret["dbname"]
             }
-        except Exception as e:
-            logger.error(f"Failed to get database config: {e}")
-            raise
+        except Exception:
+            # Fall back to local database configuration (development/local testing)
+            logger.info("Using local database configuration (DB_SECRET_ARN not set)")
+            return {
+                "host": os.environ.get("DB_HOST", "localhost"),
+                "port": int(os.environ.get("DB_PORT", 5432)),
+                "user": os.environ.get("DB_USER", "postgres"),
+                "password": os.environ.get("DB_PASSWORD", "password"),
+                "dbname": os.environ.get("DB_NAME", "stocks")
+            }
 
     def create_crypto_tables(self, cur):
         """Create all cryptocurrency tables"""

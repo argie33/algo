@@ -227,13 +227,14 @@ def calculate_position_size_pct(risk_pct, risk_reward_ratio):
 def determine_market_stage(rs_rating, volume_surge_pct, daily_range_pct):
     """
     Determine market stage based on technical indicators.
-    Returns: (stage_name, stage_number, confidence)
-    """
-    stage_num = 2  # Default
-    confidence = 50.0
+    Returns: (stage_name, stage_number, confidence) or None if insufficient data.
 
+    CRITICAL: Returns None if rs_rating is missing - no fake default values allowed.
+    Caller must handle None return for records with incomplete data.
+    """
+    # CRITICAL FIX: Return None if rs_rating is missing instead of using fake default (50)
     if rs_rating is None:
-        rs_rating = 50
+        return None
 
     # Stage 2 - Advancing (bullish)
     if rs_rating >= 70 and volume_surge_pct > 25:
@@ -357,8 +358,16 @@ def populate_metrics():
                 # Calculate position_size_recommendation
                 pos_size = calculate_position_size_pct(risk_pct, rr_ratio) if rr_ratio > 0 else 0.0
 
-                # Determine market_stage
-                market_stage, stage_num, stage_conf = determine_market_stage(rs_rating, vol_surge, daily_range_pct)
+                # Determine market_stage - returns None if rs_rating is missing
+                market_stage_result = determine_market_stage(rs_rating, vol_surge, daily_range_pct)
+
+                # CRITICAL FIX: Skip record if insufficient data - don't use fake defaults
+                if market_stage_result is None:
+                    logging.warning(f"Skipping record {record_id}: missing rs_rating (required for market stage)")
+                    skipped += 1
+                    continue
+
+                market_stage, stage_num, stage_conf = market_stage_result
 
                 # Calculate profit targets
                 target_8, target_20, target_25, sell_level = calculate_profit_targets(buy_level, rr_ratio)

@@ -672,13 +672,23 @@ const CreditMarketPanel = ({ data, isLoading, theme }) => {
   const creditData = data.creditSpreadsFullData || data.creditSpreads;
 
   // Calculate spread history for comparison chart
-  // API returns history organized by series ID: BAMLH0A0HYM2, BAMLH0A0IG, VIXCLS
+  // API returns history organized by series ID: BAMLH0A0HYM2, BAMLH0A0IG, BAA, AAA
   const spreadHistory = creditData?.history?.BAMLH0A0HYM2 && creditData?.history?.BAMLH0A0IG
-    ? creditData.history.BAMLH0A0HYM2.map((hy, idx) => ({
-        date: hy.date,
-        "High Yield OAS": hy.value,
-        "Investment Grade OAS": creditData.history.BAMLH0A0IG[idx]?.value || 0
-      }))
+    ? creditData.history.BAMLH0A0HYM2.map((hy, idx) => {
+        const igValue = creditData.history.BAMLH0A0IG[idx]?.value || 0;
+        // Calculate BAA-AAA spread: BAA yield minus AAA yield (both in %)
+        const baaValue = creditData.history.BAA?.[idx]?.value || null;
+        const aaaValue = creditData.history.AAA?.[idx]?.value || null;
+        const baaAaaSpread = (baaValue !== null && aaaValue !== null)
+          ? (baaValue - aaaValue) * 100  // Convert to basis points (% to bps)
+          : null;
+        return {
+          date: hy.date,
+          "High Yield OAS": hy.value,
+          "Investment Grade OAS": igValue,
+          ...(baaAaaSpread !== null && { "BAA-AAA": baaAaaSpread })
+        };
+      })
     : [];
 
   // Calculate VIX history
@@ -830,23 +840,32 @@ const CreditMarketPanel = ({ data, isLoading, theme }) => {
           <Card>
             <CardHeader title="AAA vs BAA Yields" subheader="Corporate bond yield differential" />
             <CardContent>
-              {creditData?.history?.AAA && creditData?.history?.BAA && creditData.history.AAA.length > 0 ? (
-                <ResponsiveContainer width="100%" height={350}>
-                  <ComposedChart data={creditData.history.AAA}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} opacity={0.2} />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fontSize: 9 }}
-                      tickFormatter={(d) => new Date(d).toLocaleDateString('en-US', { month: 'short' })}
-                      interval="preserveStartEnd"
-                    />
-                    <YAxis tick={{ fontSize: 9 }} width={40} label={{ value: '%', angle: -90, position: 'insideLeft' }} domain={['dataMin - 0.1', 'dataMax + 0.1']} />
-                    <Tooltip formatter={(v) => `${v.toFixed(2)}%`} labelFormatter={(d) => new Date(d).toLocaleDateString()} />
-                    <Legend />
-                    <Line type="monotone" dataKey="value" name="AAA Yield" stroke="#1976d2" strokeWidth={2.5} dot={false} isAnimationActive={false} />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              ) : (
+              {creditData?.history?.AAA && creditData?.history?.BAA && creditData.history.AAA.length > 0 ? (() => {
+                // Merge AAA and BAA data by date
+                const combinedYields = creditData.history.AAA.map((aaaData, idx) => ({
+                  date: aaaData.date,
+                  "AAA Yield": aaaData.value,
+                  "BAA Yield": creditData.history.BAA[idx]?.value || null
+                }));
+                return (
+                  <ResponsiveContainer width="100%" height={350}>
+                    <ComposedChart data={combinedYields}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} opacity={0.2} />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 9 }}
+                        tickFormatter={(d) => new Date(d).toLocaleDateString('en-US', { month: 'short' })}
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis tick={{ fontSize: 9 }} width={40} label={{ value: '%', angle: -90, position: 'insideLeft' }} domain={['dataMin - 0.1', 'dataMax + 0.1']} />
+                      <Tooltip formatter={(v) => v !== null ? `${v.toFixed(2)}%` : 'N/A'} labelFormatter={(d) => new Date(d).toLocaleDateString()} />
+                      <Legend />
+                      <Line type="monotone" dataKey="AAA Yield" stroke="#1976d2" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="BAA Yield" stroke="#d32f2f" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                );
+              })() : (
                 <Alert severity="info">No historical data available</Alert>
               )}
             </CardContent>
@@ -1101,7 +1120,7 @@ export default function EconomicDashboard() {
       // Fetch yield curve data
       try {
         const response = await api.get("/api/economic/yield-curve-full");
-        yieldCurveFullData = response?.data?.data || null;
+        yieldCurveFullData = response?.data || null;
         console.log("✅ Yield Curve Data Fetched:", {
           hasCurrentCurve: !!yieldCurveFullData?.currentCurve,
           hasSpreads: !!yieldCurveFullData?.spreads,
@@ -1116,7 +1135,7 @@ export default function EconomicDashboard() {
       // Fetch credit spreads data
       try {
         const response = await api.get("/api/economic/credit-spreads-full");
-        creditSpreadsFullData = response?.data?.data || null;
+        creditSpreadsFullData = response?.data || null;
         console.log("✅ Credit Spreads Data Fetched:", {
           hasCurrentSpreads: !!creditSpreadsFullData?.currentSpreads,
           hasVix: !!creditSpreadsFullData?.vix,
@@ -1141,7 +1160,7 @@ export default function EconomicDashboard() {
       }
 
       // Extract data from available endpoints
-      const leadData = leadingIndicators?.data?.data || {};
+      const leadData = leadingIndicators?.data || {};
 
       // Process yield curve data - transform into chart format
       let processedYieldCurveData = [];

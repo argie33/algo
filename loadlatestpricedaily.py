@@ -58,20 +58,33 @@ COL_LIST = ", ".join(["symbol"] + PRICE_COLUMNS)
 # DB config loader
 # -------------------------------
 def get_db_config():
-    secret_str = boto3.client("secretsmanager") \
-                     .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
-    sec = json.loads(secret_str)
-    return {
-        "host":   sec["host"],
-        "port":   int(sec.get("port", 5432)),
-        "user":   sec["username"],
-        "password": sec["password"],
-        "dbname": sec["dbname"]
-    }
-
-# -------------------------------
-# Helper to extract a single scalar
-# -------------------------------
+    """Get database configuration from AWS Secrets Manager or local environment.
+    
+    AWS Production: Requires DB_SECRET_ARN environment variable (Lambda/ECS)
+    Local Development: Uses DB_HOST, DB_USER, DB_PASSWORD, DB_NAME environment variables
+    Defaults: localhost:5432 (postgres/password)
+    """
+    try:
+        import boto3
+        secret_str = boto3.client("secretsmanager") \
+                         .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
+        sec = json.loads(secret_str)
+        return {
+            "host": sec["host"],
+            "port": int(sec.get("port", 5432)),
+            "user": sec["username"],
+            "password": sec["password"],
+            "dbname": sec["dbname"]
+        }
+    except Exception:
+        # Fall back to local database configuration (development/local testing)
+        return {
+            "host": os.environ.get("DB_HOST", "localhost"),
+            "port": int(os.environ.get("DB_PORT", 5432)),
+            "user": os.environ.get("DB_USER", "postgres"),
+            "password": os.environ.get("DB_PASSWORD", "password"),
+            "dbname": os.environ.get("DB_NAME", "stocks")
+        }
 def extract_scalar(val):
     """
     If pandas gives us a one-element Series, pull out that element.

@@ -63,15 +63,32 @@ FEAR_GREED_URL = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata
 # DB config loader
 # -------------------------------
 def get_db_config():
-    secret_str = boto3.client("secretsmanager") \
-                     .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
-    sec = json.loads(secret_str)
+    """Get database configuration from AWS Secrets Manager or local environment."""
+    db_secret_arn = os.environ.get("DB_SECRET_ARN")
+
+    # Try AWS Secrets Manager first (for production/Lambda)
+    if db_secret_arn:
+        try:
+            secret_str = boto3.client("secretsmanager") \
+                             .get_secret_value(SecretId=db_secret_arn)["SecretString"]
+            sec = json.loads(secret_str)
+            return {
+                "host":   sec["host"],
+                "port":   int(sec.get("port", 5432)),
+                "user":   sec["username"],
+                "password": sec["password"],
+                "dbname": sec["dbname"]
+            }
+        except Exception as e:
+            logging.warning(f"Failed to fetch from AWS Secrets Manager: {e}, falling back to environment variables")
+
+    # Fall back to environment variables (for local development)
     return {
-        "host":   sec["host"],
-        "port":   int(sec.get("port", 5432)),
-        "user":   sec["username"],
-        "password": sec["password"],
-        "dbname": sec["dbname"]
+        "host":   os.environ.get("DB_HOST", "localhost"),
+        "port":   int(os.environ.get("DB_PORT", 5432)),
+        "user":   os.environ.get("DB_USER", "postgres"),
+        "password": os.environ.get("DB_PASSWORD", "password"),
+        "dbname": os.environ.get("DB_NAME", "stocks")
     }
 
 # -------------------------------

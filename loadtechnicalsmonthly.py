@@ -43,21 +43,33 @@ DB_POOL_MIN = 1
 DB_POOL_MAX = 5  # Reduced from 10 to 5
 
 def get_db_config():
+    """Get database configuration from AWS Secrets Manager or local environment.
+    
+    AWS Production: Requires DB_SECRET_ARN environment variable (Lambda/ECS)
+    Local Development: Uses DB_HOST, DB_USER, DB_PASSWORD, DB_NAME environment variables
+    Defaults: localhost:5432 (postgres/password)
     """
-    Fetch host, port, dbname, username & password from Secrets Manager.
-    SecretString must be JSON with keys: username, password, host, port, dbname.
-    """
-    client = boto3.client("secretsmanager")
-    resp = client.get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])
-    sec = json.loads(resp["SecretString"])
-    return (
-        sec["username"],
-        sec["password"],
-        sec["host"],
-        int(sec["port"]),
-        sec["dbname"]
-    )
-
+    try:
+        import boto3
+        secret_str = boto3.client("secretsmanager") \
+                         .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
+        sec = json.loads(secret_str)
+        return {
+            "host": sec["host"],
+            "port": int(sec.get("port", 5432)),
+            "user": sec["username"],
+            "password": sec["password"],
+            "dbname": sec["dbname"]
+        }
+    except Exception:
+        # Fall back to local database configuration (development/local testing)
+        return {
+            "host": os.environ.get("DB_HOST", "localhost"),
+            "port": int(os.environ.get("DB_PORT", 5432)),
+            "user": os.environ.get("DB_USER", "postgres"),
+            "password": os.environ.get("DB_PASSWORD", "password"),
+            "dbname": os.environ.get("DB_NAME", "stocks")
+        }
 def sanitize_value(x):
     if isinstance(x, float) and np.isnan(x):
         return None
