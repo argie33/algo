@@ -1846,87 +1846,14 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 institution_count is not None,
                 acc_dist_rating is not None]):
 
-            inst_score = 0
-            insider_score = 0
-            short_score = 0
-            acc_dist_score = 0
-            count_score = 0
-
-            # Institutional ownership component (0-25 points) - 25%
-            # Adjusted thresholds to expand scale and better distribute scores
-            if institutional_ownership is not None:
-                if institutional_ownership >= 50:
-                    inst_score = 25  # Strong institutional ownership
-                elif institutional_ownership >= 40:
-                    inst_score = 20  # Good institutional ownership
-                elif institutional_ownership >= 30:
-                    inst_score = 16  # Moderate institutional ownership
-                elif institutional_ownership >= 20:
-                    inst_score = 12  # Low-moderate institutional ownership
-                elif institutional_ownership >= 10:
-                    inst_score = 8   # Low institutional ownership
-                elif institutional_ownership >= 5:
-                    inst_score = 4   # Very low institutional ownership
-                else:  # < 5%
-                    inst_score = 0   # Minimal institutional ownership
-
-            # Insider ownership component (0-20 points) - 20%
-            # Higher is better (skin in the game)
-            if insider_ownership is not None:
-                if insider_ownership >= 15:
-                    insider_score = 20  # Very strong insider ownership
-                elif insider_ownership >= 10:
-                    insider_score = 18  # Strong insider ownership
-                elif insider_ownership >= 5:
-                    insider_score = 14  # Good insider ownership
-                elif insider_ownership >= 2:
-                    insider_score = 10  # Moderate insider ownership
-                elif insider_ownership >= 1:
-                    insider_score = 6   # Low insider ownership
-                else:
-                    insider_score = 2   # Very low/no insider ownership
-
-            # Short interest component (0-20 points) - 20%
-            # Lower is better (less bearish pressure)
-            if short_percent_of_float is not None:
-                if short_percent_of_float < 2:
-                    short_score = 20  # Very low short interest
-                elif short_percent_of_float < 5:
-                    short_score = 18  # Low short interest
-                elif short_percent_of_float < 10:
-                    short_score = 14  # Moderate short interest
-                elif short_percent_of_float < 15:
-                    short_score = 10  # High short interest
-                elif short_percent_of_float < 20:
-                    short_score = 5   # Very high short interest
-                else:
-                    short_score = 0   # Extremely high short interest
-
-            # Accumulation/Distribution Rating component (0-25 points) - 25%
-            # IBD-style institutional buying/selling patterns
-            # 0-100 scale where 80-100=Heavy Accumulation, 0-20=Heavy Distribution
+            # Positioning Score - Using A/D Rating (IBD-style accumulation/distribution)
+            # NO FAKE DATA RULE: Only use real data when available
+            # A/D Rating already on 0-100 scale where 80-100=Heavy Accumulation, 0-20=Heavy Distribution
             if acc_dist_rating is not None:
-                # Scale 0-100 rating to 0-25 points (25% of positioning score)
-                acc_dist_score = (acc_dist_rating / 100) * 25
-
-            # Institution count component (0-10 points) - 10%
-            # More institutions = broader confidence (adjusted thresholds)
-            if institution_count is not None:
-                if institution_count >= 100:
-                    count_score = 10  # Very broad institutional support
-                elif institution_count >= 75:
-                    count_score = 8   # Broad institutional support
-                elif institution_count >= 50:
-                    count_score = 6   # Good institutional support
-                elif institution_count >= 30:
-                    count_score = 4   # Moderate institutional support
-                elif institution_count >= 15:
-                    count_score = 2   # Limited institutional support
-                else:  # < 15
-                    count_score = 0   # Very limited institutional support
-
-            positioning_score = inst_score + insider_score + short_score + acc_dist_score + count_score
-            positioning_score = max(0, min(100, positioning_score))
+                positioning_score = float(acc_dist_rating)
+                positioning_score = max(0, min(100, positioning_score))
+            else:
+                positioning_score = None
 
         # Sentiment Score (Analyst ratings + News sentiment + Market sentiment) - ONLY REAL DATA
         # Start with None - only use if we have real data
