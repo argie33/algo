@@ -441,6 +441,7 @@ def get_stock_data_from_database(conn, symbol):
         # Calculate individual scores (0-100 scale)
 
         # Momentum Score (based on RSI)
+        momentum_score = None
         if rsi is not None:
             if rsi > 70:
                 momentum_score = 80 + (rsi - 70) * 0.67  # 80-100 for overbought
@@ -450,10 +451,9 @@ def get_stock_data_from_database(conn, symbol):
                 momentum_score = 30 + (rsi - 30)  # 30-50 for weak momentum
             else:
                 momentum_score = rsi  # 0-30 for oversold
-        else:
-            momentum_score = 50  # Neutral if no RSI
 
         # Value Score (based on PE ratio if available)
+        value_score = None
         if pe_ratio and pe_ratio > 0:
             if pe_ratio < 15:
                 value_score = 90
@@ -463,12 +463,11 @@ def get_stock_data_from_database(conn, symbol):
                 value_score = 50
             else:
                 value_score = 30
-        else:
-            value_score = 50  # Neutral if no PE
 
         # Quality Score (based on volatility and volume)
-        quality_score = 50
-        if volatility_30d:
+        quality_score = None
+        if volatility_30d is not None:
+            quality_score = 50  # Start from neutral only if we have volatility data
             if volatility_30d < 20:
                 quality_score += 30
             elif volatility_30d < 40:
@@ -476,15 +475,15 @@ def get_stock_data_from_database(conn, symbol):
             elif volatility_30d > 60:
                 quality_score -= 20
 
-        if volume_avg_30d > 1000000:
-            quality_score += 20
-        elif volume_avg_30d > 100000:
-            quality_score += 10
+            if volume_avg_30d > 1000000:
+                quality_score += 20
+            elif volume_avg_30d > 100000:
+                quality_score += 10
 
-        quality_score = max(0, min(100, quality_score))
+            quality_score = max(0, min(100, quality_score))
 
         # Growth Score (based on earnings growth and price momentum)
-        growth_score = 50  # Default neutral score
+        growth_score = None
         if earnings_growth is not None:
             if earnings_growth > 20:
                 growth_score = 90
@@ -497,11 +496,11 @@ def get_stock_data_from_database(conn, symbol):
             else:
                 growth_score = 20
 
-        # Add price momentum to growth score
-        if price_change_30d > 10:
-            growth_score = min(100, growth_score + 10)
-        elif price_change_30d < -10:
-            growth_score = max(0, growth_score - 10)
+            # Add price momentum to growth score
+            if price_change_30d > 10:
+                growth_score = min(100, growth_score + 10)
+            elif price_change_30d < -10:
+                growth_score = max(0, growth_score - 10)
 
         growth_score = max(0, min(100, growth_score))
 

@@ -857,18 +857,14 @@ export default function EconomicDashboard() {
         inflation: leadData.inflation || 0,
         employment: leadData.employment || {},
 
-        // Yield curve - extract from indicators if available
-        yieldCurve: leadData.yieldCurve || { isInverted: false, spread2y10y: 0.85, historicalAccuracy: 65 },
+        // Yield curve - use real data only, no mock fallbacks
+        yieldCurve: leadData.yieldCurve || {},
         yieldCurveData: leadData.yieldCurveData || [],
 
-        // Credit spreads - use mock data
-        creditSpreads: leadData.creditSpreads || {
-          highYield: { oas: 385, signal: 'Neutral' },
-          investmentGrade: { oas: 105, signal: 'Positive' },
-          financialConditionsIndex: { value: -0.45, level: 'Accommodative' }
-        },
-        creditStressIndex: 30,
-        financialConditionsIndex: { value: -0.45, level: 'Accommodative' },
+        // Credit spreads - use real data only, no mock fallbacks
+        creditSpreads: leadData.creditSpreads || {},
+        creditStressIndex: leadData.creditStressIndex || null,
+        financialConditionsIndex: leadData.financialConditionsIndex || null,
 
         // Calendar - empty for now
         upcomingEvents: [],
