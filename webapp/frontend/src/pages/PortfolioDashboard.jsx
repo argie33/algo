@@ -838,53 +838,58 @@ export default function PortfolioDashboard() {
           </Card>
 
           {/* ============ RISK-ADJUSTED RETURNS ============ */}
-          <Card sx={{ mb: 4 }}>
-            <CardHeader title="Risk-Adjusted Return Metrics" />
-            <CardContent>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Sharpe Ratio" value={summary.sharpe_ratio?.toFixed(3) || "0.000"} unit="" /></Grid>
-                <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Sortino Ratio" value={summary.sortino_ratio?.toFixed(3) || "0.000"} unit="" /></Grid>
-                <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Calmar Ratio" value={summary.calmar_ratio?.toFixed(3) || "0.000"} unit="" /></Grid>
-                <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Treynor Ratio" value={summary.treynor_ratio?.toFixed(3) || "0.000"} unit="%" /></Grid>
-                <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Information Ratio" value={summary.information_ratio?.toFixed(2) || "0.00"} unit="" /></Grid>
-                <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Alpha" value={summary.alpha?.toFixed(2) || "0.00"} unit="%" /></Grid>
-              </Grid>
-            </CardContent>
-          </Card>
+          {(summary.sharpe_ratio && summary.sharpe_ratio !== 0) && (
+            <Card sx={{ mb: 4 }}>
+              <CardHeader title="Risk-Adjusted Return Metrics" />
+              <CardContent>
+                <Grid container spacing={2}>
+                  {summary.sharpe_ratio && summary.sharpe_ratio !== 0 && <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Sharpe Ratio" value={summary.sharpe_ratio?.toFixed(3)} unit="" /></Grid>}
+                  {summary.sortino_ratio && summary.sortino_ratio !== 0 && <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Sortino Ratio" value={summary.sortino_ratio?.toFixed(3)} unit="" /></Grid>}
+                  {summary.calmar_ratio && summary.calmar_ratio !== 0 && <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Calmar Ratio" value={summary.calmar_ratio?.toFixed(3)} unit="" /></Grid>}
+                  {summary.treynor_ratio && summary.treynor_ratio !== 0 && <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Treynor Ratio" value={summary.treynor_ratio?.toFixed(3)} unit="%" /></Grid>}
+                  {summary.information_ratio && summary.information_ratio !== 0 && <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Information Ratio" value={summary.information_ratio?.toFixed(2)} unit="" /></Grid>}
+                  {summary.alpha && summary.alpha !== 0 && <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Alpha" value={summary.alpha?.toFixed(2)} unit="%" /></Grid>}
+                </Grid>
+              </CardContent>
+            </Card>
+          )}
 
           {/* ============ VOLATILITY & RISK ============ */}
-          <Card sx={{ mb: 4 }}>
-            <CardHeader title="Volatility & Risk Metrics" />
-            <CardContent>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Volatility" value={summary.volatility_annualized?.toFixed(2) || "0.00"} unit="%" /></Grid>
-                <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Downside Deviation" value={summary.downside_deviation?.toFixed(2) || "0.00"} unit="%" /></Grid>
-                <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Beta" value={summary.beta?.toFixed(2) || "1.00"} unit="" /></Grid>
-                <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Return/Risk Ratio" value={summary.return_risk_ratio?.toFixed(2) || "0.00"} unit="" /></Grid>
-                <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Treynor Ratio" value={summary.treynor_ratio?.toFixed(2) || "0.00"} unit="%" /></Grid>
-                <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Max Drawdown" value={summary.max_drawdown?.toFixed(2) || "0.00"} unit="%" /></Grid>
-              </Grid>
-            </CardContent>
-          </Card>
+          {(summary.volatility_annualized && summary.volatility_annualized !== 0) && (
+            <Card sx={{ mb: 4 }}>
+              <CardHeader title="Volatility & Risk Metrics" />
+              <CardContent>
+                <Grid container spacing={2}>
+                  {summary.volatility_annualized && summary.volatility_annualized !== 0 && <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Volatility" value={summary.volatility_annualized?.toFixed(2)} unit="%" /></Grid>}
+                  {summary.downside_deviation && summary.downside_deviation !== 0 && <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Downside Deviation" value={summary.downside_deviation?.toFixed(2)} unit="%" /></Grid>}
+                  {summary.return_risk_ratio && summary.return_risk_ratio !== 0 && <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Return/Risk Ratio" value={summary.return_risk_ratio?.toFixed(2)} unit="" /></Grid>}
+                  {summary.max_drawdown && summary.max_drawdown !== 0 && <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Max Drawdown" value={summary.max_drawdown?.toFixed(2)} unit="%" /></Grid>}
+                </Grid>
+              </CardContent>
+            </Card>
+          )}
 
           {/* ============ VALUE AT RISK & TAIL RISK ============ */}
-          <Card sx={{ mb: 4 }}>
-            <CardHeader title="Value-at-Risk & Tail Risk Analysis" />
-            <CardContent>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="VaR 95%" value={summary.var_95?.toFixed(2) || "0.00"} unit="%" /></Grid>
-                <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="VaR 99%" value={summary.var_99?.toFixed(2) || "0.00"} unit="%" /></Grid>
-                <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="CVaR 95%" value={summary.cvar_95?.toFixed(2) || "0.00"} unit="%" /></Grid>
-                <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Skewness" value={summary.skewness?.toFixed(3) || "0.000"} unit="" /></Grid>
-                <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Kurtosis" value={summary.kurtosis?.toFixed(3) || "0.000"} unit="" /></Grid>
-                <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Semi-Skewness" value={summary.semi_skewness?.toFixed(3) || "0.000"} unit="" /></Grid>
-              </Grid>
-            </CardContent>
-          </Card>
+          {(summary.var_95 && summary.var_95 !== 0) && (
+            <Card sx={{ mb: 4 }}>
+              <CardHeader title="Value-at-Risk & Tail Risk Analysis" />
+              <CardContent>
+                <Grid container spacing={2}>
+                  {summary.var_95 && summary.var_95 !== 0 && <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="VaR 95%" value={summary.var_95?.toFixed(2)} unit="%" /></Grid>}
+                  {summary.var_99 && summary.var_99 !== 0 && <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="VaR 99%" value={summary.var_99?.toFixed(2)} unit="%" /></Grid>}
+                  {summary.cvar_95 && summary.cvar_95 !== 0 && <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="CVaR 95%" value={summary.cvar_95?.toFixed(2)} unit="%" /></Grid>}
+                  {summary.skewness && summary.skewness !== 0 && <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Skewness" value={summary.skewness?.toFixed(3)} unit="" /></Grid>}
+                  {summary.kurtosis && summary.kurtosis !== 0 && <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Kurtosis" value={summary.kurtosis?.toFixed(3)} unit="" /></Grid>}
+                  {summary.semi_skewness && summary.semi_skewness !== 0 && <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Semi-Skewness" value={summary.semi_skewness?.toFixed(3)} unit="" /></Grid>}
+                </Grid>
+              </CardContent>
+            </Card>
+          )}
 
           {/* ============ DRAWDOWN ANALYSIS ============ */}
-          <Card sx={{ mb: 4 }}>
-            <CardHeader title="Drawdown & Recovery Analysis" />
+          {(summary.max_drawdown && summary.max_drawdown !== 0) && (
+            <Card sx={{ mb: 4 }}>
+              <CardHeader title="Drawdown & Recovery Analysis" />
             <CardContent>
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Max Drawdown" value={summary.max_drawdown?.toFixed(2) || "0.00"} unit="%" /></Grid>
@@ -895,7 +900,8 @@ export default function PortfolioDashboard() {
                 <Grid item xs={12} sm={6} md={3} lg={2}><MetricBox label="Calmar Ratio" value={summary.calmar_ratio?.toFixed(3) || "0.000"} unit="" /></Grid>
               </Grid>
             </CardContent>
-          </Card>
+            </Card>
+          )}
 
           {/* ============ CONCENTRATION & DIVERSIFICATION ============ */}
           <Card sx={{ mb: 4 }}>
