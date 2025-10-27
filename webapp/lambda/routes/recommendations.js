@@ -327,26 +327,6 @@ router.get("/ai", authenticateToken, async (req, res) => {
   });
 });
 
-// Get sector-based recommendations (not implemented)
-router.get("/sectors", async (req, res) => {
-  res.status(501).json({
-    success: false,
-    error: "Sector recommendations not implemented",
-    message: "This feature requires sector analysis implementation",
-    timestamp: new Date().toISOString(),
-  });
-});
-
-// Get recommendations for specific sector (not implemented)
-router.get("/sectors/:sector", async (req, res) => {
-  res.status(501).json({
-    success: false,
-    error: "Sector recommendations not implemented",
-    message: "This feature requires sector analysis implementation",
-    timestamp: new Date().toISOString(),
-  });
-});
-
 // Get portfolio allocation recommendations (not implemented)
 router.get("/allocation", authenticateToken, async (req, res) => {
   res.status(501).json({
