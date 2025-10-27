@@ -114,24 +114,27 @@ def insert_symbol_results(cur, symbol, timeframe, df):
     # Calculate metrics
     df['avg_volume_50d'] = df['volume'].rolling(window=50).mean().fillna(0).astype('int64')
 
+    # REAL DATA ONLY: Use None if avg_volume is missing, not fake 0
     df['volume_surge_pct'] = df.apply(
         lambda row: round(((row['volume'] / row['avg_volume_50d'] - 1) * 100), 2)
-        if row['avg_volume_50d'] > 0 else 0,
+        if row['avg_volume_50d'] > 0 else None,
         axis=1
     )
 
+    # REAL DATA ONLY: Use None if calculation cannot be performed, not fake 0
     df['risk_reward_ratio'] = df.apply(
         lambda row: round(
             (((row['close'] * 1.25) - row['buyLevel']) / (row['buyLevel'] - row['stopLevel']))
-            if (row['stopLevel'] > 0 and row['buyLevel'] > 0 and (row['buyLevel'] - row['stopLevel']) != 0) else 0,
+            if (row['stopLevel'] > 0 and row['buyLevel'] > 0 and (row['buyLevel'] - row['stopLevel']) != 0) else None,
             2
-        ),
+        ) if (row['stopLevel'] > 0 and row['buyLevel'] > 0 and (row['buyLevel'] - row['stopLevel']) != 0) else None,
         axis=1
     )
 
     def calc_breakout_quality(row):
-        if row['low'] <= 0 or row['avg_volume_50d'] <= 0:
-            return 'WEAK'
+        # REAL DATA ONLY: Return None for invalid data, not fake 'WEAK'
+        if row['low'] <= 0 or row['avg_volume_50d'] <= 0 or row['volume_surge_pct'] is None:
+            return None  # Insufficient data
         daily_range_pct = ((row['high'] - row['low']) / row['low']) * 100
         volume_surge = row['volume_surge_pct']
         if daily_range_pct > 3.0 and volume_surge > 50:
@@ -139,7 +142,7 @@ def insert_symbol_results(cur, symbol, timeframe, df):
         elif daily_range_pct > 1.5 and volume_surge > 25:
             return 'MODERATE'
         else:
-            return 'WEAK'
+            return 'WEAK'  # Only return WEAK if data is valid but metrics don't meet thresholds
 
     df['breakout_quality'] = df.apply(calc_breakout_quality, axis=1)
 

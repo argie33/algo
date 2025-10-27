@@ -820,7 +820,7 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     df['signal_type'] = df['Signal']
     df['strength'] = df['Signal'].apply(lambda x: 1.0 if x == 'Buy' else (0.5 if x == 'Sell' else 0.0))
 
-    # === Clean up O'Neill columns (keep for compatibility but set to None/0) ===
+    # === Clean up O'Neill columns (keep for compatibility but set to None only - no fake 0) ===
     df['pivot_price'] = np.nan
     df['buy_zone_start'] = np.nan
     df['buy_zone_end'] = np.nan
@@ -831,27 +831,29 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     df['exit_trigger_4_condition'] = None
     df['exit_trigger_4_price'] = np.nan
     df['base_type'] = None
-    df['base_length_days'] = 0
+    df['base_length_days'] = None  # REAL DATA ONLY: None instead of fake 0
 
     # === CALCULATE REAL METRICS ===
     # Calculate 50-day rolling average volume
     df['avg_volume_50d'] = df['volume'].rolling(window=50).mean().fillna(0).astype('int64')
 
     # Calculate volume surge percentage: (current_volume / avg_volume_50d - 1) * 100
+    # REAL DATA ONLY: Use None if avg_volume is missing, not fake 0
     df['volume_surge_pct'] = df.apply(
         lambda row: round(((row['volume'] / row['avg_volume_50d'] - 1) * 100), 2)
-        if row['avg_volume_50d'] > 0 else 0,
+        if row['avg_volume_50d'] > 0 else None,
         axis=1
     )
 
     # Calculate risk/reward ratio: (target_price - entry_price) / (entry_price - stop_loss)
     # target_price = close * 1.25 (25% profit target)
+    # REAL DATA ONLY: Use None if calculation cannot be performed, not fake 0
     df['risk_reward_ratio'] = df.apply(
         lambda row: round(
             (((row['close'] * 1.25) - row['buyLevel']) / (row['buyLevel'] - row['stopLevel']))
-            if (row['stopLevel'] > 0 and row['buyLevel'] > 0 and (row['buyLevel'] - row['stopLevel']) != 0) else 0,
+            if (row['stopLevel'] > 0 and row['buyLevel'] > 0 and (row['buyLevel'] - row['stopLevel']) != 0) else None,
             2
-        ),
+        ) if (row['stopLevel'] > 0 and row['buyLevel'] > 0 and (row['buyLevel'] - row['stopLevel']) != 0) else None,
         axis=1
     )
 
@@ -862,19 +864,19 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
         high = row.get('high')
         volume_surge = row.get('volume_surge_pct')
 
-        # Check for invalid OHLC data
+        # REAL DATA ONLY: Return None for missing/invalid data, not fake 'WEAK'
         if low is None or high is None or volume_surge is None:
-            return 'WEAK'  # Insufficient data
+            return None  # Insufficient data - no quality assessment possible
 
         if low <= 0 or high <= 0:
-            return 'WEAK'  # Invalid price data
+            return None  # Invalid price data
 
         if high < low:
             logging.warning(f"Invalid OHLC: high ({high}) < low ({low})")
-            return 'WEAK'  # Inverted prices = data error
+            return None  # Inverted prices = data error
 
         if row.get('avg_volume_50d', 0) <= 0:
-            return 'WEAK'  # No volume data
+            return None  # No volume data
 
         # Calculate daily range percentage
         daily_range_pct = ((high - low) / low) * 100
@@ -882,14 +884,15 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
         # Validate result is reasonable (not inf or nan)
         if not (0 <= daily_range_pct <= 100):
             logging.warning(f"Invalid daily_range_pct: {daily_range_pct}")
-            return 'WEAK'
+            return None  # Invalid calculation
 
+        # Real calculations - only return actual quality assessments
         if daily_range_pct > 3.0 and volume_surge > 50:
             return 'STRONG'
         elif daily_range_pct > 1.5 and volume_surge > 25:
             return 'MODERATE'
         else:
-            return 'WEAK'
+            return 'WEAK'  # Only return WEAK if data is valid but metrics don't meet thresholds
 
     df['breakout_quality'] = df.apply(calc_breakout_quality, axis=1)
 
