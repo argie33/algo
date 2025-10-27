@@ -1685,7 +1685,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 if trailing_pe is not None and trailing_pe > 0 and trailing_pe < 500:
                     pe_percentile = calculate_percentile_rank(-float(trailing_pe),
                                                              [-pe for pe in value_metrics.get('pe', [])])
-                    pe_score = (pe_percentile / 100) * 100 * 0.3
+                    pe_score = (pe_percentile / 100) * 100  # 0-100 unweighted
                     value_score_components.append(pe_score)
                     value_weights.append(0.3)
 
@@ -1693,7 +1693,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 if price_to_book is not None and price_to_book > 0 and price_to_book < 100:
                     pb_percentile = calculate_percentile_rank(-float(price_to_book),
                                                              [-pb for pb in value_metrics.get('pb', [])])
-                    pb_score = (pb_percentile / 100) * 100 * 0.2
+                    pb_score = (pb_percentile / 100) * 100  # 0-100 unweighted
                     value_score_components.append(pb_score)
                     value_weights.append(0.2)
 
@@ -1701,7 +1701,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 if price_to_sales_ttm is not None and price_to_sales_ttm > 0 and price_to_sales_ttm < 100:
                     ps_percentile = calculate_percentile_rank(-float(price_to_sales_ttm),
                                                              [-ps for ps in value_metrics.get('ps', [])])
-                    ps_score = (ps_percentile / 100) * 100 * 0.25
+                    ps_score = (ps_percentile / 100) * 100  # 0-100 unweighted
                     value_score_components.append(ps_score)
                     value_weights.append(0.25)
 
@@ -1709,7 +1709,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 if peg_ratio_val is not None and peg_ratio_val > 0 and peg_ratio_val < 500:
                     peg_percentile = calculate_percentile_rank(-float(peg_ratio_val),
                                                               [-peg for peg in value_metrics.get('peg', [])])
-                    peg_score = (peg_percentile / 100) * 100 * 0.15
+                    peg_score = (peg_percentile / 100) * 100  # 0-100 unweighted
                     value_score_components.append(peg_score)
                     value_weights.append(0.15)
 
@@ -1717,7 +1717,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 if ev_to_revenue is not None and ev_to_revenue > 0 and ev_to_revenue < 100:
                     ev_percentile = calculate_percentile_rank(-float(ev_to_revenue),
                                                              [-ev for ev in value_metrics.get('ev_revenue', [])])
-                    ev_score = (ev_percentile / 100) * 100 * 0.1
+                    ev_score = (ev_percentile / 100) * 100  # 0-100 unweighted
                     value_score_components.append(ev_score)
                     value_weights.append(0.1)
 

@@ -1,4 +1,5 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
+# CRITICAL: Scores table missing from database. Depends on all metrics being populated first
 # Updated: 2025-07-15 - Enhanced for deployment workflow trigger
 import os
 import sys

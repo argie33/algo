@@ -90,8 +90,8 @@ def calculate_rating_distribution(numeric_rating, analyst_count):
     Estimate rating distribution from average rating and analyst count.
     Ratings: 1=Strong Buy, 2=Buy, 3=Hold, 4=Sell, 5=Strong Sell
     """
-    if not numeric_rating or analyst_count <= 0:
-        return 0, 0, analyst_count, 0, 0
+    if not numeric_rating or analyst_count is None or analyst_count <= 0:
+        return 0, 0, analyst_count if analyst_count else 0, 0, 0
 
     # Distribute analysts across rating buckets based on average rating
     # This is an approximation since we don't have the actual distribution

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Daily price data loader - fetches OHLCV data for all symbols
-# Trigger deploy-app-stocks workflow test - daily loader update v25 - Load prices for empty database
+# CRITICAL: Database has 0 price records. Must run to populate price_daily table for all pages/APIs
 import sys
 import time
 import logging

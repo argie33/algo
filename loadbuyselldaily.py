@@ -1,4 +1,5 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
+# CRITICAL: Buy/Sell signals table missing from database. Must run to enable trading signal pages
 import os
 import sys
 import json
@@ -832,18 +833,78 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     df['signal_type'] = df['Signal']
     df['strength'] = df['Signal'].apply(lambda x: 1.0 if x == 'Buy' else (0.5 if x == 'Sell' else 0.0))
 
-    # === Clean up O'Neill columns (keep for compatibility but set to None only - no fake 0) ===
-    df['pivot_price'] = np.nan
+    # === STOP LEVELS AND ENTRY PRICING ===
+    # initial_stop = the stop loss level at entry (stopLevel calculated above)
+    df['initial_stop'] = df['stopLevel']
+
+    # trailing_stop = track the highest close since entry for trailing stop
+    df['trailing_stop'] = None
+    for i in range(len(df)):
+        if df.iloc[i]['Signal'] == 'Buy':
+            # Start tracking highest close from this entry
+            highest_close = df.iloc[i]['close']
+            for j in range(i + 1, len(df)):
+                highest_close = max(highest_close, df.iloc[j]['close'])
+                df.at[j, 'trailing_stop'] = highest_close * 0.95  # 5% trailing stop
+                if df.iloc[j]['Signal'] == 'Sell':
+                    break
+
+    # pivot_price = entry price (close when Buy signal triggered)
+    df['pivot_price'] = df.apply(
+        lambda row: row['close'] if row['Signal'] == 'Buy' else None,
+        axis=1
+    )
+    # Forward-fill pivot price during position holding
+    df['pivot_price'] = df['pivot_price'].ffill()
+
+    # buy_zone_start and buy_zone_end (set to None if not using for now)
     df['buy_zone_start'] = np.nan
     df['buy_zone_end'] = np.nan
+
+    # exit_trigger fields (not in current strategy)
     df['exit_trigger_1_price'] = np.nan
     df['exit_trigger_2_price'] = np.nan
     df['exit_trigger_3_condition'] = None
     df['exit_trigger_3_price'] = np.nan
     df['exit_trigger_4_condition'] = None
     df['exit_trigger_4_price'] = np.nan
-    df['base_type'] = None
-    df['base_length_days'] = None  # REAL DATA ONLY: None instead of fake 0
+
+    # === BASE/CONSOLIDATION ANALYSIS ===
+    # base_type: Detect consolidation patterns by looking at price volatility
+    def detect_base_type(row):
+        """Detect consolidation type: BASING (tight range) or BREAKOUT (wide range)"""
+        high = row.get('high')
+        low = row.get('low')
+        if high is None or low is None or low <= 0:
+            return None
+
+        daily_range_pct = ((high - low) / low) * 100
+        if daily_range_pct < 1.0:
+            return 'TIGHT_RANGE'  # Tight basing
+        elif daily_range_pct < 2.5:
+            return 'NORMAL_RANGE'
+        else:
+            return 'WIDE_RANGE'  # Breakout candidate
+
+    df['base_type'] = df.apply(detect_base_type, axis=1)
+
+    # base_length_days: Count consecutive days in tight range before breakout
+    def calc_base_length(df_window):
+        """Calculate how many days the base/consolidation lasted"""
+        length = 0
+        for i in range(len(df_window) - 1, -1, -1):
+            if df_window.iloc[i]['base_type'] in ['TIGHT_RANGE', 'NORMAL_RANGE']:
+                length += 1
+            else:
+                break
+        return length if length > 0 else None
+
+    df['base_length_days'] = None
+    for i in range(len(df)):
+        if df.iloc[i]['Signal'] == 'Buy' and i > 0:
+            # Look back from this buy signal to count base length
+            base_len = calc_base_length(df.iloc[max(0, i-20):i])  # Look back max 20 days
+            df.at[i, 'base_length_days'] = base_len if (base_len is not None and base_len > 0) else None
 
     # === CALCULATE REAL METRICS ===
     # Calculate 50-day rolling average volume
@@ -908,8 +969,32 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
 
     df['breakout_quality'] = df.apply(calc_breakout_quality, axis=1)
 
-    # Initialize position tracking fields as None (not fake 0/50 values)
+    # === RS RATING (Relative Strength - Investor's Business Daily style) ===
+    # Simple version: rank based on recent performance
+    def calc_rs_rating(df_window):
+        """Calculate RS rating 0-99 based on price performance vs 200-day high"""
+        if len(df_window) < 200:
+            return None
+
+        current_price = df_window.iloc[-1]['close']
+        high_200d = df_window.iloc[-200:]['high'].max()
+
+        if high_200d <= 0:
+            return None
+
+        # RS = (current / 200-day high) * 100
+        rs = (current_price / high_200d) * 100
+        # Convert to 0-99 scale
+        rs_rating = min(99, max(1, int(rs)))
+        return rs_rating
+
     df['rs_rating'] = None
+    for i in range(200, len(df)):
+        rs = calc_rs_rating(df.iloc[0:i+1])
+        if rs is not None:
+            df.at[i, 'rs_rating'] = rs
+
+    # Initialize position tracking fields as None (not fake 0/50 values)
     df['current_gain_pct'] = None
     df['days_in_position'] = None
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 MAIN Sector & Industry Data Loader
+CRITICAL: Sectors table missing from database. Must run to enable SectorAnalysis pages
 Consolidates ALL sector and industry loading into one unified module:
 - Sector/Industry Rankings (current_rank, historical ranks)
 - Sector/Industry Performance (1D%, 5D%, 20D%)

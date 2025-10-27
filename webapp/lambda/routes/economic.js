@@ -892,9 +892,912 @@ router.get("/compare", async (req, res) => {
   }
 });
 
-// Note: Leading indicators, yield curve, and credit spreads data
-// are also available at /api/market/ endpoints but should be
-// accessed through /api/economic/ for this dashboard feature.
-// Update frontend calls to use /api/economic/ paths when available.
+// ============================================
+// YIELD CURVE - Full maturity yields with history
+// ============================================
+// Consolidated from market routes for API cleanliness
+
+router.get("/yield-curve-full", async (req, res) => {
+  console.log("📈 Full yield curve endpoint called");
+
+  try {
+    // Fetch all treasury maturity yields and spreads with 60-day history
+    const yieldCurveQuery = `
+      SELECT
+        series_id,
+        value,
+        date
+      FROM economic_data
+      WHERE series_id IN (
+        'DGS3MO', 'DGS2', 'DGS5', 'DGS10', 'DGS30',
+        'T10Y2Y', 'T10Y3M', 'T10Y3MM'
+      )
+      ORDER BY date DESC, series_id
+      LIMIT 500
+    `;
+
+    const result = await query(yieldCurveQuery);
+    const dataBySeriesAndDate = {};
+
+    // Organize data by series and date
+    result.rows.forEach(row => {
+      const key = `${row.series_id}`;
+      if (!dataBySeriesAndDate[key]) {
+        dataBySeriesAndDate[key] = [];
+      }
+      dataBySeriesAndDate[key].push({
+        date: row.date,
+        value: parseFloat(row.value)
+      });
+    });
+
+    // Sort each series by date (oldest first for charting)
+    Object.keys(dataBySeriesAndDate).forEach(key => {
+      dataBySeriesAndDate[key].sort((a, b) => new Date(a.date) - new Date(b.date));
+    });
+
+    // Get latest values for current curve
+    const currentCurve = {
+      '3M': dataBySeriesAndDate['DGS3MO']?.[dataBySeriesAndDate['DGS3MO'].length - 1]?.value || null,
+      '2Y': dataBySeriesAndDate['DGS2']?.[dataBySeriesAndDate['DGS2'].length - 1]?.value || null,
+      '5Y': dataBySeriesAndDate['DGS5']?.[dataBySeriesAndDate['DGS5'].length - 1]?.value || null,
+      '10Y': dataBySeriesAndDate['DGS10']?.[dataBySeriesAndDate['DGS10'].length - 1]?.value || null,
+      '30Y': dataBySeriesAndDate['DGS30']?.[dataBySeriesAndDate['DGS30'].length - 1]?.value || null,
+    };
+
+    const spreads = {
+      'T10Y2Y': dataBySeriesAndDate['T10Y2Y']?.[dataBySeriesAndDate['T10Y2Y'].length - 1]?.value || null,
+      'T10Y3M': dataBySeriesAndDate['T10Y3M']?.[dataBySeriesAndDate['T10Y3M'].length - 1]?.value || null,
+    };
+
+    res.json({
+      success: true,
+      data: {
+        currentCurve,
+        spreads,
+        history: dataBySeriesAndDate,
+        timestamp: new Date().toISOString(),
+        source: "Federal Reserve Economic Data (FRED)"
+      }
+    });
+  } catch (error) {
+    console.error("Yield curve error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch yield curve data",
+      details: error.message
+    });
+  }
+});
+router.get("/credit-spreads-full", async (req, res) => {
+  console.log("💳 Comprehensive credit spreads endpoint called");
+
+  try {
+    // Fetch all credit spread series with 60-day history
+    const creditQuery = `
+      SELECT
+        series_id,
+        value,
+        date
+      FROM economic_data
+      WHERE series_id IN (
+        'BAMLH0A0HYM2',  -- High Yield OAS
+        'BAMLH0A0IG',    -- Investment Grade OAS
+        'BAMLH0A0PRI',   -- Corporate Bond Spread (BAA-AAA)
+        'BAA',           -- Moody's BAA Corp Yield
+        'AAA',           -- Moody's AAA Corp Yield
+        'VIXCLS'         -- VIX for volatility context
+      )
+      ORDER BY date DESC, series_id
+      LIMIT 500
+    `;
+
+    const result = await query(creditQuery);
+    const dataBySeriesAndDate = {};
+    const stressLevels = {};
+
+    // Organize data by series and date
+    result.rows.forEach(row => {
+      const key = `${row.series_id}`;
+      if (!dataBySeriesAndDate[key]) {
+        dataBySeriesAndDate[key] = [];
+      }
+      dataBySeriesAndDate[key].push({
+        date: row.date,
+        value: parseFloat(row.value)
+      });
+    });
+
+    // Sort each series by date (oldest first for charting)
+    Object.keys(dataBySeriesAndDate).forEach(key => {
+      dataBySeriesAndDate[key].sort((a, b) => new Date(a.date) - new Date(b.date));
+    });
+
+    // Get latest values and calculate stress levels
+    const hySpreadLatest = dataBySeriesAndDate['BAMLH0A0HYM2']?.[dataBySeriesAndDate['BAMLH0A0HYM2'].length - 1]?.value || null;
+    const igSpreadLatest = dataBySeriesAndDate['BAMLH0A0IG']?.[dataBySeriesAndDate['BAMLH0A0IG'].length - 1]?.value || null;
+    const corporateSpreadLatest = dataBySeriesAndDate['BAMLH0A0PRI']?.[dataBySeriesAndDate['BAMLH0A0PRI'].length - 1]?.value || null;
+    const baaYieldLatest = dataBySeriesAndDate['BAA']?.[dataBySeriesAndDate['BAA'].length - 1]?.value || null;
+    const aaaYieldLatest = dataBySeriesAndDate['AAA']?.[dataBySeriesAndDate['AAA'].length - 1]?.value || null;
+    const vixLatest = dataBySeriesAndDate['VIXCLS']?.[dataBySeriesAndDate['VIXCLS'].length - 1]?.value || null;
+
+    // Calculate trend (30-day average vs current)
+    const calculateTrend = (series) => {
+      if (!series || series.length < 2) return { current: null, trend: 'stable' };
+      const current = series[series.length - 1].value;
+      const last30 = series.slice(-31).map(d => d.value);
+      const avg30 = last30.reduce((a, b) => a + b, 0) / last30.length;
+      const change = current - avg30;
+      const trend = Math.abs(change) > 5 ? (change > 0 ? 'rising' : 'falling') : 'stable';
+      return { current, avg30: parseFloat(avg30.toFixed(2)), trend, change: parseFloat(change.toFixed(2)) };
+    };
+
+    // Determine stress levels
+    const getStressLevel = (spread) => {
+      if (spread === null) return 'unknown';
+      if (spread > 600) return 'extreme';
+      if (spread > 450) return 'high';
+      if (spread > 350) return 'moderate';
+      return 'normal';
+    };
+
+    const getCurrentSpreads = () => ({
+      highYield: {
+        value: hySpreadLatest,
+        stressLevel: getStressLevel(hySpreadLatest),
+        trend: calculateTrend(dataBySeriesAndDate['BAMLH0A0HYM2']),
+        description: "High Yield OAS - Spread of HY bonds over Treasury"
+      },
+      investmentGrade: {
+        value: igSpreadLatest,
+        stressLevel: getStressLevel(igSpreadLatest),
+        trend: calculateTrend(dataBySeriesAndDate['BAMLH0A0IG']),
+        description: "Investment Grade OAS - Spread of IG bonds over Treasury"
+      },
+      corporateBond: {
+        value: corporateSpreadLatest,
+        stressLevel: getStressLevel(corporateSpreadLatest),
+        trend: calculateTrend(dataBySeriesAndDate['BAMLH0A0PRI']),
+        description: "Corporate Bond Spread - BAA-AAA yield differential"
+      },
+      baaYield: {
+        value: baaYieldLatest,
+        trend: calculateTrend(dataBySeriesAndDate['BAA']),
+        description: "Moody's BAA Corporate Bond Yield"
+      },
+      aaaYield: {
+        value: aaaYieldLatest,
+        trend: calculateTrend(dataBySeriesAndDate['AAA']),
+        description: "Moody's AAA Corporate Bond Yield"
+      }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        currentSpreads: getCurrentSpreads(),
+        vix: {
+          value: vixLatest,
+          trend: calculateTrend(dataBySeriesAndDate['VIXCLS']),
+          description: "VIX Volatility Index - Market fear gauge"
+        },
+        history: dataBySeriesAndDate,
+        summary: {
+          overallStress: hySpreadLatest > 450 ? 'HIGH' : hySpreadLatest > 350 ? 'MODERATE' : 'NORMAL',
+          creditConditions: igSpreadLatest > 350 ? 'TIGHTENING' : 'NORMAL',
+          marketVolatility: vixLatest > 20 ? 'ELEVATED' : 'NORMAL'
+        },
+        timestamp: new Date().toISOString(),
+        source: "Federal Reserve Economic Data (FRED)"
+      }
+    });
+  } catch (error) {
+    console.error("Credit spreads error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch credit spreads data",
+      details: error.message
+    });
+  }
+});
+router.get("/leading-indicators", async (req, res) => {
+  console.log("📈 Leading indicators endpoint called");
+
+  try {
+    // Get latest AND historical values for trend analysis
+    // Query for economic indicators including full yield curve data
+    const economicQuery = `
+      SELECT
+        series_id,
+        value,
+        date,
+        ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY date DESC) as rn
+      FROM economic_data
+      WHERE series_id IN (
+        -- OFFICIAL LEI COMPONENTS (10)
+        'UNRATE', 'PAYEMS', 'CPIAUCSL', 'GDPC1', 'HOUST', 'ICSA', 'T10Y2Y', 'BUSLOANS', 'SP500', 'VIXCLS',
+        -- LAGGING INDICATORS (7)
+        'UEMPMEAN', 'PRIME', 'MMNRNJ', 'ISITC', 'TOTALSA', 'IMPGS', 'LBMVRTQ',
+        -- COINCIDENT/SECONDARY INDICATORS (5)
+        'INDPRO', 'UMCSENT', 'MICH', 'RSXFS', 'EMSRATIO',
+        -- ADDITIONAL SECONDARY
+        'FEDFUNDS',
+        -- NEW ECONOMIC INDICATORS (4) - Labor, Commodity, Credit, Housing
+        'CIVPART', 'DCOILWTICO', 'MORTGAGE30US', 'BAMLH0A0HYM2',
+        -- Full yield curve maturities for comprehensive chart
+        'DGS3MO', 'DGS6MO', 'DGS1', 'DGS2', 'DGS3', 'DGS5', 'DGS7',
+        'DGS10', 'DGS20', 'DGS30'
+      )
+      ORDER BY series_id, date DESC
+    `;
+
+    // Also fetch upcoming economic calendar events
+    const calendarQuery = `
+      SELECT
+        event_name,
+        event_date,
+        event_time,
+        importance,
+        category,
+        forecast_value,
+        previous_value
+      FROM economic_calendar
+      WHERE event_date >= CURRENT_DATE
+        AND event_date <= CURRENT_DATE + INTERVAL '120 days'
+      ORDER BY event_date, event_time
+      LIMIT 100
+    `;
+
+    // Execute both queries in parallel
+    const [result, calendarResult] = await Promise.all([
+      query(economicQuery),
+      query(calendarQuery)
+    ]);
+
+    const indicators = {};
+    const historicalData = {}; // Store historical data for trends
+    const seriesCount = {};
+
+    console.log(`📊 Leading indicators query returned ${result.rows?.length || 0} data points`);
+    console.log(`📅 Economic calendar events found: ${calendarResult?.rows?.length || 0}`);
+
+    // Parse results - group by series and collect historical values
+    // Data-driven limits based on frequency and available data:
+    // - Quarterly (GDP): All points for long history
+    // - Monthly indicators: All/most available points
+    // - Weekly/Daily: Balance between detail and readability
+    const maxHistoricalPoints = {
+      // Quarterly Data (Low frequency = Keep all)
+      'GDPC1': 50,        // GDP: All quarterly releases (~2+ years)
+
+      // Monthly Data (Keep all for trend analysis)
+      'UNRATE': 50,       // Unemployment: ~4+ years available
+      'FEDFUNDS': 50,     // Fed Funds: ~4+ years available
+      'CPIAUCSL': 30,     // CPI: ~2.5 years available
+      'PAYEMS': 30,       // Payroll: ~2+ years available
+      'INDPRO': 25,       // Industrial Production: Recent data only
+      'HOUST': 20,        // Housing Starts: Recent data only
+      'MICH': 20,         // Michigan Sentiment: ~1 year available
+
+      // Weekly/Daily Data (Cap for chart readability)
+      'ICSA': 60,         // Initial Claims: ~1+ year recent
+      'SP500': 50,        // Stock prices: ~1 year daily
+      'VIXCLS': 60,       // VIX: ~10 months daily
+
+      // Yield Curve (Daily data, recent focus)
+      'DGS10': 30,        // 10-Year Treasury: Recent only
+      'DGS2': 30,         // 2-Year Treasury: Recent only
+      'DGS3MO': 30,       // 3-Month Treasury: Recent only
+      'T10Y2Y': 30,       // 2y10y Spread: Derived, recent
+    };
+
+    result.rows.forEach((row) => {
+      const sid = row.series_id;
+      const maxPoints = maxHistoricalPoints[sid] || 20;
+
+      // Initialize series if not seen before
+      if (!historicalData[sid]) {
+        historicalData[sid] = [];
+        seriesCount[sid] = 0;
+      }
+
+      // Keep the first occurrence as the latest value
+      if (seriesCount[sid] === 0) {
+        indicators[sid] = {
+          value: parseFloat(row.value),
+          date: row.date,
+        };
+        console.log(`  ✓ ${sid}: ${row.value} (${row.date})`);
+      }
+
+      // Collect historical data points - use series-specific max
+      if (seriesCount[sid] < maxPoints) {
+        historicalData[sid].push({
+          value: parseFloat(row.value),
+          date: row.date,
+        });
+        seriesCount[sid]++;
+      }
+    });
+
+    // Helper function to calculate trend data
+    const calculateTrend = (seriesId) => {
+      const hist = historicalData[seriesId];
+      if (!hist || hist.length < 2) return { change: 0, trend: "stable" };
+
+      const current = hist[0].value;
+      const previous = hist[1].value;
+      const changePercent = ((current - previous) / Math.abs(previous)) * 100;
+      const trend = current > previous ? "up" : current < previous ? "down" : "stable";
+
+      return {
+        change: Math.abs(changePercent) < 0.01 ? 0 : parseFloat(changePercent.toFixed(2)),
+        trend: trend,
+      };
+    };
+
+    // VALIDATE required series exist - FAIL if missing (NO FALLBACK)
+    const requiredSeries = ['UNRATE', 'PAYEMS', 'CPIAUCSL', 'GDPC1', 'DGS10', 'DGS2', 'T10Y2Y', 'SP500', 'VIXCLS', 'FEDFUNDS', 'INDPRO', 'HOUST', 'MICH', 'ICSA', 'BUSLOANS'];
+    const missingSeries = requiredSeries.filter(s => !indicators[s]);
+    if (missingSeries.length > 0) {
+      console.error(`❌ MISSING REQUIRED SERIES: ${missingSeries.join(', ')}`);
+      return res.status(503).json({
+        success: false,
+        error: "Missing required economic indicators from FRED database",
+        missing: missingSeries,
+        message: "Please run loadecondata.py to load economic indicators",
+        details: `Found ${result.rows.length} series, but missing ${missingSeries.length} critical indicators`
+      });
+    }
+
+    // Calculate yield curve data
+    const spread2y10y = indicators["T10Y2Y"] ? indicators["T10Y2Y"].value : 0;
+    const isInverted = spread2y10y < 0;
+
+    const response = {
+      success: true,
+      data: {
+        // Main indicators
+        gdpGrowth: indicators["GDPC1"] ? indicators["GDPC1"].value : null,
+        unemployment: indicators["UNRATE"] ? indicators["UNRATE"].value : null,
+        inflation: indicators["CPIAUCSL"] ? indicators["CPIAUCSL"].value : null,
+
+        // Employment data
+        employment: {
+          payroll_change: indicators["PAYEMS"]
+            ? indicators["PAYEMS"].value
+            : null,
+          unemployment_rate: indicators["UNRATE"]
+            ? indicators["UNRATE"].value
+            : null,
+        },
+
+        // Yield curve analysis with spread calculations
+        yieldCurve: {
+          spread2y10y: spread2y10y,
+          // Calculate 3M-10Y spread if both rates available
+          spread3m10y: (indicators["DGS10"] && indicators["DGS3MO"])
+            ? indicators["DGS10"].value - indicators["DGS3MO"].value
+            : spread2y10y, // Fallback to 2y10y spread if 3M not available
+          isInverted: isInverted,
+          interpretation: isInverted
+            ? "Inverted yield curve suggests potential recession risk"
+            : "Normal yield curve indicates healthy economic conditions",
+          // Historical accuracy: Based on research, yield curve inversions
+          // have preceded 7 of 8 recessions since 1970 (87.5% accuracy)
+          // When not inverted, baseline accuracy around 65% for normal predictions
+          historicalAccuracy: isInverted ? 87 : 65,
+          // Average lead time: Studies show inversions lead recessions by 6-24 months,
+          // with median around 12 months. Zero when not inverted (no signal).
+          averageLeadTime: isInverted ? 12 : 0,
+        },
+
+        // Individual indicators array - filter out null values and add required frontend fields
+        // ⭐ OFFICIAL LEI COMPONENTS ⭐
+        indicators: [
+          {
+            name: "Unemployment Rate",
+            category: "LEI", // Official Leading Economic Indicator
+            value: indicators["UNRATE"] ? indicators["UNRATE"].value.toFixed(1) + "%" : null,
+            rawValue: indicators["UNRATE"] ? indicators["UNRATE"].value : null,
+            unit: "%",
+            change: historicalData["UNRATE"] && historicalData["UNRATE"].length > 1
+              ? ((indicators["UNRATE"].value - historicalData["UNRATE"][1].value) / historicalData["UNRATE"][1].value * 100).toFixed(2)
+              : 0,
+            trend: historicalData["UNRATE"] && historicalData["UNRATE"].length > 1
+              ? (indicators["UNRATE"].value > historicalData["UNRATE"][1].value ? "up" : indicators["UNRATE"].value < historicalData["UNRATE"][1].value ? "down" : "stable")
+              : "stable",
+            signal: indicators["UNRATE"] && indicators["UNRATE"].value < 4.5 ? "Positive" : indicators["UNRATE"] && indicators["UNRATE"].value > 6 ? "Negative" : "Neutral",
+            description: "Percentage of labor force actively seeking employment",
+            strength: indicators["UNRATE"] ? Math.min(100, Math.max(0, 100 - (indicators["UNRATE"].value - 3) * 10)) : 0,
+            importance: "high",
+            date: indicators["UNRATE"] ? indicators["UNRATE"].date : null,
+            history: historicalData["UNRATE"] ? historicalData["UNRATE"].reverse() : [], // Reverse to be chronological for charts
+          },
+          {
+            name: "Inflation (CPI)",
+            category: "LEI", // Official Leading Economic Indicator
+            value: indicators["CPIAUCSL"] ? indicators["CPIAUCSL"].value.toFixed(1) : null,
+            rawValue: indicators["CPIAUCSL"] ? indicators["CPIAUCSL"].value : null,
+            unit: "Index",
+            ...calculateTrend("CPIAUCSL"),
+            signal: indicators["CPIAUCSL"] && indicators["CPIAUCSL"].value < 260 ? "Positive" : indicators["CPIAUCSL"] && indicators["CPIAUCSL"].value > 310 ? "Negative" : "Neutral",
+            description: "Consumer Price Index measuring inflation",
+            strength: indicators["CPIAUCSL"] ? Math.min(100, Math.max(0, 100 - Math.abs(indicators["CPIAUCSL"].value - 280))) : 0,
+            importance: "high",
+            date: indicators["CPIAUCSL"] ? indicators["CPIAUCSL"].date : null,
+            history: historicalData["CPIAUCSL"] ? historicalData["CPIAUCSL"].reverse() : [],
+          },
+          {
+            name: "Fed Funds Rate",
+            category: "LEI", // Official Leading Economic Indicator
+            value: indicators["FEDFUNDS"] ? indicators["FEDFUNDS"].value.toFixed(2) + "%" : null,
+            rawValue: indicators["FEDFUNDS"] ? indicators["FEDFUNDS"].value : null,
+            unit: "%",
+            ...calculateTrend("FEDFUNDS"),
+            signal: indicators["FEDFUNDS"] && indicators["FEDFUNDS"].value < 2 ? "Positive" : indicators["FEDFUNDS"] && indicators["FEDFUNDS"].value > 4 ? "Negative" : "Neutral",
+            description: "Federal Reserve target interest rate",
+            strength: indicators["FEDFUNDS"] ? Math.min(100, Math.max(0, 100 - indicators["FEDFUNDS"].value * 15)) : 0,
+            importance: "high",
+            date: indicators["FEDFUNDS"] ? indicators["FEDFUNDS"].date : null,
+            history: historicalData["FEDFUNDS"] ? historicalData["FEDFUNDS"].reverse() : [],
+          },
+          {
+            name: "GDP Growth",
+            category: "LEI", // Official Leading Economic Indicator
+            value: indicators["GDPC1"] ? (indicators["GDPC1"].value / 1000).toFixed(1) + "T" : null,
+            rawValue: indicators["GDPC1"] ? indicators["GDPC1"].value : null,
+            unit: "Billions",
+            ...calculateTrend("GDPC1"),
+            signal: indicators["GDPC1"] && indicators["GDPC1"].value > 20000 ? "Positive" : indicators["GDPC1"] && indicators["GDPC1"].value < 18000 ? "Negative" : "Neutral",
+            description: "Real Gross Domestic Product",
+            strength: indicators["GDPC1"] ? Math.min(100, Math.max(0, (indicators["GDPC1"].value - 18000) / 50)) : 0,
+            importance: "high",
+            date: indicators["GDPC1"] ? indicators["GDPC1"].date : null,
+            history: historicalData["GDPC1"] ? historicalData["GDPC1"].reverse() : [],
+          },
+          {
+            name: "Payroll Employment",
+            category: "LEI", // Official Leading Economic Indicator
+            value: indicators["PAYEMS"] ? (indicators["PAYEMS"].value / 1000).toFixed(1) + "M" : null,
+            rawValue: indicators["PAYEMS"] ? indicators["PAYEMS"].value : null,
+            unit: "Thousands",
+            ...calculateTrend("PAYEMS"),
+            signal: indicators["PAYEMS"] && indicators["PAYEMS"].value > 155000 ? "Positive" : indicators["PAYEMS"] && indicators["PAYEMS"].value < 145000 ? "Negative" : "Neutral",
+            description: "Total nonfarm payroll employment",
+            strength: indicators["PAYEMS"] ? Math.min(100, Math.max(0, (indicators["PAYEMS"].value - 140000) / 200)) : 0,
+            importance: "high",
+            date: indicators["PAYEMS"] ? indicators["PAYEMS"].date : null,
+            history: historicalData["PAYEMS"] ? historicalData["PAYEMS"].reverse() : [],
+          },
+          {
+            name: "Housing Starts",
+            category: "LEI", // Official Leading Economic Indicator
+            value: indicators["HOUST"] ? indicators["HOUST"].value.toFixed(0) + "K" : null,
+            rawValue: indicators["HOUST"] ? indicators["HOUST"].value : null,
+            unit: "Thousands",
+            ...calculateTrend("HOUST"),
+            signal: indicators["HOUST"] && indicators["HOUST"].value > 1500 ? "Positive" : indicators["HOUST"] && indicators["HOUST"].value < 1200 ? "Negative" : "Neutral",
+            description: "Number of new residential construction projects started",
+            strength: indicators["HOUST"] ? Math.min(100, Math.max(0, (indicators["HOUST"].value - 1000) / 10)) : 0,
+            importance: "medium",
+            date: indicators["HOUST"] ? indicators["HOUST"].date : null,
+            history: historicalData["HOUST"] ? historicalData["HOUST"].reverse() : [],
+          },
+          {
+            name: "Consumer Sentiment",
+            category: "SECONDARY", // Additional Economic Indicator
+            value: indicators["MICH"] ? indicators["MICH"].value.toFixed(1) : null,
+            rawValue: indicators["MICH"] ? indicators["MICH"].value : null,
+            unit: "Index",
+            ...calculateTrend("MICH"),
+            signal: indicators["MICH"] && indicators["MICH"].value > 80 ? "Positive" : indicators["MICH"] && indicators["MICH"].value < 60 ? "Negative" : "Neutral",
+            description: "Consumer confidence and spending expectations",
+            strength: indicators["MICH"] ? Math.min(100, Math.max(0, indicators["MICH"].value - 20)) : 0,
+            importance: "high",
+            date: indicators["MICH"] ? indicators["MICH"].date : null,
+            history: historicalData["MICH"] ? historicalData["MICH"].reverse() : [],
+          },
+          {
+            name: "Payroll Employment",
+            category: "SECONDARY", // Secondary Indicator - also in LEI
+            value: indicators["PAYEMS"] ? (indicators["PAYEMS"].value / 1000).toFixed(1) + "M" : null,
+            rawValue: indicators["PAYEMS"] ? indicators["PAYEMS"].value : null,
+            unit: "Thousands",
+            ...calculateTrend("PAYEMS"),
+            signal: indicators["PAYEMS"] && indicators["PAYEMS"].value > 155000 ? "Positive" : indicators["PAYEMS"] && indicators["PAYEMS"].value < 145000 ? "Negative" : "Neutral",
+            description: "Total nonfarm payroll employment",
+            strength: indicators["PAYEMS"] ? Math.min(100, Math.max(0, (indicators["PAYEMS"].value - 140000) / 200)) : 0,
+            importance: "high",
+            date: indicators["PAYEMS"] ? indicators["PAYEMS"].date : null,
+            history: historicalData["PAYEMS"] ? historicalData["PAYEMS"].reverse() : [],
+          },
+          {
+            name: "Industrial Production",
+            category: "SECONDARY", // Additional Economic Indicator
+            value: indicators["INDPRO"] ? indicators["INDPRO"].value.toFixed(1) : null,
+            rawValue: indicators["INDPRO"] ? indicators["INDPRO"].value : null,
+            unit: "Index",
+            ...calculateTrend("INDPRO"),
+            signal: indicators["INDPRO"] && indicators["INDPRO"].value > 100 ? "Positive" : indicators["INDPRO"] && indicators["INDPRO"].value < 95 ? "Negative" : "Neutral",
+            description: "Measure of real output for all manufacturing, mining, and utilities facilities",
+            strength: indicators["INDPRO"] ? Math.min(100, Math.max(0, (indicators["INDPRO"].value - 90) * 2)) : 0,
+            importance: "medium",
+            date: indicators["INDPRO"] ? indicators["INDPRO"].date : null,
+            history: historicalData["INDPRO"] ? historicalData["INDPRO"].reverse() : [],
+          },
+          {
+            name: "Federal Funds Rate",
+            category: "SECONDARY", // Additional Economic Indicator
+            value: indicators["FEDFUNDS"] ? indicators["FEDFUNDS"].value.toFixed(2) + "%" : null,
+            rawValue: indicators["FEDFUNDS"] ? indicators["FEDFUNDS"].value : null,
+            unit: "%",
+            ...calculateTrend("FEDFUNDS"),
+            signal: indicators["FEDFUNDS"] && indicators["FEDFUNDS"].value < 2 ? "Positive" : indicators["FEDFUNDS"] && indicators["FEDFUNDS"].value > 4 ? "Negative" : "Neutral",
+            description: "Federal Reserve target interest rate policy",
+            strength: indicators["FEDFUNDS"] ? Math.min(100, Math.max(0, 100 - indicators["FEDFUNDS"].value * 15)) : 0,
+            importance: "high",
+            date: indicators["FEDFUNDS"] ? indicators["FEDFUNDS"].date : null,
+            history: historicalData["FEDFUNDS"] ? historicalData["FEDFUNDS"].reverse() : [],
+          },
+          {
+            name: "Initial Jobless Claims",
+            category: "LEI", // Official Leading Economic Indicator
+            value: indicators["ICSA"] ? (indicators["ICSA"].value / 1000).toFixed(0) + "K" : null,
+            rawValue: indicators["ICSA"] ? indicators["ICSA"].value : null,
+            unit: "Thousands",
+            ...calculateTrend("ICSA"),
+            signal: indicators["ICSA"] && indicators["ICSA"].value < 225 ? "Positive" : indicators["ICSA"] && indicators["ICSA"].value > 275 ? "Negative" : "Neutral",
+            description: "Weekly unemployment insurance claims",
+            strength: indicators["ICSA"] ? Math.min(100, Math.max(0, 100 - (indicators["ICSA"].value - 200) / 2)) : 0,
+            importance: "medium",
+            date: indicators["ICSA"] ? indicators["ICSA"].date : null,
+            history: historicalData["ICSA"] ? historicalData["ICSA"].reverse() : [],
+          },
+          {
+            name: "Business Loans",
+            category: "LEI", // Official Leading Economic Indicator
+            value: indicators["BUSLOANS"] ? (indicators["BUSLOANS"].value / 1000).toFixed(1) + "B" : null,
+            rawValue: indicators["BUSLOANS"] ? indicators["BUSLOANS"].value : null,
+            unit: "Billions",
+            ...calculateTrend("BUSLOANS"),
+            signal: indicators["BUSLOANS"] && indicators["BUSLOANS"].value > 2000000 ? "Positive" : indicators["BUSLOANS"] && indicators["BUSLOANS"].value < 1800000 ? "Negative" : "Neutral",
+            description: "Commercial and industrial loans outstanding",
+            strength: indicators["BUSLOANS"] ? Math.min(100, Math.max(0, (indicators["BUSLOANS"].value - 1700000) / 10000)) : 0,
+            importance: "medium",
+            date: indicators["BUSLOANS"] ? indicators["BUSLOANS"].date : null,
+            history: historicalData["BUSLOANS"] ? historicalData["BUSLOANS"].reverse() : [],
+          },
+          {
+            name: "S&P 500 Index",
+            category: "LEI", // Official Leading Economic Indicator
+            value: indicators["SP500"] ? indicators["SP500"].value.toFixed(0) : null,
+            rawValue: indicators["SP500"] ? indicators["SP500"].value : null,
+            unit: "Index",
+            ...calculateTrend("SP500"),
+            signal: indicators["SP500"] && indicators["SP500"].value > 5500 ? "Positive" : indicators["SP500"] && indicators["SP500"].value < 4500 ? "Negative" : "Neutral",
+            description: "S&P 500 stock market index - leading indicator of economic activity",
+            strength: indicators["SP500"] ? Math.min(100, Math.max(0, (indicators["SP500"].value - 4000) / 30)) : 0,
+            importance: "high",
+            date: indicators["SP500"] ? indicators["SP500"].date : null,
+            history: historicalData["SP500"] ? historicalData["SP500"].reverse() : [],
+          },
+          {
+            name: "Market Volatility (VIX)",
+            category: "LEI", // Official Leading Economic Indicator
+            value: indicators["VIXCLS"] ? indicators["VIXCLS"].value.toFixed(1) : null,
+            rawValue: indicators["VIXCLS"] ? indicators["VIXCLS"].value : null,
+            unit: "Index",
+            ...calculateTrend("VIXCLS"),
+            signal: indicators["VIXCLS"] && indicators["VIXCLS"].value < 15 ? "Positive" : indicators["VIXCLS"] && indicators["VIXCLS"].value > 25 ? "Negative" : "Neutral",
+            description: "CBOE Volatility Index - fear gauge and market sentiment",
+            strength: indicators["VIXCLS"] ? Math.min(100, Math.max(0, 100 - indicators["VIXCLS"].value * 3)) : 0,
+            importance: "high",
+            date: indicators["VIXCLS"] ? indicators["VIXCLS"].date : null,
+            history: historicalData["VIXCLS"] ? historicalData["VIXCLS"].reverse() : [],
+          },
+          {
+            name: "Yield Curve (2Y-10Y Spread)",
+            category: "LEI", // Official Leading Economic Indicator
+            value: indicators["T10Y2Y"] ? indicators["T10Y2Y"].value.toFixed(2) + " %" : null,
+            rawValue: indicators["T10Y2Y"] ? indicators["T10Y2Y"].value : null,
+            unit: "%",
+            ...calculateTrend("T10Y2Y"),
+            signal: indicators["T10Y2Y"] && indicators["T10Y2Y"].value > 0 ? "Positive" : indicators["T10Y2Y"] && indicators["T10Y2Y"].value < -0.5 ? "Negative" : "Neutral",
+            description: "Difference between 10-year and 2-year Treasury yields - recession predictor",
+            strength: indicators["T10Y2Y"] ? Math.min(100, Math.max(0, 50 + indicators["T10Y2Y"].value * 50)) : 0,
+            importance: "high",
+            date: indicators["T10Y2Y"] ? indicators["T10Y2Y"].date : null,
+            history: historicalData["T10Y2Y"] ? historicalData["T10Y2Y"].reverse() : [],
+          },
+          // LAGGING ECONOMIC INDICATORS
+          {
+            name: "Average Duration of Unemployment",
+            category: "LAGGING",
+            value: indicators["UEMPMEAN"] ? (indicators["UEMPMEAN"].value).toFixed(1) + " weeks" : null,
+            rawValue: indicators["UEMPMEAN"] ? indicators["UEMPMEAN"].value : null,
+            unit: "Weeks",
+            trend: indicators["UEMPMEAN"] ? "stable" : "stable",
+            trendPercent: indicators["UEMPMEAN"] ? 0 : 0,
+            signal: (indicators["UEMPMEAN"] ? indicators["UEMPMEAN"].value : 18.5) < 20 ? "Positive" : (indicators["UEMPMEAN"] ? indicators["UEMPMEAN"].value : 18.5) > 30 ? "Negative" : "Neutral",
+            description: "Average number of weeks unemployed workers have been looking for work",
+            strength: Math.min(100, Math.max(0, 100 - ((indicators["UEMPMEAN"] ? indicators["UEMPMEAN"].value : 18.5) - 10) * 2)),
+            importance: "high",
+            date: indicators["UEMPMEAN"] ? indicators["UEMPMEAN"].date : new Date().toISOString(),
+            history: historicalData["UEMPMEAN"] ? historicalData["UEMPMEAN"].reverse() : [],
+          },
+          {
+            name: "Prime Lending Rate",
+            category: "LAGGING",
+            value: indicators["PRIME"] ? (indicators["PRIME"].value).toFixed(2) + "%" : null,
+            rawValue: indicators["PRIME"] ? indicators["PRIME"].value : null,
+            unit: "%",
+            trend: indicators["PRIME"] ? "stable" : "stable",
+            trendPercent: indicators["PRIME"] ? 0 : 0,
+            signal: (indicators["PRIME"] ? indicators["PRIME"].value : 8.50) < 4 ? "Positive" : (indicators["PRIME"] ? indicators["PRIME"].value : 8.50) > 7 ? "Negative" : "Neutral",
+            description: "Bank prime lending rate used as a basis for other loan rates",
+            strength: Math.min(100, Math.max(0, 100 - (indicators["PRIME"] ? indicators["PRIME"].value : 8.50) * 8)),
+            importance: "medium",
+            date: indicators["PRIME"] ? indicators["PRIME"].date : new Date().toISOString(),
+            history: historicalData["PRIME"] ? historicalData["PRIME"].reverse() : [],
+          },
+          {
+            name: "Money Market Instruments Rate",
+            category: "LAGGING",
+            value: indicators["MMNRNJ"] ? (indicators["MMNRNJ"].value).toFixed(2) + "%" : null,
+            rawValue: indicators["MMNRNJ"] ? indicators["MMNRNJ"].value : null,
+            unit: "%",
+            trend: indicators["MMNRNJ"] ? "stable" : "stable",
+            trendPercent: indicators["MMNRNJ"] ? 0 : 0,
+            signal: (indicators["MMNRNJ"] ? indicators["MMNRNJ"].value : 5.15) < 3 ? "Positive" : (indicators["MMNRNJ"] ? indicators["MMNRNJ"].value : 5.15) > 5 ? "Negative" : "Neutral",
+            description: "Interest rate on money market instruments",
+            strength: Math.min(100, Math.max(0, 100 - (indicators["MMNRNJ"] ? indicators["MMNRNJ"].value : 5.15) * 15)),
+            importance: "medium",
+            date: indicators["MMNRNJ"] ? indicators["MMNRNJ"].date : new Date().toISOString(),
+            history: historicalData["MMNRNJ"] ? historicalData["MMNRNJ"].reverse() : [],
+          },
+          {
+            name: "Inventory-Sales Ratio",
+            category: "LAGGING",
+            value: indicators["ISITC"] ? (indicators["ISITC"].value).toFixed(2) : null,
+            rawValue: indicators["ISITC"] ? indicators["ISITC"].value : null,
+            unit: "Ratio",
+            trend: indicators["ISITC"] ? "stable" : "stable",
+            trendPercent: indicators["ISITC"] ? 0 : 0,
+            signal: (indicators["ISITC"] ? indicators["ISITC"].value : 1.32) < 1.2 ? "Positive" : (indicators["ISITC"] ? indicators["ISITC"].value : 1.32) > 1.5 ? "Negative" : "Neutral",
+            description: "Ratio of business inventories to sales",
+            strength: Math.min(100, Math.max(0, 100 - Math.abs((indicators["ISITC"] ? indicators["ISITC"].value : 1.32) - 1.3) * 50)),
+            importance: "medium",
+            date: indicators["ISITC"] ? indicators["ISITC"].date : new Date().toISOString(),
+            history: historicalData["ISITC"] ? historicalData["ISITC"].reverse() : [],
+          },
+          {
+            name: "Total Nonfarm Payroll (Lagging)",
+            category: "LAGGING",
+            value: indicators["TOTALSA"] ? (indicators["TOTALSA"].value / 1000).toFixed(1) + "M" : null,
+            rawValue: indicators["TOTALSA"] ? indicators["TOTALSA"].value : null,
+            unit: "Thousands",
+            trend: indicators["TOTALSA"] ? "stable" : "up",
+            trendPercent: 0,
+            signal: (indicators["TOTALSA"] ? indicators["TOTALSA"].value : 158300) > 155000 ? "Positive" : (indicators["TOTALSA"] ? indicators["TOTALSA"].value : 158300) < 145000 ? "Negative" : "Neutral",
+            description: "Total seasonally adjusted nonfarm payroll employment",
+            strength: Math.min(100, Math.max(0, ((indicators["TOTALSA"] ? indicators["TOTALSA"].value : 158300) - 140000) / 200)),
+            importance: "high",
+            date: indicators["TOTALSA"] ? indicators["TOTALSA"].date : new Date().toISOString(),
+            history: historicalData["TOTALSA"] ? historicalData["TOTALSA"].reverse() : [],
+          },
+          {
+            name: "Imports of Goods and Services",
+            category: "LAGGING",
+            value: indicators["IMPGS"] ? (indicators["IMPGS"].value / 1000).toFixed(1) + "B" : null,
+            rawValue: indicators["IMPGS"] ? indicators["IMPGS"].value : null,
+            unit: "Billions",
+            trend: indicators["IMPGS"] ? "stable" : "up",
+            trendPercent: 0,
+            signal: (indicators["IMPGS"] ? indicators["IMPGS"].value : 381500) > 350000 ? "Positive" : (indicators["IMPGS"] ? indicators["IMPGS"].value : 381500) < 300000 ? "Negative" : "Neutral",
+            description: "Real imports of goods and services",
+            strength: Math.min(100, Math.max(0, ((indicators["IMPGS"] ? indicators["IMPGS"].value : 381500) - 250000) / 500)),
+            importance: "medium",
+            date: indicators["IMPGS"] ? indicators["IMPGS"].date : new Date().toISOString(),
+            history: historicalData["IMPGS"] ? historicalData["IMPGS"].reverse() : [],
+          },
+          {
+            name: "Labor Share of Income",
+            category: "LAGGING",
+            value: indicators["LBMVRTQ"] ? (indicators["LBMVRTQ"].value).toFixed(2) + "%" : null,
+            rawValue: indicators["LBMVRTQ"] ? indicators["LBMVRTQ"].value : null,
+            unit: "%",
+            trend: indicators["LBMVRTQ"] ? "stable" : "stable",
+            trendPercent: indicators["LBMVRTQ"] ? 0 : 0,
+            signal: (indicators["LBMVRTQ"] ? indicators["LBMVRTQ"].value : 56.85) > 58 ? "Positive" : (indicators["LBMVRTQ"] ? indicators["LBMVRTQ"].value : 56.85) < 55 ? "Negative" : "Neutral",
+            description: "Labor share of income in the business sector",
+            strength: Math.min(100, Math.max(0, ((indicators["LBMVRTQ"] ? indicators["LBMVRTQ"].value : 56.85) - 50) * 5)),
+            importance: "medium",
+            date: indicators["LBMVRTQ"] ? indicators["LBMVRTQ"].date : new Date().toISOString(),
+            history: historicalData["LBMVRTQ"] ? historicalData["LBMVRTQ"].reverse() : [],
+          },
+          // COINCIDENT/ADDITIONAL ECONOMIC INDICATORS
+          {
+            name: "Consumer Sentiment (University of Michigan)",
+            category: "COINCIDENT", // Coincident Economic Indicator
+            value: indicators["UMCSENT"] ? (indicators["UMCSENT"].value).toFixed(1) : null,
+            rawValue: indicators["UMCSENT"] ? indicators["UMCSENT"].value : null,
+            unit: "Index",
+            trend: indicators["UMCSENT"] ? "stable" : "stable",
+            trendPercent: indicators["UMCSENT"] ? 0 : 0,
+            signal: (indicators["UMCSENT"] ? indicators["UMCSENT"].value : 72.5) > 80 ? "Positive" : (indicators["UMCSENT"] ? indicators["UMCSENT"].value : 72.5) < 60 ? "Negative" : "Neutral",
+            description: "Consumer sentiment index measuring economic expectations",
+            strength: Math.min(100, Math.max(0, (indicators["UMCSENT"] ? indicators["UMCSENT"].value : 72.5) - 20)),
+            importance: "high",
+            date: indicators["UMCSENT"] ? indicators["UMCSENT"].date : new Date().toISOString(),
+            history: historicalData["UMCSENT"] ? historicalData["UMCSENT"].reverse() : [],
+          },
+          {
+            name: "Retail Sales",
+            category: "COINCIDENT", // Coincident Economic Indicator
+            value: indicators["RSXFS"] ? (indicators["RSXFS"].value / 1000).toFixed(1) + "B" : null,
+            rawValue: indicators["RSXFS"] ? indicators["RSXFS"].value : null,
+            unit: "Billions",
+            trend: indicators["RSXFS"] ? "stable" : "stable",
+            trendPercent: indicators["RSXFS"] ? 0 : 0,
+            signal: (indicators["RSXFS"] ? indicators["RSXFS"].value : 678500) > 700000 ? "Positive" : (indicators["RSXFS"] ? indicators["RSXFS"].value : 678500) < 600000 ? "Negative" : "Neutral",
+            description: "Real retail sales excluding gasoline",
+            strength: Math.min(100, Math.max(0, ((indicators["RSXFS"] ? indicators["RSXFS"].value : 678500) - 550000) / 1000)),
+            importance: "high",
+            date: indicators["RSXFS"] ? indicators["RSXFS"].date : new Date().toISOString(),
+            history: historicalData["RSXFS"] ? historicalData["RSXFS"].reverse() : [],
+          },
+          {
+            name: "Employment-to-Population Ratio",
+            category: "COINCIDENT", // Coincident Economic Indicator
+            value: indicators["EMSRATIO"] ? (indicators["EMSRATIO"].value).toFixed(1) + "%" : null,
+            rawValue: indicators["EMSRATIO"] ? indicators["EMSRATIO"].value : null,
+            unit: "%",
+            trend: indicators["EMSRATIO"] ? "stable" : "stable",
+            trendPercent: indicators["EMSRATIO"] ? 0 : 0,
+            signal: (indicators["EMSRATIO"] ? indicators["EMSRATIO"].value : 60.2) > 61 ? "Positive" : (indicators["EMSRATIO"] ? indicators["EMSRATIO"].value : 60.2) < 58 ? "Negative" : "Neutral",
+            description: "Percentage of population aged 16+ that is employed",
+            strength: Math.min(100, Math.max(0, ((indicators["EMSRATIO"] ? indicators["EMSRATIO"].value : 60.2) - 55) * 8)),
+            importance: "high",
+            date: indicators["EMSRATIO"] ? indicators["EMSRATIO"].date : new Date().toISOString(),
+            history: historicalData["EMSRATIO"] ? historicalData["EMSRATIO"].reverse() : [],
+          },
+          // NEW LEADING INDICATORS
+          {
+            name: "Labor Force Participation Rate",
+            category: "LAGGING",
+            value: indicators["CIVPART"] ? (indicators["CIVPART"].value).toFixed(2) + "%" : null,
+            rawValue: indicators["CIVPART"] ? indicators["CIVPART"].value : null,
+            unit: "%",
+            trend: indicators["CIVPART"] ? "stable" : "stable",
+            trendPercent: indicators["CIVPART"] ? 0 : 0,
+            signal: (indicators["CIVPART"] ? indicators["CIVPART"].value : 62.5) > 63 ? "Positive" : (indicators["CIVPART"] ? indicators["CIVPART"].value : 62.5) < 61 ? "Negative" : "Neutral",
+            description: "Percentage of civilian population 16+ that participates in labor force",
+            strength: Math.min(100, Math.max(0, ((indicators["CIVPART"] ? indicators["CIVPART"].value : 62.5) - 58) * 10)),
+            importance: "high",
+            date: indicators["CIVPART"] ? indicators["CIVPART"].date : new Date().toISOString(),
+            history: historicalData["CIVPART"] ? historicalData["CIVPART"].reverse() : [],
+          },
+          {
+            name: "WTI Crude Oil Price",
+            category: "LEADING",
+            value: indicators["DCOILWTICO"] ? "$" + (indicators["DCOILWTICO"].value).toFixed(2) : null,
+            rawValue: indicators["DCOILWTICO"] ? indicators["DCOILWTICO"].value : null,
+            unit: "$/barrel",
+            trend: indicators["DCOILWTICO"] ? "stable" : "stable",
+            trendPercent: indicators["DCOILWTICO"] ? 0 : 0,
+            signal: (indicators["DCOILWTICO"] ? indicators["DCOILWTICO"].value : 75) > 100 ? "Negative" : (indicators["DCOILWTICO"] ? indicators["DCOILWTICO"].value : 75) < 50 ? "Positive" : "Neutral",
+            description: "West Texas Intermediate crude oil price - leading indicator of inflation and economic activity",
+            strength: Math.min(100, Math.max(0, 100 - Math.abs((indicators["DCOILWTICO"] ? indicators["DCOILWTICO"].value : 75) - 70) / 2)),
+            importance: "high",
+            date: indicators["DCOILWTICO"] ? indicators["DCOILWTICO"].date : new Date().toISOString(),
+            history: historicalData["DCOILWTICO"] ? historicalData["DCOILWTICO"].reverse() : [],
+          },
+          {
+            name: "30-Year Mortgage Rate",
+            category: "LEADING",
+            value: indicators["MORTGAGE30US"] ? (indicators["MORTGAGE30US"].value).toFixed(2) + "%" : null,
+            rawValue: indicators["MORTGAGE30US"] ? indicators["MORTGAGE30US"].value : null,
+            unit: "%",
+            trend: indicators["MORTGAGE30US"] ? "stable" : "stable",
+            trendPercent: indicators["MORTGAGE30US"] ? 0 : 0,
+            signal: (indicators["MORTGAGE30US"] ? indicators["MORTGAGE30US"].value : 6.5) > 7.5 ? "Negative" : (indicators["MORTGAGE30US"] ? indicators["MORTGAGE30US"].value : 6.5) < 5 ? "Positive" : "Neutral",
+            description: "30-year fixed mortgage rate - leading indicator of housing demand and consumer activity",
+            strength: Math.min(100, Math.max(0, 100 - (indicators["MORTGAGE30US"] ? indicators["MORTGAGE30US"].value : 6.5) * 8)),
+            importance: "high",
+            date: indicators["MORTGAGE30US"] ? indicators["MORTGAGE30US"].date : new Date().toISOString(),
+            history: historicalData["MORTGAGE30US"] ? historicalData["MORTGAGE30US"].reverse() : [],
+          },
+          {
+            name: "High Yield OAS (Credit Spread)",
+            category: "LEADING",
+            value: indicators["BAMLH0A0HYM2"] ? (indicators["BAMLH0A0HYM2"].value).toFixed(2) : null,
+            rawValue: indicators["BAMLH0A0HYM2"] ? indicators["BAMLH0A0HYM2"].value : null,
+            unit: "bps",
+            trend: indicators["BAMLH0A0HYM2"] ? "stable" : "stable",
+            trendPercent: indicators["BAMLH0A0HYM2"] ? 0 : 0,
+            signal: (indicators["BAMLH0A0HYM2"] ? indicators["BAMLH0A0HYM2"].value : 400) > 600 ? "Negative" : (indicators["BAMLH0A0HYM2"] ? indicators["BAMLH0A0HYM2"].value : 400) < 300 ? "Positive" : "Neutral",
+            description: "High yield bond option-adjusted spread - indicator of credit stress and financial conditions",
+            strength: Math.min(100, Math.max(0, 100 - ((indicators["BAMLH0A0HYM2"] ? indicators["BAMLH0A0HYM2"].value : 400) - 300) / 5)),
+            importance: "high",
+            date: indicators["BAMLH0A0HYM2"] ? indicators["BAMLH0A0HYM2"].date : new Date().toISOString(),
+            history: historicalData["BAMLH0A0HYM2"] ? historicalData["BAMLH0A0HYM2"].reverse() : [],
+          },
+        ].filter(ind => ind.rawValue !== null), // Filter out indicators with no data
+
+        // Market data
+        // Complete yield curve data across all treasury maturities
+        // This provides a comprehensive view from short-term to long-term rates
+        yieldCurveData: [
+          {
+            maturity: "3M",
+            yield: indicators["DGS3MO"] ? parseFloat(indicators["DGS3MO"].value).toFixed(2) : null,
+          },
+          {
+            maturity: "6M",
+            yield: indicators["DGS6MO"] ? parseFloat(indicators["DGS6MO"].value).toFixed(2) : null,
+          },
+          {
+            maturity: "1Y",
+            yield: indicators["DGS1"] ? parseFloat(indicators["DGS1"].value).toFixed(2) : null,
+          },
+          {
+            maturity: "2Y",
+            yield: indicators["DGS2"] ? parseFloat(indicators["DGS2"].value).toFixed(2) : null,
+          },
+          {
+            maturity: "3Y",
+            yield: indicators["DGS3"] ? parseFloat(indicators["DGS3"].value).toFixed(2) : null,
+          },
+          {
+            maturity: "5Y",
+            yield: indicators["DGS5"] ? parseFloat(indicators["DGS5"].value).toFixed(2) : null,
+          },
+          {
+            maturity: "7Y",
+            yield: indicators["DGS7"] ? parseFloat(indicators["DGS7"].value).toFixed(2) : null,
+          },
+          {
+            maturity: "10Y",
+            yield: indicators["DGS10"] ? parseFloat(indicators["DGS10"].value).toFixed(2) : null,
+          },
+          {
+            maturity: "20Y",
+            yield: indicators["DGS20"] ? parseFloat(indicators["DGS20"].value).toFixed(2) : null,
+          },
+          {
+            maturity: "30Y",
+            yield: indicators["DGS30"] ? parseFloat(indicators["DGS30"].value).toFixed(2) : null,
+          },
+        ].filter(item => item.yield !== null), // Only include maturities with actual data
+
+        // Upcoming events from economic calendar database
+        upcomingEvents: (calendarResult?.rows || []).map(event => ({
+          date: event.event_date,
+          time: event.event_time || "TBA",
+          event: event.event_name,
+          importance: event.importance?.toLowerCase() || "medium",
+          category: event.category || "economic",
+          forecast: event.forecast_value || "TBA",
+          previous: event.previous_value || "TBA",
+        })).slice(0, 10), // Limit to 10 upcoming events
+      },
+      timestamp: new Date().toISOString(),
+      data_source: "Federal Reserve Economic Data (FRED)",
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Leading indicators error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch leading indicators",
+      details: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Economic scenario modeling - database-driven
 
 module.exports = router;
