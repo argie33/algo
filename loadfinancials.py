@@ -185,8 +185,13 @@ class FinancialMetricsCalculator:
             
             if total_assets:
                 # Simplified: Invested Capital = Total Assets - Cash
-                invested_capital = total_assets - (cash or 0)
-                return safe_divide(nopat, invested_capital)
+                # Only use cash if available - don't use fake 0 default
+                if cash is not None:
+                    invested_capital = total_assets - cash
+                    return safe_divide(nopat, invested_capital)
+                else:
+                    # Can't calculate ROIC without cash data - return None instead of using fake 0
+                    return None
             
             return None
             

@@ -94,9 +94,9 @@ def create_buy_sell_table(cur):
         stoplevel           REAL,
         inposition          BOOLEAN,
         strength            REAL,
-        avg_volume_50d      BIGINT DEFAULT 0,
-        volume_surge_pct    FLOAT DEFAULT 0,
-        risk_reward_ratio   FLOAT DEFAULT 0,
+        avg_volume_50d      BIGINT,  # REAL DATA ONLY
+        volume_surge_pct    FLOAT,  # REAL DATA ONLY
+        risk_reward_ratio   FLOAT,  # REAL DATA ONLY
         breakout_quality    VARCHAR(10) DEFAULT 'WEAK',
         UNIQUE(symbol, timeframe, date)
       );
@@ -104,8 +104,7 @@ def create_buy_sell_table(cur):
 
 def insert_symbol_results(cur, symbol, timeframe, df):
     # Calculate metrics
-    df['avg_volume_50d'] = df['volume'].rolling(window=50).mean().astype('Int64')
-    df['avg_volume_50d'] = df['avg_volume_50d'].fillna(0).astype('int64')
+    df['avg_volume_50d'] = df['volume'].rolling(window=50).mean().fillna(0).astype('int64')
 
     df['volume_surge_pct'] = df.apply(
         lambda row: round(((row['volume'] / row['avg_volume_50d'] - 1) * 100), 2)

@@ -151,7 +151,7 @@ class PatternRecognitionLoader:
                     description TEXT,
                     min_bars INTEGER NOT NULL DEFAULT 5,
                     max_bars INTEGER NOT NULL DEFAULT 100,
-                    reliability_score DECIMAL(3,2) DEFAULT 0.75,
+                    reliability_score DECIMAL(3,2),  # REAL DATA ONLY - NULL if unavailable
                     is_active BOOLEAN DEFAULT true,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
@@ -235,7 +235,7 @@ class PatternRecognitionLoader:
                     pattern_type_id INTEGER REFERENCES pattern_types(id),
                     timeframe VARCHAR(10) NOT NULL,
                     is_enabled BOOLEAN DEFAULT true,
-                    min_confidence DECIMAL(3,2) DEFAULT 0.70,
+                    min_confidence DECIMAL(3,2),  # REAL DATA ONLY - NULL if unavailable
                     last_scan TIMESTAMP,
                     scan_interval INTEGER DEFAULT 3600,
                     alert_enabled BOOLEAN DEFAULT false,

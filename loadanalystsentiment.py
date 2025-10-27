@@ -109,23 +109,24 @@ def calculate_rating_distribution(numeric_rating, analyst_count):
     return strong_buy, buy, hold, sell, strong_sell
 
 def fetch_analyst_data(symbol):
-    """Fetch analyst sentiment data from yfinance."""
+    """Fetch analyst sentiment data from yfinance. Returns None if no real data available."""
     try:
         ticker = yf.Ticker(symbol)
         info = ticker.info
 
-        # Extract analyst data fields
-        analyst_count = info.get("numberOfAnalystOpinions", 0)
+        # Extract analyst data fields - NO FAKE DEFAULTS
+        analyst_count = info.get("numberOfAnalystOpinions")  # None if missing (not fake 0)
         avg_rating_str = info.get("averageAnalystRating")
         target_mean = info.get("targetMeanPrice")
 
-        if analyst_count == 0 and not avg_rating_str and not target_mean:
+        # Only return data if we have REAL analyst information
+        if analyst_count is None and not avg_rating_str and not target_mean:
             return None
 
         numeric_rating, rating_name = parse_rating(avg_rating_str)
 
         return {
-            "analyst_count": analyst_count or 0,
+            "analyst_count": analyst_count,  # Real count or None (not fake 0)
             "numeric_rating": numeric_rating,
             "rating_name": rating_name,
             "target_mean": target_mean,

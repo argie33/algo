@@ -1089,9 +1089,10 @@ if __name__ == "__main__":
     
     logging.info("\nTop 10 Stocks by Analyst Price Target Upside:")
     for row in cur.fetchall():
-        upside = row['price_target_vs_current'] or 0
+        upside = row['price_target_vs_current']  # None if missing (not fake 0)
+        upside_str = f"{upside:.1%}" if upside is not None else "N/A"
         logging.info(f"  {row['symbol']} ({row['company_name'][:25]}): "
-                    f"Upside={upside:.1%}, Analysts={row['total_analysts']}, "
+                    f"Upside={upside_str}, Analysts={row['total_analysts']}, "
                     f"Reddit={row['reddit_mention_count']}, News Sentiment={row['news_sentiment_score']:.2f}")
     
     cur.close()

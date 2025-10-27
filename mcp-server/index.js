@@ -185,11 +185,16 @@ const handleTopStocks = async (params) => {
   });
 
   if (response.data?.stocks) {
-    // Sort by requested factor
+    // Sort by requested factor - REAL DATA ONLY, filter out stocks without real score data
     response.data.stocks = response.data.stocks
+      .filter(stock => {
+        // Only include stocks with real score data (not null, not undefined, not 0 as fake default)
+        const score = stock[`${factor}_score`];
+        return score !== null && score !== undefined && typeof score === 'number';
+      })
       .sort((a, b) => {
-        const aScore = a[`${factor}_score`] || 0;
-        const bScore = b[`${factor}_score`] || 0;
+        const aScore = a[`${factor}_score`];
+        const bScore = b[`${factor}_score`];
         return bScore - aScore;
       })
       .slice(0, limit);

@@ -224,11 +224,12 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn):
             trailing_stop = float(row.get('trailing_stop')) if pd.notna(row.get('trailing_stop')) else None
 
             base_type = row.get('base_type') or None
-            base_length = int(row.get('base_length_days', 0)) or 0
+            base_length_raw = row.get('base_length_days')
+            base_length = int(base_length_raw) if base_length_raw is not None else None  # None if missing (not fake 0)
 
             avg_vol = row.get('avg_volume_50d')
             if pd.isna(avg_vol) or avg_vol is None:
-                avg_vol = 0
+                avg_vol = None  # None if missing (not fake 0)
             else:
                 avg_vol = int(avg_vol) if not isinstance(avg_vol, float) else int(float(avg_vol))
 
@@ -679,13 +680,13 @@ def rate_breakout_quality(row, base_info, volume_surge):
     elif volume_surge >= 40:
         score += 10
     
-    # RS Rating (0-30 points)
-    rs_rating = row.get('rs_rating', 50)
-    if rs_rating >= 90:
+    # RS Rating (0-30 points) - REAL DATA ONLY, no fake defaults
+    rs_rating = row.get('rs_rating')  # Returns None if not available (no fake 50)
+    if rs_rating is not None and rs_rating >= 90:
         score += 30
-    elif rs_rating >= 80:
+    elif rs_rating is not None and rs_rating >= 80:
         score += 20
-    elif rs_rating >= 70:
+    elif rs_rating is not None and rs_rating >= 70:
         score += 10
     
     # Base Quality (0-20 points)
@@ -834,8 +835,7 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
 
     # === CALCULATE REAL METRICS ===
     # Calculate 50-day rolling average volume
-    df['avg_volume_50d'] = df['volume'].rolling(window=50).mean().astype('Int64')
-    df['avg_volume_50d'] = df['avg_volume_50d'].fillna(0).astype('int64')
+    df['avg_volume_50d'] = df['volume'].rolling(window=50).mean().fillna(0).astype('int64')
 
     # Calculate volume surge percentage: (current_volume / avg_volume_50d - 1) * 100
     df['volume_surge_pct'] = df.apply(
@@ -848,8 +848,8 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     # target_price = close * 1.25 (25% profit target)
     df['risk_reward_ratio'] = df.apply(
         lambda row: round(
-            (((row['close'] * 1.25) - row['buylevel']) / (row['buylevel'] - row['stoplevel']))
-            if (row['stoplevel'] > 0 and row['buylevel'] > 0 and (row['buylevel'] - row['stoplevel']) != 0) else 0,
+            (((row['close'] * 1.25) - row['buyLevel']) / (row['buyLevel'] - row['stopLevel']))
+            if (row['stopLevel'] > 0 and row['buyLevel'] > 0 and (row['buyLevel'] - row['stopLevel']) != 0) else 0,
             2
         ),
         axis=1

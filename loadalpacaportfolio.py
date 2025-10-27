@@ -170,12 +170,12 @@ def ensure_tables_exist(conn):
                 id SERIAL PRIMARY KEY,
                 user_id VARCHAR(50) NOT NULL,
                 symbol VARCHAR(10) NOT NULL,
-                quantity DOUBLE PRECISION NOT NULL DEFAULT 0,
-                average_cost DOUBLE PRECISION NOT NULL DEFAULT 0,
-                current_price DOUBLE PRECISION NOT NULL DEFAULT 0,
-                market_value DOUBLE PRECISION NOT NULL DEFAULT 0,
-                unrealized_pnl DOUBLE PRECISION DEFAULT 0,
-                cost_basis DOUBLE PRECISION DEFAULT 0,
+                quantity DOUBLE PRECISION,  # REAL DATA ONLY - NULL if unavailable
+                average_cost DOUBLE PRECISION,  # REAL DATA ONLY - NULL if unavailable
+                current_price DOUBLE PRECISION,  # REAL DATA ONLY - NULL if unavailable
+                market_value DOUBLE PRECISION,  # REAL DATA ONLY - NULL if unavailable
+                unrealized_pnl DOUBLE PRECISION,  # REAL DATA ONLY - NULL if unavailable
+                cost_basis DOUBLE PRECISION,  # REAL DATA ONLY - NULL if unavailable
                 broker VARCHAR(20) DEFAULT 'alpaca',
                 position_type VARCHAR(10) DEFAULT 'long',
                 last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
