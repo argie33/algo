@@ -1088,6 +1088,7 @@ export default function EconomicDashboard() {
       let economicCalendarData = null;
 
       try {
+        // Note: Leading indicators endpoint should be under /api/economic/ in future refactor
         const response = await api.get("/api/market/leading-indicators");
         leadingIndicators = response;
       } catch (err) {
@@ -1098,7 +1099,7 @@ export default function EconomicDashboard() {
         return;
       }
 
-      // Fetch yield curve full data (optional - use empty defaults if fails)
+      // Fetch yield curve data (from market endpoint - should be under /api/economic/ in future refactor)
       try {
         const response = await api.get("/api/market/yield-curve-full");
         yieldCurveFullData = response?.data?.data || null;
@@ -1113,7 +1114,7 @@ export default function EconomicDashboard() {
         yieldCurveFullData = null;
       }
 
-      // Fetch credit spreads full data (optional - use empty defaults if fails)
+      // Fetch credit spreads data (from market endpoint - should be under /api/economic/ in future refactor)
       try {
         const response = await api.get("/api/market/credit-spreads-full");
         creditSpreadsFullData = response?.data?.data || null;
