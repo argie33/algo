@@ -807,17 +807,6 @@ const SectorAnalysis = () => {
     const summaryData = technicalData.summary || {};
     const history = technicalData.history || [];
 
-    // Format date for x-axis display
-    const formatXAxisDate = (dateString) => {
-      if (!dateString) return "";
-      try {
-        const date = new Date(dateString);
-        return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      } catch {
-        return dateString;
-      }
-    };
-
     return (
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
         {/* Technical Summary Metrics */}
