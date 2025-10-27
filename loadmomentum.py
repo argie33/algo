@@ -970,7 +970,7 @@ if __name__ == "__main__":
             UPDATE stock_scores ss
             SET momentum_score = ROUND(
                 CASE
-                    WHEN m.jt_momentum_12_1 IS NULL THEN 0.0
+                    WHEN m.jt_momentum_12_1 IS NULL THEN NULL
                     ELSE GREATEST(0, LEAST(100, 50 + (m.jt_momentum_12_1 / 2 * 100)))
                 END::NUMERIC, 2),
                 last_updated = CURRENT_TIMESTAMP

@@ -1797,13 +1797,11 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
         # Market-level AAII sentiment component (up to ±25 points)
         # This provides market context for the sentiment score
-        if aaii_sentiment_component != 0:
-            if sentiment_score is not None:
-                # Add AAII component to existing sentiment
-                sentiment_score += aaii_sentiment_component * 0.5  # Weight at 50% to avoid over-influence
-            else:
-                # If no analyst/news data but AAII data exists, use AAII + 50 base for neutral position
-                sentiment_score = 50 + aaii_sentiment_component
+        # ONLY add AAII if we have real analyst/news data to build on
+        if aaii_sentiment_component != 0 and sentiment_score is not None:
+            # Add AAII component to existing sentiment (only with real data)
+            sentiment_score += aaii_sentiment_component * 0.5  # Weight at 50% to avoid over-influence
+        # If no analyst/news data, sentiment_score remains None - no fallback defaults
 
         # Clamp sentiment score to 0-100
         if sentiment_score is not None:

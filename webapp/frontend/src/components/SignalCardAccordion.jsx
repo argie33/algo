@@ -114,7 +114,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                         Open
                       </Typography>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        ${signal.open?.toFixed(2) || 'N/A'}
+                        ${signal.open ? parseFloat(signal.open).toFixed(2) : 'N/A'}
                       </Typography>
                     </Box>
                   </Grid>
@@ -124,7 +124,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                         High
                       </Typography>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        ${signal.high?.toFixed(2) || 'N/A'}
+                        ${signal.high ? parseFloat(signal.high).toFixed(2) : 'N/A'}
                       </Typography>
                     </Box>
                   </Grid>
@@ -134,7 +134,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                         Low
                       </Typography>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        ${signal.low?.toFixed(2) || 'N/A'}
+                        ${signal.low ? parseFloat(signal.low).toFixed(2) : 'N/A'}
                       </Typography>
                     </Box>
                   </Grid>
@@ -144,7 +144,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                         Close
                       </Typography>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        ${signal.close?.toFixed(2) || 'N/A'}
+                        ${signal.close ? parseFloat(signal.close).toFixed(2) : 'N/A'}
                       </Typography>
                     </Box>
                   </Grid>
@@ -166,7 +166,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                         Buy Level
                       </Typography>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        ${signal.buylevel?.toFixed(2) || 'N/A'}
+                        ${signal.buylevel ? parseFloat(signal.buylevel).toFixed(2) : 'N/A'}
                       </Typography>
                     </Box>
                   </Grid>
@@ -176,7 +176,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                         Stop Level
                       </Typography>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        ${signal.stoplevel?.toFixed(2) || 'N/A'}
+                        ${signal.stoplevel ? parseFloat(signal.stoplevel).toFixed(2) : 'N/A'}
                       </Typography>
                     </Box>
                   </Grid>
@@ -224,7 +224,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                         Initial Stop
                       </Typography>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        ${signal.initial_stop?.toFixed(2) || 'N/A'}
+                        ${signal.initial_stop ? parseFloat(signal.initial_stop).toFixed(2) : 'N/A'}
                       </Typography>
                     </Box>
                   </Grid>
@@ -234,7 +234,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                         Trailing Stop
                       </Typography>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        ${signal.trailing_stop?.toFixed(2) || 'N/A'}
+                        ${signal.trailing_stop ? parseFloat(signal.trailing_stop).toFixed(2) : 'N/A'}
                       </Typography>
                     </Box>
                   </Grid>
@@ -244,7 +244,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                         Risk/Reward
                       </Typography>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {signal.risk_reward_ratio?.toFixed(2) || 'N/A'}
+                        {signal.risk_reward_ratio ? parseFloat(signal.risk_reward_ratio).toFixed(2) : 'N/A'}
                       </Typography>
                     </Box>
                   </Grid>
@@ -279,7 +279,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                         Pivot Price
                       </Typography>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        ${signal.pivot_price?.toFixed(2) || 'N/A'}
+                        ${signal.pivot_price ? parseFloat(signal.pivot_price).toFixed(2) : 'N/A'}
                       </Typography>
                     </Box>
                   </Grid>
@@ -289,7 +289,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                         RS Rating
                       </Typography>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {signal.rs_rating?.toFixed(1) || 'N/A'}
+                        {signal.rs_rating ? parseFloat(signal.rs_rating).toFixed(1) : 'N/A'}
                       </Typography>
                     </Box>
                   </Grid>
@@ -337,7 +337,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                           color: signal.current_gain_pct >= 0 ? 'success.main' : 'error.main'
                         }}
                       >
-                        {signal.current_gain_pct?.toFixed(2) || 'N/A'}%
+                        {signal.current_gain_pct ? parseFloat(signal.current_gain_pct).toFixed(2) : 'N/A'}%
                       </Typography>
                     </Box>
                   </Grid>
@@ -367,7 +367,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                         Volume Surge
                       </Typography>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {signal.volume_surge_pct?.toFixed(2) || 'N/A'}%
+                        {signal.volume_surge_pct ? parseFloat(signal.volume_surge_pct).toFixed(2) : 'N/A'}%
                       </Typography>
                     </Box>
                   </Grid>
@@ -399,7 +399,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                         Breakout Quality
                       </Typography>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {signal.breakout_quality?.toFixed(1) || 'N/A'}
+                        {signal.breakout_quality ? parseFloat(signal.breakout_quality).toFixed(1) : 'N/A'}
                       </Typography>
                     </Box>
                   </Grid>
@@ -419,7 +419,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                         Buy Zone
                       </Typography>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        ${signal.buy_zone_start?.toFixed(2) || 'N/A'} - ${signal.buy_zone_end?.toFixed(2) || 'N/A'}
+                        ${signal.buy_zone_start ? parseFloat(signal.buy_zone_start).toFixed(2) : 'N/A'} - ${signal.buy_zone_end ? parseFloat(signal.buy_zone_end).toFixed(2) : 'N/A'}
                       </Typography>
                     </Box>
                   </Grid>

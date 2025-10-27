@@ -68,8 +68,8 @@ def get_db_config():
             "dbname": os.environ.get("DB_NAME", "stocks")
         }
 
-def safe_float(value, default=0.0):
-    """Convert to float safely"""
+def safe_float(value, default=None):
+    """Convert to float safely - returns None if data unavailable (no fake defaults)"""
     if value is None or pd.isna(value):
         return default
     try:
@@ -80,8 +80,8 @@ def safe_float(value, default=0.0):
     except (ValueError, TypeError):
         return default
 
-def safe_int(value, default=0):
-    """Convert to int safely"""
+def safe_int(value, default=None):
+    """Convert to int safely - returns None if data unavailable (no fake defaults)"""
     if value is None or pd.isna(value):
         return default
     try:
@@ -93,6 +93,7 @@ def calculate_institutional_quality_score(conn, symbol: str) -> float:
     """
     Calculate quality score based on institutional holder types.
     Uses data from institutional_positioning table.
+    Returns None if no real institutional positioning data available.
     """
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -108,7 +109,7 @@ def calculate_institutional_quality_score(conn, symbol: str) -> float:
         holders = cur.fetchall()
 
         if not holders:
-            return 0.5  # Default if no data
+            return None  # No real data - return None instead of fake 0.5
 
         # Quality scoring by institution type
         quality_scores = {
@@ -121,7 +122,7 @@ def calculate_institutional_quality_score(conn, symbol: str) -> float:
 
         total_position = sum(safe_float(h.get('position_size'), 0) for h in holders)
         if total_position == 0:
-            return 0.5
+            return None  # No real position data - return None instead of fake 0.5
 
         # Weighted quality score
         quality_score = 0
@@ -135,12 +136,13 @@ def calculate_institutional_quality_score(conn, symbol: str) -> float:
 
     except Exception as e:
         logging.warning(f"Could not calculate institutional quality for {symbol}: {e}")
-        return 0.5
+        return None  # Error - return None instead of fake 0.5
 
 def calculate_insider_sentiment_score(conn, symbol: str) -> float:
     """
     Calculate insider sentiment from recent buy/sell activity.
     Uses data from insider_transactions table.
+    Returns None if no real insider transaction data available.
     """
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -157,7 +159,7 @@ def calculate_insider_sentiment_score(conn, symbol: str) -> float:
         transactions = cur.fetchall()
 
         if not transactions:
-            return 0.0  # Neutral if no recent activity
+            return None  # No real data - return None instead of fake 0.0
 
         total_buy_value = 0
         total_sell_value = 0
@@ -174,7 +176,7 @@ def calculate_insider_sentiment_score(conn, symbol: str) -> float:
         total_value = total_buy_value + total_sell_value
 
         if total_value == 0:
-            return 0.0
+            return None  # No real value data - return None instead of fake 0.0
 
         # Sentiment: +1 (all buys) to -1 (all sells)
         sentiment = (total_buy_value - total_sell_value) / total_value
@@ -183,7 +185,7 @@ def calculate_insider_sentiment_score(conn, symbol: str) -> float:
 
     except Exception as e:
         logging.warning(f"Could not calculate insider sentiment for {symbol}: {e}")
-        return 0.0
+        return None  # Error - return None instead of fake 0.0
 
 def calculate_smart_money_score(conn, symbol: str, institutional_quality: float, insider_sentiment: float) -> float:
     """
@@ -191,6 +193,7 @@ def calculate_smart_money_score(conn, symbol: str, institutional_quality: float,
     - Institutional quality (what KIND of institutions hold it)
     - Insider sentiment (are insiders buying or selling)
     - Institutional ownership (HOW MUCH is held)
+    Returns None if insufficient real data available.
     """
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -206,7 +209,7 @@ def calculate_smart_money_score(conn, symbol: str, institutional_quality: float,
         row = cur.fetchone()
 
         if not row:
-            return 0.5
+            return None  # No real data - return None instead of fake 0.5
 
         inst_ownership = safe_float(row.get('institutional_ownership_pct'), 0)
         inst_count = safe_int(row.get('institutional_holders_count'), 0)
@@ -218,10 +221,14 @@ def calculate_smart_money_score(conn, symbol: str, institutional_quality: float,
         # Institution count is good up to ~500
         count_score = min(inst_count / 500, 1.0) if inst_count else 0
 
+        # Handle None values from parameters - only use real data
+        qual_score = institutional_quality * 0.35 if institutional_quality is not None else 0
+        sentiment_score = max(insider_sentiment, 0) * 0.25 if insider_sentiment is not None else 0
+
         # Combine: quality + insider sentiment + ownership + count
         smart_score = (
-            institutional_quality * 0.35 +
-            max(insider_sentiment, 0) * 0.25 +  # Only positive sentiment counts
+            qual_score +
+            sentiment_score +
             ownership_score * 0.25 +
             count_score * 0.15
         )
@@ -230,19 +237,24 @@ def calculate_smart_money_score(conn, symbol: str, institutional_quality: float,
 
     except Exception as e:
         logging.warning(f"Could not calculate smart money score for {symbol}: {e}")
-        return 0.5
+        return None  # Error - return None instead of fake 0.5
 
 def calculate_short_squeeze_score(short_pct: float, short_ratio: float) -> float:
     """
     Calculate short squeeze potential.
     High when: short interest is high AND days to cover is low (ratio < 5)
+    Returns None if no real short data available.
     """
+    # If both are None/missing, we have no real data
+    if short_pct is None and short_ratio is None:
+        return None
+
     # Normalize short percentage (0-30% is realistic range)
     short_score = min(short_pct / 30, 1.0) if short_pct else 0
 
     # Ratio: lower is better for squeeze (more pressure to buy back quickly)
     # Below 2 = very high pressure, above 10 = low pressure
-    ratio_score = max(0, 1 - (short_ratio / 10)) if short_ratio else 0.5
+    ratio_score = max(0, 1 - (short_ratio / 10)) if short_ratio else 0
 
     # Combined squeeze score
     squeeze_score = (short_score * 0.6 + ratio_score * 0.4)
@@ -264,18 +276,51 @@ def calculate_composite_positioning_score(
     - Insider Sentiment: 20%
     - Short Squeeze: 15%
     - Institutional Ownership: 15%
+    Returns None if insufficient real data available.
     """
+    # Count how many real data points we have
+    real_data_count = sum([
+        institutional_quality is not None,
+        smart_money is not None,
+        insider_sentiment is not None,
+        short_squeeze is not None,
+        institutional_ownership is not None
+    ])
+
+    # If we have less than 2 real data points, we don't have enough for a composite score
+    if real_data_count < 2:
+        return None
 
     # Normalize institutional ownership (scale to 0-1)
     ownership_normalized = min(institutional_ownership / 100, 1.0) if institutional_ownership else 0
 
-    composite = (
-        institutional_quality * 0.25 +
-        smart_money * 0.25 +
-        (insider_sentiment + 1) / 2 * 0.20 +  # Convert -1..1 to 0..1
-        short_squeeze * 0.15 +
-        ownership_normalized * 0.15
-    )
+    # Only include real data in the composite (None values don't contribute)
+    composite = 0
+    weights_applied = 0
+
+    if institutional_quality is not None:
+        composite += institutional_quality * 0.25
+        weights_applied += 0.25
+
+    if smart_money is not None:
+        composite += smart_money * 0.25
+        weights_applied += 0.25
+
+    if insider_sentiment is not None:
+        composite += (insider_sentiment + 1) / 2 * 0.20  # Convert -1..1 to 0..1
+        weights_applied += 0.20
+
+    if short_squeeze is not None:
+        composite += short_squeeze * 0.15
+        weights_applied += 0.15
+
+    if institutional_ownership is not None:
+        composite += ownership_normalized * 0.15
+        weights_applied += 0.15
+
+    # Normalize by actual weights applied
+    if weights_applied > 0:
+        composite = composite / weights_applied
 
     return min(max(composite, 0), 1)
 

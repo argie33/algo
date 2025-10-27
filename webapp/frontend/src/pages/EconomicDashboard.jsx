@@ -672,7 +672,7 @@ const YieldCurvePanel = ({ data, isLoading, theme }) => {
   );
 };
 
-const CreditMarketPanel = ({ data, isLoading }) => {
+const CreditMarketPanel = ({ data, isLoading, theme }) => {
   if (isLoading) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
@@ -1139,7 +1139,7 @@ export default function EconomicDashboard() {
           <RecessionRiskPanel data={economicData} isLoading={false} theme={theme} />
           <LeadingIndicatorsPanel data={economicData.leadingIndicators} isLoading={false} theme={theme} />
           <YieldCurvePanel data={economicData} isLoading={false} theme={theme} />
-          <CreditMarketPanel data={economicData} isLoading={false} />
+          <CreditMarketPanel data={economicData} isLoading={false} theme={theme} />
           <EconomicCalendarPanel events={economicData.upcomingEvents} isLoading={false} />
         </>
       )}

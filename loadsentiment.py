@@ -147,16 +147,16 @@ def safe_float(value, default=None):
         return default
 
 def calculate_sentiment_score(text: str) -> float:
-    """Calculate sentiment score from text using TextBlob"""
+    """Calculate sentiment score from text using TextBlob. Returns None if unavailable."""
     if not TEXTBLOB_AVAILABLE or not text:
-        return 0.0
-    
+        return None  # No real sentiment data available
+
     try:
         blob = TextBlob(text)
         # TextBlob polarity ranges from -1 (negative) to 1 (positive)
         return blob.sentiment.polarity
     except Exception:
-        return 0.0
+        return None  # Error - return None instead of fake 0.0
 
 class AnalystSentimentCollector:
     """Collect analyst sentiment data from various sources"""

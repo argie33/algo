@@ -164,37 +164,38 @@ def ensure_tables_exist(conn):
     cur = conn.cursor()
 
     try:
-        # Create portfolio_holdings table
+        # Create portfolio_holdings table if it doesn't exist
         cur.execute("""
             CREATE TABLE IF NOT EXISTS portfolio_holdings (
                 id SERIAL PRIMARY KEY,
-                user_id VARCHAR(255) DEFAULT 'alpaca-user',
+                user_id VARCHAR(50) NOT NULL,
                 symbol VARCHAR(10) NOT NULL,
-                quantity DECIMAL(12, 4),
-                current_price DECIMAL(12, 4),
-                average_cost DECIMAL(12, 4),
-                market_value DECIMAL(15, 2),
-                unrealized_gain DECIMAL(15, 2),
-                unrealized_gain_pct DECIMAL(6, 2),
-                sector VARCHAR(100),
+                quantity DOUBLE PRECISION NOT NULL DEFAULT 0,
+                average_cost DOUBLE PRECISION NOT NULL DEFAULT 0,
+                current_price DOUBLE PRECISION NOT NULL DEFAULT 0,
+                market_value DOUBLE PRECISION NOT NULL DEFAULT 0,
+                unrealized_pnl DOUBLE PRECISION DEFAULT 0,
+                cost_basis DOUBLE PRECISION DEFAULT 0,
+                broker VARCHAR(20) DEFAULT 'alpaca',
+                position_type VARCHAR(10) DEFAULT 'long',
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(user_id, symbol)
+                UNIQUE(user_id, symbol, broker)
             )
         """)
 
-        # Create portfolio_performance table
+        # Create portfolio_performance table if it doesn't exist
         cur.execute("""
             CREATE TABLE IF NOT EXISTS portfolio_performance (
                 id SERIAL PRIMARY KEY,
-                user_id VARCHAR(255) DEFAULT 'alpaca-user',
-                portfolio_value DECIMAL(15, 2),
+                user_id VARCHAR(255),
+                date DATE,
+                total_value DECIMAL(15, 2),
                 daily_pnl DECIMAL(15, 2),
-                daily_pnl_percent DECIMAL(6, 4),
-                total_return_percent DECIMAL(8, 4),
-                cash DECIMAL(15, 2),
+                total_pnl DECIMAL(15, 2),
+                total_pnl_percent DECIMAL(8, 4),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(user_id, created_at)
+                UNIQUE(user_id, date)
             )
         """)
 
@@ -239,21 +240,15 @@ def load_holdings(conn, positions):
 
             cur.execute("""
                 INSERT INTO portfolio_holdings
-                (user_id, symbol, quantity, current_price, average_cost, market_value,
-                 unrealized_gain, unrealized_gain_pct, sector, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                (user_id, symbol, quantity, current_price, average_cost, last_updated)
+                VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                 ON CONFLICT (user_id, symbol) DO UPDATE SET
                     quantity = EXCLUDED.quantity,
                     current_price = EXCLUDED.current_price,
                     average_cost = EXCLUDED.average_cost,
-                    market_value = EXCLUDED.market_value,
-                    unrealized_gain = EXCLUDED.unrealized_gain,
-                    unrealized_gain_pct = EXCLUDED.unrealized_gain_pct,
-                    sector = EXCLUDED.sector,
-                    updated_at = CURRENT_TIMESTAMP
+                    last_updated = EXCLUDED.last_updated
             """, (
-                user_id, symbol, qty, current_price, avg_cost, market_value,
-                unrealized_gain, unrealized_gain_pct, sector
+                user_id, symbol, qty, current_price, avg_cost
             ))
 
             loaded_count += 1
@@ -283,21 +278,20 @@ def load_performance(conn, account_info):
     try:
         cur.execute("""
             INSERT INTO portfolio_performance
-            (user_id, portfolio_value, daily_pnl, daily_pnl_percent, total_return_percent, cash, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
-            ON CONFLICT (user_id, created_at) DO UPDATE SET
-                portfolio_value = EXCLUDED.portfolio_value,
+            (user_id, date, total_value, daily_pnl, total_pnl, total_pnl_percent, created_at)
+            VALUES (%s, CURRENT_DATE, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+            ON CONFLICT (user_id, date) DO UPDATE SET
+                total_value = EXCLUDED.total_value,
                 daily_pnl = EXCLUDED.daily_pnl,
-                daily_pnl_percent = EXCLUDED.daily_pnl_percent,
-                total_return_percent = EXCLUDED.total_return_percent,
-                cash = EXCLUDED.cash
+                total_pnl = EXCLUDED.total_pnl,
+                total_pnl_percent = EXCLUDED.total_pnl_percent,
+                created_at = EXCLUDED.created_at
         """, (
             user_id,
             perf['portfolio_value'],
             perf['daily_pnl'],
-            perf['daily_pnl_percent'],
-            perf['total_return_percent'],
-            perf['cash']
+            perf['total_return_percent'] * perf['portfolio_value'] / 100,  # Convert % to dollar amount
+            perf['total_return_percent']
         ))
 
         conn.commit()

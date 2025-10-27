@@ -37,15 +37,20 @@ router.get('/stocks/:symbol', async (req, res) => {
     }
 
     const row = result.rows[0];
+
+    // Helper function to safely parse numeric values - returns null if data unavailable
+    const safeParseFloat = (value) => value !== null && value !== undefined ? parseFloat(value).toFixed(2) : null;
+    const safeParseInt = (value) => value !== null && value !== undefined ? parseInt(value) : null;
+
     res.json({
       symbol: row.symbol,
       date: row.date,
-      institutional_ownership: parseFloat(row.institutional_ownership_pct || 0).toFixed(2),
-      top_10_institutions: parseFloat(row.top_10_institutions_pct || 0).toFixed(2),
-      institutional_holders: parseInt(row.institutional_holders_count || 0),
-      insider_ownership: parseFloat(row.insider_ownership_pct || 0).toFixed(2),
-      short_ratio: parseFloat(row.short_ratio || 0).toFixed(2),
-      short_interest: parseFloat(row.short_interest_pct || 0).toFixed(2)
+      institutional_ownership: safeParseFloat(row.institutional_ownership_pct),
+      top_10_institutions: safeParseFloat(row.top_10_institutions_pct),
+      institutional_holders: safeParseInt(row.institutional_holders_count),
+      insider_ownership: safeParseFloat(row.insider_ownership_pct),
+      short_ratio: safeParseFloat(row.short_ratio),
+      short_interest: safeParseFloat(row.short_interest_pct)
     });
   } catch (error) {
     console.error('Error fetching positioning:', error);
