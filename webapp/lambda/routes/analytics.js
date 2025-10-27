@@ -2082,19 +2082,30 @@ router.get("/professional-metrics", async (req, res) => {
 
     // ============ CALCULATE METRICS FROM HOLDINGS DATA ============
     if (holdings && holdings.length > 0 && totalValue > 0) {
-      // Basic return metrics
+      // Basic return metrics - using cost basis calculation
       const totalGainLoss = holdings.reduce((sum, h) => sum + (parseFloat(h.unrealized_gain) || 0), 0);
-      const totalCost = totalValue - totalGainLoss;
+
+      // Cost basis = market value - unrealized gains
+      const totalCost = holdings.reduce((sum, h) => {
+        const cost = (parseFloat(h.market_value) || 0) - (parseFloat(h.unrealized_gain) || 0);
+        return sum + cost;
+      }, 0);
 
       if (totalCost > 0) {
+        // Return is gain/loss divided by cost basis
         const returnPercent = ((totalGainLoss / totalCost) * 100);
         metrics.total_return = parseFloat(returnPercent.toFixed(2));
         metrics.return_1y = metrics.total_return;
         metrics.return_3y = metrics.total_return; // Same as total since we don't have history
-        metrics.ytd_return = parseFloat((returnPercent * 0.75).toFixed(2)); // Estimate YTD
-        metrics.return_1m = parseFloat((returnPercent * 0.1).toFixed(2));
-        metrics.return_3m = parseFloat((returnPercent * 0.3).toFixed(2));
-        metrics.return_6m = parseFloat((returnPercent * 0.5).toFixed(2));
+
+        // Time-weighted returns (estimates based on year progression)
+        const currentMonth = new Date().getMonth();
+        const ytdDays = (currentMonth + 1) * 30.42; // Rough estimate
+        const ytdFraction = Math.min(ytdDays / 365, 1.0);
+        metrics.ytd_return = parseFloat((returnPercent * ytdFraction).toFixed(2));
+        metrics.return_1m = parseFloat((returnPercent * Math.min((30 / 365), 1.0)).toFixed(2));
+        metrics.return_3m = parseFloat((returnPercent * Math.min((90 / 365), 1.0)).toFixed(2));
+        metrics.return_6m = parseFloat((returnPercent * Math.min((180 / 365), 1.0)).toFixed(2));
       }
 
       // ============ CONCENTRATION & DIVERSIFICATION ============
@@ -2150,15 +2161,19 @@ router.get("/professional-metrics", async (req, res) => {
       const rf = 0.02; // 2% risk-free rate
 
       if (metrics.volatility_annualized > 0) {
-        metrics.sharpe_ratio = parseFloat((((metrics.total_return / 100 - rf) / (metrics.volatility_annualized / 100))).toFixed(2));
+        // Sharpe Ratio: (return - rf) / total volatility
+        const excessReturn = (metrics.total_return / 100) - rf;
+        metrics.sharpe_ratio = parseFloat((excessReturn / (metrics.volatility_annualized / 100)).toFixed(2));
 
-        // Sortino (downside volatility ~60% of total)
-        const downsideVol = metrics.volatility_annualized * 0.6;
-        metrics.sortino_ratio = parseFloat((((metrics.total_return / 100 - rf) / (downsideVol / 100))).toFixed(2));
+        // Sortino Ratio: (return - rf) / downside volatility (should be HIGHER than Sharpe for positive returns)
+        const downsideVol = metrics.volatility_annualized * 0.6; // Downside deviation is typically ~60% of total vol
+        if (downsideVol > 0) {
+          metrics.sortino_ratio = parseFloat((excessReturn / (downsideVol / 100)).toFixed(2));
+        }
 
-        // Treynor
+        // Treynor Ratio: (return - rf) / beta
         if (metrics.beta > 0) {
-          metrics.treynor_ratio = parseFloat((((metrics.total_return / 100 - rf) / metrics.beta)).toFixed(2));
+          metrics.treynor_ratio = parseFloat((excessReturn / metrics.beta).toFixed(2));
         }
       }
 
