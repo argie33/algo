@@ -146,15 +146,81 @@ def insert_symbol_results(cur, symbol, timeframe, df):
 
     df['breakout_quality'] = df.apply(calc_breakout_quality, axis=1)
 
+    # === Add all calculated fields (REAL DATA ONLY: None if unavailable) ===
+    # REAL DATA ONLY: These fields require complex calculations from daily loader
+    # For weekly/monthly, set to None rather than calculating incorrect values
+    df['signal_type'] = None  # Would need full signal analysis
+    df['pivot_price'] = None  # Would need pivot analysis
+    df['buy_zone_start'] = None  # Requires technical analysis
+    df['buy_zone_end'] = None  # Requires technical analysis
+    df['exit_trigger_1_price'] = None  # Requires exit analysis
+    df['exit_trigger_2_price'] = None  # Requires exit analysis
+    df['exit_trigger_3_condition'] = None  # Requires exit analysis
+    df['exit_trigger_3_price'] = None  # Requires exit analysis
+    df['exit_trigger_4_condition'] = None  # Requires exit analysis
+    df['exit_trigger_4_price'] = None  # Requires exit analysis
+    df['initial_stop'] = None  # Requires stop analysis
+    df['trailing_stop'] = None  # Requires trailing stop analysis
+    df['base_type'] = None  # Requires base pattern analysis
+    df['base_length_days'] = None  # Requires base pattern analysis
+    df['rs_rating'] = None  # Requires RS rating calculation
+    df['current_gain_pct'] = None  # Requires position tracking
+    df['days_in_position'] = None  # Requires position tracking
+
+    # Risk calculations - available with buy/stop levels
+    df['risk_pct'] = df.apply(
+        lambda row: round(((row['buyLevel'] - row['stopLevel']) / row['buyLevel'] * 100), 2)
+        if (row['buyLevel'] is not None and row['stopLevel'] is not None and row['buyLevel'] > 0) else None,
+        axis=1
+    )
+
+    # Profit targets
+    df['profit_target_8pct'] = df.apply(
+        lambda row: row['buyLevel'] * 1.08 if row['buyLevel'] is not None else None,
+        axis=1
+    )
+    df['profit_target_20pct'] = df.apply(
+        lambda row: row['buyLevel'] * 1.20 if row['buyLevel'] is not None else None,
+        axis=1
+    )
+    df['profit_target_25pct'] = df.apply(
+        lambda row: row['buyLevel'] * 1.25 if row['buyLevel'] is not None else None,
+        axis=1
+    )
+
+    # Entry quality and market analysis - set to None (requires complex calculations)
+    df['entry_quality_score'] = None  # Requires multi-factor analysis
+    df['market_stage'] = None  # Requires stage detection
+    df['stage_number'] = None  # Requires market stage
+    df['stage_confidence'] = None  # Requires stage analysis
+    df['substage'] = None  # Requires substage detection
+    df['sell_level'] = None  # Not applicable for buy signals
+
     insert_q = """
       INSERT INTO buy_sell_monthly (
         symbol, timeframe, date,
         open, high, low, close, volume,
         signal, buylevel, stoplevel, inposition, strength,
-        avg_volume_50d, volume_surge_pct, risk_reward_ratio, breakout_quality
-      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        signal_type, pivot_price, buy_zone_start, buy_zone_end,
+        exit_trigger_1_price, exit_trigger_2_price, exit_trigger_3_condition, exit_trigger_3_price,
+        exit_trigger_4_condition, exit_trigger_4_price, initial_stop, trailing_stop,
+        base_type, base_length_days, avg_volume_50d, volume_surge_pct,
+        rs_rating, breakout_quality, risk_reward_ratio, current_gain_pct, days_in_position,
+        entry_quality_score, market_stage, stage_number, stage_confidence, substage,
+        profit_target_8pct, profit_target_20pct, profit_target_25pct,
+        risk_pct, position_size_recommendation, sell_level
+      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
       ON CONFLICT (symbol, timeframe, date) DO NOTHING;
     """
+    # === POSITION SIZE RECOMMENDATION (based on risk) ===
+    df['position_size_recommendation'] = df.apply(
+        lambda row: round(
+            min(5.0, 0.5 / row['risk_pct'] * 100),  # Risk 0.5% of account per trade
+            2
+        ) if (row['risk_pct'] is not None and row['risk_pct'] > 0) else None,
+        axis=1
+    )
+
     inserted = 0
     skipped = 0
     for idx, row in df.iterrows():
@@ -190,6 +256,36 @@ def insert_symbol_results(cur, symbol, timeframe, df):
             if pd.isna(breakout_qual) or breakout_qual is None:
                 breakout_qual = None
 
+            # Get all calculated fields (most will be None for weekly/monthly)
+            signal_type = row.get('signal_type')
+            pivot_price = row.get('pivot_price')
+            buy_zone_start = row.get('buy_zone_start')
+            buy_zone_end = row.get('buy_zone_end')
+            exit_1 = row.get('exit_trigger_1_price')
+            exit_2 = row.get('exit_trigger_2_price')
+            exit_3_cond = row.get('exit_trigger_3_condition')
+            exit_3_price = row.get('exit_trigger_3_price')
+            exit_4_cond = row.get('exit_trigger_4_condition')
+            exit_4_price = row.get('exit_trigger_4_price')
+            initial_stop = row.get('initial_stop')
+            trailing_stop = row.get('trailing_stop')
+            base_type = row.get('base_type')
+            base_length = row.get('base_length_days')
+            rs_rating = row.get('rs_rating')
+            current_gain = row.get('current_gain_pct')
+            days_held = row.get('days_in_position')
+            entry_qual = row.get('entry_quality_score')
+            market_stage = row.get('market_stage')
+            stage_num = row.get('stage_number')
+            stage_conf = row.get('stage_confidence')
+            substage = row.get('substage')
+            profit_8 = row.get('profit_target_8pct')
+            profit_20 = row.get('profit_target_20pct')
+            profit_25 = row.get('profit_target_25pct')
+            risk_pct = row.get('risk_pct')
+            pos_size = row.get('position_size_recommendation')
+            sell_level = row.get('sell_level')
+
             cur.execute(insert_q, (
                 symbol,
                 timeframe,
@@ -198,7 +294,14 @@ def insert_symbol_results(cur, symbol, timeframe, df):
                 float(row['close']), int(row['volume']),
                 row['Signal'], float(row['buyLevel']),
                 float(row['stopLevel']), bool(row['inPosition']), float(row['strength']),
-                avg_vol, vol_surge, risk_reward, breakout_qual
+                signal_type, pivot_price, buy_zone_start, buy_zone_end,
+                exit_1, exit_2, exit_3_cond, exit_3_price,
+                exit_4_cond, exit_4_price, initial_stop, trailing_stop,
+                base_type, base_length, avg_vol, vol_surge,
+                rs_rating, breakout_qual, risk_reward, current_gain, days_held,
+                entry_qual, market_stage, stage_num, stage_conf, substage,
+                profit_8, profit_20, profit_25,
+                risk_pct, pos_size, sell_level
             ))
             inserted += 1
         except Exception as e:

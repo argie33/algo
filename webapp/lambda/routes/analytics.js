@@ -1999,85 +1999,14 @@ router.get("/professional-metrics", async (req, res) => {
     };
 
     // ============ INITIALIZE METRICS OBJECT ============
+    // RULES.md: Return None Instead of Default Values
+    // Only initialize metrics that can be calculated from real data (holdings)
+    // All other metrics will be added only if calculated from real historical data
     let metrics = {
-      // Performance Metrics
-      total_return: 0,
-      ytd_return: 0,
-      return_1y: 0,
-      return_3y: 0,
-
-      // Risk-Adjusted Returns
-      alpha: 0,
-      sharpe_ratio: 0,
-      sortino_ratio: 0,
-      calmar_ratio: 0,
-      information_ratio: 0,
-      treynor_ratio: 0,
-
-      // Volatility & Risk
-      volatility_annualized: 0,
-      downside_deviation: 0,
-      beta: 1.0,
-      max_drawdown: 0,
-
-      // Value at Risk
-      var_95: 0,
-      cvar_95: 0,
-      var_99: 0,
-
-      // Tail Risk & Distribution
-      skewness: 0,
-      kurtosis: 0,
-      semi_skewness: 0,
-
-      // Drawdown Analysis
-      current_drawdown: 0,
-      drawdown_duration_days: 0,
-      avg_drawdown: 0,
-      max_recovery_days: 0,
-
-      // Concentration & Diversification
-      top_1_weight: 0,
-      top_5_weight: 0,
-      top_10_weight: 0,
-      herfindahl_index: 0,
-      effective_n: 0,
-
-      // Correlation & Diversification
-      avg_correlation: 0.5,
-      diversification_ratio: 0,
-      num_sectors: 0,
-      num_industries: 0,
-
-      // Return Attribution
-      best_day_gain: 0,
-      worst_day_loss: 0,
-      top_5_days_contribution: 0,
-      win_rate: 0,
-
-      // Rolling Performance
-      return_1m: 0,
-      return_3m: 0,
-      return_6m: 0,
-      return_rolling_1y: 0,
-
-      // Portfolio Efficiency
-      return_risk_ratio: 0,
-      cash_drag: 0,
-      turnover_ratio: 0,
-      transaction_costs: 0,
-
-      // Sector & Asset Class
-      top_sector: "N/A",
-      sector_concentration: 0,
-      sector_momentum: 0,
-      best_performer_sector: "N/A",
-
-      // Relative Performance vs SPY
-      tracking_error: 0,
-      active_return: 0,
-      relative_volatility: 0,
-      correlation_with_spy: 0
+      // Will be calculated from holdings data
+      // - total_return, ytd_return, return_1m, return_3m, return_6m
+      // - top_1_weight, top_5_weight, top_10_weight
+      // - herfindahl_index, effective_n, diversification_ratio
     };
 
     // ============ CALCULATE METRICS FROM HOLDINGS DATA ============

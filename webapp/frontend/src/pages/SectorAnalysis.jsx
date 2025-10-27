@@ -47,7 +47,7 @@ import {
 import { formatXAxisDate } from "../utils/dateFormatters";
 
 // Helper component for sector momentum chart
-// 3 SEPARATE STACKED CHARTS like TradingView (Price, Strength, RSI)
+// 2 MAIN CHARTS: Technical (Price+SMAs) and Daily Strength+RSI (Fused)
 const MomentumChart = ({ type = 'sector', data, aggregateToWeekly }) => {
   const identifierName = type === 'sector' ? data?.sector_name : data?.industry;
   const trendArray = data?.trendData || [];
@@ -98,57 +98,77 @@ const MomentumChart = ({ type = 'sector', data, aggregateToWeekly }) => {
       {chartData && chartData.length > 0 ? (
         <>
           {/* CHART 1: PRICE + SMAs */}
-          <Box sx={{ width: "100%", height: 350, mb: 2, position: "relative", display: "block", overflow: "hidden" }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 20, right: 100, left: 80, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                <YAxis width={75} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(val) => typeof val === 'number' ? val.toFixed(2) : val} />
-                <Legend />
-                {hasPrice && <Line type="monotone" dataKey="close" stroke="#2E7D32" strokeWidth={2.5} dot={false} connectNulls name="Close Price" />}
-                {hasPriceSMA5 && <Line type="monotone" dataKey="sma_5" stroke="#004E89" strokeWidth={2} dot={false} connectNulls name="SMA 5" />}
-                {hasPriceSMA10 && <Line type="monotone" dataKey="sma_10" stroke="#1ABC9C" strokeWidth={2} dot={false} connectNulls name="SMA 10" />}
-                {hasPriceSMA20 && <Line type="monotone" dataKey="sma_20" stroke="#E74C3C" strokeWidth={2} dot={false} connectNulls name="SMA 20" />}
-              </LineChart>
-            </ResponsiveContainer>
-          </Box>
-
-          {/* CHART 2: DAILY STRENGTH + MAs */}
-          <Box sx={{ width: "100%", height: 350, mb: 2, position: "relative", display: "block", overflow: "hidden" }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 20, right: 100, left: 80, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                <YAxis width={75} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(val) => typeof val === 'number' ? val.toFixed(2) : val} />
-                <Legend />
-                {hasStrength && <Line type="monotone" dataKey="momentum" stroke="#FF6B35" strokeWidth={2.5} dot={false} connectNulls name="Daily Strength" />}
-                {hasMA5 && <Line type="monotone" dataKey="ma_5" stroke="#004E89" strokeWidth={2} dot={false} connectNulls name="MA 5" />}
-                {hasMA10 && <Line type="monotone" dataKey="ma_10" stroke="#1ABC9C" strokeWidth={2} dot={false} connectNulls name="MA 10" />}
-                {hasMA20 && <Line type="monotone" dataKey="ma_20" stroke="#E74C3C" strokeWidth={2} dot={false} connectNulls name="MA 20" />}
-              </LineChart>
-            </ResponsiveContainer>
-          </Box>
-
-          {/* CHART 3: RSI (Small bottom box) */}
-          {hasRSI && (
-            <Box sx={{ width: "100%", height: 150, position: "relative", display: "block", overflow: "hidden", border: "1px solid #ddd", borderRadius: 1 }}>
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="body2" fontWeight="600" sx={{ mb: 1, color: "text.secondary" }}>
+              Price & Moving Averages
+            </Typography>
+            <Box sx={{ width: "100%", height: 320, position: "relative", display: "block", overflow: "hidden" }}>
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 10, right: 100, left: 80, bottom: 15 }}>
+                <LineChart data={chartData} margin={{ top: 20, right: 100, left: 80, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" tick={{ fontSize: 9 }} />
-                  <YAxis width={75} tick={{ fontSize: 9 }} domain={[0, 100]} />
-                  <Tooltip formatter={(val) => typeof val === 'number' ? val.toFixed(0) : val} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <ReferenceLine y={70} stroke="#E74C3C" strokeDasharray="4,4" />
-                  <ReferenceLine y={30} stroke="#004E89" strokeDasharray="4,4" />
-                  <ReferenceLine y={50} stroke="#999" strokeDasharray="2,2" opacity={0.3} />
-                  <Line type="monotone" dataKey="rsi" stroke="#9C27B0" strokeWidth={2} dot={false} connectNulls name="RSI (14)" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                  <YAxis width={75} tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(val) => typeof val === 'number' ? val.toFixed(2) : val} />
+                  <Legend />
+                  {hasPrice && <Line type="monotone" dataKey="close" stroke="#2E7D32" strokeWidth={2.5} dot={false} connectNulls name="Close Price" />}
+                  {hasPriceSMA5 && <Line type="monotone" dataKey="sma_5" stroke="#004E89" strokeWidth={2} dot={false} connectNulls name="SMA 5" />}
+                  {hasPriceSMA10 && <Line type="monotone" dataKey="sma_10" stroke="#1ABC9C" strokeWidth={2} dot={false} connectNulls name="SMA 10" />}
+                  {hasPriceSMA20 && <Line type="monotone" dataKey="sma_20" stroke="#E74C3C" strokeWidth={2} dot={false} connectNulls name="SMA 20" />}
                 </LineChart>
               </ResponsiveContainer>
             </Box>
-          )}
+          </Box>
+
+          {/* CHART 2: DAILY STRENGTH + MAs + RSI (FUSED) */}
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2" fontWeight="600" sx={{ mb: 1, color: "text.secondary" }}>
+              Daily Strength & RSI Indicator
+            </Typography>
+            <Box sx={{ width: "100%", height: 420, position: "relative", display: "block", overflow: "hidden" }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={chartData} margin={{ top: 20, right: 120, left: 80, bottom: 60 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                  {/* Left Y-axis for Daily Strength & MAs */}
+                  <YAxis
+                    yAxisId="left"
+                    width={75}
+                    tick={{ fontSize: 11 }}
+                    label={{ value: 'Strength Score', angle: -90, position: 'insideLeft' }}
+                  />
+                  {/* Right Y-axis for RSI [0-100] */}
+                  {hasRSI && (
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      width={75}
+                      tick={{ fontSize: 11 }}
+                      domain={[0, 100]}
+                      label={{ value: 'RSI', angle: 90, position: 'insideRight' }}
+                    />
+                  )}
+                  <Tooltip formatter={(val) => typeof val === 'number' ? val.toFixed(2) : val} />
+                  <Legend wrapperStyle={{ paddingTop: '20px' }} />
+
+                  {/* Daily Strength Score and MAs on left axis */}
+                  {hasStrength && <Line yAxisId="left" type="monotone" dataKey="momentum" stroke="#FF6B35" strokeWidth={2.5} dot={false} connectNulls name="Daily Strength" />}
+                  {hasMA5 && <Line yAxisId="left" type="monotone" dataKey="ma_5" stroke="#004E89" strokeWidth={2} dot={false} connectNulls name="MA 5" />}
+                  {hasMA10 && <Line yAxisId="left" type="monotone" dataKey="ma_10" stroke="#1ABC9C" strokeWidth={2} dot={false} connectNulls name="MA 10" />}
+                  {hasMA20 && <Line yAxisId="left" type="monotone" dataKey="ma_20" stroke="#E74C3C" strokeWidth={2} dot={false} connectNulls name="MA 20" />}
+
+                  {/* RSI on right axis with reference lines */}
+                  {hasRSI && (
+                    <>
+                      <ReferenceLine yAxisId="right" y={70} stroke="#E74C3C" strokeDasharray="4,4" label={{ value: '70', position: 'right', fill: '#E74C3C', fontSize: 11 }} />
+                      <ReferenceLine yAxisId="right" y={30} stroke="#004E89" strokeDasharray="4,4" label={{ value: '30', position: 'right', fill: '#004E89', fontSize: 11 }} />
+                      <ReferenceLine yAxisId="right" y={50} stroke="#999" strokeDasharray="2,2" opacity={0.3} />
+                      <Line yAxisId="right" type="monotone" dataKey="rsi" stroke="#9C27B0" strokeWidth={2} dot={false} connectNulls name="RSI (14)" />
+                    </>
+                  )}
+                </ComposedChart>
+              </ResponsiveContainer>
+            </Box>
+          </Box>
         </>
       ) : (
         <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>

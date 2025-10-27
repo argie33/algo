@@ -503,7 +503,7 @@ const YieldCurvePanel = ({ data, isLoading, theme }) => {
                     <XAxis dataKey="maturity" tick={{ fontSize: 11, fontWeight: 500 }} />
                     <YAxis tick={{ fontSize: 11 }} width={50} domain={[0, 'auto']} label={{ value: 'Yield (%)', angle: -90, position: 'insideLeft', offset: 10 }} />
                     <Tooltip
-                      formatter={(v) => `${v?.toFixed(3) || 0}%`}
+                      formatter={(v) => v !== null && v !== undefined ? `${v.toFixed(3)}%` : 'N/A'}
                       labelFormatter={(l) => `Maturity: ${l}`}
                       contentStyle={{ backgroundColor: alpha(theme.palette.background.paper, 0.95), border: `1px solid ${theme.palette.divider}` }}
                     />
@@ -676,17 +676,17 @@ const CreditMarketPanel = ({ data, isLoading, theme }) => {
   // API returns history organized by series ID: BAMLH0A0HYM2, BAMLH0A0IG, BAA, AAA
   const spreadHistory = creditData?.history?.BAMLH0A0HYM2 && creditData?.history?.BAMLH0A0IG
     ? creditData.history.BAMLH0A0HYM2.map((hy, idx) => {
-        const igValue = creditData.history.BAMLH0A0IG[idx]?.value || 0;
+        const igValue = creditData.history.BAMLH0A0IG[idx]?.value ?? null;
         // Calculate BAA-AAA spread: BAA yield minus AAA yield (already in correct scale)
-        const baaValue = creditData.history.BAA?.[idx]?.value || null;
-        const aaaValue = creditData.history.AAA?.[idx]?.value || null;
+        const baaValue = creditData.history.BAA?.[idx]?.value ?? null;
+        const aaaValue = creditData.history.AAA?.[idx]?.value ?? null;
         const baaAaaSpread = (baaValue !== null && aaaValue !== null)
           ? (baaValue - aaaValue)
           : null;
         return {
           date: hy.date,
           "High Yield OAS": hy.value,
-          "Investment Grade OAS": igValue,
+          ...(igValue !== null && { "Investment Grade OAS": igValue }),
           ...(baaAaaSpread !== null && { "BAA-AAA": baaAaaSpread })
         };
       })

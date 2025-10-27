@@ -57,26 +57,34 @@ def get_db_config():
     For AWS: DB_SECRET_ARN
     """
     # Try local environment first (for local development)
-    if os.environ.get("DB_HOST"):
-        return (
-            os.environ.get("DB_USER", "postgres"),
-            os.environ.get("DB_PASSWORD", "password"),
-            os.environ.get("DB_HOST", "localhost"),
-            int(os.environ.get("DB_PORT", 5432)),
-            os.environ.get("DB_NAME", "stocks")
-        )
+    db_host = os.environ.get("DB_HOST", "localhost")
+    db_port = int(os.environ.get("DB_PORT", 5432))
+    db_user = os.environ.get("DB_USER", "postgres")
+    db_password = os.environ.get("DB_PASSWORD", "password")
+    db_name = os.environ.get("DB_NAME", "stocks")
+
+    if db_host and db_host != "localhost":
+        return (db_user, db_password, db_host, db_port, db_name)
 
     # Fall back to AWS Secrets Manager for production
-    client = boto3.client("secretsmanager")
-    resp = client.get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])
-    sec = json.loads(resp["SecretString"])
-    return (
-        sec["username"],
-        sec["password"],
-        sec["host"],
-        int(sec["port"]),
-        sec["dbname"]
-    )
+    db_secret_arn = os.environ.get("DB_SECRET_ARN")
+    if db_secret_arn:
+        try:
+            client = boto3.client("secretsmanager")
+            resp = client.get_secret_value(SecretId=db_secret_arn)
+            sec = json.loads(resp["SecretString"])
+            return (
+                sec["username"],
+                sec["password"],
+                sec["host"],
+                int(sec["port"]),
+                sec["dbname"]
+            )
+        except Exception as e:
+            logging.warning(f"Failed to fetch from AWS Secrets Manager: {e}, using local defaults")
+
+    # Use local defaults as final fallback
+    return (db_user, db_password, db_host, db_port, db_name)
 
 def sanitize_value(x):
     if isinstance(x, float) and np.isnan(x):
