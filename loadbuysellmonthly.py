@@ -250,9 +250,9 @@ def calculate_signal_strength(df, index):
     try:
         row = df.iloc[index]
         signal_type = row.get('Signal', 'None')
-        
+
         if signal_type == 'None':
-            return 50.0
+            return None  # No real signal - return None instead of fake 50.0
         
         # Get required values
         rsi = row.get('rsi', 50)
@@ -394,7 +394,7 @@ def calculate_signal_strength(df, index):
         
     except Exception as e:
         logging.warning(f"Error calculating signal strength at index {index}: {e}")
-        return 50.0
+        return None  # Error - return None instead of fake 50.0
 
 ###############################################################################
 # 5) SIGNAL GENERATION & IN-POSITION LOGIC

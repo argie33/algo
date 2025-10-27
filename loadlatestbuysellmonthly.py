@@ -164,11 +164,11 @@ def calculate_buy_sell_signals_monthly(price_tech_data):
         support = row['support']
         resistance = row['resistance']
         
-        # Calculate derived metrics for monthly timeframe
-        price_vs_ma6m = ((close - ma6m) / ma6m) * 100 if ma6m > 0 else 0
-        price_vs_ma12m = ((close - ma12m) / ma12m) * 100 if ma12m > 0 else 0
-        bollinger_pos = ((close - bb_lower) / (bb_upper - bb_lower)) * 100 if (bb_upper - bb_lower) > 0 else 50
-        volume_ratio = volume / volume_avg if volume_avg > 0 else 1
+        # Calculate derived metrics for monthly timeframe - return None if data unavailable
+        price_vs_ma6m = ((close - ma6m) / ma6m) * 100 if ma6m > 0 else None
+        price_vs_ma12m = ((close - ma12m) / ma12m) * 100 if ma12m > 0 else None
+        bollinger_pos = ((close - bb_lower) / (bb_upper - bb_lower)) * 100 if (bb_upper - bb_lower) > 0 else None
+        volume_ratio = volume / volume_avg if volume_avg > 0 else None
         
         # Monthly signal calculation (very conservative, trend-focused)
         buy_score = 0
@@ -192,20 +192,22 @@ def calculate_buy_sell_signals_monthly(price_tech_data):
         elif close < ma6m < ma12m:
             sell_score += 30  # Strong downtrend
         
-        # Long-term momentum
-        if price_vs_ma12m > 10:  # 10% above 12-month MA
-            buy_score += 15
-        elif price_vs_ma12m < -10:  # 10% below 12-month MA
-            sell_score += 15
-        
-        # Bollinger Band signals (monthly extremes)
-        if bollinger_pos < 20:
-            buy_score += 10
-        elif bollinger_pos > 80:
-            sell_score += 10
-        
-        # Volume confirmation (less important for monthly)
-        if volume_ratio > 1.2:
+        # Long-term momentum - only if data available
+        if price_vs_ma12m is not None:
+            if price_vs_ma12m > 10:  # 10% above 12-month MA
+                buy_score += 15
+            elif price_vs_ma12m < -10:  # 10% below 12-month MA
+                sell_score += 15
+
+        # Bollinger Band signals (monthly extremes) - only if data available
+        if bollinger_pos is not None:
+            if bollinger_pos < 20:
+                buy_score += 10
+            elif bollinger_pos > 80:
+                sell_score += 10
+
+        # Volume confirmation (less important for monthly) - only if data available
+        if volume_ratio is not None and volume_ratio > 1.2:
             if buy_score > sell_score:
                 buy_score += 5
             else:
@@ -220,7 +222,7 @@ def calculate_buy_sell_signals_monthly(price_tech_data):
         # Pattern and momentum scores
         pattern_score = min(buy_score, sell_score) / max(buy_score, sell_score, 1) * 50
         momentum_score = abs(macd) * 5 if abs(macd) < 20 else 100
-        risk_score = min(rsi, 100 - rsi) + (volume_ratio * 3)
+        risk_score = min(rsi, 100 - rsi) + (volume_ratio * 3 if volume_ratio is not None else 0)
         
         # Generate signals (very high threshold for monthly - focus on strong trends)
         if buy_score >= 60:

@@ -209,7 +209,7 @@ def ensure_tables_exist(conn):
 def load_holdings(conn, positions):
     """Load portfolio holdings into database"""
     cur = conn.cursor()
-    user_id = 'alpaca-user'
+    user_id = 'test-user'  # Use test-user to match API expectations
 
     # Clear existing holdings for fresh load
     try:
@@ -240,13 +240,12 @@ def load_holdings(conn, positions):
 
             cur.execute("""
                 INSERT INTO portfolio_holdings
-                (user_id, symbol, quantity, current_price, average_cost, last_updated)
-                VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                (user_id, symbol, quantity, current_price, average_cost)
+                VALUES (%s, %s, %s, %s, %s)
                 ON CONFLICT (user_id, symbol) DO UPDATE SET
                     quantity = EXCLUDED.quantity,
                     current_price = EXCLUDED.current_price,
-                    average_cost = EXCLUDED.average_cost,
-                    last_updated = EXCLUDED.last_updated
+                    average_cost = EXCLUDED.average_cost
             """, (
                 user_id, symbol, qty, current_price, avg_cost
             ))
@@ -268,7 +267,7 @@ def load_holdings(conn, positions):
 def load_performance(conn, account_info):
     """Load portfolio performance into database"""
     cur = conn.cursor()
-    user_id = 'alpaca-user'
+    user_id = 'test-user'  # Use test-user to match API expectations
 
     perf = calculate_daily_performance(account_info)
     if not perf:

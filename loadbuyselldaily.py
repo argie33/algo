@@ -190,10 +190,10 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn):
 
                 signal_val = row.get('Signal', 'None') or 'None'
                 signal_triggered_val = row.get('signal_triggered', 'None') or 'None'
-                buyLevel_val = float(row.get('buyLevel', 0)) or 0
-                stopLevel_val = float(row.get('stopLevel', 0)) or 0
+                buyLevel_val = float(row.get('buyLevel')) if pd.notna(row.get('buyLevel')) else None
+                stopLevel_val = float(row.get('stopLevel')) if pd.notna(row.get('stopLevel')) else None
                 inPos_val = bool(row.get('inPosition', False))
-                strength_val = float(row.get('strength', 50)) or 50
+                strength_val = float(row.get('strength')) if pd.notna(row.get('strength')) else None
 
             except (ValueError, OverflowError) as ve:
                 logging.warning(f"Skipping row {idx}: type conversion error: {ve}")
@@ -234,12 +234,12 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn):
             if avg_vol < 0 or avg_vol > 9223372036854775807:
                 avg_vol = 0
 
-            vol_surge = float(row.get('volume_surge_pct', 0)) or 0
-            rs_rating = int(row.get('rs_rating', 50)) or 50
+            vol_surge = float(row.get('volume_surge_pct')) if pd.notna(row.get('volume_surge_pct')) else None
+            rs_rating = int(row.get('rs_rating')) if pd.notna(row.get('rs_rating')) else None
             breakout_qual = row.get('breakout_quality') or None
-            risk_reward = float(row.get('risk_reward_ratio', 0)) or 0
-            current_gain = float(row.get('current_gain_pct', 0)) or 0
-            days_held = int(row.get('days_in_position', 0)) or 0
+            risk_reward = float(row.get('risk_reward_ratio')) if pd.notna(row.get('risk_reward_ratio')) else None
+            current_gain = float(row.get('current_gain_pct')) if pd.notna(row.get('current_gain_pct')) else None
+            days_held = int(row.get('days_in_position')) if pd.notna(row.get('days_in_position')) else None
 
             cur.execute(insert_q, (
                 symbol, timeframe, date_val,
@@ -348,13 +348,13 @@ def fetch_symbol_from_db(symbol, timeframe):
 # 4) SIGNAL STRENGTH CALCULATION
 ###############################################################################
 def calculate_signal_strength(df, index):
-    """Calculate signal strength score (0-100) for a given row"""
+    """Calculate signal strength score (0-100) for a given row. Returns None if no real signal."""
     try:
         row = df.iloc[index]
         signal_type = row.get('Signal', 'None')
-        
+
         if signal_type == 'None':
-            return 50.0
+            return None  # No real signal - return None instead of fake 50.0
         
         # Get required values
         rsi = row.get('rsi', 50)
@@ -493,19 +493,19 @@ def calculate_signal_strength(df, index):
             strength += 5  # Default if no breakout data
         
         return min(100.0, max(0.0, strength))
-        
+
     except Exception as e:
         logging.warning(f"Error calculating signal strength at index {index}: {e}")
-        return 50.0
+        return None  # Error - return None instead of fake 50.0
 
 def calculate_signal_strength_enhanced(df, index):
-    """Enhanced signal strength calculation with O'Neill factors"""
+    """Enhanced signal strength calculation with O'Neill factors. Returns None if no real signal."""
     try:
         row = df.iloc[index]
         signal_type = row.get('Signal', 'None')
-        
+
         if signal_type == 'None':
-            return 50.0
+            return None  # No real signal - return None instead of fake 50.0
         
         strength = 0.0
         
@@ -567,10 +567,10 @@ def calculate_signal_strength_enhanced(df, index):
                 strength += 3
         
         return min(100, max(0, strength))
-        
+
     except Exception as e:
         logging.error(f"Error calculating enhanced signal strength: {e}")
-        return 50.0
+        return None  # Error - return None instead of fake 50.0
 
 ###############################################################################
 # 5) SIGNAL GENERATION & IN-POSITION LOGIC
@@ -830,9 +830,10 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
 
     df['breakout_quality'] = df.apply(calc_breakout_quality, axis=1)
 
-    df['rs_rating'] = 50
-    df['current_gain_pct'] = 0
-    df['days_in_position'] = 0
+    # Initialize position tracking fields as None (not fake 0/50 values)
+    df['rs_rating'] = None
+    df['current_gain_pct'] = None
+    df['days_in_position'] = None
 
     logging.info(f"✅ Generated {len(df[df['Signal']=='Buy'])} Buy signals and {len(df[df['Signal']=='Sell'])} Sell signals")
     return df
