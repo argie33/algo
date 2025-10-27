@@ -685,6 +685,123 @@ def fetch_all_value_metrics(conn):
         logger.error(f"❌ Failed to fetch value metrics for percentile ranking: {e}")
         return None
 
+def fetch_all_positioning_metrics(conn):
+    """
+    Fetch positioning metrics for all stocks to enable percentile ranking.
+    Returns a dictionary with lists of values for each positioning metric.
+    """
+    try:
+        cur = conn.cursor()
+
+        # Fetch positioning metrics from positioning_metrics table
+        cur.execute("""
+            SELECT
+                pm.institutional_ownership_pct,
+                pm.insider_ownership_pct,
+                pm.institution_count
+            FROM positioning_metrics pm
+            INNER JOIN (
+                SELECT DISTINCT symbol FROM price_daily
+            ) pd ON pm.symbol = pd.symbol
+            WHERE pm.institutional_ownership_pct IS NOT NULL
+               OR pm.insider_ownership_pct IS NOT NULL
+               OR pm.institution_count IS NOT NULL
+        """)
+
+        rows = cur.fetchall()
+        cur.close()
+
+        # Build metrics dictionary
+        metrics = {
+            'institutional_ownership': [],
+            'insider_ownership': [],
+            'institution_count': []
+        }
+
+        # Process positioning metrics - collect all non-None values for percentile calculation
+        for row in rows:
+            inst_ownership, insider_ownership, inst_count = row
+
+            if inst_ownership is not None and 0 <= inst_ownership <= 100:
+                metrics['institutional_ownership'].append(float(inst_ownership))
+            if insider_ownership is not None and 0 <= insider_ownership <= 100:
+                metrics['insider_ownership'].append(float(insider_ownership))
+            if inst_count is not None and inst_count > 0:
+                metrics['institution_count'].append(float(inst_count))
+
+        logger.info(f"📊 Loaded positioning metrics for percentile calculation:")
+        logger.info(f"   Institutional Ownership: {len(metrics['institutional_ownership'])} stocks")
+        logger.info(f"   Insider Ownership: {len(metrics['insider_ownership'])} stocks")
+        logger.info(f"   Institution Count: {len(metrics['institution_count'])} stocks")
+
+        return metrics
+
+    except Exception as e:
+        logger.error(f"❌ Failed to fetch positioning metrics for percentile ranking: {e}")
+        return None
+
+def fetch_all_stability_metrics(conn):
+    """
+    Fetch stability metrics for all stocks to enable percentile ranking.
+    Returns a dictionary with lists of values for each risk metric.
+    """
+    try:
+        cur = conn.cursor()
+
+        # Fetch stability metrics from risk_metrics and price_daily
+        cur.execute("""
+            SELECT
+                rm.volatility_12m_pct,
+                rm.downside_volatility_pct,
+                rm.max_drawdown_52w_pct,
+                fm.beta
+            FROM risk_metrics rm
+            INNER JOIN (
+                SELECT DISTINCT symbol FROM price_daily
+            ) pd ON rm.symbol = pd.symbol
+            LEFT JOIN financials fm ON rm.symbol = fm.ticker AND rm.date = fm.date
+            WHERE rm.volatility_12m_pct IS NOT NULL
+               OR rm.downside_volatility_pct IS NOT NULL
+               OR rm.max_drawdown_52w_pct IS NOT NULL
+               OR fm.beta IS NOT NULL
+        """)
+
+        rows = cur.fetchall()
+        cur.close()
+
+        # Build metrics dictionary
+        metrics = {
+            'volatility': [],
+            'downside_volatility': [],
+            'drawdown': [],
+            'beta': []
+        }
+
+        # Process stability metrics - collect all non-None values for percentile calculation
+        for row in rows:
+            volatility, downside_vol, drawdown, beta = row
+
+            if volatility is not None and volatility > 0 and volatility < 500:
+                metrics['volatility'].append(float(volatility))
+            if downside_vol is not None and downside_vol > 0 and downside_vol < 500:
+                metrics['downside_volatility'].append(float(downside_vol))
+            if drawdown is not None and 0 <= drawdown <= 100:
+                metrics['drawdown'].append(float(drawdown))
+            if beta is not None and beta > 0 and beta < 10:
+                metrics['beta'].append(float(beta))
+
+        logger.info(f"📊 Loaded stability metrics for percentile calculation:")
+        logger.info(f"   Volatility (12M): {len(metrics['volatility'])} stocks")
+        logger.info(f"   Downside Volatility: {len(metrics['downside_volatility'])} stocks")
+        logger.info(f"   Drawdown (52W): {len(metrics['drawdown'])} stocks")
+        logger.info(f"   Beta: {len(metrics['beta'])} stocks")
+
+        return metrics
+
+    except Exception as e:
+        logger.error(f"❌ Failed to fetch stability metrics for percentile ranking: {e}")
+        return None
+
 def calculate_accumulation_distribution(df, lookback_days=65):
     """
     Calculate IBD-style Accumulation/Distribution Rating (0-100 scale).

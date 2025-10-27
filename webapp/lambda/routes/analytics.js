@@ -2157,6 +2157,44 @@ router.get("/professional-metrics", async (req, res) => {
       correlation_with_spy: 0
     };
 
+    // Calculate metrics from position data if available
+    if (positions && positions.length > 0) {
+      // Calculate total gain/loss and return percentage from positions
+      const totalGainLoss = positions.reduce((sum, p) => sum + (p.gain_loss_dollars || 0), 0);
+      const totalValue = positions.reduce((sum, p) => sum + (p.market_value_dollars || 0), 0);
+      const totalCost = totalValue - totalGainLoss;
+
+      if (totalCost > 0) {
+        metrics.total_return = parseFloat((((totalGainLoss / totalCost) * 100)).toFixed(2));
+        metrics.return_1y = metrics.total_return;
+        metrics.ytd_return = metrics.total_return;
+
+        // Calculate volatility from position volatilities
+        const avgVolatility = positions.length > 0
+          ? positions.reduce((sum, p) => sum + (p.volatility_percent || 0), 0) / positions.length
+          : 0;
+        metrics.volatility_annualized = parseFloat(avgVolatility.toFixed(2));
+
+        // Calculate Sharpe ratio (assuming 0 risk-free rate for simplicity)
+        if (avgVolatility > 0) {
+          metrics.sharpe_ratio = parseFloat((metrics.total_return / avgVolatility).toFixed(2));
+          metrics.sortino_ratio = parseFloat((metrics.total_return / (avgVolatility * 0.6)).toFixed(2)); // Downside vol typically 60% of total
+        }
+
+        // Calculate other risk metrics
+        const avgBeta = positions.length > 0
+          ? positions.reduce((sum, p) => sum + (p.beta || 0), 0) / positions.length
+          : 1.0;
+        metrics.beta = parseFloat(avgBeta.toFixed(2));
+
+        const avgCorrelation = positions.length > 0
+          ? positions.reduce((sum, p) => sum + (p.correlation_with_portfolio || 0), 0) / positions.length
+          : 0.5;
+        metrics.avg_correlation = parseFloat(avgCorrelation.toFixed(2));
+      }
+    }
+
+    // Only do advanced calculations if we have historical data
     if (returns.length > 10) {
       // ============ PERFORMANCE METRICS ============
       let cumReturn = 100;

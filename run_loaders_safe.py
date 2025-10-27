@@ -100,8 +100,10 @@ def run_loader(script_name, description):
     try:
         start_time = time.time()
 
-        # Longer timeout for yfinance-heavy loaders
-        if any(yf_loader in script_name.lower() for yf_loader in ['price', 'daily', 'technical', 'company']):
+        # Timeout strategy based on loader type
+        if 'company' in script_name.lower():
+            timeout = 300  # 5 minutes for Company Profile (fails fast if DB not available)
+        elif any(yf_loader in script_name.lower() for yf_loader in ['price', 'daily', 'technical']):
             timeout = 3600  # 60 minutes for yfinance-dependent loaders
         else:
             timeout = 1800  # 30 minutes for other loaders

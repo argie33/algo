@@ -693,17 +693,17 @@ const CreditMarketPanel = ({ data, isLoading, theme }) => {
   const creditData = data.creditSpreadsFullData || data.creditSpreads;
 
   // Calculate spread history for comparison chart
-  const spreadHistory = creditData?.highYield?.history && creditData?.investmentGrade?.history
-    ? creditData.highYield.history.map((hy, idx) => ({
+  // API returns history organized by series ID: BAMLH0A0HYM2, BAMLH0A0IG, VIXCLS
+  const spreadHistory = creditData?.history?.BAMLH0A0HYM2 && creditData?.history?.BAMLH0A0IG
+    ? creditData.history.BAMLH0A0HYM2.map((hy, idx) => ({
         date: hy.date,
         "High Yield OAS": hy.value,
-        "Investment Grade OAS": creditData.investmentGrade.history[idx]?.value || 0,
-        "BAA-AAA": creditData.corporateBond?.history?.[idx]?.value || 0
+        "Investment Grade OAS": creditData.history.BAMLH0A0IG[idx]?.value || 0
       }))
     : [];
 
   // Calculate VIX history
-  const vixHistory = creditData?.vix?.history || [];
+  const vixHistory = creditData?.history?.VIXCLS || [];
 
   // Get overall credit stress level based on HY OAS
   const getStressColor = (value) => {
@@ -769,9 +769,9 @@ const CreditMarketPanel = ({ data, isLoading, theme }) => {
           <Card>
             <CardHeader title="High Yield OAS Trend" subheader="Corporate junk bond spread risk" />
             <CardContent>
-              {creditData?.highYield?.history && creditData.highYield.history.length > 0 ? (
+              {creditData?.history?.BAMLH0A0HYM2 && creditData.history.BAMLH0A0HYM2.length > 0 ? (
                 <ResponsiveContainer width="100%" height={350}>
-                  <AreaChart data={creditData.highYield.history}>
+                  <AreaChart data={creditData.history.BAMLH0A0HYM2}>
                     <defs>
                       <linearGradient id="colorHY" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor={theme.palette.error.main} stopOpacity={0.3} />
@@ -798,9 +798,9 @@ const CreditMarketPanel = ({ data, isLoading, theme }) => {
           <Card>
             <CardHeader title="Investment Grade OAS Trend" subheader="Corporate bond spread for quality issuers" />
             <CardContent>
-              {creditData?.investmentGrade?.history && creditData.investmentGrade.history.length > 0 ? (
+              {creditData?.history?.BAMLH0A0IG && creditData.history.BAMLH0A0IG.length > 0 ? (
                 <ResponsiveContainer width="100%" height={350}>
-                  <AreaChart data={creditData.investmentGrade.history}>
+                  <AreaChart data={creditData.history.BAMLH0A0IG}>
                     <defs>
                       <linearGradient id="colorIG" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor={theme.palette.info.main} stopOpacity={0.3} />
@@ -851,13 +851,12 @@ const CreditMarketPanel = ({ data, isLoading, theme }) => {
           <Card>
             <CardHeader title="AAA vs BAA Yields" subheader="Corporate bond yield differential" />
             <CardContent>
-              {creditData?.aaaYield?.history && creditData?.baaYield?.history && creditData.aaaYield.history.length > 0 ? (
+              {creditData?.history?.AAA && creditData?.history?.BAA && creditData.history.AAA.length > 0 ? (
                 <ResponsiveContainer width="100%" height={350}>
-                  <LineChart>
+                  <ComposedChart data={creditData.history.AAA}>
                     <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} opacity={0.2} />
                     <XAxis
                       dataKey="date"
-                      data={creditData.aaaYield.history}
                       tick={{ fontSize: 9 }}
                       tickFormatter={(d) => new Date(d).toLocaleDateString('en-US', { month: 'short' })}
                       interval="preserveStartEnd"
@@ -865,9 +864,8 @@ const CreditMarketPanel = ({ data, isLoading, theme }) => {
                     <YAxis tick={{ fontSize: 9 }} width={40} label={{ value: '%', angle: -90, position: 'insideLeft' }} domain={['dataMin - 0.1', 'dataMax + 0.1']} />
                     <Tooltip formatter={(v) => `${v.toFixed(2)}%`} labelFormatter={(d) => new Date(d).toLocaleDateString()} />
                     <Legend />
-                    <Line type="monotone" dataKey="value" name="AAA Yield" data={creditData.aaaYield.history} stroke="#1976d2" strokeWidth={2.5} dot={false} isAnimationActive={false} />
-                    <Line type="monotone" dataKey="value" name="BAA Yield" data={creditData.baaYield.history} stroke="#d32f2f" strokeWidth={2.5} dot={false} isAnimationActive={false} />
-                  </LineChart>
+                    <Line type="monotone" dataKey="value" name="AAA Yield" stroke="#1976d2" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+                  </ComposedChart>
                 </ResponsiveContainer>
               ) : (
                 <Alert severity="info">No historical data available</Alert>

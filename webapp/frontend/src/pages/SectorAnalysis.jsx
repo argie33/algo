@@ -121,7 +121,6 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
   );
 };
 
-// Helper component for industry momentum chart - merges momentum and technical data
 // Helper component for industry momentum chart
 // Technical data is now consolidated in trendData from /industries-with-history endpoint
 const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {

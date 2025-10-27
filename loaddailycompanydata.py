@@ -182,6 +182,54 @@ def pyval(val):
     return val
 
 
+def calculate_volatility_and_drawdown(symbol: str, ticker) -> Dict:
+    """
+    Calculate 12-month volatility and 52-week maximum drawdown from price history.
+
+    Returns:
+        Dict with 'volatility_12m_pct' and 'max_drawdown_52w_pct' (or None if insufficient data)
+    """
+    result = {
+        'volatility_12m_pct': None,
+        'max_drawdown_52w_pct': None
+    }
+
+    try:
+        # Fetch 2 years of daily price data to get 12M volatility
+        hist = ticker.history(period="2y")
+
+        if hist is None or hist.empty or len(hist) < 252:
+            logging.warning(f"Insufficient price history for {symbol} (need ≥252 days, got {len(hist) if hist is not None else 0})")
+            return result
+
+        # Calculate returns (yfinance uses 'Close' with capital C)
+        closes = hist['Close'].dropna()
+        if len(closes) < 2:
+            return result
+
+        daily_returns = closes.pct_change().dropna()
+
+        # 12-month volatility (annualized)
+        if len(daily_returns) >= 252:
+            volatility_12m = daily_returns.std() * np.sqrt(252) * 100
+            if not np.isnan(volatility_12m) and not np.isinf(volatility_12m):
+                result['volatility_12m_pct'] = float(volatility_12m)
+
+        # 52-week maximum drawdown
+        if len(closes) >= 252:
+            prices_52w = closes.iloc[-252:]  # Last 252 trading days
+            running_max = prices_52w.expanding().max()
+            drawdown = (prices_52w - running_max) / running_max * 100
+            max_dd = drawdown.min()
+            if not np.isnan(max_dd) and not np.isinf(max_dd):
+                result['max_drawdown_52w_pct'] = float(abs(max_dd))  # Store as positive value
+
+    except Exception as e:
+        logging.warning(f"Error calculating volatility/drawdown for {symbol}: {e}")
+
+    return result
+
+
 def calculate_missing_metrics(symbol: str, info: dict, ticker) -> dict:
     """Calculate missing earnings_growth_pct, payout_ratio, and debt_to_equity when not provided by yfinance"""
 
@@ -264,7 +312,13 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             'positioning': 0,
             'earnings_est': 0,
             'revenue_est': 0,
+            'volatility': 0,
+            'drawdown': 0,
+            'beta': None,
         }
+
+        # Calculate volatility and drawdown from price history (REAL DATA ONLY - no fallbacks)
+        vol_dd = calculate_volatility_and_drawdown(symbol, ticker)
 
         # 1. Insert company_profile, market_data, key_metrics (from ticker.info)
         if info:
@@ -827,26 +881,43 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 logging.error(f"Error inserting revenue estimates for {symbol}: {e}")
                 conn.rollback()
 
-        # 9. Insert beta from yfinance into risk_metrics (REAL DATA ONLY - no fake defaults)
+        # 9. Insert risk metrics into risk_metrics (volatility, drawdown, beta - REAL DATA ONLY)
         try:
             beta = safe_float(info.get('beta'))
-            if beta is not None:
+            volatility_12m_pct = vol_dd.get('volatility_12m_pct')
+            max_drawdown_52w_pct = vol_dd.get('max_drawdown_52w_pct')
+
+            # Only insert if we have at least one real metric
+            if beta is not None or volatility_12m_pct is not None or max_drawdown_52w_pct is not None:
                 cur.execute(
                     """
-                    INSERT INTO risk_metrics (symbol, date, beta)
-                    VALUES (%s, %s, %s)
+                    INSERT INTO risk_metrics (
+                        symbol, date,
+                        volatility_12m_pct, max_drawdown_52w_pct, beta
+                    ) VALUES (%s, %s, %s, %s, %s)
                     ON CONFLICT (symbol, date) DO UPDATE SET
+                        volatility_12m_pct = EXCLUDED.volatility_12m_pct,
+                        max_drawdown_52w_pct = EXCLUDED.max_drawdown_52w_pct,
                         beta = EXCLUDED.beta,
                         fetched_at = CURRENT_TIMESTAMP
                     """,
-                    (symbol, date.today(), beta)
+                    (symbol, date.today(), volatility_12m_pct, max_drawdown_52w_pct, beta)
                 )
-                stats['beta'] = 1  # Indicates real beta data was fetched
+                stats['beta'] = 1 if beta is not None else 0
+                stats['volatility'] = 1 if volatility_12m_pct is not None else 0
+                stats['drawdown'] = 1 if max_drawdown_52w_pct is not None else 0
+                logging.debug(f"  ✓ Risk metrics: vol={volatility_12m_pct}, dd={max_drawdown_52w_pct}, beta={beta}")
             else:
-                stats['beta'] = None  # No real beta data available (NOT fake 0)
+                logging.debug(f"  ⚠ No risk metrics available for {symbol} (all None)")
+                stats['beta'] = 0
+                stats['volatility'] = 0
+                stats['drawdown'] = 0
         except Exception as e:
-            logging.error(f"Error inserting beta for {symbol}: {e}")
-            stats['beta'] = None  # Error - return None instead of fake 0
+            logging.error(f"Error inserting risk metrics for {symbol}: {e}")
+            conn.rollback()
+            stats['beta'] = 0
+            stats['volatility'] = 0
+            stats['drawdown'] = 0
 
         conn.commit()
         return stats
