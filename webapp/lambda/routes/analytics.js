@@ -1997,7 +1997,8 @@ router.get("/attribution", async (req, res) => {
 // Professional metrics endpoint - Alpha, Sortino, Information Ratio, etc.
 router.get("/professional-metrics", async (req, res) => {
   try {
-    const userId = req.user?.sub || "test-user";
+    // Always use alpaca-user for portfolio queries (single-user system)
+    const userId = "alpaca-user";
     const { timeframe = "1y", benchmark = "SPY" } = req.query;
 
     console.log(`📊 Professional metrics requested for user: ${userId}, benchmark: ${benchmark}`);
@@ -2019,6 +2020,7 @@ router.get("/professional-metrics", async (req, res) => {
     // Get holdings for attribution
     let holdingsResult = { rows: [] };
     try {
+      console.log(`📊 Querying holdings for userId: ${userId}`);
       holdingsResult = await query(
         `SELECT symbol, quantity, current_price, average_cost,
                 (current_price - average_cost) * quantity as unrealized_gain,
@@ -2028,6 +2030,7 @@ router.get("/professional-metrics", async (req, res) => {
          ORDER BY market_value DESC`,
         [userId]
       );
+      console.log(`📊 Holdings query returned ${holdingsResult.rows ? holdingsResult.rows.length : 0} positions`);
     } catch (error) {
       console.warn("Holdings data not available:", error.message);
     }
@@ -2346,15 +2349,17 @@ router.get("/professional-metrics", async (req, res) => {
 
     // ============ POSITION-LEVEL METRICS ============
     const positionMetrics = holdings.map(h => {
-      const weight = parseFloat(h.market_value || 0) / totalValue;
+      const mv = parseFloat(h.market_value || 0);
+      const ug = parseFloat(h.unrealized_gain || 0);
+      const weight = mv / (totalValue || 1);
       return {
         symbol: h.symbol,
         weight_percent: parseFloat((weight * 100).toFixed(2)),
-        market_value_dollars: parseFloat(h.market_value.toFixed(2)),
+        market_value_dollars: parseFloat(mv.toFixed(2)),
         volatility_percent: parseFloat((Math.random() * 30 + 10).toFixed(2)), // Placeholder
         risk_contribution_percent: parseFloat((Math.pow(weight, 2) * 100).toFixed(2)),
         return_contribution_percent: parseFloat((Math.random() * 5).toFixed(2)), // Placeholder
-        gain_loss_dollars: parseFloat(h.unrealized_gain.toFixed(2)),
+        gain_loss_dollars: parseFloat(ug.toFixed(2)),
         beta: parseFloat((0.8 + Math.random() * 0.4).toFixed(2)), // Placeholder
         correlation_with_portfolio: parseFloat((0.6 + Math.random() * 0.4).toFixed(2)) // Placeholder
       };

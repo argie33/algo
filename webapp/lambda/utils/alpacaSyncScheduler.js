@@ -74,24 +74,30 @@ async function performAlpacaSync() {
       DEFAULT_USER_ID,
     ]);
 
-    // Insert new holdings
+    // Insert or update holdings
     for (const position of positions) {
       try {
         await query(
           `INSERT INTO portfolio_holdings
           (user_id, symbol, quantity, current_price, average_cost, market_value, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT (user_id, symbol) DO UPDATE SET
+            quantity = $3,
+            current_price = $4,
+            average_cost = $5,
+            market_value = $6,
+            updated_at = CURRENT_TIMESTAMP`,
           [
             DEFAULT_USER_ID,
             position.symbol,
-            position.qty,
-            position.current_price,
-            position.avg_entry_price,
-            position.market_value,
+            position.quantity,
+            position.currentPrice,
+            position.averageEntryPrice,
+            position.marketValue,
           ]
         );
       } catch (err) {
-        console.warn(`⚠️  Failed to insert ${position.symbol}:`, err.message);
+        console.warn(`⚠️  Failed to insert/update ${position.symbol}:`, err.message);
       }
     }
 
