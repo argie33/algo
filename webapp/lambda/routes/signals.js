@@ -145,12 +145,13 @@ router.get("/", async (req, res) => {
     let queryParams = [];
     let paramIndex = 1;
 
-    // PERFORMANCE FIX: Only query most recent date to avoid timeout on massive table
-    // If symbol provided, use 90 days; otherwise just most recent date
-    if (symbolFilter) {
+    // PERFORMANCE FIX: Only query most recent data to avoid timeout
+    // Daily has recent data (90 days), Weekly/Monthly have sparse historical data (use all)
+    if (timeframe === 'daily') {
       whereClause = `WHERE bsd.date >= CURRENT_DATE - INTERVAL '90 days'`;
     } else {
-      whereClause = `WHERE bsd.date >= CURRENT_DATE - INTERVAL '90 days'`;
+      // Weekly and Monthly have sparse data - show all available
+      whereClause = `WHERE 1=1`;
     }
 
     // Always exclude 'None' signals - only show Buy/Sell
@@ -168,78 +169,51 @@ router.get("/", async (req, res) => {
       paramIndex++;
     }
 
-    // Build queries with dynamic WHERE clause
-    // Different tables have different columns
-    let selectColumns;
+    // Query ONLY the columns that actually exist in the buy_sell_* tables
+    // Weekly and Monthly tables have fewer columns than Daily
+    let actualColumns;
 
-    if (timeframe === 'monthly') {
-      // Monthly has the fewest columns
-      selectColumns = `
-        symbol, date, timeframe, signal, open, high, low, close, volume,
-        buylevel, stoplevel, inposition,
-        selllevel, target_price, current_price, risk_reward_ratio,
-        market_stage, pct_from_sma_200, entry_quality_score,
-        profit_target_20pct, profit_target_25pct, current_gain_loss_pct,
-        risk_pct, passes_minervini_template
-      `;
-    } else if (timeframe === 'weekly') {
-      // Weekly has more columns than monthly
-      selectColumns = `
-        symbol, date, timeframe, signal, open, high, low, close, volume,
-        buylevel, stoplevel, inposition,
-        selllevel, target_price, current_price, risk_reward_ratio,
-        market_stage, pct_from_sma_50, pct_from_sma_200,
-        volume_ratio, volume_analysis, entry_quality_score,
-        profit_target_20pct, profit_target_25pct, current_gain_loss_pct,
-        risk_pct, position_size_recommendation, passes_minervini_template,
-        rsi, adx
+    if (timeframe === 'monthly' || timeframe === 'weekly') {
+      // Weekly and Monthly tables only have: id, symbol, timeframe, date, open, high, low, close, volume, signal, buylevel, stoplevel, inposition, strength, avg_volume_50d, volume_surge_pct, risk_reward_ratio, breakout_quality
+      // NO signal_type, pivot_price, buy_zone_*, exit_trigger_*, initial_stop, trailing_stop, base_*, rs_rating, current_gain_pct, days_in_position columns
+      actualColumns = `
+        bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
+        bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
+        bsd.signal, bsd.buylevel, bsd.stoplevel, bsd.inposition,
+        bsd.strength, bsd.avg_volume_50d, bsd.volume_surge_pct,
+        bsd.breakout_quality, bsd.risk_reward_ratio,
+        NULL::text as signal_type, NULL::numeric as pivot_price,
+        NULL::numeric as buy_zone_start, NULL::numeric as buy_zone_end,
+        NULL::numeric as exit_trigger_1_price, NULL::numeric as exit_trigger_2_price,
+        NULL::text as exit_trigger_3_condition, NULL::numeric as exit_trigger_3_price,
+        NULL::text as exit_trigger_4_condition, NULL::numeric as exit_trigger_4_price,
+        NULL::numeric as initial_stop, NULL::numeric as trailing_stop,
+        NULL::text as base_type, NULL::integer as base_length_days,
+        NULL::integer as rs_rating, NULL::numeric as current_gain_pct, NULL::integer as days_in_position
       `;
     } else {
-      // Daily - include signal state columns (5% rule, entry quality, pullback tracking)
-      selectColumns = `
-        symbol, date, timeframe, signal, close, volume,
-        buylevel, stoplevel, target_price, current_price,
-        market_stage, entry_quality_score,
-        profit_target_20pct, profit_target_25pct, current_gain_loss_pct,
-        passes_minervini_template,
-        signal_state, signal_state_changed_date, previous_signal_state, days_in_current_state,
-        extension_from_pivot_pct, entry_window, close_range_position,
-        gap_from_prev_close_pct, is_gap_up, is_gap_down, days_since_pivot_break,
-        distance_to_pivot_pct, consolidation_days, atr_contraction_ratio,
-        is_follow_through_day, follow_through_day_number, follow_through_gain_pct,
-        consecutive_up_days, consecutive_down_days, held_above_pivot,
-        volume_percentile, volume_surge_on_breakout,
-        distance_to_21ema_pct, pullback_stage, pullback_days,
-        pct_retraced_from_high, avg_daily_change_last_5days,
-        entry_price, entry_date, entry_quality_grade,
-        days_in_position, current_pnl_pct, current_r_multiple,
-        max_favorable_excursion_pct, max_adverse_excursion_pct,
-        peak_price_in_trade, lowest_price_in_trade,
-        initial_stop_loss, current_stop_loss, trailing_stop_type,
-        exit_date, exit_price, exit_reason,
-        trade_result_pct, trade_duration_days, was_winner,
-        is_failed_breakout, days_above_pivot_before_failure, max_extension_before_failure_pct
+      // Daily table has all columns
+      actualColumns = `
+        bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
+        bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
+        bsd.signal, bsd.buylevel, bsd.stoplevel, bsd.inposition,
+        bsd.strength, bsd.signal_type, bsd.pivot_price,
+        bsd.buy_zone_start, bsd.buy_zone_end,
+        bsd.exit_trigger_1_price, bsd.exit_trigger_2_price,
+        bsd.exit_trigger_3_condition, bsd.exit_trigger_3_price,
+        bsd.exit_trigger_4_condition, bsd.exit_trigger_4_price,
+        bsd.initial_stop, bsd.trailing_stop,
+        bsd.base_type, bsd.base_length_days,
+        bsd.avg_volume_50d, bsd.volume_surge_pct,
+        bsd.rs_rating, bsd.breakout_quality,
+        bsd.risk_reward_ratio, bsd.current_gain_pct, bsd.days_in_position
       `;
     }
 
-    // Query ONLY the columns that actually exist in the buy_sell_* tables
-    // Avoids padding response with 0/NULL values for non-existent fields
-    const actualColumns = `
-      bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
-      bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
-      bsd.signal, bsd.buylevel, bsd.stoplevel, bsd.inposition,
-      bsd.strength, bsd.signal_type, bsd.pivot_price,
-      bsd.buy_zone_start, bsd.buy_zone_end,
-      bsd.exit_trigger_1_price, bsd.exit_trigger_2_price,
-      bsd.exit_trigger_3_condition, bsd.exit_trigger_3_price,
-      bsd.exit_trigger_4_condition, bsd.exit_trigger_4_price,
-      bsd.initial_stop, bsd.trailing_stop,
-      bsd.base_type, bsd.base_length_days,
-      bsd.avg_volume_50d, bsd.volume_surge_pct,
-      bsd.rs_rating, bsd.breakout_quality,
-      bsd.risk_reward_ratio, bsd.current_gain_pct, bsd.days_in_position,
-      tdd.rsi, tdd.adx, tdd.atr, tdd.ema_21, tdd.sma_50, tdd.sma_200
-    `;
+    // For Daily table, join with technical_data_daily; for Weekly/Monthly, skip the JOIN since dates won't match
+    const tddJoin = timeframe === 'daily'
+      ? `LEFT JOIN technical_data_daily tdd ON bsd.symbol = tdd.symbol AND DATE(tdd.date) = bsd.date`
+      : ``;
 
     const signalsQuery = `
       SELECT
@@ -262,7 +236,7 @@ router.get("/", async (req, res) => {
           LIMIT 1
         ) as days_to_earnings
       FROM ${tableName} bsd
-      LEFT JOIN technical_data_daily tdd ON bsd.symbol = tdd.symbol AND DATE(tdd.date) = bsd.date
+      ${tddJoin}
       LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
       LEFT JOIN stock_symbols ss ON bsd.symbol = ss.symbol
       ${whereClause}

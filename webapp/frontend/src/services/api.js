@@ -3151,34 +3151,6 @@ export const getMarketIndices = async () => {
   }
 };
 
-// Sector performance
-export const getSectorPerformance = async () => {
-  console.log("🚀 getSectorPerformance: Starting API call...");
-  try {
-    const response = await api.get("/api/sectors/sectors-with-history");
-
-    console.log("📊 getSectorPerformance: Raw response:", {
-      status: response?.status,
-      hasData: !!response?.data,
-      dataType: typeof response?.data,
-      dataKeys: response?.data ? Object.keys(response?.data) : [],
-    });
-
-    // Always return { data: ... } structure for consistency
-    const result = normalizeApiResponse(response, true);
-    console.log("✅ getSectorPerformance: returning result:", result);
-    return { data: result };
-  } catch (error) {
-    console.error("❌ Error fetching sector performance:", {
-      message: error?.message || "Unknown error",
-      status: error.response?.status,
-      url: error.config?.url,
-    });
-    const errorMessage = handleApiError(error, "get sector performance");
-    throw new Error(errorMessage);
-  }
-};
-
 // Market volatility
 export const getMarketVolatility = async () => {
   console.log("🚀 getMarketVolatility: Starting API call...");
@@ -4016,7 +3988,6 @@ export default {
   getDashboardTechnicalSignals,
   testApiEndpoints,
   getMarketIndices,
-  getSectorPerformance,
   getMarketVolatility,
   getEconomicCalendar,
   getMarketCapCategories,

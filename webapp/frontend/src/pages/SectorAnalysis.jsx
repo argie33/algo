@@ -91,8 +91,8 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
         ⚡ Daily Strength Score
       </Typography>
       {momentumData && momentumData.length > 0 ? (
-        <Box sx={{ width: "100%", height: 400, position: "relative" }}>
-          <ResponsiveContainer width="100%" height={400}>
+        <Box sx={{ width: "100%", height: 400, position: "relative", display: "block", overflow: "hidden" }}>
+          <ResponsiveContainer width="100%" height="100%">
             <LineChart data={momentumData} margin={{ top: 20, right: 100, left: 80, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" tick={{ fontSize: 11 }} />
@@ -183,8 +183,8 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
         ⚡ Daily Strength Score
       </Typography>
       {momentumData && momentumData.length > 0 ? (
-        <Box sx={{ width: "100%", height: 400, position: "relative" }}>
-          <ResponsiveContainer width="100%" height={400}>
+        <Box sx={{ width: "100%", height: 400, position: "relative", display: "block", overflow: "hidden" }}>
+          <ResponsiveContainer width="100%" height="100%">
             <LineChart data={momentumData} margin={{ top: 20, right: 100, left: 80, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" tick={{ fontSize: 11 }} />

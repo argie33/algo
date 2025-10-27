@@ -100,13 +100,13 @@ def run_loader(script_name, description):
     try:
         start_time = time.time()
 
-        # Timeout strategy based on loader type
+        # Timeout strategy based on loader type - EXTENDED TO PREVENT TIMEOUTS
         if 'company' in script_name.lower():
-            timeout = 300  # 5 minutes for Company Profile (fails fast if DB not available)
+            timeout = 86400  # 24 hours for Company Profile
         elif any(yf_loader in script_name.lower() for yf_loader in ['price', 'daily', 'technical']):
-            timeout = 3600  # 60 minutes for yfinance-dependent loaders
+            timeout = 86400  # 24 hours for yfinance-dependent loaders
         else:
-            timeout = 1800  # 30 minutes for other loaders
+            timeout = 86400  # 24 hours for other loaders
 
         result = subprocess.run(
             ["python3", str(script_path)],
