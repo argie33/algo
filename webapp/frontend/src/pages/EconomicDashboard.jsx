@@ -1217,14 +1217,59 @@ export default function EconomicDashboard() {
         }));
       }
 
+      // Calculate Economic Stress Index from real data (0-100 scale)
+      let economicStress = 0;
+      const indicators = leadData?.indicators || [];
+      const unrateIndicator = indicators.find(i => i.name === "Unemployment Rate");
+      const icsaIndicator = indicators.find(i => i.name === "Initial Jobless Claims");
+
+      // Unemployment stress: 4% = 0 stress, 6% = 50 stress, 8%+ = 100 stress
+      if (unrateIndicator?.rawValue) {
+        economicStress += Math.min(100, Math.max(0, (unrateIndicator.rawValue - 3.5) * 20));
+      }
+
+      // Initial claims stress: 200K = 0, 250K = 25, 300K+ = 100
+      if (icsaIndicator?.rawValue) {
+        economicStress += Math.min(100, Math.max(0, (icsaIndicator.rawValue / 1000 - 200) * 2));
+      }
+
+      // Yield curve stress: inverted = +25 points
+      const yieldCurveSpread = yieldCurveFullData?.spreads?.T10Y2Y || 0;
+      if (yieldCurveSpread < 0) {
+        economicStress += 25;
+      }
+
+      // Average out the score
+      economicStress = Math.min(100, Math.max(0, economicStress / 3));
+
+      // Calculate Credit Stress Index (0-100 scale) from credit spreads data
+      let creditStress = 0;
+      if (creditSpreadsFullData?.currentSpreads) {
+        const hyOas = creditSpreadsFullData.currentSpreads.highYield?.value || 0;
+        const igOas = creditSpreadsFullData.currentSpreads.investmentGrade?.value || 0;
+
+        // HY OAS stress: 300 bps = 25, 400 = 50, 600+ = 100
+        creditStress += Math.min(100, Math.max(0, (hyOas - 300) / 3));
+
+        // IG OAS stress: 100 bps = 25, 150 = 50, 250+ = 100
+        creditStress += Math.min(100, Math.max(0, (igOas - 100) / 1.5));
+
+        // VIX stress: 15 = 0, 20 = 25, 30+ = 100
+        const vix = creditSpreadsFullData.vix?.value || 0;
+        creditStress += Math.min(100, Math.max(0, (vix - 15) * 5));
+
+        // Average out
+        creditStress = Math.min(100, Math.max(0, creditStress / 3));
+      }
+
       const combinedData = {
-        // Recession data - using indicators for simple assessment
-        recessionProbability: 35,
-        riskLevel: "Low",
-        riskIndicator: "🟢",
-        economicStressIndex: 30,
+        // Recession data - CALCULATED from real indicators
+        recessionProbability: Math.round((economicStress + creditStress) / 2 * 0.5),
+        riskLevel: economicStress > 60 ? "High" : economicStress > 30 ? "Moderate" : "Low",
+        riskIndicator: economicStress > 60 ? "🔴" : economicStress > 30 ? "🟡" : "🟢",
+        economicStressIndex: Math.round(economicStress),
         forecastModels: [],
-        recessionAnalysis: { summary: "Economic indicators show mixed signals." },
+        recessionAnalysis: { summary: economicStress > 60 ? "Economic stress indicators elevated - monitor labor market and yield curve closely." : "Economic indicators show mixed signals." },
         keyRecessionIndicators: {},
 
         // Leading indicators - THIS IS WHAT WE HAVE
@@ -1249,10 +1294,10 @@ export default function EconomicDashboard() {
         // Credit spreads - NEW: full data from dedicated endpoint
         creditSpreadsFullData: creditSpreadsFullData,
         creditSpreads: processedCreditSpreads,
-        creditStressIndex: creditSpreadsFullData?.summary?.overallStress === 'HIGH' ? 75 : creditSpreadsFullData?.summary?.overallStress === 'MODERATE' ? 50 : 25,
+        creditStressIndex: Math.round(creditStress),
         financialConditionsIndex: {
-          value: creditSpreadsFullData?.summary?.overallStress || 'N/A',
-          level: creditSpreadsFullData?.summary?.creditConditions || 'Neutral'
+          value: creditStress > 60 ? 'HIGH' : creditStress > 30 ? 'MODERATE' : 'NORMAL',
+          level: creditStress > 60 ? 'Stressed' : creditStress > 30 ? 'Caution' : 'Healthy'
         },
 
         // Calendar - FIXED: now fetching from API

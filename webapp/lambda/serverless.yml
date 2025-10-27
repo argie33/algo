@@ -7,6 +7,9 @@ provider:
   runtime: nodejs18.x
   region: us-east-1
   environment:
+    # AWS Secrets Manager (preferred for production)
+    DB_SECRET_ARN: ${env:DB_SECRET_ARN}
+    # Local environment variables (fallback for development)
     DB_HOST: ${env:DB_HOST}
     DB_PORT: ${env:DB_PORT}
     DB_USER: ${env:DB_USER}
@@ -28,6 +31,10 @@ provider:
             - ec2:DescribeNetworkInterfaces
             - ec2:DeleteNetworkInterface
           Resource: '*'
+        - Effect: Allow
+          Action:
+            - secretsmanager:GetSecretValue
+          Resource: 'arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:*'
 
 functions:
   api:

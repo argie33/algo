@@ -2096,12 +2096,12 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             'volatility_30d': float(volatility_30d) if volatility_30d is not None else None,
             'market_cap': int(market_cap) if market_cap else None,
             'pe_ratio': float(round(pe_ratio, 2)) if pe_ratio else None,
-            # Momentum components (6-component system)
-            'momentum_intraweek': float(round(intraweek_confirmation, 2)),
-            'momentum_short_term': float(round(short_term_momentum, 2)),
-            'momentum_medium_term': float(round(medium_term_momentum, 2)),
-            'momentum_long_term': float(round(longer_term_momentum, 2)),
-            'momentum_consistency': float(round(momentum_consistency, 2)) if momentum_consistency is not None else None,
+            # Momentum components (now using percentile normalization - no component breakdown in report)
+            'momentum_intraweek': None,
+            'momentum_short_term': None,
+            'momentum_medium_term': None,
+            'momentum_long_term': None,
+            'momentum_consistency': None,
             'roc_10d': float(round(roc_10d, 2)) if roc_10d is not None else None,
             'roc_20d': float(round(roc_20d, 2)) if roc_20d is not None else None,
             'roc_60d': float(round(roc_60d, 2)) if roc_60d is not None else None,

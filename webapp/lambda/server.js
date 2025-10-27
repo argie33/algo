@@ -49,7 +49,6 @@ const signalsRoutes = require("./routes/signals");
 const stockRoutes = require("./routes/stocks");
 const strategyBuilderRoutes = require("./routes/strategyBuilder");
 const technicalRoutes = require("./routes/technical");
-const tradingRoutes = require("./routes/trading");
 const tradesRoutes = require("./routes/trades");
 const userRoutes = require("./routes/user");
 const watchlistRoutes = require("./routes/watchlist");
@@ -178,7 +177,6 @@ app.use("/api/settings", settingsRoutes);
 app.use("/api/signals", signalsRoutes);
 // app.use("/api/social", socialRoutes); // Social trading removed - not implemented
 app.use("/api/technical", technicalRoutes);
-app.use("/api/trading", tradingRoutes);
 app.use("/api/trades", tradesRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/watchlist", watchlistRoutes);
@@ -209,7 +207,6 @@ app.get("/api", (req, res) => {
       market: "/api/market",
       analysts: "/api/analysts",
       financials: "/api/financials",
-      trading: "/api/trading",
       technical: "/api/technical",
       calendar: "/api/calendar",
       signals: "/api/signals",
@@ -238,7 +235,6 @@ app.get("/", (req, res) => {
         metrics: "/api/metrics",
         market: "/api/market",
         analysts: "/api/analysts",
-        trading: "/api/trading",
         technical: "/api/technical",
         calendar: "/api/calendar",
         signals: "/api/signals",
