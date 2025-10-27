@@ -1277,8 +1277,8 @@ router.get("/leading-indicators", async (req, res) => {
     }
 
     // Calculate yield curve data
-    const spread2y10y = indicators["T10Y2Y"] ? indicators["T10Y2Y"].value : 0;
-    const isInverted = spread2y10y < 0;
+    const spread2y10y = indicators["T10Y2Y"] ? indicators["T10Y2Y"].value : null;
+    const isInverted = spread2y10y !== null && spread2y10y < 0;
 
     const response = {
       success: true,
@@ -1304,18 +1304,19 @@ router.get("/leading-indicators", async (req, res) => {
           // Calculate 3M-10Y spread if both rates available
           spread3m10y: (indicators["DGS10"] && indicators["DGS3MO"])
             ? indicators["DGS10"].value - indicators["DGS3MO"].value
-            : spread2y10y, // Fallback to 2y10y spread if 3M not available
+            : spread2y10y, // Use actual 2y10y if 3M not available
           isInverted: isInverted,
           interpretation: isInverted
             ? "Inverted yield curve suggests potential recession risk"
-            : "Normal yield curve indicates healthy economic conditions",
+            : isInverted === false
+            ? "Normal yield curve indicates healthy economic conditions"
+            : null,
           // Historical accuracy: Based on research, yield curve inversions
           // have preceded 7 of 8 recessions since 1970 (87.5% accuracy)
-          // When not inverted, baseline accuracy around 65% for normal predictions
-          historicalAccuracy: isInverted ? 87 : 65,
+          historicalAccuracy: isInverted ? 87 : isInverted === false ? 65 : null,
           // Average lead time: Studies show inversions lead recessions by 6-24 months,
-          // with median around 12 months. Zero when not inverted (no signal).
-          averageLeadTime: isInverted ? 12 : 0,
+          // with median around 12 months
+          averageLeadTime: isInverted ? 12 : null,
         },
 
         // Individual indicators array - filter out null values and add required frontend fields

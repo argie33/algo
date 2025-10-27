@@ -47,13 +47,12 @@ import {
 import { formatXAxisDate } from "../utils/dateFormatters";
 
 // Helper component for sector momentum chart
-// Technical data is now consolidated in trendData from /sectors-with-history endpoint
-// Unified consolidated chart: Price + Strength Score + RSI all in one
+// 3 SEPARATE STACKED CHARTS like TradingView (Price, Strength, RSI)
 const MomentumChart = ({ type = 'sector', data, aggregateToWeekly }) => {
   const identifierName = type === 'sector' ? data?.sector_name : data?.industry;
   const trendArray = data?.trendData || [];
 
-  // Transform trend data to chart data format with BOTH price and strength data
+  // Transform trend data with BOTH price and strength data
   let chartData = trendArray.map(row => ({
     date: row.date,
     // Price data
@@ -68,9 +67,6 @@ const MomentumChart = ({ type = 'sector', data, aggregateToWeekly }) => {
     ma_20: row.ma_20 !== undefined && row.ma_20 !== null ? parseFloat(row.ma_20) : undefined,
     // RSI data
     rsi: row.rsi !== undefined && row.rsi !== null ? parseFloat(row.rsi) : undefined,
-    // Metadata
-    rank: row.rank,
-    trend: row.trend,
   }));
 
   // Check what data is available
@@ -86,12 +82,7 @@ const MomentumChart = ({ type = 'sector', data, aggregateToWeekly }) => {
   const hasRSI = chartData.some(m => m.rsi !== undefined);
 
   if (chartData.length > 0) {
-    console.log(`[${type.toUpperCase()} UNIFIED CHART] ${identifierName}:`);
-    console.log(`  Total rows: ${chartData.length}`);
-    console.log(`  Price data: close=${hasPrice}, SMA5=${hasPriceSMA5}, SMA10=${hasPriceSMA10}, SMA20=${hasPriceSMA20}`);
-    console.log(`  Strength data: momentum=${hasStrength}, MA5=${hasMA5}, MA10=${hasMA10}, MA20=${hasMA20}`);
-    console.log(`  RSI: ${hasRSI}`);
-    console.log(`  First row:`, chartData[0]);
+    console.log(`[${type.toUpperCase()} CHARTS] ${identifierName}: ${chartData.length} rows`);
   }
 
   // Aggregate to weekly if requested
@@ -102,116 +93,63 @@ const MomentumChart = ({ type = 'sector', data, aggregateToWeekly }) => {
   return (
     <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mb: 3 }}>
       <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-        ⚡ Daily Strength Score, Price & Moving Averages with RSI Indicator
+        ⚡ Technical Analysis Charts
       </Typography>
       {chartData && chartData.length > 0 ? (
-        <Box sx={{ width: "100%", height: 500, position: "relative", display: "block", overflow: "hidden" }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData} margin={{ top: 20, right: 120, left: 80, bottom: 60 }}>
-              {/* Main grid */}
-              <CartesianGrid strokeDasharray="3 3" />
+        <>
+          {/* CHART 1: PRICE + SMAs */}
+          <Box sx={{ width: "100%", height: 350, mb: 2, position: "relative", display: "block", overflow: "hidden" }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ top: 20, right: 100, left: 80, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                <YAxis width={75} tick={{ fontSize: 11 }} />
+                <Tooltip formatter={(val) => typeof val === 'number' ? val.toFixed(2) : val} />
+                <Legend />
+                {hasPrice && <Line type="monotone" dataKey="close" stroke="#2E7D32" strokeWidth={2.5} dot={false} connectNulls name="Close Price" />}
+                {hasPriceSMA5 && <Line type="monotone" dataKey="sma_5" stroke="#004E89" strokeWidth={2} dot={false} connectNulls name="SMA 5" />}
+                {hasPriceSMA10 && <Line type="monotone" dataKey="sma_10" stroke="#1ABC9C" strokeWidth={2} dot={false} connectNulls name="SMA 10" />}
+                {hasPriceSMA20 && <Line type="monotone" dataKey="sma_20" stroke="#E74C3C" strokeWidth={2} dot={false} connectNulls name="SMA 20" />}
+              </LineChart>
+            </ResponsiveContainer>
+          </Box>
 
-              {/* X Axis - shared across all sections */}
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 11 }}
-                height={40}
-                angle={-45}
-                textAnchor="end"
-              />
+          {/* CHART 2: DAILY STRENGTH + MAs */}
+          <Box sx={{ width: "100%", height: 350, mb: 2, position: "relative", display: "block", overflow: "hidden" }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ top: 20, right: 100, left: 80, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                <YAxis width={75} tick={{ fontSize: 11 }} />
+                <Tooltip formatter={(val) => typeof val === 'number' ? val.toFixed(2) : val} />
+                <Legend />
+                {hasStrength && <Line type="monotone" dataKey="momentum" stroke="#FF6B35" strokeWidth={2.5} dot={false} connectNulls name="Daily Strength" />}
+                {hasMA5 && <Line type="monotone" dataKey="ma_5" stroke="#004E89" strokeWidth={2} dot={false} connectNulls name="MA 5" />}
+                {hasMA10 && <Line type="monotone" dataKey="ma_10" stroke="#1ABC9C" strokeWidth={2} dot={false} connectNulls name="MA 10" />}
+                {hasMA20 && <Line type="monotone" dataKey="ma_20" stroke="#E74C3C" strokeWidth={2} dot={false} connectNulls name="MA 20" />}
+              </LineChart>
+            </ResponsiveContainer>
+          </Box>
 
-              {/* Left Y-Axis for Price */}
-              {hasPrice && (
-                <YAxis
-                  width={75}
-                  yAxisId="price"
-                  tick={{ fontSize: 11 }}
-                  label={{ value: "Price", angle: -90, position: "insideLeft", offset: -10 }}
-                  domain={['dataMin - 5', 'dataMax + 5']}
-                />
-              )}
-
-              {/* Middle Y-Axis for Daily Strength Score & MAs */}
-              <YAxis
-                width={75}
-                yAxisId="strength"
-                orientation="left"
-                tick={{ fontSize: 11 }}
-                label={{ value: "Strength", angle: -90, position: "insideLeft", offset: 60 }}
-                domain={['dataMin - 5', 'dataMax + 5']}
-              />
-
-              {/* Right Y-Axis for RSI */}
-              <YAxis
-                width={75}
-                yAxisId="right"
-                orientation="right"
-                tick={{ fontSize: 11 }}
-                label={{ value: "RSI (0-100)", angle: 90, position: "insideRight", offset: 5 }}
-                domain={[0, 100]}
-              />
-
-              <Tooltip
-                formatter={(value) => typeof value === 'number' ? value.toFixed(2) : "N/A"}
-                labelFormatter={(label) => `Date: ${label}`}
-              />
-              <Legend wrapperStyle={{ paddingTop: 10, paddingBottom: 10 }} />
-
-              {/* PRICE DATA - displayed in top section */}
-              {hasPrice && (
-                <Line yAxisId="price" type="monotone" dataKey="close" stroke="#2E7D32" strokeWidth={2.5} dot={false} isAnimationActive={false} connectNulls={true} name="Close Price" />
-              )}
-              {hasPriceSMA5 && (
-                <Line yAxisId="price" type="monotone" dataKey="sma_5" stroke="#004E89" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={true} name="Price SMA 5" />
-              )}
-              {hasPriceSMA10 && (
-                <Line yAxisId="price" type="monotone" dataKey="sma_10" stroke="#1ABC9C" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={true} name="Price SMA 10" />
-              )}
-              {hasPriceSMA20 && (
-                <Line yAxisId="price" type="monotone" dataKey="sma_20" stroke="#E74C3C" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={true} name="Price SMA 20" />
-              )}
-
-              {/* STRENGTH DATA - displayed in middle section */}
-              {hasStrength && (
-                <Line yAxisId="strength" type="monotone" dataKey="momentum" stroke="#FF6B35" strokeWidth={2.5} dot={false} isAnimationActive={false} connectNulls={true} name="Daily Strength Score" />
-              )}
-              {hasMA5 && (
-                <Line yAxisId="strength" type="monotone" dataKey="ma_5" stroke="#004E89" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={true} name="Strength MA 5" />
-              )}
-              {hasMA10 && (
-                <Line yAxisId="strength" type="monotone" dataKey="ma_10" stroke="#1ABC9C" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={true} name="Strength MA 10" />
-              )}
-              {hasMA20 && (
-                <Line yAxisId="strength" type="monotone" dataKey="ma_20" stroke="#E74C3C" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={true} name="Strength MA 20" />
-              )}
-
-              {/* RSI as Area Chart at Bottom */}
-              {hasRSI && (
-                <Area
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="rsi"
-                  fill="#9C27B0"
-                  stroke="#9C27B0"
-                  strokeWidth={1.5}
-                  fillOpacity={0.2}
-                  isAnimationActive={false}
-                  connectNulls={true}
-                  name="RSI (14)"
-                />
-              )}
-
-              {/* Reference Lines for RSI Zones */}
-              {hasRSI && (
-                <>
-                  <ReferenceLine yAxisId="right" y={70} stroke="#E74C3C" strokeDasharray="4,4" opacity={0.5} label={{ value: "70 (Overbought)", position: "right", fill: "#E74C3C", fontSize: 10 }} />
-                  <ReferenceLine yAxisId="right" y={30} stroke="#004E89" strokeDasharray="4,4" opacity={0.5} label={{ value: "30 (Oversold)", position: "right", fill: "#004E89", fontSize: 10 }} />
-                  <ReferenceLine yAxisId="right" y={50} stroke="#999" strokeDasharray="2,2" opacity={0.3} />
-                </>
-              )}
-            </ComposedChart>
-          </ResponsiveContainer>
-        </Box>
+          {/* CHART 3: RSI (Small bottom box) */}
+          {hasRSI && (
+            <Box sx={{ width: "100%", height: 150, position: "relative", display: "block", overflow: "hidden", border: "1px solid #ddd", borderRadius: 1 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData} margin={{ top: 10, right: 100, left: 80, bottom: 15 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" tick={{ fontSize: 9 }} />
+                  <YAxis width={75} tick={{ fontSize: 9 }} domain={[0, 100]} />
+                  <Tooltip formatter={(val) => typeof val === 'number' ? val.toFixed(0) : val} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <ReferenceLine y={70} stroke="#E74C3C" strokeDasharray="4,4" />
+                  <ReferenceLine y={30} stroke="#004E89" strokeDasharray="4,4" />
+                  <ReferenceLine y={50} stroke="#999" strokeDasharray="2,2" opacity={0.3} />
+                  <Line type="monotone" dataKey="rsi" stroke="#9C27B0" strokeWidth={2} dot={false} connectNulls name="RSI (14)" />
+                </LineChart>
+              </ResponsiveContainer>
+            </Box>
+          )}
+        </>
       ) : (
         <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
           Loading chart data...
