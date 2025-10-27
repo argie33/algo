@@ -475,12 +475,14 @@ def insert_scores(cur, symbol, date, period_type, period_ending, scores_data):
         ))
         
         # Insert master scores (sentiment removed from scoring calculation)
-        composite_score = scores_data.get('composite', 50)
-        confidence_level = scores_data.get('confidence_level', 90)
-        market_regime = scores_data.get('market_regime', 'neutral')
+        composite_score = scores_data.get('composite')
+        confidence_level = scores_data.get('confidence_level')
+        market_regime = scores_data.get('market_regime')
 
-        # Determine recommendation
-        if composite_score >= 70:
+        # Determine recommendation - return None if no real data available
+        if composite_score is None:
+            recommendation = None
+        elif composite_score >= 70:
             recommendation = 'BUY'
         elif composite_score >= 50:
             recommendation = 'HOLD'

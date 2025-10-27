@@ -52,8 +52,8 @@ import { formatCurrency, formatPercentage } from "../utils/formatters";
 import { formatCellValue, getCellAlign, getDynamicColumns } from "../utils/signalTableHelpers";
 import { getApiConfig } from "../services/api";
 import { ErrorDisplay, LoadingDisplay } from "../components/ui/ErrorBoundary";
-// import SignalPerformanceTracker from "../components/SignalPerformanceTracker";
-// import SignalCardAccordion from "../components/SignalCardAccordion";
+import SignalPerformanceTracker from "../components/SignalPerformanceTracker";
+import SignalCardAccordion from "../components/SignalCardAccordion";
 
 // Use console logger for now
 const logger = {
@@ -870,19 +870,13 @@ function TradingSignals() {
           {/* Data Display - Accordion View */}
           <Card>
             <CardContent>
-              {/* SignalCardAccordion component not yet implemented */}
-              <Typography color="text.secondary">
-                {filteredSignals?.length > 0
-                  ? `Displaying ${filteredSignals.length} trading signals`
-                  : 'No trading signals available'}
-              </Typography>
+              <SignalCardAccordion signals={filteredSignals} />
             </CardContent>
           </Card>
         </Grid>
       </Grid>
 
       {/* Signal Performance Tracking */}
-      {/* Signal Performance Tracking - Component not yet implemented
       {filteredSignals?.length > 0 && (
         <Box sx={{ mt: 4 }}>
           <Typography variant="h5" gutterBottom sx={{ mb: 2 }}>
@@ -894,7 +888,6 @@ function TradingSignals() {
           />
         </Box>
       )}
-      */}
 
       {/* Historical Data Dialog */}
       <Dialog
