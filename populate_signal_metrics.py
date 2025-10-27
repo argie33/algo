@@ -360,7 +360,9 @@ def populate_metrics():
                 stop_level = record['stoplevel'] or 0
                 high = record['high'] or 0
                 low = record['low'] or 0
-                rs_rating = record['rs_rating'] or 50
+                # CRITICAL: Do NOT use default values - market_stage calculation requires real rs_rating
+                # If missing, record will be skipped below
+                rs_rating = record['rs_rating']
 
                 # Use cached 50-day average volume for this symbol
                 avg_vol_50d = volume_cache.get(symbol, 0)
