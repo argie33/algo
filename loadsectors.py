@@ -60,34 +60,130 @@ def calculate_rsi(prices, period=14):
     return float(rsi)
 
 
-def verify_tables_exist(conn):
-    """Verify that all required tables exist"""
+def create_tables_if_needed(conn):
+    """Create all required tables if they don't exist"""
     cursor = conn.cursor()
-    required_tables = [
-        'sector_ranking',
-        'industry_ranking',
-        'sector_performance',
-        'industry_performance',
-        'sector_technical_data',
-        'industry_technical_data'
-    ]
 
     try:
-        for table_name in required_tables:
-            cursor.execute(f"""
-                SELECT EXISTS (
-                    SELECT FROM information_schema.tables
-                    WHERE table_name = '{table_name}'
-                )
-            """)
-            if not cursor.fetchone()[0]:
-                logger.error(f"❌ {table_name} table does not exist")
-                return False
+        # Create sector_ranking table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sector_ranking (
+                id SERIAL PRIMARY KEY,
+                sector VARCHAR(255) NOT NULL,
+                date DATE NOT NULL,
+                current_rank INT,
+                rank_1w_ago INT,
+                rank_4w_ago INT,
+                rank_12w_ago INT,
+                daily_strength_score FLOAT,
+                trend VARCHAR(10),
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(sector, date)
+            )
+        """)
+        logger.info("✅ sector_ranking table ready")
 
-        logger.info(f"✅ All {len(required_tables)} required tables exist")
+        # Create industry_ranking table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS industry_ranking (
+                id SERIAL PRIMARY KEY,
+                industry VARCHAR(255) NOT NULL,
+                date DATE NOT NULL,
+                current_rank INT,
+                rank_1w_ago INT,
+                rank_4w_ago INT,
+                rank_12w_ago INT,
+                daily_strength_score FLOAT,
+                trend VARCHAR(10),
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(industry, date)
+            )
+        """)
+        logger.info("✅ industry_ranking table ready")
+
+        # Create sector_performance table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sector_performance (
+                id SERIAL PRIMARY KEY,
+                sector VARCHAR(255) NOT NULL,
+                date DATE NOT NULL,
+                performance_1d FLOAT,
+                performance_5d FLOAT,
+                performance_20d FLOAT,
+                performance_ytd FLOAT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(sector, date)
+            )
+        """)
+        logger.info("✅ sector_performance table ready")
+
+        # Create industry_performance table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS industry_performance (
+                id SERIAL PRIMARY KEY,
+                industry VARCHAR(255) NOT NULL,
+                date DATE NOT NULL,
+                performance_1d FLOAT,
+                performance_5d FLOAT,
+                performance_20d FLOAT,
+                performance_ytd FLOAT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(industry, date)
+            )
+        """)
+        logger.info("✅ industry_performance table ready")
+
+        # Create sector_technical_data table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sector_technical_data (
+                id SERIAL PRIMARY KEY,
+                sector VARCHAR(255) NOT NULL,
+                date DATE NOT NULL,
+                close_price FLOAT,
+                ma_20 FLOAT,
+                ma_50 FLOAT,
+                ma_200 FLOAT,
+                rsi FLOAT,
+                volume BIGINT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(sector, date)
+            )
+        """)
+        logger.info("✅ sector_technical_data table ready")
+
+        # Create industry_technical_data table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS industry_technical_data (
+                id SERIAL PRIMARY KEY,
+                industry VARCHAR(255) NOT NULL,
+                date DATE NOT NULL,
+                close_price FLOAT,
+                ma_20 FLOAT,
+                ma_50 FLOAT,
+                ma_200 FLOAT,
+                rsi FLOAT,
+                volume BIGINT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(industry, date)
+            )
+        """)
+        logger.info("✅ industry_technical_data table ready")
+
+        # Create indexes for performance
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sector_ranking_date ON sector_ranking(date)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sector_ranking_sector ON sector_ranking(sector)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_industry_ranking_date ON industry_ranking(date)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_industry_ranking_industry ON industry_ranking(industry)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sector_performance_date ON sector_performance(date)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_industry_performance_date ON industry_performance(date)")
+
+        conn.commit()
+        logger.info("✅ All required tables created/verified with indexes")
         return True
+
     except Exception as e:
-        logger.error(f"❌ Error checking tables: {e}")
+        logger.error(f"❌ Error creating tables: {e}")
+        conn.rollback()
         return False
     finally:
         cursor.close()
@@ -745,9 +841,9 @@ def main():
     conn = get_db_connection()
 
     try:
-        # Verify tables exist
-        if not verify_tables_exist(conn):
-            logger.error("❌ Required tables missing. Create performance tables first.")
+        # Create tables if they don't exist
+        if not create_tables_if_needed(conn):
+            logger.error("❌ Failed to create required tables")
             return False
 
         # Step 1: Populate sector rankings
