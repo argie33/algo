@@ -858,7 +858,27 @@ router.get("/:symbol/analyst-momentum", async (req, res) => {
       ? ((latest.sell_count + latest.strong_sell_count) / latest.total_analysts) * 100
       : 0;
 
-    const sentimentScore = 50 + (bullishRatio - bearishRatio) / 2;
+    // Fetch real sentiment data from sentiment table (NOT calculated from analyst ratios)
+    let sentimentScore = null;
+    try {
+      const sentimentResult = await db.query(`
+        SELECT sentiment_score
+        FROM sentiment
+        WHERE symbol = $1
+        ORDER BY date DESC
+        LIMIT 1
+      `, [symbol]);
+
+      if (sentimentResult && sentimentResult.rows && sentimentResult.rows.length > 0) {
+        const rawSentiment = parseFloat(sentimentResult.rows[0].sentiment_score);
+        // Convert from -1 to +1 scale to 0-100 scale
+        sentimentScore = (rawSentiment + 1.0) * 50.0; // -1 -> 0, 0 -> 50, +1 -> 100
+        sentimentScore = Math.max(0, Math.min(100, sentimentScore)); // Clamp to 0-100
+      }
+    } catch (error) {
+      console.warn(`Could not fetch real sentiment data for ${symbol}: ${error.message}`);
+      // sentimentScore remains null if real data unavailable (per ZERO-tolerance policy)
+    }
 
     // Revision momentum
     const netEpsRevisions = latest.eps_revisions_up_last_30d - latest.eps_revisions_down_last_30d;
@@ -876,7 +896,7 @@ router.get("/:symbol/analyst-momentum", async (req, res) => {
       success: true,
       symbol,
       momentum: {
-        sentimentScore: Math.max(0, Math.min(100, sentimentScore)),
+        sentimentScore: sentimentScore !== null ? sentimentScore.toFixed(2) : null,
         bullishPercentage: bullishRatio.toFixed(1),
         bearishPercentage: bearishRatio.toFixed(1),
         neutralPercentage: (100 - bullishRatio - bearishRatio).toFixed(1),
