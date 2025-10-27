@@ -2824,36 +2824,10 @@ function getNextSeasonalEvent(date) {
 }
 
 function calculateSeasonalScore(date) {
-  const month = date.getMonth() + 1;
-  let score = 50; // Neutral baseline
-
-  // Monthly adjustments
-  const monthlyScores = {
-    1: 65,
-    2: 45,
-    3: 60,
-    4: 70,
-    5: 35,
-    6: 35,
-    7: 60,
-    8: 30,
-    9: 15,
-    10: 55,
-    11: 75,
-    12: 70,
-  };
-
-  score = monthlyScores[month] || 50;
-
-  // Presidential cycle adjustment
-  const year = date.getFullYear();
-  const electionYear = Math.floor((year - 1792) / 4) * 4 + 1792;
-  const cyclePosition = ((year - electionYear) % 4) + 1;
-
-  const cycleAdjustments = { 1: -5, 2: -3, 3: +15, 4: -3 };
-  score += cycleAdjustments[cyclePosition] || 0;
-
-  return Math.max(0, Math.min(100, Math.round(score)));
+  // ZERO-tolerance policy: Return null instead of hardcoded/calculated values
+  // Seasonal patterns should come from real market data, not hardcoded monthly defaults
+  // TODO: Implement real seasonal scoring from historical market data if needed
+  return null;
 }
 
 function getFavorableFactors(date) {
