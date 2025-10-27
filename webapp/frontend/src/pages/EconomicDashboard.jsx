@@ -35,12 +35,16 @@ import {
   Line,
   AreaChart,
   Area,
+  ComposedChart,
   XAxis,
   YAxis,
   CartesianGrid,
   ResponsiveContainer,
   Tooltip,
   ReferenceLine,
+  Legend,
+  ScatterChart,
+  Scatter,
 } from "recharts";
 import { api } from "../services/api";
 import { GRADIENTS } from "../theme/chartGradients";
@@ -483,7 +487,7 @@ const YieldCurvePanel = ({ data, isLoading, theme }) => {
         <Grid item xs={12}>
           <Card>
             <CardHeader
-              title="Treasury Yield Curve"
+              title="Treasury Yield Curve (3M - 30Y)"
               subheader={
                 data.yieldCurve?.isInverted
                   ? "🔴 INVERTED - Recession signal detected"
@@ -492,51 +496,52 @@ const YieldCurvePanel = ({ data, isLoading, theme }) => {
             />
             <CardContent>
               {data.yieldCurveData?.length > 0 ? (
-                <ResponsiveContainer width="100%" height={400}>
-                  <AreaChart data={data.yieldCurveData} margin={{ top: 10, right: 30, left: 0, bottom: 40 }}>
-                    <defs>
-                      <linearGradient id="yieldGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#1976d2" stopOpacity={0.4} />
-                        <stop offset="100%" stopColor="#1976d2" stopOpacity={0.05} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} opacity={0.3} />
-                    <XAxis
-                      dataKey="maturity"
-                      tick={{ fontSize: 12, fill: theme.palette.text.secondary }}
-                      label={{ value: "Maturity (3M → 30Y)", position: "insideBottomRight", offset: -10, fontSize: 13 }}
-                      angle={-45}
-                      textAnchor="end"
-                      height={80}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 12 }}
-                      label={{ value: "Yield (%)", angle: -90, position: "insideLeft", offset: 10, fontSize: 13 }}
-                      width={60}
-                      domain={[0, 'auto']}
-                    />
-                    <Tooltip
-                      formatter={(value) => `${parseFloat(value)?.toFixed(3) || 0}%`}
-                      labelFormatter={(value) => `Maturity: ${value}`}
-                      contentStyle={{
-                        backgroundColor: "rgba(255,255,255,0.99)",
-                        border: "1px solid rgba(0,0,0,0.2)",
-                        borderRadius: "8px",
-                      }}
-                    />
-                    <ReferenceLine y={0} stroke="rgba(200,0,0,0.3)" strokeDasharray="4 4" opacity={0.6} />
-                    <ReferenceLine y={2} stroke="rgba(100,150,200,0.3)" strokeDasharray="4 4" opacity={0.5} />
-                    <Area
-                      type="monotone"
-                      dataKey="yield"
-                      stroke="#1976d2"
-                      strokeWidth={3.5}
-                      fill="url(#yieldGradient)"
-                      isAnimationActive={true}
-                      name="Yield Curve"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+                <Box>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <ScatterChart margin={{ top: 20, right: 30, left: 0, bottom: 40 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} opacity={0.3} />
+                      <XAxis
+                        dataKey="maturity"
+                        type="category"
+                        tick={{ fontSize: 12, fill: theme.palette.text.secondary }}
+                        label={{ value: "Maturity", position: "insideBottomRight", offset: -5, fontSize: 13 }}
+                        angle={-45}
+                        textAnchor="end"
+                        height={80}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 12 }}
+                        label={{ value: "Yield (%)", angle: -90, position: "insideLeft", offset: 10, fontSize: 13 }}
+                        width={60}
+                        domain={[0, 'auto']}
+                      />
+                      <Tooltip
+                        formatter={(value) => `${parseFloat(value)?.toFixed(3) || 0}%`}
+                        labelFormatter={(value) => `${value}`}
+                        contentStyle={{
+                          backgroundColor: "rgba(255,255,255,0.99)",
+                          border: "1px solid rgba(0,0,0,0.2)",
+                          borderRadius: "8px",
+                        }}
+                      />
+                      <ReferenceLine y={0} stroke="rgba(200,0,0,0.3)" strokeDasharray="4 4" opacity={0.6} />
+                      <ReferenceLine y={2} stroke="rgba(100,150,200,0.3)" strokeDasharray="4 4" opacity={0.5} />
+                      <Scatter
+                        name="Current Yields"
+                        data={data.yieldCurveData}
+                        fill="#1976d2"
+                        line={{ stroke: "#1976d2", strokeWidth: 3 }}
+                        isAnimationActive={true}
+                      />
+                    </ScatterChart>
+                  </ResponsiveContainer>
+                  <Box sx={{ mt: 2, p: 2, backgroundColor: alpha(theme.palette.info.main, 0.05), borderRadius: 1 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      📈 <strong>Data Source:</strong> Federal Reserve Economic Data (FRED) |
+                      <strong> Updated:</strong> {data.yieldCurveFullData?.timestamp ? new Date(data.yieldCurveFullData.timestamp).toLocaleDateString() : 'N/A'}
+                    </Typography>
+                  </Box>
+                </Box>
               ) : (
                 <Alert severity="warning">No yield curve data available</Alert>
               )}
@@ -546,7 +551,7 @@ const YieldCurvePanel = ({ data, isLoading, theme }) => {
 
         <Grid item xs={12} md={6}>
           <Card>
-            <CardHeader title="Curve Status" />
+            <CardHeader title="Curve Status & Spreads" />
             <CardContent>
               <Box sx={{ mb: 2 }}>
                 <Typography variant="subtitle2" color="textSecondary" sx={{ mb: 1, fontWeight: 600 }}>
@@ -586,41 +591,41 @@ const YieldCurvePanel = ({ data, isLoading, theme }) => {
 
         <Grid item xs={12} md={6}>
           <Card>
-            <CardHeader title="Key Spreads" />
+            <CardHeader title="Key Spreads & Indicators" />
             <CardContent>
               <Box sx={{ mb: 2.5 }}>
                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
                   <Typography variant="body2">
-                    <strong>2Y-10Y Spread:</strong>
+                    <strong>10Y-2Y Spread (T10Y2Y):</strong>
                   </Typography>
                   <Typography
                     variant="h6"
                     sx={{
-                      color: data.yieldCurve?.spread2y10y < 0 ? "error.main" : "success.main",
+                      color: (data.yieldCurveFullData?.spreads?.T10Y2Y || 0) < 0 ? "error.main" : "success.main",
                       fontWeight: 700,
                     }}
                   >
-                    {formatBasisPoints(data.yieldCurve?.spread2y10y)} bps
+                    {formatBasisPoints(data.yieldCurveFullData?.spreads?.T10Y2Y)} bps
                   </Typography>
                 </Box>
                 <Typography variant="caption" color="textSecondary">
-                  Most watched recession indicator
+                  Most watched recession indicator (inverted when &lt; 0)
                 </Typography>
               </Box>
 
               <Box sx={{ mb: 2.5 }}>
                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
                   <Typography variant="body2">
-                    <strong>3M-10Y Spread:</strong>
+                    <strong>10Y-3M Spread (T10Y3M):</strong>
                   </Typography>
                   <Typography
                     variant="h6"
                     sx={{
-                      color: data.yieldCurve?.spread3m10y < 0 ? "error.main" : "success.main",
+                      color: (data.yieldCurveFullData?.spreads?.T10Y3M || 0) < 0 ? "error.main" : "success.main",
                       fontWeight: 700,
                     }}
                   >
-                    {formatBasisPoints(data.yieldCurve?.spread3m10y)} bps
+                    {formatBasisPoints(data.yieldCurveFullData?.spreads?.T10Y3M)} bps
                   </Typography>
                 </Box>
                 <Typography variant="caption" color="textSecondary">
@@ -630,16 +635,34 @@ const YieldCurvePanel = ({ data, isLoading, theme }) => {
 
               <Divider sx={{ my: 2 }} />
 
+              <Box sx={{ mb: 1.5 }}>
+                <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 600 }}>
+                  CURVE SHAPE ANALYSIS
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                <Typography variant="body2">
+                  3M Yield:
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {formatPercent(data.yieldCurveFullData?.currentCurve?.['3M'])}%
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                <Typography variant="body2">
+                  10Y Yield:
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {formatPercent(data.yieldCurveFullData?.currentCurve?.['10Y'])}%
+                </Typography>
+              </Box>
               <Box sx={{ display: "flex", justifyContent: "space-between" }}>
                 <Typography variant="body2">
-                  <strong>Historical Accuracy:</strong>
+                  30Y Yield:
                 </Typography>
-                <Chip
-                  label={`${data.yieldCurve?.historicalAccuracy}%`}
-                  color={data.yieldCurve?.historicalAccuracy > 75 ? "success" : "warning"}
-                  variant="outlined"
-                  size="small"
-                />
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {formatPercent(data.yieldCurveFullData?.currentCurve?.['30Y'])}%
+                </Typography>
               </Box>
             </CardContent>
           </Card>
@@ -671,68 +694,193 @@ const CreditMarketPanel = ({ data, isLoading }) => {
       </Typography>
 
       <Grid container spacing={3}>
+        {/* High Yield Spreads Card */}
         <Grid item xs={12} md={6}>
           <Card>
-            <CardHeader title="High Yield Spreads" />
+            <CardHeader
+              title="High Yield Spreads (HY OAS)"
+              subheader={
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.5 }}>
+                  <Chip
+                    label={data.creditSpreads?.highYield?.stressLevel?.toUpperCase() || "UNKNOWN"}
+                    size="small"
+                    color={
+                      data.creditSpreads?.highYield?.stressLevel === 'extreme' ? 'error' :
+                      data.creditSpreads?.highYield?.stressLevel === 'high' ? 'warning' :
+                      data.creditSpreads?.highYield?.stressLevel === 'moderate' ? 'info' :
+                      'success'
+                    }
+                    variant="outlined"
+                  />
+                </Box>
+              }
+            />
             <CardContent>
-              <Typography variant="h4" color="primary" gutterBottom>
-                {data.creditSpreads?.highYield?.oas || "N/A"} bps
-              </Typography>
-              <Chip
-                label={data.creditSpreads?.highYield?.signal || "N/A"}
-                size="small"
-                sx={{ mb: 2 }}
-              />
-              <Typography variant="body2" color="text.secondary">
-                {data.creditSpreads?.highYield?.historicalContext}
-              </Typography>
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  Current OAS
+                </Typography>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: "primary.main" }}>
+                  {formatBasisPoints(data.creditSpreads?.highYield?.value)} bps
+                </Typography>
+              </Box>
+
               <Divider sx={{ my: 2 }} />
-              <Typography variant="body2">
-                <strong>BB-Rated:</strong> {data.creditSpreads?.highYieldByRating?.bbRated?.oas || "N/A"} bps
-              </Typography>
-              <Typography variant="body2">
-                <strong>B-Rated:</strong> {data.creditSpreads?.highYieldByRating?.bRated?.oas || "N/A"} bps
-              </Typography>
+
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
+                  30-DAY TREND
+                </Typography>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.5 }}>
+                  {data.creditSpreads?.highYield?.trend?.trend === 'rising' && <TrendingUp color="error" sx={{ fontSize: 18 }} />}
+                  {data.creditSpreads?.highYield?.trend?.trend === 'falling' && <TrendingDown color="success" sx={{ fontSize: 18 }} />}
+                  {data.creditSpreads?.highYield?.trend?.trend === 'stable' && <TrendingFlat color="info" sx={{ fontSize: 18 }} />}
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {data.creditSpreads?.highYield?.trend?.trend?.toUpperCase()}
+                  </Typography>
+                  <Typography variant="body2" color={data.creditSpreads?.highYield?.trend?.change > 0 ? "error.main" : "success.main"}>
+                    ({data.creditSpreads?.highYield?.trend?.change > 0 ? '+' : ''}{formatBasisPoints(data.creditSpreads?.highYield?.trend?.change)} bps)
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem" }}>
+                <Typography variant="caption">
+                  30d Avg: {formatBasisPoints(data.creditSpreads?.highYield?.trend?.avg30)} bps
+                </Typography>
+              </Box>
             </CardContent>
           </Card>
         </Grid>
 
+        {/* Investment Grade Spreads Card */}
         <Grid item xs={12} md={6}>
           <Card>
-            <CardHeader title="Investment Grade Spreads" />
+            <CardHeader
+              title="Investment Grade Spreads (IG OAS)"
+              subheader={
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.5 }}>
+                  <Chip
+                    label={data.creditSpreads?.investmentGrade?.stressLevel?.toUpperCase() || "UNKNOWN"}
+                    size="small"
+                    color={
+                      data.creditSpreads?.investmentGrade?.stressLevel === 'extreme' ? 'error' :
+                      data.creditSpreads?.investmentGrade?.stressLevel === 'high' ? 'warning' :
+                      data.creditSpreads?.investmentGrade?.stressLevel === 'moderate' ? 'info' :
+                      'success'
+                    }
+                    variant="outlined"
+                  />
+                </Box>
+              }
+            />
             <CardContent>
-              <Typography variant="h4" color="primary" gutterBottom>
-                {data.creditSpreads?.investmentGrade?.oas || "N/A"} bps
-              </Typography>
-              <Chip
-                label={data.creditSpreads?.investmentGrade?.signal || "N/A"}
-                size="small"
-                sx={{ mb: 2 }}
-              />
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  Current OAS
+                </Typography>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: "primary.main" }}>
+                  {formatBasisPoints(data.creditSpreads?.investmentGrade?.value)} bps
+                </Typography>
+              </Box>
+
               <Divider sx={{ my: 2 }} />
-              <Typography variant="body2">
-                <strong>AAA-Rated:</strong> {data.creditSpreads?.investmentGradeByRating?.aaaRated?.oas || "N/A"} bps
-              </Typography>
-              <Typography variant="body2">
-                <strong>BBB-Rated:</strong> {data.creditSpreads?.investmentGradeByRating?.bbbRated?.oas || "N/A"} bps
-              </Typography>
+
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
+                  30-DAY TREND
+                </Typography>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.5 }}>
+                  {data.creditSpreads?.investmentGrade?.trend?.trend === 'rising' && <TrendingUp color="error" sx={{ fontSize: 18 }} />}
+                  {data.creditSpreads?.investmentGrade?.trend?.trend === 'falling' && <TrendingDown color="success" sx={{ fontSize: 18 }} />}
+                  {data.creditSpreads?.investmentGrade?.trend?.trend === 'stable' && <TrendingFlat color="info" sx={{ fontSize: 18 }} />}
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {data.creditSpreads?.investmentGrade?.trend?.trend?.toUpperCase()}
+                  </Typography>
+                  <Typography variant="body2" color={data.creditSpreads?.investmentGrade?.trend?.change > 0 ? "error.main" : "success.main"}>
+                    ({data.creditSpreads?.investmentGrade?.trend?.change > 0 ? '+' : ''}{formatBasisPoints(data.creditSpreads?.investmentGrade?.trend?.change)} bps)
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem" }}>
+                <Typography variant="caption">
+                  30d Avg: {formatBasisPoints(data.creditSpreads?.investmentGrade?.trend?.avg30)} bps
+                </Typography>
+              </Box>
             </CardContent>
           </Card>
         </Grid>
 
+        {/* Credit Conditions Summary */}
         <Grid item xs={12}>
           <Card>
-            <CardHeader title="Financial Conditions Index" />
+            <CardHeader title="Overall Financial Conditions" />
             <CardContent>
-              <Box mb={2}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  FCI Value
-                </Typography>
-                <Typography variant="h3">
-                  {data.financialConditionsIndex?.value || "N/A"}
-                </Typography>
-                <Typography variant="body2">
-                  Level: {data.financialConditionsIndex?.level || "Neutral"}
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={4}>
+                  <Box sx={{ p: 1.5, backgroundColor: alpha(theme.palette.info.main, 0.05), borderRadius: 1 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
+                      OVERALL STRESS LEVEL
+                    </Typography>
+                    <Box sx={{ mt: 1 }}>
+                      <Chip
+                        label={data.creditSpreadsFullData?.summary?.overallStress || "UNKNOWN"}
+                        color={
+                          data.creditSpreadsFullData?.summary?.overallStress === 'EXTREME' ? 'error' :
+                          data.creditSpreadsFullData?.summary?.overallStress === 'HIGH' ? 'warning' :
+                          data.creditSpreadsFullData?.summary?.overallStress === 'MODERATE' ? 'info' :
+                          'success'
+                        }
+                        sx={{ fontWeight: 700 }}
+                      />
+                    </Box>
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} md={4}>
+                  <Box sx={{ p: 1.5, backgroundColor: alpha(theme.palette.warning.main, 0.05), borderRadius: 1 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
+                      CREDIT CONDITIONS
+                    </Typography>
+                    <Box sx={{ mt: 1 }}>
+                      <Chip
+                        label={data.creditSpreadsFullData?.summary?.creditConditions || "UNKNOWN"}
+                        color={
+                          data.creditSpreadsFullData?.summary?.creditConditions === 'TIGHTENING' ? 'error' :
+                          data.creditSpreadsFullData?.summary?.creditConditions === 'NORMAL' ? 'success' :
+                          'warning'
+                        }
+                        variant="outlined"
+                      />
+                    </Box>
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} md={4}>
+                  <Box sx={{ p: 1.5, backgroundColor: alpha(theme.palette.success.main, 0.05), borderRadius: 1 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
+                      MARKET VOLATILITY
+                    </Typography>
+                    <Box sx={{ mt: 1 }}>
+                      <Chip
+                        label={data.creditSpreadsFullData?.summary?.marketVolatility || "UNKNOWN"}
+                        color={
+                          data.creditSpreadsFullData?.summary?.marketVolatility === 'EXTREME' ? 'error' :
+                          data.creditSpreadsFullData?.summary?.marketVolatility === 'ELEVATED' ? 'warning' :
+                          'success'
+                        }
+                        variant="outlined"
+                      />
+                    </Box>
+                  </Box>
+                </Grid>
+              </Grid>
+
+              <Box sx={{ mt: 2, p: 2, backgroundColor: alpha(theme.palette.info.main, 0.05), borderRadius: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  📈 <strong>Data Source:</strong> Federal Reserve Economic Data (FRED) |
+                  <strong> Updated:</strong> {data.creditSpreadsFullData?.timestamp ? new Date(data.creditSpreadsFullData.timestamp).toLocaleDateString() : 'N/A'}
                 </Typography>
               </Box>
             </CardContent>
@@ -823,8 +971,10 @@ export default function EconomicDashboard() {
       setLoading(true);
       setError(null);
 
-      // Only fetch what we have available - leading-indicators is the main endpoint
+      // Fetch all three endpoints in parallel
       let leadingIndicators = null;
+      let yieldCurveFullData = null;
+      let creditSpreadsFullData = null;
 
       try {
         const response = await api.get("/api/market/leading-indicators");
@@ -837,8 +987,48 @@ export default function EconomicDashboard() {
         return;
       }
 
-      // Extract data from available endpoint
+      // Fetch yield curve full data (optional - use empty defaults if fails)
+      try {
+        const response = await api.get("/api/market/yield-curve-full");
+        yieldCurveFullData = response?.data?.data || null;
+      } catch (err) {
+        console.warn("Failed to fetch yield curve data:", err);
+        yieldCurveFullData = null;
+      }
+
+      // Fetch credit spreads full data (optional - use empty defaults if fails)
+      try {
+        const response = await api.get("/api/market/credit-spreads-full");
+        creditSpreadsFullData = response?.data?.data || null;
+      } catch (err) {
+        console.warn("Failed to fetch credit spreads data:", err);
+        creditSpreadsFullData = null;
+      }
+
+      // Extract data from available endpoints
       const leadData = leadingIndicators?.data?.data || {};
+
+      // Process yield curve data - transform into chart format
+      let processedYieldCurveData = [];
+      if (yieldCurveFullData?.currentCurve) {
+        const maturityMap = {
+          '3M': '3 Month',
+          '2Y': '2 Year',
+          '5Y': '5 Year',
+          '10Y': '10 Year',
+          '30Y': '30 Year'
+        };
+        processedYieldCurveData = Object.entries(yieldCurveFullData.currentCurve).map(([key, value]) => ({
+          maturity: maturityMap[key] || key,
+          yield: value || 0
+        }));
+      }
+
+      // Process credit spreads data
+      let processedCreditSpreads = {};
+      if (creditSpreadsFullData?.currentSpreads) {
+        processedCreditSpreads = creditSpreadsFullData.currentSpreads;
+      }
 
       const combinedData = {
         // Recession data - using indicators for simple assessment
@@ -857,14 +1047,23 @@ export default function EconomicDashboard() {
         inflation: leadData.inflation || 0,
         employment: leadData.employment || {},
 
-        // Yield curve - use real data only, no mock fallbacks
-        yieldCurve: leadData.yieldCurve || {},
-        yieldCurveData: leadData.yieldCurveData || [],
+        // Yield curve - NEW: full data from dedicated endpoint
+        yieldCurveFullData: yieldCurveFullData,
+        yieldCurveData: processedYieldCurveData,
+        yieldCurve: yieldCurveFullData ? {
+          isInverted: (yieldCurveFullData.spreads?.T10Y2Y || 0) < 0,
+          spread: yieldCurveFullData.spreads?.T10Y2Y || 0,
+          averageLeadTime: 12
+        } : {},
 
-        // Credit spreads - use real data only, no mock fallbacks
-        creditSpreads: leadData.creditSpreads || {},
-        creditStressIndex: leadData.creditStressIndex || null,
-        financialConditionsIndex: leadData.financialConditionsIndex || null,
+        // Credit spreads - NEW: full data from dedicated endpoint
+        creditSpreadsFullData: creditSpreadsFullData,
+        creditSpreads: processedCreditSpreads,
+        creditStressIndex: creditSpreadsFullData?.summary?.overallStress === 'HIGH' ? 75 : creditSpreadsFullData?.summary?.overallStress === 'MODERATE' ? 50 : 25,
+        financialConditionsIndex: {
+          value: creditSpreadsFullData?.summary?.overallStress || 'N/A',
+          level: creditSpreadsFullData?.summary?.creditConditions || 'Neutral'
+        },
 
         // Calendar - empty for now
         upcomingEvents: [],

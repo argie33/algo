@@ -246,47 +246,54 @@ export default function PortfolioDashboard() {
 
       {hasData && (
         <>
-          {/* ============ KPI HEADER ============ */}
-          <Grid container spacing={3} sx={{ mb: 4 }}>
-            <Grid item xs={12} sm={6} md={3}>
-              <StatCard
-                icon={TrendingUp}
-                label="Total Return"
-                value={summary.total_return?.toFixed(2) || "0.00"}
-                unit="%"
-                color="success"
-              />
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <StatCard
-                icon={Assessment}
-                label="Sharpe Ratio"
-                value={summary.sharpe_ratio?.toFixed(2) || "0.00"}
-                unit=""
-                color="primary"
-              />
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <StatCard
-                icon={ShowChart}
-                label="Volatility"
-                value={summary.volatility_annualized?.toFixed(2) || "0.00"}
-                unit="%"
-                color="warning"
-              />
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <StatCard
-                icon={Warning}
-                label="Max Drawdown"
-                value={summary.max_drawdown?.toFixed(2) || "0.00"}
-                unit="%"
-                color="error"
-              />
-            </Grid>
-          </Grid>
+          {/* ============ SECTION 1: EXECUTIVE SUMMARY ============ */}
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h5" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Assessment sx={{ color: 'primary.main' }} /> Executive Summary
+            </Typography>
 
-          {/* ============ TRADING SIGNALS ============ */}
+            {/* KPI Cards */}
+            <Grid container spacing={3} sx={{ mb: 4 }}>
+              <Grid item xs={12} sm={6} md={3}>
+                <StatCard
+                  icon={TrendingUp}
+                  label="Total Return"
+                  value={summary.total_return?.toFixed(2) || "0.00"}
+                  unit="%"
+                  color="success"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <StatCard
+                  icon={Assessment}
+                  label="Sharpe Ratio"
+                  value={summary.sharpe_ratio?.toFixed(2) || "0.00"}
+                  unit=""
+                  color="primary"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <StatCard
+                  icon={ShowChart}
+                  label="Volatility"
+                  value={summary.volatility_annualized?.toFixed(2) || "0.00"}
+                  unit="%"
+                  color="warning"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <StatCard
+                  icon={Warning}
+                  label="Max Drawdown"
+                  value={summary.max_drawdown?.toFixed(2) || "0.00"}
+                  unit="%"
+                  color="error"
+                />
+              </Grid>
+            </Grid>
+          </Box>
+
+          {/* Trading Signals Section */}
           {signals && signals.length > 0 && (
             <Card sx={{ mb: 4 }}>
               <CardHeader
@@ -337,12 +344,18 @@ export default function PortfolioDashboard() {
             </Card>
           )}
 
-          {/* ============ CUMULATIVE PERFORMANCE CHART ============ */}
-          <Card sx={{ mb: 4 }}>
-            <CardHeader
-              title="Cumulative Performance"
-              subheader="Portfolio vs SPY Benchmark - Growth of $10,000"
-            />
+          {/* ============ SECTION 2: PERFORMANCE ANALYSIS ============ */}
+          <Box sx={{ mb: 4, mt: 6 }}>
+            <Typography variant="h5" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <TrendingUp sx={{ color: 'success.main' }} /> Performance Analysis
+            </Typography>
+
+            {/* Cumulative Performance Chart */}
+            <Card sx={{ mb: 4 }}>
+              <CardHeader
+                title="Cumulative Performance"
+                subheader="Portfolio vs SPY Benchmark - Growth of $10,000"
+              />
             <CardContent>
               <ResponsiveContainer width="100%" height={350}>
                 <LineChart
@@ -383,9 +396,9 @@ export default function PortfolioDashboard() {
             </CardContent>
           </Card>
 
-          {/* ============ PORTFOLIO ALLOCATION PIE CHART ============ */}
-          <Card sx={{ mb: 4 }}>
-            <CardHeader title="Portfolio Allocation - Top Holdings" />
+            {/* Rolling Performance Analysis */}
+            <Card sx={{ mb: 4 }}>
+              <CardHeader title="Rolling Performance Analysis" />
             <CardContent>
               <Grid container spacing={3}>
                 <Grid item xs={12} sm={6}>

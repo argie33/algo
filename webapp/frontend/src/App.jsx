@@ -603,6 +603,7 @@ function App() {
             <Route path="/technical-analysis" element={<TechnicalAnalysis />} />
             <Route path="/earnings" element={<EarningsCalendar />} />
             <Route path="/financial-data" element={<FinancialData />} />
+            <Route path="/trading-signals" element={<ProtectedRoute><TradingSignals /></ProtectedRoute>} />
             <Route path="/service-health" element={<ServiceHealth />} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/auth-test" element={<AuthTest />} />
@@ -616,7 +617,6 @@ function App() {
             <Route path="/sector-analysis" element={<SectorAnalysis />} />
             <Route path="/watchlist" element={<Watchlist />} />
             <Route path="/sentiment" element={<Sentiment />} />
-            <Route path="/trading-signals" element={<ProtectedRoute><TradingSignals /></ProtectedRoute>} />
           </Routes>
         </Container>
       </Box>
