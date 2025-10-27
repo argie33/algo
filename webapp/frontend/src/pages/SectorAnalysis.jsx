@@ -578,6 +578,12 @@ const SectorAnalysis = () => {
             label: row.label,
             rank: row.rank,
             momentum: row.momentum,
+            ma_20: row.ma_20,
+            ma_50: row.ma_50,
+            ma_200: row.ma_200,
+            rsi: row.rsi,
+            close: row.close,
+            trend: row.trend,
             weekStart: currentWeek.toISOString().split('T')[0]
           });
         } else {
@@ -587,6 +593,12 @@ const SectorAnalysis = () => {
             label: row.label,
             rank: row.rank,
             momentum: row.momentum,
+            ma_20: row.ma_20,
+            ma_50: row.ma_50,
+            ma_200: row.ma_200,
+            rsi: row.rsi,
+            close: row.close,
+            trend: row.trend,
             weekStart: currentWeek.toISOString().split('T')[0]
           };
         }
