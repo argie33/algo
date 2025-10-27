@@ -38,14 +38,12 @@ LOCK_TIMEOUT = 3600  # 1 hour timeout for stale locks
 LOADERS = [
     ("loadcompanyprofile.py", "Company Profile"),
     ("loadecondata.py", "Economic Data"),
-    ("loadkeymetrics.py", "Key Metrics"),
     ("loadtechnicalsdaily.py", "Technical Data (Daily)"),
     ("loadpositioning.py", "Positioning Data"),
     ("loadsentiment.py", "Sentiment Data"),
     ("loadbuyselldaily.py", "Buy/Sell Signals (Daily)"),
     ("loadbuysellweekly.py", "Buy/Sell Signals (Weekly)"),
     ("loadbuysellmonthly.py", "Buy/Sell Signals (Monthly)"),
-    ("populate_signal_metrics.py", "Signal Metrics"),
 ]
 
 
