@@ -464,9 +464,13 @@ def populate_metrics():
         cur.execute(sample_sql)
         samples = cur.fetchall()
         for row in samples:
-            logging.info(f"  {row['symbol']:6} {row['date']} | RR: {row['risk_reward_ratio']:>5.2f} | "
-                         f"Risk%: {row['risk_pct']:>6.2f} | Quality: {row['entry_quality_score']:>5.1f} | "
-                         f"Stage: {row['market_stage']} | Target20: ${row['profit_target_20pct']:>7.2f}")
+            rr = f"{row['risk_reward_ratio']:>5.2f}" if row['risk_reward_ratio'] is not None else "    —"
+            risk = f"{row['risk_pct']:>6.2f}" if row['risk_pct'] is not None else "    —"
+            qual = f"{row['entry_quality_score']:>5.1f}" if row['entry_quality_score'] is not None else "    —"
+            target = f"${row['profit_target_20pct']:>7.2f}" if row['profit_target_20pct'] is not None else "    —"
+            logging.info(f"  {row['symbol']:6} {row['date']} | RR: {rr} | "
+                         f"Risk%: {risk} | Quality: {qual} | "
+                         f"Stage: {row['market_stage']} | Target20: {target}")
 
     except Exception as e:
         logging.error(f"Fatal error in populate_metrics: {e}")
