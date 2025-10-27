@@ -6,17 +6,6 @@ const { tableExists, emptyResultResponse } = require("../utils/routeHelpers");
 
 const router = express.Router();
 
-// Health check endpoint
-router.get("/health", (req, res) => {
-  res.status(200).json({
-    success: true,
-    status: "healthy",
-    service: "dashboard",
-    timestamp: new Date().toISOString(),
-    database: "connected",
-  });
-});
-
 // Root dashboard route - returns API information (public)
 router.get("/", async (req, res) => {
   res.json({

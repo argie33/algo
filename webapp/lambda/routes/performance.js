@@ -90,23 +90,6 @@ router.get("/analytics", async (req, res) => {
   }
 });
 
-// Health check endpoint
-router.get("/health", async (req, res) => {
-  try {
-    return res.json({
-      status: "operational",
-      service: "performance-analytics",
-      message: "Performance Analytics service is running",
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: "Health check failed",
-      timestamp: new Date().toISOString(),
-    });
-  }
-});
 
 // Benchmark comparison endpoint
 router.get("/benchmark", authenticateToken, async (req, res) => {

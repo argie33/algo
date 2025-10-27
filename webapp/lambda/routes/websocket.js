@@ -55,52 +55,6 @@ const createErrorResponse = (message, details = {}) => ({
   timestamp: new Date().toISOString(),
 });
 
-// Basic health endpoint for websocket service
-router.get("/health", (req, res) => {
-  try {
-    // Check if responseFormatter is available
-    if (typeof success !== "function") {
-      return res.json({
-        status: "operational",
-        service: "websocket",
-        timestamp: new Date().toISOString(),
-        message: "WebSocket service is running",
-        type: "http_polling_realtime_data",
-        dependencies: {
-          responseFormatter: false,
-          apiKeyService: !!apiKeyService,
-          alpacaService: !!AlpacaService,
-          validationMiddleware: !!validationMiddleware,
-        },
-      });
-    }
-
-    const response = success({
-      status: "operational",
-      service: "websocket",
-      timestamp: new Date().toISOString(),
-      message: "WebSocket service is running",
-      type: "http_polling_realtime_data",
-      dependencies: {
-        responseFormatter: true,
-        apiKeyService: !!apiKeyService,
-        alpacaService: !!AlpacaService,
-        validationMiddleware: !!validationMiddleware,
-      },
-    });
-    res.status(response.statusCode).json(response.response);
-  } catch (healthError) {
-    console.error("WebSocket health check error:", healthError);
-    res.status(500).json({
-      success: false,
-      error: "Health check failed",
-      message: healthError.message,
-      stack: healthError.stack,
-      timestamp: new Date().toISOString(),
-    });
-  }
-});
-
 // Basic status endpoint
 router.get("/status", (req, res) => {
   try {
@@ -948,7 +902,6 @@ router.get("/connections", authenticateToken, async (req, res) => {
   }
 });
 
-// Health check endpoint (duplicate removed - using earlier endpoint)
 
 // Status endpoint with detailed metrics
 router.get("/status", (req, res) => {

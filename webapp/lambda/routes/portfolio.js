@@ -6282,30 +6282,6 @@ router.get("/returns", authenticateToken, async (req, res) => {
   }
 });
 
-// Portfolio health check endpoint
-router.get("/health", async (req, res) => {
-  try {
-    res.json({
-      success: true,
-      status: "healthy",
-      service: "portfolio",
-      timestamp: new Date().toISOString(),
-      checks: {
-        database: "available",
-        calculations: "functional",
-        risk_engine: "operational",
-      },
-    });
-  } catch (error) {
-    console.error("Portfolio health check error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Portfolio health check failed",
-      message: error.message,
-    });
-  }
-});
-
 // Portfolio factor analysis endpoint
 router.get("/factors", async (req, res) => {
   try {

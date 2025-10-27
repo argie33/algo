@@ -5,15 +5,6 @@ const { authenticateToken } = require("../middleware/auth");
 const { query } = require("../utils/database");
 const RiskEngine = require("../utils/riskEngine");
 
-// Health endpoint (no auth required)
-router.get("/health", (req, res) => {
-  res.json({
-    status: "operational",
-    service: "risk-analysis",
-    timestamp: new Date().toISOString(),
-    message: "Risk Analysis service is running",
-  });
-});
 
 // Basic root endpoint (public)
 router.get("/", (req, res) => {

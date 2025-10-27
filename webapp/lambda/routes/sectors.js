@@ -39,15 +39,6 @@ const { authenticateToken } = require("../middleware/auth");
 
 const router = express.Router();
 
-// Health endpoint (no auth required)
-router.get("/health", (req, res) => {
-  res.json({
-    status: "operational",
-    service: "sectors",
-    timestamp: new Date().toISOString(),
-    message: "Sectors service is running",
-  });
-});
 
 // Basic root endpoint (public) - redirect to performance endpoint which has the real data
 /**

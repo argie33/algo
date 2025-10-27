@@ -46,16 +46,7 @@ function convertScoreToLabel(score) {
 
 // News functionality requires news_articles table or external news API integration
 
-// Health endpoint (no auth required)
-router.get("/health", (req, res) => {
-  res.json({
     success: true,
-    status: "operational",
-    service: "news",
-    timestamp: new Date().toISOString(),
-    message: "News service is running",
-  });
-});
 
 // Basic root endpoint (public)
 router.get("/", (req, res) => {

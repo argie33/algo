@@ -8,16 +8,6 @@ const router = express.Router();
 // Apply response formatter middleware to all routes
 router.use(responseFormatter);
 
-// Health check endpoint
-router.get("/health", (req, res) => {
-  res.status(200).json({
-    success: true,
-    status: "healthy",
-    service: "metrics",
-    timestamp: new Date().toISOString(),
-    database: "connected",
-  });
-});
 
 // Basic ping endpoint
 router.get("/ping", (req, res) => {

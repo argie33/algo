@@ -597,22 +597,6 @@ router.get("/login", (req, res) => {
   });
 });
 
-// Health check for auth service
-router.get("/health", (req, res) => {
-  res.json({
-    status: "healthy",
-    service: "Authentication Service",
-    cognito: {
-      userPoolId: process.env.COGNITO_USER_POOL_ID
-        ? "configured"
-        : "not_configured",
-      clientId: process.env.COGNITO_CLIENT_ID ? "configured" : "not_configured",
-      region:
-        process.env.AWS_REGION || process.env.WEBAPP_AWS_REGION || "us-east-1",
-    },
-  });
-});
-
 // Token validation endpoint
 router.get("/validate", authenticateToken, (req, res) => {
   // If authenticateToken middleware passes, token is valid

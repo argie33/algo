@@ -253,16 +253,7 @@ router.get("/data", authenticateToken, async (req, res) => {
   }
 });
 
-// Health endpoint (no auth required)
-router.get("/health", (req, res) => {
-  res.json({
     success: true,
-    status: "operational",
-    service: "trades",
-    timestamp: new Date().toISOString(),
-    message: "Trade History service is running",
-  });
-});
 
 // Create new trade (POST)
 router.post("/", authenticateToken, async (req, res) => {

@@ -673,25 +673,6 @@ router.post("/api-keys/test-all", async (req, res) => {
   }
 });
 
-// Get API key service health status
-router.get("/health", async (req, res) => {
-  try {
-    const health = getHealthStatus();
-
-    res.json({
-      health: health,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error("Error getting health status:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to get health status",
-      message: error.message,
-    });
-  }
-});
-
 // Get user profile and settings
 router.get("/profile", async (req, res) => {
   try {
