@@ -198,6 +198,18 @@ export default function PortfolioDashboard() {
       .sort((a, b) => b.weight - a.weight);
   }, [positions]);
 
+  // Extract SPY benchmark metrics from real performance data
+  const benchmarkData = useMemo(() => {
+    if (!performanceData?.data?.benchmark_metrics) {
+      return { return: null, risk: null };
+    }
+    const metrics = performanceData.data.benchmark_metrics;
+    return {
+      return: metrics.total_return || metrics.annual_return || null,
+      risk: metrics.volatility || metrics.volatility_annualized || null,
+    };
+  }, [performanceData]);
+
   // ============ MAIN RENDER ============
   if (metricsLoading || holdingsLoading) {
     return (
@@ -453,8 +465,8 @@ export default function PortfolioDashboard() {
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={[
                   { name: 'Portfolio', return: summary.total_return || 0, risk: summary.volatility_annualized || 0 },
-                  { name: 'SPY Benchmark', return: 10, risk: 15 },
-                ]}>
+                  { name: 'SPY Benchmark', return: benchmarkData.return || null, risk: benchmarkData.risk || null },
+                ].filter(d => d.return !== null && d.risk !== null)}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" />
                   <YAxis yAxisId="left" label={{ value: 'Return (%)', angle: -90, position: 'insideLeft' }} />
@@ -584,7 +596,7 @@ export default function PortfolioDashboard() {
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={[
                   { label: 'Portfolio', return: summary.total_return || 0 },
-                  { label: 'SPY', return: 10 },
+                  ...(benchmarkData.return !== null ? [{ label: 'SPY', return: benchmarkData.return }] : []),
                   { label: 'Tracking Error', return: summary.tracking_error || 0 },
                   { label: 'Active Return', return: summary.active_return || 0 },
                 ]}>

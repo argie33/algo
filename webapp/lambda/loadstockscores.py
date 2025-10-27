@@ -502,7 +502,7 @@ def get_stock_data_from_database(conn, symbol):
             elif price_change_30d < -10:
                 growth_score = max(0, growth_score - 10)
 
-        growth_score = max(0, min(100, growth_score))
+            growth_score = max(0, min(100, growth_score))
 
         # Positioning Score - calculated with percentile ranking
         # Uses institutional ownership, insider ownership, short interest data

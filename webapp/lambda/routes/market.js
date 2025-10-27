@@ -3452,6 +3452,217 @@ router.get("/recession-forecast", async (req, res) => {
   }
 });
 
+// ============================================
+// FULL YIELD CURVE - With all treasury maturities
+// ============================================
+router.get("/yield-curve-full", async (req, res) => {
+  console.log("📈 Full yield curve endpoint called");
+
+  try {
+    // Fetch all treasury maturity yields and spreads with 60-day history
+    const yieldCurveQuery = `
+      SELECT
+        series_id,
+        value,
+        date
+      FROM economic_data
+      WHERE series_id IN (
+        'DGS3MO', 'DGS2', 'DGS5', 'DGS10', 'DGS30',
+        'T10Y2Y', 'T10Y3M', 'T10Y3MM'
+      )
+      ORDER BY date DESC, series_id
+      LIMIT 500
+    `;
+
+    const result = await query(yieldCurveQuery);
+    const dataBySeriesAndDate = {};
+
+    // Organize data by series and date
+    result.rows.forEach(row => {
+      const key = `${row.series_id}`;
+      if (!dataBySeriesAndDate[key]) {
+        dataBySeriesAndDate[key] = [];
+      }
+      dataBySeriesAndDate[key].push({
+        date: row.date,
+        value: parseFloat(row.value)
+      });
+    });
+
+    // Sort each series by date (oldest first for charting)
+    Object.keys(dataBySeriesAndDate).forEach(key => {
+      dataBySeriesAndDate[key].sort((a, b) => new Date(a.date) - new Date(b.date));
+    });
+
+    // Get latest values for current curve
+    const currentCurve = {
+      '3M': dataBySeriesAndDate['DGS3MO']?.[dataBySeriesAndDate['DGS3MO'].length - 1]?.value || null,
+      '2Y': dataBySeriesAndDate['DGS2']?.[dataBySeriesAndDate['DGS2'].length - 1]?.value || null,
+      '5Y': dataBySeriesAndDate['DGS5']?.[dataBySeriesAndDate['DGS5'].length - 1]?.value || null,
+      '10Y': dataBySeriesAndDate['DGS10']?.[dataBySeriesAndDate['DGS10'].length - 1]?.value || null,
+      '30Y': dataBySeriesAndDate['DGS30']?.[dataBySeriesAndDate['DGS30'].length - 1]?.value || null,
+    };
+
+    const spreads = {
+      'T10Y2Y': dataBySeriesAndDate['T10Y2Y']?.[dataBySeriesAndDate['T10Y2Y'].length - 1]?.value || null,
+      'T10Y3M': dataBySeriesAndDate['T10Y3M']?.[dataBySeriesAndDate['T10Y3M'].length - 1]?.value || null,
+    };
+
+    res.json({
+      success: true,
+      data: {
+        currentCurve,
+        spreads,
+        history: dataBySeriesAndDate,
+        timestamp: new Date().toISOString(),
+        source: "Federal Reserve Economic Data (FRED)"
+      }
+    });
+  } catch (error) {
+    console.error("Yield curve error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch yield curve data",
+      details: error.message
+    });
+  }
+});
+
+// ============================================
+// COMPREHENSIVE CREDIT SPREADS - Multiple spread types with history
+// ============================================
+router.get("/credit-spreads-full", async (req, res) => {
+  console.log("💳 Comprehensive credit spreads endpoint called");
+
+  try {
+    // Fetch all credit spread series with 60-day history
+    const creditQuery = `
+      SELECT
+        series_id,
+        value,
+        date
+      FROM economic_data
+      WHERE series_id IN (
+        'BAMLH0A0HYM2',  -- High Yield OAS
+        'BAMLH0A0IG',    -- Investment Grade OAS
+        'BAMLH0A0PRI',   -- Corporate Bond Spread (BAA-AAA)
+        'BAA',           -- Moody's BAA Corp Yield
+        'AAA',           -- Moody's AAA Corp Yield
+        'VIXCLS'         -- VIX for volatility context
+      )
+      ORDER BY date DESC, series_id
+      LIMIT 500
+    `;
+
+    const result = await query(creditQuery);
+    const dataBySeriesAndDate = {};
+    const stressLevels = {};
+
+    // Organize data by series and date
+    result.rows.forEach(row => {
+      const key = `${row.series_id}`;
+      if (!dataBySeriesAndDate[key]) {
+        dataBySeriesAndDate[key] = [];
+      }
+      dataBySeriesAndDate[key].push({
+        date: row.date,
+        value: parseFloat(row.value)
+      });
+    });
+
+    // Sort each series by date (oldest first for charting)
+    Object.keys(dataBySeriesAndDate).forEach(key => {
+      dataBySeriesAndDate[key].sort((a, b) => new Date(a.date) - new Date(b.date));
+    });
+
+    // Get latest values and calculate stress levels
+    const hySpreadLatest = dataBySeriesAndDate['BAMLH0A0HYM2']?.[dataBySeriesAndDate['BAMLH0A0HYM2'].length - 1]?.value || null;
+    const igSpreadLatest = dataBySeriesAndDate['BAMLH0A0IG']?.[dataBySeriesAndDate['BAMLH0A0IG'].length - 1]?.value || null;
+    const corporateSpreadLatest = dataBySeriesAndDate['BAMLH0A0PRI']?.[dataBySeriesAndDate['BAMLH0A0PRI'].length - 1]?.value || null;
+    const baaYieldLatest = dataBySeriesAndDate['BAA']?.[dataBySeriesAndDate['BAA'].length - 1]?.value || null;
+    const aaaYieldLatest = dataBySeriesAndDate['AAA']?.[dataBySeriesAndDate['AAA'].length - 1]?.value || null;
+    const vixLatest = dataBySeriesAndDate['VIXCLS']?.[dataBySeriesAndDate['VIXCLS'].length - 1]?.value || null;
+
+    // Calculate trend (30-day average vs current)
+    const calculateTrend = (series) => {
+      if (!series || series.length < 2) return { current: null, trend: 'stable' };
+      const current = series[series.length - 1].value;
+      const last30 = series.slice(-31).map(d => d.value);
+      const avg30 = last30.reduce((a, b) => a + b, 0) / last30.length;
+      const change = current - avg30;
+      const trend = Math.abs(change) > 5 ? (change > 0 ? 'rising' : 'falling') : 'stable';
+      return { current, avg30: parseFloat(avg30.toFixed(2)), trend, change: parseFloat(change.toFixed(2)) };
+    };
+
+    // Determine stress levels
+    const getStressLevel = (spread) => {
+      if (spread === null) return 'unknown';
+      if (spread > 600) return 'extreme';
+      if (spread > 450) return 'high';
+      if (spread > 350) return 'moderate';
+      return 'normal';
+    };
+
+    const getCurrentSpreads = () => ({
+      highYield: {
+        value: hySpreadLatest,
+        stressLevel: getStressLevel(hySpreadLatest),
+        trend: calculateTrend(dataBySeriesAndDate['BAMLH0A0HYM2']),
+        description: "High Yield OAS - Spread of HY bonds over Treasury"
+      },
+      investmentGrade: {
+        value: igSpreadLatest,
+        stressLevel: getStressLevel(igSpreadLatest),
+        trend: calculateTrend(dataBySeriesAndDate['BAMLH0A0IG']),
+        description: "Investment Grade OAS - Spread of IG bonds over Treasury"
+      },
+      corporateBond: {
+        value: corporateSpreadLatest,
+        stressLevel: getStressLevel(corporateSpreadLatest),
+        trend: calculateTrend(dataBySeriesAndDate['BAMLH0A0PRI']),
+        description: "Corporate Bond Spread - BAA-AAA yield differential"
+      },
+      baaYield: {
+        value: baaYieldLatest,
+        trend: calculateTrend(dataBySeriesAndDate['BAA']),
+        description: "Moody's BAA Corporate Bond Yield"
+      },
+      aaaYield: {
+        value: aaaYieldLatest,
+        trend: calculateTrend(dataBySeriesAndDate['AAA']),
+        description: "Moody's AAA Corporate Bond Yield"
+      }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        currentSpreads: getCurrentSpreads(),
+        vix: {
+          value: vixLatest,
+          trend: calculateTrend(dataBySeriesAndDate['VIXCLS']),
+          description: "VIX Volatility Index - Market fear gauge"
+        },
+        history: dataBySeriesAndDate,
+        summary: {
+          overallStress: hySpreadLatest > 450 ? 'HIGH' : hySpreadLatest > 350 ? 'MODERATE' : 'NORMAL',
+          creditConditions: igSpreadLatest > 350 ? 'TIGHTENING' : 'NORMAL',
+          marketVolatility: vixLatest > 20 ? 'ELEVATED' : 'NORMAL'
+        },
+        timestamp: new Date().toISOString(),
+        source: "Federal Reserve Economic Data (FRED)"
+      }
+    });
+  } catch (error) {
+    console.error("Credit spreads error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch credit spreads data",
+      details: error.message
+    });
+  }
+});
+
 // Credit spreads and financial conditions analysis
 router.get("/credit-spreads", async (req, res) => {
   console.log("💳 Credit spreads analysis endpoint called");
