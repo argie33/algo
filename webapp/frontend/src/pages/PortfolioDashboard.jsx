@@ -299,42 +299,49 @@ export default function PortfolioDashboard() {
               <Assessment sx={{ color: 'primary.main' }} /> Executive Summary
             </Typography>
 
-            {/* KPI Cards */}
+            {/* KPI Cards - Show only metrics with real data */}
             <Grid container spacing={3} sx={{ mb: 4 }}>
+              {/* Total Return - Always show (real data) */}
               <Grid item xs={12} sm={6} md={3}>
                 <StatCard
                   icon={TrendingUp}
                   label="Total Return"
-                  value={summary.total_return?.toFixed(2) || "0.00"}
+                  value={summary.total_return != null ? summary.total_return.toFixed(2) : "N/A"}
                   unit="%"
-                  color="success"
+                  color={summary.total_return >= 0 ? "success" : "error"}
                 />
               </Grid>
+
+              {/* YTD Return - Real data */}
               <Grid item xs={12} sm={6} md={3}>
                 <StatCard
                   icon={Assessment}
-                  label="Sharpe Ratio"
-                  value={summary.sharpe_ratio?.toFixed(2) || "0.00"}
-                  unit=""
-                  color="primary"
+                  label="YTD Return"
+                  value={summary.ytd_return != null ? summary.ytd_return.toFixed(2) : "N/A"}
+                  unit="%"
+                  color={summary.ytd_return >= 0 ? "success" : "error"}
                 />
               </Grid>
+
+              {/* Herfindahl Index - Real data (concentration) */}
               <Grid item xs={12} sm={6} md={3}>
                 <StatCard
                   icon={ShowChart}
-                  label="Volatility"
-                  value={summary.volatility_annualized?.toFixed(2) || "0.00"}
-                  unit="%"
-                  color="warning"
+                  label="Concentration"
+                  value={summary.herfindahl_index != null ? summary.herfindahl_index.toFixed(4) : "N/A"}
+                  unit="HHI"
+                  color="primary"
                 />
               </Grid>
+
+              {/* Effective N - Real data (diversification) */}
               <Grid item xs={12} sm={6} md={3}>
                 <StatCard
                   icon={Warning}
-                  label="Max Drawdown"
-                  value={summary.max_drawdown?.toFixed(2) || "0.00"}
-                  unit="%"
-                  color="error"
+                  label="Diversification"
+                  value={summary.effective_n != null ? summary.effective_n.toFixed(2) : "N/A"}
+                  unit="N"
+                  color="info"
                 />
               </Grid>
             </Grid>
@@ -1032,18 +1039,14 @@ export default function PortfolioDashboard() {
                   No holdings data available.
                 </Typography>
               ) : (
-                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "900px" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "700px" }}>
                   <thead>
                     <tr style={{ borderBottom: `2px solid ${theme.palette.divider}`, backgroundColor: theme.palette.background.default }}>
                       <th style={{ textAlign: "left", padding: "12px", fontWeight: 700 }}>Symbol</th>
                       <th style={{ textAlign: "right", padding: "12px", fontWeight: 700 }}>Weight %</th>
                       <th style={{ textAlign: "right", padding: "12px", fontWeight: 700 }}>Value $</th>
-                      <th style={{ textAlign: "right", padding: "12px", fontWeight: 700 }}>Volatility %</th>
-                      <th style={{ textAlign: "right", padding: "12px", fontWeight: 700 }}>Risk %</th>
-                      <th style={{ textAlign: "right", padding: "12px", fontWeight: 700 }}>Return %</th>
                       <th style={{ textAlign: "right", padding: "12px", fontWeight: 700 }}>Gain/Loss $</th>
-                      <th style={{ textAlign: "right", padding: "12px", fontWeight: 700 }}>Beta</th>
-                      <th style={{ textAlign: "right", padding: "12px", fontWeight: 700 }}>Correlation</th>
+                      <th style={{ textAlign: "right", padding: "12px", fontWeight: 700 }}>Return %</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1051,17 +1054,13 @@ export default function PortfolioDashboard() {
                       <tr key={idx} style={{ borderBottom: `1px solid ${theme.palette.divider}` }}>
                         <td style={{ padding: "12px", fontWeight: 500 }}>{pos.symbol}</td>
                         <td style={{ textAlign: "right", padding: "12px" }}>{parseFloat(pos.weight_percent || 0).toFixed(2)}%</td>
-                        <td style={{ textAlign: "right", padding: "12px" }}>${parseFloat(pos.market_value_dollars || 0).toLocaleString()}</td>
-                        <td style={{ textAlign: "right", padding: "12px" }}>{parseFloat(pos.volatility_percent || 0).toFixed(2)}%</td>
-                        <td style={{ textAlign: "right", padding: "12px" }}>{parseFloat(pos.risk_contribution_percent || 0).toFixed(2)}%</td>
-                        <td style={{ textAlign: "right", padding: "12px", color: parseFloat(pos.return_contribution_percent || 0) >= 0 ? theme.palette.success.main : theme.palette.error.main }}>
-                          {parseFloat(pos.return_contribution_percent || 0).toFixed(2)}%
-                        </td>
+                        <td style={{ textAlign: "right", padding: "12px" }}>${parseFloat(pos.market_value_dollars || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         <td style={{ textAlign: "right", padding: "12px", color: parseFloat(pos.gain_loss_dollars || 0) >= 0 ? theme.palette.success.main : theme.palette.error.main }}>
-                          ${parseFloat(pos.gain_loss_dollars || 0).toLocaleString()}
+                          ${parseFloat(pos.gain_loss_dollars || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
-                        <td style={{ textAlign: "right", padding: "12px" }}>{parseFloat(pos.beta || 1).toFixed(2)}</td>
-                        <td style={{ textAlign: "right", padding: "12px" }}>{parseFloat(pos.correlation_with_portfolio || 0).toFixed(2)}</td>
+                        <td style={{ textAlign: "right", padding: "12px", color: parseFloat(pos.return_percent || 0) >= 0 ? theme.palette.success.main : theme.palette.error.main, fontWeight: 600 }}>
+                          {parseFloat(pos.return_percent || 0).toFixed(2)}%
+                        </td>
                       </tr>
                     ))}
                   </tbody>
