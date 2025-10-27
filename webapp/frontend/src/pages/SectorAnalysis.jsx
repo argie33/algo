@@ -1410,7 +1410,7 @@ const SectorAnalysis = () => {
                 <BarChart color="primary" />
                 Sector Performance Today
               </Typography>
-              <Box width="100%" height={400} sx={{ overflow: "hidden" }}>
+              <Box width="100%" height={400} sx={{ overflow: "hidden", position: "relative", display: "block" }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <RechartsBarChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -1454,7 +1454,7 @@ const SectorAnalysis = () => {
                 <ShowChart color="primary" />
                 Market Cap Distribution
               </Typography>
-              <Box height={400}>
+              <Box width="100%" height={400} sx={{ overflow: "hidden", position: "relative", display: "block" }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
