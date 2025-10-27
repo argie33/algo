@@ -220,27 +220,6 @@ const RecessionRiskPanel = ({ data, isLoading, theme }) => {
             </CardContent>
           </Card>
         </Grid>
-
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between">
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Status
-                  </Typography>
-                  <Typography variant="h4" sx={{ mt: 1 }}>
-                    {data.riskLevel}
-                  </Typography>
-                </Box>
-                <Chip
-                  label={data.riskIndicator}
-                  sx={{ fontSize: "1.5rem" }}
-                />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
       </Grid>
     </Box>
   );
