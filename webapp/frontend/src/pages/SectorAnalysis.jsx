@@ -65,17 +65,15 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
     };
   });
 
-  // Debug: Check what's actually in the technical data
+  // Check what's actually in the technical data
   const hasMA20 = momentumData.some(m => m.ma_20 !== undefined);
   const hasMA50 = momentumData.some(m => m.ma_50 !== undefined);
   const hasMA200 = momentumData.some(m => m.ma_200 !== undefined);
   const hasRSI = momentumData.some(m => m.rsi !== undefined);
 
-  if (technicalData.length > 0) {
-    console.log(`[TECHNICAL DEBUG] ${sector?.sector_name}: Sample technical row:`, technicalData[0]);
+  if (momentumData.length > 0) {
+    console.log(`[MOMENTUM CHART] ${sector?.sector_name}: ${momentumData.length} rows, MA20=${hasMA20}, MA50=${hasMA50}, MA200=${hasMA200}, RSI=${hasRSI}`);
   }
-
-  console.log(`[MOMENTUM CHART - SECTOR] ${sector?.sector_name}: ${trendArray.length} momentum rows, ${technicalData.length} technical rows, MA20=${hasMA20}, MA50=${hasMA50}, MA200=${hasMA200}, RSI=${hasRSI}`);
 
   // Use ALL data for momentum chart (no date filtering)
   if (aggregateToWeekly && momentumData.length > 0) {
