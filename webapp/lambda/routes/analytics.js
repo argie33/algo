@@ -1920,9 +1920,9 @@ router.get("/attribution", async (req, res) => {
 // Professional metrics endpoint - Alpha, Sortino, Information Ratio, etc.
 router.get("/professional-metrics", async (req, res) => {
   try {
-    // Always use alpaca-user for portfolio queries (single-user system)
-    const userId = "alpaca-user";
-    const { timeframe = "1y", benchmark = "SPY" } = req.query;
+    // Try to get user from: query params → auth context → fallback to test-user
+    const { timeframe = "1y", benchmark = "SPY", userId: userIdParam } = req.query;
+    const userId = userIdParam || req.user?.sub || req.user?.id || "test-user";
 
     console.log(`📊 Professional metrics requested for user: ${userId}, benchmark: ${benchmark}, timeframe: ${timeframe}`);
 

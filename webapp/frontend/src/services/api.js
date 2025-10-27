@@ -4228,10 +4228,10 @@ export const getPortfolioSectorIndustryAnalysis = async () => {
 };
 
 // Professional Metrics (Alpha, Sortino, Information Ratio, etc.)
-export const getProfessionalMetrics = async (timeframe = "1y", benchmark = "SPY") => {
+export const getProfessionalMetrics = async (timeframe = "1y", benchmark = "SPY", userId = "test-user") => {
   try {
     const response = await api.get("/api/analytics/professional-metrics", {
-      params: { timeframe, benchmark },
+      params: { timeframe, benchmark, userId },
     });
     return response.data;
   } catch (error) {
