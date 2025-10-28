@@ -190,8 +190,8 @@ export default function PortfolioDashboard() {
     // Aggregate positions by sector
     positions.forEach((pos) => {
       const sector = pos.sector || 'Other';
-      const value = Math.abs(pos.market_value || 0);
-      const return_pct = pos.unrealized_gain_loss_pct || 0;
+      const value = Math.abs(pos.market_value_dollars || 0);
+      const return_pct = pos.return_percent || 0;
 
       if (!sectorMap[sector]) {
         sectorMap[sector] = { weight: 0, return: 0, count: 0 };
@@ -583,8 +583,8 @@ export default function PortfolioDashboard() {
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={positions.slice(0, 15).map((pos, idx) => ({
                   name: pos.symbol,
-                  gain: parseFloat(pos.unrealized_gain || 0),
-                  value: parseFloat(pos.market_value || 0),
+                  gain: parseFloat(pos.gain_loss_dollars || 0),
+                  value: parseFloat(pos.market_value_dollars || 0),
                 }))} layout="vertical" margin={{ top: 5, right: 30, left: 80, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis type="number" />

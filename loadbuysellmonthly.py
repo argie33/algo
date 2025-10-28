@@ -174,6 +174,13 @@ def insert_symbol_results(cur, symbol, timeframe, df):
         axis=1
     )
 
+    # DEBUG: Log risk_pct calculation results
+    risk_pct_filled = df['risk_pct'].notna().sum()
+    logging.info(f"[insert_symbol_results] {symbol} {timeframe}: risk_pct calculated: {risk_pct_filled}/{len(df)} rows filled")
+    if risk_pct_filled > 0:
+        sample_rows = df[df['risk_pct'].notna()][['date', 'buyLevel', 'stopLevel', 'risk_pct']].head(3)
+        logging.info(f"[insert_symbol_results] Sample risk_pct: {sample_rows.to_dict('records')}")
+
     # Profit targets
     df['profit_target_8pct'] = df.apply(
         lambda row: row['buyLevel'] * 1.08 if row['buyLevel'] is not None else None,
