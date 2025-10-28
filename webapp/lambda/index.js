@@ -50,7 +50,6 @@ const settingsRoutes = require("./routes/settings");
 const signalsRoutes = require("./routes/signals");
 const stockRoutes = require("./routes/stocks");
 const technicalRoutes = require("./routes/technical");
-const tradingRoutes = require("./routes/trading");
 const tradesRoutes = require("./routes/trades");
 const watchlistRoutes = require("./routes/watchlist");
 const websocketRoutes = require("./routes/websocket");
@@ -531,7 +530,7 @@ app.use("/api/stocks", stockRoutes);
 // app.use("/api/strategy-builder", strategyBuilderRoutes);
 app.use("/api/technical", technicalRoutes);
 app.use("/api/trades", tradesRoutes);
-app.use("/api/trading", tradingRoutes);
+// Trading routes removed (use /api/trades instead)
 app.use("/api/watchlist", watchlistRoutes);
 app.use("/api/websocket", websocketRoutes);
 app.use("/api/user", userRoutes);
