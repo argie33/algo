@@ -47,35 +47,28 @@ import {
 import { formatXAxisDate } from "../utils/dateFormatters";
 
 // Helper component for sector momentum chart
-// 2 MAIN CHARTS: Technical (Price+SMAs) and Daily Strength+RSI (Fused)
+// 2 MAIN CHARTS: Daily Strength (with MAs) and RSI
 const MomentumChart = ({ type = 'sector', data, aggregateToWeekly }) => {
   const identifierName = type === 'sector' ? data?.sector_name : data?.industry;
   const trendArray = data?.trendData || [];
 
-  // Transform trend data with BOTH price and strength data
+  // Transform trend data - API provides daily strength and technical indicators
   let chartData = trendArray.map(row => ({
     date: row.date,
-    // Price data
-    close: parseFloat(row.close || 0),
-    sma_5: row.sma_5 !== undefined ? parseFloat(row.sma_5) : undefined,
-    sma_10: row.sma_10 !== undefined ? parseFloat(row.sma_10) : undefined,
-    sma_20: row.sma_20 !== undefined ? parseFloat(row.sma_20) : undefined,
-    // Strength data
+    // Daily Strength data (from sector_ranking)
     momentum: parseFloat(row.dailyStrengthScore || 0),
     ma_5: row.ma_5 !== undefined && row.ma_5 !== null ? parseFloat(row.ma_5) : undefined,
     ma_10: row.ma_10 !== undefined && row.ma_10 !== null ? parseFloat(row.ma_10) : undefined,
     ma_20: row.ma_20 !== undefined && row.ma_20 !== null ? parseFloat(row.ma_20) : undefined,
-    // RSI data
+    // RSI data (calculated from daily strength)
     rsi: row.rsi !== undefined && row.rsi !== null ? parseFloat(row.rsi) : undefined,
+    // Metadata
+    rank: row.rank,
+    trend: row.trend,
   }));
 
   // Check what data is available
-  const hasPrice = chartData.some(d => d.close > 0);
-  const hasPriceSMA5 = chartData.some(d => d.sma_5 !== undefined);
-  const hasPriceSMA10 = chartData.some(d => d.sma_10 !== undefined);
-  const hasPriceSMA20 = chartData.some(d => d.sma_20 !== undefined);
-
-  const hasStrength = chartData.some(d => d.momentum > 0);
+  const hasStrength = chartData.some(d => d.momentum > 0 || d.momentum < 0);
   const hasMA5 = chartData.some(m => m.ma_5 !== undefined);
   const hasMA10 = chartData.some(m => m.ma_10 !== undefined);
   const hasMA20 = chartData.some(m => m.ma_20 !== undefined);
@@ -97,29 +90,7 @@ const MomentumChart = ({ type = 'sector', data, aggregateToWeekly }) => {
       </Typography>
       {chartData && chartData.length > 0 ? (
         <>
-          {/* CHART 1: PRICE + SMAs */}
-          <Box sx={{ width: "100%", mb: 3 }}>
-            <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1.5 }}>
-              💹 Price & Moving Averages
-            </Typography>
-            <Box sx={{ width: "100%", height: 320, minHeight: 320, overflow: "hidden" }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" tick={{ fontSize: 12 }} interval={Math.floor(chartData.length / 8)} />
-                  <YAxis width={50} tick={{ fontSize: 12 }} />
-                  <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', border: '1px solid #ccc' }} formatter={(val) => typeof val === 'number' ? val.toFixed(2) : val} />
-                  <Legend />
-                  {hasPrice && <Line type="monotone" dataKey="close" stroke="#2E7D32" strokeWidth={2} dot={false} connectNulls name="Close Price" isAnimationActive={false} />}
-                  {hasPriceSMA5 && <Line type="monotone" dataKey="sma_5" stroke="#004E89" strokeWidth={2} dot={false} connectNulls name="SMA 5" isAnimationActive={false} />}
-                  {hasPriceSMA10 && <Line type="monotone" dataKey="sma_10" stroke="#1ABC9C" strokeWidth={2} dot={false} connectNulls name="SMA 10" isAnimationActive={false} />}
-                  {hasPriceSMA20 && <Line type="monotone" dataKey="sma_20" stroke="#E74C3C" strokeWidth={2} dot={false} connectNulls name="SMA 20" isAnimationActive={false} />}
-                </LineChart>
-              </ResponsiveContainer>
-            </Box>
-          </Box>
-
-          {/* CHART 2: DAILY STRENGTH + MAs */}
+          {/* CHART 1: DAILY STRENGTH + MAs */}
           <Box sx={{ width: "100%", mb: 3 }}>
             <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1.5 }}>
               📊 Daily Strength & Moving Averages
@@ -164,30 +135,6 @@ const MomentumChart = ({ type = 'sector', data, aggregateToWeekly }) => {
               </Box>
               {/* UNIFIED LEGEND BELOW ALL CHARTS */}
               <Box sx={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 3, mt: 2.5, px: 2 }}>
-                {hasPrice && (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Box sx={{ width: 16, height: 2, backgroundColor: "#2E7D32" }} />
-                    <Typography variant="caption" fontSize="11px">Close Price</Typography>
-                  </Box>
-                )}
-                {hasPriceSMA5 && (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Box sx={{ width: 16, height: 2, backgroundColor: "#004E89" }} />
-                    <Typography variant="caption" fontSize="11px">SMA 5</Typography>
-                  </Box>
-                )}
-                {hasPriceSMA10 && (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Box sx={{ width: 16, height: 2, backgroundColor: "#1ABC9C" }} />
-                    <Typography variant="caption" fontSize="11px">SMA 10</Typography>
-                  </Box>
-                )}
-                {hasPriceSMA20 && (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Box sx={{ width: 16, height: 2, backgroundColor: "#E74C3C" }} />
-                    <Typography variant="caption" fontSize="11px">SMA 20</Typography>
-                  </Box>
-                )}
                 {hasStrength && (
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     <Box sx={{ width: 16, height: 2, backgroundColor: "#FF6B35" }} />
