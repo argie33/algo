@@ -2293,6 +2293,20 @@ router.get("/professional-metrics", async (req, res) => {
 
     // ============ POSITION-LEVEL METRICS ============
     // ONLY include real data from holdings, no estimates or placeholders
+    // Get sector data from company_profile
+    let sectorMap = {};
+    try {
+      const sectorResult = await query(
+        `SELECT symbol, sector FROM company_profile WHERE symbol = ANY($1::text[])`,
+        [holdings.map(h => h.symbol)]
+      );
+      sectorResult.rows.forEach(row => {
+        sectorMap[row.symbol] = row.sector;
+      });
+    } catch (e) {
+      console.log("Sector data not available:", e.message);
+    }
+
     const positionMetrics = holdings.map(h => {
       const mv = parseFloat(h.market_value || 0);
       const ug = parseFloat(h.unrealized_gain || 0);
@@ -2303,6 +2317,7 @@ router.get("/professional-metrics", async (req, res) => {
 
       return {
         symbol: h.symbol,
+        sector: sectorMap[h.symbol] || 'Other',
         weight_percent: parseFloat((weight * 100).toFixed(2)),
         market_value_dollars: parseFloat(mv.toFixed(2)),
         gain_loss_dollars: parseFloat(ug.toFixed(2)),

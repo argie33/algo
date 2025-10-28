@@ -208,15 +208,11 @@ def insert_symbol_results(cur, symbol, timeframe, df):
         symbol, timeframe, date,
         open, high, low, close, volume,
         signal, buylevel, stoplevel, inposition, strength,
-        signal_type, pivot_price, buy_zone_start, buy_zone_end,
-        exit_trigger_1_price, exit_trigger_2_price, exit_trigger_3_condition, exit_trigger_3_price,
-        exit_trigger_4_condition, exit_trigger_4_price, initial_stop, trailing_stop,
-        base_type, base_length_days, avg_volume_50d, volume_surge_pct,
-        rs_rating, breakout_quality, risk_reward_ratio, current_gain_pct, days_in_position,
+        avg_volume_50d, volume_surge_pct, risk_reward_ratio, breakout_quality,
         entry_quality_score, market_stage, stage_number, stage_confidence, substage,
         profit_target_8pct, profit_target_20pct, profit_target_25pct,
         risk_pct, position_size_recommendation, sell_level
-      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
       ON CONFLICT (symbol, timeframe, date) DO NOTHING;
     """
     # === POSITION SIZE RECOMMENDATION (based on risk) ===
@@ -301,11 +297,7 @@ def insert_symbol_results(cur, symbol, timeframe, df):
                 float(row['close']), int(row['volume']),
                 row['Signal'], float(row['buyLevel']),
                 float(row['stopLevel']), bool(row['inPosition']), float(row['strength']),
-                signal_type, pivot_price, buy_zone_start, buy_zone_end,
-                exit_1, exit_2, exit_3_cond, exit_3_price,
-                exit_4_cond, exit_4_price, initial_stop, trailing_stop,
-                base_type, base_length, avg_vol, vol_surge,
-                rs_rating, breakout_qual, risk_reward, current_gain, days_held,
+                avg_vol, vol_surge, risk_reward, breakout_qual,
                 entry_qual, market_stage, stage_num, stage_conf, substage,
                 profit_8, profit_20, profit_25,
                 risk_pct, pos_size, sell_level

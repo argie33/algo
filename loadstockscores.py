@@ -555,11 +555,13 @@ def fetch_all_growth_metrics(conn):
     """
     Fetch growth metrics for all stocks to enable percentile ranking.
     Returns a dictionary with lists of values for each metric.
+    Uses LEFT JOIN to include ALL stocks in price_daily, even if key_metrics data is sparse.
     """
     try:
         cur = conn.cursor()
 
-        # Fetch growth metrics from key_metrics table
+        # Fetch growth metrics from key_metrics table - use LEFT JOIN to get all stocks
+        # Even if a stock has sparse key_metrics data, it should still be included for percentile calculation
         cur.execute("""
             SELECT
                 km.revenue_growth_pct,
@@ -570,13 +572,14 @@ def fetch_all_growth_metrics(conn):
                 km.return_on_equity_pct,
                 km.payout_ratio,
                 pd.symbol
-            FROM key_metrics km
-            INNER JOIN (
+            FROM (
                 SELECT DISTINCT symbol FROM price_daily
-            ) pd ON km.ticker = pd.symbol
+            ) pd
+            LEFT JOIN key_metrics km ON km.ticker = pd.symbol
             WHERE km.revenue_growth_pct IS NOT NULL
                OR km.earnings_growth_pct IS NOT NULL
                OR km.gross_margin_pct IS NOT NULL
+               OR km.operating_margin_pct IS NOT NULL
         """)
 
         rows = cur.fetchall()
