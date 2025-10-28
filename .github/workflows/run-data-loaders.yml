@@ -388,9 +388,50 @@ jobs:
   ################################################################################
   # 5) Monitor loader execution                                                  #
   ################################################################################
+  ################################################################################
+  # 6) Deploy Lambda function                                                    #
+  ################################################################################
+  deploy-lambda:
+    name: Deploy Lambda function
+    needs: run-loaders
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+
+      - name: Update Lambda function code
+        run: |
+          echo "🚀 Deploying Lambda function..."
+          cd webapp/lambda
+
+          # Update Lambda function with new code
+          aws lambda update-function-code \
+            --function-name stocks-webapp-api-dev \
+            --zip-file fileb://function.zip \
+            --region us-east-1
+
+          # Wait for update to complete
+          aws lambda wait function-updated \
+            --function-name stocks-webapp-api-dev \
+            --region us-east-1
+
+          echo "✅ Lambda function deployed successfully"
+
+  ################################################################################
+  # 7) Monitor loader execution                                                  #
+  ################################################################################
   monitor:
     name: Monitor loader execution
-    needs: run-loaders
+    needs: [run-loaders, deploy-lambda]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -415,7 +456,7 @@ jobs:
       - name: Create GitHub summary
         run: |
           cat >> $GITHUB_STEP_SUMMARY << 'EOF'
-          ## Data Loaders Execution Summary
+          ## Data Loaders & Lambda Deployment Summary
 
           ### Core Loaders
           - ✅ Stock Scores (loadstockscores.py)
@@ -450,10 +491,12 @@ jobs:
           - ✅ Signal Metrics (populate_signal_metrics.py)
 
           ### Execution Method
-          - Platform: AWS ECS Fargate
-          - Compute: 256 CPU, 512 MB RAM
+          - Platform: AWS ECS Fargate + Lambda
+          - Compute: 256 CPU, 512 MB RAM (ECS loaders)
+          - Lambda: Node.js 18.x with 512 MB RAM
           - Logs: CloudWatch `/ecs/stocks-data-loader`
           - **Total Loaders**: 21 data sources running daily
+          - **API Function**: stocks-webapp-api-dev (auto-deployed)
 
           ### API Endpoints Updated
           - `/api/stocks` - Enhanced with prices & technicals
@@ -462,10 +505,19 @@ jobs:
           - `/api/momentum` - Momentum indicators
           - `/api/positioning` - Market positioning data
           - `/api/signals` - Trading signals with updated metrics
+          - `/api/market/*` - All market endpoints with fresh data
+
+          ### Deployment Details
+          - **Loader Status**: ECS Tasks submitted
+          - **Lambda Status**: Updated and ready
+          - **Data Sync**: Automatic after each push to main
+          - **Schedule**: Daily at 6 AM UTC (1 AM EST)
+          - **Manual Trigger**: Use workflow_dispatch in GitHub Actions
 
           ### Next Steps
           - Check CloudWatch Logs Insights for execution details
           - Verify database records were inserted
           - Monitor API responses for enriched data
+          - Review Lambda CloudWatch logs for errors
 
           EOF
