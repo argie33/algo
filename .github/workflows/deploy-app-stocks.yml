@@ -329,11 +329,16 @@ jobs:
           chmod +x scripts/create-missing-log-groups.sh
           ./scripts/create-missing-log-groups.sh
 
+      - name: Upload CloudFormation template to S3
+        run: |
+          echo "Uploading large CloudFormation template to S3..."
+          aws s3 cp template-app-ecs-tasks.yml s3://stocks-cf-templates-626216981288/template-app-ecs-tasks.yml
+
       - name: Deploy ECS tasks stack
         run: |
           echo "Deploying ECS tasks infrastructure..."
           aws cloudformation deploy \
-            --template-file template-app-ecs-tasks.yml \
+            --template-url https://stocks-cf-templates-626216981288.s3.amazonaws.com/template-app-ecs-tasks.yml \
             --stack-name stocks-ecs-tasks-stack \
             --parameter-overrides \
               RDSUsername=${{ secrets.RDS_USERNAME }} \
