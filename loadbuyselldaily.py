@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # CRITICAL: Buy/Sell signals table missing from database. Must run to enable trading signal pages
-# Trigger: 20251220 - Update buy/sell signals to latest data (last: 2025-12-15 → 2025-12-20)
+# Trigger: 20251220-INFRA-FIXED - Update buy/sell signals after infrastructure deployment
 import os
 import sys
 import json
