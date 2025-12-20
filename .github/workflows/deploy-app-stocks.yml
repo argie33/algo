@@ -349,6 +349,14 @@ jobs:
               aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
               echo "Waiting for stack deletion to complete..."
               aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+
+              echo "Deleting orphaned log groups that CloudFormation doesn't delete..."
+              # Delete all /ecs/* log groups to ensure clean slate
+              aws logs describe-log-groups --log-group-name-prefix "/ecs/" --query 'logGroups[].logGroupName' --output text | tr '\t' '\n' | while read log_group; do
+                echo "Deleting $log_group"
+                aws logs delete-log-group --log-group-name "$log_group" || true
+              done
+
               STACK_STATUS="DELETED"
             fi
 
