@@ -337,69 +337,141 @@ jobs:
       - name: Deploy ECS tasks stack
         run: |
           echo "Deploying ECS tasks infrastructure..."
-          aws cloudformation deploy \
-            --template-url https://stocks-cf-templates-626216981288.s3.amazonaws.com/template-app-ecs-tasks.yml \
-            --stack-name stocks-ecs-tasks-stack \
-            --parameter-overrides \
-              RDSUsername=${{ secrets.RDS_USERNAME }} \
-              RDSPassword=${{ secrets.RDS_PASSWORD }} \
-              FREDApiKey=${{ secrets.FRED_API_KEY }} \
-              IBKRUsername=${{ secrets.IBKR_USERNAME }} \
-              IBKRPassword=${{ secrets.IBKR_PASSWORD }} \
-              StockSymbolsImageTag=latest \
-              EconDataImageTag=latest \
-              FindataImageTag=latest \
-              PriceImageTag=latest \
-              PriceWeeklyImageTag=latest \
-              PriceMonthlyImageTag=latest \
-              TechnicalsDailyImageTag=latest \
-              LoadDailyCompanyDataImageTag=latest \
-              EarningsEstimateImageTag=latest \
-              TechnicalsWeeklyImageTag=latest \
-              TechnicalsMonthlyImageTag=latest \
-              BuySellImageTag=latest \
-              BuySellDailyImageTag=latest \
-              BuySellWeeklyImageTag=latest \
-              BuySellMonthlyImageTag=latest \
-              SwingTraderImageTag=latest \
-              CalendarImageTag=latest \
-              LatestPriceDailyImageTag=latest \
-              LatestPriceWeeklyImageTag=latest \
-              LatestPriceMonthlyImageTag=latest \
-              LatestTechnicalsDailyImageTag=latest \
-              LatestTechnicalsWeeklyImageTag=latest \
-              LatestTechnicalsMonthlyImageTag=latest \
-              RevenueEstimateImageTag=latest \
-              EarningsHistoryImageTag=latest \
-              AaiiImageTag=aaiidata-latest \
-              FearGreedImageTag=feargreed-latest \
-              NaaimImageTag=naaim-latest \
-              EarningsMetricsImageTag=latest \
-              QuarterlyBalanceSheetImageTag=latest \
-              AnnualBalanceSheetImageTag=latest \
-              QuarterlyIncomeStatementImageTag=latest \
-              AnnualIncomeStatementImageTag=latest \
-              QuarterlyCashFlowImageTag=latest \
-              AnnualCashFlowImageTag=latest \
-              TTMIncomeStatementImageTag=latest \
-              TTMCashFlowImageTag=latest \
-              QualityMetricsImageTag=latest \
-              GrowthMetricsImageTag=latest \
-              ValueMetricsImageTag=latest \
-              StockScoresImageTag=latest \
-              BenchmarksImageTag=benchmarks-latest \
-              AnalystUpgradeDowngradeImageTag=analystupgradedowngrade-latest \
-              LoadDailyCompanyDataImageTag=companyprofile-latest \
-              SectorDataImageTag=sectordata-latest \
-              LoadFinancialsImageTag=financials-latest \
-              LoadHistoricalImageTag=historical-latest \
-              SectorsImageTag=sectors-latest \
-              PositioningImageTag=positioning-latest \
-              MomentumImageTag=momentum-latest \
-              RiskMetricsImageTag=riskmetrics-latest \
-              FundamentalMetricsImageTag=fundamentalmetrics-latest \
-            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-            --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
+
+          # Check if stack exists
+          if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack 2>/dev/null; then
+            echo "Stack exists, updating..."
+            aws cloudformation update-stack \
+              --stack-name stocks-ecs-tasks-stack \
+              --template-url https://stocks-cf-templates-626216981288.s3.amazonaws.com/template-app-ecs-tasks.yml \
+              --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+              --parameters \
+                ParameterKey=RDSUsername,ParameterValue=${{ secrets.RDS_USERNAME }} \
+                ParameterKey=RDSPassword,ParameterValue=${{ secrets.RDS_PASSWORD }} \
+                ParameterKey=FREDApiKey,ParameterValue=${{ secrets.FRED_API_KEY }} \
+                ParameterKey=IBKRUsername,ParameterValue=${{ secrets.IBKR_USERNAME }} \
+                ParameterKey=IBKRPassword,ParameterValue=${{ secrets.IBKR_PASSWORD }} \
+                ParameterKey=StockSymbolsImageTag,ParameterValue=latest \
+                ParameterKey=EconDataImageTag,ParameterValue=latest \
+                ParameterKey=FindataImageTag,ParameterValue=latest \
+                ParameterKey=PriceImageTag,ParameterValue=latest \
+                ParameterKey=PriceWeeklyImageTag,ParameterValue=latest \
+                ParameterKey=PriceMonthlyImageTag,ParameterValue=latest \
+                ParameterKey=TechnicalsDailyImageTag,ParameterValue=latest \
+                ParameterKey=LoadDailyCompanyDataImageTag,ParameterValue=companyprofile-latest \
+                ParameterKey=EarningsEstimateImageTag,ParameterValue=latest \
+                ParameterKey=TechnicalsWeeklyImageTag,ParameterValue=latest \
+                ParameterKey=TechnicalsMonthlyImageTag,ParameterValue=latest \
+                ParameterKey=BuySellImageTag,ParameterValue=latest \
+                ParameterKey=BuySellDailyImageTag,ParameterValue=latest \
+                ParameterKey=BuySellWeeklyImageTag,ParameterValue=latest \
+                ParameterKey=BuySellMonthlyImageTag,ParameterValue=latest \
+                ParameterKey=SwingTraderImageTag,ParameterValue=latest \
+                ParameterKey=CalendarImageTag,ParameterValue=latest \
+                ParameterKey=LatestPriceDailyImageTag,ParameterValue=latest \
+                ParameterKey=LatestPriceWeeklyImageTag,ParameterValue=latest \
+                ParameterKey=LatestPriceMonthlyImageTag,ParameterValue=latest \
+                ParameterKey=LatestTechnicalsDailyImageTag,ParameterValue=latest \
+                ParameterKey=LatestTechnicalsWeeklyImageTag,ParameterValue=latest \
+                ParameterKey=LatestTechnicalsMonthlyImageTag,ParameterValue=latest \
+                ParameterKey=RevenueEstimateImageTag,ParameterValue=latest \
+                ParameterKey=EarningsHistoryImageTag,ParameterValue=latest \
+                ParameterKey=AaiiImageTag,ParameterValue=aaiidata-latest \
+                ParameterKey=FearGreedImageTag,ParameterValue=feargreed-latest \
+                ParameterKey=NaaimImageTag,ParameterValue=naaim-latest \
+                ParameterKey=EarningsMetricsImageTag,ParameterValue=latest \
+                ParameterKey=QuarterlyBalanceSheetImageTag,ParameterValue=latest \
+                ParameterKey=AnnualBalanceSheetImageTag,ParameterValue=latest \
+                ParameterKey=QuarterlyIncomeStatementImageTag,ParameterValue=latest \
+                ParameterKey=AnnualIncomeStatementImageTag,ParameterValue=latest \
+                ParameterKey=QuarterlyCashFlowImageTag,ParameterValue=latest \
+                ParameterKey=AnnualCashFlowImageTag,ParameterValue=latest \
+                ParameterKey=TTMIncomeStatementImageTag,ParameterValue=latest \
+                ParameterKey=TTMCashFlowImageTag,ParameterValue=latest \
+                ParameterKey=QualityMetricsImageTag,ParameterValue=latest \
+                ParameterKey=GrowthMetricsImageTag,ParameterValue=latest \
+                ParameterKey=ValueMetricsImageTag,ParameterValue=latest \
+                ParameterKey=StockScoresImageTag,ParameterValue=latest \
+                ParameterKey=BenchmarksImageTag,ParameterValue=benchmarks-latest \
+                ParameterKey=AnalystUpgradeDowngradeImageTag,ParameterValue=analystupgradedowngrade-latest \
+                ParameterKey=SectorDataImageTag,ParameterValue=sectordata-latest \
+                ParameterKey=LoadFinancialsImageTag,ParameterValue=financials-latest \
+                ParameterKey=LoadHistoricalImageTag,ParameterValue=historical-latest \
+                ParameterKey=SectorsImageTag,ParameterValue=sectors-latest \
+                ParameterKey=PositioningImageTag,ParameterValue=positioning-latest \
+                ParameterKey=MomentumImageTag,ParameterValue=momentum-latest \
+                ParameterKey=RiskMetricsImageTag,ParameterValue=riskmetrics-latest \
+                ParameterKey=FundamentalMetricsImageTag,ParameterValue=fundamentalmetrics-latest
+
+            echo "Waiting for stack update to complete..."
+            aws cloudformation wait stack-update-complete --stack-name stocks-ecs-tasks-stack
+          else
+            echo "Stack does not exist, creating..."
+            aws cloudformation create-stack \
+              --stack-name stocks-ecs-tasks-stack \
+              --template-url https://stocks-cf-templates-626216981288.s3.amazonaws.com/template-app-ecs-tasks.yml \
+              --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+              --parameters \
+                ParameterKey=RDSUsername,ParameterValue=${{ secrets.RDS_USERNAME }} \
+                ParameterKey=RDSPassword,ParameterValue=${{ secrets.RDS_PASSWORD }} \
+                ParameterKey=FREDApiKey,ParameterValue=${{ secrets.FRED_API_KEY }} \
+                ParameterKey=IBKRUsername,ParameterValue=${{ secrets.IBKR_USERNAME }} \
+                ParameterKey=IBKRPassword,ParameterValue=${{ secrets.IBKR_PASSWORD }} \
+                ParameterKey=StockSymbolsImageTag,ParameterValue=latest \
+                ParameterKey=EconDataImageTag,ParameterValue=latest \
+                ParameterKey=FindataImageTag,ParameterValue=latest \
+                ParameterKey=PriceImageTag,ParameterValue=latest \
+                ParameterKey=PriceWeeklyImageTag,ParameterValue=latest \
+                ParameterKey=PriceMonthlyImageTag,ParameterValue=latest \
+                ParameterKey=TechnicalsDailyImageTag,ParameterValue=latest \
+                ParameterKey=LoadDailyCompanyDataImageTag,ParameterValue=companyprofile-latest \
+                ParameterKey=EarningsEstimateImageTag,ParameterValue=latest \
+                ParameterKey=TechnicalsWeeklyImageTag,ParameterValue=latest \
+                ParameterKey=TechnicalsMonthlyImageTag,ParameterValue=latest \
+                ParameterKey=BuySellImageTag,ParameterValue=latest \
+                ParameterKey=BuySellDailyImageTag,ParameterValue=latest \
+                ParameterKey=BuySellWeeklyImageTag,ParameterValue=latest \
+                ParameterKey=BuySellMonthlyImageTag,ParameterValue=latest \
+                ParameterKey=SwingTraderImageTag,ParameterValue=latest \
+                ParameterKey=CalendarImageTag,ParameterValue=latest \
+                ParameterKey=LatestPriceDailyImageTag,ParameterValue=latest \
+                ParameterKey=LatestPriceWeeklyImageTag,ParameterValue=latest \
+                ParameterKey=LatestPriceMonthlyImageTag,ParameterValue=latest \
+                ParameterKey=LatestTechnicalsDailyImageTag,ParameterValue=latest \
+                ParameterKey=LatestTechnicalsWeeklyImageTag,ParameterValue=latest \
+                ParameterKey=LatestTechnicalsMonthlyImageTag,ParameterValue=latest \
+                ParameterKey=RevenueEstimateImageTag,ParameterValue=latest \
+                ParameterKey=EarningsHistoryImageTag,ParameterValue=latest \
+                ParameterKey=AaiiImageTag,ParameterValue=aaiidata-latest \
+                ParameterKey=FearGreedImageTag,ParameterValue=feargreed-latest \
+                ParameterKey=NaaimImageTag,ParameterValue=naaim-latest \
+                ParameterKey=EarningsMetricsImageTag,ParameterValue=latest \
+                ParameterKey=QuarterlyBalanceSheetImageTag,ParameterValue=latest \
+                ParameterKey=AnnualBalanceSheetImageTag,ParameterValue=latest \
+                ParameterKey=QuarterlyIncomeStatementImageTag,ParameterValue=latest \
+                ParameterKey=AnnualIncomeStatementImageTag,ParameterValue=latest \
+                ParameterKey=QuarterlyCashFlowImageTag,ParameterValue=latest \
+                ParameterKey=AnnualCashFlowImageTag,ParameterValue=latest \
+                ParameterKey=TTMIncomeStatementImageTag,ParameterValue=latest \
+                ParameterKey=TTMCashFlowImageTag,ParameterValue=latest \
+                ParameterKey=QualityMetricsImageTag,ParameterValue=latest \
+                ParameterKey=GrowthMetricsImageTag,ParameterValue=latest \
+                ParameterKey=ValueMetricsImageTag,ParameterValue=latest \
+                ParameterKey=StockScoresImageTag,ParameterValue=latest \
+                ParameterKey=BenchmarksImageTag,ParameterValue=benchmarks-latest \
+                ParameterKey=AnalystUpgradeDowngradeImageTag,ParameterValue=analystupgradedowngrade-latest \
+                ParameterKey=SectorDataImageTag,ParameterValue=sectordata-latest \
+                ParameterKey=LoadFinancialsImageTag,ParameterValue=financials-latest \
+                ParameterKey=LoadHistoricalImageTag,ParameterValue=historical-latest \
+                ParameterKey=SectorsImageTag,ParameterValue=sectors-latest \
+                ParameterKey=PositioningImageTag,ParameterValue=positioning-latest \
+                ParameterKey=MomentumImageTag,ParameterValue=momentum-latest \
+                ParameterKey=RiskMetricsImageTag,ParameterValue=riskmetrics-latest \
+                ParameterKey=FundamentalMetricsImageTag,ParameterValue=fundamentalmetrics-latest
+
+            echo "Waiting for stack creation to complete..."
+            aws cloudformation wait stack-create-complete --stack-name stocks-ecs-tasks-stack
+          fi
 
       - name: Update container image
         run: |
