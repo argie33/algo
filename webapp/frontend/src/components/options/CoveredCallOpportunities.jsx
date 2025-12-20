@@ -504,6 +504,110 @@ function CoveredCallOpportunities() {
                         {!row.low_liquidity_warning && !row.high_beta_warning && "✓ Low Risk"}
                       </Typography>
                     </Grid>
+
+                    {/* MARKET STRUCTURE & LIQUIDITY */}
+                    <Grid item xs={12} sm={6} md={4} lg={3}>
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: "0.8rem", letterSpacing: "0.3px", textTransform: "uppercase" }}>
+                          Market Structure
+                        </Typography>
+                      </Box>
+                      <DataField label="Bid-Ask Spread" value={row.bid_ask_spread_pct} format="percent" />
+                      <DataField label="Open Interest Rank" value={row.open_interest_rank} format="number" />
+                      <DataField label="Implied Volatility" value={row.implied_volatility} format="percent" />
+                      <DataField label="Avg Daily Premium" value={row.avg_daily_premium} format="currency" />
+                    </Grid>
+
+                    {/* OPPORTUNITY SCORING */}
+                    <Grid item xs={12} sm={6} md={4} lg={3}>
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: "0.8rem", letterSpacing: "0.3px", textTransform: "uppercase" }}>
+                          Opportunity Scores
+                        </Typography>
+                      </Box>
+                      <DataField label="Opportunity Score" value={row.opportunity_score} format="number" unit="/100" color={row.opportunity_score >= 75 ? theme.palette.success.main : row.opportunity_score >= 50 ? theme.palette.warning.main : theme.palette.error.main} />
+                      <DataField label="Timing Score" value={row.timing_score} format="number" unit="/100" />
+                      <DataField label="Sell Now Score" value={row.sell_now_score} format="number" unit="/100" color={row.sell_now_score >= 75 ? theme.palette.success.main : theme.palette.warning.main} />
+                      <DataField label="Strike Quality Score" value={row.strike_quality_score} format="number" unit="/100" />
+                    </Grid>
+
+                    {/* REGIME & RISK SCORING */}
+                    <Grid item xs={12} sm={6} md={4} lg={3}>
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: "0.8rem", letterSpacing: "0.3px", textTransform: "uppercase" }}>
+                          Market & Risk Regime
+                        </Typography>
+                      </Box>
+                      <DataField label="Market Regime Score" value={row.market_regime_score} format="number" unit="/100" />
+                      <DataField label="Vol Regime Score" value={row.vol_regime_score} format="number" unit="/100" />
+                      <DataField label="Earnings Risk Score" value={row.earnings_risk_score} format="number" unit="/100" />
+                      <DataField label="Execution Score" value={row.execution_score} format="number" unit="/100" />
+                    </Grid>
+
+                    {/* ENTRY & MANAGEMENT */}
+                    <Grid item xs={12} sm={6} md={4} lg={3}>
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: "0.8rem", letterSpacing: "0.3px", textTransform: "uppercase" }}>
+                          Entry & Management
+                        </Typography>
+                      </Box>
+                      <Box sx={{ mb: 1 }}>
+                        <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mb: 0.5, fontWeight: 600 }}>
+                          Entry Signal
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: "text.primary", fontSize: "0.95rem" }}>
+                          {row.entry_signal}
+                        </Typography>
+                      </Box>
+                      <DataField label="Entry Confidence" value={row.entry_confidence} format="number" unit="/10" />
+                      <Box sx={{ mb: 1 }}>
+                        <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mb: 0.5, fontWeight: 600 }}>
+                          Management Strategy
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500, color: "text.primary", fontSize: "0.9rem", lineHeight: 1.4 }}>
+                          {row.management_strategy || "—"}
+                        </Typography>
+                      </Box>
+                    </Grid>
+
+                    {/* RETURN & RISK METRICS */}
+                    <Grid item xs={12} sm={6} md={4} lg={3}>
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: "0.8rem", letterSpacing: "0.3px", textTransform: "uppercase" }}>
+                          Return & Risk
+                        </Typography>
+                      </Box>
+                      <DataField label="Risk-Adjusted Return" value={row.risk_adjusted_return} format="percent" color={theme.palette.success.main} />
+                      <DataField label="Max Loss %" value={row.max_loss_pct} format="percent" color={theme.palette.error.main} />
+                      <DataField label="Avg Daily Premium" value={row.avg_daily_premium} format="currency" />
+                      <DataField label="SMA 200" value={row.sma_200} format="currency" />
+                    </Grid>
+
+                    {/* ANALYST & MARKET SENTIMENT */}
+                    <Grid item xs={12} sm={6} md={4} lg={3}>
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: "0.8rem", letterSpacing: "0.3px", textTransform: "uppercase" }}>
+                          Analysts & Sentiment
+                        </Typography>
+                      </Box>
+                      <DataField label="Analyst Count" value={row.analyst_count} format="number" />
+                      <DataField label="Analyst Bullish %" value={row.analyst_bullish_ratio ? row.analyst_bullish_ratio * 100 : null} format="number" unit="%" />
+                      <DataField label="Analyst Target" value={row.analyst_price_target} format="currency" />
+                      <DataField label="Market Sentiment" value={row.market_sentiment} />
+                    </Grid>
+
+                    {/* TECHNICAL DEPTH */}
+                    <Grid item xs={12} sm={6} md={4} lg={3}>
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: "0.8rem", letterSpacing: "0.3px", textTransform: "uppercase" }}>
+                          Technical Depth
+                        </Typography>
+                      </Box>
+                      <DataField label="Support Level" value={row.sma_200} format="currency" />
+                      <DataField label="Resistance Level" value={row.resistance_level} format="currency" />
+                      <DataField label="Distance to Resist" value={row.distance_to_resistance_pct} format="percent" />
+                      <DataField label="SMA 50" value={row.sma_50} format="currency" />
+                    </Grid>
                   </Grid>
                 </AccordionDetails>
               </Accordion>
