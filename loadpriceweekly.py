@@ -115,7 +115,8 @@ def load_prices(table_name, symbols, cur, conn):
                     auto_adjust=False,    # preserved
                     actions=True,        # preserved
                     threads=True,        # preserved
-                    progress=False       # preserved
+                    progress=False,      # preserved
+                    timeout=60           # increased from default 10s to handle slow connections
                 )
                 break
             except Exception as e:
@@ -130,7 +131,7 @@ def load_prices(table_name, symbols, cur, conn):
                 last_error = None
                 for sym_attempt in range(1, MAX_SYMBOL_RETRIES + 1):
                     try:
-                        single_df = yf.download(orig_sym, period="max", interval="1wk", auto_adjust=False, actions=True, progress=False)
+                        single_df = yf.download(orig_sym, period="max", interval="1wk", auto_adjust=False, actions=True, progress=False, timeout=60)
                         if not single_df.empty:
                             per_symbol_results[orig_sym] = single_df
                             symbol_success = True
@@ -235,7 +236,7 @@ def load_prices(table_name, symbols, cur, conn):
             symbol_success = False
             for sym_attempt in range(1, MAX_SYMBOL_RETRIES + 1):
                 try:
-                    single_df = yf.download(orig_sym, period="max", interval="1wk", auto_adjust=False, actions=True, progress=False)
+                    single_df = yf.download(orig_sym, period="max", interval="1wk", auto_adjust=False, actions=True, progress=False, timeout=60)
                     if not single_df.empty:
                         # Now insert this data into database
                         rows = []
