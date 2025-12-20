@@ -206,8 +206,8 @@ def load_prices(table_name, symbols, cur, conn):
                         None if math.isnan(row["Close"])     else float(row["Close"]),
                         None if math.isnan(row.get("Adj Close", row["Close"])) else float(row.get("Adj Close", row["Close"])),
                         None if math.isnan(row["Volume"])    else int(row["Volume"]),
-                        0.0  if ("Dividends" not in row or math.isnan(row["Dividends"])) else float(row["Dividends"]),
-                        0.0  if ("Stock Splits" not in row or math.isnan(row["Stock Splits"])) else float(row["Stock Splits"])
+                        0.0  if ("Dividends" not in row or (isinstance(row["Dividends"], float) and math.isnan(row["Dividends"]))) else (0.0 if not isinstance(row["Dividends"], (int, float)) else float(row["Dividends"])),
+                        0.0  if ("Stock Splits" not in row or (isinstance(row["Stock Splits"], float) and math.isnan(row["Stock Splits"]))) else (0.0 if not isinstance(row["Stock Splits"], (int, float)) else float(row["Stock Splits"]))
                     ])
 
                 if not rows:
