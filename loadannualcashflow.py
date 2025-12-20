@@ -238,10 +238,10 @@ def load_annual_cash_flow(symbols: List[str], cur, conn) -> Tuple[int, int, List
                                     updated_at = NOW()
                             """, insert_data)
                             conn.commit()
-                        processed += 1
-                        logging.info(f"✓ Successfully processed {symbol} ({len(cash_flow_data)} records)")
-                        success = True
-                        break
+                            processed += 1
+                            logging.info(f"✓ Successfully processed {symbol} ({len(insert_data)} records)")
+                            success = True
+                            break
                     else:
                         logging.warning(f"✗ No valid data found for {symbol} after processing")
                         break
