@@ -362,11 +362,12 @@ jobs:
 
             if [[ "$STACK_STATUS" != "DELETED" ]]; then
               echo "Stack exists, updating..."
-              aws cloudformation update-stack \
-              --stack-name stocks-ecs-tasks-stack \
-              --template-url https://stocks-cf-templates-626216981288.s3.amazonaws.com/template-app-ecs-tasks.yml \
-              --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-              --parameters \
+              # Try to update stack, but don't fail if no updates needed
+              if aws cloudformation update-stack \
+                --stack-name stocks-ecs-tasks-stack \
+                --template-url https://stocks-cf-templates-626216981288.s3.amazonaws.com/template-app-ecs-tasks.yml \
+                --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+                --parameters \
                 ParameterKey=RDSUsername,ParameterValue=${{ secrets.RDS_USERNAME }} \
                 ParameterKey=RDSPassword,ParameterValue=${{ secrets.RDS_PASSWORD }} \
                 ParameterKey=FREDApiKey,ParameterValue=${{ secrets.FRED_API_KEY }} \
@@ -422,10 +423,19 @@ jobs:
                 ParameterKey=PositioningImageTag,ParameterValue=positioning-latest \
                 ParameterKey=MomentumImageTag,ParameterValue=momentum-latest \
                 ParameterKey=RiskMetricsImageTag,ParameterValue=riskmetrics-latest \
-                ParameterKey=FundamentalMetricsImageTag,ParameterValue=fundamentalmetrics-latest
-
-              echo "Waiting for stack update to complete..."
-              aws cloudformation wait stack-update-complete --stack-name stocks-ecs-tasks-stack
+                ParameterKey=FundamentalMetricsImageTag,ParameterValue=fundamentalmetrics-latest 2>&1; then
+                echo "Stack update initiated, waiting for completion..."
+                aws cloudformation wait stack-update-complete --stack-name stocks-ecs-tasks-stack
+                echo "Stack update completed successfully"
+              else
+                UPDATE_ERROR=$?
+                if echo "$UPDATE_ERROR" | grep -q "No updates are to be performed"; then
+                  echo "No infrastructure updates needed - stack is already up to date"
+                else
+                  echo "Stack update failed with error code: $UPDATE_ERROR"
+                  exit 1
+                fi
+              fi
             fi
           fi
 
