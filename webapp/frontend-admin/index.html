@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Financial Dashboard</title>
+    <meta
+      name="description"
+      content="Professional financial data dashboard with real-time stock metrics, market analysis, and portfolio tools."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      // Fix hoist-non-react-statics ContextConsumer issue in production
+      (function() {
+        // Create early React namespace
+        window.React = window.React || {};
+
+        // Intercept ContextConsumer property assignments
+        const reactDesc = Object.getOwnPropertyDescriptor(window, 'React') || { configurable: true };
+        if (reactDesc.configurable) {
+          let reactObj = window.React;
+          Object.defineProperty(window, 'React', {
+            get: () => reactObj,
+            set: (value) => {
+              if (value && typeof value === 'object') {
+                reactObj = value;
+                // Ensure ContextConsumer is always available
+                if (!reactObj.ContextConsumer) {
+                  reactObj.ContextConsumer = function() { return null; };
+                }
+              }
+            },
+            configurable: true
+          });
+        }
+
+        // Provide fallback ContextConsumer
+        if (!window.React.ContextConsumer) {
+          window.React.ContextConsumer = function() { return null; };
+        }
+      })();
+    </script>
+    <script src="/config.js"></script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

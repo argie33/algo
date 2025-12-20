@@ -1,0 +1,14 @@
+FROM python:3.11-slim
+
+# Set environment variables to suppress pip warnings
+ENV PIP_ROOT_USER_ACTION=ignore \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+
+WORKDIR /app
+COPY requirements-loadrevenueestimate.txt .
+RUN pip install -r requirements-loadrevenueestimate.txt
+
+COPY loadrevenueestimate.py .
+
+ENTRYPOINT ["python", "loadrevenueestimate.py"]

@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+**/node_modules/
+package-lock.json
+
+# Build outputs
+dist/
+**/dist/
+build/
+**/build/
+.next/
+out/
+
+# Build artifacts
+*.zip
+*.tar.gz
+*.tgz
+function.zip
+lambda-package.zip
+lambda-deployment.tar.gz
+
+# Database
+*.db
+*.sqlite
+*.sql
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Testing
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary
+*.tmp
+*.temp
+__pycache__/
+*.py[cod]

@@ -1,0 +1,35 @@
+FROM python:3.11-slim
+
+# Set environment variables to suppress pip warnings
+ENV PIP_ROOT_USER_ACTION=ignore \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Trigger: Fix missing value_metrics table in AWS (2025-10-14)
+# Deployment trigger: 2025-10-14 13:36 - Ensure value metrics loader deploys correctly
+
+
+# Set working directory
+WORKDIR /opt
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application files
+COPY loadvaluemetrics.py .
+COPY database.py .
+
+# Set executable permissions
+RUN chmod +x loadvaluemetrics.py
+
+# Set environment variables
+ENV PYTHONPATH=/opt
+ENV PYTHONUNBUFFERED=1
+
+# Run the value metrics calculator
+CMD ["python", "loadvaluemetrics.py"]

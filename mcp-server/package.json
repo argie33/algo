@@ -1,0 +1,27 @@
+{
+  "name": "stocks-algo-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP Server for Stocks Algo Platform APIs",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js",
+    "test": "node test-tools.js",
+    "test:real": "node test-real.js",
+    "test:all": "node test-all-20-tools.js",
+    "validate": "node validate-all.js",
+    "validate:full": "npm run test:all"
+  },
+  "keywords": ["mcp", "claude", "stocks", "api", "financial"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "axios": "^1.6.0",
+    "dotenv": "^16.3.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

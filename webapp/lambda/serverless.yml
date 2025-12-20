@@ -1,0 +1,96 @@
+service: stocks-algo-api
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1
+  environment:
+    # AWS Secrets Manager (preferred for production)
+    DB_SECRET_ARN: ${env:DB_SECRET_ARN}
+    # Local environment variables (fallback for development)
+    DB_HOST: ${env:DB_HOST}
+    DB_PORT: ${env:DB_PORT}
+    DB_USER: ${env:DB_USER}
+    DB_PASSWORD: ${env:DB_PASSWORD}
+    DB_NAME: ${env:DB_NAME}
+    NODE_ENV: production
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource: arn:aws:logs:${self:provider.region}:${aws:accountId}:log-group:/aws/lambda/*
+        - Effect: Allow
+          Action:
+            - ec2:CreateNetworkInterface
+            - ec2:DescribeNetworkInterfaces
+            - ec2:DeleteNetworkInterface
+          Resource: '*'
+        - Effect: Allow
+          Action:
+            - secretsmanager:GetSecretValue
+          Resource: 'arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:*'
+
+functions:
+  api:
+    handler: index.handler
+    timeout: 30
+    memorySize: 512
+    description: Stock Analysis API
+    events:
+      - httpApi:
+          path: /{proxy+}
+          method: ANY
+      - httpApi:
+          path: /
+          method: ANY
+    vpc:
+      securityGroupIds:
+        - sg-xxxxxx  # Replace with your security group
+      subnetIds:
+        - subnet-xxxxxx  # Replace with your subnet
+        - subnet-xxxxxx  # Replace with another subnet
+
+plugins:
+  - serverless-offline
+  - serverless-plugin-tracing
+
+custom:
+  serverless-offline:
+    httpPort: 3001
+    stage: ${self:provider.stage}
+
+# Create HTTP API (not REST API for better performance)
+resources:
+  Resources:
+    HttpApi:
+      Type: AWS::ApiGatewayV2::Api
+      Properties:
+        Name: stocks-algo-api
+        ProtocolType: HTTP
+        CorsConfiguration:
+          AllowOrigins:
+            - '*'
+          AllowMethods:
+            - '*'
+          AllowHeaders:
+            - '*'
+
+package:
+  patterns:
+    - '!node_modules/puppeteer/**'
+    - '!node_modules/@puppeteer/**'
+    - '!.git/**'
+    - '!.env'
+    - '!*.log'
+
+outputs:
+  ApiEndpoint:
+    Description: HTTP API endpoint URL
+    Value:
+      Fn::Sub: https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com

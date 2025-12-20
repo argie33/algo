@@ -1,0 +1,567 @@
+# Automated Testing Workflow
+# 
+# Comprehensive test automation for frontend, backend, and integration testing
+# Runs on pull requests, pushes to main, and scheduled intervals
+
+name: 🧪 Automated Testing Suite
+
+on:
+  push:
+    branches: [ main, loaddata, develop ]
+  pull_request:
+    branches: [ main, loaddata ]
+  schedule:
+    # Run comprehensive tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      test_scope:
+        description: 'Test scope to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - unit
+          - integration
+          - e2e
+          - visual
+          - performance
+          - contract
+          - security
+          - all
+      environment:
+        description: 'Environment to test against'
+        required: false
+        default: 'test'
+        type: choice
+        options:
+          - test
+          - staging
+          - production
+
+env:
+  NODE_VERSION: '20.x'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # Job 1: Frontend Testing
+  frontend-tests:
+    name: 🎨 Frontend Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    strategy:
+      matrix:
+        test-type: [unit, component, integration]
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            webapp/frontend/node_modules
+            webapp/lambda/node_modules
+            ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('webapp/*/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install frontend dependencies
+        working-directory: ./webapp/frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps
+
+      - name: Run linting
+        working-directory: ./webapp/frontend
+        run: npm run lint
+
+      - name: Run type checking
+        working-directory: ./webapp/frontend
+        run: npm run typecheck
+
+      - name: Run ${{ matrix.test-type }} tests
+        working-directory: ./webapp/frontend
+        run: npm run test:${{ matrix.test-type }}
+        env:
+          VITE_API_URL: http://localhost:3001
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-${{ matrix.test-type }}-results
+          path: |
+            webapp/frontend/coverage/
+            webapp/frontend/test-results/
+          retention-days: 7
+
+  # Job 2: Backend Testing  
+  backend-tests:
+    name: 🔧 Backend Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    
+    strategy:
+      matrix:
+        test-type: [unit, integration, security, performance]
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            webapp/frontend/node_modules
+            webapp/lambda/node_modules
+            ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('webapp/*/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install backend dependencies
+        working-directory: ./webapp/lambda
+        run: npm ci
+
+      - name: Run linting
+        working-directory: ./webapp/lambda
+        run: npm run lint
+
+      - name: Run type checking
+        working-directory: ./webapp/lambda
+        run: npm run typecheck
+
+      - name: Setup test database
+        run: |
+          # Using in-memory database for testing
+          echo "DATABASE_URL=memory://test-db" >> $GITHUB_ENV
+
+      - name: Run ${{ matrix.test-type }} tests
+        working-directory: ./webapp/lambda
+        run: npm run test:${{ matrix.test-type }}
+        env:
+          NODE_ENV: test
+          JWT_SECRET: test-jwt-secret
+          API_KEY_ENCRYPTION_SECRET: test-encryption-secret-32-characters
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-${{ matrix.test-type }}-results
+          path: |
+            webapp/lambda/coverage/
+            webapp/lambda/test-results/
+          retention-days: 7
+
+  # Job 3: Contract Testing
+  contract-tests:
+    name: 📋 API Contract Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [frontend-tests, backend-tests]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            webapp/frontend/node_modules
+            webapp/lambda/node_modules
+            ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('webapp/*/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install backend dependencies
+        working-directory: ./webapp/lambda
+        run: npm ci
+
+      - name: Install frontend dependencies  
+        working-directory: ./webapp/frontend
+        run: npm ci
+
+      - name: Run contract tests - Backend
+        working-directory: ./webapp/lambda
+        run: npm run test:contract
+        env:
+          NODE_ENV: test
+          API_BASE_URL: http://localhost:3001
+
+      - name: Run contract tests - Frontend
+        working-directory: ./webapp/frontend
+        run: npm run test -- src/tests/contract/
+        env:
+          VITE_API_URL: http://localhost:3001
+
+      - name: Generate contract test report
+        working-directory: ./webapp/lambda
+        run: npm run test:contract:run
+        if: always()
+
+      - name: Upload contract test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-test-results
+          path: |
+            webapp/lambda/test-results/contract-reports/
+          retention-days: 14
+
+  # Job 4: Visual Regression Testing
+  visual-regression-tests:
+    name: 👁️ Visual Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'pull_request' || contains(github.event.inputs.test_scope, 'visual') || contains(github.event.inputs.test_scope, 'all')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            webapp/frontend/node_modules
+            webapp/lambda/node_modules
+            ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('webapp/*/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        working-directory: ./webapp/frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps
+
+      - name: Build frontend
+        working-directory: ./webapp/frontend
+        run: npm run build
+
+      - name: Run visual regression tests
+        working-directory: ./webapp/frontend
+        run: npm run test:visual
+        env:
+          VITE_API_URL: http://localhost:3001
+
+      - name: Upload visual test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-test-results
+          path: |
+            webapp/frontend/test-results/visual-report/
+            webapp/frontend/test-results/visual-artifacts/
+          retention-days: 14
+
+  # Job 5: End-to-End Testing
+  e2e-tests:
+    name: 🎯 E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: [frontend-tests, backend-tests]
+    if: github.event_name == 'push' || contains(github.event.inputs.test_scope, 'e2e') || contains(github.event.inputs.test_scope, 'all')
+
+    strategy:
+      matrix:
+        browser: [chromium, firefox, webkit]
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            webapp/frontend/node_modules
+            webapp/lambda/node_modules
+            ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('webapp/*/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        run: |
+          cd webapp/frontend && npm ci
+          cd ../lambda && npm ci
+          npx playwright install --with-deps
+
+      - name: Start backend server
+        working-directory: ./webapp/lambda
+        run: |
+          npm start &
+          sleep 10
+        env:
+          NODE_ENV: test
+          PORT: 3001
+
+      - name: Start frontend server
+        working-directory: ./webapp/frontend
+        run: |
+          npm run dev &
+          sleep 10
+        env:
+          VITE_API_URL: http://localhost:3001
+
+      - name: Wait for servers
+        run: |
+          npx wait-on http://localhost:3000 http://localhost:3001 --timeout 60000
+
+      - name: Run E2E tests - ${{ matrix.browser }}
+        working-directory: ./webapp/frontend
+        run: npm run test:e2e -- --project=${{ matrix.browser }}
+
+      - name: Upload E2E test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results-${{ matrix.browser }}
+          path: |
+            webapp/frontend/test-results/e2e/
+            webapp/frontend/playwright-report/
+          retention-days: 14
+
+  # Job 6: Performance Testing
+  performance-tests:
+    name: ⚡ Performance Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    if: github.ref == 'refs/heads/main' || contains(github.event.inputs.test_scope, 'performance') || contains(github.event.inputs.test_scope, 'all')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            webapp/frontend/node_modules
+            webapp/lambda/node_modules
+            ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('webapp/*/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        run: |
+          cd webapp/frontend && npm ci
+          cd ../lambda && npm ci
+
+      - name: Run backend performance tests
+        working-directory: ./webapp/lambda
+        run: npm run test:performance
+        env:
+          NODE_ENV: test
+
+      - name: Run frontend performance tests
+        working-directory: ./webapp/frontend
+        run: npm run test:performance
+        env:
+          VITE_API_URL: http://localhost:3001
+
+      - name: Upload performance results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-test-results
+          path: |
+            webapp/frontend/test-results/performance/
+            webapp/lambda/test-results/performance/
+          retention-days: 30
+
+  # Job 7: Security Testing
+  security-tests:
+    name: 🛡️ Security Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            webapp/frontend/node_modules
+            webapp/lambda/node_modules
+            ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('webapp/*/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        run: |
+          cd webapp/frontend && npm ci
+          cd ../lambda && npm ci
+
+      - name: Run security audit
+        run: |
+          cd webapp/frontend && npm audit --audit-level=high
+          cd ../lambda && npm audit --audit-level=high
+
+      - name: Run security tests
+        working-directory: ./webapp/lambda
+        run: npm run test:security
+        env:
+          NODE_ENV: test
+
+      - name: Upload security test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-test-results
+          path: |
+            webapp/lambda/test-results/security/
+          retention-days: 30
+
+  # Job 8: Test Results Summary
+  test-summary:
+    name: 📊 Test Summary
+    runs-on: ubuntu-latest
+    needs: [frontend-tests, backend-tests, contract-tests, visual-regression-tests, e2e-tests, performance-tests, security-tests]
+    if: always()
+
+    steps:
+      - name: Download all test artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: test-results
+
+      - name: Generate test summary
+        run: |
+          echo "# 🧪 Test Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Test Results by Category" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Count successful jobs
+          total_jobs=0
+          passed_jobs=0
+          
+          for job in "frontend-tests" "backend-tests" "contract-tests" "visual-regression-tests" "e2e-tests" "performance-tests" "security-tests"; do
+            total_jobs=$((total_jobs + 1))
+            if [ "${{ needs[job].result }}" = "success" ]; then
+              echo "✅ **$job**: Passed" >> $GITHUB_STEP_SUMMARY
+              passed_jobs=$((passed_jobs + 1))
+            elif [ "${{ needs[job].result }}" = "failure" ]; then
+              echo "❌ **$job**: Failed" >> $GITHUB_STEP_SUMMARY
+            elif [ "${{ needs[job].result }}" = "skipped" ]; then
+              echo "⏭️ **$job**: Skipped" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "⚠️ **$job**: ${{ needs[job].result }}" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Overall Results" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total Jobs**: $total_jobs" >> $GITHUB_STEP_SUMMARY
+          echo "- **Passed**: $passed_jobs" >> $GITHUB_STEP_SUMMARY
+          echo "- **Success Rate**: $(($passed_jobs * 100 / $total_jobs))%" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ $passed_jobs -eq $total_jobs ]; then
+            echo "🎉 **All tests passed!**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ **Some tests failed. Please review the individual job results.**" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync(process.env.GITHUB_STEP_SUMMARY, 'utf8');
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });
+
+  # Job 9: Deployment Readiness Check
+  deployment-readiness:
+    name: 🚀 Deployment Ready
+    runs-on: ubuntu-latest
+    needs: [frontend-tests, backend-tests, contract-tests, security-tests]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Check deployment readiness
+        run: |
+          if [ "${{ needs.frontend-tests.result }}" = "success" ] && 
+             [ "${{ needs.backend-tests.result }}" = "success" ] && 
+             [ "${{ needs.contract-tests.result }}" = "success" ] && 
+             [ "${{ needs.security-tests.result }}" = "success" ]; then
+            echo "✅ Deployment ready - All critical tests passed"
+            echo "deployment_ready=true" >> $GITHUB_ENV
+          else
+            echo "❌ Deployment blocked - Critical tests failed"
+            echo "deployment_ready=false" >> $GITHUB_ENV
+            exit 1
+          fi
+
+      - name: Create deployment status
+        if: env.deployment_ready == 'true'
+        run: |
+          echo "🎉 **Ready for deployment!**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All critical test suites have passed:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Frontend tests" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Backend tests" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Contract tests" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Security tests" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The application is ready for deployment to production." >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,23 @@
+{
+  "name": "alpaca-trading-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP Server for Alpaca Paper Trading API",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js",
+    "test": "node test.js",
+    "test:account": "node test-account.js"
+  },
+  "keywords": ["mcp", "claude", "alpaca", "trading", "paper-trading"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "dotenv": "^16.3.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

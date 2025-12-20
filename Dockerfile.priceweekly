@@ -1,0 +1,32 @@
+FROM python:3.11-slim
+
+# Set environment variables to suppress pip warnings
+ENV PIP_ROOT_USER_ACTION=ignore \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements-loadprice.txt .
+
+# Install Python dependencies
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadprice.txt
+
+# Copy the script
+COPY loadpriceweekly.py .
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV LOG_LEVEL=ERROR
+
+# Run the script
+CMD ["python", "loadpriceweekly.py"]
+# Trigger Mon Oct 7 01:45 CDT 2025 - Deploy price loaders for weekly/monthly signals
+# Trigger Mon Oct 7 02:15 CDT 2025 - Fix Dockerfile base image

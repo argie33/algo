@@ -1,0 +1,3 @@
+# Data Integrity - Real Data Only Functions
+# Do not auto-format these functions - real data queries must be preserved exactly
+utils/tradingModeHelper.js

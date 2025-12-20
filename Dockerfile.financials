@@ -1,0 +1,15 @@
+ARG REGISTRY=python
+ARG TAG=3.11-slim
+FROM ${REGISTRY}:${TAG}
+
+WORKDIR /app
+
+# Copy requirements and script
+COPY requirements-loadfinancials.txt .
+COPY loadfinancials.py .
+
+# Install the requirements
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadfinancials.txt
+
+# Set the entrypoint
+ENTRYPOINT ["python", "loadfinancials.py"]

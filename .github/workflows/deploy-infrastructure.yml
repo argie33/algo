@@ -1,0 +1,165 @@
+name: Deploy Infrastructure (RDS/ECS/Secrets)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - template-app-stocks.yml
+      - .github/workflows/deploy-infrastructure.yml
+  workflow_dispatch:
+  # Also trigger on any push to main for debugging
+  repository_dispatch:
+    types: [deploy-infrastructure]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy-infrastructure:
+    name: Deploy CloudFormation Stack
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy-infrastructure
+          aws-region: us-east-1
+
+      - name: Check RDS status BEFORE deployment
+        run: |
+          echo "=========================================="
+          echo "📊 BEFORE DEPLOYMENT - RDS Status"
+          echo "=========================================="
+          aws rds describe-db-instances \
+            --db-instance-identifier stocks \
+            --region us-east-1 \
+            --query 'DBInstances[0].[DBInstanceStatus,AllocatedStorage,MaxAllocatedStorage,StorageType]' \
+            --output table
+          echo ""
+
+      - name: Deploy stocks-app-stack
+        run: |
+          echo "=========================================="
+          echo "🚀 Deploying stocks-app-stack"
+          echo "=========================================="
+          echo "Template change: AllocatedStorage = 31GB (was 20GB)"
+          echo ""
+
+          # Try to update stack, capture output and exit code
+          UPDATE_OUTPUT=$(aws cloudformation update-stack \
+            --stack-name stocks-app-stack \
+            --region us-east-1 \
+            --template-body file://template-app-stocks.yml \
+            --capabilities CAPABILITY_IAM \
+            --parameters \
+              ParameterKey=RDSUsername,UsePreviousValue=true \
+              ParameterKey=RDSPassword,UsePreviousValue=true \
+              ParameterKey=FREDApiKey,UsePreviousValue=true 2>&1) || true
+
+          echo "CloudFormation response:"
+          echo "$UPDATE_OUTPUT"
+          echo ""
+
+          # Check if update was successful or no changes needed
+          if echo "$UPDATE_OUTPUT" | grep -iq "No updates"; then
+            echo "⚠️ WARNING: CloudFormation says 'No updates needed'"
+            echo "This means template drift - will attempt direct RDS modification"
+            exit 1  # Force workflow to next step
+          elif echo "$UPDATE_OUTPUT" | grep -q "StackId"; then
+            echo "✅ Stack update initiated!"
+            echo "⏳ Waiting for stack update to complete (10-15 minutes)..."
+            echo ""
+            aws cloudformation wait stack-update-complete \
+              --stack-name stocks-app-stack \
+              --region us-east-1
+            echo ""
+            echo "✅ Stack update complete!"
+          else
+            echo "⚠️ Unexpected CloudFormation response"
+            echo "Checking current stack status..."
+            aws cloudformation describe-stacks \
+              --stack-name stocks-app-stack \
+              --region us-east-1 \
+              --query 'Stacks[0].[StackStatus,StackStatusReason]' \
+              --output table
+            exit 1
+          fi
+
+      - name: Check CloudFormation stack events
+        if: success() || failure()
+        run: |
+          echo "=========================================="
+          echo "📋 CloudFormation Stack Events"
+          echo "=========================================="
+          aws cloudformation describe-stack-events \
+            --stack-name stocks-app-stack \
+            --region us-east-1 \
+            --max-items 15 \
+            --query 'StackEvents[].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]' \
+            --output table
+          echo ""
+
+      - name: Check RDS status AFTER deployment
+        if: success() || failure()
+        run: |
+          echo "=========================================="
+          echo "📊 AFTER DEPLOYMENT - RDS Status"
+          echo "=========================================="
+          RDS_STATUS=$(aws rds describe-db-instances \
+            --db-instance-identifier stocks \
+            --region us-east-1 \
+            --query 'DBInstances[0].[DBInstanceStatus,AllocatedStorage,MaxAllocatedStorage,StorageType,PendingModifiedValues]' \
+            --output json)
+
+          echo "$RDS_STATUS" | jq -r '
+            "Status: \(.[0])",
+            "Current Storage: \(.[1])GB",
+            "Max Autoscaling: \(.[2] // "None")GB",
+            "Storage Type: \(.[3])",
+            "Pending Changes: \(.[4] | if . == {} then "None" else . end)"
+          '
+          echo ""
+
+          # Check if storage actually increased
+          CURRENT_STORAGE=$(echo "$RDS_STATUS" | jq -r '.[1]')
+          if [ "$CURRENT_STORAGE" -ge "31" ]; then
+            echo "✅ SUCCESS: RDS storage increased to ${CURRENT_STORAGE}GB!"
+          elif [ "$CURRENT_STORAGE" -eq "20" ]; then
+            echo "❌ FAILED: RDS still at 20GB - storage was NOT updated"
+            echo "This indicates CloudFormation drift or permissions issue"
+            exit 1
+          else
+            echo "⚠️ WARNING: RDS storage is ${CURRENT_STORAGE}GB (expected 31GB)"
+          fi
+
+      - name: Summary
+        if: success()
+        run: |
+          FINAL_STORAGE=$(aws rds describe-db-instances \
+            --db-instance-identifier stocks \
+            --region us-east-1 \
+            --query 'DBInstances[0].AllocatedStorage' \
+            --output text)
+
+          MAX_STORAGE=$(aws rds describe-db-instances \
+            --db-instance-identifier stocks \
+            --region us-east-1 \
+            --query 'DBInstances[0].MaxAllocatedStorage' \
+            --output text)
+
+          echo "### ✅ Infrastructure Deployment Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Stack:** stocks-app-stack" >> $GITHUB_STEP_SUMMARY
+          echo "**Region:** us-east-1" >> $GITHUB_STEP_SUMMARY
+          echo "**RDS Storage:** ${FINAL_STORAGE}GB (was 20GB)" >> $GITHUB_STEP_SUMMARY
+          echo "**Max Autoscaling:** ${MAX_STORAGE}GB" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** UPDATE_COMPLETE" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🎉 Database storage successfully expanded!" >> $GITHUB_STEP_SUMMARY

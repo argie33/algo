@@ -1,0 +1,445 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Financial Dashboard Webapp - Serverless backend with Lambda functions and frontend deployment
+  Uses SAM for API Gateway + Lambda deployment with RDS connectivity
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Environment name for resource naming and configuration
+
+  DatabaseSecretArn:
+    Type: String
+    Description: ARN of the RDS database secret (imported from stocks app stack)
+
+  DatabaseEndpoint:
+    Type: String
+    Description: RDS database endpoint (imported from stocks app stack)
+
+Globals:
+  Function:
+    Timeout: 60
+    Runtime: nodejs18.x
+    Environment:
+      Variables:
+        DB_SECRET_ARN: !Ref DatabaseSecretArn
+        DB_ENDPOINT: !Ref DatabaseEndpoint
+        ENVIRONMENT: !Ref EnvironmentName
+        COGNITO_USER_POOL_ID: !Ref UserPool
+        COGNITO_CLIENT_ID: !Ref UserPoolClient
+        WEBAPP_AWS_REGION: !Ref AWS::Region
+
+Resources:
+  # Cognito User Pool for authentication
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub 'stocks-webapp-user-pool-${EnvironmentName}'
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailMessage: 'Your verification code is {####}'
+        EmailSubject: 'Your verification code'
+      UserPoolTags:
+        Project: stocks-webapp
+        Environment: !Ref EnvironmentName
+
+  # Cognito User Pool Client
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: !Sub 'stocks-webapp-client-${EnvironmentName}'
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+      CallbackURLs:
+        - 'https://placeholder.example.com'
+        - 'http://localhost:5173'
+        - 'http://localhost:3000'
+      LogoutURLs:
+        - 'https://placeholder.example.com'
+        - 'http://localhost:5173'
+        - 'http://localhost:3000'
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      AllowedOAuthFlowsUserPoolClient: true
+
+  # Cognito User Pool Domain
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref UserPool
+      Domain: !Sub 'stocks-webapp-${EnvironmentName}-${AWS::AccountId}'
+  # S3 Bucket for frontend hosting
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'stocks-webapp-frontend-${EnvironmentName}-${AWS::AccountId}'
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+  # Origin Access Control for CloudFront (newer than OAI)
+  OriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub 'dev-frontend-oac'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4  # Bucket Policy to allow CloudFront access via OAC
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Statement:
+          - Sid: AllowCloudFrontAccess
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub '${FrontendBucket.Arn}/*'
+
+  # Explicit API Gateway with CORS (defined first to avoid circular dependency)
+  ServerlessRestApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub 'stocks-webapp-api-${EnvironmentName}'
+      StageName: dev
+      OpenApiVersion: 3.0.1
+      EndpointConfiguration:
+        Type: REGIONAL
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          LoggingLevel: INFO
+          DataTraceEnabled: false
+          MetricsEnabled: true
+      Cors:
+        AllowMethods: "'GET,POST,OPTIONS,PUT,DELETE,PATCH'"
+        AllowHeaders: "'*'"
+        AllowOrigin: "'*'"
+        AllowCredentials: "'true'"
+
+  # Main API Lambda function (handles all routes)
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'stocks-webapp-api-${EnvironmentName}'
+      CodeUri: webapp/lambda/
+      Handler: index.handler
+      Environment:
+        Variables:
+          DB_SECRET_ARN: !Ref DatabaseSecretArn
+          DB_ENDPOINT: !Ref DatabaseEndpoint
+          ENVIRONMENT: !Ref EnvironmentName
+          COGNITO_USER_POOL_ID: !Ref UserPool
+          COGNITO_CLIENT_ID: !Ref UserPoolClient
+          WEBAPP_AWS_REGION: !Ref AWS::Region
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Ref DatabaseSecretArn
+            - Effect: Allow
+              Action:
+                - rds:DescribeDBInstances
+                - rds:DescribeDBClusters
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+                - logs:DescribeLogStreams
+                - logs:GetLogEvents
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminGetUser
+                - cognito-idp:AdminCreateUser
+                - cognito-idp:AdminUpdateUserAttributes
+                - cognito-idp:AdminDeleteUser
+              Resource: !GetAtt UserPool.Arn
+      Events:
+        ApiProxy:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+            RestApiId: !Ref ServerlessRestApi
+        ApiRoot:
+          Type: Api
+          Properties:
+            Path: /
+            Method: ANY
+            RestApiId: !Ref ServerlessRestApi
+
+  # Lambda Permission for API Gateway
+  LambdaApiGatewayPermission:
+    Type: AWS::Lambda::Permission
+    DependsOn: 
+      - ServerlessRestApi
+      - ApiFunction
+    Properties:
+      FunctionName: !GetAtt ApiFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ServerlessRestApi}/*/*'
+
+  # CloudWatch Log Group for API Gateway
+  ApiGatewayLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/apigateway/stocks-webapp-${EnvironmentName}'
+      RetentionInDays: 3
+
+  # CloudWatch Log Group for Lambda
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/stocks-webapp-api-${EnvironmentName}'
+      RetentionInDays: 3
+
+  # IAM Role for Lambda execution
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DatabaseAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref DatabaseSecretArn
+              - Effect: Allow
+                Action:
+                  - rds:DescribeDBInstances
+                  - rds:DescribeDBClusters
+                Resource: '*'
+
+  # CloudWatch Alarm for Lambda performance
+  LambdaPerformanceAlarm:
+    Type: AWS::CloudWatch::Alarm
+    DependsOn: ApiFunction
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-lambda-high-duration'
+      AlarmDescription: Lambda function duration is high
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 10000
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ApiFunction
+
+  # CloudWatch Alarm for API Gateway performance
+  ApiGatewayPerformanceAlarm:
+    Type: AWS::CloudWatch::Alarm
+    DependsOn: ServerlessRestApi
+    Properties:
+      AlarmName: !Sub '${AWS::StackName}-api-high-latency'
+      AlarmDescription: API Gateway latency is high
+      MetricName: Latency
+      Namespace: AWS/ApiGateway
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 1000
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: ApiName
+          Value: !Ref ServerlessRestApi
+
+  # IAM Role for API Gateway CloudWatch Logs
+  ApiGatewayCloudWatchLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+
+  # API Gateway Account configuration
+  ApiGatewayAccount:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
+
+  # API Gateway Deployment (forces stage deployment)
+  ApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ApiFunction
+      - ServerlessRestApi
+    Properties:
+      RestApiId: !Ref ServerlessRestApi
+      StageName: dev
+      Description: !Sub 'Deployment for ${AWS::StackName} - ${AWS::StackId}'
+
+  # CloudFront Distribution
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn:
+      - FrontendBucket
+      - OriginAccessControl
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        PriceClass: PriceClass_100
+        HttpVersion: http2
+        IPV6Enabled: true
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            S3OriginConfig: {}
+            OriginAccessControlId: !Ref OriginAccessControl
+          - Id: ApiOrigin
+            DomainName: !Sub '${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com'
+            CustomOriginConfig:
+              HTTPPort: 443
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # Managed-CachingOptimized
+          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf  # Managed-CORS-S3Origin
+          ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03  # Managed-SecurityHeadersPolicy
+        CacheBehaviors:
+          - PathPattern: /api/*
+            TargetOriginId: ApiOrigin
+            ViewerProtocolPolicy: https-only
+            AllowedMethods:
+              - DELETE
+              - GET
+              - HEAD
+              - OPTIONS
+              - PATCH
+              - POST
+              - PUT
+            CachedMethods:
+              - GET
+              - HEAD
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad  # Managed-CachingDisabled
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac  # Managed-AllViewerExceptHostHeader
+            ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03  # Managed-SecurityHeadersPolicy
+            Compress: true
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+
+Outputs:
+  # Required outputs for the workflow
+  FrontendBucketName:
+    Description: Name of the S3 bucket for frontend hosting
+    Value: !Ref FrontendBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-FrontendBucketName'
+
+  CloudFrontDistributionId:
+    Description: ID of the CloudFront distribution
+    Value: !Ref CloudFrontDistribution
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudFrontDistributionId'
+
+  ApiGatewayUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/dev'
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiGatewayUrl'
+
+  WebsiteURL:
+    Description: CloudFront URL for the website
+    Value: !Sub 'https://${CloudFrontDistribution.DomainName}'
+    Export:
+      Name: !Sub '${AWS::StackName}-WebsiteURL'
+      
+  EnvironmentName:
+    Description: Environment name
+    Value: dev
+    Export:
+      Name: !Sub '${AWS::StackName}-Environment'
+
+  StackName:
+    Description: Stack name
+    Value: !Ref AWS::StackName
+    Export:
+      Name: !Sub '${AWS::StackName}-StackName'
+
+  # Cognito outputs for frontend configuration
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolId'
+
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolClientId'
+
+  UserPoolDomain:
+    Description: Cognito User Pool Domain
+    Value: !Sub 'https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com'
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolDomain'
