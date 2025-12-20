@@ -281,28 +281,29 @@ def load_ttm_cash_flow(symbols: List[str], cur, conn) -> Tuple[int, int, List[st
     return total, processed, failed
 
 def create_table(cur, conn):
-    """Create the TTM cash flow table"""
-    logging.info("Creating TTM cash flow table...")
-    cur.execute("DROP TABLE IF EXISTS ttm_cash_flow CASCADE;")
-    
-    create_table_sql = """
-        CREATE TABLE ttm_cash_flow (
-            symbol VARCHAR(20) NOT NULL,
-            date DATE NOT NULL,
-            item_name TEXT NOT NULL,
-            value DOUBLE PRECISION NOT NULL,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW(),
-            PRIMARY KEY(symbol, date, item_name)
-        );
-        
-        CREATE INDEX idx_ttm_cash_flow_symbol ON ttm_cash_flow(symbol);
-        CREATE INDEX idx_ttm_cash_flow_date ON ttm_cash_flow(date);
-        CREATE INDEX idx_ttm_cash_flow_item ON ttm_cash_flow(item_name);
-    """
-    cur.execute(create_table_sql)
-    conn.commit()
-    logging.info("Created TTM cash flow table")
+    """Create the TTM cash flow table if it doesn't exist"""
+    logging.info("Creating TTM cash flow table if needed...")
+    try:
+        create_table_sql = """
+            CREATE TABLE IF NOT EXISTS ttm_cash_flow (
+                symbol VARCHAR(20) NOT NULL,
+                date DATE NOT NULL,
+                item_name TEXT NOT NULL,
+                value DOUBLE PRECISION NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW(),
+                PRIMARY KEY(symbol, date, item_name)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_ttm_cash_flow_symbol ON ttm_cash_flow(symbol);
+            CREATE INDEX IF NOT EXISTS idx_ttm_cash_flow_date ON ttm_cash_flow(date);
+            CREATE INDEX IF NOT EXISTS idx_ttm_cash_flow_item ON ttm_cash_flow(item_name);
+        """
+        cur.execute(create_table_sql)
+        conn.commit()
+        logging.info("Created TTM cash flow table if needed")
+    except Exception as e:
+        logging.info(f"Table likely exists: {e}")
 
 if __name__ == "__main__":
     log_mem("startup")

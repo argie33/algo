@@ -281,28 +281,29 @@ def load_ttm_income_statement(symbols: List[str], cur, conn) -> Tuple[int, int, 
     return total, processed, failed
 
 def create_table(cur, conn):
-    """Create the TTM income statement table"""
-    logging.info("Creating TTM income statement table...")
-    cur.execute("DROP TABLE IF EXISTS ttm_income_statement CASCADE;")
-    
-    create_table_sql = """
-        CREATE TABLE ttm_income_statement (
-            symbol VARCHAR(20) NOT NULL,
-            date DATE NOT NULL,
-            item_name TEXT NOT NULL,
-            value DOUBLE PRECISION NOT NULL,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW(),
-            PRIMARY KEY(symbol, date, item_name)
-        );
-        
-        CREATE INDEX idx_ttm_income_statement_symbol ON ttm_income_statement(symbol);
-        CREATE INDEX idx_ttm_income_statement_date ON ttm_income_statement(date);
-        CREATE INDEX idx_ttm_income_statement_item ON ttm_income_statement(item_name);
-    """
-    cur.execute(create_table_sql)
-    conn.commit()
-    logging.info("Created TTM income statement table")
+    """Create the TTM income statement table if it doesn't exist"""
+    logging.info("Creating TTM income statement table if needed...")
+    try:
+        create_table_sql = """
+            CREATE TABLE IF NOT EXISTS ttm_income_statement (
+                symbol VARCHAR(20) NOT NULL,
+                date DATE NOT NULL,
+                item_name TEXT NOT NULL,
+                value DOUBLE PRECISION NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW(),
+                PRIMARY KEY(symbol, date, item_name)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_ttm_income_statement_symbol ON ttm_income_statement(symbol);
+            CREATE INDEX IF NOT EXISTS idx_ttm_income_statement_date ON ttm_income_statement(date);
+            CREATE INDEX IF NOT EXISTS idx_ttm_income_statement_item ON ttm_income_statement(item_name);
+        """
+        cur.execute(create_table_sql)
+        conn.commit()
+        logging.info("Created TTM income statement table if needed")
+    except Exception as e:
+        logging.info(f"Table likely exists: {e}")
 
 if __name__ == "__main__":
     log_mem("startup")
