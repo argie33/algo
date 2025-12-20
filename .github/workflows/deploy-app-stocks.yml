@@ -323,6 +323,12 @@ jobs:
             echo "📊 INFO: RDS storage = ${CURRENT_STORAGE}GB"
           fi
 
+      - name: Create missing log groups
+        run: |
+          echo "Pre-flight: Creating any missing CloudWatch log groups..."
+          chmod +x scripts/create-missing-log-groups.sh
+          ./scripts/create-missing-log-groups.sh
+
       - name: Deploy ECS tasks stack
         run: |
           echo "Deploying ECS tasks infrastructure..."
