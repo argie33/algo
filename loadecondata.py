@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Economic data loader - Fed data, inflation, employment, GDP
 # Trigger deploy-app-stocks workflow - loadecondata v4.6 - EXPANDED FRED SERIES + RECESSION INDICATORS - DEPLOY NOW
-# Trigger: 20251220-INFRA-FIXED - Update stale economic_data after infrastructure deployment 
+# Trigger: 20251220-FINAL - Update stale economic_data after infrastructure deployment 
 import sys
 import os
 import json
