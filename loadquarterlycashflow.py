@@ -323,16 +323,6 @@ if __name__ == "__main__":
     except Exception as e:
         conn.rollback()
         pass
-    else:
-        # Socket auth fallback (local development)
-        try:
-            conn = psycopg2.connect(
-                dbname=cfg["dbname"],
-                user="stocks"
-            )
-        except Exception as e:
-            logging.error(f"Failed both password and socket auth: {e}")
-            sys.exit(1)
 
     # Load stock symbols
     cur.execute("SELECT symbol FROM stock_symbols;")
