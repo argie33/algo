@@ -18,7 +18,7 @@ Trigger: 20251026_120000 - AWS deployment final scoring engine (all data ready)
 Calculates and stores improved stock scores using multi-factor analysis.
 Deploy stock scores calculation to populate comprehensive quality metrics.
 FIX: Trigger rebuild - Docker image has old code with scoring_engine import error.
-Trigger: 20251220 - Update stale technical_data_daily (24 days old, last: 2025-11-26)
+Trigger: 20251220-INFRA-FIXED - Update stale technical_data_daily after infrastructure deployment
 CRITICAL FIX: Wrapped sentiment, analyst_recommendations, and institutional_positioning
 queries in try-except blocks to handle missing tables gracefully with rollback.
 Trigger: Force rebuild to test AWS deployment with correct environment variables.
