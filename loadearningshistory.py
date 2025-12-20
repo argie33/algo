@@ -43,9 +43,9 @@ def log_mem(stage: str):
 # -------------------------------
 # Retry settings
 # -------------------------------
-MAX_BATCH_RETRIES = 3
-INITIAL_RETRY_DELAY = 0.15  # seconds, will use exponential backoff
-BATCH_PAUSE = 3.0  # pause between symbols in a batch - yfinance free tier MAX ~20 req/min
+MAX_BATCH_RETRIES = 5
+INITIAL_RETRY_DELAY = 0.5  # seconds, will use exponential backoff
+BATCH_PAUSE = 8.0  # pause between symbols in a batch - yfinance free tier MAX ~20 req/min, increased to avoid rate limiting with concurrent loaders
 
 # -------------------------------
 # DB config loader
