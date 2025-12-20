@@ -1,0 +1,210 @@
+import {
+  Box,
+  Card,
+  CardContent,
+  Grid,
+  LinearProgress,
+  Typography,
+  Alert,
+  Paper,
+  Chip,
+} from "@mui/material";
+import { TrendingUp, TrendingDown } from "@mui/icons-material";
+import { useTheme, alpha } from "@mui/material/styles";
+
+const MarketIndices = ({ data, isLoading, error }) => {
+  const theme = useTheme();
+
+  if (isLoading) {
+    return <LinearProgress />;
+  }
+
+  if (error) {
+    return (
+      <Alert severity="error">
+        Unable to load market indices data. {error?.message}
+      </Alert>
+    );
+  }
+
+  // Since /indices endpoint returns empty, show placeholder with major indices
+  const majorIndices = [
+    { symbol: "^GSPC", name: "S&P 500", sector: "Broad Market" },
+    { symbol: "^IXIC", name: "NASDAQ Composite", sector: "Technology Heavy" },
+    { symbol: "^DJI", name: "Dow Jones Industrial", sector: "Large Cap" },
+    { symbol: "^GSPTSE", name: "TSX Composite", sector: "Canadian" },
+    { symbol: "^FTSE", name: "FTSE 100", sector: "British" },
+    { symbol: "^N225", name: "Nikkei 225", sector: "Japanese" },
+  ];
+
+  return (
+    <Box>
+      <Alert severity="info" sx={{ mb: 3 }}>
+        📊 <strong>Market Indices</strong> - Global equity indices tracking major market
+        movements. Data will display when real-time index prices are available.
+      </Alert>
+
+      <Grid container spacing={3}>
+        {/* Major Indices Overview */}
+        <Grid item xs={12}>
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+            Major Global Indices
+          </Typography>
+
+          <Grid container spacing={2}>
+            {majorIndices.map((index) => (
+              <Grid item xs={12} sm={6} md={4} key={index.symbol}>
+                <Card sx={{ height: "100%" }}>
+                  <CardContent>
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
+                        {index.sector}
+                      </Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5 }}>
+                        {index.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {index.symbol}
+                      </Typography>
+                    </Box>
+
+                    <Box
+                      sx={{
+                        p: 2,
+                        bgcolor: alpha(theme.palette.primary.main, 0.05),
+                        borderRadius: 1,
+                        textAlign: "center",
+                      }}
+                    >
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                        Price
+                      </Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 600, color: "text.primary" }}>
+                        —
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                        Real-time data coming soon
+                      </Typography>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        </Grid>
+
+        {/* Index Information */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                What Are Market Indices?
+              </Typography>
+
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <Box sx={{ p: 2, bgcolor: "grey.50", borderRadius: 1 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                    📈 S&P 500 (^GSPC)
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Tracks the 500 largest US companies. Considered the primary barometer of the
+                    US economy and market health.
+                  </Typography>
+                </Box>
+
+                <Box sx={{ p: 2, bgcolor: "grey.50", borderRadius: 1 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                    💻 NASDAQ Composite (^IXIC)
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Includes all stocks listed on NASDAQ exchange, heavily weighted toward
+                    technology and growth companies.
+                  </Typography>
+                </Box>
+
+                <Box sx={{ p: 2, bgcolor: "grey.50", borderRadius: 1 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                    🏢 Dow Jones Industrial (^DJI)
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Price-weighted index of 30 blue-chip US companies across diverse sectors.
+                    One of the oldest and most recognized indices.
+                  </Typography>
+                </Box>
+
+                <Box sx={{ p: 2, bgcolor: "grey.50", borderRadius: 1 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                    🌍 International Indices
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    TSX (Canada), FTSE (UK), and Nikkei (Japan) represent major market regions
+                    outside the United States.
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Index Stats */}
+        <Grid item xs={12}>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent sx={{ textAlign: "center" }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    Total Indices Tracked
+                  </Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                    {majorIndices.length}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent sx={{ textAlign: "center" }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    US Indices
+                  </Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                    3
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent sx={{ textAlign: "center" }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    International
+                  </Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                    3
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={3}>
+              <Card>
+                <CardContent sx={{ textAlign: "center" }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    Update Frequency
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    Real-time
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+};
+
+export default MarketIndices;

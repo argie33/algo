@@ -1,0 +1,13 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Copy requirements and install dependencies
+COPY requirements-loadqualitymetrics.txt .
+RUN pip install --no-cache-dir --prefer-binary -r requirements-loadqualitymetrics.txt
+
+# Copy the loader script
+COPY loadqualitymetrics.py .
+
+# Run the loader
+CMD ["python", "loadqualitymetrics.py"]

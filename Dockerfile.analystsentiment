@@ -1,0 +1,15 @@
+ARG REGISTRY=python
+ARG TAG=3.11-slim
+FROM ${REGISTRY}:${TAG}
+
+WORKDIR /app
+
+# Copy requirements and script
+COPY requirements-loadanalystsentiment.txt .
+COPY loadanalystsentiment.py .
+
+# Install the requirements
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadanalystsentiment.txt
+
+# Set the entrypoint
+ENTRYPOINT ["python", "loadanalystsentiment.py"]

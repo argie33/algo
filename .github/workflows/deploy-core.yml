@@ -1,0 +1,81 @@
+# .github/workflows/deploy-core.yml
+  name: Deploy core infrastructure
+
+  on:
+    # Disabled to prevent unnecessary runs - enable manually when needed
+    # push:
+    #   branches: [ "**" ]
+    #   paths:
+    #     - 'template-core.yml'
+    #     - '.github/workflows/deploy-core.yml'
+    workflow_dispatch:
+
+  permissions:
+    id-token: write
+    contents: read
+
+  jobs:
+    deploy_core:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Check out repository
+          uses: actions/checkout@v3
+
+        - name: Configure AWS credentials via OIDC
+          uses: aws-actions/configure-aws-credentials@v2
+          with:
+            role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+            role-session-name: github-deploy
+            aws-region: us-east-1
+            audience: sts.amazonaws.com
+
+        - name: Cleanup failed core stack if needed
+          run: |
+            STATUS=$(aws cloudformation describe-stacks \
+              --stack-name stocks-core-stack \
+              --query "Stacks[0].StackStatus" \
+              --output text 2>/dev/null || echo NOT_FOUND)
+            if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+              aws cloudformation delete-stack --stack-name stocks-core-stack
+              aws cloudformation wait stack-delete-complete --stack-name stocks-core-stack
+            fi
+
+        - name: Deploy core CloudFormation stack
+          run: |
+            aws cloudformation deploy \
+              --stack-name stocks-core-stack \
+              --template-file template-core.yml \
+              --s3-bucket stocks-cf-templates \
+              --capabilities CAPABILITY_NAMED_IAM \
+              --no-fail-on-empty-changeset
+
+        - name: Wait for Bastion to be running
+          id: wait_bastion
+          run: |
+            INSTANCE_ID=$(aws ec2 describe-instances \
+              --filters "Name=tag:Name,Values=stocks-bastion" \
+                      "Name=instance-state-name,Values=pending,running" \
+              --query "Reservations[0].Instances[0].InstanceId" \
+              --output text)
+            aws ec2 wait instance-running --instance-ids "$INSTANCE_ID"
+            echo "id=$INSTANCE_ID" >> $GITHUB_OUTPUT
+
+        - name: Wait for Bastion to be fully initialized
+          run: |
+            aws ec2 wait instance-status-ok --instance-ids "${{ steps.wait_bastion.outputs.id }}"
+            sleep 15
+
+        - name: Verify Bastion setup via SSM
+          run: |
+            INSTANCE_ID=${{ steps.wait_bastion.outputs.id }}
+            COMMAND_ID=$(aws ssm send-command \
+              --instance-ids "$INSTANCE_ID" \
+              --document-name AWS-RunShellScript \
+              --parameters commands=["psql --version"] \
+              --query "Command.CommandId" --output text)
+            sleep 15
+            OUTPUT=$(aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id "$INSTANCE_ID" \
+              --query "StandardOutputContent" --output text)
+            echo "$OUTPUT" | grep -q "psql" || (echo "ERROR: psql not installed" && exit 1)

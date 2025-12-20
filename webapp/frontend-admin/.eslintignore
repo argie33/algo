@@ -1,0 +1,12 @@
+dist/
+node_modules/
+.eslintrc.cjs
+vite.config.js
+scripts/
+coverage/
+public/
+playwright-report/
+test-results/
+.vite/
+.cache/
+*.config.js

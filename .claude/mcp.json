@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "stocks-algo": {
+      "command": "node",
+      "args": ["/home/stocks/algo/mcp-server/index.js"],
+      "env": {
+        "NODE_ENV": "development",
+        "API_URL_DEV": "http://localhost:3001",
+        "DEV_AUTH_TOKEN": "dev-bypass-token"
+      },
+      "disabled": false,
+      "description": "Stocks Algo Platform API Access"
+    }
+  }
+}

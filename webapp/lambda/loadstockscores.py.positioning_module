@@ -1,0 +1,233 @@
+"""
+POSITIONING SCORE MODULE - To be integrated into loadstockscores.py
+
+Uses z-score normalization to calculate positioning scores from:
+1. Institutional ownership (bullish signal)
+2. Insider ownership (very bullish signal)
+3. Short interest change (bearish if increasing)
+4. Short interest percentage (bearish if high)
+
+Final score distributed across 0-100 scale using quantile mapping
+"""
+
+import numpy as np
+
+def calculate_positioning_score(conn, symbol, population_stats=None):
+    """
+    Calculate positioning score using z-score normalization.
+
+    Components (weighted):
+    - Institutional ownership (30%): Higher = more bullish
+    - Insider ownership (25%): Higher = very bullish (insider confidence)
+    - Short interest change (25%): Lower/negative = bullish (shorts covering)
+    - Short interest % (20%): Lower = bullish (less bearish pressure)
+
+    Z-score normalization ensures:
+    - All metrics use same scale (-3 to +3 standard deviations)
+    - Full 0-100 scale utilization (not clustered at 50)
+    - Better discrimination between stocks
+
+    Args:
+        conn: Database connection
+        symbol: Stock symbol
+        population_stats: Dict with population means/stddevs for z-scoring
+                         {
+                           'inst_own_mean': float,
+                           'inst_own_std': float,
+                           'insider_own_mean': float,
+                           'insider_own_std': float,
+                           'short_change_mean': float,
+                           'short_change_std': float,
+                           'short_pct_mean': float,
+                           'short_pct_std': float,
+                         }
+
+    Returns:
+        dict with positioning_score (0-100) or None if insufficient data
+    """
+
+    try:
+        cur = conn.cursor()
+
+        # If no population stats provided, calculate them
+        if not population_stats:
+            population_stats = _calculate_population_stats(conn)
+
+        # Get latest positioning data
+        cur.execute("""
+            SELECT
+                institutional_ownership,
+                insider_ownership,
+                short_interest_change,
+                short_percent_of_float,
+                institution_count
+            FROM positioning_metrics
+            WHERE symbol = %s
+            ORDER BY date DESC
+            LIMIT 1
+        """, (symbol,))
+
+        data = cur.fetchone()
+
+        if not data or all(v is None for v in data[:4]):
+            cur.close()
+            return None
+
+        inst_own, insider_own, short_change, short_pct, inst_count = data
+
+        # Z-score each component
+        z_scores = {}
+
+        # 1. Institutional Ownership (higher = bullish)
+        if inst_own is not None:
+            z_scores['inst_own'] = (
+                (float(inst_own) - population_stats['inst_own_mean']) /
+                (population_stats['inst_own_std'] + 0.001)  # Add small epsilon to avoid division by zero
+            )
+
+        # 2. Insider Ownership (higher = very bullish)
+        if insider_own is not None:
+            z_scores['insider_own'] = (
+                (float(insider_own) - population_stats['insider_own_mean']) /
+                (population_stats['insider_own_std'] + 0.001)
+            )
+
+        # 3. Short Interest Change (negative = bullish, shorts covering)
+        if short_change is not None:
+            z_scores['short_change'] = (
+                (float(short_change) - population_stats['short_change_mean']) /
+                (population_stats['short_change_std'] + 0.001)
+            ) * -1  # Invert: lower/negative change is bullish
+
+        # 4. Short Interest Percentage (lower = bullish)
+        if short_pct is not None:
+            z_scores['short_pct'] = (
+                (float(short_pct) - population_stats['short_pct_mean']) /
+                (population_stats['short_pct_std'] + 0.001)
+            ) * -1  # Invert: lower % is bullish
+
+        # If we have at least 2 components, calculate weighted score
+        if len(z_scores) < 2:
+            cur.close()
+            return None
+
+        # Weights (must sum to 1.0)
+        weights = {
+            'inst_own': 0.30,      # Institutional ownership bullish signal
+            'insider_own': 0.25,   # Insider confidence (strong signal)
+            'short_change': 0.25,  # Short covering bullish signal
+            'short_pct': 0.20,     # Overall short pressure
+        }
+
+        # Calculate weighted z-score
+        weighted_z = sum(
+            z_scores.get(component, 0) * weight
+            for component, weight in weights.items()
+            if component in z_scores
+        )
+
+        # Clamp to ±3 standard deviations (handles outliers)
+        weighted_z = max(-3, min(3, weighted_z))
+
+        # Convert z-score to 0-100 scale using quantile-like mapping
+        # z=-3 → 5%, z=0 → 50%, z=+3 → 95%
+        positioning_score = 50 + (weighted_z * 12.5)  # 12.5 = 50/4 for 3-sigma range
+        positioning_score = max(0, min(100, positioning_score))
+
+        cur.close()
+
+        return {
+            'positioning_score': float(round(positioning_score, 2)),
+            'z_score': float(round(weighted_z, 2)),
+            'components': {
+                'inst_own': float(round(z_scores.get('inst_own', 0), 2)),
+                'insider_own': float(round(z_scores.get('insider_own', 0), 2)),
+                'short_change': float(round(z_scores.get('short_change', 0), 2)),
+                'short_pct': float(round(z_scores.get('short_pct', 0), 2)),
+            }
+        }
+
+    except Exception as e:
+        print(f"Error calculating positioning score for {symbol}: {e}")
+        return None
+
+
+def _calculate_population_stats(conn):
+    """
+    Calculate population statistics for z-score normalization.
+
+    Returns dict with mean and std for each metric across all stocks.
+    """
+    try:
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT
+                AVG(institutional_ownership) as inst_own_mean,
+                STDDEV(institutional_ownership) as inst_own_std,
+                AVG(insider_ownership) as insider_own_mean,
+                STDDEV(insider_ownership) as insider_own_std,
+                AVG(short_interest_change) as short_change_mean,
+                STDDEV(short_interest_change) as short_change_std,
+                AVG(short_percent_of_float) as short_pct_mean,
+                STDDEV(short_percent_of_float) as short_pct_std
+            FROM positioning_metrics
+            WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+        """)
+
+        row = cur.fetchone()
+        cur.close()
+
+        if not row:
+            # Return defaults if no data
+            return {
+                'inst_own_mean': 0.56,
+                'inst_own_std': 0.37,
+                'insider_own_mean': 0.15,
+                'insider_own_std': 0.21,
+                'short_change_mean': 0.0,
+                'short_change_std': 0.15,
+                'short_pct_mean': 0.067,
+                'short_pct_std': 0.095,
+            }
+
+        return {
+            'inst_own_mean': float(row[0] or 0.56),
+            'inst_own_std': float(row[1] or 0.37),
+            'insider_own_mean': float(row[2] or 0.15),
+            'insider_own_std': float(row[3] or 0.21),
+            'short_change_mean': float(row[4] or 0.0),
+            'short_change_std': float(row[5] or 0.15),
+            'short_pct_mean': float(row[6] or 0.067),
+            'short_pct_std': float(row[7] or 0.095),
+        }
+
+    except Exception as e:
+        print(f"Error calculating population stats: {e}")
+        # Return defaults on error
+        return {
+            'inst_own_mean': 0.56,
+            'inst_own_std': 0.37,
+            'insider_own_mean': 0.15,
+            'insider_own_std': 0.21,
+            'short_change_mean': 0.0,
+            'short_change_std': 0.15,
+            'short_pct_mean': 0.067,
+            'short_pct_std': 0.095,
+        }
+
+
+# USAGE IN loadstockscores.py
+# In get_stock_data_from_database():
+#
+# # Get positioning score (with z-score normalization)
+# pop_stats = _calculate_population_stats(conn)
+# positioning_result = calculate_positioning_score(conn, symbol, pop_stats)
+#
+# if positioning_result:
+#     positioning_score = positioning_result['positioning_score']
+# else:
+#     positioning_score = None
+#
+# Then in the return dict:
+# 'positioning_score': positioning_score,

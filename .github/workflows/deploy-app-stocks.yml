@@ -1,0 +1,1014 @@
+name: Data Loaders Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      loaders:
+        description: 'Comma-separated list of loaders to run (leave empty for auto-detection)'
+        required: false
+        default: ''
+      environment:
+        description: 'Deployment environment'
+        required: false
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      force_all:
+        description: 'Force run all loaders regardless of changes'
+        required: false
+        default: false
+        type: boolean
+  push:
+    branches:
+      - initialbuild
+      - main
+      - develop
+    paths-ignore:
+      - 'webapp/**'
+      - '.github/workflows/deploy-webapp-serverless.yml'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+  AWS_ROLE_SESSION: github-deploy
+  FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+  ECR_REPOSITORY: stocks-app-registry
+  ECS_CLUSTER: stocks-cluster
+
+jobs:
+  # 1. Detect changes and prepare loader matrix
+  detect-changes:
+    name: Detect Changed Loaders
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      has-changes: ${{ steps.matrix.outputs.has-changes }}
+      changed: ${{ steps.infra.outputs.changed }}
+      infrastructure-changed: ${{ steps.infra.outputs.changed }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check infrastructure changes
+        id: infra
+        run: |
+          echo "=== INFRASTRUCTURE DETECTION DEBUG ==="
+          echo "Event: ${{ github.event_name }}"
+          echo "Force all: ${{ github.event.inputs.force_all }}"
+          echo "Repository: ${{ github.repository }}"
+          echo "Ref: ${{ github.ref }}"
+
+          if [[ "${{ github.event.inputs.force_all }}" == "true" ]]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "✅ Infrastructure: Force rebuild requested"
+            exit 0
+          fi
+
+          # Always force infrastructure deployment when loaders are triggered
+          echo "changed=true" >> $GITHUB_OUTPUT
+          echo "✅ Infrastructure deployment FORCED to ensure Docker images are available"
+          echo "This should trigger deploy-infrastructure job"
+          echo "=== END INFRASTRUCTURE DEBUG ==="
+
+      - name: Generate loader matrix
+        id: matrix
+        run: |
+          # Define supported loaders (those with ECS task definitions)
+          SUPPORTED_LOADERS="stocksymbols econdata findata pricedaily priceweekly pricemonthly technicalsdaily info earningsestimate revenueestimate technicalsweekly technicalsmonthly buysell swingtrader latestpricedaily latestpriceweekly latestpricemonthly latesttechnicalsdaily latesttechnicalsweekly latesttechnicalsmonthly aaiidata feargreed naaim earningshistory earningsmetrics buyselldaily buysellweekly buysellmonthly quarterlybalancesheet annualbalancesheet quarterlyincomestatement annualincomestatement quarterlycashflow annualcashflow ttmincomestatement ttmcashflow qualitymetrics momentummetrics growthmetrics valuemetrics stockscores benchmarks analystupgradedowngrade sectordata companyprofile financials historical sectors positioning momentum riskmetrics fundamentalmetrics dailycompanydata"
+
+          # Get all available loaders and filter by supported ones
+          ALL_AVAILABLE_LOADERS=$(ls load*.py 2>/dev/null | sed 's/load//' | sed 's/\.py$//' | sort)
+          ALL_LOADERS=""
+          for loader in $ALL_AVAILABLE_LOADERS; do
+            if echo "$SUPPORTED_LOADERS" | grep -wq "$loader"; then
+              ALL_LOADERS="$ALL_LOADERS $loader"
+            fi
+          done
+          ALL_LOADERS=$(echo $ALL_LOADERS | tr ' ' '\n' | sort | tr '\n' ' ')
+          
+          # Determine which loaders to run
+          if [[ "${{ github.event.inputs.loaders }}" != "" ]]; then
+            # Manual input
+            LOADERS_TO_RUN=$(echo "${{ github.event.inputs.loaders }}" | tr ',' '\n' | sort)
+            echo "Manual loader selection: $LOADERS_TO_RUN"
+          elif [[ "${{ github.event.inputs.force_all }}" == "true" ]]; then
+            # Force all loaders explicitly requested
+            LOADERS_TO_RUN="$ALL_LOADERS"
+            echo "Running all loaders (force_all requested)"
+          else
+            # Auto-detect based on file changes (even if infrastructure changed)
+            echo "Debug: Checking for changed loader files..."
+            ALL_CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || git diff --name-only HEAD || echo "")
+            echo "Debug: All changed files: $ALL_CHANGED_FILES"
+
+            # Check for direct loader file changes (must start with "load")
+            LOADER_FILES=$(echo "$ALL_CHANGED_FILES" | grep '^load.*\.py$\|/load.*\.py$' || true)
+            echo "Debug: Loader files found: $LOADER_FILES"
+
+            # Check for requirements file changes that affect specific loaders
+            REQUIREMENTS_FILES=$(echo "$ALL_CHANGED_FILES" | grep 'requirements-load.*\.txt$' || true)
+            echo "Debug: Requirements files found: $REQUIREMENTS_FILES"
+
+            # Check for Dockerfile changes (Dockerfile.buyselldaily -> buyselldaily)
+            DOCKERFILE_CHANGES=$(echo "$ALL_CHANGED_FILES" | grep 'Dockerfile\.' || true)
+            echo "Debug: Dockerfile changes found: $DOCKERFILE_CHANGES"
+
+            # Extract loaders from direct loader file changes (strip directory paths first)
+            CHANGED_LOADERS_FROM_PY=$(echo "$LOADER_FILES" | xargs -n1 basename 2>/dev/null | sed 's/^load//' | sed 's/\.py$//' | sort || true)
+            echo "Debug: Loaders from .py files: $CHANGED_LOADERS_FROM_PY"
+
+            # Extract loaders from requirements file changes (requirements-loadinfo.txt -> info)
+            CHANGED_LOADERS_FROM_REQ=$(echo "$REQUIREMENTS_FILES" | sed 's/^requirements-load//' | sed 's/\.txt$//' | sort || true)
+            echo "Debug: Loaders from requirements files: $CHANGED_LOADERS_FROM_REQ"
+
+            # Extract loaders from Dockerfile changes (Dockerfile.buyselldaily -> buyselldaily)
+            CHANGED_LOADERS_FROM_DOCKERFILE=$(echo "$DOCKERFILE_CHANGES" | sed 's/^Dockerfile\.//' | sort || true)
+            echo "Debug: Loaders from Dockerfiles: $CHANGED_LOADERS_FROM_DOCKERFILE"
+
+            # Combine all three sources of changed loaders
+            CHANGED_LOADERS=$(echo -e "$CHANGED_LOADERS_FROM_PY\n$CHANGED_LOADERS_FROM_REQ\n$CHANGED_LOADERS_FROM_DOCKERFILE" | grep -v '^$' | sort | uniq || true)
+            echo "Debug: Combined changed loaders: $CHANGED_LOADERS"
+
+            # Filter to only loaders that have Dockerfiles
+            VALIDATED_LOADERS=""
+            for loader in $CHANGED_LOADERS; do
+              # Check for Dockerfile with special naming conventions
+              DOCKERFILE_TO_CHECK=""
+              case "$loader" in
+                "aaiidata")
+                  DOCKERFILE_TO_CHECK="Dockerfile.loadaaiidata"
+                  ;;
+                "feargreed")
+                  DOCKERFILE_TO_CHECK="Dockerfile.loadfeargreed"
+                  ;;
+                "naaim")
+                  DOCKERFILE_TO_CHECK="Dockerfile.loadnaaim"
+                  ;;
+                "revenueestimate")
+                  DOCKERFILE_TO_CHECK="Dockerfile.loadrevenueestimate"
+                  ;;
+                "sectordata")
+                  DOCKERFILE_TO_CHECK="Dockerfile.sectordata"
+                  ;;
+                *)
+                  DOCKERFILE_TO_CHECK="Dockerfile.$loader"
+                  ;;
+              esac
+
+              if [[ -f "$DOCKERFILE_TO_CHECK" ]]; then
+                VALIDATED_LOADERS="$VALIDATED_LOADERS $loader"
+                echo "✓ Validated loader: $loader ($DOCKERFILE_TO_CHECK exists)"
+              else
+                echo "✗ Skipping loader: $loader (no $DOCKERFILE_TO_CHECK found)"
+              fi
+            done
+            CHANGED_LOADERS=$(echo $VALIDATED_LOADERS | tr ' ' '\n' | sort | uniq || true)
+            echo "Debug: Validated loaders with Dockerfiles: $CHANGED_LOADERS"
+
+            if [[ -n "$CHANGED_LOADERS" ]]; then
+              LOADERS_TO_RUN="$CHANGED_LOADERS"
+              echo "Auto-detected changed loaders: $LOADERS_TO_RUN"
+              if [[ "${{ steps.infra.outputs.changed }}" == "true" ]]; then
+                echo "Infrastructure also changed - images will be rebuilt"
+              fi
+            else
+              LOADERS_TO_RUN=""
+              echo "No loader changes detected"
+            fi
+          fi
+          
+          # Generate matrix JSON
+          if [[ -n "$LOADERS_TO_RUN" ]]; then
+            # Create matrix with priority classification
+            MATRIX_JSON='{"include":['
+            FIRST=true
+            for loader in $LOADERS_TO_RUN; do
+              if [[ "$FIRST" == "false" ]]; then
+                MATRIX_JSON+=','
+              fi
+              FIRST=false
+              
+              # Classify loader priority
+              case $loader in
+                symbols|pricedaily|technicalsdaily|latestpricedaily)
+                  PRIORITY="critical"
+                  TIMEOUT=30
+                  ;;
+                priceweekly|pricemonthly|earningsestimate|info)
+                  PRIORITY="high"
+                  TIMEOUT=45
+                  ;;
+                *)
+                  PRIORITY="normal"
+                  TIMEOUT=60
+                  ;;
+              esac
+              
+              MATRIX_JSON+="{\"loader\":\"$loader\",\"priority\":\"$PRIORITY\",\"timeout\":$TIMEOUT}"
+            done
+            MATRIX_JSON+=']}'
+            
+            echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+            echo "has-changes=true" >> $GITHUB_OUTPUT
+            echo "Generated matrix: $MATRIX_JSON"
+          else
+            echo "matrix={\"include\":[]}" >> $GITHUB_OUTPUT
+            echo "has-changes=false" >> $GITHUB_OUTPUT
+            echo "No loaders to run"
+          fi
+
+  # 2. Build and deploy infrastructure if needed
+  deploy-infrastructure:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    timeout-minutes: 45
+    steps:
+      - name: Infrastructure job started
+        run: |
+          echo "🎉 INFRASTRUCTURE JOB IS RUNNING!"
+          echo "=== DEPLOYMENT VALUES DEBUG ==="
+          echo "needs.detect-changes.outputs.changed = '${{ needs.detect-changes.outputs.changed }}'"
+          echo "needs.detect-changes.outputs.infrastructure-changed = '${{ needs.detect-changes.outputs.infrastructure-changed }}'"
+          echo "needs.detect-changes.outputs.has-changes = '${{ needs.detect-changes.outputs.has-changes }}'"
+          echo "needs.detect-changes.outputs.matrix = '${{ needs.detect-changes.outputs.matrix }}'"
+          echo "=== END VALUES DEBUG ==="
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Get CloudFormation S3 bucket
+        id: bucket
+        run: |
+          BUCKET=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
+            --output text)
+          echo "CF_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
+          echo "Using S3 bucket: $BUCKET"
+
+      - name: Deploy stocks-app-stack (RDS/Secrets/ECS Cluster)
+        run: |
+          echo "=========================================="
+          echo "🚀 Deploying stocks-app-stack (RDS, Secrets, ECS Cluster)"
+          echo "=========================================="
+
+          # Check current RDS status BEFORE deployment
+          echo "📊 BEFORE DEPLOYMENT - RDS Status:"
+          aws rds describe-db-instances \
+            --db-instance-identifier stocks \
+            --region us-east-1 \
+            --query 'DBInstances[0].[DBInstanceStatus,AllocatedStorage,MaxAllocatedStorage]' \
+            --output table || echo "RDS not found (first deployment)"
+          echo ""
+
+          # Deploy the stack
+          echo "Deploying stocks-app-stack with AllocatedStorage: 31GB..."
+          aws cloudformation deploy \
+            --stack-name stocks-app-stack \
+            --template-file template-app-stocks.yml \
+            --parameter-overrides \
+              RDSUsername=${{ secrets.RDS_USERNAME }} \
+              RDSPassword=${{ secrets.RDS_PASSWORD }} \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
+
+          echo ""
+          echo "✅ Stack deployment complete!"
+
+          # Check RDS status AFTER deployment
+          echo ""
+          echo "📊 AFTER DEPLOYMENT - RDS Status:"
+          aws rds describe-db-instances \
+            --db-instance-identifier stocks \
+            --region us-east-1 \
+            --query 'DBInstances[0].[DBInstanceStatus,AllocatedStorage,MaxAllocatedStorage]' \
+            --output table
+
+          # Validate storage increased
+          CURRENT_STORAGE=$(aws rds describe-db-instances \
+            --db-instance-identifier stocks \
+            --region us-east-1 \
+            --query 'DBInstances[0].AllocatedStorage' \
+            --output text)
+
+          if [ "$CURRENT_STORAGE" -ge "31" ]; then
+            echo ""
+            echo "✅ SUCCESS: RDS storage = ${CURRENT_STORAGE}GB!"
+          elif [ "$CURRENT_STORAGE" -eq "20" ]; then
+            echo ""
+            echo "⚠️ WARNING: RDS still at 20GB - storage was NOT updated"
+            echo "This may indicate CloudFormation detected no changes"
+          else
+            echo ""
+            echo "📊 INFO: RDS storage = ${CURRENT_STORAGE}GB"
+          fi
+
+      - name: Deploy ECS tasks stack
+        run: |
+          echo "Deploying ECS tasks infrastructure..."
+          aws cloudformation deploy \
+            --template-file template-app-ecs-tasks.yml \
+            --stack-name stocks-ecs-tasks-stack \
+            --parameter-overrides \
+              RDSUsername=${{ secrets.RDS_USERNAME }} \
+              RDSPassword=${{ secrets.RDS_PASSWORD }} \
+              FREDApiKey=${{ secrets.FRED_API_KEY }} \
+              IBKRUsername=${{ secrets.IBKR_USERNAME }} \
+              IBKRPassword=${{ secrets.IBKR_PASSWORD }} \
+              StockSymbolsImageTag=latest \
+              EconDataImageTag=latest \
+              FindataImageTag=latest \
+              PriceImageTag=latest \
+              PriceWeeklyImageTag=latest \
+              PriceMonthlyImageTag=latest \
+              TechnicalsDailyImageTag=latest \
+              LoadDailyCompanyDataImageTag=latest \
+              EarningsEstimateImageTag=latest \
+              TechnicalsWeeklyImageTag=latest \
+              TechnicalsMonthlyImageTag=latest \
+              BuySellImageTag=latest \
+              BuySellDailyImageTag=latest \
+              BuySellWeeklyImageTag=latest \
+              BuySellMonthlyImageTag=latest \
+              SwingTraderImageTag=latest \
+              CalendarImageTag=latest \
+              LatestPriceDailyImageTag=latest \
+              LatestPriceWeeklyImageTag=latest \
+              LatestPriceMonthlyImageTag=latest \
+              LatestTechnicalsDailyImageTag=latest \
+              LatestTechnicalsWeeklyImageTag=latest \
+              LatestTechnicalsMonthlyImageTag=latest \
+              RevenueEstimateImageTag=latest \
+              EarningsHistoryImageTag=latest \
+              AaiiImageTag=aaiidata-latest \
+              FearGreedImageTag=feargreed-latest \
+              NaaimImageTag=naaim-latest \
+              EarningsMetricsImageTag=latest \
+              QuarterlyBalanceSheetImageTag=latest \
+              AnnualBalanceSheetImageTag=latest \
+              QuarterlyIncomeStatementImageTag=latest \
+              AnnualIncomeStatementImageTag=latest \
+              QuarterlyCashFlowImageTag=latest \
+              AnnualCashFlowImageTag=latest \
+              TTMIncomeStatementImageTag=latest \
+              TTMCashFlowImageTag=latest \
+              QualityMetricsImageTag=latest \
+              GrowthMetricsImageTag=latest \
+              ValueMetricsImageTag=latest \
+              StockScoresImageTag=latest \
+              BenchmarksImageTag=benchmarks-latest \
+              AnalystUpgradeDowngradeImageTag=analystupgradedowngrade-latest \
+              LoadDailyCompanyDataImageTag=companyprofile-latest \
+              SectorDataImageTag=sectordata-latest \
+              LoadFinancialsImageTag=financials-latest \
+              LoadHistoricalImageTag=historical-latest \
+              SectorsImageTag=sectors-latest \
+              PositioningImageTag=positioning-latest \
+              MomentumImageTag=momentum-latest \
+              RiskMetricsImageTag=riskmetrics-latest \
+              FundamentalMetricsImageTag=fundamentalmetrics-latest \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
+
+      - name: Update container image
+        run: |
+          echo "🐳 Building and pushing loader container..."
+
+          # Get the correct repository URI from CloudFormation exports
+          echo "📋 Getting repository URI from CloudFormation..."
+          REPOSITORY_URI=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-ContainerRepositoryUri'].Value" \
+            --output text --region ${{ env.AWS_REGION }})
+
+          if [[ -z "$REPOSITORY_URI" || "$REPOSITORY_URI" == "None" ]]; then
+            echo "❌ ERROR: Could not get repository URI from CloudFormation export!"
+            exit 1
+          fi
+          echo "✅ Repository URI: $REPOSITORY_URI"
+
+          # Extract repository name from URI for Docker login
+          REPO_NAME=$(echo "$REPOSITORY_URI" | cut -d'/' -f2)
+          echo "Repository name: $REPO_NAME"
+
+          # Check if individual Dockerfiles exist for each loader
+          MISSING_DOCKERFILES=""
+          for loader in $LOADERS; do
+            # Map loader names to Dockerfile names
+            case "$loader" in
+              "earningsestimate")
+                DOCKERFILE="Dockerfile.loadearningsestimate"
+                ;;
+              "revenueestimate")
+                DOCKERFILE="Dockerfile.loadrevenueestimate"
+                ;;
+              "calendar")
+                DOCKERFILE="Dockerfile.loadcalendar"
+                ;;
+              "earningshistory")
+                DOCKERFILE="Dockerfile.loadearningshistory"
+                ;;
+              "earningsmetrics")
+                DOCKERFILE="Dockerfile.loadearningsmetrics"
+                ;;
+              "analystupgradedowngrade")
+                DOCKERFILE="Dockerfile.loadanalystupgradedowngrade"
+                ;;
+              "aaiidata")
+                DOCKERFILE="Dockerfile.loadaaiidata"
+                ;;
+              "feargreed")
+                DOCKERFILE="Dockerfile.loadfeargreed"
+                ;;
+              "naaim")
+                DOCKERFILE="Dockerfile.loadnaaim"
+                ;;
+              "revenueestimate")
+                DOCKERFILE="Dockerfile.loadrevenueestimate"
+                ;;
+              "sectordata")
+                DOCKERFILE="Dockerfile.sectordata"
+                ;;
+              "companyprofile")
+                DOCKERFILE="Dockerfile.companyprofile"
+                ;;
+              "financials")
+                DOCKERFILE="Dockerfile.financials"
+                ;;
+              "historical")
+                DOCKERFILE="Dockerfile.historical"
+                ;;
+              *)
+                DOCKERFILE="Dockerfile.$loader"
+                ;;
+            esac
+
+            if [[ ! -f "$DOCKERFILE" ]]; then
+              MISSING_DOCKERFILES="$MISSING_DOCKERFILES $loader"
+            fi
+          done
+
+          if [[ -n "$MISSING_DOCKERFILES" ]]; then
+            echo "❌ ERROR: Missing Dockerfiles for loaders:$MISSING_DOCKERFILES"
+            exit 1
+          fi
+          echo "✅ All required Dockerfiles found"
+
+          # Login to ECR
+          echo "🔑 Logging into ECR..."
+          if ! aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com; then
+            echo "❌ ERROR: ECR login failed!"
+            exit 1
+          fi
+          echo "✅ ECR login successful"
+
+          # Repository should already exist from core stack, but check anyway
+          echo "📦 Verifying ECR repository exists..."
+          if ! aws ecr describe-repositories --repository-names "$REPO_NAME" --region ${{ env.AWS_REGION }}; then
+            echo "❌ ERROR: Repository $REPO_NAME does not exist! Check core stack deployment."
+            exit 1
+          fi
+          echo "✅ ECR repository verified"
+
+          # Setup buildx for multi-platform builds with optimization
+          echo "🔧 Setting up Docker buildx for ARM64..."
+          docker buildx create --use --name multiarch --driver docker-container --bootstrap || true
+
+          # Enable GitHub Actions cache optimization
+          export BUILDX_EXPERIMENTAL=1
+
+          # Build specific images for each loader type that will be executed
+          # Each loader has its own requirements file (no shared base image)
+          echo "🔨 Building Docker images for detected loaders..."
+
+          # Get the matrix to determine which loaders will run
+          MATRIX='${{ needs.detect-changes.outputs.matrix }}'
+          echo "Matrix: $MATRIX"
+
+          if [[ "$MATRIX" == '{"include":[]}' ]]; then
+            echo "No loaders to build images for"
+            exit 0
+          fi
+
+          # Extract unique loaders from matrix
+          LOADERS=$(echo "$MATRIX" | jq -r '.include[].loader' | sort | uniq)
+          echo "Building images for loaders: $LOADERS"
+
+          for loader in $LOADERS; do
+            echo "🔨 Building image for $loader loader..."
+
+            # Map loader names to Dockerfile names
+            case "$loader" in
+              "earningsestimate")
+                DOCKERFILE="Dockerfile.loadearningsestimate"
+                ;;
+              "revenueestimate")
+                DOCKERFILE="Dockerfile.loadrevenueestimate"
+                ;;
+              "calendar")
+                DOCKERFILE="Dockerfile.loadcalendar"
+                ;;
+              "earningshistory")
+                DOCKERFILE="Dockerfile.loadearningshistory"
+                ;;
+              "earningsmetrics")
+                DOCKERFILE="Dockerfile.loadearningsmetrics"
+                ;;
+              "analystupgradedowngrade")
+                DOCKERFILE="Dockerfile.loadanalystupgradedowngrade"
+                ;;
+              "aaiidata")
+                DOCKERFILE="Dockerfile.loadaaiidata"
+                ;;
+              "feargreed")
+                DOCKERFILE="Dockerfile.loadfeargreed"
+                ;;
+              "naaim")
+                DOCKERFILE="Dockerfile.loadnaaim"
+                ;;
+              "revenueestimate")
+                DOCKERFILE="Dockerfile.loadrevenueestimate"
+                ;;
+              "sectordata")
+                DOCKERFILE="Dockerfile.sectordata"
+                ;;
+              "companyprofile")
+                DOCKERFILE="Dockerfile.companyprofile"
+                ;;
+              "financials")
+                DOCKERFILE="Dockerfile.financials"
+                ;;
+              "historical")
+                DOCKERFILE="Dockerfile.historical"
+                ;;
+              *)
+                DOCKERFILE="Dockerfile.$loader"
+                ;;
+            esac
+
+            # Build image with cache optimization
+            IMAGE_TAG="$REPO_NAME:$loader-latest"
+            CACHE_FROM="type=gha,scope=$loader"
+            CACHE_TO="type=gha,mode=max,scope=$loader"
+
+            echo "🔨 Building $loader with optimizations..."
+            timeout 30m docker buildx build \
+              --platform linux/arm64 \
+              --build-arg ECR_REGISTRY="$REPOSITORY_URI" \
+              --cache-from "$CACHE_FROM" \
+              --cache-to "$CACHE_TO" \
+              --progress=plain \
+              -t "$IMAGE_TAG" \
+              -f $DOCKERFILE . --load
+
+            if [ $? -ne 0 ]; then
+              echo "❌ ERROR: Docker build failed or timed out for $loader!"
+              echo "Checking if image exists anyway..."
+              if docker images | grep -q "$REPO_NAME.*$loader"; then
+                echo "⚠️ Found partial image, continuing..."
+              else
+                exit 1
+              fi
+            else
+              echo "✅ Docker build successful for $loader"
+            fi
+          done
+
+          echo "✅ All loader-specific images built successfully"
+
+          # Tag and push all images
+          echo "🏷️ Tagging and pushing images..."
+
+          # Push loader-specific images
+          for loader in $LOADERS; do
+            echo "🏷️ Tagging $loader image..."
+            LOADER_IMAGE_URI="${REPOSITORY_URI}:$loader-latest"
+            docker tag "$REPO_NAME:$loader-latest" "$LOADER_IMAGE_URI"
+
+            echo "⬆️ Pushing $loader image to ECR..."
+            if ! docker push "$LOADER_IMAGE_URI"; then
+              echo "❌ ERROR: Docker push failed for $loader!"
+              exit 1
+            fi
+            echo "✅ $loader image pushed successfully to: $LOADER_IMAGE_URI"
+          done
+
+          echo "🎯 All loader-specific images pushed to ECR successfully!"
+
+  # 3. Execute loaders using matrix strategy
+  execute-loaders:
+    name: Execute Loaders
+    runs-on: ubuntu-latest
+    needs: [detect-changes, deploy-infrastructure]
+    if: |
+      always() &&
+      needs.detect-changes.outputs.has-changes == 'true' &&
+      needs.deploy-infrastructure.result == 'success'
+    
+    strategy:
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+      fail-fast: false
+      max-parallel: 3
+    
+    timeout-minutes: ${{ matrix.timeout }}
+    
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Get infrastructure info
+        id: infra
+        run: |
+          # Get cluster ARN
+          CLUSTER_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+          
+          # Get task definition ARN pattern with proper case conversion
+          # Convert buyselldaily -> BuySellDaily, buysellweekly -> BuySellWeekly, etc.
+          LOADER_NAME="${{ matrix.loader }}"
+          case "$LOADER_NAME" in
+            "buyselldaily")
+              TASK_DEF_NAME="BuySellDailyTaskDefArn"
+              ;;
+            "buysellweekly")
+              TASK_DEF_NAME="BuySellWeeklyTaskDefArn"
+              ;;
+            "buysellmonthly")
+              TASK_DEF_NAME="BuySellMonthlyTaskDefArn"
+              ;;
+            "technicalsdaily")
+              TASK_DEF_NAME="TechnicalsDailyTaskDefArn"
+              ;;
+            "technicalsweekly")
+              TASK_DEF_NAME="TechnicalsWeeklyTaskDefArn"
+              ;;
+            "technicalsmonthly")
+              TASK_DEF_NAME="TechnicalsMonthlyTaskDefArn"
+              ;;
+            "latesttechnicalsdaily")
+              TASK_DEF_NAME="LatestTechnicalsDailyTaskDefArn"
+              ;;
+            "latesttechnicalsweekly")
+              TASK_DEF_NAME="LatestTechnicalsWeeklyTaskDefArn"
+              ;;
+            "latesttechnicalsmonthly")
+              TASK_DEF_NAME="LatestTechnicalsMonthlyTaskDefArn"
+              ;;
+            "latestpricedaily")
+              TASK_DEF_NAME="LatestPriceDailyTaskDefArn"
+              ;;
+            "latestpriceweekly")
+              TASK_DEF_NAME="LatestPriceWeeklyTaskDefArn"
+              ;;
+            "latestpricemonthly")
+              TASK_DEF_NAME="LatestPriceMonthlyTaskDefArn"
+              ;;
+            "pricedaily")
+              TASK_DEF_NAME="PriceTaskDefArn"
+              ;;
+            "priceweekly")
+              TASK_DEF_NAME="PriceWeeklyTaskDefArn"
+              ;;
+            "pricemonthly")
+              TASK_DEF_NAME="PriceMonthlyTaskDefArn"
+              ;;
+            "stocksymbols")
+              TASK_DEF_NAME="StockSymbolsTaskDefArn"
+              ;;
+            "companyprofile")
+            
+              TASK_DEF_NAME="LoadDailyCompanyDataTaskDefArn"
+              ;;
+            "calendar")
+              TASK_DEF_NAME="CalendarTaskDefArn"
+              ;;
+            "earningsmetrics")
+              TASK_DEF_NAME="EarningsMetricsTaskDefArn"
+              ;;
+            "earningshistory")
+              TASK_DEF_NAME="EarningsHistoryTaskDefArn"
+              ;;
+            "earningsestimate")
+              TASK_DEF_NAME="EarningsEstimateTaskDefArn"
+              ;;
+            "revenueestimate")
+              TASK_DEF_NAME="RevenueEstimateTaskDefArn"
+              ;;
+            "econdata")
+              TASK_DEF_NAME="EconDataTaskDefArn"
+              ;;
+            "aaiidata")
+              TASK_DEF_NAME="AaiiDataTaskDefArn"
+              ;;
+            "feargreeddata")
+              TASK_DEF_NAME="FearGreedDataTaskDefArn"
+              ;;
+            "naaaimdata")
+              TASK_DEF_NAME="NaaaimDataTaskDefArn"
+              ;;
+            "feargreed")
+              TASK_DEF_NAME="FearGreedTaskDefArn"
+              ;;
+            "naaim")
+              TASK_DEF_NAME="NaaimTaskDefArn"
+              ;;
+            "swingtrader")
+              TASK_DEF_NAME="SwingTraderTaskDefArn"
+              ;;
+            "qualitymetrics")
+              TASK_DEF_NAME="QualityMetricsTaskDefArn"
+              ;;
+            "growthmetrics")
+              TASK_DEF_NAME="GrowthMetricsTaskDefArn"
+              ;;
+            "valuemetrics")
+              TASK_DEF_NAME="ValueMetricsTaskDefArn"
+              ;;
+            "stockscores")
+              TASK_DEF_NAME="StockscoresTaskDefArn"
+              ;;
+            "benchmarks")
+              TASK_DEF_NAME="BenchmarksTaskDefArn"
+              ;;
+            "quarterlybalancesheet")
+              TASK_DEF_NAME="QuarterlyBalanceSheetTaskDefArn"
+              ;;
+            "annualbalancesheet")
+              TASK_DEF_NAME="AnnualBalanceSheetTaskDefArn"
+              ;;
+            "quarterlyincomestatement")
+              TASK_DEF_NAME="QuarterlyIncomeStatementTaskDefArn"
+              ;;
+            "annualincomestatement")
+              TASK_DEF_NAME="AnnualIncomeStatementTaskDefArn"
+              ;;
+            "quarterlycashflow")
+              TASK_DEF_NAME="QuarterlyCashFlowTaskDefArn"
+              ;;
+            "annualcashflow")
+              TASK_DEF_NAME="AnnualCashFlowTaskDefArn"
+              ;;
+            "ttmincomestatement")
+              TASK_DEF_NAME="TTMIncomeStatementTaskDefArn"
+              ;;
+            "ttmcashflow")
+              TASK_DEF_NAME="TTMCashFlowTaskDefArn"
+              ;;
+            "analystupgradedowngrade")
+              TASK_DEF_NAME="AnalystUpgradeDowngradeTaskDefArn"
+              ;;
+            "companyprofile")
+              TASK_DEF_NAME="LoadDailyCompanyDataTaskDefArn"
+              ;;
+            "financials")
+              TASK_DEF_NAME="LoadFinancialsTaskDefArn"
+              ;;
+            "historical")
+              TASK_DEF_NAME="LoadHistoricalTaskDefArn"
+              ;;
+            "sectordata")
+              TASK_DEF_NAME="SectorDataTaskDefArn"
+              ;;
+            "sectors")
+              TASK_DEF_NAME="SectorsTaskDefArn"
+              ;;
+            "positioning")
+              TASK_DEF_NAME="PositioningTaskDefArn"
+              ;;
+            "momentum")
+              TASK_DEF_NAME="MomentumTaskDefArn"
+              ;;
+            "riskmetrics")
+              TASK_DEF_NAME="RiskmetricsTaskDefArn"
+              ;;
+            "fundamentalmetrics")
+              TASK_DEF_NAME="FundamentalmetricsTaskDefArn"
+              ;;
+            "dailycompanydata")
+              TASK_DEF_NAME="DailycompanydataTaskDefArn"
+              ;;
+            *)
+              # Default case: convert to proper case (first letter uppercase, rest lowercase)
+              TASK_DEF_NAME=$(echo "$LOADER_NAME" | sed 's/./\U&/' | sed 's/.*/\L&/' | sed 's/^./\U&/')TaskDefArn
+              ;;
+          esac
+          TASK_DEF_ARN=$(aws cloudformation describe-stacks \
+            --stack-name stocks-ecs-tasks-stack \
+            --query "Stacks[0].Outputs[?OutputKey=='${TASK_DEF_NAME}'].OutputValue" \
+            --output text)
+
+          # Validate task definition exists
+          if [[ -z "$TASK_DEF_ARN" || "$TASK_DEF_ARN" == "None" ]]; then
+            echo "❌ No task definition found for ${{ matrix.loader }} (looking for output: $TASK_DEF_NAME)"
+            echo "Available task definitions in CloudFormation:"
+            aws cloudformation describe-stacks \
+              --stack-name stocks-ecs-tasks-stack \
+              --query "Stacks[0].Outputs[?contains(OutputKey, 'TaskDefArn')].OutputKey" \
+              --output text
+            exit 1
+          fi
+          
+          # Get networking info
+          SUBNET1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUBNET2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SECURITY_GROUP=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+          
+          echo "cluster=$CLUSTER_ARN" >> $GITHUB_OUTPUT
+          echo "task-def=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
+          echo "subnet1=$SUBNET1" >> $GITHUB_OUTPUT
+          echo "subnet2=$SUBNET2" >> $GITHUB_OUTPUT
+          echo "security-group=$SECURITY_GROUP" >> $GITHUB_OUTPUT
+
+      - name: Execute loader task
+        id: task
+        run: |
+          echo "🚀 Starting ${{ matrix.loader }} loader (priority: ${{ matrix.priority }})"
+
+          # Map loader name to container name (handle special cases)
+          case "${{ matrix.loader }}" in
+            "companyprofile")
+            
+              CONTAINER_NAME="loadcompanyprofile-loader"
+              ;;
+            "feargreed")
+              CONTAINER_NAME="feargreeddata-loader"
+              ;;
+            "naaim")
+              CONTAINER_NAME="naaaimdata-loader"
+              ;;
+            "companyprofile")
+              CONTAINER_NAME="loadcompanyprofile-loader"
+              ;;
+            "financials")
+              CONTAINER_NAME="loadfinancials-loader"
+              ;;
+            "historical")
+              CONTAINER_NAME="loadhistorical-loader"
+              ;;
+            "sectordata")
+              CONTAINER_NAME="sectordata-loader"
+              ;;
+            *)
+              CONTAINER_NAME="${{ matrix.loader }}-loader"
+              ;;
+          esac
+
+          echo "Using container name: $CONTAINER_NAME"
+
+          # Get the correct image URI for this loader
+          REPOSITORY_URI=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-ContainerRepositoryUri'].Value" \
+            --output text --region ${{ env.AWS_REGION }})
+
+          # Use loader-specific image (only image we build)
+          IMAGE_URI="${REPOSITORY_URI}:${{ matrix.loader }}-latest"
+          echo "✅ Using loader-specific image: $IMAGE_URI"
+
+          # Get the current task definition and update it with the new image
+          echo "🔄 Creating task definition revision with updated image..."
+          TASK_DEF_JSON=$(aws ecs describe-task-definition \
+            --task-definition "${{ steps.infra.outputs.task-def }}" \
+            --query "taskDefinition" \
+            --output json)
+
+          # Update the container image in the task definition
+          UPDATED_TASK_DEF=$(echo "$TASK_DEF_JSON" | jq \
+            --arg imageUri "$IMAGE_URI" \
+            --arg containerName "$CONTAINER_NAME" \
+            '.containerDefinitions |= map(if .name == $containerName then .image = $imageUri else . end) | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)')
+
+          # Register new task definition revision
+          # Write JSON to temporary file for AWS CLI
+          echo "$UPDATED_TASK_DEF" > /tmp/task_def.json
+
+          # Validate JSON syntax before sending to AWS
+          if ! jq empty /tmp/task_def.json; then
+            echo "❌ ERROR: Invalid JSON generated for task definition!"
+            echo "JSON content:"
+            cat /tmp/task_def.json
+            exit 1
+          fi
+
+          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file:///tmp/task_def.json \
+            --query "taskDefinition.taskDefinitionArn" \
+            --output text)
+
+          echo "📝 Registered new task definition: $NEW_TASK_DEF_ARN"
+
+          # Map loader name to script name (handle special cases)
+          case "${{ matrix.loader }}" in
+            *)
+              SCRIPT_NAME="load${{ matrix.loader }}.py"
+              ;;
+          esac
+
+          # Run ECS task with the updated task definition
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "${{ steps.infra.outputs.cluster }}" \
+            --task-definition "$NEW_TASK_DEF_ARN" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.subnet1 }},${{ steps.infra.outputs.subnet2 }}],securityGroups=[${{ steps.infra.outputs.security-group }}],assignPublicIp=ENABLED}" \
+            --overrides "{\"containerOverrides\":[{\"name\":\"$CONTAINER_NAME\",\"command\":[\"python3\",\"$SCRIPT_NAME\"]}]}" \
+            --query "tasks[0].taskArn" \
+            --output text)
+
+          echo "task-arn=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "Started task: $TASK_ARN"
+
+      - name: Wait for task completion
+        run: |
+          echo "⏳ Waiting for ${{ matrix.loader }} task to complete..."
+          
+          # Wait for task to stop
+          aws ecs wait tasks-stopped \
+            --cluster "${{ steps.infra.outputs.cluster }}" \
+            --tasks "${{ steps.task.outputs.task-arn }}"
+
+      - name: Check task result
+        run: |
+          # Get task details
+          TASK_DETAILS=$(aws ecs describe-tasks \
+            --cluster "${{ steps.infra.outputs.cluster }}" \
+            --tasks "${{ steps.task.outputs.task-arn }}")
+          
+          # Extract exit code
+          EXIT_CODE=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].containers[0].exitCode // 1')
+          STOP_REASON=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].stoppedReason // "Unknown"')
+          
+          echo "Task stopped with exit code: $EXIT_CODE"
+          echo "Stop reason: $STOP_REASON"
+          
+          if [[ "$EXIT_CODE" != "0" ]]; then
+            echo "❌ ${{ matrix.loader }} loader failed with exit code $EXIT_CODE"
+            echo "Stop reason: $STOP_REASON"
+            exit 1
+          else
+            echo "✅ ${{ matrix.loader }} loader completed successfully"
+          fi
+
+  # 4. Summary and notifications
+  deployment-summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [detect-changes, deploy-infrastructure, execute-loaders]
+    if: always()
+    
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## 📊 Deployment Summary"
+          echo "- **Infrastructure**: ${{ needs.deploy-infrastructure.result || 'skipped' }}"
+          echo "- **Loaders executed**: ${{ needs.execute-loaders.result || 'skipped' }}"
+          echo "- **Changes detected**: ${{ needs.detect-changes.outputs.has-changes }}"
+          
+          if [[ "${{ needs.execute-loaders.result }}" == "success" ]]; then
+            echo "✅ All loaders completed successfully"
+          elif [[ "${{ needs.execute-loaders.result }}" == "failure" ]]; then
+            echo "❌ Some loaders failed - check individual job logs"
+          else
+            echo "ℹ️ No loaders were executed"
+          fi
+          
+          echo ""
+          echo "**Matrix used:**"
+          echo '${{ needs.detect-changes.outputs.matrix }}' | jq -r '.include[] | "- \(.loader) (\(.priority) priority, \(.timeout)m timeout)"' || echo "No matrix generated"
+
+      - name: Report status
+        run: |
+          if [[ "${{ needs.execute-loaders.result }}" == "failure" ]]; then
+            echo "❌ Deployment had failures"
+            exit 1
+          else
+            echo "✅ Deployment completed successfully"
+          fi

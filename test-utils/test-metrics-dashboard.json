@@ -1,0 +1,301 @@
+{
+  "dashboardConfig": {
+    "name": "Financial Platform Test Metrics",
+    "description": "Comprehensive testing metrics and quality gates for the financial platform",
+    "version": "1.0.0",
+    "refreshInterval": "5m",
+    "autoRefresh": true
+  },
+  "qualityGates": {
+    "coverage": {
+      "frontend": {
+        "lines": { "threshold": 85, "target": 90 },
+        "functions": { "threshold": 80, "target": 90 },
+        "branches": { "threshold": 75, "target": 85 },
+        "statements": { "threshold": 85, "target": 90 }
+      },
+      "backend": {
+        "lines": { "threshold": 90, "target": 95 },
+        "functions": { "threshold": 85, "target": 95 },
+        "branches": { "threshold": 80, "target": 90 },
+        "statements": { "threshold": 90, "target": 95 }
+      }
+    },
+    "testResults": {
+      "unit": {
+        "successRate": { "threshold": 98, "target": 100 },
+        "maxExecutionTime": { "threshold": "30s", "target": "15s" }
+      },
+      "integration": {
+        "successRate": { "threshold": 95, "target": 100 },
+        "maxExecutionTime": { "threshold": "60s", "target": "30s" }
+      },
+      "e2e": {
+        "successRate": { "threshold": 90, "target": 95 },
+        "maxExecutionTime": { "threshold": "300s", "target": "180s" }
+      },
+      "security": {
+        "successRate": { "threshold": 100, "target": 100 },
+        "maxExecutionTime": { "threshold": "45s", "target": "30s" }
+      },
+      "performance": {
+        "successRate": { "threshold": 85, "target": 95 },
+        "maxExecutionTime": { "threshold": "120s", "target": "60s" }
+      }
+    },
+    "performance": {
+      "frontend": {
+        "bundleSize": { "threshold": "2MB", "target": "1.5MB" },
+        "loadTime": { "threshold": "3s", "target": "2s" },
+        "firstContentfulPaint": { "threshold": "2s", "target": "1.5s" },
+        "largestContentfulPaint": { "threshold": "2.5s", "target": "2s" },
+        "cumulativeLayoutShift": { "threshold": 0.1, "target": 0.05 }
+      },
+      "backend": {
+        "apiResponseTime": { "threshold": "500ms", "target": "200ms" },
+        "databaseQueryTime": { "threshold": "100ms", "target": "50ms" },
+        "memoryUsage": { "threshold": "512MB", "target": "256MB" },
+        "cpuUsage": { "threshold": "80%", "target": "50%" }
+      }
+    },
+    "security": {
+      "vulnerabilities": {
+        "critical": { "threshold": 0, "target": 0 },
+        "high": { "threshold": 0, "target": 0 },
+        "medium": { "threshold": 3, "target": 0 },
+        "low": { "threshold": 10, "target": 5 }
+      },
+      "dependencies": {
+        "outdated": { "threshold": "20%", "target": "10%" },
+        "deprecated": { "threshold": 5, "target": 0 }
+      }
+    }
+  },
+  "metrics": {
+    "testExecution": {
+      "totalTests": {
+        "description": "Total number of tests across all types",
+        "source": "aggregated",
+        "format": "count"
+      },
+      "successRate": {
+        "description": "Overall test success rate percentage",
+        "source": "calculated",
+        "format": "percentage"
+      },
+      "executionTime": {
+        "description": "Total test suite execution time",
+        "source": "measured",
+        "format": "duration"
+      },
+      "testsByType": {
+        "description": "Test count breakdown by type",
+        "source": "aggregated",
+        "format": "distribution"
+      }
+    },
+    "coverage": {
+      "overallCoverage": {
+        "description": "Combined frontend and backend coverage",
+        "source": "calculated",
+        "format": "percentage"
+      },
+      "coverageByComponent": {
+        "description": "Coverage metrics by frontend/backend",
+        "source": "aggregated",
+        "format": "breakdown"
+      },
+      "uncoveredLines": {
+        "description": "Number of uncovered lines of code",
+        "source": "calculated",
+        "format": "count"
+      }
+    },
+    "quality": {
+      "codeQualityScore": {
+        "description": "Combined score from linting and analysis",
+        "source": "calculated",
+        "format": "score"
+      },
+      "technicalDebt": {
+        "description": "Estimated technical debt in hours",
+        "source": "calculated",
+        "format": "hours"
+      },
+      "duplicateCode": {
+        "description": "Percentage of duplicate code",
+        "source": "analysis",
+        "format": "percentage"
+      }
+    },
+    "performance": {
+      "buildTime": {
+        "description": "Frontend build time",
+        "source": "measured",
+        "format": "duration"
+      },
+      "bundleSize": {
+        "description": "Frontend bundle size",
+        "source": "measured",
+        "format": "bytes"
+      },
+      "apiLatency": {
+        "description": "Average API response time",
+        "source": "measured",
+        "format": "milliseconds"
+      }
+    },
+    "security": {
+      "vulnerabilityCount": {
+        "description": "Total security vulnerabilities",
+        "source": "audit",
+        "format": "count"
+      },
+      "securityTestsPassed": {
+        "description": "Security tests success rate",
+        "source": "calculated",
+        "format": "percentage"
+      },
+      "dependencyRisk": {
+        "description": "Dependency security risk score",
+        "source": "calculated",
+        "format": "score"
+      }
+    }
+  },
+  "alerts": {
+    "critical": [
+      {
+        "condition": "coverage.overall < 80%",
+        "message": "Overall test coverage below critical threshold",
+        "action": "immediate_attention"
+      },
+      {
+        "condition": "security.vulnerabilities.critical > 0",
+        "message": "Critical security vulnerabilities detected",
+        "action": "immediate_fix"
+      },
+      {
+        "condition": "testResults.successRate < 90%",
+        "message": "Test success rate below acceptable threshold",
+        "action": "investigate_failures"
+      }
+    ],
+    "warning": [
+      {
+        "condition": "coverage.overall < 85%",
+        "message": "Test coverage approaching minimum threshold",
+        "action": "increase_coverage"
+      },
+      {
+        "condition": "performance.apiLatency > 300ms",
+        "message": "API response time above target",
+        "action": "optimize_performance"
+      },
+      {
+        "condition": "security.vulnerabilities.high > 0",
+        "message": "High priority security vulnerabilities found",
+        "action": "schedule_fix"
+      }
+    ],
+    "info": [
+      {
+        "condition": "testExecution.time > 180s",
+        "message": "Test suite execution time is long",
+        "action": "optimize_tests"
+      },
+      {
+        "condition": "dependencies.outdated > 10",
+        "message": "Multiple outdated dependencies detected",
+        "action": "update_dependencies"
+      }
+    ]
+  },
+  "reports": {
+    "daily": {
+      "enabled": true,
+      "schedule": "0 9 * * *",
+      "recipients": ["team@company.com"],
+      "format": "html",
+      "sections": ["summary", "trends", "failures", "coverage"]
+    },
+    "weekly": {
+      "enabled": true,
+      "schedule": "0 9 * * 1",
+      "recipients": ["managers@company.com"],
+      "format": "pdf",
+      "sections": ["executive_summary", "quality_trends", "security_status", "performance_metrics"]
+    },
+    "onFailure": {
+      "enabled": true,
+      "immediate": true,
+      "recipients": ["developers@company.com"],
+      "format": "slack",
+      "sections": ["failure_details", "recent_changes", "suggested_actions"]
+    }
+  },
+  "trends": {
+    "retention": "90d",
+    "granularity": "daily",
+    "metrics": [
+      "testResults.successRate",
+      "coverage.overall",
+      "performance.executionTime",
+      "security.vulnerabilityCount",
+      "quality.codeQualityScore"
+    ]
+  },
+  "integrations": {
+    "github": {
+      "enabled": true,
+      "webhook": "/api/webhooks/github",
+      "events": ["push", "pull_request", "workflow_run"],
+      "updateMetrics": true
+    },
+    "slack": {
+      "enabled": true,
+      "channel": "#test-results",
+      "notifications": ["failures", "critical_alerts", "daily_summary"]
+    },
+    "jira": {
+      "enabled": false,
+      "project": "FINANCE",
+      "autoCreateTickets": true,
+      "conditions": ["critical_failures", "security_vulnerabilities"]
+    }
+  },
+  "visualization": {
+    "charts": {
+      "testTrends": {
+        "type": "line",
+        "timeframe": "30d",
+        "metrics": ["successRate", "totalTests", "executionTime"]
+      },
+      "coverageHeatmap": {
+        "type": "heatmap",
+        "breakdown": "component",
+        "metrics": ["lines", "functions", "branches"]
+      },
+      "performanceRadar": {
+        "type": "radar",
+        "metrics": ["buildTime", "bundleSize", "apiLatency", "codeQuality"]
+      },
+      "securityDashboard": {
+        "type": "gauge",
+        "metrics": ["vulnerabilityScore", "dependencyRisk", "securityTestsPassed"]
+      }
+    },
+    "tables": {
+      "testResults": {
+        "columns": ["testType", "passed", "failed", "successRate", "executionTime"],
+        "sortBy": "successRate",
+        "sortOrder": "asc"
+      },
+      "failedTests": {
+        "columns": ["testName", "testType", "errorMessage", "lastPassed"],
+        "maxRows": 50,
+        "refreshInterval": "1m"
+      }
+    }
+  }
+}

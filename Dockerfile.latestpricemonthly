@@ -1,0 +1,17 @@
+# Dockerfile.pricemonthly
+FROM python:3.11-slim
+
+# Set environment variables to suppress pip warnings
+ENV PIP_ROOT_USER_ACTION=ignore \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+
+WORKDIR /app
+
+# install Python dependencies for loadpricemonthly.py
+COPY requirements-loadlatestpricemonthly.txt .
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadlatestpricemonthly.txt
+
+# copy and run the price-monthly loader script
+COPY loadlatestpricemonthly.py .
+ENTRYPOINT ["python", "loadlatestpricemonthly.py"]

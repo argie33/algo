@@ -1,0 +1,17 @@
+# Dockerfile.priceweekly
+FROM python:3.11-slim
+
+# Set environment variables to suppress pip warnings
+ENV PIP_ROOT_USER_ACTION=ignore \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+
+WORKDIR /app
+
+# install Python dependencies for loadpriceweekly.py
+COPY requirements-loadlatestpriceweekly.txt .
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadlatestpriceweekly.txt
+
+# copy and run the price-weekly loader script
+COPY loadlatestpriceweekly.py .
+ENTRYPOINT ["python", "loadlatestpriceweekly.py"]

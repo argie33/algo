@@ -1,0 +1,752 @@
+// Simplified database tests that work with real database connection in test environment
+const {
+  initializeDatabase,
+  getPool,
+  query,
+  cachedQuery,
+  clearQueryCache,
+  transaction,
+  closeDatabase,
+  healthCheck,
+} = require("../../utils/database");
+
+describe("Database Utility", () => {
+  let mockSecretsManager;
+  let originalEnv;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    // Store original environment
+    originalEnv = { ...process.env };
+
+    // Setup default environment
+    process.env.NODE_ENV = "test";
+    delete process.env.DB_SECRET_ARN;
+    delete process.env.DB_HOST;
+    delete process.env.DB_PORT;
+    delete process.env.DB_USER;
+    delete process.env.DB_PASSWORD;
+    delete process.env.DB_NAME;
+    delete process.env.DB_SSL;
+
+    // Mock Secrets Manager
+    mockSecretsManager = {
+      send: jest.fn(),
+    };
+    SecretsManagerClient.mockImplementation(() => mockSecretsManager);
+
+    // Reset module state
+    jest.resetModules();
+  });
+
+  afterEach(async () => {
+    // Restore original environment
+    process.env = { ...originalEnv };
+
+    // Clean up database connections
+    try {
+      await closeDatabase();
+    } catch (error) {
+      // Ignore cleanup errors in tests
+    }
+  });
+
+  describe("Database Configuration", () => {
+    test("should use environment variables when no secret ARN provided", async () => {
+      process.env.DB_HOST = "localhost";
+      process.env.DB_PORT = "5432";
+      process.env.DB_USER = "testuser";
+      process.env.DB_PASSWORD = "testpass";
+      process.env.DB_NAME = "testdb";
+      process.env.DB_SSL = "false";
+
+      mockPool.query.mockResolvedValue({ rows: [] });
+
+      await initializeDatabase();
+
+      expect(Pool).toHaveBeenCalledWith(
+        expect.objectContaining({
+          host: "localhost",
+          port: 5432,
+          user: "testuser",
+          password: "testpass",
+          database: "testdb",
+          ssl: false,
+        })
+      );
+    });
+
+    test("should parse SSL configuration correctly", async () => {
+      process.env.DB_HOST = "localhost";
+      process.env.DB_PORT = "5432";
+      process.env.DB_USER = "testuser";
+      process.env.DB_PASSWORD = "testpass";
+      process.env.DB_NAME = "testdb";
+      process.env.DB_SSL = "true";
+
+      mockPool.query.mockResolvedValue({ rows: [] });
+
+      await initializeDatabase();
+
+      expect(Pool).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ssl: {
+            rejectUnauthorized: false,
+          },
+        })
+      );
+    });
+
+    test("should use AWS Secrets Manager when secret ARN provided", async () => {
+      process.env.DB_SECRET_ARN =
+        "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-secret";
+
+      const secretValue = {
+        host: "secret-host",
+        port: 5432,
+        user: "secret-user",
+        password: "secret-pass",
+        database: "secret-db",
+        ssl: true,
+      };
+
+      mockSecretsManager.send.mockResolvedValue({
+        SecretString: JSON.stringify(secretValue),
+      });
+
+      mockPool.query.mockResolvedValue({ rows: [] });
+
+      await initializeDatabase();
+
+      expect(mockSecretsManager.send).toHaveBeenCalledWith(
+        expect.any(GetSecretValueCommand)
+      );
+
+      expect(Pool).toHaveBeenCalledWith(
+        expect.objectContaining({
+          host: "secret-host",
+          port: 5432,
+          user: "secret-user",
+          password: "secret-pass",
+          database: "secret-db",
+          ssl: {
+            rejectUnauthorized: false,
+          },
+        })
+      );
+    });
+
+    test("should handle malformed secret JSON", async () => {
+      process.env.DB_SECRET_ARN =
+        "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-secret";
+
+      mockSecretsManager.send.mockResolvedValue({
+        SecretString: "invalid json",
+      });
+
+      await expect(initializeDatabase()).rejects.toThrow();
+    });
+
+    test("should handle secrets manager errors", async () => {
+      process.env.DB_SECRET_ARN =
+        "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-secret";
+
+      mockSecretsManager.send.mockRejectedValue(
+        new Error("Secrets Manager error")
+      );
+
+      await expect(initializeDatabase()).rejects.toThrow(
+        "Secrets Manager error"
+      );
+    });
+
+    test("should use defaults for missing environment variables", async () => {
+      // Only set minimal required env vars
+      process.env.DB_HOST = "localhost";
+
+      mockPool.query.mockResolvedValue({ rows: [] });
+
+      await initializeDatabase();
+
+      expect(Pool).toHaveBeenCalledWith(
+        expect.objectContaining({
+          host: "localhost",
+          port: 5432, // default
+          user: "postgres", // default
+          database: "postgres", // default
+          ssl: false, // default
+        })
+      );
+    });
+  });
+
+  describe("Database Initialization", () => {
+    beforeEach(() => {
+      process.env.DB_HOST = "localhost";
+      process.env.DB_USER = "testuser";
+      process.env.DB_PASSWORD = "testpass";
+      process.env.DB_NAME = "testdb";
+    });
+
+    test("should initialize database successfully", async () => {
+      mockPool.query.mockResolvedValue({ rows: [] });
+
+      await initializeDatabase();
+
+      expect(Pool).toHaveBeenCalled();
+      expect(mockPool.query).toHaveBeenCalled();
+    });
+
+    test("should handle database initialization errors", async () => {
+      mockPool.query.mockRejectedValue(new Error("Database connection failed"));
+
+      await expect(initializeDatabase()).rejects.toThrow(
+        "Database connection failed"
+      );
+    });
+
+    test("should not reinitialize if already initialized", async () => {
+      mockPool.query.mockResolvedValue({ rows: [] });
+
+      await initializeDatabase();
+      Pool.mockClear();
+
+      await initializeDatabase();
+
+      expect(Pool).not.toHaveBeenCalled();
+    });
+
+    test("should handle concurrent initialization attempts", async () => {
+      mockPool.query.mockResolvedValue({ rows: [] });
+
+      const promise1 = initializeDatabase();
+      const promise2 = initializeDatabase();
+      const promise3 = initializeDatabase();
+
+      await Promise.all([promise1, promise2, promise3]);
+
+      // Should only create one pool instance
+      expect(Pool).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("Query Operations", () => {
+    beforeEach(async () => {
+      process.env.DB_HOST = "localhost";
+      process.env.DB_USER = "testuser";
+      process.env.DB_PASSWORD = "testpass";
+      process.env.DB_NAME = "testdb";
+
+      mockPool.query.mockResolvedValue({ rows: [] });
+      await initializeDatabase();
+      mockPool.query.mockClear();
+    });
+
+    test("should execute simple query successfully", async () => {
+      const mockResult = { rows: [{ id: 1, name: "test" }] };
+      mockPool.query.mockResolvedValue(mockResult);
+
+      const result = await query("SELECT * FROM test");
+
+      expect(mockPool.query).toHaveBeenCalledWith("SELECT * FROM test", []);
+      expect(result).toEqual(mockResult);
+    });
+
+    test("should execute parameterized query successfully", async () => {
+      const mockResult = { rows: [{ id: 1, name: "test" }] };
+      mockPool.query.mockResolvedValue(mockResult);
+
+      const result = await query("SELECT * FROM test WHERE id = $1", [1]);
+
+      expect(mockPool.query).toHaveBeenCalledWith(
+        "SELECT * FROM test WHERE id = $1",
+        [1]
+      );
+      expect(result).toEqual(mockResult);
+    });
+
+    test("should handle query errors", async () => {
+      mockPool.query.mockRejectedValue(new Error("Query failed"));
+
+      await expect(query("SELECT * FROM test")).rejects.toThrow("Query failed");
+    });
+
+    test("should initialize database if not already initialized before query", async () => {
+      // Reset initialization state
+      await closeDatabase();
+
+      const mockResult = { rows: [{ id: 1 }] };
+      mockPool.query.mockResolvedValue(mockResult);
+
+      await query("SELECT 1");
+
+      expect(Pool).toHaveBeenCalled();
+    });
+  });
+
+  describe("Cached Query Operations", () => {
+    beforeEach(async () => {
+      process.env.DB_HOST = "localhost";
+      mockPool.query.mockResolvedValue({ rows: [] });
+      await initializeDatabase();
+      mockPool.query.mockClear();
+      clearQueryCache();
+    });
+
+    test("should cache query results", async () => {
+      const mockResult = { rows: [{ id: 1, name: "test" }] };
+      mockPool.query.mockResolvedValue(mockResult);
+
+      const result1 = await cachedQuery("SELECT * FROM test");
+      const result2 = await cachedQuery("SELECT * FROM test");
+
+      expect(mockPool.query).toHaveBeenCalledTimes(1);
+      expect(result1).toEqual(mockResult);
+      expect(result2).toEqual(mockResult);
+    });
+
+    test("should cache query results with parameters", async () => {
+      const mockResult = { rows: [{ id: 1, name: "test" }] };
+      mockPool.query.mockResolvedValue(mockResult);
+
+      const result1 = await cachedQuery("SELECT * FROM test WHERE id = $1", [
+        1,
+      ]);
+      const result2 = await cachedQuery("SELECT * FROM test WHERE id = $1", [
+        1,
+      ]);
+      const result3 = await cachedQuery("SELECT * FROM test WHERE id = $1", [
+        2,
+      ]);
+
+      expect(mockPool.query).toHaveBeenCalledTimes(2); // Different parameters = different cache keys
+      expect(result1).toEqual(mockResult);
+      expect(result2).toEqual(mockResult);
+      expect(result3).toEqual(mockResult);
+    });
+
+    test("should respect cache TTL", async () => {
+      const mockResult = { rows: [{ id: 1, name: "test" }] };
+      mockPool.query.mockResolvedValue(mockResult);
+
+      await cachedQuery("SELECT * FROM test", [], 100); // 100ms TTL
+
+      // Wait for cache to expire
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      await cachedQuery("SELECT * FROM test", [], 100);
+
+      expect(mockPool.query).toHaveBeenCalledTimes(2);
+    });
+
+    test("should clear cache when requested", async () => {
+      const mockResult = { rows: [{ id: 1, name: "test" }] };
+      mockPool.query.mockResolvedValue(mockResult);
+
+      await cachedQuery("SELECT * FROM test");
+      clearQueryCache();
+      await cachedQuery("SELECT * FROM test");
+
+      expect(mockPool.query).toHaveBeenCalledTimes(2);
+    });
+
+    test("should handle cached query errors", async () => {
+      mockPool.query.mockRejectedValue(new Error("Cached query failed"));
+
+      await expect(cachedQuery("SELECT * FROM test")).rejects.toThrow(
+        "Cached query failed"
+      );
+    });
+  });
+
+  describe("Transaction Operations", () => {
+    beforeEach(async () => {
+      process.env.DB_HOST = "localhost";
+      mockPool.query.mockResolvedValue({ rows: [] });
+      await initializeDatabase();
+
+      mockPool.connect.mockResolvedValue(mockClient);
+      mockClient.query.mockResolvedValue({ rows: [] });
+    });
+
+    test("should execute transaction successfully", async () => {
+      const transactionCallback = jest.fn().mockResolvedValue("success");
+
+      const result = await transaction(transactionCallback);
+
+      expect(mockPool.connect).toHaveBeenCalled();
+      expect(mockClient.query).toHaveBeenCalledWith("BEGIN");
+      expect(transactionCallback).toHaveBeenCalledWith(mockClient);
+      expect(mockClient.query).toHaveBeenCalledWith("COMMIT");
+      expect(mockClient.release).toHaveBeenCalled();
+      expect(result).toBe("success");
+    });
+
+    test("should rollback transaction on error", async () => {
+      const transactionCallback = jest
+        .fn()
+        .mockRejectedValue(new Error("Transaction failed"));
+
+      await expect(transaction(transactionCallback)).rejects.toThrow(
+        "Transaction failed"
+      );
+
+      expect(mockClient.query).toHaveBeenCalledWith("BEGIN");
+      expect(mockClient.query).toHaveBeenCalledWith("ROLLBACK");
+      expect(mockClient.release).toHaveBeenCalled();
+    });
+
+    test("should handle transaction client acquisition errors", async () => {
+      mockPool.connect.mockRejectedValue(new Error("Connection failed"));
+
+      await expect(transaction(jest.fn())).rejects.toThrow("Connection failed");
+    });
+
+    test("should handle BEGIN statement errors", async () => {
+      mockClient.query.mockImplementation((sql) => {
+        if (sql === "BEGIN") {
+          throw new Error("BEGIN failed");
+        }
+        return { rows: [] };
+      });
+
+      await expect(transaction(jest.fn())).rejects.toThrow("BEGIN failed");
+      expect(mockClient.release).toHaveBeenCalled();
+    });
+
+    test("should handle COMMIT statement errors", async () => {
+      const transactionCallback = jest.fn().mockResolvedValue("success");
+
+      mockClient.query.mockImplementation((sql) => {
+        if (sql === "COMMIT") {
+          throw new Error("COMMIT failed");
+        }
+        return { rows: [] };
+      });
+
+      await expect(transaction(transactionCallback)).rejects.toThrow(
+        "COMMIT failed"
+      );
+      expect(mockClient.release).toHaveBeenCalled();
+    });
+  });
+
+  describe("Connection Management", () => {
+    beforeEach(() => {
+      process.env.DB_HOST = "localhost";
+    });
+
+    test("should return pool instance", async () => {
+      mockPool.query.mockResolvedValue({ rows: [] });
+      await initializeDatabase();
+
+      const pool = getPool();
+      expect(pool).toBe(mockPool);
+    });
+
+    test("should return null when pool not initialized", () => {
+      const pool = getPool();
+      expect(pool).toBeNull();
+    });
+
+    test("should close database connections", async () => {
+      mockPool.query.mockResolvedValue({ rows: [] });
+      await initializeDatabase();
+
+      await closeDatabase();
+
+      expect(mockPool.end).toHaveBeenCalled();
+    });
+
+    test("should handle close database when not initialized", async () => {
+      await expect(closeDatabase()).resolves.not.toThrow();
+    });
+  });
+
+  describe("Health Check", () => {
+    beforeEach(() => {
+      process.env.DB_HOST = "localhost";
+    });
+
+    test("should return healthy status", async () => {
+      const mockHealthResult = {
+        rows: [
+          {
+            timestamp: new Date(),
+            db_version: "PostgreSQL 13.7",
+          },
+        ],
+      };
+
+      mockPool.query.mockResolvedValue(mockHealthResult);
+      await initializeDatabase();
+      mockPool.query.mockClear();
+      mockPool.query.mockResolvedValue(mockHealthResult);
+
+      const health = await healthCheck();
+
+      expect(health).toEqual({
+        status: "healthy",
+        timestamp: mockHealthResult.rows[0].timestamp,
+        version: mockHealthResult.rows[0].db_version,
+        connections: 10,
+        idle: 5,
+        waiting: 0,
+      });
+    });
+
+    test("should initialize database before health check", async () => {
+      const mockHealthResult = {
+        rows: [
+          {
+            timestamp: new Date(),
+            db_version: "PostgreSQL 13.7",
+          },
+        ],
+      };
+
+      mockPool.query.mockResolvedValue(mockHealthResult);
+
+      await healthCheck();
+
+      expect(Pool).toHaveBeenCalled();
+    });
+
+    test("should return unhealthy status on error", async () => {
+      mockPool.query.mockRejectedValue(new Error("Database connection failed"));
+
+      const health = await healthCheck();
+
+      expect(health).toEqual({
+        status: "unhealthy",
+        error: "Database connection failed",
+      });
+    });
+
+    test("should handle health check initialization errors", async () => {
+      process.env.DB_SECRET_ARN = "invalid-arn";
+      mockSecretsManager.send.mockRejectedValue(new Error("Secrets error"));
+
+      const health = await healthCheck();
+
+      expect(health.status).toBe("unhealthy");
+      expect(health.error).toContain("Secrets error");
+    });
+  });
+
+  describe("Environment Configuration Edge Cases", () => {
+    test("should handle missing required environment variables", async () => {
+      // Clear all DB environment variables
+      delete process.env.DB_HOST;
+      delete process.env.DB_SECRET_ARN;
+
+      await expect(initializeDatabase()).rejects.toThrow();
+    });
+
+    test("should handle invalid port number", async () => {
+      process.env.DB_HOST = "localhost";
+      process.env.DB_PORT = "invalid-port";
+
+      mockPool.query.mockResolvedValue({ rows: [] });
+
+      await initializeDatabase();
+
+      expect(Pool).toHaveBeenCalledWith(
+        expect.objectContaining({
+          port: 5432, // should default to 5432 when invalid
+        })
+      );
+    });
+
+    test("should handle boolean SSL configuration variations", async () => {
+      process.env.DB_HOST = "localhost";
+      process.env.DB_SSL = "1"; // truthy string
+
+      mockPool.query.mockResolvedValue({ rows: [] });
+
+      await initializeDatabase();
+
+      expect(Pool).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ssl: {
+            rejectUnauthorized: false,
+          },
+        })
+      );
+    });
+
+    test("should handle complex SSL configuration from secrets", async () => {
+      process.env.DB_SECRET_ARN =
+        "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-secret";
+
+      const secretValue = {
+        host: "localhost",
+        port: 5432,
+        user: "testuser",
+        password: "testpass",
+        database: "testdb",
+        ssl: {
+          rejectUnauthorized: true,
+          ca: "certificate-content",
+        },
+      };
+
+      mockSecretsManager.send.mockResolvedValue({
+        SecretString: JSON.stringify(secretValue),
+      });
+
+      mockPool.query.mockResolvedValue({ rows: [] });
+
+      await initializeDatabase();
+
+      expect(Pool).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ssl: {
+            rejectUnauthorized: true,
+            ca: "certificate-content",
+          },
+        })
+      );
+    });
+  });
+
+  describe("Performance and Error Handling", () => {
+    beforeEach(async () => {
+      process.env.DB_HOST = "localhost";
+      mockPool.query.mockResolvedValue({ rows: [] });
+      await initializeDatabase();
+      mockPool.query.mockClear();
+    });
+
+    test("should handle connection pool exhaustion", async () => {
+      mockPool.query.mockRejectedValue(new Error("Connection pool exhausted"));
+
+      await expect(query("SELECT 1")).rejects.toThrow(
+        "Connection pool exhausted"
+      );
+    });
+
+    test("should handle database connection timeout", async () => {
+      mockPool.query.mockRejectedValue(new Error("Connection timeout"));
+
+      await expect(query("SELECT 1")).rejects.toThrow("Connection timeout");
+    });
+
+    test("should handle large query results", async () => {
+      const largeResult = {
+        rows: Array(10000)
+          .fill()
+          .map((_, i) => ({ id: i, data: `test-${i}` })),
+      };
+
+      mockPool.query.mockResolvedValue(largeResult);
+
+      const result = await query("SELECT * FROM large_table");
+
+      expect(result.rows).toHaveLength(10000);
+    });
+
+    test("should handle concurrent queries", async () => {
+      const mockResult = { rows: [{ id: 1 }] };
+      mockPool.query.mockResolvedValue(mockResult);
+
+      const queries = Array(10)
+        .fill()
+        .map((_, i) => query(`SELECT ${i}`));
+
+      const results = await Promise.all(queries);
+
+      expect(mockPool.query).toHaveBeenCalledTimes(10);
+      expect(results).toHaveLength(10);
+    });
+
+    test("should handle very long SQL queries", async () => {
+      const longQuery = "SELECT " + "1,".repeat(1000) + "1";
+      const mockResult = { rows: [{}] };
+
+      mockPool.query.mockResolvedValue(mockResult);
+
+      const result = await query(longQuery);
+
+      expect(mockPool.query).toHaveBeenCalledWith(longQuery, []);
+      expect(result).toEqual(mockResult);
+    });
+
+    test("should handle queries with many parameters", async () => {
+      const manyParams = Array(100)
+        .fill()
+        .map((_, i) => i);
+      const mockResult = { rows: [{ result: "success" }] };
+
+      mockPool.query.mockResolvedValue(mockResult);
+
+      const result = await query(
+        `SELECT * FROM test WHERE id IN (${manyParams.map((_, i) => `$${i + 1}`).join(",")})`,
+        manyParams
+      );
+
+      expect(mockPool.query).toHaveBeenCalledWith(
+        expect.any(String),
+        manyParams
+      );
+      expect(result).toEqual(mockResult);
+    });
+  });
+
+  describe("Cache Management Edge Cases", () => {
+    beforeEach(async () => {
+      process.env.DB_HOST = "localhost";
+      mockPool.query.mockResolvedValue({ rows: [] });
+      await initializeDatabase();
+      mockPool.query.mockClear();
+      clearQueryCache();
+    });
+
+    test("should handle cache with different parameter types", async () => {
+      const mockResult = { rows: [{ id: 1 }] };
+      mockPool.query.mockResolvedValue(mockResult);
+
+      await cachedQuery("SELECT * FROM test WHERE active = $1", [true]);
+      await cachedQuery("SELECT * FROM test WHERE active = $1", [false]);
+      await cachedQuery("SELECT * FROM test WHERE active = $1", [true]); // Should hit cache
+
+      expect(mockPool.query).toHaveBeenCalledTimes(2);
+    });
+
+    test("should handle cache with null parameters", async () => {
+      const mockResult = { rows: [{ id: 1 }] };
+      mockPool.query.mockResolvedValue(mockResult);
+
+      await cachedQuery("SELECT * FROM test WHERE data = $1", [null]);
+      await cachedQuery("SELECT * FROM test WHERE data = $1", [null]); // Should hit cache
+
+      expect(mockPool.query).toHaveBeenCalledTimes(1);
+    });
+
+    test("should handle cache with object parameters", async () => {
+      const mockResult = { rows: [{ id: 1 }] };
+      mockPool.query.mockResolvedValue(mockResult);
+
+      const obj1 = { key: "value" };
+      const obj2 = { key: "value" };
+
+      await cachedQuery("SELECT * FROM test WHERE data = $1", [obj1]);
+      await cachedQuery("SELECT * FROM test WHERE data = $1", [obj2]); // Different object reference
+
+      expect(mockPool.query).toHaveBeenCalledTimes(2);
+    });
+
+    test("should handle cache overflow gracefully", async () => {
+      const mockResult = { rows: [{ id: 1 }] };
+      mockPool.query.mockResolvedValue(mockResult);
+
+      // Fill cache with many different queries
+      for (let i = 0; i < 1000; i++) {
+        await cachedQuery(`SELECT ${i}`, []);
+      }
+
+      expect(mockPool.query).toHaveBeenCalledTimes(1000);
+    });
+  });
+});

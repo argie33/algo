@@ -1,0 +1,9 @@
+# Use shared base image with dependencies pre-installed
+ARG ECR_REGISTRY
+FROM ${ECR_REGISTRY}:base-loader-latest
+
+# Copy only the Python script (dependencies already in base)
+COPY loadpricedaily.py .
+ENTRYPOINT ["python", "loadpricedaily.py"]
+# Trigger rebuild Mon Oct  6 15:02:00 CDT 2025 - Load price data
+# Trigger pricedaily Mon Oct 6 23:22 CDT 2025
