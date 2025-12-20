@@ -338,10 +338,23 @@ jobs:
         run: |
           echo "Deploying ECS tasks infrastructure..."
 
-          # Check if stack exists
+          # Check if stack exists and its status
           if aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack 2>/dev/null; then
-            echo "Stack exists, updating..."
-            aws cloudformation update-stack \
+            STACK_STATUS=$(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack --query 'Stacks[0].StackStatus' --output text)
+            echo "Stack exists with status: $STACK_STATUS"
+
+            # If stack is in failed rollback state, delete and recreate
+            if [[ "$STACK_STATUS" == *"ROLLBACK_COMPLETE"* ]] || [[ "$STACK_STATUS" == *"ROLLBACK_FAILED"* ]]; then
+              echo "Stack is in failed state, deleting and will recreate..."
+              aws cloudformation delete-stack --stack-name stocks-ecs-tasks-stack
+              echo "Waiting for stack deletion to complete..."
+              aws cloudformation wait stack-delete-complete --stack-name stocks-ecs-tasks-stack
+              STACK_STATUS="DELETED"
+            fi
+
+            if [[ "$STACK_STATUS" != "DELETED" ]]; then
+              echo "Stack exists, updating..."
+              aws cloudformation update-stack \
               --stack-name stocks-ecs-tasks-stack \
               --template-url https://stocks-cf-templates-626216981288.s3.amazonaws.com/template-app-ecs-tasks.yml \
               --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
@@ -403,9 +416,13 @@ jobs:
                 ParameterKey=RiskMetricsImageTag,ParameterValue=riskmetrics-latest \
                 ParameterKey=FundamentalMetricsImageTag,ParameterValue=fundamentalmetrics-latest
 
-            echo "Waiting for stack update to complete..."
-            aws cloudformation wait stack-update-complete --stack-name stocks-ecs-tasks-stack
-          else
+              echo "Waiting for stack update to complete..."
+              aws cloudformation wait stack-update-complete --stack-name stocks-ecs-tasks-stack
+            fi
+          fi
+
+          # Create stack if it doesn't exist or was just deleted
+          if [[ ! $(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack 2>/dev/null) ]]; then
             echo "Stack does not exist, creating..."
             aws cloudformation create-stack \
               --stack-name stocks-ecs-tasks-stack \
