@@ -367,7 +367,7 @@ if __name__ == "__main__":
         # Load all ETF symbols (from etf_symbols table)
         cur.execute("SELECT symbol FROM etf_symbols;")
         all_etf_syms = [r["symbol"] for r in cur.fetchall()]
-        t_w, i_w, f_w = load_prices("price_weekly_etf", all_etf_syms, cur, conn)
+        t_w, i_w, f_w = load_prices("etf_price_weekly", all_etf_syms, cur, conn)
 
         # Record last run
         cur.execute("""
