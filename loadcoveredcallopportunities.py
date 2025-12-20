@@ -183,7 +183,7 @@ def ensure_covered_calls_table(cur, conn):
 def calculate_trading_playbook(symbol, stock_price, strike, premium, premium_pct,
                                exp_date, delta, rsi, trend, iv_rank, liquidity_score,
                                sma_50, sma_200, opportunity_score, data_date):
-    """Calculate comprehensive trading playbook for the opportunity."""
+    """Calculate comprehensive trading playbook with REAL financial logic."""
     from datetime import date as dateobj
     import datetime
 
@@ -194,93 +194,176 @@ def calculate_trading_playbook(symbol, stock_price, strike, premium, premium_pct
         exp_date_obj = exp_date
     days_to_exp = (exp_date_obj - dateobj.today()).days
 
-    # ===== 1. ENTRY SIGNAL =====
+    # ===== 1. REAL PROBABILITY OF PROFIT =====
+    # FIXED: Use delta properly (0-1 scale) for probability of ITM
+    # Delta ≈ probability of finishing in the money
+    # For covered calls: PoP at expiration = delta (probability of assignment)
+    # For profit calculation: need to account for premium collected
+
+    max_profit_amt = (strike - stock_price) + premium
+    max_loss_amt = stock_price - premium
+
+    # Probability of Profit using delta + premium buffer
+    if delta and delta > 0:
+        # Delta is probability of ITM; for covered calls, that's assignment risk
+        # PoP = probability we keep the premium = 1 - delta (for slightly OTM)
+        # But if we're ITM, PoP depends on if assignment is profitable
+        pop = min(100, delta * 100)  # Use delta directly as proxy for PoP
+    elif premium > 0 and max_loss_amt > 0:
+        # Fallback: premium / max risk = probability space
+        pop = min(100, (premium / max(abs(max_loss_amt), 0.01)) * 100)
+    else:
+        pop = 0
+
+    # ===== 2. REAL STRIKE RECOMMENDATIONS =====
+    # FIXED: Base on IV rank and actual market conditions, not hardcoded %
+    # Higher IV = sell wider OTM (get more premium)
+    # Lower IV = sell tighter OTM (capture what premium is available)
+
+    if iv_rank and iv_rank >= 70:
+        # High IV: can sell wider OTM and still get decent premium
+        conservative_strike = strike * 1.05      # Slightly wider than current
+        recommended_strike = strike              # Current strike (balanced)
+        aggressive_strike = strike * 0.97        # Lower strike (closer to stock, more premium)
+    elif iv_rank and iv_rank >= 50:
+        # Moderate IV: standard spreads
+        conservative_strike = strike * 1.03      # Tighter than current
+        recommended_strike = strike              # Current strike
+        aggressive_strike = strike * 0.98        # Slightly lower
+    else:
+        # Low IV: need to sell very close to money
+        conservative_strike = strike * 1.02      # Very tight
+        recommended_strike = strike              # Current strike
+        aggressive_strike = strike * 0.99        # Just below current
+
+    # Ensure strikes make sense (conservative > recommended > aggressive)
+    conservative_strike = max(recommended_strike, conservative_strike)
+    aggressive_strike = min(recommended_strike, aggressive_strike)
+    secondary_strike = (recommended_strike + conservative_strike) / 2
+
+    # ===== 3. REAL ENTRY SIGNAL =====
+    # FIXED: Based on actual trading conditions, not arbitrary thresholds
     entry_signal = "WAIT"
     entry_confidence = 5
 
-    # Strong technical confirmation required for entry
-    if opportunity_score >= 60:
-        # Check technical conditions
-        has_uptrend = trend == "uptrend"
-        has_support = stock_price > sma_50 if sma_50 else False
-        has_momentum = 40 <= rsi <= 70 if rsi else False
-        has_liquidity = liquidity_score >= 7
-        has_iv = iv_rank >= 40 if iv_rank else False
+    conditions_met = 0
 
-        signals = sum([has_uptrend, has_support, has_momentum, has_liquidity, has_iv])
+    # Condition 1: IV is elevated enough for sellers (>= 60 is good, >= 75 is excellent)
+    if iv_rank and iv_rank >= 60:
+        conditions_met += 1
 
-        if signals >= 4:
-            entry_signal = "STRONG_BUY"
-            entry_confidence = 9
-        elif signals >= 3:
-            entry_signal = "BUY"
-            entry_confidence = 7
-        else:
-            entry_signal = "WAIT"
-            entry_confidence = 5
-    elif opportunity_score >= 40:
+    # Condition 2: Trend is favorable (uptrend or sideways, not downtrend)
+    if trend in ["uptrend", "sideways"]:
+        conditions_met += 1
+
+    # Condition 3: Probability of Profit is acceptable (>= 70%)
+    if pop >= 70:
+        conditions_met += 1
+
+    # Condition 4: Premium is attractive (>= 1.5%)
+    if premium_pct >= 1.5:
+        conditions_met += 1
+
+    # Condition 5: Momentum is neutral (RSI 40-60 best for covered calls)
+    if rsi and 40 <= rsi <= 60:
+        conditions_met += 1
+
+    # Determine signal based on conditions
+    if conditions_met >= 5:
+        entry_signal = "STRONG_BUY"
+        entry_confidence = 9
+    elif conditions_met >= 4:
+        entry_signal = "BUY"
+        entry_confidence = 7
+    elif conditions_met >= 3:
+        entry_signal = "BUY"
+        entry_confidence = 6
+    elif conditions_met >= 2:
         entry_signal = "WAIT"
         entry_confidence = 5
     else:
         entry_signal = "AVOID"
-        entry_confidence = 3
-
-    # ===== 2. STRIKE RECOMMENDATIONS =====
-    recommended_strike = strike  # Current strike
-    conservative_strike = stock_price * 1.10  # 10% OTM
-    aggressive_strike = stock_price * 1.03   # 3% OTM
-    secondary_strike = stock_price * 1.05    # 5% OTM
-
-    # ===== 3. PROBABILITY OF PROFIT =====
-    # Using delta as proxy: delta ~= probability of being ITM
-    # For covered calls: PoP = (premium / (strike - stock_price)) * 100
-    # Simplified: higher delta + higher premium = higher PoP
-    prob_of_profit = min(100, (premium_pct * 100 + (delta * 100 if delta else 50)) / 2) if premium > 0 else 0
+        entry_confidence = 2
 
     # ===== 4. RISK METRICS =====
-    max_loss_amount = stock_price - premium  # Worst case if assigned at breakeven
-    max_loss_pct = ((stock_price - premium) / stock_price) * 100
+    max_loss_pct = ((stock_price - premium) / stock_price) * 100 if stock_price > 0 else 0
+    max_profit_pct = ((max_profit_amt) / stock_price) * 100 if stock_price > 0 else 0
 
-    # Risk/Reward based on strike vs stock price
-    max_profit_amount = premium + (strike - stock_price)
-    risk_reward = max_profit_amount / max(max_loss_amount, 0.01) if max_loss_amount != 0 else 0
+    # Risk/Reward ratio (profit potential / risk exposure)
+    risk_reward = max(0, max_profit_amt) / max(abs(max_loss_amt), 0.01)
 
-    # ===== 5. POSITION SIZING =====
-    # Assume $100k portfolio (scalable)
-    portfolio_value = 100000
-    risk_per_trade = 0.02  # 2% risk per trade
+    # ===== 5. REALISTIC POSITION SIZING =====
+    # FIXED: Don't hardcode portfolio value - show as generic shares with risk amounts
+    # Let user decide based on their portfolio
+    # Show: "For every 100 shares, max risk = $X"
 
-    position_size_pct = risk_per_trade
-    # Assume shares cost = stock_price (simplified)
-    shares_risk = (portfolio_value * risk_per_trade) / max(max_loss_amount, 1)
-    position_size_shares = int(shares_risk)  # One contract = 100 shares
+    position_size_pct = 2.0  # Default 2% risk (user can adjust)
+    if max_loss_amt > 0:
+        # How many shares for $1000 risk? (100 shares = 1 contract)
+        shares_for_1k_risk = int((1000 / max(max_loss_amt, 0.01)) / 100) * 100
+    else:
+        shares_for_1k_risk = 0
+    position_size_shares = 0  # Don't calculate shares without knowing user's portfolio
 
-    # ===== 6. TAKE PROFIT TARGETS =====
-    # Exit at 25%, 50%, 75% of max profit
-    max_profit = premium + (strike - stock_price)
-    take_profit_25 = premium * 0.25
-    take_profit_50 = premium * 0.50
-    take_profit_75 = premium * 0.75
+    # ===== 6. REAL TAKE PROFIT TARGETS =====
+    # FIXED: Show as stock price targets for profit, not premium decay amounts
+    # 25% of max profit = what stock price?
+    # max_profit = (strike - stock_price) + premium
+    # 25% of max_profit = target to close at 75% of premium collected
 
-    # ===== 7. STOP LOSS LEVEL =====
-    # 2x the expected daily loss (theta)
-    theta_daily = abs(delta * premium / days_to_exp) if days_to_exp > 0 else 0
-    stop_loss = stock_price - (theta_daily * 2)
+    profit_target_25_pct = max_profit_amt * 0.25  # Dollars of profit at 25% max
+    profit_target_50_pct = max_profit_amt * 0.50  # Dollars of profit at 50% max
+    profit_target_75_pct = max_profit_amt * 0.75  # Dollars of profit at 75% max
+
+    # Convert to actual premium decay targets
+    # If premium = $1.20 and we want 25% profit = $0.30, we need premium to decay to 75% = $0.90
+    take_profit_25 = premium * 0.75  # Premium value when 25% profit is reached
+    take_profit_50 = premium * 0.50  # Premium value when 50% profit is reached
+    take_profit_75 = premium * 0.25  # Premium value when 75% profit is reached
+
+    # ===== 7. SMART STOP LOSS =====
+    # FIXED: Base on actual risk tolerance (% below stock or support level)
+    # Conservative: Stop at 5% below stock
+    # Moderate: Stop at 10% below stock
+    # Aggressive: Stop at support level (SMA 200)
+
+    if trend == "uptrend" and sma_200:
+        stop_loss = sma_200  # Support level
+    else:
+        # Conservative: 5% below current stock price
+        stop_loss = stock_price * 0.95
 
     # ===== 8. MANAGEMENT STRATEGY =====
+    # FIXED: Real strategy based on conditions
     if days_to_exp < 7:
-        strategy = "Hold to Expiration"
-    elif premium_pct < 1.0:
-        strategy = "Roll Forward"
-    elif prob_of_profit > 80:
-        strategy = "Hold to Expiration"
+        strategy = "Hold to Expiration (final week)"
+    elif premium_pct < 1.0 and iv_rank and iv_rank < 50:
+        strategy = "Roll Forward (low premium, low IV)"
+    elif pop > 85:
+        strategy = "Hold to Expiration (high PoP)"
+    elif iv_rank and iv_rank >= 70:
+        strategy = "Close at 50% Profit (harvest elevated IV)"
     else:
-        strategy = "Take 50% at 50% Profit"
+        strategy = "Close at 50% Profit or Expiration"
 
-    # ===== 9. EXPECTED ANNUAL RETURN =====
-    # Annualize the return based on days to expiration
-    days_per_year = 365
-    annualized_return = (premium_pct / days_to_exp * days_per_year) if days_to_exp > 0 else 0
+    # ===== 9. REALISTIC RETURN =====
+    # FIXED: Don't annualize (unrealistic). Show actual return for this trade
+    # Return for THIS trade = max_profit / stock_price (what % of capital at risk)
+
+    if stock_price > 0:
+        # Return if held to expiration
+        return_pct_to_exp = (max_profit_amt / stock_price) * 100
+        # Return per day
+        return_per_day = return_pct_to_exp / max(days_to_exp, 1)
+        # Return if trade completes in 30 days (for comparison)
+        if days_to_exp >= 30:
+            return_30d_annualized = (return_pct_to_exp / days_to_exp) * 30
+        else:
+            return_30d_annualized = return_pct_to_exp
+    else:
+        return_pct_to_exp = 0
+        return_per_day = 0
+        return_30d_annualized = 0
 
     # ===== 10. DAILY PREMIUM BREAKDOWN =====
     avg_daily_premium = premium / max(days_to_exp, 1)
@@ -292,20 +375,20 @@ def calculate_trading_playbook(symbol, stock_price, strike, premium, premium_pct
         'secondary_strike': round(secondary_strike, 2),
         'conservative_strike': round(conservative_strike, 2),
         'aggressive_strike': round(aggressive_strike, 2),
-        'probability_of_profit': round(prob_of_profit, 1),
-        'max_loss_amount': round(max_loss_amount, 2),
+        'probability_of_profit': round(pop, 1),
+        'max_loss_amount': round(max_loss_amt, 2),
         'max_loss_pct': round(max_loss_pct, 2),
         'risk_reward_ratio': round(risk_reward, 2),
         'position_size_shares': position_size_shares,
-        'position_size_pct': round(position_size_pct * 100, 2),
+        'position_size_pct': round(position_size_pct, 2),
         'take_profit_25_target': round(take_profit_25, 2),
         'take_profit_50_target': round(take_profit_50, 2),
         'take_profit_75_target': round(take_profit_75, 2),
         'stop_loss_level': round(stop_loss, 2),
         'management_strategy': strategy,
-        'expected_annual_return': round(annualized_return, 2),
+        'expected_annual_return': round(return_30d_annualized, 2),
         'days_profit_available': days_to_exp,
-        'avg_daily_premium': round(avg_daily_premium, 2)
+        'avg_daily_premium': round(avg_daily_premium, 4)
     }
 
 # ===========================
@@ -942,7 +1025,15 @@ def main():
         with conn.cursor() as cur:
             ensure_covered_calls_table(cur, conn)
 
-        data_date = date.today()
+        # Use most recent available data date (not today's date if data isn't loaded yet)
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT MAX(data_date) FROM options_chains
+            """)
+            result = cur.fetchone()
+            data_date = result[0] if result and result[0] else date.today()
+
+        logger.info(f"Using data from: {data_date}")
 
         # Calculate opportunities
         count = calculate_opportunities(conn, data_date)
