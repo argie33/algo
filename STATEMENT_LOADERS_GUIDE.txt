@@ -1,0 +1,269 @@
+================================================================================
+STATEMENT LOADERS ORCHESTRATION GUIDE
+================================================================================
+
+PROBLEM SOLVED:
+- Multiple statement loaders requesting yfinance API simultaneously → rate limits
+- Data gaps when loaders fail due to rate limiting
+- No visibility into execution progress and failures
+
+SOLUTION:
+- Sequential execution with controlled delays between loaders
+- Rate limit safety: 15-35 second pauses between loaders
+- Detailed monitoring and execution reporting
+- Resume capability to continue from failure point
+
+================================================================================
+QUICK START
+================================================================================
+
+RUN ALL STATEMENT LOADERS (recommended for production):
+  python orchestrate_statement_loaders.py --mode sequential
+
+DRY RUN (see execution plan without running):
+  python orchestrate_statement_loaders.py --dry-run
+
+CAREFUL MODE (extra delays for aggressive rate limiting):
+  python orchestrate_statement_loaders.py --mode careful
+
+================================================================================
+EXECUTION MODES
+================================================================================
+
+SEQUENTIAL (default, 15s delays):
+  python orchestrate_statement_loaders.py --mode sequential
+
+  Execution timeline:
+  ├─ Annual Balance Sheet       (2-5 min)
+  ├─ Wait 15s (rate limit safety)
+  ├─ Quarterly Balance Sheet    (2-5 min)
+  ├─ Wait 15s
+  ├─ Annual Income Statement    (2-5 min)
+  ├─ Wait 15s
+  ... (continues for all 9 loaders)
+
+  Total time: ~45-60 minutes for all statement loaders
+
+CAREFUL MODE (35s delays, extra safety):
+  python orchestrate_statement_loaders.py --mode careful
+
+  Same as above but with 35s delays instead of 15s
+  Total time: ~70-90 minutes
+
+  Use this if seeing rate limit errors in logs
+
+================================================================================
+RESUME CAPABILITY (for interruptions)
+================================================================================
+
+If execution is interrupted, resume from specific loader:
+
+  # View execution plan first
+  python orchestrate_statement_loaders.py --dry-run
+
+  # Resume from loader #4 (0-based index)
+  python orchestrate_statement_loaders.py --resume 4
+
+Example:
+  Execution started, but failed at loader #5
+  You fixed the issue and want to continue:
+
+  python orchestrate_statement_loaders.py --resume 5
+
+================================================================================
+RUN SPECIFIC GROUPS (for testing or targeted updates)
+================================================================================
+
+ANNUAL STATEMENTS ONLY:
+  python orchestrate_statement_loaders.py --group annual
+  Runs: Annual Balance Sheet, Annual Income Statement, Annual Cash Flow
+
+QUARTERLY STATEMENTS ONLY:
+  python orchestrate_statement_loaders.py --group quarterly
+  Runs: Quarterly Balance Sheet, Quarterly Income Statement, Quarterly Cash Flow
+
+TTM (Trailing Twelve Months) ONLY:
+  python orchestrate_statement_loaders.py --group ttm
+  Runs: TTM Income Statement, TTM Cash Flow
+
+EARNINGS DATA ONLY:
+  python orchestrate_statement_loaders.py --group earnings
+  Runs: Earnings History
+
+================================================================================
+LOADERS EXECUTED (in order)
+================================================================================
+
+Priority 1: Annual Balance Sheet
+  Essential for debt/equity calculations
+
+Priority 2: Quarterly Balance Sheet
+  Essential for quarterly metrics
+
+Priority 3: Annual Income Statement
+  Essential for profitability scores
+
+Priority 4: Quarterly Income Statement
+  Essential for quarterly earnings analysis
+
+Priority 5: Annual Cash Flow
+  Essential for cash flow scoring
+
+Priority 6: Quarterly Cash Flow
+  Essential for quarterly cash analysis
+
+Priority 7: TTM Income Statement
+  TTM profitability metrics
+
+Priority 8: TTM Cash Flow
+  TTM cash flow metrics
+
+Priority 9: Earnings History
+  Historical earnings data
+
+================================================================================
+UNDERSTANDING OUTPUT
+================================================================================
+
+EXECUTION LOG:
+  ✅ PASS | Annual Balance Sheet       | 245.3s
+  ❌ FAIL | Quarterly Income Statement | 156.2s
+
+  Green = Successfully loaded and inserted into database
+  Red = Failed to retrieve data or DB insert error
+
+STATISTICS:
+  Total Loaders:  9
+  ✅ Passed:      8
+  ❌ Failed:      1
+  ⏱️  Total Time:  1847.5s (30.8m)
+  Success Rate:   88.9%
+
+DATA GAPS:
+  If any loaders fail, they're listed here with exit codes
+  You can re-run failed loaders individually later
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+RATE LIMIT ERRORS:
+  If you see "429 Too Many Requests" or similar errors:
+
+  1. Increase delay time:
+     python orchestrate_statement_loaders.py --mode careful
+
+  2. Run loaders individually with delays:
+     python loadannualbalancesheet.py && sleep 30
+     python loadquarterlyincomestatement.py && sleep 30
+     ... (repeat for each)
+
+TIMEOUT ERRORS:
+  If individual loaders timeout:
+
+  1. Run with single group at a time
+  2. Check yfinance API status (may have temporary issues)
+  3. Increase system timeout limits if available
+
+DB CONNECTION ERRORS:
+  If database connection fails:
+
+  1. Verify PostgreSQL is running
+  2. Check environment variables (DB_HOST, DB_USER, etc.)
+  3. Check AWS Secrets Manager ARN if using AWS deployment
+
+MISSING DATA:
+  If score calculation shows gaps:
+
+  1. Check which loaders failed in orchestrator output
+  2. Re-run failed loaders individually:
+     python loadannualbalancesheet.py
+  3. Monitor logs for specific errors (stock not found, API limits, etc.)
+  4. Data gaps from API are normal (some stocks don't have data)
+
+================================================================================
+MONITORING DATA QUALITY
+================================================================================
+
+After running orchestrator:
+
+1. Check which loaders passed/failed
+2. Note any data gaps in the summary
+3. For failed loaders, check individual logs:
+   python loadannualbalancesheet.py 2>&1 | grep ERROR
+
+4. Common reasons for gaps:
+   - Stock doesn't exist or was delisted
+   - Stock is too new (no historical data)
+   - API rate limiting (more likely with Careful mode)
+   - Data not yet published by company (quarterly/annual delays)
+
+5. These gaps are expected and acceptable
+   Score calculation uses available data and returns None for missing values
+
+================================================================================
+INTEGRATION WITH SCORE CALCULATION
+================================================================================
+
+After all statement loaders complete successfully:
+
+1. Verify all loaders passed (or acceptable failure rate)
+2. Calculate financial scores:
+
+   python calculate_scores.py
+
+3. Monitor for data gaps in score calculation logs
+4. Adjust scoring logic if needed to handle missing statement data
+
+================================================================================
+PERFORMANCE NOTES
+================================================================================
+
+Execution time varies based on:
+- Number of stocks/ETFs in database
+- yfinance API response time
+- Network latency
+- System load
+
+Expected times:
+- 500-1000 stocks:  30-50 minutes
+- 1000-2000 stocks: 50-90 minutes
+- 2000+ stocks:     90+ minutes (may need Careful mode)
+
+To speed up:
+- Run during off-peak hours (less API contention)
+- Increase system resources (CPU, memory, network)
+- Run only needed groups (--group annual, etc.)
+
+================================================================================
+ADVANCED USAGE
+================================================================================
+
+SCRIPTING / AUTOMATION:
+
+Run orchestrator and check results programmatically:
+
+  #!/bin/bash
+  python orchestrate_statement_loaders.py --mode sequential
+  if [ $? -eq 0 ]; then
+    echo "All loaders passed, proceeding with score calculation..."
+    python calculate_scores.py
+  else
+    echo "Some loaders failed, check logs before continuing"
+    exit 1
+  fi
+
+CRON SCHEDULING:
+
+Daily execution in cron (runs overnight to avoid peak hours):
+
+  0 2 * * * cd /home/stocks/algo && python orchestrate_statement_loaders.py --mode careful >> logs/statement_loaders.log 2>&1
+
+MONITORING / ALERTING:
+
+Track execution in your logging system:
+
+  python orchestrate_statement_loaders.py --mode sequential 2>&1 | \
+    tee -a logs/orchestration_$(date +%Y%m%d_%H%M%S).log
+
+================================================================================

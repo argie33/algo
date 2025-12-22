@@ -1,0 +1,161 @@
+================================================================================
+STATEMENT LOADERS - QUICK START FOR FULL DATA LOAD
+================================================================================
+
+🎯 GOAL: Load all financial statement data without API rate limit errors
+
+⚡ BEST PRACTICE: yfinance research-backed delays (2-5 seconds between loaders)
+
+================================================================================
+JUST RUN THIS (recommended):
+================================================================================
+
+python3 run_statement_loaders_monitored.py --mode standard
+
+That's it! You'll get:
+✅ All 9 statement loaders running sequentially
+✅ Rate limit protection (3-second delays)
+✅ Real-time monitoring and error detection
+✅ Complete financial statement data
+⏱️  Estimated time: 25-30 minutes
+
+================================================================================
+IF YOU SEE RATE LIMIT ERRORS DURING EXECUTION:
+================================================================================
+
+OPTION 1: Increase delays (switch modes)
+  python3 run_statement_loaders_monitored.py --mode safe
+  python3 run_statement_loaders_monitored.py --mode careful
+
+OPTION 2: Run by group instead (smaller batches)
+  python3 run_statement_loaders_monitored.py --mode standard --group annual
+  python3 run_statement_loaders_monitored.py --mode standard --group quarterly
+
+OPTION 3: Wait and retry (yfinance resets hourly limits)
+  # Wait 30-60 minutes, then retry
+
+================================================================================
+EXECUTION MODES:
+================================================================================
+
+fast     - 2 second delays  | 24-27 min | Fastest, least safe
+standard - 3 second delays  | 25-30 min | RECOMMENDED ⭐
+safe     - 5 second delays  | 30-35 min | For rate limit issues
+careful  - 10 second delays | 40-50 min | Maximum protection
+
+================================================================================
+WHAT GETS LOADED:
+================================================================================
+
+✓ Annual Balance Sheet
+✓ Quarterly Balance Sheet
+✓ Annual Income Statement
+✓ Quarterly Income Statement
+✓ Annual Cash Flow
+✓ Quarterly Cash Flow
+✓ TTM Income Statement
+✓ TTM Cash Flow
+✓ Earnings History
+
+All needed for complete financial scoring
+
+================================================================================
+IF A LOADER FAILS:
+================================================================================
+
+It's shown in the summary. You can:
+
+1. Identify the failed loader from output
+2. Re-run that single loader:
+   python3 loadannualbalancesheet.py
+
+3. Or re-run whole thing in safer mode:
+   python3 run_statement_loaders_monitored.py --mode safe
+
+================================================================================
+MONITORING DURING EXECUTION:
+================================================================================
+
+You'll see output like:
+
+  ▶️  STARTING: Annual Balance Sheet
+     ✓ Successfully processed AAPL (4 records)
+     ✓ Successfully processed MSFT (4 records)
+     ...
+  ✅ SUCCESS: Annual Balance Sheet completed in 245.3s
+
+  ⏳ Waiting 3s before next loader...
+
+  ▶️  STARTING: Quarterly Balance Sheet
+     ...
+
+This is normal and good!
+
+================================================================================
+AFTER ALL LOADERS COMPLETE:
+================================================================================
+
+You'll see:
+
+  ================================================================================
+  EXECUTION SUMMARY
+  ================================================================================
+  Duration: 27.6 minutes
+  Results:
+    Total:   9
+    ✅ Passed:  9
+    ❌ Failed:  0
+    Success: 100.0%
+
+  ✅ ALL LOADERS COMPLETED SUCCESSFULLY
+
+Then you can proceed:
+
+  python3 calculate_scores.py
+
+================================================================================
+DATA GAPS (Expected and Acceptable):
+================================================================================
+
+Some stocks may not have all data:
+- Newly IPO'd stocks (no historical data yet)
+- Delisted stocks (no longer trading)
+- Data not yet published (quarterly/annual delays)
+
+These gaps are EXPECTED and OK. Loaders skip them and move to next stock.
+Scoring logic handles None values properly.
+
+================================================================================
+BEST PRACTICES REFERENCE:
+================================================================================
+
+✅ DO:
+  - Run during off-peak hours (early morning, late night)
+  - Use --mode standard (3s delays) for normal operation
+  - Let it run uninterrupted
+  - Check summary at end
+  - Re-run failed loaders individually
+
+❌ DON'T:
+  - Run multiple instances simultaneously
+  - Use 15+ second delays (overkill, not yfinance best practice)
+  - Kill the process mid-way
+  - Adjust delays while running
+
+================================================================================
+HELP / DEBUGGING:
+================================================================================
+
+See detailed guide:
+  cat RUN_STATEMENT_LOADERS.md
+
+Check individual loader:
+  python3 loadannualbalancesheet.py 2>&1 | tail -100
+
+Preview without running:
+  python3 orchestrate_statement_loaders.py --dry-run --mode standard
+
+Run only one group (for testing):
+  python3 run_statement_loaders_monitored.py --mode standard --group annual
+
+================================================================================

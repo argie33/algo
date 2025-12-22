@@ -382,8 +382,7 @@ if __name__ == "__main__":
         peak = get_rss_mb()
         logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
         logging.info(f"Stocks      — total: {t_s}, inserted: {i_s}, failed: {len(f_s)}")
-        logging.info(f"ETFs        — total: {t_e}, inserted: {i_e}, failed: {len(f_e)}")
-        logging.info(f"World ETFs  — total: {t_w}, inserted: {i_w}, failed: {len(f_w)}")
+        logging.info(f"ETFs        — total: {t_w}, inserted: {i_w}, failed: {len(f_w)}")
 
         cur.close()
         conn.close()
