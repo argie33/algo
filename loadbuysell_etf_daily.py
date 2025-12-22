@@ -576,8 +576,8 @@ def fetch_symbol_from_db(symbol, timeframe):
     # Table name mapping for consistency with loader scripts
     price_table_map = {
         "daily": "etf_price_daily",
-        "weekly": "price_weekly_etf",
-        "monthly": "price_monthly_etf"
+        "weekly": "etf_price_weekly",
+        "monthly": "etf_price_monthly"
     }
     if tf not in price_table_map:
         raise ValueError(f"Invalid timeframe: {timeframe}")

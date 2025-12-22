@@ -115,7 +115,8 @@ def load_prices(table_name, symbols, cur, conn):
                     auto_adjust=False,   # FIXED: Match TradingView unadjusted prices
                     actions=True,        # preserved
                     threads=True,        # preserved
-                    progress=False       # preserved
+                    progress=False,      # preserved
+                    timeout=60           # increased from default 10s to handle slow connections
                 )
                 break
             except Exception as e:
@@ -130,7 +131,7 @@ def load_prices(table_name, symbols, cur, conn):
                 last_error = None
                 for sym_attempt in range(1, MAX_SYMBOL_RETRIES + 1):
                     try:
-                        single_df = yf.download(orig_sym, period="max", interval="1mo", auto_adjust=False, actions=True, progress=False)
+                        single_df = yf.download(orig_sym, period="max", interval="1mo", auto_adjust=False, actions=True, progress=False, timeout=60)
                         if not single_df.empty:
                             per_symbol_results[orig_sym] = single_df
                             symbol_success = True
@@ -235,7 +236,7 @@ def load_prices(table_name, symbols, cur, conn):
             symbol_success = False
             for sym_attempt in range(1, MAX_SYMBOL_RETRIES + 1):
                 try:
-                    single_df = yf.download(orig_sym, period="max", interval="1mo", auto_adjust=False, actions=True, progress=False)
+                    single_df = yf.download(orig_sym, period="max", interval="1mo", auto_adjust=False, actions=True, progress=False, timeout=60)
                     if not single_df.empty:
                         # Now insert this data into database
                         rows = []
@@ -381,8 +382,7 @@ if __name__ == "__main__":
         peak = get_rss_mb()
         logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
         logging.info(f"Stocks      — total: {t_s}, inserted: {i_s}, failed: {len(f_s)}")
-        logging.info(f"ETFs        — total: {t_e}, inserted: {i_e}, failed: {len(f_e)}")
-        logging.info(f"World ETFs  — total: {t_w}, inserted: {i_w}, failed: {len(f_w)}")
+        logging.info(f"ETFs        — total: {t_w}, inserted: {i_w}, failed: {len(f_w)}")
 
         cur.close()
         conn.close()

@@ -874,9 +874,9 @@ def fetch_symbol_from_db(symbol, timeframe):
     """Fetch PRICE DATA ONLY - all technical calculations done inline"""
     tf = timeframe.lower()
     price_table_map = {
-        "daily": "price_daily_etf",
-        "weekly": "price_weekly_etf",
-        "monthly": "price_monthly_etf"
+        "daily": "etf_price_daily",
+        "weekly": "etf_price_weekly",
+        "monthly": "etf_price_monthly"
     }
     if tf not in price_table_map:
         raise ValueError(f"Invalid timeframe: {timeframe}")
