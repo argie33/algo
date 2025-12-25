@@ -1,0 +1,118 @@
+name: Daily Trading Signal Updates
+
+on:
+  schedule:
+    # Run daily at 4:30 AM UTC (when markets are closed)
+    - cron: '30 4 * * *'
+
+  # Allow manual trigger from GitHub Actions UI
+  workflow_dispatch
+
+jobs:
+  update-signals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 480  # 8 hours for long-running loaders
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Load price data
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: 5432
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: stocks
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: |
+          echo "Loading price data..."
+          python3 loadpricedaily.py
+          echo "Price data load complete"
+
+      - name: Load ETF signals
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: 5432
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: stocks
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: |
+          echo "Loading ETF signals..."
+          python3 loadbuysell_etf_daily.py
+          echo "ETF signals load complete"
+
+      - name: Load stock signals
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: 5432
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: stocks
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: |
+          echo "Loading stock signals..."
+          python3 loadbuyselldaily.py
+          echo "Stock signals load complete"
+
+      - name: Verify data freshness
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: 5432
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: stocks
+        run: |
+          python3 << 'VERIFY'
+          import psycopg2
+          import os
+          from datetime import datetime
+
+          conn = psycopg2.connect(
+              host=os.environ.get("DB_HOST"),
+              port=int(os.environ.get("DB_PORT", 5432)),
+              user=os.environ.get("DB_USER"),
+              password=os.environ.get("DB_PASSWORD"),
+              dbname=os.environ.get("DB_NAME")
+          )
+          cur = conn.cursor()
+
+          # Check data freshness
+          cur.execute("SELECT MAX(date) FROM buy_sell_daily WHERE signal IN ('Buy', 'Sell')")
+          latest_stock = cur.fetchone()[0]
+
+          cur.execute("SELECT MAX(date) FROM buy_sell_daily_etf WHERE signal IN ('Buy', 'Sell')")
+          latest_etf = cur.fetchone()[0]
+
+          cur.execute("SELECT COUNT(*) FROM buy_sell_daily")
+          stock_count = cur.fetchone()[0]
+
+          cur.execute("SELECT COUNT(*) FROM buy_sell_daily_etf")
+          etf_count = cur.fetchone()[0]
+
+          print(f"✅ Stock Signals: {stock_count:,} rows | Latest: {latest_stock}")
+          print(f"✅ ETF Signals: {etf_count:,} rows | Latest: {latest_etf}")
+
+          conn.close()
+          VERIFY
+
+      - name: Notify on success
+        if: success()
+        run: echo "✅ All trading signals updated successfully"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Signal update failed"
+          exit 1
