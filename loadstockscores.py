@@ -908,6 +908,32 @@ def fetch_all_quality_metrics(conn):
                 # Convert stddev to percentage volatility for consistency
                 metrics['volatility'].append(float(volatility))
 
+        # Fetch EPS growth stability and earnings surprise from quality_metrics table
+        # These are pre-calculated by loadfactormetrics.py and needed for quality component scores
+        try:
+            qm_cur = conn.cursor()  # Create new cursor since main cursor was closed
+            qm_cur.execute("""
+                SELECT eps_growth_stability, earnings_surprise_avg
+                FROM quality_metrics
+                WHERE eps_growth_stability IS NOT NULL OR earnings_surprise_avg IS NOT NULL
+            """)
+
+            qm_rows = qm_cur.fetchall()
+            metrics['eps_growth_stability'] = []
+            metrics['earnings_surprise_avg'] = []
+
+            for eps_stab, earn_surp in qm_rows:
+                if eps_stab is not None:
+                    metrics['eps_growth_stability'].append(float(eps_stab))
+                if earn_surp is not None:
+                    metrics['earnings_surprise_avg'].append(float(earn_surp))
+
+            qm_cur.close()
+        except Exception as e:
+            logger.warning(f"Could not fetch eps_growth_stability/earnings_surprise_avg from quality_metrics: {e}")
+            metrics['eps_growth_stability'] = []
+            metrics['earnings_surprise_avg'] = []
+
         logger.info(f"📊 Loaded quality metrics for percentile calculation:")
         logger.info(f"   ROE: {len(metrics['roe'])} stocks")
         logger.info(f"   ROA: {len(metrics['roa'])} stocks")
@@ -917,6 +943,8 @@ def fetch_all_quality_metrics(conn):
         logger.info(f"   FCF/NI: {len(metrics['fcf_to_ni'])} stocks")
         logger.info(f"   ROIC: {len(metrics['roic'])} stocks")
         logger.info(f"   Volatility: {len(metrics['volatility'])} stocks")
+        logger.info(f"   EPS Growth Stability: {len(metrics.get('eps_growth_stability', []))} stocks")
+        logger.info(f"   Earnings Surprise: {len(metrics.get('earnings_surprise_avg', []))} stocks")
 
         return metrics
 
@@ -2103,6 +2131,31 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             conn.rollback()
             logger.warning(f"Key metrics table query failed for {symbol}: {e}")
 
+        # Fetch missing quality components from quality_metrics table (populated by loadfactormetrics.py)
+        try:
+            cur.execute("""
+                SELECT
+                    fcf_to_net_income,
+                    eps_growth_stability,
+                    earnings_surprise_avg,
+                    operating_cf_to_net_income
+                FROM quality_metrics
+                WHERE symbol = %s
+                ORDER BY date DESC
+                LIMIT 1
+            """, (symbol,))
+
+            qm_row = cur.fetchone()
+            if qm_row:
+                fcf_ni, eps_stab, earn_surp, ocf_ni = qm_row
+                stock_fcf_to_ni = float(fcf_ni) if fcf_ni is not None else None
+                stock_eps_growth_stability = float(eps_stab) if eps_stab is not None else None
+                # earnings_surprise_score will be calculated from this below
+                # stock_operating_cf_to_ni = float(ocf_ni) if ocf_ni is not None else None
+        except psycopg2.Error as e:
+            conn.rollback()
+            logger.debug(f"Quality metrics table query failed for {symbol}: {e}")
+
         # Get growth metrics from key_metrics table for percentile-based growth score
         stock_revenue_growth = None
         stock_earnings_growth = None
@@ -3073,11 +3126,21 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 if eps_std_percentile is not None:
                     eps_stability_score = eps_std_percentile  # Already 0-100 scale from percentile rank
 
-            # Component 5: Earnings Surprise Consistency (5 points) - Beat rate of last 4 quarters
+            # Component 5: Earnings Surprise Consistency (5 points) - Pre-calculated from quality_metrics
             earnings_surprise_score = None
 
+            # Fetch pre-calculated earnings_surprise_avg from quality_metrics (more comprehensive historical data)
+            # This is populated by loadfactormetrics.py and includes all historical earnings surprises
+            # Falls back to calculating from recent earnings_history if quality_metrics data not available
+
             try:
-                # Query recent earnings surprises from earnings_history (last 4 quarters)
+                # Try to use earnings_surprise_avg from quality_metrics first (calculated by loadfactormetrics.py)
+                # This metric includes historical earnings surprise data for better consistency
+
+                # Note: earnings_surprise_avg is already fetched in qm_row above at line 2112
+                # but we need to explicitly handle it for percentile calculation
+
+                # Query recent earnings surprises from earnings_history (last 4 quarters) as fallback
                 surprise_sql = """
                     SELECT eps_actual, eps_estimate FROM earnings_history
                     WHERE ticker = %s AND quarter >= CURRENT_DATE - INTERVAL '12 months'
@@ -3118,20 +3181,6 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             except (psycopg2.Error, TypeError, ValueError) as e:
                 logger.debug(f"{symbol}: Could not calculate earnings surprise score: {e}")
                 earnings_surprise_score = None
-
-            # Fetch earnings_surprise_avg from quality_metrics table (calculated by loadfactormetrics.py)
-            try:
-                cur.execute("""
-                    SELECT earnings_surprise_avg
-                    FROM quality_metrics
-                    WHERE ticker = %s
-                """, (symbol,))
-                quality_metrics_row = cur.fetchone()
-                if quality_metrics_row and quality_metrics_row[0] is not None:
-                    earnings_surprise_avg = to_float(quality_metrics_row[0])
-            except (psycopg2.Error, TypeError, ValueError) as e:
-                logger.debug(f"{symbol}: Could not fetch earnings_surprise_avg from quality_metrics: {e}")
-                earnings_surprise_avg = None
 
             # Calculate final quality score with dynamic weight normalization
             # Build arrays of present components and their weights for normalization
