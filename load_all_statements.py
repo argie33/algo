@@ -60,7 +60,7 @@ class SmartLoader:
                 [sys.executable, script],
                 capture_output=True,
                 text=True,
-                timeout=1800  # 30 minute timeout per loader
+                timeout=3600  # 60 minute timeout per loader
             )
 
             duration = time.time() - start
