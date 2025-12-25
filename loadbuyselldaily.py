@@ -608,6 +608,11 @@ def fetch_symbol_from_db(symbol, timeframe):
     if not rows:
         return pd.DataFrame()
 
+    # CRITICAL: Skip symbols with insufficient data for SMA-50 calculation
+    if len(rows) < 50:
+        logging.warning(f"Skipping {symbol} {timeframe}: insufficient data ({len(rows)} bars, need 50+ for SMA-50)")
+        return pd.DataFrame()
+
     df = pd.DataFrame(rows)
     df['date'] = pd.to_datetime(df['date'])
     num_cols = ['open','high','low','close','volume']
