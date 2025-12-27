@@ -48,6 +48,7 @@ import sys
 import time
 from datetime import date, datetime
 from typing import Dict, List, Optional
+from functools import wraps
 
 import boto3
 import pandas as pd
@@ -64,6 +65,26 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout,
 )
+
+# Retry decorator for yfinance API calls (handle 500 errors)
+def retry_with_backoff(max_retries=3, base_delay=1):
+    """Retry decorator with exponential backoff for API calls"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)
+                        logging.warning(f"Attempt {attempt + 1} failed for {func.__name__}: {e}. Retrying in {delay}s...")
+                        time.sleep(delay)
+                    else:
+                        logging.error(f"All {max_retries} attempts failed for {func.__name__}: {e}")
+                        raise
+        return wrapper
+    return decorator
 
 # Register numpy type adapters
 def adapt_numpy_int64(numpy_int64):
@@ -285,22 +306,38 @@ def calculate_missing_metrics(symbol: str, info: dict, ticker) -> dict:
 def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
     """Load ALL daily data from single yfinance API call"""
 
+    @retry_with_backoff(max_retries=3, base_delay=2)
+    def fetch_yfinance_data(yf_symbol):
+        """Fetch yfinance data with retry logic for 500 errors"""
+        ticker = yf.Ticker(yf_symbol)
+        return {
+            'info': ticker.info,
+            'institutional_holders': ticker.institutional_holders,
+            'mutualfund_holders': ticker.mutualfund_holders,
+            'insider_transactions': ticker.insider_transactions,
+            'insider_roster': ticker.insider_roster_holders,
+            'major_holders': ticker.major_holders,
+            'earnings_estimate': ticker.earnings_estimate,
+            'revenue_estimate': ticker.revenue_estimate
+        }
+
     try:
         # Convert ticker format for yfinance (e.g., BRK.B → BRK-B)
         yf_symbol = symbol.replace('.', '-').replace('$', '-').upper()
 
-        # SINGLE API CALL gets everything
-        ticker = yf.Ticker(yf_symbol)
+        # SINGLE API CALL gets everything (with retry)
+        data = fetch_yfinance_data(yf_symbol)
+        info = data['info']
+        institutional_holders = data['institutional_holders']
+        mutualfund_holders = data['mutualfund_holders']
+        insider_transactions = data['insider_transactions']
+        insider_roster = data['insider_roster']
+        major_holders = data['major_holders']
+        earnings_estimate = data['earnings_estimate']
+        revenue_estimate = data['revenue_estimate']
 
-        # Get all data sources
-        info = ticker.info
-        institutional_holders = ticker.institutional_holders
-        mutualfund_holders = ticker.mutualfund_holders
-        insider_transactions = ticker.insider_transactions
-        insider_roster = ticker.insider_roster_holders
-        major_holders = ticker.major_holders
-        earnings_estimate = ticker.earnings_estimate
-        revenue_estimate = ticker.revenue_estimate
+        # Get ticker for missing metrics calculation
+        ticker = yf.Ticker(yf_symbol)
 
         # Calculate missing metrics
         missing_metrics = calculate_missing_metrics(symbol, info, ticker)
