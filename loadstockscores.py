@@ -3884,6 +3884,9 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             # Positioning component: Accumulation/Distribution Rating
             'accumulation_distribution': float(round(acc_dist_rating, 2)) if acc_dist_rating is not None else None,
             'short_interest': float(round(short_percent_of_float, 2)) if short_percent_of_float is not None else None,
+            'institutional_ownership': float(round(institutional_ownership, 2)) if institutional_ownership is not None else None,
+            'insider_ownership': float(round(insider_ownership, 2)) if insider_ownership is not None else None,
+            'institution_count': int(institution_count) if institution_count is not None else None,
             # JSONB Input Columns - Store all component details for frontend display
             'momentum_inputs': json.dumps({
                 'momentum_3m': float(round(momentum_3m, 2)) if momentum_3m is not None else None,
