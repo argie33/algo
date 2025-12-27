@@ -1,0 +1,13 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Copy requirements and install dependencies
+COPY requirements-loadfactormetrics.txt .
+RUN pip install --no-cache-dir --prefer-binary -r requirements-loadfactormetrics.txt
+
+# Copy the loader script
+COPY loadfactormetrics.py .
+
+# Run the loader
+CMD ["python", "loadfactormetrics.py"]
