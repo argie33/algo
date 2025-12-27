@@ -467,6 +467,8 @@ jobs:
                 ParameterKey=BuySellDailyImageTag,ParameterValue=latest \
                 ParameterKey=BuySellWeeklyImageTag,ParameterValue=latest \
                 ParameterKey=BuySellMonthlyImageTag,ParameterValue=latest \
+                ParameterKey=BuySellEtfDailyImageTag,ParameterValue=latest \
+                ParameterKey=FactormetricsImageTag,ParameterValue=latest \
                 ParameterKey=SwingTraderImageTag,ParameterValue=latest \
                 ParameterKey=CalendarImageTag,ParameterValue=latest \
                 ParameterKey=LatestPriceDailyImageTag,ParameterValue=latest \

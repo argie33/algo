@@ -181,6 +181,12 @@ Parameters:
   FundamentalMetricsImageTag:
     Type: String
     Description: "Tag for fundamental metrics loader image"
+  BuySellEtfDailyImageTag:
+    Type: String
+    Description: "Tag for buysell ETF daily loader image"
+  FactormetricsImageTag:
+    Type: String
+    Description: "Tag for factor metrics loader image"
 
 Resources:
 
@@ -343,6 +349,18 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/buysellmonthly-loader
+      RetentionInDays: 3
+
+  BuySellEtfDailyLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/buysell_etf_daily-loader
+      RetentionInDays: 3
+
+  FactormetricsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/factormetrics-loader
       RetentionInDays: 3
 
   SwingTraderLogGroup:
@@ -2485,6 +2503,124 @@ Resources:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
 
+  BuySellEtfDailyTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: buysell_etf_daily-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: buysell_etf_daily-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref BuySellEtfDailyImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !Ref RDSUsername
+          Secrets:
+            - Name: IBKR_USERNAME
+              ValueFrom: !Ref IBKRUsernameSecret
+            - Name: IBKR_PASSWORD
+              ValueFrom: !Ref IBKRPasswordSecret
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/buysell_etf_daily-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  BuySellEtfDailyLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: buysell_etf_daily-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref BuySellEtfDailyTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  FactormetricsTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: factormetrics-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: factormetrics-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref FactormetricsImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !Ref RDSUsername
+          Secrets:
+            - Name: IBKR_USERNAME
+              ValueFrom: !Ref IBKRUsernameSecret
+            - Name: IBKR_PASSWORD
+              ValueFrom: !Ref IBKRPasswordSecret
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/factormetrics-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  FactormetricsLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: factormetrics-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref FactormetricsTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
   ########################################
   # Quality Metrics Calculator           #
   ########################################
@@ -3767,6 +3903,18 @@ Outputs:
     Value: !Ref BuySellMonthlyTaskDefinition
     Export:
       Name: BuySellMonthlyTaskDefArn
+
+  BuySellEtfDailyTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for buysell ETF daily loader
+    Value: !Ref BuySellEtfDailyTaskDefinition
+    Export:
+      Name: BuySellEtfDailyTaskDefArn
+
+  FactormetricsTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for factormetrics loader
+    Value: !Ref FactormetricsTaskDefinition
+    Export:
+      Name: FactormetricsTaskDefArn
 
   AaiiTaskDefArn:
     Description: ARN of the ECS TaskDefinition for AAII sentiment data loader
