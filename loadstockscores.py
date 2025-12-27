@@ -1500,32 +1500,50 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             roc_252d = None
             mansfield_rs = None
         else:
-            # Calculate basic technical indicators from price data
-            prices = df['close'].astype(float).values
-            rsi = calculate_rsi(prices)
-            macd = calculate_macd(prices)
-            macd_hist = None
-            sma_20 = df['close'].tail(20).mean() if len(df) >= 20 else None
-            sma_50 = df['close'].tail(50).mean() if len(df) >= 50 else None
-            sma_200 = df['close'].tail(200).mean() if len(df) >= 200 else None
-            atr = None
-            mom_10d = None
-            roc_10d = None
-            roc_20d = None
-            roc_60d = None
-            roc_120d = None
-            roc_252d = None
-            mansfield_rs = None
+            # Calculate basic technical indicators from price data (only if df has data)
+            if len(df) > 0 and 'close' in df.columns:
+                prices = df['close'].astype(float).values
+                rsi = calculate_rsi(prices)
+                macd = calculate_macd(prices)
+                macd_hist = None
+                sma_20 = df['close'].tail(20).mean() if len(df) >= 20 else None
+                sma_50 = df['close'].tail(50).mean() if len(df) >= 50 else None
+                sma_200 = df['close'].tail(200).mean() if len(df) >= 200 else None
+                atr = None
+                mom_10d = None
+                roc_10d = None
+                roc_20d = None
+                roc_60d = None
+                roc_120d = None
+                roc_252d = None
+                mansfield_rs = None
+            else:
+                # No price data available - set all to None
+                rsi = None
+                macd = None
+                macd_hist = None
+                sma_20 = None
+                sma_50 = None
+                sma_200 = None
+                atr = None
+                mom_10d = None
+                roc_10d = None
+                roc_20d = None
+                roc_60d = None
+                roc_120d = None
+                roc_252d = None
+                mansfield_rs = None
 
-            # Calculate ROC for multiple timeframes if not in technical_data_daily
-            if len(df) >= 21:
-                roc_20d = ((prices[-1] - prices[-21]) / prices[-21]) * 100
-            if len(df) >= 61:
-                roc_60d = ((prices[-1] - prices[-61]) / prices[-61]) * 100
-            if len(df) >= 121:
-                roc_120d = ((prices[-1] - prices[-121]) / prices[-121]) * 100
-            if len(df) >= 253:
-                roc_252d = ((prices[-1] - prices[-253]) / prices[-253]) * 100
+            # Calculate ROC for multiple timeframes if not in technical_data_daily (only if we have price data)
+            if 'prices' in locals() and prices is not None:
+                if len(df) >= 21:
+                    roc_20d = ((prices[-1] - prices[-21]) / prices[-21]) * 100
+                if len(df) >= 61:
+                    roc_60d = ((prices[-1] - prices[-61]) / prices[-61]) * 100
+                if len(df) >= 121:
+                    roc_120d = ((prices[-1] - prices[-121]) / prices[-121]) * 100
+                if len(df) >= 253:
+                    roc_252d = ((prices[-1] - prices[-253]) / prices[-253]) * 100
 
         # Get dual momentum metrics from momentum_metrics table (optional - handle gracefully if table doesn't exist)
         momentum_12_3 = None
@@ -1899,8 +1917,12 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             # Price data is the source of truth for historical drawdown calculation
             try:
                 # Find high in last 252 trading days (~1 year)
-                prices_array = df['close'].astype(float).values
-                if len(prices_array) >= 20:
+                if len(df) > 0 and 'close' in df.columns:
+                    prices_array = df['close'].astype(float).values
+                else:
+                    prices_array = None
+
+                if prices_array is not None and len(prices_array) >= 20:
                     max_price = prices_array.max()
                     current_price_val = prices_array[-1]
                     if max_price > 0:
