@@ -36,6 +36,7 @@ These tables power the enhanced 4-component positioning score:
 
 Author: Financial Dashboard System
 Updated: 2025-10-11
+Trigger: 20251227-120600-AWS-ECS - Load company data and key metrics to AWS RDS
 """
 
 import gc
