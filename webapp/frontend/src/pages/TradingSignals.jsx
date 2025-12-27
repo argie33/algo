@@ -102,6 +102,9 @@ function TradingSignals() {
   const [dateRange, setDateRange] = useState("all"); // Show ALL signals regardless of date
   const [showActiveOnly, setShowActiveOnly] = useState(false); // Show ALL signals by default (user can toggle to active-only)
 
+  // Asset type filter - Stock or ETF
+  const [assetType, setAssetType] = useState("stock"); // Default to stocks
+
   // Helper function to check if signal has real data (not all nulls)
   const hasRealData = (signal) => {
     if (!signal) return false;
@@ -146,6 +149,7 @@ function TradingSignals() {
   } = useQuery({
     queryKey: [
       "tradingSignalsAllTimeframes",
+      assetType, // Stock or ETF
       signalType,
       symbolFilter,
       // Note: timeframe is removed - we load ALL timeframes now
@@ -182,7 +186,9 @@ function TradingSignals() {
           // Add cache-busting parameter to force fresh data from server
           params.append("_t", Date.now());
 
-          const url = `${API_BASE}/api/signals/stocks?${params}`;
+          // Use correct endpoint based on asset type
+          const endpoint = assetType === "etf" ? "etf" : "stocks";
+          const url = `${API_BASE}/api/signals/${endpoint}?${params}`;
           const tfStartTime = Date.now();
 
           logger.info(`📡 [${tf.toUpperCase()}] Request: ${url}`);
@@ -414,12 +420,13 @@ function TradingSignals() {
 
   // Fetch historical data for selected symbol
   const { data: historicalData, isLoading: historicalLoading } = useQuery({
-    queryKey: ["historicalSignals", selectedSymbol],
+    queryKey: ["historicalSignals", assetType, selectedSymbol],
     queryFn: async () => {
       if (!selectedSymbol) return null;
       try {
+        const endpoint = assetType === "etf" ? "etf" : "stocks";
         const response = await fetch(
-          `${API_BASE}/api/signals/stocks?symbol=${selectedSymbol}&timeframe=daily&limit=50`
+          `${API_BASE}/api/signals/${endpoint}?symbol=${selectedSymbol}&timeframe=daily&limit=50`
         );
         if (!response.ok) throw new Error("Failed to fetch historical data");
         return await response.json();
@@ -836,6 +843,24 @@ function TradingSignals() {
                   ),
                 }}
               />
+            </Grid>
+
+            {/* Asset Type Filter */}
+            <Grid item xs={12} md={2}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Asset Type</InputLabel>
+                <Select
+                  value={assetType}
+                  label="Asset Type"
+                  onChange={(e) => {
+                    setAssetType(e.target.value);
+                    setPage(0); // Reset pagination when changing asset type
+                  }}
+                >
+                  <MenuItem value="stock">Stocks</MenuItem>
+                  <MenuItem value="etf">ETFs</MenuItem>
+                </Select>
+              </FormControl>
             </Grid>
 
             {/* Signal Type Filter */}

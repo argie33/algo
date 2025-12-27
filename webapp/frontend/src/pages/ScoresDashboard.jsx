@@ -1370,6 +1370,12 @@ const ScoresDashboard = () => {
                                             <TableCell align="right">{`${parseFloat(stock.quality_inputs.return_on_invested_capital_pct).toFixed(1)}%`}</TableCell>
                                           </TableRow>
                                         )}
+                                        {stock.quality_inputs.roe_stability_index !== null && stock.quality_inputs.roe_stability_index !== undefined && (
+                                          <TableRow>
+                                            <TableCell>ROE Stability Index (4Y Trend)</TableCell>
+                                            <TableCell align="right">{parseFloat(stock.quality_inputs.roe_stability_index).toFixed(1)}</TableCell>
+                                          </TableRow>
+                                        )}
                                       </>
                                     )}
                                   </TableBody>

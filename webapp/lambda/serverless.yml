@@ -8,13 +8,13 @@ provider:
   region: us-east-1
   environment:
     # AWS Secrets Manager (preferred for production)
-    DB_SECRET_ARN: ${env:DB_SECRET_ARN}
+    DB_SECRET_ARN: ${env:DB_SECRET_ARN, ''}
     # Local environment variables (fallback for development)
-    DB_HOST: ${env:DB_HOST}
-    DB_PORT: ${env:DB_PORT}
-    DB_USER: ${env:DB_USER}
-    DB_PASSWORD: ${env:DB_PASSWORD}
-    DB_NAME: ${env:DB_NAME}
+    DB_HOST: ${env:DB_HOST, 'localhost'}
+    DB_PORT: ${env:DB_PORT, '5432'}
+    DB_USER: ${env:DB_USER, 'stocks'}
+    DB_PASSWORD: ${env:DB_PASSWORD, 'bed0elAn'}
+    DB_NAME: ${env:DB_NAME, 'stocks'}
     NODE_ENV: production
   iam:
     role:
@@ -56,14 +56,12 @@ functions:
         - subnet-xxxxxx  # Replace with your subnet
         - subnet-xxxxxx  # Replace with another subnet
 
-plugins:
-  - serverless-offline
-  - serverless-plugin-tracing
+plugins: []
 
 custom:
   serverless-offline:
     httpPort: 3001
-    stage: ${self:provider.stage}
+    stage: ${opt:stage, 'dev'}
 
 # Create HTTP API (not REST API for better performance)
 resources:
@@ -86,8 +84,17 @@ package:
     - '!node_modules/puppeteer/**'
     - '!node_modules/@puppeteer/**'
     - '!.git/**'
-    - '!.env'
+    - '!.env*'
     - '!*.log'
+    - '!tests/**'
+    - '!coverage/**'
+    - '!dist/**'
+    - '!*.zip'
+    - '!*.tar.gz'
+    - '!.serverless/**'
+    - '!*.md'
+    - '!.vscode/**'
+    - '!.idea/**'
 
 outputs:
   ApiEndpoint:

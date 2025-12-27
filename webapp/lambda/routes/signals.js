@@ -44,7 +44,7 @@ router.get("/stocks", async (req, res) => {
     const timeframe = req.query.timeframe || "daily";
     const signalType = req.query.signal_type;
     const symbolFilter = req.query.symbol;
-    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+    const limit = parseInt(req.query.limit) || 100;
     const page = Math.max(1, parseInt(req.query.page) || 1);
 
     // Prevent extremely large offsets that cause poor performance
@@ -316,7 +316,7 @@ router.get("/etf", async (req, res) => {
     const timeframe = req.query.timeframe || "daily";
     const signalType = req.query.signal_type;
     const symbolFilter = req.query.symbol;
-    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+    const limit = parseInt(req.query.limit) || 100;
     const page = Math.max(1, parseInt(req.query.page) || 1);
 
     // Prevent extremely large offsets that cause poor performance
@@ -417,8 +417,11 @@ router.get("/etf", async (req, res) => {
     `;
 
     const signalsQuery = `
-      SELECT ${actualColumns}
+      SELECT
+        ${actualColumns},
+        es.security_name as company_name
       FROM ${tableName} bsd
+      LEFT JOIN etf_symbols es ON bsd.symbol = es.symbol
       ${whereClause}
       ORDER BY bsd.date DESC, bsd.id DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -520,6 +523,9 @@ router.get("/etf", async (req, res) => {
       breakout_quality: row.breakout_quality || null,
       signal_type: row.signal_type || null,
       current_gain_loss_pct: row.current_gain_pct !== null && row.current_gain_pct !== undefined ? parseFloat(row.current_gain_pct) : null,
+
+      // ETF information
+      company_name: row.company_name || null,
     }));
 
     // Get total count of records for pagination

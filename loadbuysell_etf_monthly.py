@@ -1181,8 +1181,9 @@ def generate_signals(df, pvtLenL=3, pvtLenR=3, useMaFilter=True, maLength=50, sh
     pivot_non_null = df['pivot_price'].notna().sum()
     logging.debug(f"[CALC] pivot_price calculated: {pivot_non_null}/{len(df)} non-null values")
 
-    # Use SMA-50 as the MA filter
-    df['maFilter'] = df['sma_200']
+    # Use SMA-50 as the MA filter (matching Pine Script "Breakout Trend Follower")
+    # Pine Script: maLength = input(defval = 50, title = "MA Period for Filtering")
+    df['maFilter'] = df['sma_50']
 
     # For bars without SMA-50 data, forward-fill from previous bar
     df['maFilter'] = df['maFilter'].ffill()
