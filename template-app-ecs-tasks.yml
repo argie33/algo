@@ -3,7 +3,7 @@ Description: >
   ECS TaskDefinitions, CloudWatch LogGroups, and zero-scale Services
   for stock-symbols, econ-data, monthly-price, findata, pricedaily,
   priceweekly, pricemonthly, TechnicalsDaily, companyprofile, earningsestimate,
-  technicalsweekly & technicalsmonthly.
+  technicalsweekly & technicalsmonthly. Includes buysell_etf_daily and factormetrics loaders (added Dec 27, 2025).
 
 Parameters:
   StockSymbolsImageTag:
