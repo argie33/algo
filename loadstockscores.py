@@ -14,7 +14,7 @@ DEPLOYMENT MODES:
 
 VERSION INFO:
 VERIFIED: 2025-10-26 Fresh reload completed successfully - 5,315/5,315 rows (100%) ✅
-Trigger: 20251225_150000 - AWS deployment final scoring engine (rebuild needed)
+Trigger: 20251227_120500 - AWS deployment stock scores to RDS via ECS tasks
 Calculates and stores improved stock scores using multi-factor analysis.
 Deploy stock scores calculation to populate comprehensive quality metrics.
 TRIGGER: 20251225 - Rebuild Docker image and deploy stock scores on AWS
