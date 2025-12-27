@@ -4016,7 +4016,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                     'stability_score': float(risk_stability_score) if risk_stability_score is not None else None,
                     'beta': float(round(beta, 3)) if 'beta' in locals() and beta is not None else None,
                     # Include value input metrics (especially fcf_yield) even when exception occurs
-                    'stock_fcf_yield': float(round(fcf_yield, 2)) if 'fcf_yield' in locals() and fcf_yield is not None else None,
+                    'fcf_yield': float(round(fcf_yield, 2)) if 'fcf_yield' in locals() and fcf_yield is not None else None,
                     'stock_dividend_yield': float(round(dividend_yield_val * 100, 2)) if 'dividend_yield_val' in locals() and dividend_yield_val is not None else None,
                     'peg_ratio': float(round(peg_ratio_val, 2)) if 'peg_ratio_val' in locals() and peg_ratio_val is not None else None,
                 }
@@ -4054,7 +4054,7 @@ def save_stock_score(conn, score_data):
             'growth_score', 'positioning_score', 'sentiment_score', 'stability_score',
             'rsi', 'macd', 'sma50', 'momentum_3m', 'momentum_6m', 'momentum_12m',
             'price_vs_sma_50', 'price_vs_sma_200', 'price_vs_52w_high',
-            'pe_ratio', 'forward_pe', 'pb_ratio', 'ps_ratio', 'peg_ratio', 'ev_revenue', 'stock_fcf_yield',
+            'pe_ratio', 'forward_pe', 'pb_ratio', 'ps_ratio', 'peg_ratio', 'ev_revenue', 'fcf_yield',
             'roe', 'roa', 'debt_ratio', 'fcf_ni_ratio', 'earnings_surprise',
             'earnings_growth', 'revenue_growth', 'margin_trend',
             'volatility', 'downside_volatility', 'max_drawdown', 'beta',
@@ -4084,7 +4084,7 @@ def save_stock_score(conn, score_data):
             %(growth_score)s, %(positioning_score)s, %(sentiment_score)s, %(stability_score)s,
             %(rsi)s, %(macd)s, %(sma50)s, %(momentum_3m)s, %(momentum_6m)s, %(momentum_12m)s,
             %(price_vs_sma_50)s, %(price_vs_sma_200)s, %(price_vs_52w_high)s,
-            %(pe_ratio)s, %(forward_pe)s, %(pb_ratio)s, %(ps_ratio)s, %(peg_ratio)s, %(ev_revenue)s, %(stock_fcf_yield)s,
+            %(pe_ratio)s, %(forward_pe)s, %(pb_ratio)s, %(ps_ratio)s, %(peg_ratio)s, %(ev_revenue)s, %(fcf_yield)s,
             %(roe)s, %(roa)s, %(debt_ratio)s, %(fcf_ni_ratio)s, %(earnings_surprise)s,
             %(earnings_growth)s, %(revenue_growth)s, %(margin_trend)s,
             %(volatility)s, %(downside_volatility)s, %(max_drawdown)s, %(beta)s,
