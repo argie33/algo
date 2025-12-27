@@ -281,12 +281,12 @@ def create_stock_scores_table(conn):
                 rsi DECIMAL(5,2),
                 macd DECIMAL(5,2),
                 sma50 DECIMAL(5,2),
-                momentum_3m DECIMAL(5,2),
-                momentum_6m DECIMAL(5,2),
-                momentum_12m DECIMAL(5,2),
-                price_vs_sma_50 DECIMAL(5,2),
-                price_vs_sma_200 DECIMAL(5,2),
-                price_vs_52w_high DECIMAL(5,2),
+                momentum_3m DECIMAL(10,2),
+                momentum_6m DECIMAL(10,2),
+                momentum_12m DECIMAL(10,2),
+                price_vs_sma_50 DECIMAL(10,2),
+                price_vs_sma_200 DECIMAL(10,2),
+                price_vs_52w_high DECIMAL(10,2),
 
                 -- Value Components
                 pe_ratio DECIMAL(10,2),
@@ -309,9 +309,9 @@ def create_stock_scores_table(conn):
                 margin_trend DECIMAL(5,2),
 
                 -- Stability Components
-                volatility DECIMAL(5,2),
-                downside_volatility DECIMAL(5,2),
-                max_drawdown DECIMAL(5,2),
+                volatility DECIMAL(10,2),
+                downside_volatility DECIMAL(10,2),
+                max_drawdown DECIMAL(10,2),
                 beta DECIMAL(5,2),
 
                 -- Positioning Components
