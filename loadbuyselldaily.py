@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # CRITICAL: Buy/Sell signals table missing from database. Must run to enable trading signal pages
-# Trigger: 20251220-FINAL - Update buy/sell signals after infrastructure deployment
+# Trigger: 20251225-AWS-DEPLOY - Rebuild and run stock signals loader on AWS ECS
 import os
 import sys
 import json
