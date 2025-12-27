@@ -1422,6 +1422,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         free_cashflow = None
         dividend_yield = None
         dividend_yield_val = None
+        fcf_yield = None
 
         # Get price data from price_daily table (last 200 days to ensure 65+ trading days)
         # Note: 200 calendar days accounts for weekends/holidays to guarantee ~130+ trading days
