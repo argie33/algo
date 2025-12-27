@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # CRITICAL: ETF Buy/Sell signals table missing from database. Must run to enable trading signal pages
-# Trigger: 20251225-AWS-DEPLOY - Rebuild and run ETF signals loader on AWS
+# Trigger: 20251227-120500-AWS-ECS - ETF signals full reload to AWS RDS via ECS
 import os
 import sys
 import json
