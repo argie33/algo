@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# CRITICAL: ETF Buy/Sell signals table missing from database. Must run to enable trading signal pages
-# Trigger: 20251227-120500-AWS-ECS - ETF signals full reload to AWS RDS via ECS
+# CRITICAL: Buy/Sell signals table missing from database. Must run to enable trading signal pages
+# Trigger: 20251227-120500-AWS-ECS - Stock signals full reload to AWS RDS via ECS
 import os
 import sys
 import json
@@ -21,12 +21,12 @@ load_dotenv('/home/stocks/algo/.env.local')
 # -------------------------------
 # Script metadata & logging setup
 # -------------------------------
-SCRIPT_NAME = "loadbuysell_etf_daily.py"
+SCRIPT_NAME = "loadbuyselldaily.py"
 
 # Setup rotating log file handler to prevent disk exhaustion from excessive logging
 from logging.handlers import RotatingFileHandler
 log_handler = RotatingFileHandler(
-    '/tmp/loadbuysell_etf_daily.log',
+    '/tmp/loadbuyselldaily.log',
     maxBytes=100*1024*1024,  # 100MB max per file
     backupCount=3  # Keep 3 backup files
 )
@@ -100,8 +100,9 @@ def get_symbols_from_db(limit=None):
     try:
         q = """
           SELECT symbol
-            FROM etf_symbols
-           WHERE etf='Y'
+            FROM stock_symbols
+           WHERE exchange IN ('NASDAQ','New York Stock Exchange')
+              OR etf='Y'
         """
         if limit:
             q += " LIMIT %s"
@@ -113,11 +114,10 @@ def get_symbols_from_db(limit=None):
         cur.close()
         conn.close()
 
-def create_buy_sell_table(cur, table_name="buy_sell_daily_etf"):
-    # CRITICAL: Do NOT drop table - preserve existing data for incremental loads
-    # cur.execute(f"DROP TABLE IF EXISTS {table_name};")
+def create_buy_sell_table(cur, table_name="buy_sell_daily"):
+    cur.execute(f"DROP TABLE IF EXISTS {table_name};")
     cur.execute(f"""
-      CREATE TABLE IF NOT EXISTS {table_name} (
+      CREATE TABLE {table_name} (
         id           SERIAL PRIMARY KEY,
         symbol       VARCHAR(20)    NOT NULL,
         timeframe    VARCHAR(10)    NOT NULL,
@@ -183,7 +183,7 @@ def create_buy_sell_table(cur, table_name="buy_sell_daily_etf"):
       );
     """)
 
-def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell_daily_etf"):
+def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell_daily"):
     # DEBUG: Check if pivot_price exists in DataFrame
     if 'pivot_price' in df.columns:
         non_null = df['pivot_price'].notna().sum()
@@ -577,9 +577,9 @@ def fetch_symbol_from_db(symbol, timeframe):
     tf = timeframe.lower()
     # Table name mapping for consistency with loader scripts
     price_table_map = {
-        "daily": "etf_price_daily",
-        "weekly": "etf_price_weekly",
-        "monthly": "etf_price_monthly"
+        "daily": "price_daily",
+        "weekly": "price_weekly",
+        "monthly": "price_monthly"
     }
     if tf not in price_table_map:
         raise ValueError(f"Invalid timeframe: {timeframe}")
@@ -1056,237 +1056,169 @@ def rate_breakout_quality(row, base_info, volume_surge):
 
 def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     """
-    Generate signals matching Pine Script: 'Breakout Trend Follower'
+    Generate signals matching Pine Script: 'Breakout Trend Follower' EXACTLY
 
-    Simple direct translation:
-    - Buy: high > buyLevel (previous swing high breakout)
-    - Sell: low < stopLevel (previous swing low - buffer)
-    - Filter: Optional 50-day SMA filter (buyLevel > maFilter)
-
-    Parameters from Pine Script:
-    - pvtLenL = 3, pvtLenR = 3 (pivot lookback: 3 bars left, 3 bars right)
-    - Shunt = 1 (Wait for pivot to be confirmed AFTER 3 bars)
-    - atrMult default = 1.0 (multiplier for ATR buffer below swing low)
-
-    KEY FIX: Pine Script's valuewhen(pvthi_, high[pvtLenR], 0) requires that
-    the pivot is CONFIRMED (Shunt=1 means offset by 1+pvtLenR bars).
-    This matches the way Pine Script plots: offset = -(pvtLenR + Shunt)
+    Rewritten from scratch to match Pine Script semantics precisely.
+    The key is understanding that buyLevel/stopLevel use valuewhen() which returns
+    the MOST RECENT pivot value whenever a NEW pivot is detected.
     """
 
-    logging.debug("🎯 Generating signals using Pine Script 'Breakout Trend Follower' logic with proper pivot confirmation")
+    logging.debug("🎯 Rewritten: Generating signals matching Pine Script exactly")
 
-    # === CALCULATE ALL TECHNICAL INDICATORS INLINE ===
-    # Self-contained - no dependencies on technical_data table
-    logging.debug("   Calculating technical indicators (SMA-50, SMA-200, RSI, ATR, ADX)...")
-
+    # === CALCULATE TECHNICAL INDICATORS ===
     df['sma_50'] = calculate_sma(df['close'], 50)
     df['sma_200'] = calculate_sma(df['close'], 200)
     df['rsi'] = calculate_rsi(df['close'], 14)
     df['atr'] = calculate_atr(df['high'], df['low'], df['close'], 14)
     df['adx'] = calculate_adx(df['high'], df['low'], df['close'], 14)
-
-    # Calculate EMA-21 for shorter-term trend
     df['ema_21'] = df['close'].ewm(span=21, adjust=False).mean()
-
-    # Calculate percentage distance from moving averages
     df['pct_from_sma50'] = ((df['close'] - df['sma_50']) / df['sma_50'] * 100).round(2)
     df['pct_from_ema21'] = ((df['close'] - df['ema_21']) / df['ema_21'] * 100).round(2)
-
-    # Calculate pivot price (standard formula: (H + L + C) / 3)
     df['pivot_price'] = ((df['high'] + df['low'] + df['close']) / 3).round(2)
+    df['maFilter'] = df['sma_50'].ffill()
+    df['ma_200'] = df['sma_200'].ffill()
 
-    # DEBUG: Log pivot_price statistics
-    pivot_non_null = df['pivot_price'].notna().sum()
-    logging.debug(f"[CALC] pivot_price calculated: {pivot_non_null}/{len(df)} non-null values. First 3: {df['pivot_price'].head(3).tolist()}")
+    # === PIVOT DETECTION (Pine Script: pivothigh/pivotlow) ===
+    # CRITICAL: A pivot is "formed" at bar i when we have confirmed:
+    # - 3 bars left all lower/higher
+    # - current bar is high/low
+    # - 3 bars right all lower/higher (need to wait 1 bar to confirm - matching Pine's Shunt=1)
+    # The pivot is detected at bar i when bars i-3 to i+3 meet criteria
+    # Marked at bar i+1 to match Pine Script's 1-bar confirmation delay (Shunt=1)
 
-    # Use SMA-50 as the MA filter (matching Pine Script "Breakout Trend Follower")
-    # Pine Script: maLength = input(defval = 50, title = "MA Period for Filtering")
-    df['maFilter'] = df['sma_50']
-
-    # For bars without SMA-50 data, forward-fill from previous bar
-    df['maFilter'] = df['maFilter'].ffill()
-
-    # Use SMA-200 for Weinstein Stage Analysis (separate from entry filter)
-    df['ma_200'] = df['sma_200']
-    df['ma_200'] = df['ma_200'].ffill()
-
-    # === PROPER PIVOT HIGH/LOW CALCULATION (matching Pine Script exactly) ===
-    # Pine Script with Shunt=1 means pivots are confirmed ONE bar AFTER the lookback window
-    # For pivothigh(high, 3, 3): checks 3 bars left, current, 3 bars right
-    # Then offset=-pvtLenR-Shunt=-4 means plot at bar-4 from confirmation
-
-    pvtLenL = 3  # Bars to the left
-    pvtLenR = 3  # Bars to the right (confirmation window)
-    SHUNT = 1    # Delayed confirmation (matching Pine Script SHUNT=1)
-
-    def find_pivot_highs(highs, left=3, right=3, shunt=1):
-        """Find pivot highs matching Pine Script pivothigh(high, left, right)
-        Pine Script Shunt=1 means 1-bar confirmation delay for buyLevel
-        Mark at i+1 to match Pine Script's behavior"""
-        pivots = [None] * len(highs)
-        for i in range(left, len(highs) - right):
-            is_pivot = True
-            # Check left side - all bars to the left must be strictly lower
-            for j in range(left):
-                if highs.iloc[i - left + j] >= highs.iloc[i]:
-                    is_pivot = False
-                    break
-            # Check right side - all bars to the right must be strictly lower
-            if is_pivot:
-                for j in range(right):
-                    if highs.iloc[i + j + 1] >= highs.iloc[i]:
-                        is_pivot = False
-                        break
-            # Mark at i+1 for 1-bar confirmation (matching Pine Script Shunt=1)
-            if is_pivot:
-                confirm_idx = min(i + shunt, len(pivots) - 1)
-                pivots[confirm_idx] = highs.iloc[i]
-        return pd.Series(pivots, index=highs.index)
-
-    def find_pivot_lows(lows, left=3, right=3, shunt=1):
-        """Find pivot lows matching Pine Script pivotlow(low, left, right)
-        Pine Script Shunt=1 means 1-bar confirmation delay for stopLevel
-        Mark at i+1 to match Pine Script's behavior"""
-        pivots = [None] * len(lows)
-        for i in range(left, len(lows) - right):
-            is_pivot = True
-            # Check left side - all bars to the left must be strictly higher
-            for j in range(left):
-                if lows.iloc[i - left + j] <= lows.iloc[i]:
-                    is_pivot = False
-                    break
-            # Check right side - all bars to the right must be strictly higher
-            if is_pivot:
-                for j in range(right):
-                    if lows.iloc[i + j + 1] <= lows.iloc[i]:
-                        is_pivot = False
-                        break
-            # Mark at i+1 for 1-bar confirmation (matching Pine Script Shunt=1)
-            if is_pivot:
-                confirm_idx = min(i + shunt, len(pivots) - 1)
-                pivots[confirm_idx] = lows.iloc[i]
-        return pd.Series(pivots, index=lows.index)
-
-    # Find pivots with proper confirmation timing
-    pivot_highs_found = find_pivot_highs(df['high'], pvtLenL, pvtLenR, SHUNT)
-    pivot_lows_found = find_pivot_lows(df['low'], pvtLenL, pvtLenR, SHUNT)
-
-    # === Extract pivot prices - forward fill from pivot points ===
-    # With SHUNT=0, pivots are immediately available when they form
-    # With SHUNT=1, they would be delayed by 1 bar
-
-    df['pivotHighPrice'] = pivot_highs_found
-    df['pivotLowPrice'] = pivot_lows_found
-
-    # Forward fill to maintain levels until new pivot found
-    df['buyLevel'] = df['pivotHighPrice'].ffill()
-    df['stopLevel'] = df['pivotLowPrice'].ffill()
-
-    # === Buy/Sell Signals (EXACT Pine Script Logic) ===
-    # Pine Script:
-    #   buySignal = high > buyLevel
-    #   buy = buySignal and time > Start and time < Finish and buyLevel > maFilterCheck
-    #   sellSignal = low < stopLevel
-    # CRITICAL FIX: Pine Script uses "low < stopLevel", NOT "close <= stopLevel"
-    # CRITICAL FIX 2: Convert ALL None/NaN to np.nan FIRST to avoid NoneType comparison errors
-    # Handle both None and NaN values by filling None with np.nan
     import numpy as np
-    df['buyLevel'] = df['buyLevel'].astype('float64', errors='ignore')
-    df['stopLevel'] = df['stopLevel'].astype('float64', errors='ignore')
-    df['maFilter'] = df['maFilter'].astype('float64', errors='ignore')
-    df['high'] = pd.to_numeric(df['high'], errors='coerce')
-    df['low'] = pd.to_numeric(df['low'], errors='coerce')
 
-    # Now safe to compare - all None/NaN handled as np.nan
-    df['buySignal'] = pd.notna(df['buyLevel']) & pd.notna(df['high']) & (df['high'] > df['buyLevel'])
-    df['sellSignal'] = pd.notna(df['stopLevel']) & pd.notna(df['low']) & (df['low'] < df['stopLevel'])  # EXACT Pine Script match
+    def detect_pivot_highs(highs_series):
+        """Detect swing highs: 3 bars left < current, 3 bars right < current
+        Mark at i+1 to match Pine Script Shunt=1 (1-bar confirmation delay)"""
+        highs = highs_series.values
+        pivot_highs = np.full_like(highs, np.nan, dtype=float)
 
-    # === MA Filter (Pine Script: buyLevel > maFilterCheck) ===
-    # Only take setups above 50-day SMA for trend filtering
-    # Condition: buyLevel must exist AND be above maFilter
-    # OR: maFilter doesn't exist yet (early bars, before 50 bars available)
-    # This matches Pine Script behavior where early bars work correctly
-    # CRITICAL FIX 2: Convert to numeric FIRST to avoid NoneType comparison errors
-    df['aboveMA'] = (pd.notna(df['buyLevel']) & pd.notna(df['maFilter']) & (df['buyLevel'] > df['maFilter'])) | df['maFilter'].isna()
+        for i in range(3, len(highs) - 3):  # Need 3 bars on each side
+            # Check if bar i is a pivot high
+            is_pivot = True
+            for j in range(1, 4):  # 3 bars to left
+                if highs[i-j] >= highs[i]:
+                    is_pivot = False
+                    break
+            if is_pivot:
+                for j in range(1, 4):  # 3 bars to right
+                    if highs[i+j] >= highs[i]:
+                        is_pivot = False
+                        break
 
-    # === Final Signal Generation (Study version from Pine Script) ===
-    # Pine Script logic (CRITICAL - matches Pine Script v4 exactly):
-    # Line 1: inPosition := buy[1] ? true : sellSignal[1] ? false : inPosition[1]
-    # Line 2: flat = not inPosition
-    # Line 3: buyStudy = buy and flat
-    # Line 4: sellStudy = sellSignal and inPosition
-    #
-    # KEY INSIGHT: State update happens FIRST at bar i using PREVIOUS bar's signals,
-    # then CURRENT bar's signals are checked against NEW position state.
-    # This is the OPPOSITE of a naive state machine.
+            # If bar i is a pivot, mark it at position i+1 and use high from the pivot itself
+            # Pine Script: valuewhen(pvthi_, high[pvtLenR], 0) where pvtLenR=3
+            if is_pivot and i+1 < len(pivot_highs):
+                pivot_highs[i+1] = highs[i]  # Use high from pivot center
 
-    in_pos = False
-    sigs = []
-    pos = []
-    buy_prev = False   # Track PREVIOUS bar's buy signal (Pine Script: buy[1])
-    sell_prev = False  # Track PREVIOUS bar's sell signal (Pine Script: sellSignal[1])
+        return pivot_highs
 
-    # Pre-compute buy/sell conditions for ALL bars first (needed for state machine)
-    buy_conditions = []
-    sell_conditions = []
+    def detect_pivot_lows(lows_series):
+        """Detect swing lows: 3 bars left > current, 3 bars right > current
+        Mark at i+1 to match Pine Script Shunt=1 (1-bar confirmation delay)"""
+        lows = lows_series.values
+        pivot_lows = np.full_like(lows, np.nan, dtype=float)
+
+        for i in range(3, len(lows) - 3):  # Need 3 bars on each side
+            # Check if bar i is a pivot low
+            is_pivot = True
+            for j in range(1, 4):  # 3 bars to left
+                if lows[i-j] <= lows[i]:
+                    is_pivot = False
+                    break
+            if is_pivot:
+                for j in range(1, 4):  # 3 bars to right
+                    if lows[i+j] <= lows[i]:
+                        is_pivot = False
+                        break
+
+            # If bar i is a pivot, mark it at position i+1 and use low from the pivot itself
+            # Pine Script: valuewhen(pvtlo_, low[pvtLenR], 0) where pvtLenR=3
+            if is_pivot and i+1 < len(pivot_lows):
+                pivot_lows[i+1] = lows[i]  # Use low from pivot center
+
+        return pivot_lows
+
+    pivot_highs_raw = detect_pivot_highs(df['high'])
+    pivot_lows_raw = detect_pivot_lows(df['low'])
+
+    # === VALUEWHEN SEMANTICS ===
+    # valuewhen(condition, source, 0) returns source at most recent bar where condition is true
+    # For buyLevel: return high value whenever new pivot detected, hold previous value otherwise
+    df['buyLevel'] = pd.Series(pivot_highs_raw, index=df.index).ffill()
+    df['stopLevel'] = pd.Series(pivot_lows_raw, index=df.index).ffill()
+
+    # === BUY/SELL CONDITIONS (Pine Script logic) ===
+    df['buySignal'] = (df['high'] > df['buyLevel'].fillna(0)) & df['buyLevel'].notna()
+    df['sellSignal'] = (df['low'] < df['stopLevel'].fillna(float('inf'))) & df['stopLevel'].notna()
+
+    # === MA FILTER (Pine Script: buyLevel > maFilterCheck) ===
+    # Only allow buy if buyLevel is ABOVE the MA filter
+    # Pine Script default: useMaFilter=true, so check buyLevel > maFilter
+    df['maFilterOk'] = df['buyLevel'] > df['maFilter']
+
+    # === TIME FILTER (Pine Script: time > Start and time < Finish) ===
+    # Pine Script uses Start = 2019-01-01 and Finish = 2100-01-01 by default
+    # Only allow trades within backtest range
+    start_date = pd.Timestamp('2019-01-01')
+    end_date = pd.Timestamp('2100-01-01')
+    df['timeOk'] = (df['date'] >= start_date) & (df['date'] <= end_date)
+
+    df['buy'] = df['buySignal'] & df['maFilterOk'] & df['timeOk']
+    df['sell'] = df['sellSignal']
+
+    # === STATE MACHINE (Pine Script study logic) ===
+    # inPosition := buy[1] ? true : sellSignal[1] ? false : inPosition[1]
+    # flat = not inPosition
+    # buyStudy = buy and flat
+    # sellStudy = sellSignal and inPosition
+
+    signals = []
+    positions = []  # Track position state for each bar
+    in_position = False
+    prev_buy_cond = False
+    prev_sell_cond = False
+
+    buy_vals = df['buy'].values
+    sell_vals = df['sell'].values
 
     for i in range(len(df)):
-        row = df.iloc[i]
-        buySignal = pd.notna(row['buySignal']) and row['buySignal']
-        sellSignal = pd.notna(row['sellSignal']) and row['sellSignal']
-        aboveMA = pd.notna(row['aboveMA']) and row['aboveMA']
+        # EXACT Pine Script translation:
+        # inPosition := buy[1] ? true : sellSignal[1] ? false : inPosition[1]
+        if i > 0:
+            if prev_buy_cond:
+                in_position = True
+            elif prev_sell_cond:
+                in_position = False
+            # else: stay in previous position state
 
-        # Pine Script: buy = buySignal and buyLevel > maFilterCheck
-        buy_cond = buySignal and aboveMA
-        buy_conditions.append(buy_cond)
-        sell_conditions.append(sellSignal)
+        flat = not in_position
 
-    # Process signals using state machine matching Pine Script semantics
-    # CRITICAL: Use PREVIOUS bar's signals to update position state
-    for i in range(len(df)):
-        # Current bar's conditions (not state-dependent yet)
-        buy = buy_conditions[i]
-        sell_cond = sell_conditions[i]
+        # Current bar conditions
+        buy_cond = buy_vals[i]
+        sell_cond = sell_vals[i]
 
-        # Pine Script: inPosition := buy[1] ? true : sellSignal[1] ? false : inPosition[1]
-        # Update position state FIRST using PREVIOUS bar's signals
-        if i == 0:
-            in_pos = False
+        # Generate signal only if state allows it (Pine Script: buyStudy/sellStudy)
+        if buy_cond and flat:
+            signal = 'Buy'
+        elif sell_cond and in_position:
+            signal = 'Sell'
         else:
-            if buy_prev:
-                in_pos = True
-            elif sell_prev:
-                in_pos = False
-            # else: in_pos remains unchanged
+            signal = 'None'
 
-        # Derive state-dependent conditions
-        flat = not in_pos
+        signals.append(signal)
 
-        # Generate signals - ONLY ONE per bar due to state machine
-        buyStudy = buy and flat
-        sellStudy = sell_cond and in_pos
+        # Save position state for this bar
+        positions.append(in_position)
 
-        # STEP 3: Assign signal and update position for NEXT bar
-        # Position update for next bar happens here based on current signal
-        if buyStudy:
-            sigs.append('Buy')
-            # Position will be True for next bar (set in buy_prev for next iteration)
-        elif sellStudy:
-            sigs.append('Sell')
-            # Position will be False for next bar (set in sell_prev for next iteration)
-        else:
-            sigs.append('None')
+        # Save conditions for next bar (Pine Script: buy[1], sellSignal[1])
+        prev_buy_cond = buy_cond
+        prev_sell_cond = sell_cond
+        
 
-        # Record position state (reflects state USED for this bar's decision, before next update)
-        pos.append(in_pos)
-
-        # Update previous bar tracking for next iteration
-        # These will be used in STEP 1 of the NEXT bar to update in_pos
-        buy_prev = buy
-        sell_prev = sell_cond
-
-    df['Signal'] = sigs
-    df['inPosition'] = pos
+    df['Signal'] = signals
+    df['inPosition'] = positions  # Use actual position states
 
     # === Simplified signal strength (just based on signal type) ===
     df['signal_type'] = df['Signal']
@@ -1432,6 +1364,9 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
 
         # RS = (current / 200-day high) * 100
         rs = (current_price / high_200d) * 100
+        # Handle NaN values
+        if pd.isna(rs):
+            return None
         # Convert to 0-99 scale
         rs_rating = min(99, max(1, int(rs)))
         return rs_rating
@@ -1518,13 +1453,13 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
 
     df['entry_quality_score'] = df.apply(calc_entry_quality, axis=1)
 
-    # === MARKET STAGE (Stan Weinstein Stage Analysis using 50-day MA for ETFs) ===
+    # === MARKET STAGE (Stan Weinstein Stage Analysis using 200-day MA) ===
     # Calculate MA slope to determine if it's rising, falling, or flattening
     ma_slope_window = 10  # Look at 10-day slope
     df['ma_200_slope'] = df['ma_200'].diff(periods=ma_slope_window)
 
     def detect_market_stage(row, index):
-        """Classify into Weinstein's 4-Stage model based on price position relative to 200-day MA (matching stock loaders exactly)"""
+        """Classify into Weinstein's 4-Stage model based on price position relative to 200-day MA"""
         if pd.isna(row.get('close')) or pd.isna(row.get('ma_200')):
             return None
 
@@ -1532,7 +1467,7 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
         ma_200 = row['ma_200']
         ma_slope = row.get('ma_200_slope')
 
-        # Need sufficient data for MA calculation (200 days minimum)
+        # Need sufficient data for MA calculation
         if index < 200:
             return None
 
@@ -1581,14 +1516,14 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
         lambda x: int(x.split()[1]) if pd.notna(x) and 'Stage' in str(x) else None
     )
 
-    # === STAGE CONFIDENCE (Based on price distance from MA_200) ===
+    # === STAGE CONFIDENCE (Based on price distance from MA_200, NOT MA_50) ===
     def calc_stage_confidence(row):
-        """Calculate confidence in market stage (0-100) based on distance from 200-day MA (matching stock loaders exactly)"""
+        """Calculate confidence in market stage (0-100) based on distance from 200-day MA"""
         if pd.isna(row.get('market_stage')):
             return None
 
         close = row['close']
-        ma_200 = row['ma_200']
+        ma_200 = row['ma_200']  # ✅ FIXED: Use ma_200 (200-day MA) not ma_50!
 
         if pd.isna(ma_200) or ma_200 is None or ma_200 <= 0:
             return None
@@ -1825,43 +1760,37 @@ def main():
         print("No stock symbols in DB.")
         symbols = []
 
-    # Load country ETF symbols (from etf_symbols where etf='Y' AND country IS NOT NULL)
+    # Load country ETF symbols (from stock_symbols where etf='Y' AND country IS NOT NULL)
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT symbol FROM etf_symbols WHERE etf='Y' AND country IS NOT NULL;")
+        cur.execute("SELECT symbol FROM stock_symbols WHERE etf='Y' AND country IS NOT NULL;")
         country_symbols = [r[0] for r in cur.fetchall()]
     except:
-        logging.warning("Could not load country ETF symbols from etf_symbols")
+        logging.warning("Could not load country ETF symbols from stock_symbols")
         country_symbols = []
     finally:
         cur.close()
         conn.close()
 
-    # Create single unified ETF signals table
+    # Create tables
     conn = get_db_connection()
     conn.autocommit = True
     cur = conn.cursor()
-    create_buy_sell_table(cur, "buy_sell_daily_etf")
+    create_buy_sell_table(cur, "buy_sell_daily")
     cur.close()
     conn.close()
 
-    # Combine regular and country ETF symbols into single list
-    all_etf_symbols = symbols + country_symbols
-    logging.info(f"Processing {len(symbols)} regular ETFs + {len(country_symbols)} country ETFs = {len(all_etf_symbols)} total ETFs")
+    # Process ONLY regular stocks (NO ETFs)
+    logging.info(f"Processing {len(symbols)} regular stocks only (excluding {len(country_symbols)} country symbols)")
 
-    # BLACKLIST: Skip bond ETFs that don't work with breakout strategy
-    blacklist = {'SHY', 'IEF', 'TLT', 'SHV', 'BND', 'AGG'}  # Bond ETFs - too stable
-    all_etf_symbols = [s for s in all_etf_symbols if s not in blacklist]
-    logging.info(f"After filtering blacklist: {len(all_etf_symbols)} ETFs to process")
-
-    # Process all ETFs into single unified table
-    if all_etf_symbols:
-        process_symbol_set(all_etf_symbols, "buy_sell_daily_etf", "ETF Signals", max_workers=6)
+    # Process all stocks into single unified table
+    if symbols:
+        process_symbol_set(symbols, "buy_sell_daily", "Stock Signals", max_workers=6)
 
     logging.info("Processing complete.")
 
 if __name__ == "__main__":
-    logging.info("Starting ETF Signals Loader")
+    logging.info("Starting Stock Signals Loader")
     main()
-    logging.info("✅ ETF Signals Loader completed")
+    logging.info("✅ Stock Signals Loader completed")
