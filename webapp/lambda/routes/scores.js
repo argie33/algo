@@ -423,6 +423,8 @@ const SCORE_COLUMNS = [
   'stability_score',
   'beta',
   'short_interest',
+  'accumulation_distribution',
+  'fcf_yield',
   'last_updated'
 ];
 
@@ -641,7 +643,7 @@ async function queryScores(options = {}) {
           stock_ev_ebitda: cleaned.ev_to_ebitda,
           stock_dividend_yield: cleaned.dividend_yield,
           peg_ratio: cleaned.peg_ratio,
-          stock_fcf_yield: null  // Calculated by loader, populated if available in metrics
+          stock_fcf_yield: stock.fcf_yield  // Now fetched from stock_scores.fcf_yield
         };
       }
 

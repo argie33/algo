@@ -295,6 +295,7 @@ def create_stock_scores_table(conn):
                 ps_ratio DECIMAL(10,2),
                 peg_ratio DECIMAL(10,2),
                 ev_revenue DECIMAL(10,2),
+                fcf_yield DECIMAL(10,2),
 
                 -- Quality Components
                 roe DECIMAL(5,2),
@@ -4037,14 +4038,14 @@ def save_stock_score(conn, score_data):
             if key not in score_data:
                 score_data[key] = None
 
-        # Upsert query - with all 43 columns from comprehensive schema
+        # Upsert query - with all 44 columns from comprehensive schema
         upsert_sql = """
         INSERT INTO stock_scores (
             symbol, company_name, composite_score, momentum_score, value_score, quality_score,
             growth_score, positioning_score, sentiment_score, stability_score,
             rsi, macd, sma50, momentum_3m, momentum_6m, momentum_12m,
             price_vs_sma_50, price_vs_sma_200, price_vs_52w_high,
-            pe_ratio, forward_pe, pb_ratio, ps_ratio, peg_ratio, ev_revenue,
+            pe_ratio, forward_pe, pb_ratio, ps_ratio, peg_ratio, ev_revenue, fcf_yield,
             roe, roa, debt_ratio, fcf_ni_ratio, earnings_surprise,
             earnings_growth, revenue_growth, margin_trend,
             volatility, downside_volatility, max_drawdown, beta,
@@ -4056,7 +4057,7 @@ def save_stock_score(conn, score_data):
             %(growth_score)s, %(positioning_score)s, %(sentiment_score)s, %(stability_score)s,
             %(rsi)s, %(macd)s, %(sma50)s, %(momentum_3m)s, %(momentum_6m)s, %(momentum_12m)s,
             %(price_vs_sma_50)s, %(price_vs_sma_200)s, %(price_vs_52w_high)s,
-            %(pe_ratio)s, %(forward_pe)s, %(pb_ratio)s, %(ps_ratio)s, %(peg_ratio)s, %(ev_revenue)s,
+            %(pe_ratio)s, %(forward_pe)s, %(pb_ratio)s, %(ps_ratio)s, %(peg_ratio)s, %(ev_revenue)s, %(stock_fcf_yield)s,
             %(roe)s, %(roa)s, %(debt_ratio)s, %(fcf_ni_ratio)s, %(earnings_surprise)s,
             %(earnings_growth)s, %(revenue_growth)s, %(margin_trend)s,
             %(volatility)s, %(downside_volatility)s, %(max_drawdown)s, %(beta)s,
@@ -4088,6 +4089,7 @@ def save_stock_score(conn, score_data):
             ps_ratio = EXCLUDED.ps_ratio,
             peg_ratio = EXCLUDED.peg_ratio,
             ev_revenue = EXCLUDED.ev_revenue,
+            fcf_yield = EXCLUDED.fcf_yield,
             roe = EXCLUDED.roe,
             roa = EXCLUDED.roa,
             debt_ratio = EXCLUDED.debt_ratio,
