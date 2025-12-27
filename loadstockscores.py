@@ -3848,6 +3848,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             'growth_score': float(round(clamp_score(growth_score), 2)) if growth_score is not None else None,
             'positioning_score': float(round(clamp_score(positioning_score), 2)) if positioning_score is not None else None,
             'sentiment_score': float(round(clamp_score(sentiment_score), 2)) if sentiment_score is not None else None,
+            'fcf_yield': float(round(fcf_yield, 2)) if fcf_yield is not None else None,
             'stability_score': float(round(clamp_score(risk_stability_score), 2)) if risk_stability_score is not None else None,
             'stability_inputs': stability_inputs,
             'beta': float(round(beta, 3)) if beta is not None else None,
