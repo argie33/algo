@@ -2675,6 +2675,26 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 # For unprofitable companies with NULL P/E metrics, we know WHY they're NULL
                 # (no earnings) - this is a REAL value signal (bad value), not missing data
 
+                # FALLBACK: If earnings_growth_pct missing from key_metrics, try growth_metrics.eps_growth_3y_cagr
+                if earnings_growth_pct is None:
+                    try:
+                        cur.execute("""
+                            SELECT eps_growth_3y_cagr, net_income_growth_yoy
+                            FROM growth_metrics
+                            WHERE symbol = %s
+                            ORDER BY date DESC
+                            LIMIT 1
+                        """, (symbol,))
+                        gm = cur.fetchone()
+                        if gm and gm[0] is not None:
+                            earnings_growth_pct = gm[0]
+                            logger.debug(f"{symbol}: Using eps_growth_3y_cagr={earnings_growth_pct:.2f}% from growth_metrics")
+                        elif gm and gm[1] is not None:
+                            earnings_growth_pct = gm[1]
+                            logger.debug(f"{symbol}: Using net_income_growth_yoy={earnings_growth_pct:.2f}% from growth_metrics as fallback")
+                    except Exception as e:
+                        logger.debug(f"{symbol}: Error fetching earnings_growth_pct from growth_metrics: {e}")
+
                 # CALCULATE PEG RATIO if missing (3X better coverage by calculating ourselves)
                 # PEG = PE / Earnings Growth Rate
                 if peg_ratio_val is None and earnings_growth_pct is not None:
