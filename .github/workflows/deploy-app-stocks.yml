@@ -363,11 +363,15 @@ jobs:
             if [[ "$STACK_STATUS" != "DELETED" ]]; then
               echo "Stack exists, updating..."
               # Try to update stack, capture both stdout and stderr
+              # Force CloudFormation update by including a timestamp parameter
+              DEPLOYMENT_TIMESTAMP=$(date +'%Y-%m-%d-%H-%M-%S-'$(echo ${{ github.run_id }} | tail -c 4))
+
               UPDATE_OUTPUT=$(aws cloudformation update-stack \
                 --stack-name stocks-ecs-tasks-stack \
                 --template-url https://stocks-cf-templates-626216981288.s3.amazonaws.com/template-app-ecs-tasks.yml \
                 --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
                 --parameters \
+                  ParameterKey=DeploymentTimestamp,ParameterValue=$DEPLOYMENT_TIMESTAMP \
                   ParameterKey=RDSUsername,ParameterValue=${{ secrets.RDS_USERNAME }} \
                   ParameterKey=RDSPassword,ParameterValue=${{ secrets.RDS_PASSWORD }} \
                   ParameterKey=FREDApiKey,ParameterValue=${{ secrets.FRED_API_KEY }} \
@@ -442,11 +446,15 @@ jobs:
           # Create stack if it doesn't exist or was just deleted
           if [[ ! $(aws cloudformation describe-stacks --stack-name stocks-ecs-tasks-stack 2>/dev/null) ]]; then
             echo "Stack does not exist, creating..."
+            # Get timestamp for new stack creation too
+            DEPLOYMENT_TIMESTAMP=$(date +'%Y-%m-%d-%H-%M-%S-'$(echo ${{ github.run_id }} | tail -c 4))
+
             aws cloudformation create-stack \
               --stack-name stocks-ecs-tasks-stack \
               --template-url https://stocks-cf-templates-626216981288.s3.amazonaws.com/template-app-ecs-tasks.yml \
               --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
               --parameters \
+                ParameterKey=DeploymentTimestamp,ParameterValue=$DEPLOYMENT_TIMESTAMP \
                 ParameterKey=RDSUsername,ParameterValue=${{ secrets.RDS_USERNAME }} \
                 ParameterKey=RDSPassword,ParameterValue=${{ secrets.RDS_PASSWORD }} \
                 ParameterKey=FREDApiKey,ParameterValue=${{ secrets.FRED_API_KEY }} \

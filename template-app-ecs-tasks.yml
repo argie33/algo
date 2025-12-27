@@ -187,6 +187,10 @@ Parameters:
   FactormetricsImageTag:
     Type: String
     Description: "Tag for factor metrics loader image"
+  DeploymentTimestamp:
+    Type: String
+    Description: "Deployment timestamp to force stack updates"
+    Default: "2025-12-27-default"
 
 Resources:
 
