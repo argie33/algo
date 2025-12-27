@@ -4014,8 +4014,13 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                     'positioning_score': float(positioning_score) if positioning_score is not None else None,
                     'sentiment_score': float(sentiment_score) if 'sentiment_score' in locals() and sentiment_score is not None else None,
                     'stability_score': float(risk_stability_score) if risk_stability_score is not None else None,
-                    'beta': float(round(beta, 3)) if 'beta' in locals() and beta is not None else None
+                    'beta': float(round(beta, 3)) if 'beta' in locals() and beta is not None else None,
+                    # Include value input metrics (especially fcf_yield) even when exception occurs
+                    'stock_fcf_yield': float(round(fcf_yield, 2)) if 'fcf_yield' in locals() and fcf_yield is not None else None,
+                    'stock_dividend_yield': float(round(dividend_yield_val * 100, 2)) if 'dividend_yield_val' in locals() and dividend_yield_val is not None else None,
+                    'peg_ratio': float(round(peg_ratio_val, 2)) if 'peg_ratio_val' in locals() and peg_ratio_val is not None else None,
                 }
+
                 conn.rollback()
                 return calculated_score
             else:
