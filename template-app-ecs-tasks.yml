@@ -2555,7 +2555,7 @@ Resources:
       ServiceName: buysell_etf_daily-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 0
+      DesiredCount: 1
       TaskDefinition: !Ref BuySellEtfDailyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2614,7 +2614,7 @@ Resources:
       ServiceName: factormetrics-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 0
+      DesiredCount: 1
       TaskDefinition: !Ref FactormetricsTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
