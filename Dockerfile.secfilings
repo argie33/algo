@@ -1,0 +1,4 @@
+ARG ECR_REGISTRY
+FROM ${ECR_REGISTRY}:base-loader-latest
+COPY loadsecfilings.py .
+ENTRYPOINT ["python", "loadsecfilings.py"]

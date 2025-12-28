@@ -1,0 +1,4 @@
+ARG ECR_REGISTRY
+FROM ${ECR_REGISTRY}:base-loader-latest
+COPY loadmarketindices.py .
+ENTRYPOINT ["python", "loadmarketindices.py"]
