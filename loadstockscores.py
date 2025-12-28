@@ -4078,7 +4078,7 @@ def save_stock_score(conn, score_data):
         required_keys = [
             'symbol', 'company_name', 'composite_score', 'momentum_score', 'value_score', 'quality_score',
             'growth_score', 'positioning_score', 'sentiment_score', 'stability_score',
-            'rsi', 'macd', 'sma50', 'momentum_3m', 'momentum_6m', 'momentum_12m',
+            'rsi', 'macd', 'sma_20', 'sma_50', 'momentum_3m', 'momentum_6m', 'momentum_12m',
             'price_vs_sma_50', 'price_vs_sma_200', 'price_vs_52w_high',
             'pe_ratio', 'forward_pe', 'pb_ratio', 'ps_ratio', 'peg_ratio', 'ev_revenue', 'fcf_yield',
             'roe', 'roa', 'debt_ratio', 'fcf_ni_ratio', 'earnings_surprise',
