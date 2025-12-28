@@ -87,7 +87,7 @@ jobs:
         id: matrix
         run: |
           # Define supported loaders (those with ECS task definitions)
-          SUPPORTED_LOADERS="stocksymbols econdata findata pricedaily priceweekly pricemonthly technicalsdaily info earningsestimate revenueestimate technicalsweekly technicalsmonthly buysell swingtrader latestpricedaily latestpriceweekly latestpricemonthly latesttechnicalsdaily latesttechnicalsweekly latesttechnicalsmonthly aaiidata feargreed naaim earningshistory earningsmetrics buyselldaily buysell_etf_daily buysellweekly buysellmonthly quarterlybalancesheet annualbalancesheet quarterlyincomestatement annualincomestatement quarterlycashflow annualcashflow ttmincomestatement ttmcashflow qualitymetrics momentummetrics growthmetrics valuemetrics stockscores benchmarks analystupgradedowngrade sectordata companyprofile financials historical sectors positioning momentum riskmetrics fundamentalmetrics dailycompanydata factormetrics"
+          SUPPORTED_LOADERS="stocksymbols econdata findata pricedaily priceweekly pricemonthly etfpricedaily etfpriceweekly etfpricemonthly technicalsdaily info earningsestimate revenueestimate technicalsweekly technicalsmonthly buysell swingtrader latestpricedaily latestpriceweekly latestpricemonthly latesttechnicalsdaily latesttechnicalsweekly latesttechnicalsmonthly aaiidata feargreed naaim earningshistory earningsmetrics buyselldaily buysell_etf_daily buysellweekly buysellmonthly quarterlybalancesheet annualbalancesheet quarterlyincomestatement annualincomestatement quarterlycashflow annualcashflow ttmincomestatement ttmcashflow qualitymetrics momentummetrics growthmetrics valuemetrics stockscores benchmarks analystupgradedowngrade sectordata companyprofile financials historical sectors positioning momentum riskmetrics fundamentalmetrics dailycompanydata factormetrics"
 
           # Get all available loaders and filter by supported ones
           ALL_AVAILABLE_LOADERS=$(ls load*.py 2>/dev/null | sed 's/load//' | sed 's/\.py$//' | sort)
@@ -383,6 +383,9 @@ jobs:
                   ParameterKey=PriceImageTag,ParameterValue=latest \
                   ParameterKey=PriceWeeklyImageTag,ParameterValue=latest \
                   ParameterKey=PriceMonthlyImageTag,ParameterValue=latest \
+                  ParameterKey=EtfPriceDailyImageTag,ParameterValue=latest \
+                  ParameterKey=EtfPriceWeeklyImageTag,ParameterValue=latest \
+                  ParameterKey=EtfPriceMonthlyImageTag,ParameterValue=latest \
                   ParameterKey=TechnicalsDailyImageTag,ParameterValue=latest \
                   ParameterKey=LoadDailyCompanyDataImageTag,ParameterValue=companyprofile-latest \
                   ParameterKey=EarningsEstimateImageTag,ParameterValue=latest \
