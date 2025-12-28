@@ -3,8 +3,21 @@ name: Data Loaders Pipeline
 on:
   workflow_dispatch:
     inputs:
+      batch:
+        description: 'Loader batch to run'
+        required: false
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - batch-1-critical
+          - batch-2-price-data
+          - batch-3-financials
+          - batch-4-signals
+          - batch-5-metrics
+          - custom
       loaders:
-        description: 'Comma-separated list of loaders to run (leave empty for auto-detection)'
+        description: 'Comma-separated list of loaders (only used with custom batch)'
         required: false
         default: ''
       environment:
@@ -16,11 +29,6 @@ on:
           - dev
           - staging
           - prod
-      force_all:
-        description: 'Force run all loaders regardless of changes'
-        required: false
-        default: false
-        type: boolean
   push:
     branches:
       - initialbuild
@@ -98,16 +106,35 @@ jobs:
             fi
           done
           ALL_LOADERS=$(echo $ALL_LOADERS | tr ' ' '\n' | sort | tr '\n' ' ')
-          
-          # Determine which loaders to run
-          if [[ "${{ github.event.inputs.loaders }}" != "" ]]; then
-            # Manual input
+
+          # Define loader batches for controlled deployment
+          BATCH_1_CRITICAL="stocksymbols pricedaily dailycompanydata stockscores"
+          BATCH_2_PRICE_DATA="priceweekly pricemonthly etfpricedaily etfpriceweekly etfpricemonthly"
+          BATCH_3_FINANCIALS="annualbalancesheet quarterlybalancesheet annualincomestatement quarterlyincomestatement annualcashflow quarterlycashflow ttmincomestatement ttmcashflow"
+          BATCH_4_SIGNALS="buyselldaily buysellweekly buysellmonthly buysell_etf_daily buysell_etf_monthly buysell_etf_weekly"
+          BATCH_5_METRICS="feargreed aaiidata naaim analystsentiment earningshistory factormetrics"
+
+          # Determine which loaders to run based on batch selection
+          BATCH_MODE="${{ github.event.inputs.batch }}"
+          if [[ "$BATCH_MODE" == "batch-1-critical" ]]; then
+            LOADERS_TO_RUN="$BATCH_1_CRITICAL"
+            echo "Running Batch 1 (Critical): $LOADERS_TO_RUN"
+          elif [[ "$BATCH_MODE" == "batch-2-price-data" ]]; then
+            LOADERS_TO_RUN="$BATCH_2_PRICE_DATA"
+            echo "Running Batch 2 (Price Data): $LOADERS_TO_RUN"
+          elif [[ "$BATCH_MODE" == "batch-3-financials" ]]; then
+            LOADERS_TO_RUN="$BATCH_3_FINANCIALS"
+            echo "Running Batch 3 (Financials): $LOADERS_TO_RUN"
+          elif [[ "$BATCH_MODE" == "batch-4-signals" ]]; then
+            LOADERS_TO_RUN="$BATCH_4_SIGNALS"
+            echo "Running Batch 4 (Signals): $LOADERS_TO_RUN"
+          elif [[ "$BATCH_MODE" == "batch-5-metrics" ]]; then
+            LOADERS_TO_RUN="$BATCH_5_METRICS"
+            echo "Running Batch 5 (Metrics): $LOADERS_TO_RUN"
+          elif [[ "$BATCH_MODE" == "custom" && "${{ github.event.inputs.loaders }}" != "" ]]; then
+            # Custom loader selection
             LOADERS_TO_RUN=$(echo "${{ github.event.inputs.loaders }}" | tr ',' '\n' | sort)
-            echo "Manual loader selection: $LOADERS_TO_RUN"
-          elif [[ "${{ github.event.inputs.force_all }}" == "true" ]]; then
-            # Force all loaders explicitly requested
-            LOADERS_TO_RUN="$ALL_LOADERS"
-            echo "Running all loaders (force_all requested)"
+            echo "Custom loader selection: $LOADERS_TO_RUN"
           else
             # Auto-detect based on file changes (even if infrastructure changed)
             echo "Debug: Checking for changed loader files..."
@@ -179,8 +206,10 @@ jobs:
             echo "Debug: Validated loaders with Dockerfiles: $CHANGED_LOADERS"
 
             if [[ -n "$CHANGED_LOADERS" ]]; then
-              LOADERS_TO_RUN="$CHANGED_LOADERS"
-              echo "Auto-detected changed loaders: $LOADERS_TO_RUN"
+              # When loaders change, run Batch 1 (Critical) to ensure core data is loaded in AWS
+              LOADERS_TO_RUN="$BATCH_1_CRITICAL"
+              echo "Loader files changed - auto-running Batch 1 (Critical) loaders: $LOADERS_TO_RUN"
+              echo "Changed loaders detected: $CHANGED_LOADERS"
               if [[ "${{ steps.infra.outputs.changed }}" == "true" ]]; then
                 echo "Infrastructure also changed - images will be rebuilt"
               fi
