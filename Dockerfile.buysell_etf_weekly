@@ -1,0 +1,4 @@
+ARG ECR_REGISTRY
+FROM ${ECR_REGISTRY}:base-loader-latest
+COPY loadbuysell_etf_weekly.py .
+ENTRYPOINT ["python", "loadbuysell_etf_weekly.py"]
