@@ -14,7 +14,7 @@ DEPLOYMENT MODES:
 
 VERSION INFO:
 VERIFIED: 2025-10-26 Fresh reload completed successfully - 5,315/5,315 rows (100%) ✅
-Trigger: 20251227_120500 - AWS deployment stock scores to RDS via ECS tasks
+Trigger: 20251228_180000 - Deploy stock scores with fixed loaders to AWS ECS
 Calculates and stores improved stock scores using multi-factor analysis.
 Deploy stock scores calculation to populate comprehensive quality metrics.
 TRIGGER: 20251225 - Rebuild Docker image and deploy stock scores on AWS
@@ -443,6 +443,21 @@ def fetch_beta_from_database(conn, symbol):
         except Exception as e:
             # Ignore individual table errors - they don't abort main transaction due to try-except
             logger.debug(f"Beta not in risk_metrics for {symbol}: {e}")
+            pass
+
+        # Try stability_metrics (where loadfactormetrics.py stores beta)
+        try:
+            cur.execute("""
+                SELECT beta FROM stability_metrics
+                WHERE symbol = %s AND beta IS NOT NULL
+                ORDER BY date DESC LIMIT 1
+            """, (symbol,))
+            result = cur.fetchone()
+            if result:
+                cur.close()
+                return result[0]
+        except Exception as e:
+            logger.debug(f"Beta not in stability_metrics for {symbol}: {e}")
             pass
 
         # Try key_metrics as backup

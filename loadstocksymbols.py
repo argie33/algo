@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Updated: 2025-10-04 16:55 - Trigger symbols loader - populate Agilent, Alcoa, and all stocks
+# Trigger: 20251228_180000 - Deploy to AWS ECS with fixed loaders
 import csv
 import json
 import logging
