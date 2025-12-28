@@ -101,16 +101,10 @@ def insert_benchmark_data(conn, symbol, hist):
             deleted_count = cur.rowcount
             logger.info(f"Cleared {deleted_count} existing {symbol} records")
 
-        # Insert new data
+        # Insert new data (already deleted old records above)
         query = """
             INSERT INTO price_daily (symbol, date, open, high, low, close, adj_close, volume, dividends, stock_splits)
             VALUES %s
-            ON CONFLICT (symbol, date) DO UPDATE SET
-                open = EXCLUDED.open,
-                high = EXCLUDED.high,
-                low = EXCLUDED.low,
-                close = EXCLUDED.close,
-                volume = EXCLUDED.volume
         """
 
         execute_values(cur, query, records)

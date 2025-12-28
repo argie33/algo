@@ -448,19 +448,23 @@ if __name__ == "__main__":
 
     t_s, i_s, f_s = load_prices("price_daily", stock_syms, cur, conn)
 
-    # Load all ETF symbols (from etf_symbols table) - only ones not already in etf_price_daily
-    cur.execute("SELECT symbol FROM etf_symbols;")
-    all_etf_syms = [r["symbol"] for r in cur.fetchall()]
+    # Load all ETF symbols (from etf_symbols table if it exists) - only ones not already in etf_price_daily
+    try:
+        cur.execute("SELECT symbol FROM etf_symbols;")
+        all_etf_syms = [r["symbol"] for r in cur.fetchall()]
 
-    # Get ETF symbols that already have price data
-    cur.execute("SELECT DISTINCT symbol FROM etf_price_daily;")
-    loaded_etf_syms = {r["symbol"] for r in cur.fetchall()}
+        # Get ETF symbols that already have price data
+        cur.execute("SELECT DISTINCT symbol FROM etf_price_daily;")
+        loaded_etf_syms = {r["symbol"] for r in cur.fetchall()}
 
-    # Filter to only missing ETF symbols
-    etf_syms = [s for s in all_etf_syms if s not in loaded_etf_syms]
-    logging.info(f"Total ETF symbols: {len(all_etf_syms)}, already loaded: {len(loaded_etf_syms)}, remaining: {len(etf_syms)}")
+        # Filter to only missing ETF symbols
+        etf_syms = [s for s in all_etf_syms if s not in loaded_etf_syms]
+        logging.info(f"Total ETF symbols: {len(all_etf_syms)}, already loaded: {len(loaded_etf_syms)}, remaining: {len(etf_syms)}")
 
-    t_w, i_w, f_w = load_prices("etf_price_daily", etf_syms, cur, conn)
+        t_w, i_w, f_w = load_prices("etf_price_daily", etf_syms, cur, conn)
+    except psycopg2.errors.UndefinedTable:
+        logging.warning("⚠️ etf_symbols table does not exist - skipping ETF price loading")
+        t_w, i_w, f_w = 0, 0, 0
 
     # Record last run
     cur.execute("""
