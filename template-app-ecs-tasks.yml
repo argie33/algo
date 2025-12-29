@@ -239,15 +239,6 @@ Resources:
               - Effect: Allow
                 Action: kms:Decrypt
                 Resource: '*'
-        - PolicyName: AllowReadSwingTraderSecrets
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action: secretsmanager:GetSecretValue
-                Resource:
-                  - !Ref IBKRUsernameSecret
-                  - !Ref IBKRPasswordSecret
 
   ECSTaskRole:
     Type: AWS::IAM::Role
@@ -1434,18 +1425,6 @@ Resources:
   ########################################
   # O) swingtrader loader                #
   ########################################
-  IBKRUsernameSecret:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      Name: swingtrader/ibkr-username
-      SecretString: !Ref IBKRUsername
-
-  IBKRPasswordSecret:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      Name: swingtrader/ibkr-password
-      SecretString: !Ref IBKRPassword
-
   SwingTraderTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -1464,11 +1443,6 @@ Resources:
         - Name: swingtrader-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref SwingTraderImageTag]]
           Essential: true
-          Secrets:
-            - Name: IBKR_USERNAME
-              ValueFrom: !Ref IBKRUsernameSecret
-            - Name: IBKR_PASSWORD
-              ValueFrom: !Ref IBKRPasswordSecret
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2549,11 +2523,6 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !Ref RDSUsername
-          Secrets:
-            - Name: IBKR_USERNAME
-              ValueFrom: !Ref IBKRUsernameSecret
-            - Name: IBKR_PASSWORD
-              ValueFrom: !Ref IBKRPasswordSecret
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2611,11 +2580,6 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !Ref RDSUsername
-          Secrets:
-            - Name: IBKR_USERNAME
-              ValueFrom: !Ref IBKRUsernameSecret
-            - Name: IBKR_PASSWORD
-              ValueFrom: !Ref IBKRPasswordSecret
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2673,11 +2637,6 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !Ref RDSUsername
-          Secrets:
-            - Name: IBKR_USERNAME
-              ValueFrom: !Ref IBKRUsernameSecret
-            - Name: IBKR_PASSWORD
-              ValueFrom: !Ref IBKRPasswordSecret
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2732,11 +2691,6 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !Ref RDSUsername
-          Secrets:
-            - Name: IBKR_USERNAME
-              ValueFrom: !Ref IBKRUsernameSecret
-            - Name: IBKR_PASSWORD
-              ValueFrom: !Ref IBKRPasswordSecret
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2791,11 +2745,6 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !Ref RDSUsername
-          Secrets:
-            - Name: IBKR_USERNAME
-              ValueFrom: !Ref IBKRUsernameSecret
-            - Name: IBKR_PASSWORD
-              ValueFrom: !Ref IBKRPasswordSecret
           LogConfiguration:
             LogDriver: awslogs
             Options:
