@@ -243,7 +243,7 @@ function App() {
           component="div"
           sx={{ fontWeight: 700, color: "primary.main" }}
         >
-          Financial Platform
+          Bullseye Financial
         </Typography>
       </Toolbar>
       <List sx={{ px: 1 }}>
@@ -363,9 +363,6 @@ function App() {
         sx={{
           width: { md: `calc(100% - ${drawerWidth}px)` },
           ml: { md: `${drawerWidth}px` },
-          backgroundColor: "white",
-          color: "text.primary",
-          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
         }}
       >
         <Toolbar>
