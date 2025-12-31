@@ -33,25 +33,33 @@ def get_db_creds():
             sm = boto3.client("secretsmanager")
             resp = sm.get_secret_value(SecretId=DB_SECRET_ARN)
             sec = json.loads(resp["SecretString"])
-            return (
-                sec["username"],
-                sec["password"],
-                sec["host"],
-                int(sec["port"]),
-                sec["dbname"]
-            )
+            return {
+                "user": sec["username"],
+                "password": sec["password"],
+                "host": sec["host"],
+                "port": int(sec["port"]),
+                "dbname": sec["dbname"],
+                "sslmode": "require"
+            }
         except Exception as e:
             logger.warning(f"Failed to fetch from Secrets Manager: {e}, falling back to environment variables")
 
-    # Fall back to environment variables (for local development)
-    # For local development, try postgres superuser with password first
-    return (
-        os.environ.get("DB_USER", "postgres"),
-        os.environ.get("DB_PASSWORD", "password"),
-        os.environ.get("DB_HOST", "localhost"),
-        int(os.environ.get("DB_PORT", 5432)),
-        os.environ.get("DB_NAME", "stocks")
-    )
+    # Fall back to environment variables or Unix socket
+    if os.environ.get("DB_HOST"):
+        return {
+            "user": os.environ.get("DB_USER", "postgres"),
+            "password": os.environ.get("DB_PASSWORD", "password"),
+            "host": os.environ.get("DB_HOST", "localhost"),
+            "port": int(os.environ.get("DB_PORT", 5432)),
+            "dbname": os.environ.get("DB_NAME", "stocks"),
+            "sslmode": "disable"
+        }
+    else:
+        # Use Unix socket connection (works locally without password)
+        logger.info("Using Unix socket connection")
+        return {
+            "dbname": os.environ.get("DB_NAME", "stocks")
+        }
 
 def get_economic_calendar_data():
     """Fetch economic calendar events - tries FRED API first, falls back to scheduled events."""
@@ -378,21 +386,7 @@ def handler(event, context):
             logger.info("✓ FRED_API_KEY found - will fetch full economic calendar")
 
         # 1) Connect
-        user, pwd, host, port, db = get_db_creds()
-
-        # For local connections, use disable SSL; for remote use require
-        ssl_mode = "disable" if host == "localhost" else "require"
-
-        # Build connection parameters
-        conn_params = {
-            "host": host,
-            "port": port,
-            "dbname": db,
-            "user": user,
-            "password": pwd,
-            "sslmode": ssl_mode
-        }
-
+        conn_params = get_db_creds()
         conn = psycopg2.connect(**conn_params)
         cur = conn.cursor()
 
@@ -446,6 +440,8 @@ def handler(event, context):
             # — U.S. Financial & Monetary —
             "FEDFUNDS","DGS3MO","DGS6MO","DGS1","DGS2","DGS3","DGS5","DGS7","DGS10","DGS20","DGS30",
             "T10Y2Y","MORTGAGE30US","BAA","AAA","SP500","VIXCLS","M1NS","M2SL","WALCL","IOER","IORB",
+            # — S&P 500 Earnings & Valuation —
+            "SPASTT01USQ661S","SP500PE",
             # — Credit Spreads (indicators of financial stress) —
             "BAMLH0A0HYM2","BAMLH0A1HYBB","BAMLH0A2HY","BAMLH0A0IG","BAMLH0A1IG","BAMLH0A2IG",
             # — Treasury Spreads (recession indicators) —
