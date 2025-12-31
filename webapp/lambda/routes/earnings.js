@@ -277,4 +277,86 @@ router.get("/info", async (req, res) => {
   }
 });
 
+// GET /api/earnings/sp500-trend - S&P 500 earnings trend over time
+router.get("/sp500-trend", async (req, res) => {
+  try {
+    const { years = 10 } = req.query;
+
+    // Fetch S&P 500 EPS data from FRED (SPASTT01USQ661S - quarterly earnings)
+    const earningsQuery = `
+      SELECT
+        date,
+        value as earnings_per_share,
+        series_id
+      FROM economic_data
+      WHERE series_id = 'SPASTT01USQ661S'
+        AND date >= CURRENT_DATE - INTERVAL '${parseInt(years)} years'
+      ORDER BY date ASC
+    `;
+
+    // Fetch S&P 500 P/E ratio for context
+    const peQuery = `
+      SELECT
+        date,
+        value as pe_ratio
+      FROM economic_data
+      WHERE series_id = 'SP500PE'
+        AND date >= CURRENT_DATE - INTERVAL '${parseInt(years)} years'
+      ORDER BY date ASC
+    `;
+
+    const [earningsResult, peResult] = await Promise.all([
+      query(earningsQuery),
+      query(peQuery)
+    ]);
+
+    // Calculate trend metrics
+    const earnings = earningsResult.rows;
+    let trend = "neutral";
+    let changePercent = 0;
+
+    if (earnings.length >= 2) {
+      const latest = parseFloat(earnings[earnings.length - 1].earnings_per_share);
+      const yearAgo = earnings.find(row => {
+        const date = new Date(row.date);
+        const oneYearAgo = new Date();
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+        return Math.abs(date - oneYearAgo) < 90 * 24 * 60 * 60 * 1000; // Within 90 days
+      });
+
+      if (yearAgo) {
+        const previous = parseFloat(yearAgo.earnings_per_share);
+        changePercent = ((latest - previous) / previous) * 100;
+        trend = changePercent > 5 ? "increasing" : changePercent < -5 ? "decreasing" : "neutral";
+      }
+    }
+
+    res.json({
+      data: {
+        earnings: earnings.map(row => ({
+          date: row.date,
+          value: parseFloat(row.earnings_per_share)
+        })),
+        peRatio: peResult.rows.map(row => ({
+          date: row.date,
+          value: parseFloat(row.pe_ratio)
+        })),
+        summary: {
+          trend,
+          changePercent: changePercent.toFixed(2),
+          latestEarnings: earnings.length > 0 ? parseFloat(earnings[earnings.length - 1].earnings_per_share) : null,
+          latestDate: earnings.length > 0 ? earnings[earnings.length - 1].date : null
+        }
+      },
+      success: true
+    });
+  } catch (error) {
+    console.error("Error fetching S&P 500 earnings trend:", error);
+    res.status(500).json({
+      error: "Failed to fetch S&P 500 earnings trend",
+      success: false
+    });
+  }
+});
+
 module.exports = router;
