@@ -50,6 +50,22 @@ function EarningsCalendar() {
 
   const API_BASE = (import.meta.env && import.meta.env.VITE_API_URL) || "";
 
+  // Fetch S&P 500 earnings trend data
+  const {
+    data: sp500TrendData,
+    isLoading: sp500Loading,
+    error: sp500Error,
+  } = useQuery({
+    queryKey: ["sp500EarningsTrend"],
+    queryFn: async () => {
+      const response = await fetch(`${API_BASE}/api/earnings/sp500-trend?years=10`);
+      if (!response.ok) throw new Error("Failed to fetch S&P 500 earnings trend");
+      const json = await response.json();
+      return json.data;
+    },
+    staleTime: 1000 * 60 * 60, // 1 hour
+  });
+
   // Fetch weekly calendar events (upcoming earnings)
   const {
     data: weeklyCalendarData,
@@ -366,6 +382,101 @@ function EarningsCalendar() {
           </Card>
         </Grid>
       </Grid>
+
+      {/* S&P 500 Earnings Trend */}
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Box display="flex" alignItems="center" gap={1} mb={2}>
+            <ShowChart color="primary" />
+            <Typography variant="h6">S&P 500 Earnings Trend</Typography>
+          </Box>
+
+          {sp500Error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              Failed to load S&P 500 earnings data. Please try again later.
+            </Alert>
+          )}
+
+          {sp500Loading ? (
+            <Box display="flex" justifyContent="center" py={3}>
+              <CircularProgress />
+            </Box>
+          ) : sp500TrendData ? (
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={4}>
+                <Box>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Latest Earnings (Quarterly)
+                  </Typography>
+                  <Typography variant="h4" fontWeight="bold" color="primary">
+                    ${sp500TrendData.summary?.latestEarnings?.toFixed(2) || 'N/A'}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {sp500TrendData.summary?.latestDate
+                      ? new Date(sp500TrendData.summary.latestDate).toLocaleDateString()
+                      : 'N/A'}
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Box>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Year-over-Year Change
+                  </Typography>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    {sp500TrendData.summary?.changePercent > 0 ? (
+                      <TrendingUp color="success" fontSize="large" />
+                    ) : (
+                      <TrendingDown color="error" fontSize="large" />
+                    )}
+                    <Typography
+                      variant="h4"
+                      fontWeight="bold"
+                      color={sp500TrendData.summary?.changePercent > 0 ? 'success.main' : 'error.main'}
+                    >
+                      {sp500TrendData.summary?.changePercent || '0'}%
+                    </Typography>
+                  </Box>
+                </Box>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Box>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Trend
+                  </Typography>
+                  <Chip
+                    label={sp500TrendData.summary?.trend?.toUpperCase() || 'NEUTRAL'}
+                    color={
+                      sp500TrendData.summary?.trend === 'increasing'
+                        ? 'success'
+                        : sp500TrendData.summary?.trend === 'decreasing'
+                        ? 'error'
+                        : 'default'
+                    }
+                    sx={{ mt: 1, fontSize: '1.1rem', px: 2, py: 3 }}
+                  />
+                  <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+                    Based on 10-year historical data from FRED
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={12}>
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  <Typography variant="body2">
+                    📊 <strong>Data Source:</strong> S&P 500 quarterly earnings per share from Federal Reserve Economic Data (FRED).
+                    This shows the aggregate earnings trend for the entire S&P 500 index over the past 10 years.
+                    {sp500TrendData.earnings?.length > 0 && (
+                      <> Showing {sp500TrendData.earnings.length} quarterly data points.</>
+                    )}
+                  </Typography>
+                </Alert>
+              </Grid>
+            </Grid>
+          ) : (
+            <Typography color="text.secondary">No S&P 500 earnings data available.</Typography>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Weekly Earnings Calendar */}
       <Card sx={{ mb: 4 }}>
