@@ -14,6 +14,7 @@ DEPLOYMENT MODES:
 
 VERSION INFO:
 VERIFIED: 2025-10-26 Fresh reload completed successfully - 5,315/5,315 rows (100%) ✅
+Trigger: 20260101_101500 - Deploy ALL loaders to AWS ECS - Load complete dataset to RDS
 Trigger: 20251228_180000 - Deploy stock scores with fixed loaders to AWS ECS
 Calculates and stores improved stock scores using multi-factor analysis.
 Deploy stock scores calculation to populate comprehensive quality metrics.
@@ -210,6 +211,45 @@ def calculate_volatility(prices, period=20):
         logger.debug(f"Volatility calculation error: {e}")
         return None
 
+def winsorize(values, lower_percentile=1.0, upper_percentile=99.0):
+    """
+    Winsorize data by capping outliers at specified percentiles.
+    Handles extreme outliers in financial data (e.g., P/E=8249, P/B=-10260).
+
+    Args:
+        values: List of numeric values
+        lower_percentile: Lower percentile to cap (default 1st percentile)
+        upper_percentile: Upper percentile to cap (default 99th percentile)
+
+    Returns:
+        List of winsorized values (outliers capped, not removed)
+    """
+    if not values or len(values) < 3:
+        return values
+
+    # Remove None values for percentile calculation
+    clean_values = [v for v in values if v is not None]
+    if len(clean_values) < 3:
+        return values
+
+    # Calculate percentile bounds
+    lower_bound = np.percentile(clean_values, lower_percentile)
+    upper_bound = np.percentile(clean_values, upper_percentile)
+
+    # Cap values at bounds (preserve None values)
+    winsorized = []
+    for v in values:
+        if v is None:
+            winsorized.append(None)
+        elif v < lower_bound:
+            winsorized.append(lower_bound)
+        elif v > upper_bound:
+            winsorized.append(upper_bound)
+        else:
+            winsorized.append(v)
+
+    return winsorized
+
 def calculate_momentum_score(rsi, macd):
     """Calculate momentum score from RSI and MACD"""
     try:
@@ -295,7 +335,6 @@ def create_stock_scores_table(conn):
                 ps_ratio DECIMAL(10,2),
                 peg_ratio DECIMAL(10,2),
                 ev_revenue DECIMAL(10,2),
-                fcf_yield DECIMAL(10,2),
 
                 -- Quality Components
                 roe DECIMAL(5,2),
@@ -723,6 +762,7 @@ def calculate_z_score_normalized(value, all_values):
     Returns None if data is insufficient.
 
     REQUIRES: Both value and all_values with sufficient data
+    Uses winsorization to handle extreme outliers (P/E=8249, P/B=-10260, etc.)
     """
     if value is None or all_values is None or len(all_values) == 0:
         return None  # FAIL: No data available
@@ -746,8 +786,8 @@ def calculate_z_score_normalized(value, all_values):
                 # Skip non-numeric values
                 continue
 
-    if len(valid_values) < 2:
-        return None  # FAIL: Need at least 2 values for std dev calculation
+    if len(valid_values) < 3:
+        return None  # FAIL: Need at least 3 values for winsorization
 
     try:
         # Handle numpy arrays/Series for value as well
@@ -762,9 +802,13 @@ def calculate_z_score_normalized(value, all_values):
     except (ValueError, TypeError, IndexError):
         return None  # FAIL: Cannot convert value to float
 
-    # Calculate mean and standard deviation
-    mean = np.mean(valid_values)
-    std_dev = np.std(valid_values)
+    # Winsorize to handle extreme outliers (cap at 1st/99th percentile)
+    # This prevents P/E=8249 or P/B=-10260 from corrupting mean/std dev
+    winsorized_values = winsorize(valid_values)
+
+    # Calculate mean and standard deviation on winsorized data
+    mean = np.mean(winsorized_values)
+    std_dev = np.std(winsorized_values)
 
     # Handle zero std dev (all values identical)
     if std_dev == 0:
@@ -1152,39 +1196,8 @@ def fetch_all_value_metrics(conn):
             # Include 0 dividend (companies that don't pay dividends are valid for ranking)
             if div_yield is not None and div_yield >= 0 and div_yield < 100:  # CRITICAL: Include 0 dividend stocks
                 metrics['dividend_yield'].append(float(div_yield))
-        # CRITICAL: FCF Yield - Calculate from free_cashflow / (price * shares)
-        # Join key_metrics with latest price_daily to get current price
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT
-                CAST((km.free_cashflow / (pd.close * km.implied_shares_outstanding)) * 100 AS DECIMAL(10,4)) as fcf_yield
-            FROM key_metrics km
-            JOIN LATERAL (
-                SELECT close
-                FROM price_daily
-                WHERE symbol = km.ticker
-                ORDER BY date DESC
-                LIMIT 1
-            ) pd ON true
-            WHERE km.free_cashflow IS NOT NULL
-              AND km.implied_shares_outstanding IS NOT NULL
-              AND km.implied_shares_outstanding > 0
-              AND pd.close > 0
-        """)
-
-        fcf_yields = []
-        for row in cur.fetchall():
-            fcf_yield_val = row[0]
-            if fcf_yield_val is not None:
-                try:
-                    fcf_val = float(fcf_yield_val)
-                    if abs(fcf_val) < 500:  # Reasonable bounds
-                        fcf_yields.append(fcf_val)
-                except (ValueError, TypeError):
-                    pass
-
-        metrics['fcf_yield'] = fcf_yields
-        cur.close()
+        # FCF Yield REMOVED - can't reliably calculate without market_cap data
+        # metrics['fcf_yield'] = []  # Removed from value calculation
 
         logger.info(f"📊 Loaded value metrics for percentile calculation (FLEXIBLE WEIGHTING):")
         logger.info(f"   P/E Ratio: {len(metrics['pe'])} stocks")
@@ -1195,7 +1208,7 @@ def fetch_all_value_metrics(conn):
         logger.info(f"   EV/Revenue: {len(metrics['ev_revenue'])} stocks")
         logger.info(f"   EV/EBITDA: {len(metrics['ev_ebitda'])} stocks")
         logger.info(f"   Dividend Yield: {len(metrics['dividend_yield'])} stocks")
-        logger.info(f"   FCF Yield: {len(metrics['fcf_yield'])} stocks")
+        # FCF Yield removed from value calculation
 
         return metrics
 
@@ -1416,6 +1429,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         stock_operating_margin = None
         stock_profit_margin = None
         stock_fcf_to_ni = None
+        # fcf_yield removed completely
         stock_operating_cf_to_ni = None
         stock_debt_to_equity = None
         stock_current_ratio = None
@@ -1437,7 +1451,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         free_cashflow = None
         dividend_yield = None
         dividend_yield_val = None
-        fcf_yield = None
+        # fcf_yield removed completely
 
         # Get price data from price_daily table (last 200 days to ensure 65+ trading days)
         # Note: 200 calendar days accounts for weekends/holidays to guarantee ~130+ trading days
@@ -2663,7 +2677,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         # Groups: Valuation Multiples (45%), Enterprise Value (35%), Growth-Adjusted (15%), Dividend (5%)
         # ============================================================
         value_score = None
-        fcf_yield = None  # Initialize FCF Yield
+        # fcf_yield removed completely
 
         # Calculate value score directly from key_metrics with professional standards
         try:
@@ -2764,22 +2778,20 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                     except (ValueError, TypeError, decimal.InvalidOperation):
                         pass
 
-                # Calculate FCF Yield from free_cashflow and market_cap (market_cap calculated earlier in code)
-                fcf_yield = None
-                if free_cashflow is not None and market_cap is not None and market_cap > 0:
-                    fcf_yield = (free_cashflow / market_cap) * 100  # As percentage
+                # FCF Yield REMOVED completely
 
                 # INDUSTRY STANDARD: Check if we have AT LEAST ONE valuation metric (flexible weighting)
                 # Supports both profitable companies (with PE) and unprofitable (with EV/EBITDA, P/B, P/S)
                 # This is the professional quantitative finance approach (Fama-French, MSCI, AQR)
-                # CRITICAL: EV/EBITDA, P/B can be NEGATIVE for unprofitable/negative equity companies - allow both signs!
+                # CRITICAL: Only count POSITIVE values for meaningful valuation comparisons
                 has_any_metric = (
                     (trailing_pe is not None and trailing_pe > 0 and trailing_pe < 5000) or
-                    (price_to_book is not None and price_to_book != 0 and abs(price_to_book) < 5000) or
+                    (price_to_book is not None and price_to_book > 0 and price_to_book < 5000) or
                     (price_to_sales_ttm is not None and price_to_sales_ttm > 0 and price_to_sales_ttm < 5000) or
                     (peg_ratio_val is not None and peg_ratio_val > 0 and peg_ratio_val < 5000) or
                     (ev_to_revenue is not None and ev_to_revenue > 0 and ev_to_revenue < 5000) or
-                    (ev_to_ebitda is not None and abs(ev_to_ebitda) > 0 and abs(ev_to_ebitda) < 5000)
+                    (ev_to_ebitda is not None and ev_to_ebitda > 0 and ev_to_ebitda < 5000) or
+                    is_unprofitable  # Unprofitable companies get penalty scores for P/E, forward P/E, PEG
                 )
 
                 if not has_any_metric:
@@ -2800,9 +2812,9 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                     # NULL P/E for unprofitable = bad value signal, not missing data
                     if value_metrics is not None and value_metrics.get('pe'):
                         if trailing_pe is not None and trailing_pe > 0:
-                            # Has P/E ratio - normal scoring
+                            # Has P/E ratio - normal scoring (only use positive P/E values in distribution)
                             pe_percentile = calculate_z_score_normalized(-float(trailing_pe),
-                                                                         [-pe for pe in value_metrics.get('pe', []) if pe is not None])
+                                                                         [-pe for pe in value_metrics.get('pe', []) if pe is not None and pe > 0])
                             if pe_percentile is not None:
                                 valuation_components.append(pe_percentile)
                                 valuation_weights.append(20)
@@ -2817,9 +2829,9 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                     # CRITICAL: Unprofitable companies get low score, not excluded
                     if value_metrics is not None and value_metrics.get('forward_pe'):
                         if forward_pe is not None and forward_pe > 0 and forward_pe < 5000:
-                            # Has forward P/E - normal scoring
+                            # Has forward P/E - normal scoring (only use positive forward P/E values in distribution)
                             forward_pe_percentile = calculate_z_score_normalized(-float(forward_pe),
-                                                                               [-fpe for fpe in value_metrics.get('forward_pe', []) if fpe is not None])
+                                                                               [-fpe for fpe in value_metrics.get('forward_pe', []) if fpe is not None and fpe > 0])
                             if forward_pe_percentile is not None:
                                 valuation_components.append(forward_pe_percentile)
                                 valuation_weights.append(20)
@@ -2831,19 +2843,21 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                             logger.debug(f"{symbol}: Unprofitable - Forward P/E penalty score=5.0")
 
                     # PB Ratio (25 pts max) - Book value measure
-                    # CRITICAL FIX: Skip missing metrics entirely instead of defaulting to 0
-                    if value_metrics is not None and value_metrics.get('pb') and price_to_book is not None and price_to_book != 0 and abs(price_to_book) < 5000:
+                    # Only score positive P/B (negative = distressed/negative equity)
+                    # Negative P/B stocks excluded from this metric but can score on other metrics
+                    if value_metrics is not None and value_metrics.get('pb') and price_to_book is not None and price_to_book > 0 and price_to_book < 5000:
                         pb_percentile = calculate_z_score_normalized(-float(price_to_book),
-                                                                     [-pb for pb in value_metrics.get('pb', []) if pb is not None])
+                                                                     [-pb for pb in value_metrics.get('pb', []) if pb is not None and pb > 0])
                         if pb_percentile is not None:
                             valuation_components.append(pb_percentile)
                             valuation_weights.append(25)
 
                     # PS Ratio (25 pts max) - Revenue-based measure
-                    # Allow negative values (for negative sales companies)
-                    if value_metrics is not None and value_metrics.get('ps') and price_to_sales_ttm is not None and price_to_sales_ttm != 0 and abs(price_to_sales_ttm) < 5000:
+                    # Only score positive P/S (negative = unusual accounting situation)
+                    # Negative P/S stocks excluded from this metric but can score on other metrics
+                    if value_metrics is not None and value_metrics.get('ps') and price_to_sales_ttm is not None and price_to_sales_ttm > 0 and price_to_sales_ttm < 5000:
                         ps_percentile = calculate_z_score_normalized(-float(price_to_sales_ttm),
-                                                                     [-ps for ps in value_metrics.get('ps', []) if ps is not None])
+                                                                     [-ps for ps in value_metrics.get('ps', []) if ps is not None and ps > 0])
                         if ps_percentile is not None:
                             valuation_components.append(ps_percentile)
                             valuation_weights.append(25)
@@ -2855,19 +2869,21 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                     ev_weights = []
 
                     # EV/EBITDA
-                    # CRITICAL FIX: Skip missing metrics entirely instead of defaulting to 0
-                    if value_metrics is not None and value_metrics.get('ev_ebitda') and ev_to_ebitda is not None and abs(ev_to_ebitda) > 0 and abs(ev_to_ebitda) < 5000:
+                    # Only score positive EV/EBITDA (negative EBITDA = unprofitable, can't compare meaningfully)
+                    # Negative EV/EBITDA stocks excluded from this metric but can score on other metrics
+                    if value_metrics is not None and value_metrics.get('ev_ebitda') and ev_to_ebitda is not None and ev_to_ebitda > 0 and ev_to_ebitda < 5000:
                         ev_ebitda_percentile = calculate_z_score_normalized(-float(ev_to_ebitda),
-                                                                            [-ev for ev in value_metrics.get('ev_ebitda', []) if ev is not None])
+                                                                            [-ev for ev in value_metrics.get('ev_ebitda', []) if ev is not None and ev > 0])
                         if ev_ebitda_percentile is not None:
                             ev_components.append(ev_ebitda_percentile)
                             ev_weights.append(50)
 
                     # EV/Revenue
-                    # Allow negative values (for negative EV or revenue companies)
-                    if value_metrics is not None and value_metrics.get('ev_revenue') and ev_to_revenue is not None and ev_to_revenue != 0 and abs(ev_to_revenue) < 5000:
+                    # Only score positive EV/Revenue (negative values = unusual accounting/capital structure)
+                    # Negative EV/Revenue stocks excluded from this metric but can score on other metrics
+                    if value_metrics is not None and value_metrics.get('ev_revenue') and ev_to_revenue is not None and ev_to_revenue > 0 and ev_to_revenue < 5000:
                         ev_rev_percentile = calculate_z_score_normalized(-float(ev_to_revenue),
-                                                                         [-ev for ev in value_metrics.get('ev_revenue', []) if ev is not None])
+                                                                         [-ev for ev in value_metrics.get('ev_revenue', []) if ev is not None and ev > 0])
                         if ev_rev_percentile is not None:
                             ev_components.append(ev_rev_percentile)
                             ev_weights.append(50)
@@ -2883,9 +2899,9 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                     # NULL PEG for unprofitable = bad value signal, not missing data
                     if value_metrics is not None and value_metrics.get('peg'):
                         if peg_ratio_val is not None and peg_ratio_val > 0 and peg_ratio_val < 500:
-                            # Has PEG ratio - normal scoring
+                            # Has PEG ratio - normal scoring (only use positive PEG values in distribution)
                             peg_percentile = calculate_z_score_normalized(-float(peg_ratio_val),
-                                                                      [-peg for peg in value_metrics.get('peg', []) if peg is not None])
+                                                                      [-peg for peg in value_metrics.get('peg', []) if peg is not None and peg > 0])
                             if peg_percentile is not None:
                                 growth_components.append(peg_percentile)
                                 growth_weights.append(100)
@@ -2917,26 +2933,9 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                             pass
 
                     # =====================
-                    # CATEGORY 5: FCF YIELD (10% weight)
+                    # CATEGORY 5: FCF YIELD - REMOVED
                     # =====================
-                    fcf_components = []
-                    fcf_weights = []
-
-                    # FCF Yield - Free Cash Flow yield (VALUE metric - inverse of P/FCF)
-                    # Higher FCF yield = cheaper relative to cash generation = better value
-                    if fcf_yield is not None:
-                        try:
-                            fcf_val = float(fcf_yield)
-                            if abs(fcf_val) > 0.001:
-                                if value_metrics is not None and value_metrics.get('fcf_yield'):
-                                    # Higher FCF yield = better value (don't invert)
-                                    fcf_percentile = calculate_z_score_normalized(fcf_val,
-                                                                                  value_metrics.get('fcf_yield', []))
-                                    if fcf_percentile is not None:
-                                        fcf_components.append(fcf_percentile)
-                                        fcf_weights.append(100)
-                        except (ValueError, TypeError):
-                            pass
+                    # FCF Yield removed from value calculation - can't reliably get data
 
                     # CRITICAL FIX: COMBINE ALL COMPONENTS AT FACTOR LEVEL (NOT NESTED NORMALIZATION)
                     # Do NOT normalize categories separately - combine all raw components with proper weights
@@ -2944,17 +2943,17 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                     value_components = []
                     value_weights = []
 
-                    # Add all valuation components with 45% category weight
+                    # Add all valuation components with 50% category weight (was 45%, increased after removing FCF yield)
                     for comp, weight in zip(valuation_components, valuation_weights):
                         value_components.append(comp)
-                        value_weights.append(weight * 0.45)  # Category weight
+                        value_weights.append(weight * 0.50)  # Category weight
 
-                    # Add all EV components with 30% category weight
+                    # Add all EV components with 35% category weight (unchanged)
                     for comp, weight in zip(ev_components, ev_weights):
                         value_components.append(comp)
-                        value_weights.append(weight * 0.30)
+                        value_weights.append(weight * 0.35)
 
-                    # Add all growth components with 10% category weight
+                    # Add all growth components with 10% category weight (unchanged)
                     for comp, weight in zip(growth_components, growth_weights):
                         value_components.append(comp)
                         value_weights.append(weight * 0.10)
@@ -2964,10 +2963,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                         value_components.append(comp)
                         value_weights.append(weight * 0.05)
 
-                    # Add all FCF yield components with 10% category weight
-                    for comp, weight in zip(fcf_components, fcf_weights):
-                        value_components.append(comp)
-                        value_weights.append(weight * 0.10)
+                    # FCF yield components REMOVED - no longer part of value calculation
 
                     # Calculate value_score with SINGLE z-score normalization (NO NESTED NORMALIZATION)
                     # FIX #5: Apply weights AFTER aggregation, not before
@@ -3763,31 +3759,37 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         except (ValueError, TypeError):
             pass
 
-        # REAL DATA ONLY: Calculate composite ONLY when ALL 6 of 6 factors are present
-        # Strict data integrity: no partial composites to ensure all composites are directly comparable
+        # FLEXIBLE COMPOSITE: Calculate composite with 4+ factors (re-normalize weights if needed)
+        # Professional standard: allow partial composites with weight re-normalization
+        # This ensures we get composite scores for stocks with 4-5 factors available
         composite_score = None
         factors_present_count = len(factor_values_for_composite)
 
-        if factors_present_count == 6:
-            # All 6 factors present - calculate composite score
-            # Use standard weights (no re-normalization needed since all factors are present)
+        if factors_present_count >= 4:
+            # At least 4 factors present - calculate composite score with re-normalized weights
             try:
-                weighted_sum = 0
-                for k in factor_values_for_composite.keys():
-                    factor_val = factor_values_for_composite[k]
-                    factor_wt = factor_weights_for_composite[k]
-                    weighted_sum += factor_val * factor_wt
+                # Re-normalize weights to sum to 1.0 based on available factors
+                total_weight = sum(factor_weights_for_composite[k] for k in factor_values_for_composite.keys())
 
-                composite_score = weighted_sum
+                if total_weight > 0:
+                    weighted_sum = 0
+                    for k in factor_values_for_composite.keys():
+                        factor_val = factor_values_for_composite[k]
+                        factor_wt = factor_weights_for_composite[k]
+                        # Re-normalize weight by dividing by total available weight
+                        normalized_wt = factor_wt / total_weight
+                        weighted_sum += factor_val * normalized_wt
 
-                # Clamp to 0-100
-                composite_score = max(0, min(100, composite_score))
+                    composite_score = weighted_sum
+
+                    # Clamp to 0-100
+                    composite_score = max(0, min(100, composite_score))
 
             except Exception as e:
                 logger.error(f"{symbol}: Error calculating composite score: {e}, factors_present_count={factors_present_count}")
                 composite_score = None
         else:
-            # Fewer than 6 factors - no composite score (insufficient real data)
+            # Fewer than 4 factors - insufficient data for composite score
             pass
 
         # Don't close cursor here - it's reused in save_stock_score for INSERT operation
@@ -3885,7 +3887,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             'growth_score': float(round(clamp_score(growth_score), 2)) if growth_score is not None else None,
             'positioning_score': float(round(clamp_score(positioning_score), 2)) if positioning_score is not None else None,
             'sentiment_score': float(round(clamp_score(sentiment_score), 2)) if sentiment_score is not None else None,
-            'fcf_yield': float(round(fcf_yield, 2)) if fcf_yield is not None else None,
+            # fcf_yield removed completely
             'stability_score': float(round(clamp_score(risk_stability_score), 2)) if risk_stability_score is not None else None,
             'stability_inputs': stability_inputs,
             'beta': float(round(beta, 3)) if beta is not None else None,
@@ -3982,7 +3984,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 'stock_ev_revenue': float(round(ev_to_revenue, 2)) if ev_to_revenue is not None else None,
                 'peg_ratio': float(round(peg_ratio_val, 2)) if peg_ratio_val is not None else None,
                 'stock_dividend_yield': float(round(dividend_yield_val * 100, 2)) if dividend_yield_val is not None else None,
-                'stock_fcf_yield': float(round(fcf_yield, 2)) if fcf_yield is not None else None,
+                # stock_fcf_yield removed completely
             }),
             # Data completeness and flagging (Option 1)
             'score_status': locals().get('score_status'),
@@ -4058,8 +4060,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                     'sentiment_score': float(sentiment_score) if 'sentiment_score' in locals() and sentiment_score is not None else None,
                     'stability_score': float(risk_stability_score) if risk_stability_score is not None else None,
                     'beta': float(round(beta, 3)) if 'beta' in locals() and beta is not None else None,
-                    # Include value input metrics (especially fcf_yield) even when exception occurs
-                    'fcf_yield': float(round(fcf_yield, 2)) if 'fcf_yield' in locals() and fcf_yield is not None else None,
+                    # fcf_yield removed completely
                     'stock_dividend_yield': float(round(dividend_yield_val * 100, 2)) if 'dividend_yield_val' in locals() and dividend_yield_val is not None else None,
                     'peg_ratio': float(round(peg_ratio_val, 2)) if 'peg_ratio_val' in locals() and peg_ratio_val is not None else None,
                 }
@@ -4097,7 +4098,7 @@ def save_stock_score(conn, score_data):
             'growth_score', 'positioning_score', 'sentiment_score', 'stability_score',
             'rsi', 'macd', 'sma50', 'momentum_3m', 'momentum_6m', 'momentum_12m',
             'price_vs_sma_50', 'price_vs_sma_200', 'price_vs_52w_high',
-            'pe_ratio', 'forward_pe', 'pb_ratio', 'ps_ratio', 'peg_ratio', 'ev_revenue', 'fcf_yield',
+            'pe_ratio', 'forward_pe', 'pb_ratio', 'ps_ratio', 'peg_ratio', 'ev_revenue',
             'roe', 'roa', 'debt_ratio', 'fcf_ni_ratio', 'earnings_surprise',
             'earnings_growth', 'revenue_growth', 'margin_trend',
             'volatility', 'downside_volatility', 'max_drawdown', 'beta',
@@ -4115,7 +4116,7 @@ def save_stock_score(conn, score_data):
             growth_score, positioning_score, sentiment_score, stability_score,
             rsi, macd, sma50, momentum_3m, momentum_6m, momentum_12m,
             price_vs_sma_50, price_vs_sma_200, price_vs_52w_high,
-            pe_ratio, forward_pe, pb_ratio, ps_ratio, peg_ratio, ev_revenue, fcf_yield,
+            pe_ratio, forward_pe, pb_ratio, ps_ratio, peg_ratio, ev_revenue,
             roe, roa, debt_ratio, fcf_ni_ratio, earnings_surprise,
             earnings_growth, revenue_growth, margin_trend,
             volatility, downside_volatility, max_drawdown, beta,
@@ -4127,7 +4128,7 @@ def save_stock_score(conn, score_data):
             %(growth_score)s, %(positioning_score)s, %(sentiment_score)s, %(stability_score)s,
             %(rsi)s, %(macd)s, %(sma50)s, %(momentum_3m)s, %(momentum_6m)s, %(momentum_12m)s,
             %(price_vs_sma_50)s, %(price_vs_sma_200)s, %(price_vs_52w_high)s,
-            %(pe_ratio)s, %(forward_pe)s, %(pb_ratio)s, %(ps_ratio)s, %(peg_ratio)s, %(ev_revenue)s, %(fcf_yield)s,
+            %(pe_ratio)s, %(forward_pe)s, %(pb_ratio)s, %(ps_ratio)s, %(peg_ratio)s, %(ev_revenue)s,
             %(roe)s, %(roa)s, %(debt_ratio)s, %(fcf_ni_ratio)s, %(earnings_surprise)s,
             %(earnings_growth)s, %(revenue_growth)s, %(margin_trend)s,
             %(volatility)s, %(downside_volatility)s, %(max_drawdown)s, %(beta)s,
@@ -4159,7 +4160,6 @@ def save_stock_score(conn, score_data):
             ps_ratio = EXCLUDED.ps_ratio,
             peg_ratio = EXCLUDED.peg_ratio,
             ev_revenue = EXCLUDED.ev_revenue,
-            fcf_yield = EXCLUDED.fcf_yield,
             roe = EXCLUDED.roe,
             roa = EXCLUDED.roa,
             debt_ratio = EXCLUDED.debt_ratio,
