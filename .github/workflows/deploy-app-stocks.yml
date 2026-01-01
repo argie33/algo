@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       loaders:
-        description: 'Comma-separated list of loaders to run (leave empty for auto-detection)'
+        description: 'Comma-separated list of loaders to run (max 5 per batch - NEVER run all 45!)'
         required: false
         default: ''
       environment:
@@ -16,11 +16,6 @@ on:
           - dev
           - staging
           - prod
-      force_all:
-        description: 'Force run all loaders regardless of changes'
-        required: false
-        default: false
-        type: boolean
   push:
     branches:
       - initialbuild
@@ -100,14 +95,19 @@ jobs:
           ALL_LOADERS=$(echo $ALL_LOADERS | tr ' ' '\n' | sort | tr '\n' ' ')
           
           # Determine which loaders to run
+          # NOTE: BATCH EXECUTION ONLY - Never run more than 5 loaders per batch
           if [[ "${{ github.event.inputs.loaders }}" != "" ]]; then
-            # Manual input
+            # Manual input - validate batch size
             LOADERS_TO_RUN=$(echo "${{ github.event.inputs.loaders }}" | tr ',' '\n' | sort)
-            echo "Manual loader selection: $LOADERS_TO_RUN"
-          elif [[ "${{ github.event.inputs.force_all }}" == "true" ]]; then
-            # Force all loaders explicitly requested
-            LOADERS_TO_RUN="$ALL_LOADERS"
-            echo "Running all loaders (force_all requested)"
+            BATCH_COUNT=$(echo "$LOADERS_TO_RUN" | wc -l)
+            if [[ $BATCH_COUNT -gt 5 ]]; then
+              echo "❌ ERROR: Batch size exceeds limit! Maximum 5 loaders per batch."
+              echo "   You requested: $BATCH_COUNT loaders"
+              echo "   Please split into multiple batches."
+              exit 1
+            fi
+            echo "✅ Manual loader selection (batch size: $BATCH_COUNT/5)"
+            echo "$LOADERS_TO_RUN" | tr '\n' ' '
           else
             # Auto-detect based on file changes (even if infrastructure changed)
             echo "Debug: Checking for changed loader files..."
