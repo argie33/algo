@@ -1,3 +1,4 @@
+# TEST BATCH 1: 20260101_111748 - Run 3 loaders to test AWS deployment
 #!/usr/bin/env python3
 # Daily price data loader - fetches OHLCV data for all symbols
 # CRITICAL: Database has 0 price records. Must run to populate price_daily table for all pages/APIs
