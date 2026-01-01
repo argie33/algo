@@ -38,6 +38,16 @@ import {
   Clear,
 } from "@mui/icons-material";
 import { formatCurrency, formatPercentage } from "../utils/formatters";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
 
 const logger = createComponentLogger("EarningsCalendar");
 
@@ -460,6 +470,53 @@ function EarningsCalendar() {
                   </Typography>
                 </Box>
               </Grid>
+
+              {/* Earnings Trend Chart */}
+              <Grid item xs={12}>
+                <Box sx={{ width: '100%', height: 400, mt: 3 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={sp500TrendData.earnings?.map(point => ({
+                        date: new Date(point.date).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short'
+                        }),
+                        earnings: point.value,
+                        fullDate: point.date
+                      })) || []}
+                      margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="date"
+                        angle={-45}
+                        textAnchor="end"
+                        height={80}
+                        tick={{ fontSize: 12 }}
+                      />
+                      <YAxis
+                        label={{ value: 'Earnings Per Share ($)', angle: -90, position: 'insideLeft' }}
+                        tick={{ fontSize: 12 }}
+                      />
+                      <Tooltip
+                        formatter={(value) => [`$${value?.toFixed(2)}`, 'EPS']}
+                        labelFormatter={(label) => `Date: ${label}`}
+                      />
+                      <Legend />
+                      <Line
+                        type="monotone"
+                        dataKey="earnings"
+                        stroke="#1976d2"
+                        strokeWidth={2}
+                        dot={{ r: 4 }}
+                        activeDot={{ r: 6 }}
+                        name="S&P 500 Earnings"
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </Box>
+              </Grid>
+
               <Grid item xs={12}>
                 <Alert severity="info" sx={{ mt: 2 }}>
                   <Typography variant="body2">
