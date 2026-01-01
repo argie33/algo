@@ -210,12 +210,15 @@ jobs:
               FIRST=false
               
               # Classify loader priority
+              # NOTE: Some loaders have dependencies (e.g., dailycompanydata must run before stockscores)
+              # Current implementation runs loaders in parallel (max 3 at once)
+              # For proper data loading, consider running critical loaders sequentially
               case $loader in
-                symbols|pricedaily|technicalsdaily|latestpricedaily)
+                symbols|pricedaily|technicalsdaily|latestpricedaily|dailycompanydata)
                   PRIORITY="critical"
-                  TIMEOUT=30
+                  TIMEOUT=90  # dailycompanydata needs more time (45-90 min)
                   ;;
-                priceweekly|pricemonthly|earningsestimate|info)
+                stockscores|priceweekly|pricemonthly|earningsestimate|earningshistory|info)
                   PRIORITY="high"
                   TIMEOUT=45
                   ;;
