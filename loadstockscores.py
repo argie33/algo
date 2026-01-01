@@ -14,6 +14,7 @@ DEPLOYMENT MODES:
 
 VERSION INFO:
 VERIFIED: 2025-10-26 Fresh reload completed successfully - 5,315/5,315 rows (100%) ✅
+BATCH 1: 20260101_160000 - Load foundation data (stocksymbols, dailycompanydata, pricedaily)
 Trigger: 20260101_150000 - Run loaders to generate error logs for debugging
 Trigger: 20260101_101500 - Deploy ALL loaders to AWS ECS - Load complete dataset to RDS
 Trigger: 20251228_180000 - Deploy stock scores with fixed loaders to AWS ECS
