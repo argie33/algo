@@ -1,0 +1,25 @@
+# Base image with all loader dependencies pre-installed
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    postgresql-client \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements file
+COPY requirements-load.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements-load.txt
+
+# Set environment variables for AWS and database
+ENV PYTHONUNBUFFERED=1
+ENV AWS_DEFAULT_REGION=us-east-1
+
+# Default entrypoint (will be overridden by child images)
+CMD ["python", "-c", "print('Base loader image ready')"]
