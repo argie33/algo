@@ -16,7 +16,7 @@ Parameters:
   FindataImageTag:
     Type: String
     Description: "Tag for findata loader image"
-  PriceImageTag:  
+  PriceImageTag:
     Type: String
     Description: "Tag for pricedaily loader image"
   PriceWeeklyImageTag:
