@@ -1,6 +1,7 @@
 ARG ECR_REGISTRY
 FROM ${ECR_REGISTRY}:base-loader-latest
-COPY loadearningsrevisions.py /app/
-COPY requirements-loadearningsrevisions.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
-ENTRYPOINT ["python", "/app/loadearningsrevisions.py"]
+WORKDIR /app
+COPY loadearningsrevisions.py .
+COPY requirements-loadearningsrevisions.txt .
+RUN pip install --no-cache-dir -r requirements-loadearningsrevisions.txt
+ENTRYPOINT ["python", "loadearningsrevisions.py"]

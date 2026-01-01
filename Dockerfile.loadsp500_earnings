@@ -1,6 +1,7 @@
 ARG ECR_REGISTRY
 FROM ${ECR_REGISTRY}:base-loader-latest
-COPY load_sp500_earnings.py /app/
-COPY requirements-load_sp500_earnings.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
-ENTRYPOINT ["python", "/app/load_sp500_earnings.py"]
+WORKDIR /app
+COPY load_sp500_earnings.py .
+COPY requirements-load_sp500_earnings.txt .
+RUN pip install --no-cache-dir -r requirements-load_sp500_earnings.txt
+ENTRYPOINT ["python", "load_sp500_earnings.py"]
