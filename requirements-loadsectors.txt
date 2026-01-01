@@ -1,3 +1,4 @@
+boto3
 numpy
 psycopg2-binary
 python-dotenv
