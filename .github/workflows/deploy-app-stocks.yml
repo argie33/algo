@@ -454,6 +454,21 @@ jobs:
             # Get timestamp for new stack creation too
             DEPLOYMENT_TIMESTAMP=$(date +'%Y-%m-%d-%H-%M-%S-'$(echo ${{ github.run_id }} | tail -c 4))
 
+            # Delete any orphaned log groups from previous failed deployments
+            echo "Cleaning up orphaned CloudWatch log groups..."
+            aws logs describe-log-groups --log-group-name-prefix "/ecs/" --query 'logGroups[].logGroupName' --output text | tr '\t' '\n' | while read log_group; do
+              if [[ -n "$log_group" ]]; then
+                echo "Deleting $log_group"
+                aws logs delete-log-group --log-group-name "$log_group" || true
+              fi
+            done
+            aws logs describe-log-groups --log-group-name-prefix "/aws/ecs/" --query 'logGroups[].logGroupName' --output text | tr '\t' '\n' | while read log_group; do
+              if [[ -n "$log_group" ]]; then
+                echo "Deleting $log_group"
+                aws logs delete-log-group --log-group-name "$log_group" || true
+              fi
+            done
+
             aws cloudformation create-stack \
               --stack-name stocks-ecs-tasks-stack \
               --template-url https://stocks-cf-templates-626216981288.s3.amazonaws.com/template-app-ecs-tasks.yml \
