@@ -1,3 +1,4 @@
+# TEST BATCH 1: 20260101_111748 - Run 3 loaders to test AWS deployment
 #!/usr/bin/env python3
 # CRITICAL: Buy/Sell signals table missing from database. Must run to enable trading signal pages
 # Trigger: 20251228_180000 - Deploy to AWS ECS with fixed loaders
