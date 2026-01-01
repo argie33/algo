@@ -788,6 +788,38 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             inst_own = safe_float(info.get('heldPercentInstitutions')) if info else None
             insider_own = safe_float(info.get('heldPercentInsiders')) if info else None
             short_int = safe_float(info.get('shortPercentOfFloat')) if info else None
+
+            # If info doesn't have the data, calculate from holder DataFrames
+            if inst_own is None and institutional_holders is not None and not institutional_holders.empty:
+                # Calculate total institutional ownership from '% Out' column
+                if '% Out' in institutional_holders.columns:
+                    # Sum the top holders' percentages (already in decimal form like 0.05 for 5%)
+                    inst_own = float(institutional_holders['% Out'].sum())
+                    logging.debug(f"{symbol}: Calculated institutional ownership from holders: {inst_own:.4f}")
+
+            if insider_own is None and major_holders is not None and not major_holders.empty:
+                # Try to extract insider ownership from major_holders
+                # major_holders has format like "5.23%" in Value column with description in row
+                for idx, row in major_holders.iterrows():
+                    if 'Held by Insiders' in str(row.iloc[0]):
+                        try:
+                            insider_pct_str = str(row.iloc[1]).replace('%', '')
+                            insider_own = float(insider_pct_str) / 100.0
+                            logging.debug(f"{symbol}: Calculated insider ownership from major_holders: {insider_own:.4f}")
+                        except:
+                            pass
+
+            if short_int is None and major_holders is not None and not major_holders.empty:
+                # Try to extract short % from major_holders
+                for idx, row in major_holders.iterrows():
+                    if 'Short % of Float' in str(row.iloc[0]) or 'Short % of Shares' in str(row.iloc[0]):
+                        try:
+                            short_pct_str = str(row.iloc[1]).replace('%', '')
+                            short_int = float(short_pct_str) / 100.0
+                            logging.debug(f"{symbol}: Calculated short interest from major_holders: {short_int:.4f}")
+                        except:
+                            pass
+
             ad_rating = calculate_ad_rating(inst_own, insider_own, short_int, cur, symbol)
 
             cur.execute(
@@ -1036,6 +1068,12 @@ if __name__ == "__main__":
             ADD COLUMN IF NOT EXISTS short_percent_of_float DECIMAL(8,6),
             ADD COLUMN IF NOT EXISTS implied_shares_outstanding BIGINT,
             ADD COLUMN IF NOT EXISTS float_shares BIGINT;
+        """)
+
+        # Ensure positioning_metrics has date column (in case table was created without it)
+        cur.execute("""
+            ALTER TABLE positioning_metrics
+            ADD COLUMN IF NOT EXISTS date DATE;
         """)
 
         # Create insider_transactions with correct schema (CREATE IF NOT EXISTS - avoids DROP hang)
