@@ -60,9 +60,8 @@ COL_LIST     = ", ".join(["symbol"] + PRICE_COLUMNS)
 # DB config loader
 # -------------------------------
 def get_db_config():
-    # Support both local environment variables and AWS Secrets Manager
+    # Try local environment first
     if os.environ.get("DB_HOST"):
-        logging.info("Using local environment DB configuration")
         return {
             "host":   os.environ.get("DB_HOST", "localhost"),
             "port":   int(os.environ.get("DB_PORT", 5432)),
@@ -70,8 +69,9 @@ def get_db_config():
             "password": os.environ.get("DB_PASSWORD", "password"),
             "dbname": os.environ.get("DB_NAME", "stocks")
         }
-    elif os.environ.get("DB_SECRET_ARN"):
-        logging.info("Using AWS Secrets Manager for DB configuration")
+
+    # Fall back to AWS Secrets Manager if available
+    if os.environ.get("DB_SECRET_ARN"):
         secret_str = boto3.client("secretsmanager") \
                          .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
         sec = json.loads(secret_str)
@@ -82,9 +82,15 @@ def get_db_config():
             "password": sec["password"],
             "dbname": sec["dbname"]
         }
-    else:
-        logging.error("DB_HOST or DB_SECRET_ARN not set. Please set local DB environment variables or DB_SECRET_ARN")
-        raise ValueError("Database configuration not provided")
+
+    # Final fallback to localhost defaults
+    return {
+        "host":   "localhost",
+        "port":   5432,
+        "user":   "stocks",
+        "password": "bed0elAn",
+        "dbname": "stocks"
+    }
 
 # -------------------------------
 # Main loader with batched inserts

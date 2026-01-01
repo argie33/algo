@@ -1170,27 +1170,32 @@ def fetch_all_value_metrics(conn):
         for row in rows:
             pe, forward_pe, pb, ps, peg, ev_rev, ev_ebit, div_yield, fcf, symbol = row
 
-            # P/E Ratio: Allow negative (unprofitable), just apply reasonable bounds on absolute value
-            if pe is not None and abs(pe) < 5000:  # CRITICAL: Include negatives for unprofitable companies
+            # P/E Ratio: ONLY POSITIVE (Fama-French methodology - exclude unprofitable from P/E metric)
+            # CRITICAL: Must match scoring logic (line 2816) - only positive P/E in distribution
+            if pe is not None and pe > 0 and pe < 5000:
                 metrics['pe'].append(float(pe))
-            # Forward P/E Ratio: Allow positive only (forward estimates)
+            # Forward P/E Ratio: ONLY POSITIVE (forward estimates)
             if forward_pe is not None and forward_pe > 0 and forward_pe < 5000:
                 metrics['forward_pe'].append(float(forward_pe))
-            # P/B Ratio: Allow negative (negative equity companies)
-            if pb is not None and pb != 0 and abs(pb) < 5000:  # CRITICAL: Include negatives
+            # P/B Ratio: ONLY POSITIVE (Fama-French methodology - exclude negative book equity)
+            # CRITICAL: Must match scoring logic (line 2845) - only positive P/B in distribution
+            if pb is not None and pb > 0 and pb < 5000:
                 metrics['pb'].append(float(pb))
-            # P/S Ratio: Allow negative (negative sales companies)
-            if ps is not None and ps != 0 and abs(ps) < 5000:  # CRITICAL: Include negatives
+            # P/S Ratio: ONLY POSITIVE (negative sales not meaningful for valuation)
+            # CRITICAL: Must match scoring logic (line 2857) - only positive P/S in distribution
+            if ps is not None and ps > 0 and ps < 5000:
                 metrics['ps'].append(float(ps))
-            # PEG Ratio: Allow zero and positive
-            if peg is not None and peg >= 0 and peg < 5000:  # CRITICAL: Include 0 growth stocks
+            # PEG Ratio: ONLY POSITIVE (zero/negative growth not meaningful for PEG)
+            # CRITICAL: Must match scoring logic (line 2900) - only positive PEG in distribution
+            if peg is not None and peg > 0 and peg < 5000:
                 metrics['peg'].append(float(peg))
-            # EV/Revenue: Allow negative (negative EV or revenue)
-            if ev_rev is not None and ev_rev != 0 and abs(ev_rev) < 5000:  # CRITICAL: Include negatives
+            # EV/Revenue: ONLY POSITIVE (negative EV/Revenue not meaningful)
+            # CRITICAL: Must match scoring logic (line 2883) - only positive EV/Revenue in distribution
+            if ev_rev is not None and ev_rev > 0 and ev_rev < 5000:
                 metrics['ev_revenue'].append(float(ev_rev))
-            # CRITICAL: EV/EBITDA - allow both positive and negative values for proper ranking
-            # Unprofitable companies may have negative EBITDA (include them for complete picture)
-            if ev_ebit is not None and abs(ev_ebit) < 5000:  # CRITICAL: Include negatives for unprofitable companies
+            # EV/EBITDA: ONLY POSITIVE (negative EBITDA companies excluded from this metric)
+            # CRITICAL: Must match scoring logic (line 2873) - only positive EV/EBITDA in distribution
+            if ev_ebit is not None and ev_ebit > 0 and ev_ebit < 5000:
                 metrics['ev_ebitda'].append(float(ev_ebit))
             # CRITICAL: Dividend Yield - key metric for income-focused value investing
             # Include 0 dividend (companies that don't pay dividends are valid for ranking)
@@ -2790,8 +2795,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                     (price_to_sales_ttm is not None and price_to_sales_ttm > 0 and price_to_sales_ttm < 5000) or
                     (peg_ratio_val is not None and peg_ratio_val > 0 and peg_ratio_val < 5000) or
                     (ev_to_revenue is not None and ev_to_revenue > 0 and ev_to_revenue < 5000) or
-                    (ev_to_ebitda is not None and ev_to_ebitda > 0 and ev_to_ebitda < 5000) or
-                    is_unprofitable  # Unprofitable companies get penalty scores for P/E, forward P/E, PEG
+                    (ev_to_ebitda is not None and ev_to_ebitda > 0 and ev_to_ebitda < 5000)
                 )
 
                 if not has_any_metric:
@@ -2808,8 +2812,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                     valuation_weights = []
 
                     # PE Ratio (20 pts max) - Primary valuation metric (Trailing P/E)
-                    # CRITICAL: Unprofitable companies get low score, not excluded
-                    # NULL P/E for unprofitable = bad value signal, not missing data
+                    # Only score positive P/E (negative/missing = excluded from this metric)
                     if value_metrics is not None and value_metrics.get('pe'):
                         if trailing_pe is not None and trailing_pe > 0:
                             # Has P/E ratio - normal scoring (only use positive P/E values in distribution)
@@ -2818,15 +2821,9 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                             if pe_percentile is not None:
                                 valuation_components.append(pe_percentile)
                                 valuation_weights.append(20)
-                        elif is_unprofitable:
-                            # Unprofitable (NULL P/E but has negative earnings)
-                            # Give bottom 5th percentile - worse than expensive stocks
-                            valuation_components.append(5.0)
-                            valuation_weights.append(20)
-                            logger.debug(f"{symbol}: Unprofitable - P/E penalty score=5.0")
 
                     # Forward PE Ratio (20 pts max) - Forward-looking valuation
-                    # CRITICAL: Unprofitable companies get low score, not excluded
+                    # Only score positive forward P/E (negative/missing = excluded from this metric)
                     if value_metrics is not None and value_metrics.get('forward_pe'):
                         if forward_pe is not None and forward_pe > 0 and forward_pe < 5000:
                             # Has forward P/E - normal scoring (only use positive forward P/E values in distribution)
@@ -2835,12 +2832,6 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                             if forward_pe_percentile is not None:
                                 valuation_components.append(forward_pe_percentile)
                                 valuation_weights.append(20)
-                        elif is_unprofitable and trailing_pe is None:
-                            # Unprofitable with no forward guidance either
-                            # Give bottom 5th percentile
-                            valuation_components.append(5.0)
-                            valuation_weights.append(20)
-                            logger.debug(f"{symbol}: Unprofitable - Forward P/E penalty score=5.0")
 
                     # PB Ratio (25 pts max) - Book value measure
                     # Only score positive P/B (negative = distressed/negative equity)
@@ -2895,8 +2886,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                     growth_weights = []
 
                     # PEG Ratio
-                    # CRITICAL: Unprofitable companies get low score, not excluded
-                    # NULL PEG for unprofitable = bad value signal, not missing data
+                    # Only score positive PEG (negative/missing = excluded from this metric)
                     if value_metrics is not None and value_metrics.get('peg'):
                         if peg_ratio_val is not None and peg_ratio_val > 0 and peg_ratio_val < 500:
                             # Has PEG ratio - normal scoring (only use positive PEG values in distribution)
@@ -2905,12 +2895,6 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                             if peg_percentile is not None:
                                 growth_components.append(peg_percentile)
                                 growth_weights.append(100)
-                        elif is_unprofitable:
-                            # Unprofitable (NULL PEG - no earnings growth to measure)
-                            # Give bottom 5th percentile - worse than high PEG stocks
-                            growth_components.append(5.0)
-                            growth_weights.append(100)
-                            logger.debug(f"{symbol}: Unprofitable - PEG penalty score=5.0")
 
                     # =====================
                     # CATEGORY 4: DIVIDEND (5% weight)
