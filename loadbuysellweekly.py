@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# Trigger: 20260101_102914 - Load all data to AWS RDS
 import os
 import sys
 import json
