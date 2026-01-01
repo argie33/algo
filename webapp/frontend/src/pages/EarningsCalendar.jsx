@@ -473,48 +473,64 @@ function EarningsCalendar() {
 
               {/* Earnings Trend Chart */}
               <Grid item xs={12}>
-                <Box sx={{ width: '100%', height: 400, mt: 3 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
-                      data={sp500TrendData.earnings?.map(point => ({
-                        date: new Date(point.date).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'short'
-                        }),
-                        earnings: point.value,
-                        fullDate: point.date
-                      })) || []}
-                      margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis
-                        dataKey="date"
-                        angle={-45}
-                        textAnchor="end"
-                        height={80}
-                        tick={{ fontSize: 12 }}
-                      />
-                      <YAxis
-                        label={{ value: 'Earnings Per Share ($)', angle: -90, position: 'insideLeft' }}
-                        tick={{ fontSize: 12 }}
-                      />
-                      <Tooltip
-                        formatter={(value) => [`$${value?.toFixed(2)}`, 'EPS']}
-                        labelFormatter={(label) => `Date: ${label}`}
-                      />
-                      <Legend />
-                      <Line
-                        type="monotone"
-                        dataKey="earnings"
-                        stroke="#1976d2"
-                        strokeWidth={2}
-                        dot={{ r: 4 }}
-                        activeDot={{ r: 6 }}
-                        name="S&P 500 Earnings"
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </Box>
+                {sp500TrendData.earnings && sp500TrendData.earnings.length > 0 ? (
+                  <Box sx={{ width: '100%', height: 400, mt: 3 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={sp500TrendData.earnings.map(point => ({
+                          date: new Date(point.date).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short'
+                          }),
+                          earnings: point.value,
+                          fullDate: point.date
+                        }))}
+                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis
+                          dataKey="date"
+                          angle={-45}
+                          textAnchor="end"
+                          height={80}
+                          tick={{ fontSize: 12 }}
+                        />
+                        <YAxis
+                          label={{ value: 'Earnings Per Share ($)', angle: -90, position: 'insideLeft' }}
+                          tick={{ fontSize: 12 }}
+                        />
+                        <Tooltip
+                          formatter={(value) => [`$${value?.toFixed(2)}`, 'EPS']}
+                          labelFormatter={(label) => `Date: ${label}`}
+                        />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="earnings"
+                          stroke="#1976d2"
+                          strokeWidth={2}
+                          dot={{ r: 4 }}
+                          activeDot={{ r: 6 }}
+                          name="S&P 500 Earnings"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </Box>
+                ) : (
+                  <Alert severity="warning" sx={{ mt: 3 }}>
+                    <Typography variant="body2">
+                      📊 <strong>No S&P 500 earnings data available yet.</strong>
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      To populate this chart:
+                    </Typography>
+                    <Typography variant="body2" component="div" sx={{ mt: 1, pl: 2 }}>
+                      1. Get free FRED API key: <a href="https://fredaccount.stlouisfed.org/apikeys" target="_blank" rel="noopener noreferrer">https://fredaccount.stlouisfed.org/apikeys</a><br />
+                      2. Add to .env.local: FRED_API_KEY=your_key<br />
+                      3. Run: python3 loadecondata.py
+                    </Typography>
+                  </Alert>
+                )}
               </Grid>
 
               <Grid item xs={12}>
