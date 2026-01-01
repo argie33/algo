@@ -111,7 +111,15 @@ jobs:
           else
             # Auto-detect based on file changes (even if infrastructure changed)
             echo "Debug: Checking for changed loader files..."
-            ALL_CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || git diff --name-only HEAD || echo "")
+            # Use GitHub's push event context for reliable detection on push events
+            if [[ "${{ github.event_name }}" == "push" && "${{ github.event.before }}" != "" ]]; then
+              ALL_CHANGED_FILES=$(git diff --name-only ${{ github.event.before }}..${{ github.event.after }} 2>/dev/null || echo "")
+              echo "Debug: Using push event context (${{ github.event.before }}..${{ github.event.after }})"
+            else
+              # Fallback for other events (PR, manual trigger, etc.)
+              ALL_CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || git diff --name-only HEAD 2>/dev/null || echo "")
+              echo "Debug: Using HEAD-based diff (event: ${{ github.event_name }})"
+            fi
             echo "Debug: All changed files: $ALL_CHANGED_FILES"
 
             # Check for direct loader file changes (must start with "load")
