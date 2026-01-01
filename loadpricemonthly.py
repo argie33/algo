@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Trigger: 20260101_102914 - Load all data to AWS RDS
 # Monthly price data loader - fetches monthly OHLCV data for all symbols
 # Trigger deploy-app-stocks workflow test - monthly loader update v13 - API key encryption secret added to Lambda environment
 import sys
@@ -83,8 +84,11 @@ def get_db_config():
             "dbname": sec["dbname"]
         }
     else:
-        logging.error("DB_HOST or DB_SECRET_ARN not set. Please set local DB environment variables or DB_SECRET_ARN")
-        raise ValueError("Database configuration not provided")
+        # Fall back to Unix socket connection (works locally without password)
+        logging.info("Using Unix socket connection (no DB_HOST or DB_SECRET_ARN)")
+        return {
+            "dbname": os.environ.get("DB_NAME", "stocks")
+        }
 
 # -------------------------------
 # Main loader with batched inserts
@@ -292,12 +296,8 @@ if __name__ == "__main__":
 
         # Connect to DB with timeout
         cfg  = get_db_config()
-        conn = psycopg2.connect(
-            host=cfg["host"], port=cfg["port"],
-            user=cfg["user"], password=cfg["password"],
-            dbname=cfg["dbname"],
-            connect_timeout=30
-        )
+        cfg["connect_timeout"] = 30
+        conn = psycopg2.connect(**cfg)
         conn.autocommit = False
         cur = conn.cursor(cursor_factory=RealDictCursor)
 

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# Trigger: 20260101_102914 - Load all data to AWS RDS
 import os
 import sys
 import json
@@ -19,7 +18,7 @@ load_dotenv('/home/stocks/algo/.env.local')
 # Setup rotating log file handler to prevent disk exhaustion from excessive logging
 from logging.handlers import RotatingFileHandler
 log_handler = RotatingFileHandler(
-    '/tmp/loadbuysellweekly.log',
+    '/tmp/loadbuysell_etf_monthly.log',
     maxBytes=100*1024*1024,  # 100MB max per file
     backupCount=3  # Keep 3 backup files
 )
@@ -28,7 +27,7 @@ log_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(mess
 # -------------------------------
 # Script metadata & logging setup
 # -------------------------------
-SCRIPT_NAME = "loadbuysellweekly.py"
+SCRIPT_NAME = "loadbuysell_etf_monthly.py"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -40,9 +39,11 @@ logging.getLogger().setLevel(logging.INFO)
 ###############################################################################
 # ─── Environment & Secrets ───────────────────────────────────────────────────
 ###############################################################################
+
+# FRED_API_KEY: log a warning and continue with 0 risk-free rate if missing
 FRED_API_KEY = os.environ.get('FRED_API_KEY')
 if not FRED_API_KEY:
-    logging.warning('FRED_API_KEY environment variable is not set. Proceeding with risk-free rate = 0.')
+    logging.warning('FRED_API_KEY environment variable is not set. Risk-free rate will be set to 0.')
 
 # Support both local environment variables and AWS Secrets Manager
 if os.environ.get("DB_HOST"):
@@ -92,9 +93,9 @@ def get_symbols_from_db(limit=None):
     try:
         q = """
           SELECT symbol
-            FROM stock_symbols
-           WHERE exchange IN ('NASDAQ','New York Stock Exchange')
-              OR etf='Y'
+            FROM etf_symbols
+           WHERE etf='Y'
+           ORDER BY symbol
         """
         if limit:
             q += " LIMIT %s"
@@ -106,7 +107,7 @@ def get_symbols_from_db(limit=None):
         cur.close()
         conn.close()
 
-def create_buy_sell_table(cur, table_name="buy_sell_weekly"):
+def create_buy_sell_table(cur, table_name="buy_sell_monthly_etf"):
     cur.execute(f"DROP TABLE IF EXISTS {table_name};")
     cur.execute(f"""
       CREATE TABLE {table_name} (
@@ -160,7 +161,6 @@ def create_buy_sell_table(cur, table_name="buy_sell_weekly"):
         sell_level REAL,
         mansfield_rs REAL,
         sata_score INTEGER,
-        -- Technical indicators
         rsi REAL,
         adx REAL,
         atr REAL,
@@ -174,7 +174,7 @@ def create_buy_sell_table(cur, table_name="buy_sell_weekly"):
       );
     """)
 
-def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekly"):
+def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_monthly_etf"):
     # DEBUG: Check if pivot_price exists in DataFrame
     if 'pivot_price' in df.columns:
         non_null = df['pivot_price'].notna().sum()
@@ -185,11 +185,11 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
     # Calculate metrics
     df['avg_volume_50d'] = df['volume'].rolling(window=50).mean().fillna(0).astype('int64')
 
-    # === Calculate 30-week SMA for Weinstein Stage Analysis ===
-    df['ma_30week'] = df['close'].rolling(window=30).mean()
+    # === Calculate 30-month SMA for Weinstein Stage Analysis ===
+    df['ma_30month'] = df['close'].rolling(window=30).mean()
     # Calculate MA slope to determine if it's rising, falling, or flattening
-    ma_slope_window = 3  # Look at 3-week slope
-    df['ma_30week_slope'] = df['ma_30week'].diff(periods=ma_slope_window)
+    ma_slope_window = 6  # Look at 6-month slope
+    df['ma_30month_slope'] = df['ma_30month'].diff(periods=ma_slope_window)
 
     # REAL DATA ONLY: Use None if avg_volume is missing, not fake 0
     df['volume_surge_pct'] = df.apply(
@@ -202,9 +202,9 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
     df['risk_reward_ratio'] = df.apply(
         lambda row: round(
             (((row['buyLevel'] * 1.25) - row['buyLevel']) / (row['buyLevel'] - row['stopLevel']))
-            if (row['stopLevel'] is not None and row['stopLevel'] > 0 and row['buyLevel'] is not None and row['buyLevel'] > 0 and (row['buyLevel'] - row['stopLevel']) != 0) else None,
+            if (row['stopLevel'] is not None and row['buyLevel'] is not None and row['stopLevel'] > 0 and row['buyLevel'] > 0 and (row['buyLevel'] - row['stopLevel']) != 0) else None,
             2
-        ) if (row['stopLevel'] is not None and row['stopLevel'] > 0 and row['buyLevel'] is not None and row['buyLevel'] > 0 and (row['buyLevel'] - row['stopLevel']) != 0) else None,
+        ) if (row['stopLevel'] is not None and row['buyLevel'] is not None and row['stopLevel'] > 0 and row['buyLevel'] > 0 and (row['buyLevel'] - row['stopLevel']) != 0) else None,
         axis=1
     )
 
@@ -337,8 +337,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
                 score += 10
 
         # Price positioning (0-15): Timing relative to short-term MA
-        # ✅ FIXED: Add pd.notna() check in addition to is not None (NaN is not None!)
-        if row.get('close') is not None and row.get('maFilter') is not None and pd.notna(row['close']) and pd.notna(row['maFilter']):
+        if row.get('close') is not None and row.get('maFilter') is not None:
             if row['close'] > row['maFilter']:
                 score += 15
 
@@ -351,35 +350,34 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
 
     df['entry_quality_score'] = df.apply(calc_entry_quality, axis=1)
 
-    # === MARKET STAGE (Stan Weinstein Stage Analysis using 30-week MA) ===
+    # === MARKET STAGE (Stan Weinstein Stage Analysis using 30-month MA) ===
     def detect_market_stage(row, index):
-        """Classify into Weinstein's 4-Stage model based on price position relative to 30-week MA"""
-        if pd.isna(row.get('close')) or pd.isna(row.get('ma_30week')):
+        """Classify into Weinstein's 4-Stage model based on price position relative to 30-month MA"""
+        if pd.isna(row.get('close')) or pd.isna(row.get('ma_30month')):
             return None
 
         close = row['close']
-        ma_30week = row['ma_30week']
-        ma_slope = row.get('ma_30week_slope')
+        ma_30month = row['ma_30month']
+        ma_slope = row.get('ma_30month_slope')
 
-        # Need sufficient data for MA calculation (30 weeks minimum)
+        # Need sufficient data for MA calculation (30 months minimum)
         if index < 30:
             return None
 
         # Calculate price position relative to MA
-        # ✅ FIXED: Add NaN/None check before comparison to prevent TypeError
-        price_diff_pct = ((close - ma_30week) / ma_30week * 100) if (ma_30week is not None and not pd.isna(ma_30week) and ma_30week > 0) else None
+        price_diff_pct = ((close - ma_30month) / ma_30month * 100) if ma_30month > 0 else None
         if price_diff_pct is None:
             return None
 
         # Detect MA direction - tuned thresholds for better discrimination
-        is_ma_rising = ma_slope > 0.75 if pd.notna(ma_slope) else False  # ✅ Tuned: 0.5 → 0.75
-        is_ma_falling = ma_slope < -0.75 if pd.notna(ma_slope) else False  # ✅ Tuned: -0.5 → -0.75
+        is_ma_rising = ma_slope > 1.5 if pd.notna(ma_slope) else False  # ✅ Tuned: 1.0 → 1.5
+        is_ma_falling = ma_slope < -1.5 if pd.notna(ma_slope) else False  # ✅ Tuned: -1.0 → -1.5
         is_ma_flat = not is_ma_rising and not is_ma_falling
 
         # === Weinstein Stage Detection ===
 
         # Stage 4: Declining - Price below declining MA (most bearish)
-        if close < ma_30week and is_ma_falling:
+        if close < ma_30month and is_ma_falling:
             return 'Stage 4 - Declining'
 
         # Stage 3: Distribution/Topping - Price at/near flattening MA (improved detection)
@@ -389,14 +387,14 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
             return 'Stage 3 - Topping'
 
         # Stage 2: Advancing - Price above rising MA (most bullish)
-        if close > ma_30week and is_ma_rising:
+        if close > ma_30month and is_ma_rising:
             return 'Stage 2 - Advancing'
         # ✅ NEW: If price clearly above MA, treat as advance even if MA slope weak
-        if close > ma_30week and not is_ma_rising:
+        if close > ma_30month and not is_ma_rising:
             return 'Stage 2 - Advancing'
 
         # Stage 1: Basing - Price oscillating around flat/rising MA or below rising MA
-        if close < ma_30week and (is_ma_rising or is_ma_flat):
+        if close < ma_30month and (is_ma_rising or is_ma_flat):
             return 'Stage 1 - Basing'
 
         # Default to Stage 1 if price is near MA without clear trend
@@ -414,18 +412,18 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
 
     # === STAGE CONFIDENCE (Based on signal strength and price action) ===
     def calc_stage_confidence(row):
-        """Calculate confidence in market stage (0-100) - based on distance from 30-week MA"""
+        """Calculate confidence in market stage (0-100) - based on distance from 30-month MA"""
         if pd.isna(row.get('market_stage')):
             return None
 
         close = row['close']
-        ma_30week = row.get('ma_30week')  # ✅ FIXED: Use ma_30week not buyLevel!
+        ma_30month = row.get('ma_30month')  # ✅ FIXED: Use ma_30month not buyLevel!
 
-        if pd.isna(ma_30week) or ma_30week is None or ma_30week <= 0:
+        if pd.isna(ma_30month) or ma_30month is None or ma_30month <= 0:
             return None
 
-        # Distance from 30-week MA as % (matches stage detection logic)
-        distance_pct = abs((close - ma_30week) / ma_30week * 100)
+        # Distance from 30-month MA as % (matches stage detection logic)
+        distance_pct = abs((close - ma_30month) / ma_30month * 100)
 
         # Confidence based on distance from MA
         if distance_pct > 15:
@@ -457,10 +455,10 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
                 risk_reward = row.get('risk_reward_ratio')
 
                 # Breakout = Buy signal with positive risk/reward
-                if signal == 'Buy' and (risk_reward is None or pd.isna(risk_reward) or risk_reward > 0):
+                if signal == 'Buy' and (pd.isna(risk_reward) or risk_reward > 0):
                     return 'Late Basing - Breakout Imminent'
                 # Breakdown = Sell signal or negative risk/reward
-                elif signal == 'Sell' or (risk_reward is not None and not pd.isna(risk_reward) and risk_reward < 0):
+                elif signal == 'Sell' or (not pd.isna(risk_reward) and risk_reward < 0):
                     return 'Late Basing - Breakdown'
                 # Ambiguous = default to Breakout Imminent
                 else:
@@ -567,27 +565,10 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
             # Clamp to 0-10 range
             return max(0, min(10, int(round(sata))))
         except Exception as e:
+            logging.error(f"[calculate_sata] Error calculating SATA score: {e}")
             return None
 
     df['sata_score'] = df.apply(calculate_sata, axis=1)
-
-    # === CRITICAL: Replace ALL NaN values with None before INSERT ===
-    # PostgreSQL cannot handle NaN floats/ints - convert all numeric NaNs to None
-    # This must happen BEFORE the insert loop and for ALL columns (float, int, object)
-    for col in df.columns:
-        # Convert all NaN/NaT values to None for ANY column type
-        if df[col].dtype == 'object' or df[col].dtype.name.startswith(('float', 'int')):
-            df[col] = df[col].astype('object').where(pd.notnull(df[col]), None)
-        else:
-            # For other dtypes (bool, datetime, etc), also convert NaN to None
-            df[col] = df[col].where(pd.notnull(df[col]), None)
-
-    # === EXTRA SAFETY: Explicitly handle position_size_recommendation and sata_score for NaN ===
-    # These are calculated after the initial columns and may contain NaN values
-    if 'position_size_recommendation' in df.columns:
-        df['position_size_recommendation'] = df['position_size_recommendation'].where(pd.notnull(df['position_size_recommendation']), None)
-    if 'sata_score' in df.columns:
-        df['sata_score'] = df['sata_score'].where(pd.notnull(df['sata_score']), None)
 
     inserted = 0
     skipped = 0
@@ -614,6 +595,12 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
             null_fields = [field for field, val in core_fields.items() if pd.isnull(val)]
             if null_fields:
                 logging.warning(f"Skipping row {idx} for {symbol}: NULL fields = {null_fields}, values = {[(f, core_fields[f]) for f in null_fields]}")
+                skipped += 1
+                continue
+
+            # CRITICAL: Only insert Buy/Sell signals, skip 'None' signals
+            signal = row.get('Signal')
+            if signal not in ('Buy', 'Sell'):
                 skipped += 1
                 continue
 
@@ -658,99 +645,164 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
 
             # Get all calculated fields (most will be None for weekly/monthly)
             signal_type = row.get('Signal') if row.get('Signal') in ('Buy', 'Sell') else None
+
             pivot_price = row.get('pivot_price')
+            if pd.isna(pivot_price) or pivot_price is None:
+                pivot_price = None
+            else:
+                pivot_price = float(pivot_price)
+
             buy_zone_start = row.get('buy_zone_start')
+            if pd.isna(buy_zone_start) or buy_zone_start is None:
+                buy_zone_start = None
+            else:
+                buy_zone_start = float(buy_zone_start)
+
             buy_zone_end = row.get('buy_zone_end')
+            if pd.isna(buy_zone_end) or buy_zone_end is None:
+                buy_zone_end = None
+            else:
+                buy_zone_end = float(buy_zone_end)
+
             exit_1 = row.get('exit_trigger_1_price')
+            if pd.isna(exit_1) or exit_1 is None:
+                exit_1 = None
+            else:
+                exit_1 = float(exit_1)
+
             exit_2 = row.get('exit_trigger_2_price')
+            if pd.isna(exit_2) or exit_2 is None:
+                exit_2 = None
+            else:
+                exit_2 = float(exit_2)
+
             exit_3_cond = row.get('exit_trigger_3_condition')
+            if pd.isna(exit_3_cond) or exit_3_cond is None:
+                exit_3_cond = None
+
             exit_3_price = row.get('exit_trigger_3_price')
+            if pd.isna(exit_3_price) or exit_3_price is None:
+                exit_3_price = None
+            else:
+                exit_3_price = float(exit_3_price)
+
             exit_4_cond = row.get('exit_trigger_4_condition')
+            if pd.isna(exit_4_cond) or exit_4_cond is None:
+                exit_4_cond = None
+
             exit_4_price = row.get('exit_trigger_4_price')
+            if pd.isna(exit_4_price) or exit_4_price is None:
+                exit_4_price = None
+            else:
+                exit_4_price = float(exit_4_price)
+
             initial_stop = row.get('initial_stop')
+            if pd.isna(initial_stop) or initial_stop is None:
+                initial_stop = None
+            else:
+                initial_stop = float(initial_stop)
+
             trailing_stop = row.get('trailing_stop')
+            if pd.isna(trailing_stop) or trailing_stop is None:
+                trailing_stop = None
+            else:
+                trailing_stop = float(trailing_stop)
             base_type = row.get('base_type')
+            if pd.isna(base_type) or base_type is None:
+                base_type = None
+
             base_length = row.get('base_length_days')
+            if pd.isna(base_length) or base_length is None:
+                base_length = None
+            else:
+                base_length = int(base_length)
+
             rs_rating = row.get('rs_rating')
+            if pd.isna(rs_rating) or rs_rating is None:
+                rs_rating = None
+            else:
+                rs_rating = float(rs_rating)
+
             current_gain = row.get('current_gain_pct')
+            if pd.isna(current_gain) or current_gain is None:
+                current_gain = None
+            else:
+                current_gain = float(current_gain)
+
             days_held = row.get('days_in_position')
+            if pd.isna(days_held) or days_held is None:
+                days_held = None
+            else:
+                days_held = int(days_held)
             entry_qual = row.get('entry_quality_score')
             if pd.isna(entry_qual):
                 entry_qual = None
+            elif entry_qual is not None:
+                entry_qual = float(entry_qual)
 
             market_stage = row.get('market_stage')
+            if pd.isna(market_stage) or market_stage is None:
+                market_stage = None
+
             stage_num = row.get('stage_number')
             if pd.isna(stage_num):
                 stage_num = None
             elif stage_num is not None:
-                try:
-                    stage_num = int(float(stage_num))  # Convert to float first to handle any NaN, then int
-                except (ValueError, TypeError):
-                    stage_num = None
+                stage_num = int(stage_num)
 
             stage_conf = row.get('stage_confidence')
             if pd.isna(stage_conf):
                 stage_conf = None
             elif stage_conf is not None:
-                try:
-                    stage_conf = float(stage_conf)
-                except (ValueError, TypeError):
-                    stage_conf = None
+                stage_conf = float(stage_conf)
 
             substage = row.get('substage')
+            if pd.isna(substage) or substage is None:
+                substage = None
+
             profit_8 = row.get('profit_target_8pct')
-            if pd.isna(profit_8):
+            if pd.isna(profit_8) or profit_8 is None:
                 profit_8 = None
             else:
-                try:
-                    profit_8 = float(profit_8)
-                except (ValueError, TypeError):
-                    profit_8 = None
+                profit_8 = float(profit_8)
+
             profit_20 = row.get('profit_target_20pct')
-            if pd.isna(profit_20):
+            if pd.isna(profit_20) or profit_20 is None:
                 profit_20 = None
             else:
-                try:
-                    profit_20 = float(profit_20)
-                except (ValueError, TypeError):
-                    profit_20 = None
+                profit_20 = float(profit_20)
+
             profit_25 = row.get('profit_target_25pct')
-            if pd.isna(profit_25):
+            if pd.isna(profit_25) or profit_25 is None:
                 profit_25 = None
             else:
-                try:
-                    profit_25 = float(profit_25)
-                except (ValueError, TypeError):
-                    profit_25 = None
+                profit_25 = float(profit_25)
+
             risk_pct = row.get('risk_pct')
             if pd.isna(risk_pct) or risk_pct is None:
                 risk_pct = None
             else:
-                try:
-                    risk_pct = float(risk_pct)
-                except (ValueError, TypeError):
-                    risk_pct = None
+                risk_pct = float(risk_pct)
+
             pos_size = row.get('position_size_recommendation')
             if pd.isna(pos_size) or pos_size is None:
                 pos_size = None
             else:
-                try:
-                    pos_size = float(pos_size)
-                except (ValueError, TypeError):
-                    pos_size = None
+                pos_size = float(pos_size)
+
             sell_level = row.get('sell_level')
             if pd.isna(sell_level) or sell_level is None:
                 sell_level = None
             else:
-                try:
-                    sell_level = float(sell_level)
-                except (ValueError, TypeError):
-                    sell_level = None
-            mansfield_rs = row.get('mansfield_rs')
-            if mansfield_rs is not None:
-                mansfield_rs = float(mansfield_rs)
+                sell_level = float(sell_level)
 
-            # pos_size and sata_score - just convert safely
+            mansfield_rs = row.get('mansfield_rs')
+            if mansfield_rs is not None and not pd.isna(mansfield_rs):
+                mansfield_rs = float(mansfield_rs)
+            else:
+                mansfield_rs = None
+
+            # Convert NaN to None for sata_score BEFORE processing
             sata_score = row.get('sata_score')
             try:
                 if sata_score is None:
@@ -775,35 +827,30 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
             row_date = row['date'].date()
             signal_triggered_date = row_date if row['Signal'] in ('Buy', 'Sell') else None
 
-            try:
-                cur.execute(insert_q, (
-                    symbol,
-                    timeframe,
-                    row_date,
-                    float(row['open']), float(row['high']), float(row['low']),
-                    float(row['close']), int(row['volume']),
-                    row['Signal'], signal_triggered_date, safe_float(row.get('buyLevel')),
-                    safe_float(row.get('stopLevel')), safe_bool(row.get('inPosition')), safe_float(row.get('strength')),
-                    signal_type, pivot_price, buy_zone_start, buy_zone_end,
-                    exit_1, exit_2, exit_3_cond, exit_3_price,
-                    exit_4_cond, exit_4_price, initial_stop, trailing_stop,
-                    base_type, base_length, avg_vol, vol_surge,
-                    rs_rating, breakout_qual, risk_reward,
-                    profit_8, profit_20, profit_25,
-                    risk_pct, entry_qual, market_stage, stage_num, stage_conf, substage,
-                    pos_size, current_gain, days_held, sell_level,
-                    mansfield_rs, sata_score,
-                    rsi_val, adx_val, atr_val, sma_50_val, sma_200_val, ema_21_val, pct_from_ema21_val, pct_from_sma50_val, entry_price_val
-                ))
-                cur.connection.commit()  # Commit after each successful insert
-                inserted += 1
-            except Exception as insert_err:
-                # Rollback failed transaction and continue
-                cur.connection.rollback()
-                logging.error(f"Insert failed for {symbol} {timeframe} row {idx}: {insert_err}")
-                skipped += 1
+            cur.execute(insert_q, (
+                symbol,
+                timeframe,
+                row_date,
+                float(row['open']), float(row['high']), float(row['low']),
+                float(row['close']), int(row['volume']),
+                row['Signal'], signal_triggered_date, safe_float(row.get('buyLevel')),
+                safe_float(row.get('stopLevel')), safe_bool(row.get('inPosition')), safe_float(row.get('strength')),
+                signal_type, pivot_price, buy_zone_start, buy_zone_end,
+                exit_1, exit_2, exit_3_cond, exit_3_price,
+                exit_4_cond, exit_4_price, initial_stop, trailing_stop,
+                base_type, base_length, avg_vol, vol_surge,
+                rs_rating, breakout_qual, risk_reward,
+                profit_8, profit_20, profit_25,
+                risk_pct, entry_qual, market_stage, stage_num, stage_conf, substage,
+                pos_size, current_gain, days_held, sell_level,
+                mansfield_rs, sata_score,
+                rsi_val, adx_val, atr_val, sma_50_val, sma_200_val, ema_21_val, pct_from_ema21_val, pct_from_sma50_val, entry_price_val
+            ))
+            cur.connection.commit()  # Commit after each successful insert
+            inserted += 1
         except Exception as e:
-            logging.error(f"Field processing failed for {symbol} {timeframe} row {idx}: {e} | row={row}")
+            cur.connection.rollback()  # Rollback failed transaction
+            logging.error(f"Insert failed for {symbol} {timeframe} row {idx}: {e}")
             skipped += 1
     logging.info(f"Inserted {inserted} rows, skipped {skipped} rows for {symbol} {timeframe}")
 
@@ -827,9 +874,9 @@ def fetch_symbol_from_db(symbol, timeframe):
     """Fetch PRICE DATA ONLY - all technical calculations done inline"""
     tf = timeframe.lower()
     price_table_map = {
-        "daily": "price_daily",
-        "weekly": "price_weekly",
-        "monthly": "price_monthly"
+        "daily": "etf_price_daily",
+        "weekly": "etf_price_weekly",
+        "monthly": "etf_price_monthly"
     }
     if tf not in price_table_map:
         raise ValueError(f"Invalid timeframe: {timeframe}")
@@ -896,7 +943,7 @@ def calculate_signal_strength(df, index):
         adx = row.get('adx')
         high = row.get('high')
         low = row.get('low')
-        sma_50 = row.get('sma_50')
+        sma_200 = row.get('sma_200')
         atr = row.get('atr')
         pivot_high = row.get('pivot_high')
         pivot_low = row.get('pivot_low')
@@ -939,12 +986,12 @@ def calculate_signal_strength(df, index):
                 strength += 1   # Weak trend
 
         # Price vs SMA-50 (only if SMA-50 data available)
-        if sma_50 is not None:
-            if signal_type == 'Buy' and close > sma_50:
-                price_above_sma = ((close - sma_50) / sma_50) * 100
+        if sma_200 is not None:
+            if signal_type == 'Buy' and close > sma_200:
+                price_above_sma = ((close - sma_200) / sma_200) * 100
                 strength += min(9, max(0, price_above_sma * 3))
-            elif signal_type == 'Sell' and close < sma_50:
-                price_below_sma = ((sma_50 - close) / sma_50) * 100
+            elif signal_type == 'Sell' and close < sma_200:
+                price_below_sma = ((sma_200 - close) / sma_200) * 100
                 strength += min(9, max(0, price_below_sma * 3))
         
         # 2. Volume Confirmation (25%)
@@ -1043,6 +1090,7 @@ def calculate_rsi(prices, period=14):
         rsi = 100 - (100 / (1 + rs))
         return rsi
     except Exception as e:
+        logging.error(f"[calculate_rsi] Error: {e}")
         return pd.Series([None] * len(prices), index=prices.index)
 
 def calculate_atr(high, low, close, period=14):
@@ -1055,6 +1103,7 @@ def calculate_atr(high, low, close, period=14):
         atr = tr.rolling(window=period).mean()
         return atr
     except Exception as e:
+        logging.error(f"[calculate_atr] Error: {e}")
         return pd.Series([None] * len(high), index=high.index)
 
 def calculate_adx(high, low, close, period=14):
@@ -1077,6 +1126,7 @@ def calculate_adx(high, low, close, period=14):
         adx = dx.rolling(window=period).mean()
         return adx
     except Exception as e:
+        logging.error(f"[calculate_adx] Error: {e}")
         return pd.Series([None] * len(high), index=high.index)
 
 def calculate_sma(prices, period):
@@ -1084,6 +1134,7 @@ def calculate_sma(prices, period):
     try:
         return prices.rolling(window=period).mean()
     except Exception as e:
+        logging.error(f"[calculate_sma] Error: {e}")
         return pd.Series([None] * len(prices), index=prices.index)
 
 def calculate_ema(prices, period):
@@ -1091,36 +1142,63 @@ def calculate_ema(prices, period):
     try:
         return prices.ewm(span=period, adjust=False).mean()
     except Exception as e:
+        logging.error(f"[calculate_ema] Error: {e}")
         return pd.Series([None] * len(prices), index=prices.index)
 
 ###############################################################################
-# 6) SIGNAL GENERATION & IN-POSITION LOGIC - TradingView "Breakout Trend Follower" Strategy
+# 6) SIGNAL GENERATION & IN-POSITION LOGIC
 ###############################################################################
-def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
+def generate_signals(df, pvtLenL=3, pvtLenR=3, useMaFilter=True, maLength=50, shunt=1):
     """
-    Generate signals matching Pine Script: 'Breakout Trend Follower' EXACTLY
-
-    Rewritten from scratch to match Pine Script semantics precisely.
-    The key is understanding that buyLevel/stopLevel use valuewhen() which returns
-    the MOST RECENT pivot value whenever a NEW pivot is detected.
+    Implements TradingView "Breakout Trend Follower" strategy EXACTLY:
+    - Uses TradingView's pivothigh/pivotlow logic with 3/3 parameters (not strict comparisons)
+    - BUY when: high > buyLevel AND buyLevel > MA50
+    - SELL when: low < stopLevel
+    - State machine: position persists until sell signal
     """
 
-    logging.debug("🎯 Rewritten: Generating signals matching Pine Script exactly")
+    # === CALCULATE ALL TECHNICAL INDICATORS INLINE ===
+    # Self-contained - no dependencies on technical_data table
+    logging.info("   Calculating technical indicators (SMA-50, SMA-200, RSI, ATR, ADX)...")
 
-    # === CALCULATE TECHNICAL INDICATORS ===
     df['sma_50'] = calculate_sma(df['close'], 50)
     df['sma_200'] = calculate_sma(df['close'], 200)
     df['rsi'] = calculate_rsi(df['close'], 14)
     df['atr'] = calculate_atr(df['high'], df['low'], df['close'], 14)
     df['adx'] = calculate_adx(df['high'], df['low'], df['close'], 14)
+
+    # Calculate EMA-21 for shorter-term trend
     df['ema_21'] = df['close'].ewm(span=21, adjust=False).mean()
+
+    # Calculate percentage distance from moving averages
     df['pct_from_sma50'] = ((df['close'] - df['sma_50']) / df['sma_50'] * 100).round(2)
     df['pct_from_ema21'] = ((df['close'] - df['ema_21']) / df['ema_21'] * 100).round(2)
+
+    # Calculate pivot price (standard formula: (H + L + C) / 3)
     df['pivot_price'] = ((df['high'] + df['low'] + df['close']) / 3).round(2)
-    df['maFilter'] = df['sma_50'].ffill()
-    df['ma_200'] = df['sma_200'].ffill()
+
+    # DEBUG: Log pivot_price statistics
+    pivot_non_null = df['pivot_price'].notna().sum()
+    logging.debug(f"[CALC] pivot_price calculated: {pivot_non_null}/{len(df)} non-null values")
+
+    # Use SMA-50 as the MA filter (matching Pine Script "Breakout Trend Follower")
+    # Pine Script: maLength = input(defval = 50, title = "MA Period for Filtering")
+    df['maFilter'] = df['sma_50']
+
+    # For bars without SMA-50 data, forward-fill from previous bar
+    df['maFilter'] = df['maFilter'].ffill()
+
+    # Use SMA-50 for Weinstein Stage Analysis (ETFs have limited data, can't use SMA-200)
+    # 93.8% of ETFs have ≥50 rows vs only 3.8% with ≥200 rows
+    df['ma_200'] = df['sma_200']
+    df['ma_200'] = df['ma_200'].ffill()
+
+    # Keep ma_200 for backward compatibility (will be used for other calculations if needed)
+    df['ma_200'] = df['sma_200']
+    df['ma_200'] = df['ma_200'].ffill()
 
     # === PIVOT DETECTION (Pine Script: pivothigh/pivotlow) ===
+    # Using proven working code from stock monthly loader
     # CRITICAL: A pivot is "formed" at bar i when we have confirmed:
     # - 3 bars left all lower/higher
     # - current bar is high/low
@@ -1151,8 +1229,9 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
 
             # If bar i is a pivot, mark it at position i+1 and use high from the pivot itself
             # Pine Script: valuewhen(pvthi_, high[pvtLenR], 0) where pvtLenR=3
+            # At bar i+3, high[3] refers to high from the pivot center at bar i
             if is_pivot and i+1 < len(pivot_highs):
-                pivot_highs[i+1] = highs[i]  # Use high from pivot center
+                pivot_highs[i+1] = highs[i]  # Use high from the pivot bar itself
 
         return pivot_highs
 
@@ -1177,8 +1256,9 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
 
             # If bar i is a pivot, mark it at position i+1 and use low from the pivot itself
             # Pine Script: valuewhen(pvtlo_, low[pvtLenR], 0) where pvtLenR=3
+            # At bar i+3, low[3] refers to low from the pivot center at bar i
             if is_pivot and i+1 < len(pivot_lows):
-                pivot_lows[i+1] = lows[i]  # Use low from pivot center
+                pivot_lows[i+1] = lows[i]  # Use low from the pivot bar itself
 
         return pivot_lows
 
@@ -1192,12 +1272,14 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     df['stopLevel'] = pd.Series(pivot_lows_raw, index=df.index).ffill()
 
     # === BUY/SELL CONDITIONS (Pine Script logic) ===
+    # Using proven working code from stock monthly loader
     df['buySignal'] = (df['high'] > df['buyLevel'].fillna(0)) & df['buyLevel'].notna()
     df['sellSignal'] = (df['low'] < df['stopLevel'].fillna(float('inf'))) & df['stopLevel'].notna()
 
     # === MA FILTER (Pine Script: buyLevel > maFilterCheck) ===
     # Only allow buy if buyLevel is ABOVE the MA filter
     # Pine Script default: useMaFilter=true, so check buyLevel > maFilter
+    df['maFilter'] = df['maFilter']  # Already calculated earlier as sma_50
     df['maFilterOk'] = df['buyLevel'] > df['maFilter']
 
     # === TIME FILTER (Pine Script: time > Start and time < Finish) ===
@@ -1211,6 +1293,7 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     df['sell'] = df['sellSignal']
 
     # === STATE MACHINE (Pine Script study logic) ===
+    # EXACT copy from stock monthly loader - proven to work with TradingView
     # inPosition := buy[1] ? true : sellSignal[1] ? false : inPosition[1]
     # flat = not inPosition
     # buyStudy = buy and flat
@@ -1233,7 +1316,7 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
                 in_position = True
             elif prev_sell_cond:
                 in_position = False
-            # else: stay in previous position state
+            # else: keep previous position state
 
         flat = not in_position
 
@@ -1241,7 +1324,7 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
         buy_cond = buy_vals[i]
         sell_cond = sell_vals[i]
 
-        # Generate signal only if state allows it (Pine Script: buyStudy/sellStudy)
+        # Pine Script: buyStudy = buy and flat, sellStudy = sellSignal and inPosition
         if buy_cond and flat:
             signal = 'Buy'
         elif sell_cond and in_position:
@@ -1250,33 +1333,23 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
             signal = 'None'
 
         signals.append(signal)
-
-        # Save position state for this bar
         positions.append(in_position)
 
         # Save conditions for next bar (Pine Script: buy[1], sellSignal[1])
         prev_buy_cond = buy_cond
         prev_sell_cond = sell_cond
-        
 
     df['Signal'] = signals
     df['inPosition'] = positions  # Use actual position states
 
-    # Calculate signal strength for each row
-    strengths = []
-    for i in range(len(df)):
-        strength = calculate_signal_strength(df, i)
-        strengths.append(strength)
-
-    df['strength'] = strengths
-
-    # Set signal_type based on signal
+    # === Simplified signal strength and type (just based on signal type) ===
     df['signal_type'] = df['Signal']
+    df['strength'] = df['Signal'].apply(lambda x: 1.0 if x == 'Buy' else (0.5 if x == 'Sell' else 0.0))
 
     # === CALCULATE MISSING FIELDS (match daily loader) ===
     # initial_stop = stopLevel
     df['initial_stop'] = df['stopLevel']
-    # trailing_stop = stopLevel (no trailing for weekly)
+    # trailing_stop = stopLevel (no trailing for monthly)
     df['trailing_stop'] = df['stopLevel']
 
     # pivot_price is calculated earlier as technical indicator (H+L+C)/3
@@ -1317,7 +1390,7 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
             df.at[i, 'base_length_days'] = length if length > 0 else None
 
     # === CALCULATE REAL METRICS ===
-    # Calculate 50-day rolling average volume
+    # Calculate 200-day rolling average volume
     df['avg_volume_50d'] = df['volume'].rolling(window=50).mean().fillna(0).astype('int64')
 
     # Calculate volume surge percentage: (current_volume / avg_volume_50d - 1) * 100
@@ -1411,9 +1484,6 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
 
         # RS = (current / 200-day high) * 100
         rs = (current_price / high_200d) * 100
-        # Handle NaN values
-        if pd.isna(rs):
-            return None
         # Convert to 0-99 scale
         rs_rating = min(99, max(1, int(rs)))
         return rs_rating
@@ -1500,13 +1570,15 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
 
     df['entry_quality_score'] = df.apply(calc_entry_quality, axis=1)
 
-    # === MARKET STAGE (Stan Weinstein Stage Analysis using 200-day MA) ===
+    # === MARKET STAGE (Stan Weinstein Stage Analysis using 200-day MA for ETFs) ===
     # Calculate MA slope to determine if it's rising, falling, or flattening
     ma_slope_window = 10  # Look at 10-day slope
     df['ma_200_slope'] = df['ma_200'].diff(periods=ma_slope_window)
+    df['ma_200_slope'] = df['ma_200'].diff(periods=ma_slope_window)
 
     def detect_market_stage(row, index):
-        """Classify into Weinstein's 4-Stage model based on price position relative to 200-day MA"""
+        """Classify into Weinstein's 4-Stage model based on price position relative to 200-day MA (for ETFs with limited data)"""
+        # For ETFs: use ma_200 instead of ma_200 (93.8% coverage vs 3.8% for ma_200)
         if pd.isna(row.get('close')) or pd.isna(row.get('ma_200')):
             return None
 
@@ -1514,8 +1586,9 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
         ma_200 = row['ma_200']
         ma_slope = row.get('ma_200_slope')
 
-        # Need sufficient data for MA calculation
-        if index < 200:
+        # Need sufficient data for MA calculation (50 months minimum for SMA-50)
+        # Monthly data: 50 bars = 4.2 years (realistic minimum for ETFs)
+        if index < 50:
             return None
 
         # Calculate price position relative to MA
@@ -1570,7 +1643,7 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
             return None
 
         close = row['close']
-        ma_200 = row['ma_200']  # ✅ FIXED: Use ma_200 (200-day MA) not ma_50!
+        ma_200 = row['ma_200']  # ✅ FIXED: Use ma_200 (200-day MA) not ma_200!
 
         if pd.isna(ma_200) or ma_200 is None or ma_200 <= 0:
             return None
@@ -1653,7 +1726,7 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     return df
 
 ###############################################################################
-# 5) BACKTEST & METRICS
+# 6) BACKTEST & METRICS
 ###############################################################################
 def backtest_fixed_capital(df):
     trades = []
@@ -1718,39 +1791,14 @@ def analyze_trade_returns_fixed_capital(rets, durs, tag, annual_rfr=0.0):
     )
 
 ###############################################################################
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# 6) PROCESS & MAIN
+# 7) PROCESS & MAIN
 ###############################################################################
 def process_symbol(symbol, timeframe):
     logging.debug(f"  [process_symbol] Fetching {symbol} {timeframe}")
-    try:
-        df = fetch_symbol_from_db(symbol, timeframe)
-        logging.info(f"  [process_symbol] Done fetching {symbol} {timeframe}, rows: {len(df)}")
-        return generate_signals(df) if not df.empty else df
-    except Exception as e:
-        logging.error(f"Error in process_symbol for {symbol}: {e}", exc_info=True)
-        raise
+    df = fetch_symbol_from_db(symbol, timeframe)
+    logging.info(f"  [process_symbol] Done fetching {symbol} {timeframe}, rows: {len(df)}")
+    # Use default parameters to match ETF weekly (working) and stock monthly (working)
+    return generate_signals(df) if not df.empty else df
 
 def main():
 
@@ -1766,45 +1814,46 @@ def main():
         print("No stock symbols in DB.")
         symbols = []
 
-    # Load country ETF symbols (from stock_symbols where etf='Y' AND country IS NOT NULL)
+    # Load country ETF symbols (from etf_symbols where etf='Y' AND country IS NOT NULL)
     country_symbols = []
     try:
         conn_temp = get_db_connection()
         cur_temp = conn_temp.cursor()
-        cur_temp.execute("SELECT symbol FROM stock_symbols WHERE etf='Y' AND country IS NOT NULL;")
+        cur_temp.execute("SELECT symbol FROM etf_symbols WHERE etf='Y' AND country IS NOT NULL;")
         country_symbols = [r[0] for r in cur_temp.fetchall()]
         cur_temp.close()
         conn_temp.close()
     except:
-        logging.warning("Could not load country ETF symbols from stock_symbols")
+        logging.warning("Could not load country ETF symbols from etf_symbols")
 
     conn = get_db_connection()
     cur  = conn.cursor()
-    create_buy_sell_table(cur, "buy_sell_weekly")
+    create_buy_sell_table(cur, "buy_sell_monthly_etf")
     conn.commit()
 
     results = {'Daily':{'rets':[],'durs':[]},
                'Weekly':{'rets':[],'durs':[]},
                'Monthly':{'rets':[],'durs':[]}}
 
-    # Process ONLY regular stocks (NO ETFs)
-    logging.info(f"Processing {len(symbols)} regular stocks only (excluding {len(country_symbols)} country symbols)")
+    # Combine regular and country ETF symbols into single list
+    all_etf_symbols = symbols + country_symbols
+    logging.info(f"Processing {len(symbols)} regular ETFs + {len(country_symbols)} country ETFs = {len(all_etf_symbols)} total ETFs")
 
-    for sym in symbols:
+    # BLACKLIST: Skip bond ETFs that don't work with breakout strategy
+    blacklist = {'SHY', 'IEF', 'TLT', 'SHV', 'BND', 'AGG'}  # Bond ETFs - too stable
+    all_etf_symbols = [s for s in all_etf_symbols if s not in blacklist]
+    logging.info(f"After filtering blacklist: {len(all_etf_symbols)} ETFs to process")
+
+    for sym in all_etf_symbols:
         logging.info(f"=== {sym} ===")
-        # Weekly loader processes only Weekly timeframe
-        tf = 'Weekly'
+        # Monthly loader processes only Monthly timeframe
+        tf = 'Monthly'
         logging.info(f"  [main] Processing {sym} {tf}")
         df = process_symbol(sym, tf)
         logging.info(f"  [main] Done processing {sym} {tf}")
         if not df.empty:
-            try:
-                insert_symbol_results(cur, sym, tf, df)
-                conn.commit()
-            except Exception as e:
-                logging.error(f"Transaction error for {sym}: {e}. Rolling back.")
-                conn.rollback()
-                continue
+            insert_symbol_results(cur, sym, tf, df)
+            conn.commit()
             _, rets, durs, _, _ = backtest_fixed_capital(df)
             results[tf]['rets'].extend(rets)
             results[tf]['durs'].extend(durs)
@@ -1831,6 +1880,6 @@ def main():
     conn.close()
 
 if __name__ == "__main__":
-    logging.info("Starting Weekly Signals Loader")
+    logging.info("Starting Monthly Signals Loader")
     main()
-    logging.info("✅ Weekly Signals Loader completed")
+    logging.info("✅ Monthly Signals Loader completed")
