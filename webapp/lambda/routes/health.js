@@ -544,14 +544,25 @@ router.get("/ecs-tasks", async (req, res) => {
   }
 
   try {
-    const { ECSClient, ListTasksCommand, DescribeTasksCommand } = require("@aws-sdk/client-ecs");
-    const { CloudWatchLogsClient, DescribeLogStreamsCommand, GetLogEventsCommand } = require("@aws-sdk/client-cloudwatch-logs");
-
-    const ecsClient = new ECSClient({ region: process.env.AWS_REGION || "us-east-1" });
-    const logsClient = new CloudWatchLogsClient({ region: process.env.AWS_REGION || "us-east-1" });
+    // AWS SDK clients for ECS monitoring (optional - only if AWS SDKs installed)
+    let ecsClient, logsClient;
+    try {
+      // eslint-disable-next-line node/no-missing-require
+      const { ECSClient } = require("@aws-sdk/client-ecs");
+      // eslint-disable-next-line node/no-missing-require
+      const { CloudWatchLogsClient } = require("@aws-sdk/client-cloudwatch-logs");
+      ecsClient = new ECSClient({ region: process.env.AWS_REGION || "us-east-1" });
+      logsClient = new CloudWatchLogsClient({ region: process.env.AWS_REGION || "us-east-1" });
+    } catch (awsSdkError) {
+      console.log("AWS SDK packages not available, skipping ECS monitoring");
+      ecsClient = null;
+      logsClient = null;
+    }
 
     const taskData = {};
 
+    // Only proceed with ECS monitoring if clients are available
+    if (ecsClient && logsClient) {
     // Monitor critical ECS tasks - core data loaders
     const taskConfigs = [
       // Core symbol and company data
@@ -754,6 +765,7 @@ router.get("/ecs-tasks", async (req, res) => {
         tasks: taskData
       }
     });
+    } // Close if (ecsClient && logsClient)
 
   } catch (error) {
     console.error("Error in ECS tasks monitoring:", error);

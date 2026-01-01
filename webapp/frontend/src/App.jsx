@@ -1,48 +1,22 @@
 import React, { useState, useEffect } from "react";
 import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import {
-  AppBar,
-  Box,
   Toolbar,
   Typography,
-  Container,
-  Drawer,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  IconButton,
   useTheme,
   useMediaQuery,
-  Button,
-  Menu,
-  MenuItem,
-  Avatar,
-  Divider,
 } from "@mui/material";
 import {
-  Menu as MenuIcon,
-  Dashboard as _DashboardIcon,
-  Settings as SettingsIcon,
   ExpandLess,
   ExpandMore,
   Stars,
   TrendingUp as TrendingUpIcon,
   Business as BusinessIcon,
   Public as PublicIcon,
-  ShowChart as ShowChartIcon,
   Event as EventIcon,
-  Timeline as TimelineIcon,
   Psychology as PsychologyIcon,
-  AccountBalance as AccountBalanceIcon,
-  Analytics as AnalyticsIcon,
-  HealthAndSafety as HealthAndSafetyIcon,
-  Storage as StorageIcon,
-  AccountCircle as AccountCircleIcon,
-  Login as LoginIcon,
-  Logout as LogoutIcon,
   SwapHoriz as SwapHorizIcon,
+  Storage as StorageIcon,
 } from "@mui/icons-material";
 
 // All real page imports (PUBLIC DATA ONLY)
@@ -53,14 +27,23 @@ import Sentiment from "./pages/Sentiment";
 import ScoresDashboard from "./pages/ScoresDashboard";
 import { useAuth } from "./contexts/AuthContext";
 import AuthModal from "./components/auth/AuthModal";
-import ProtectedRoute from "./components/auth/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
-import RootRedirect from "./components/RootRedirect";
 import SectorAnalysis from "./pages/SectorAnalysis";
 import TradingSignals from "./pages/TradingSignals";
 import ETFSignals from "./pages/ETFSignals";
 import EconomicDashboard from "./pages/EconomicDashboard";
 import HedgeHelper from "./pages/HedgeHelper";
+
+// Marketing pages
+import Home from "./pages/marketing/Home";
+import Firm from "./pages/marketing/Firm";
+import Services from "./pages/marketing/Services";
+import Research from "./pages/marketing/Research";
+import Media from "./pages/marketing/Media";
+import Contact from "./pages/marketing/Contact";
+
+// Layout components
+import AppLayout from "./components/AppLayout";
 
 const drawerWidth = 240;
 
@@ -355,173 +338,47 @@ function App() {
 
   console.log("🎯 APP COMPONENT: About to render JSX...");
 
+  // Determine if this is a marketing page or app page
+  const isMarketingPage = !location.pathname.startsWith('/app');
+
+  if (isMarketingPage) {
+    // Marketing pages layout
+    return (
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/firm" element={<Firm />} />
+          <Route path="/services" element={<Services />} />
+          <Route path="/research" element={<Research />} />
+          <Route path="/media" element={<Media />} />
+          <Route path="/contact" element={<Contact />} />
+          {/* Fallback for marketing - if route doesn't exist, redirect to home */}
+          <Route path="*" element={<Home />} />
+        </Routes>
+      </ErrorBoundary>
+    );
+  }
+
+  // App pages layout (with drawer navigation)
   return (
     <ErrorBoundary>
-      <Box sx={{ display: "flex", width: "100%", overflowX: "hidden" }}>
-      <AppBar
-        position="fixed"
-        sx={{
-          width: { md: `calc(100% - ${drawerWidth}px)` },
-          ml: { md: `${drawerWidth}px` },
-        }}
-      >
-        <Toolbar>
-          <IconButton
-            color="inherit"
-            aria-label="open drawer"
-            edge="start"
-            onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { md: "none" } }}
-          >
-            <MenuIcon />
-          </IconButton>
-          <Typography
-            variant="h6"
-            noWrap
-            component="div"
-            sx={{
-              flexGrow: 1,
-              mr: 2,
-              pointerEvents: 'none'
-            }}
-          >
-            {menuItems.find((item) => item.path === location.pathname)?.text ||
-              "Dashboard"}
-          </Typography>
+      <AppLayout>
+        <Routes>
+          <Route path="/app/market" element={<MarketOverview />} />
+          <Route path="/app/scores" element={<ScoresDashboard />} />
+          <Route path="/app/earnings" element={<EarningsCalendar />} />
+          <Route path="/app/financial-data" element={<FinancialData />} />
+          <Route path="/app/sentiment" element={<Sentiment />} />
+          <Route path="/app/sectors" element={<SectorAnalysis />} />
+          <Route path="/app/trading-signals" element={<TradingSignals />} />
+          <Route path="/app/etf-trading-signals" element={<ETFSignals />} />
+          <Route path="/app/economic" element={<EconomicDashboard />} />
+          <Route path="/app/hedge-helper" element={<HedgeHelper />} />
+        </Routes>
 
-          {/* Authentication UI */}
-          {isAuthenticated ? (
-            <>
-              <IconButton
-                onClick={handleUserMenuOpen}
-                size="large"
-                edge="end"
-                color="inherit"
-              >
-                <Avatar sx={{ width: 32, height: 32, bgcolor: "primary.main" }}>
-                  {user?.username?.[0]?.toUpperCase() || "U"}
-                </Avatar>
-              </IconButton>
-              <Menu
-                anchorEl={userMenuAnchor}
-                open={Boolean(userMenuAnchor)}
-                onClose={handleUserMenuClose}
-                anchorOrigin={{
-                  vertical: "bottom",
-                  horizontal: "right",
-                }}
-                transformOrigin={{
-                  vertical: "top",
-                  horizontal: "right",
-                }}
-              >
-                <MenuItem onClick={handleUserMenuClose}>
-                  <AccountCircleIcon sx={{ mr: 1 }} />
-                  {user?.username || "User"}
-                </MenuItem>
-                <Divider />
-                <MenuItem
-                  onClick={() => {
-                    handleUserMenuClose();
-                    navigate("/settings");
-                  }}
-                >
-                  <SettingsIcon sx={{ mr: 1 }} />
-                  Settings
-                </MenuItem>
-                <MenuItem onClick={handleLogout}>
-                  <LogoutIcon sx={{ mr: 1 }} />
-                  Sign Out
-                </MenuItem>
-              </Menu>
-            </>
-          ) : (
-            <Button
-              color="inherit"
-              startIcon={<LoginIcon />}
-              onClick={() => setAuthModalOpen(true)}
-              sx={{
-                ml: 2,
-                zIndex: 1000,
-                position: 'relative',
-                flexShrink: 0
-              }}
-              data-testid="auth-sign-in-button"
-            >
-              Sign In
-            </Button>
-          )}
-        </Toolbar>
-      </AppBar>
-
-      <Box
-        component="nav"
-        sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
-      >
-        <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={handleDrawerToggle}
-          ModalProps={{
-            keepMounted: true, // Better open performance on mobile.
-          }}
-          sx={{
-            display: { xs: "block", md: "none" },
-            "& .MuiDrawer-paper": {
-              boxSizing: "border-box",
-              width: drawerWidth,
-            },
-          }}
-        >
-          {drawer}
-        </Drawer>
-        <Drawer
-          variant="permanent"
-          sx={{
-            display: { xs: "none", md: "block" },
-            "& .MuiDrawer-paper": {
-              boxSizing: "border-box",
-              width: drawerWidth,
-            },
-          }}
-          open
-        >
-          {drawer}
-        </Drawer>
-      </Box>
-
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          p: { xs: 1, sm: 2, md: 3 },
-          width: { xs: "100%", md: `calc(100% - ${drawerWidth}px)` },
-          backgroundColor: theme.palette.background.default,
-          minHeight: "100vh",
-          overflowX: "hidden",
-        }}
-      >
-        <Toolbar />
-        <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2, md: 3 } }}>
-          <Routes>
-            <Route path="/" element={<RootRedirect />} />
-            <Route path="/market" element={<MarketOverview />} />
-            <Route path="/scores" element={<ScoresDashboard />} />
-            <Route path="/earnings" element={<EarningsCalendar />} />
-            <Route path="/financial-data" element={<FinancialData />} />
-            <Route path="/sentiment" element={<Sentiment />} />
-            <Route path="/sectors" element={<SectorAnalysis />} />
-            <Route path="/trading-signals" element={<TradingSignals />} />
-            <Route path="/etf-trading-signals" element={<ETFSignals />} />
-            <Route path="/economic" element={<EconomicDashboard />} />
-            <Route path="/hedge-helper" element={<HedgeHelper />} />
-          </Routes>
-        </Container>
-      </Box>
-
-      {/* Authentication Modal */}
-      <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
-      </Box>
+        {/* Authentication Modal */}
+        <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
+      </AppLayout>
     </ErrorBoundary>
   );
 }
