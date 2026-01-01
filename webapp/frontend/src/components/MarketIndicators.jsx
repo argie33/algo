@@ -16,7 +16,7 @@ import {
   Chip,
 } from "@mui/material";
 import { TrendingUp, TrendingDown } from "@mui/icons-material";
-import { useTheme, alpha } from "@mui/material/styles";
+import { useTheme } from "@mui/material/styles";
 
 const MarketIndicators = ({ data, isLoading, error }) => {
   const theme = useTheme();
