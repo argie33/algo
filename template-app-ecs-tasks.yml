@@ -547,7 +547,7 @@ Resources:
       ServiceName: stocksymbols-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref StockSymbolsTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -665,7 +665,7 @@ Resources:
       ServiceName: pricedaily-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref PriceTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2537,7 +2537,7 @@ Resources:
       ServiceName: buyselldaily-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref BuySellDailyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -3003,7 +3003,7 @@ Resources:
       ServiceName: stock-scores-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref StockScoresTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
