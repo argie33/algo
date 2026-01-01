@@ -471,6 +471,9 @@ jobs:
                 ParameterKey=PriceImageTag,ParameterValue=latest \
                 ParameterKey=PriceWeeklyImageTag,ParameterValue=latest \
                 ParameterKey=PriceMonthlyImageTag,ParameterValue=latest \
+                ParameterKey=EtfPriceDailyImageTag,ParameterValue=latest \
+                ParameterKey=EtfPriceWeeklyImageTag,ParameterValue=latest \
+                ParameterKey=EtfPriceMonthlyImageTag,ParameterValue=latest \
                 ParameterKey=TechnicalsDailyImageTag,ParameterValue=latest \
                 ParameterKey=LoadDailyCompanyDataImageTag,ParameterValue=companyprofile-latest \
                 ParameterKey=EarningsEstimateImageTag,ParameterValue=latest \
