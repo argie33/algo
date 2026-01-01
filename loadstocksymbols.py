@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Trigger: 20260101_102914 - Load all data to AWS RDS
 # Updated: 2025-10-04 16:55 - Trigger symbols loader - populate Agilent, Alcoa, and all stocks
 # Trigger: 20251228_180000 - Deploy to AWS ECS with fixed loaders
 import csv

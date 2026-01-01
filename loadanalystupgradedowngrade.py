@@ -58,15 +58,22 @@ def get_db_config():
             logging.error(f"Failed to get secrets from AWS: {e}")
             raise
 
-    # Local mode - use environment variables
-    logging.info("Using local database configuration from environment variables")
-    return {
-        "host":   os.environ.get("DB_HOST", "localhost"),
-        "port":   int(os.environ.get("DB_PORT", 5432)),
-        "user":   os.environ.get("DB_USER", "postgres"),
-        "password": os.environ.get("DB_PASSWORD", "password"),
-        "dbname": os.environ.get("DB_NAME", "stocks")
-    }
+    # Local mode - use Unix socket if no DB_HOST set
+    if os.environ.get("DB_HOST"):
+        logging.info("Using local database configuration from environment variables")
+        return {
+            "host":   os.environ.get("DB_HOST", "localhost"),
+            "port":   int(os.environ.get("DB_PORT", 5432)),
+            "user":   os.environ.get("DB_USER", "postgres"),
+            "password": os.environ.get("DB_PASSWORD", "password"),
+            "dbname": os.environ.get("DB_NAME", "stocks")
+        }
+    else:
+        # Use Unix socket connection (works locally without password)
+        logging.info("Using Unix socket connection")
+        return {
+            "dbname": os.environ.get("DB_NAME", "stocks")
+        }
 
 def create_table(cur):
     logging.info("Recreating analyst_upgrade_downgrade table…")
@@ -168,11 +175,7 @@ def load_analyst_actions(symbols, cur, conn):
 def lambda_handler(event, context):
     log_mem("startup")
     cfg  = get_db_config()
-    conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
-        dbname=cfg["dbname"]
-    )
+    conn = psycopg2.connect(**cfg)
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 

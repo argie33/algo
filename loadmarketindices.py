@@ -39,19 +39,27 @@ MARKET_INDICES = {
 
 def get_db_config() -> Dict:
     """Get database configuration"""
-    try:
-        import boto3
-        secret_str = boto3.client("secretsmanager") \
-                         .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
-        sec = json.loads(secret_str)
-        return {
-            "host": sec["host"],
-            "port": int(sec.get("port", 5432)),
-            "user": sec["username"],
-            "password": sec["password"],
-            "dbname": sec["dbname"]
-        }
-    except Exception:
+    db_secret_arn = os.environ.get("DB_SECRET_ARN")
+
+    # Try AWS Secrets Manager
+    if db_secret_arn:
+        try:
+            import boto3
+            secret_str = boto3.client("secretsmanager") \
+                             .get_secret_value(SecretId=db_secret_arn)["SecretString"]
+            sec = json.loads(secret_str)
+            return {
+                "host": sec["host"],
+                "port": int(sec.get("port", 5432)),
+                "user": sec["username"],
+                "password": sec["password"],
+                "dbname": sec["dbname"]
+            }
+        except Exception as e:
+            logging.warning(f"Failed to get AWS secrets: {e}")
+
+    # Try local with environment variables
+    if os.environ.get("DB_HOST"):
         return {
             "host": os.environ.get("DB_HOST", "localhost"),
             "port": int(os.environ.get("DB_PORT", 5432)),
@@ -59,6 +67,12 @@ def get_db_config() -> Dict:
             "password": os.environ.get("DB_PASSWORD", ""),
             "dbname": os.environ.get("DB_NAME", "stocks")
         }
+
+    # Fall back to Unix socket
+    logging.info("Using Unix socket connection")
+    return {
+        "dbname": os.environ.get("DB_NAME", "stocks")
+    }
 
 def safe_float(value, default=None):
     """Convert to float safely"""
@@ -97,11 +111,7 @@ def load_index_data(symbol: str, name: str, period: str = "5y") -> Optional[int]
 
         # Connect to database
         cfg = get_db_config()
-        conn = psycopg2.connect(
-            host=cfg["host"], port=cfg["port"],
-            user=cfg["user"], password=cfg["password"],
-            dbname=cfg["dbname"]
-        )
+        conn = psycopg2.connect(**cfg)
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Insert historical data

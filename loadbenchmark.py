@@ -35,15 +35,22 @@ BENCHMARK_SYMBOLS = ['SPY', 'QQQ', 'IWM', 'DIA', 'VTI']
 def get_db_connection():
     """Create PostgreSQL database connection"""
     try:
-        conn = psycopg2.connect(
-            host=DB_HOST,
-            port=DB_PORT,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            database=DB_NAME
-        )
-        logger.info(f"✅ Connected to database: {DB_NAME}")
-        return conn
+        # Try Unix socket first (works locally without password)
+        try:
+            conn = psycopg2.connect(database=DB_NAME)
+            logger.info(f"✅ Connected to database: {DB_NAME} (socket)")
+            return conn
+        except psycopg2.Error:
+            # Fall back to TCP/IP with credentials
+            conn = psycopg2.connect(
+                host=DB_HOST,
+                port=DB_PORT,
+                user=DB_USER,
+                password=DB_PASSWORD,
+                database=DB_NAME
+            )
+            logger.info(f"✅ Connected to database: {DB_NAME}")
+            return conn
     except psycopg2.Error as e:
         logger.error(f"❌ Database connection failed: {e}")
         sys.exit(1)
@@ -77,14 +84,15 @@ def insert_benchmark_data(conn, symbol, hist):
         # Prepare data for insertion
         records = []
         for date, row in hist.iterrows():
+            close_price = float(row['Close']) if pd.notna(row['Close']) else None
             records.append((
                 symbol,  # symbol
                 date.date(),  # date
                 float(row['Open']) if pd.notna(row['Open']) else None,  # open
                 float(row['High']) if pd.notna(row['High']) else None,  # high
                 float(row['Low']) if pd.notna(row['Low']) else None,    # low
-                float(row['Close']) if pd.notna(row['Close']) else None,  # close
-                None,  # adj_close
+                close_price,  # close
+                close_price,  # adj_close (use close for benchmarks)
                 int(row['Volume']) if pd.notna(row['Volume']) else 0,    # volume
                 None,  # dividends
                 None   # stock_splits

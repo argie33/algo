@@ -1090,7 +1090,7 @@ if __name__ == "__main__":
             else:
                 failed.append(symbol)
 
-            time.sleep(3.0)  # Rate limiting - yfinance free tier ~20 req/min MAX
+            time.sleep(1.0)  # Rate limiting - reduced to 1s for faster loading
 
         except Exception as e:
             logging.error(f"Failed {symbol}: {e}")
