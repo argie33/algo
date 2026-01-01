@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# Trigger: 20260101_102914 - Load all data to AWS RDS
 # Daily price data loader - fetches OHLCV data for all symbols
 # CRITICAL: Database has 0 price records. Must run to populate price_daily table for all pages/APIs
 # TRIGGER: 2025-10-27 - Loading price history for volatility, beta, Sharpe ratio calculations

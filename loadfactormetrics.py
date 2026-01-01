@@ -259,51 +259,30 @@ def calculate_roe_stability_index(cursor, symbol: str, conn=None) -> Optional[fl
         # Get ROE from last 4 fiscal years (from key_metrics historical data)
         # We calculate ROE from annual statements: Net Income / Shareholders Equity
         temp_cur.execute("""
-            SELECT date,
-                   MAX(CASE WHEN item_name = 'Total Assets' THEN value ELSE NULL END) as total_assets,
-                   MAX(CASE WHEN item_name = 'Total Liabilities' THEN value ELSE NULL END) as total_liabilities
-            FROM annual_balance_sheet_pivot
+            SELECT net_income, total_assets, total_liabilities
+            FROM annual_balance_sheet
             WHERE symbol = %s
-            GROUP BY date
-            ORDER BY date DESC
+            ORDER BY fiscal_year DESC
             LIMIT 4
         """, (symbol,))
 
-        balance_data = temp_cur.fetchall()
-
-        # Get net income from income statement
-        temp_cur.execute("""
-            SELECT date,
-                   MAX(CASE WHEN item_name = 'Net Income' THEN value ELSE NULL END) as net_income
-            FROM annual_income_statement_pivot
-            WHERE symbol = %s
-            GROUP BY date
-            ORDER BY date DESC
-            LIMIT 4
-        """, (symbol,))
-
-        income_data = temp_cur.fetchall()
+        annual_data = temp_cur.fetchall()
 
         # Close temp cursor if it was a separate one
         if conn and temp_cur != cursor:
             temp_cur.close()
 
-        if not balance_data or len(balance_data) < 2 or not income_data or len(income_data) < 2:
+        if not annual_data or len(annual_data) < 2:
             return None
-
-        # Merge balance sheet and income statement data by date
-        # Create a dict of income by date
-        income_by_date = {row[0]: row[1] for row in income_data}
 
         # Calculate ROE for each year: Net Income / Shareholders Equity
         # Shareholders Equity = Total Assets - Total Liabilities
         roe_values = []
 
-        for row in balance_data:
-            date = row[0]
+        for row in annual_data:
+            net_income = row[0]
             total_assets = row[1]
             total_liabilities = row[2]
-            net_income = income_by_date.get(date)
 
             if net_income is not None and total_assets is not None and total_liabilities is not None:
                 equity = total_assets - total_liabilities
@@ -371,7 +350,7 @@ def get_quarterly_statement_growth(cursor, symbol: str) -> Dict:
                    MAX(CASE WHEN item_name = 'Total Revenue' THEN value ELSE NULL END) as revenue,
                    MAX(CASE WHEN item_name = 'Net Income' THEN value ELSE NULL END) as net_income,
                    MAX(CASE WHEN item_name = 'Operating Income' THEN value ELSE NULL END) as operating_income
-            FROM quarterly_income_statement_pivot
+            FROM quarterly_income_statement
             WHERE symbol = %s
             GROUP BY date
             ORDER BY date DESC
@@ -487,7 +466,7 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
                    MAX(CASE WHEN item_name = 'Total Revenue' THEN value ELSE NULL END) as revenue,
                    MAX(CASE WHEN item_name = 'EBIT' THEN value ELSE NULL END) as operating_income,
                    MAX(CASE WHEN item_name = 'Net Income' THEN value ELSE NULL END) as net_income
-            FROM annual_income_statement_pivot
+            FROM annual_income_statement
             WHERE symbol = %s
             GROUP BY date
             ORDER BY date DESC
@@ -555,7 +534,7 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
         cursor.execute("""
             SELECT date,
                    MAX(CASE WHEN item_name = 'Free Cash Flow' THEN value ELSE NULL END) as fcf
-            FROM annual_cash_flow_pivot
+            FROM annual_cash_flow
             WHERE symbol = %s
             GROUP BY date
             ORDER BY date DESC
@@ -579,7 +558,7 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
         cursor.execute("""
             SELECT date,
                    MAX(CASE WHEN item_name = 'Operating Cash Flow' THEN value ELSE NULL END) as ocf
-            FROM annual_cash_flow_pivot
+            FROM annual_cash_flow
             WHERE symbol = %s
             GROUP BY date
             ORDER BY date DESC
@@ -603,7 +582,7 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
         cursor.execute("""
             SELECT date,
                    MAX(CASE WHEN item_name = 'Total Assets' THEN value ELSE NULL END) as total_assets
-            FROM annual_balance_sheet_pivot
+            FROM annual_balance_sheet
             WHERE symbol = %s
             GROUP BY date
             ORDER BY date DESC
@@ -643,7 +622,7 @@ def get_earnings_surprise_metrics(cursor, symbol: str) -> Dict:
                 DATE_PART('YEAR', qis.date::date)::int as year,
                 DATE_PART('QUARTER', qis.date::date)::int as quarter,
                 qis.value::float as actual_eps
-            FROM quarterly_income_statement_pivot qis
+            FROM quarterly_income_statement qis
             WHERE qis.symbol = %s
             AND qis.item_name = 'Diluted EPS'
             AND qis.value IS NOT NULL
@@ -1450,7 +1429,7 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
     # These are companies with annual income statements but missing from key_metrics table
     cursor.execute("""
         SELECT DISTINCT symbol
-        FROM annual_income_statement_pivot ais
+        FROM annual_income_statement ais
         WHERE symbol = ANY(%s)
         AND NOT EXISTS (SELECT 1 FROM growth_metrics WHERE symbol = ais.symbol)
         AND NOT EXISTS (SELECT 1 FROM key_metrics WHERE ticker = ais.symbol)
