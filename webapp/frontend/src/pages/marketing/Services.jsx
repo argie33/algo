@@ -4,6 +4,8 @@ import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
 import FeatureGrid from '../../components/marketing/FeatureGrid';
 import CTASection from '../../components/marketing/CTASection';
+import PromoBanner from '../../components/marketing/PromoBanner';
+import { Rocket as RocketIcon } from '@mui/icons-material';
 import {
   Star as StarIcon,
   Event as EventIcon,
@@ -173,17 +175,17 @@ const Services = () => {
               {
                 title: 'Earnings Intel',
                 desc: 'Real-time estimate tracking',
-                image: 'https://images.unsplash.com/photo-1535320903710-d4fdf713ebcb?w=600&h=400&fit=crop'
+                image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=600&h=400&fit=crop'
               },
               {
                 title: 'Sentiment Data',
                 desc: 'Market psychology analysis',
-                image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a9?w=600&h=400&fit=crop'
+                image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=600&h=400&fit=crop'
               },
               {
                 title: 'Technical Analysis',
                 desc: 'Price action and signals',
-                image: 'https://images.unsplash.com/photo-1611432579699-484f7990f17a?w=600&h=400&fit=crop'
+                image: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=600&h=400&fit=crop'
               },
             ].map((service, idx) => (
               <Grid item xs={12} sm={6} md={6} lg={3} key={idx}>
@@ -450,6 +452,15 @@ const Services = () => {
           </Grid>
         </Container>
       </Box>
+
+      {/* Promotional Banner */}
+      <PromoBanner
+        icon={<RocketIcon sx={{ color: theme.palette.primary.main }} />}
+        title="Ready to Get Started?"
+        subtitle="Explore our AI-powered analysis platform and start making informed investment decisions today."
+        primaryCTA={{ label: 'Launch Platform', href: '/app/market' }}
+        secondaryCTA={{ label: 'Schedule Demo', href: '/become-client' }}
+      />
 
       {/* CTA Section */}
       <Box sx={{ mx: { xs: 2, md: 4 }, mb: 6 }}>

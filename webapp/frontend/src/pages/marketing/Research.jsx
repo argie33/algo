@@ -4,6 +4,8 @@ import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
 import IconCardGrid from '../../components/marketing/IconCardGrid';
 import CTASection from '../../components/marketing/CTASection';
+import PromoBanner from '../../components/marketing/PromoBanner';
+import { Lightbulb as LightbulbIcon } from '@mui/icons-material';
 
 const Research = () => {
   const theme = useTheme();
@@ -253,6 +255,15 @@ const Research = () => {
           ))}
         </Grid>
       </Container>
+
+      {/* Promotional Banner */}
+      <PromoBanner
+        icon={<LightbulbIcon sx={{ color: theme.palette.primary.main }} />}
+        title="Unlock Market Intelligence"
+        subtitle="Access our AI-powered research and analysis tools to make smarter investment decisions."
+        primaryCTA={{ label: 'Try Platform Free', href: '/app/market' }}
+        secondaryCTA={{ label: 'Contact Sales', href: '/become-client' }}
+      />
 
       {/* CTA */}
       <Box sx={{ mx: { xs: 2, md: 4 }, mb: 6 }}>

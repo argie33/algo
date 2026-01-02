@@ -438,8 +438,6 @@ export const getFactorFieldLabel = (fieldName) => {
 
     // Stability
     volatility_12m_pct: 'Volatility (12M)',
-    downside_volatility_pct: 'Downside Volatility',
-    downside_volatility: 'Downside Volatility',
     max_drawdown_52w_pct: 'Max Drawdown (52W)',
     beta: 'Beta',
     volume_consistency: 'Volume Consistency',
