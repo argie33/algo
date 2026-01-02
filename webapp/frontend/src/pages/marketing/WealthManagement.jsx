@@ -14,32 +14,26 @@ const WealthManagement = () => {
     {
       title: 'Portfolio Optimization',
       description: 'Use AI-powered analysis to optimize asset allocation and sector rotation. Make data-driven decisions for your entire portfolio.',
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
     },
     {
       title: 'Risk Management',
       description: 'Identify risks before they materialize. Our AI reveals hidden correlations and warning signs across your holdings.',
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
     },
     {
       title: 'Performance Tracking',
       description: 'Monitor portfolio performance against benchmarks. Track which analysis dimensions are driving your returns.',
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
     },
     {
       title: 'Sector Rotation Intelligence',
       description: 'Identify emerging sector trends and rotation patterns. Shift allocations with confidence based on AI-powered insights.',
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
     },
     {
       title: 'Economic Impact Analysis',
       description: 'Understand how macro trends and economic changes impact your portfolio. Prepare for market shifts before they happen.',
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
     },
     {
       title: 'Hedging Strategies',
       description: 'Implement intelligent hedging strategies to protect your wealth. Use AI to identify optimal hedge instruments and timing.',
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
     },
   ];
 
@@ -79,7 +73,7 @@ const WealthManagement = () => {
             </Grid>
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="https://picsum.photos/800/500?random="
+                src="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=800&h=500&fit=crop&auto=format&q=80"
                 alt="Wealth Management"
                 height={{ xs: '300px', md: '450px' }}
               />
@@ -132,21 +126,6 @@ const WealthManagement = () => {
                   },
                 }}
               >
-                {/* Card Image */}
-                <Box
-                  component="img"
-                  src={feature.image}
-                  alt={feature.title}
-                  sx={{
-                    width: '100%',
-                    height: '200px',
-                    objectFit: 'cover',
-                    display: 'block',
-                  }}
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                  }}
-                />
                 <CardContent>
                   <Typography
                     variant="h6"

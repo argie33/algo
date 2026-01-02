@@ -448,8 +448,7 @@ async function queryScores(options = {}) {
     sortBy = 'composite_score',
     sortOrder = 'DESC',
     symbols = null,
-    singleSymbol = null,
-    filter = null // for filtering by composite_score IS NOT NULL, etc
+    singleSymbol = null
   } = options;
 
   // Validate and sanitize parameters
@@ -485,11 +484,6 @@ async function queryScores(options = {}) {
     whereConditions.push(`ss.symbol = $${paramIndex}`);
     queryParams.push(singleSymbol.toUpperCase());
     paramIndex++;
-  }
-
-  // Add custom filter (e.g., for /top endpoint)
-  if (filter) {
-    whereConditions.push(filter);
   }
 
   const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';

@@ -456,6 +456,7 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
         "ocf_growth_yoy": None,
         "net_income_growth_yoy": None,
         "asset_growth_yoy": None,
+        "revenue_growth_yoy": None,
     }
 
     try:
@@ -1378,6 +1379,12 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
 
 def load_growth_metrics(conn, cursor, symbols: List[str]):
     """Load growth metrics for all symbols"""
+    # Recover from any aborted transactions
+    try:
+        conn.rollback()
+    except:
+        pass
+
     logging.info("Loading growth metrics...")
 
     growth_rows = []

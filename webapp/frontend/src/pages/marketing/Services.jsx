@@ -35,7 +35,6 @@ const Services = () => {
         'Historical score trends and performance tracking',
       ],
       dataTypes: ['Fundamentals', 'Technicals', 'Sentiment', 'Valuations'],
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
       ideal: 'Portfolio managers, active traders, value investors',
     },
     {
@@ -53,7 +52,6 @@ const Services = () => {
         'Management guidance analysis',
       ],
       dataTypes: ['Financial Data', 'Analyst Estimates', 'Historical Patterns', 'Macro Context'],
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
       ideal: 'Fundamental analysts, earnings-focused traders, fund managers',
     },
     {
@@ -71,7 +69,6 @@ const Services = () => {
         'Positioning divergence analysis',
       ],
       dataTypes: ['Analyst Sentiment', 'Positioning Data', 'Market Psychology', 'Alternative Signals'],
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
       ideal: 'Contrarian investors, sentiment-driven traders, macro strategists',
     },
     {
@@ -89,7 +86,6 @@ const Services = () => {
         'Price pattern recognition',
       ],
       dataTypes: ['Price Data', 'Volume', 'Technical Patterns', 'Momentum Indicators'],
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
       ideal: 'Active traders, swing traders, day traders, technical analysts',
     },
     {
@@ -107,7 +103,6 @@ const Services = () => {
         'Macro-to-sector mapping',
       ],
       dataTypes: ['Market Data', 'Economic Indicators', 'Industry Data', 'Macro Trends'],
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
       ideal: 'Portfolio managers, asset allocators, strategic investors',
     },
     {
@@ -125,7 +120,6 @@ const Services = () => {
         'Cross-asset correlations',
       ],
       dataTypes: ['Economic Data', 'Fed Signals', 'Policy Analysis', 'Market Data'],
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
       ideal: 'Macro strategists, portfolio managers, economic analysts',
     },
     {
@@ -143,7 +137,6 @@ const Services = () => {
         'Market regime identification',
       ],
       dataTypes: ['Market Data', 'Breadth Data', 'Volatility Metrics', 'Performance Data'],
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
       ideal: 'Portfolio managers, risk managers, market strategists',
     },
     {
@@ -161,7 +154,6 @@ const Services = () => {
         'Max drawdown analysis',
       ],
       dataTypes: ['Portfolio Data', 'Options Data', 'Risk Metrics', 'Correlations'],
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
       ideal: 'Risk managers, wealth managers, institutional investors',
     },
   ];
@@ -446,25 +438,6 @@ const Services = () => {
                     </Typography>
                   </Box>
                 </Grid>
-
-                {/* Right Image */}
-                <Grid item xs={12} md={6}>
-                  <Box
-                    component="img"
-                    src={dimension.image}
-                    alt={dimension.title}
-                    sx={{
-                      width: '100%',
-                      height: 350,
-                      objectFit: 'cover',
-                      border: `1px solid ${theme.palette.divider}`,
-                      borderRadius: '0px',
-                    }}
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                    }}
-                  />
-                </Grid>
               </Grid>
             </Box>
           ))}
@@ -604,17 +577,14 @@ const Services = () => {
               {
                 title: 'Multi-Dimensional Stock Research',
                 desc: 'AI-powered composite analysis across fundamentals, technicals, sentiment, and macro',
-                image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
               },
               {
                 title: 'Research Data Dashboards',
                 desc: 'Customizable dashboards for institutions, advisors, and active investors',
-                image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
               },
               {
                 title: 'Real-Time Research Updates',
                 desc: 'Continuous data processing and AI analysis for actionable market intelligence',
-                image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
               },
             ].map((item, idx) => (
               <Grid item xs={12} md={4} key={idx}>
@@ -631,20 +601,6 @@ const Services = () => {
                     },
                   }}
                 >
-                  <Box
-                    component="img"
-                    src={item.image}
-                    alt={item.title}
-                    sx={{
-                      width: '100%',
-                      height: 280,
-                      objectFit: 'cover',
-                      display: 'block',
-                    }}
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                    }}
-                  />
                   <Box
                     sx={{
                       p: 3,
@@ -771,7 +727,7 @@ const Services = () => {
           {/* Left: Image */}
           <Box
             sx={{
-              backgroundImage: 'url(https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop)',
+              backgroundImage: 'url(https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=500&fit=crop&auto=format&q=80)',
               backgroundSize: 'cover',
               backgroundPosition: 'center',
               minHeight: { xs: '300px', md: '500px' },
@@ -951,7 +907,6 @@ const Services = () => {
                 ],
                 impact: 'Better risk-adjusted returns through data-driven insights',
                 icon: '📊',
-                image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
               },
               {
                 title: 'Wealth Advisors & RIAs',
@@ -964,7 +919,6 @@ const Services = () => {
                 ],
                 impact: 'Enhanced client outcomes and streamlined research workflow',
                 icon: '💼',
-                image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
               },
               {
                 title: 'Active Traders & Investors',
@@ -977,7 +931,6 @@ const Services = () => {
                 ],
                 impact: 'Faster decision-making with better timing and accuracy',
                 icon: '⚡',
-                image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
               },
             ].map((useCase, idx) => (
               <Grid item xs={12} md={4} key={idx}>
@@ -995,20 +948,6 @@ const Services = () => {
                     },
                   }}
                 >
-                  <Box
-                    component="img"
-                    src={useCase.image}
-                    alt={useCase.title}
-                    sx={{
-                      width: '100%',
-                      height: 200,
-                      objectFit: 'cover',
-                      display: 'block',
-                    }}
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                    }}
-                  />
                   <CardContent sx={{ p: 4 }}>
                     <Box sx={{ fontSize: '2.5rem', mb: 2 }}>
                       {useCase.icon}

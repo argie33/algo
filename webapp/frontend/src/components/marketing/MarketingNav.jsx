@@ -52,7 +52,6 @@ const MarketingNav = () => {
     },
     {
       label: 'Services',
-      path: '/services',
       submenu: [
         { label: 'Research & Insights', path: '/research-insights' },
         { label: 'Investment Tools', path: '/investment-tools' },
@@ -88,7 +87,7 @@ const MarketingNav = () => {
         </Box>
         <List>
           {navItems.map((item) => (
-            <React.Fragment key={item.path}>
+            <React.Fragment key={item.label}>
               <ListItem disablePadding>
                 <ListItemButton
                   selected={isActive(item.path)}

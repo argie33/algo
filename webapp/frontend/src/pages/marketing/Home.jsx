@@ -736,7 +736,6 @@ const Home = () => {
                 excerpt: 'Our AI models detected a significant shift in technical momentum for mega-cap tech stocks this week. Analysis of sentiment data and positioning metrics suggests institutional accumulation...',
                 tags: ['Technical Analysis', 'Sector Rotation', 'AI Signals'],
                 tickers: ['AAPL', 'MSFT', 'GOOGL', 'NVDA'],
-                image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
               },
               {
                 title: 'Earnings Season Preview: 15 Stocks With High Surprise Probability',
@@ -745,7 +744,6 @@ const Home = () => {
                 excerpt: 'With earnings season approaching, our AI scoring system has identified 15 stocks with high probability of positive earnings surprises based on revision trends and analyst positioning...',
                 tags: ['Earnings', 'Forecasts', 'Stock Picks'],
                 tickers: ['AMZN', 'CRM', 'ASML', 'META'],
-                image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
               },
               {
                 title: 'Sentiment Divergence Creating Opportunity in Energy Sector',
@@ -754,7 +752,6 @@ const Home = () => {
                 excerpt: 'Despite bearish headlines, our sentiment tracking shows institutional accumulation in select energy names. This divergence between narrative and actual positioning suggests contrarian opportunity...',
                 tags: ['Sentiment', 'Contrarian', 'Energy'],
                 tickers: ['XLE', 'XOM', 'CVX', 'MPC'],
-                image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
               },
             ].map((insight, idx) => (
               <Grid item xs={12} md={4} key={idx}>
@@ -773,20 +770,6 @@ const Home = () => {
                     },
                   }}
                 >
-                  <Box
-                    component="img"
-                    src={insight.image}
-                    alt={insight.title}
-                    sx={{
-                      width: '100%',
-                      height: 200,
-                      objectFit: 'cover',
-                      display: 'block',
-                    }}
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                    }}
-                  />
                   <CardContent sx={{ p: 3 }}>
                     <Typography
                       variant="body2"
@@ -896,19 +879,16 @@ const Home = () => {
                 name: 'Robert Chen',
                 role: 'Portfolio Manager, Wealth Advisors LLC',
                 quote: 'Their AI scoring system has fundamentally changed how we evaluate opportunities. We\'re seeing better risk-adjusted returns and making faster, more confident investment decisions.',
-                image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
               },
               {
                 name: 'Jennifer Williams',
                 role: 'Active Trader, Independent',
                 quote: 'The multi-dimensional research is exceptional. Fundamentals, technicals, and sentiment all work together to confirm trading opportunities. No other research platform integrates data like this.',
-                image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
               },
               {
                 name: 'Marcus Johnson',
                 role: 'Fund Manager, Macro Research Partners',
                 quote: 'Bullseye\'s combination of traditional research expertise with AI-powered analysis is sophisticated and unique. It\'s become essential infrastructure for our entire research operation.',
-                image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
               },
             ].map((testimonial, idx) => (
               <Grid item xs={12} sm={6} md={4} key={idx}>
@@ -941,20 +921,6 @@ const Home = () => {
                     "{testimonial.quote}"
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 2, pt: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
-                    <Box
-                      component="img"
-                      src={testimonial.image}
-                      alt={testimonial.name}
-                      sx={{
-                        width: 50,
-                        height: 50,
-                        borderRadius: '50%',
-                        objectFit: 'cover',
-                      }}
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                      }}
-                    />
                     <Box>
                       <Typography
                         sx={{

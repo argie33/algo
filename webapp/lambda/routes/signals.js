@@ -287,7 +287,9 @@ router.get("/stocks", async (req, res) => {
     const countQuery = `SELECT COUNT(*) as total FROM ${tableName} bsd ${whereClause}`;
     let totalCount = 0;
     try {
-      const countResult = await query(countQuery, queryParams.slice(0, paramIndex - 2)); // exclude limit and offset
+      // Pass ONLY the WHERE clause parameters (not limit/offset which are at the end)
+      const countParams = queryParams.slice(0, paramIndex - 1);
+      const countResult = await query(countQuery, countParams);
       totalCount = parseInt(countResult.rows[0]?.total || 0);
     } catch (e) {
       console.warn("Failed to get signals total count:", e.message);
@@ -532,7 +534,9 @@ router.get("/etf", async (req, res) => {
     const countQuery = `SELECT COUNT(*) as total FROM ${tableName} bsd ${whereClause}`;
     let totalCount = 0;
     try {
-      const countResult = await query(countQuery, queryParams.slice(0, paramIndex - 2)); // exclude limit and offset
+      // Pass ONLY the WHERE clause parameters (not limit/offset which are at the end)
+      const countParams = queryParams.slice(0, paramIndex - 1);
+      const countResult = await query(countQuery, countParams);
       totalCount = parseInt(countResult.rows[0]?.total || 0);
     } catch (e) {
       console.warn("Failed to get ETF signals total count:", e.message);

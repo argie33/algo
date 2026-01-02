@@ -2706,8 +2706,8 @@ router.get("/sentiment", async (req, res) => {
             bullish,
             bearish,
             neutral,
-            ROUND(CAST(bullish AS decimal) / (bullish + bearish + neutral) * 100, 2) as pct_bullish,
-            ROUND(CAST(bearish AS decimal) / (bullish + bearish + neutral) * 100, 2) as pct_bearish,
+            ROUND(CAST(bullish AS decimal) / CAST((bullish + bearish + neutral) AS decimal) * 100, 2) as pct_bullish,
+            ROUND(CAST(bearish AS decimal) / CAST((bullish + bearish + neutral) AS decimal) * 100, 2) as pct_bearish,
             date,
             timestamp
           FROM aaii_sentiment
@@ -2743,7 +2743,7 @@ router.get("/sentiment", async (req, res) => {
             max_val as max,
             date,
             timestamp
-          FROM naaim_exposure
+          FROM naaim
           ORDER BY date DESC
           LIMIT 252
         `);
