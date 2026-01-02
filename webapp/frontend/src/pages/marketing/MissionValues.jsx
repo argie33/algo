@@ -43,7 +43,7 @@ const MissionValues = () => {
                   mb: 2,
                 }}
               >
-                To give every investor access to the same research quality that Wall Street insiders pay millions for. No black boxes. No gatekeeping. Just institutional-grade intelligence powered by AI.
+                The best edge in investing isn't secrets. It's better analysis. Wall Street spends millions on research you can't access. We built Bullseye so you don't have to. Same institutional data. Same AI sophistication. Same competitive advantage - without the premium pricing or gatekeeping.
               </Typography>
               <Typography
                 variant="body1"
@@ -53,14 +53,14 @@ const MissionValues = () => {
                   lineHeight: 1.8,
                 }}
               >
-                We level the playing field by combining 10+ years of market data, advanced machine learning, and transparent methodology. Individual traders should compete on skill, not access.
+                The game isn't rigged in your favor, but it doesn't have to be rigged against you. We combine 10+ years of market data, advanced machine learning, and transparent methodology to show you what institutional investors see. Compete on skill. On execution. On discipline. Not on access.
               </Typography>
             </Grid>
 
             {/* Right Image */}
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="https://picsum.photos/800/500?random="
+                src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=700&h=500&fit=crop"
                 alt="Our Mission"
                 height={{ xs: '300px', md: '450px' }}
               />

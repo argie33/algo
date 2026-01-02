@@ -91,7 +91,7 @@ const About = () => {
             lineHeight: 1.8,
           }}
         >
-          Bullseye Financial is a fintech platform dedicated to democratizing access to institutional-grade market intelligence. We combine cutting-edge artificial intelligence with real-time market data to provide investors with the tools they need to make informed decisions.
+          Bullseye Financial is built by finance and technology experts who got tired of watching the same information available to Wall Street get hidden from everyone else. We didn't just build another charting tool or sentiment aggregator. We built a research platform that does what professional investors actually need: connects the dots between fundamentals, technicals, sentiment, earnings, economic trends, and positioning.
         </Typography>
         <Typography
           variant="body1"
@@ -102,7 +102,18 @@ const About = () => {
             lineHeight: 1.8,
           }}
         >
-          Today, Bullseye serves thousands of professional investors and traders worldwide, providing them with AI-powered analysis across 6+ research dimensions. We're committed to transparency, accuracy, and innovation in everything we do.
+          Our platform analyzes 5,300+ stocks across 6 research dimensions in real-time. We integrate 10+ years of historical market data with live feeds from earnings, economic indicators, sentiment sources, and technical analysis. Our AI models learn which patterns actually predict future moves. No black boxes. No fluff. Just institutional-grade analysis accessible to every investor.
+        </Typography>
+        <Typography
+          variant="body1"
+          sx={{
+            fontSize: '1.05rem',
+            color: theme.palette.text.secondary,
+            mb: 3,
+            lineHeight: 1.8,
+          }}
+        >
+          Today, thousands of professional investors, traders, and advisors use Bullseye to find better opportunities, manage risk more intelligently, and make faster decisions. We're committed to staying focused on what matters: helping you make better investment decisions faster than the crowd.
         </Typography>
       </Container>
 
