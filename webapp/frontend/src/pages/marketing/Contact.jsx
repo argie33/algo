@@ -3,6 +3,7 @@ import { Container, Box, Typography, Grid, Card, CardContent, useTheme, alpha } 
 import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
 import ContactForm from '../../components/marketing/ContactForm';
+import ImagePlaceholder from '../../components/marketing/ImagePlaceholder';
 import { Email as EmailIcon, Phone as PhoneIcon, LocationOn as LocationOnIcon, Business as BusinessIcon, School as SchoolIcon } from '@mui/icons-material';
 
 const Contact = () => {
@@ -63,6 +64,17 @@ const Contact = () => {
         title="Contact Our Research Team"
         subtitle="Interested in our institutional-grade research solutions? Have questions about our methodology or data? Want to discuss a custom research partnership? Get in touch with our team."
       />
+
+      {/* Hero Image Section */}
+      <Box sx={{ py: { xs: 4, md: 6 }, backgroundColor: alpha(theme.palette.primary.main, 0.02) }}>
+        <Container maxWidth="lg">
+          <ImagePlaceholder
+            src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=1200&h=500&fit=crop&auto=format&q=80"
+            alt="Professional team in discussion"
+            height={{ xs: '250px', md: '400px' }}
+          />
+        </Container>
+      </Box>
 
       {/* Contact Departments Section */}
       <Container maxWidth="lg" sx={{ py: { xs: 6, md: 8 } }}>
