@@ -1144,4 +1144,4 @@ if __name__ == "__main__":
     
     cur.close()
     conn.close()
-    logging.info("Database connection closed")
+    logging.info("Database connection closed")# BATCH 1 FOUNDATION: analyst_sentiment_analysis table creation

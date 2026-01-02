@@ -2029,3 +2029,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+# BATCH 1 FOUNDATION: momentum_metrics table creation
