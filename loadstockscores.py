@@ -4289,6 +4289,13 @@ def main():
             except Exception as e:
                 logger.warning(f"⚠️  key_metrics columns: {e}")
 
+            # Add missing column to stock_scores if it doesn't exist
+            try:
+                cursor.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS company_name VARCHAR(255)")
+                logger.info("✅ stock_scores company_name column ready")
+            except Exception as e:
+                logger.warning(f"⚠️  stock_scores company_name column: {e}")
+
             conn.commit()
             cursor.close()
         except Exception as e:
