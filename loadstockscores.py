@@ -1733,32 +1733,22 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         analyst_record_count = 0
         try:
             cur.execute("""
-                SELECT strong_buy_count, buy_count, hold_count, sell_count, strong_sell_count, total_analysts, recommendation_mean
+                SELECT bullish_count, neutral_count, bearish_count, total_analysts
                 FROM analyst_sentiment_analysis
                 WHERE symbol = %s
-                ORDER BY date DESC
+                ORDER BY date_recorded DESC
                 LIMIT 1
             """, (symbol,))
             analyst_rec = cur.fetchone()
             if analyst_rec:
                 # Calculate sentiment score from rating distribution
-                strong_buy = int(analyst_rec[0]) if analyst_rec[0] is not None else 0
-                buy = int(analyst_rec[1]) if analyst_rec[1] is not None else 0
-                hold = int(analyst_rec[2]) if analyst_rec[2] is not None else 0
-                sell = int(analyst_rec[3]) if analyst_rec[3] is not None else 0
-                strong_sell = int(analyst_rec[4]) if analyst_rec[4] is not None else 0
-                total = int(analyst_rec[5]) if analyst_rec[5] is not None else 0
-                avg_rating = float(analyst_rec[6]) if analyst_rec[6] is not None else None
+                bullish = int(analyst_rec[0]) if analyst_rec[0] is not None else 0
+                neutral = int(analyst_rec[1]) if analyst_rec[1] is not None else 0
+                bearish = int(analyst_rec[2]) if analyst_rec[2] is not None else 0
+                total = int(analyst_rec[3]) if analyst_rec[3] is not None else 0
 
-                # Use recommendation_mean if available (1=Strong Buy, 5=Strong Sell)
-                # Convert to 0-100 scale: 1->100, 5->0
-                if avg_rating is not None:
-                    analyst_score = float(((5 - avg_rating) / 4) * 100)  # Scale 1-5 to 100-0
-                    analyst_record_count = total
-                elif total > 0:
-                    # Fallback: calculate from distribution
-                    bullish = strong_buy + buy
-                    bearish = strong_sell + sell
+                # Calculate from bullish/bearish distribution
+                if total > 0:
                     analyst_score = float(((bullish - bearish) / total) * 50 + 50)  # Scale to 0-100
                     analyst_record_count = total
                 else:
@@ -1766,7 +1756,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                     analyst_record_count = 0
         except psycopg2.Error as e:
             conn.rollback()
-            logger.error(f"❌ ANALYST RECOMMENDATIONS QUERY FAILED for {symbol}: {str(e)[:100]}")
+            logger.debug(f"⚠️ ANALYST SENTIMENT QUERY SKIPPED for {symbol}: {str(e)[:100]}")
             analyst_score = None
             analyst_record_count = 0
 
@@ -3000,15 +2990,17 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             # ROIC: 14 pts (36.8%) - PRIMARY capital efficiency metric, increased from 8
             if stock_roic is not None:
                 roic_percentile = calculate_z_score_normalized(stock_roic, quality_metrics.get('roic', []))
-                profitability_score += (roic_percentile / 100) * 14
-                profitability_weight_used += 14
+                if roic_percentile is not None:
+                    profitability_score += (roic_percentile / 100) * 14
+                    profitability_weight_used += 14
             profitability_weight_max += 14
 
             # ROE: 10 pts (26.3%) - decreased from 15 to prioritize ROIC
             if stock_roe is not None:
                 roe_percentile = calculate_z_score_normalized(stock_roe, quality_metrics.get('roe', []))
-                profitability_score += (roe_percentile / 100) * 10
-                profitability_weight_used += 10
+                if roe_percentile is not None:
+                    profitability_score += (roe_percentile / 100) * 10
+                    profitability_weight_used += 10
             profitability_weight_max += 10
 
             # Operating Margin: 6 pts (15.8%) - NEW: operational execution quality
