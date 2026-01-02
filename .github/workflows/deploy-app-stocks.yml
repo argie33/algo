@@ -35,7 +35,8 @@ permissions:
 
 env:
   AWS_REGION: us-east-1
-  AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+  AWS_ACCOUNT_ID: '626216981288'
+  AWS_ROLE_ARN: arn:aws:iam::626216981288:role/GitHubActionsDeployRole
   AWS_ROLE_SESSION: github-deploy
   FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
   ECR_REPOSITORY: stocks-app-registry
@@ -643,7 +644,7 @@ jobs:
 
           # Login to ECR
           echo "🔑 Logging into ECR..."
-          if ! aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com; then
+          if ! aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com; then
             echo "❌ ERROR: ECR login failed!"
             exit 1
           fi
