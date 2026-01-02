@@ -65,7 +65,7 @@ const ResearchInsights = () => {
             </Grid>
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="https://images.unsplash.com/photo-1460925895917-adf4edd2ced2?w=800&h=500&fit=crop&auto=format&q=80"
+                src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop&auto=format&q=80"
                 alt="Research Intelligence Dashboard"
                 height={{ xs: '300px', md: '450px' }}
               />

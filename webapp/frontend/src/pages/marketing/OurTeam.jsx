@@ -14,7 +14,7 @@ const OurTeam = () => {
       name: 'Team Member 1',
       role: 'Finance Expert & Strategy',
       bio: 'Experienced financial market analyst with deep knowledge of equity markets, trading strategies, and investment analysis. Focuses on translating market insights into actionable intelligence.',
-      image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=800&h=500&fit=crop',
+      image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=500&fit=crop',
     },
     {
       name: 'Team Member 2',
@@ -38,13 +38,13 @@ const OurTeam = () => {
       name: 'Team Member 5',
       role: 'Research & Analytics',
       bio: 'Market researcher and data analyst with expertise in identifying patterns and trends across financial markets. Focused on developing new research methodologies and analytical approaches.',
-      image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=500&fit=crop',
+      image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=800&h=500&fit=crop',
     },
     {
       name: 'Team Member 6',
       role: 'Product & User Experience',
       bio: 'Product manager and UX specialist focused on ensuring Bullseye is intuitive and accessible to all investors. Expert in translating investor needs into platform features.',
-      image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&h=500&fit=crop',
+      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
     },
   ];
 
