@@ -460,15 +460,11 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
 
     try:
         # Get annual income statement data (most recent 4 years)
-        # Use exact item name matching to avoid summing multiple similar items
+        # Note: annual_income_statement has columns: symbol, date, revenue, operating_income, pretax_income, net_income
         cursor.execute("""
-            SELECT date,
-                   MAX(CASE WHEN item_name = 'Total Revenue' THEN value ELSE NULL END) as revenue,
-                   MAX(CASE WHEN item_name = 'EBIT' THEN value ELSE NULL END) as operating_income,
-                   MAX(CASE WHEN item_name = 'Net Income' THEN value ELSE NULL END) as net_income
+            SELECT date, revenue, operating_income, net_income
             FROM annual_income_statement
-            WHERE symbol = %s
-            GROUP BY date
+            WHERE symbol = %s AND revenue IS NOT NULL
             ORDER BY date DESC
             LIMIT 4
         """, (symbol,))
@@ -530,21 +526,19 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
                 pass  # Already calculated above in YoY section
 
         # Get annual cashflow data for FCF growth (4 years available, use first 2)
-        # Use exact item name matching to get the correct Free Cash Flow value
+        # Note: annual_cash_flow has columns: symbol, date, operating_cash_flow, free_cash_flow, etc.
         cursor.execute("""
-            SELECT date,
-                   MAX(CASE WHEN item_name = 'Free Cash Flow' THEN value ELSE NULL END) as fcf
+            SELECT date, free_cash_flow
             FROM annual_cash_flow
-            WHERE symbol = %s
-            GROUP BY date
+            WHERE symbol = %s AND free_cash_flow IS NOT NULL
             ORDER BY date DESC
             LIMIT 4
         """, (symbol,))
 
         cf_data = cursor.fetchall()
         if len(cf_data) >= 2:
-            recent_fcf = cf_data[0][1]
-            prev_fcf = cf_data[1][1]
+            recent_fcf = cf_data[0][1] if cf_data[0] else None
+            prev_fcf = cf_data[1][1] if cf_data[1] else None
             # Allow growth from negative FCF to positive (company improving cash generation)
             # Or from positive to positive (normal growth)
             if recent_fcf is not None and prev_fcf is not None and prev_fcf != 0:
@@ -554,21 +548,19 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
                     pass
 
         # Get annual cashflow data for OCF growth
-        # Use exact item name matching to get the correct Operating Cash Flow value
+        # Note: annual_cash_flow has columns: symbol, date, operating_cash_flow, free_cash_flow, etc.
         cursor.execute("""
-            SELECT date,
-                   MAX(CASE WHEN item_name = 'Operating Cash Flow' THEN value ELSE NULL END) as ocf
+            SELECT date, operating_cash_flow
             FROM annual_cash_flow
-            WHERE symbol = %s
-            GROUP BY date
+            WHERE symbol = %s AND operating_cash_flow IS NOT NULL
             ORDER BY date DESC
             LIMIT 4
         """, (symbol,))
 
         ocf_data = cursor.fetchall()
         if len(ocf_data) >= 2:
-            recent_ocf = ocf_data[0][1]
-            prev_ocf = ocf_data[1][1]
+            recent_ocf = ocf_data[0][1] if ocf_data[0] else None
+            prev_ocf = ocf_data[1][1] if ocf_data[1] else None
             # Allow growth from negative OCF to positive (company improving operations)
             # Or from positive to positive (normal growth)
             if recent_ocf is not None and prev_ocf is not None and prev_ocf != 0:
@@ -578,27 +570,29 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
                     pass
 
         # Get annual balance sheet data for asset growth
-        # Use exact item name matching to get Total Assets
-        cursor.execute("""
-            SELECT date,
-                   MAX(CASE WHEN item_name = 'Total Assets' THEN value ELSE NULL END) as total_assets
-            FROM annual_balance_sheet
-            WHERE symbol = %s
-            GROUP BY date
-            ORDER BY date DESC
-            LIMIT 2
-        """, (symbol,))
+        # Note: annual_balance_sheet has columns: symbol, date, total_assets, total_liabilities, total_equity
+        try:
+            cursor.execute("""
+                SELECT date, total_assets
+                FROM annual_balance_sheet
+                WHERE symbol = %s AND total_assets IS NOT NULL
+                ORDER BY date DESC
+                LIMIT 2
+            """, (symbol,))
 
-        bs_data = cursor.fetchall()
-        if len(bs_data) >= 2:
-            recent_assets = bs_data[0][1]
-            prev_assets = bs_data[1][1]
-            if prev_assets and recent_assets:
-                if prev_assets > 0:
-                    try:
-                        metrics["asset_growth_yoy"] = ((recent_assets - prev_assets) / prev_assets * 100)
-                    except (TypeError, ValueError, ZeroDivisionError):
-                        pass
+            bs_data = cursor.fetchall()
+            if len(bs_data) >= 2:
+                recent_assets = bs_data[0][1]
+                prev_assets = bs_data[1][1]
+                if prev_assets and recent_assets:
+                    if prev_assets > 0:
+                        try:
+                            metrics["asset_growth_yoy"] = ((recent_assets - prev_assets) / prev_assets * 100)
+                        except (TypeError, ValueError, ZeroDivisionError):
+                            pass
+        except Exception as bs_error:
+            # Balance sheet table might not exist or have data
+            logging.debug(f"Could not get balance sheet data for {symbol}: {bs_error}")
 
     except Exception as e:
         logging.warning(f"Could not calculate financial growth metrics for {symbol}: {e}")
@@ -1261,6 +1255,12 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
     """Load quality metrics for all symbols"""
     logging.info("Loading quality metrics...")
 
+    # Recover from any previous transaction abort
+    try:
+        conn.rollback()
+    except:
+        pass
+
     quality_rows = []
 
     # Get all key_metrics data in one query
@@ -1358,13 +1358,22 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
                 roe_stability_index = EXCLUDED.roe_stability_index
         """
         try:
+            # First, try to recover from any transaction abort from previous steps
+            try:
+                conn.rollback()
+            except:
+                pass
+
             execute_values(cursor, upsert_sql, quality_rows)
             conn.commit()
             logging.info(f"Loaded {len(quality_rows)} quality metric records")
         except Exception as e:
             logging.error(f"Failed to insert quality metrics: {e}")
-            conn.rollback()
-            raise
+            try:
+                conn.rollback()
+            except:
+                pass
+            # Don't raise - continue to next step so data isn't completely lost
 
 
 def load_growth_metrics(conn, cursor, symbols: List[str]):
@@ -1537,13 +1546,22 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                 revenue_growth_yoy = EXCLUDED.revenue_growth_yoy
         """
         try:
+            # First, try to recover from any transaction abort from previous steps
+            try:
+                conn.rollback()
+            except:
+                pass
+
             execute_values(cursor, upsert_sql, growth_rows)
             conn.commit()
             logging.info(f"Loaded {len(growth_rows)} growth metric records")
         except Exception as e:
             logging.error(f"Failed to insert growth metrics: {e}")
-            conn.rollback()
-            raise
+            try:
+                conn.rollback()
+            except:
+                pass
+            # Don't raise - continue to next step so data isn't completely lost
 
 
 def load_momentum_metrics(conn, cursor, symbols: List[str]):
