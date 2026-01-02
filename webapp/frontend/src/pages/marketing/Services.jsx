@@ -727,7 +727,7 @@ const Services = () => {
           {/* Left: Image */}
           <Box
             sx={{
-              backgroundImage: 'url(https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=500&fit=crop&auto=format&q=80)',
+              backgroundImage: 'url(https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=800&h=500&fit=crop&auto=format&q=80)',
               backgroundSize: 'cover',
               backgroundPosition: 'center',
               minHeight: { xs: '300px', md: '500px' },
