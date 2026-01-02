@@ -1,9 +1,10 @@
 import React from 'react';
-import { Container, Box, Typography, Grid, Card, CardContent, useTheme } from '@mui/material';
+import { Container, Box, Typography, Grid, Card, CardContent, useTheme, alpha } from '@mui/material';
 import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
 import CTASection from '../../components/marketing/CTASection';
 import PromoBanner from '../../components/marketing/PromoBanner';
+import ImagePlaceholder from '../../components/marketing/ImagePlaceholder';
 import { Insights as InsightsIcon } from '@mui/icons-material';
 
 const ResearchInsights = () => {
@@ -13,18 +14,22 @@ const ResearchInsights = () => {
     {
       title: 'AI-Powered Stock Analysis',
       description: 'Our composite scoring system analyzes stocks across multiple dimensions using machine learning. Get comprehensive insights beyond traditional metrics.',
+      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=500&h=350&fit=crop',
     },
     {
       title: 'Market Research & Reports',
       description: 'In-depth analysis of market trends, sector performance, and economic indicators. Actionable insights to inform your investment strategy.',
+      image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=500&h=350&fit=crop',
     },
     {
       title: 'Sentiment & Positioning Analysis',
       description: 'Track how institutional sentiment is shifting. Our AI interprets analyst positioning, upgrades/downgrades, and market psychology.',
+      image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=500&h=350&fit=crop',
     },
     {
       title: 'Technical Analysis & Trading Signals',
       description: 'AI-generated signals based on price action, technical patterns, and momentum indicators. Identify entry and exit opportunities.',
+      image: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=500&h=350&fit=crop',
     },
   ];
 
@@ -34,6 +39,44 @@ const ResearchInsights = () => {
         title="Research & Insights"
         subtitle="AI-powered market analysis and intelligence"
       />
+
+      {/* Hero Section with Image */}
+      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: alpha(theme.palette.primary.main, 0.02) }}>
+        <Container maxWidth="lg">
+          <Grid container spacing={6} alignItems="center">
+            <Grid item xs={12} md={6}>
+              <Typography
+                variant="h3"
+                sx={{
+                  fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' },
+                  fontWeight: 800,
+                  mb: 3,
+                  color: theme.palette.text.primary,
+                }}
+              >
+                Research-Driven Intelligence
+              </Typography>
+              <Typography
+                variant="body1"
+                sx={{
+                  fontSize: '1.1rem',
+                  color: theme.palette.text.secondary,
+                  lineHeight: 1.8,
+                }}
+              >
+                Our AI-powered research platform analyzes markets across multiple dimensions - stocks, earnings, sentiment, technicals, sectors, and macro trends. Get institutional-grade insights in real-time.
+              </Typography>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <ImagePlaceholder
+                src="https://images.unsplash.com/photo-1611432579699-484f7990f17a?w=700&h=500&fit=crop"
+                alt="Research Intelligence"
+                height={{ xs: '300px', md: '450px' }}
+              />
+            </Grid>
+          </Grid>
+        </Container>
+      </Box>
 
       <Container maxWidth="lg" sx={{ py: { xs: 6, md: 8 } }}>
         <Typography
@@ -72,12 +115,28 @@ const ResearchInsights = () => {
                   backgroundColor: theme.palette.background.default,
                   borderRadius: '0px',
                   transition: 'all 0.3s ease',
+                  overflow: 'hidden',
                   '&:hover': {
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                    transform: 'translateY(-2px)',
+                    boxShadow: '0 8px 20px rgba(0,0,0,0.12)',
+                    transform: 'translateY(-4px)',
                   },
                 }}
               >
+                {/* Card Image */}
+                <Box
+                  component="img"
+                  src={category.image}
+                  alt={category.title}
+                  sx={{
+                    width: '100%',
+                    height: '200px',
+                    objectFit: 'cover',
+                    display: 'block',
+                  }}
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                  }}
+                />
                 <CardContent>
                   <Typography
                     variant="h6"

@@ -42,9 +42,9 @@ const HeroSection = () => {
                   letterSpacing: '-0.5px',
                 }}
               >
-                AI-Powered Market Intelligence
+                Institutional-Grade Research
                 <br />
-                <span style={{ color: theme.palette.primary.main }}>Smart Analysis for Informed Decisions</span>
+                <span style={{ color: theme.palette.primary.main }}>Powered by AI. Accessible to All.</span>
               </Typography>
 
               <Typography
@@ -58,7 +58,7 @@ const HeroSection = () => {
                   maxWidth: '95%',
                 }}
               >
-                Harness AI and machine learning to analyze stocks, earnings, sentiment, and market trends. Our platform uses innovative artificial intelligence to identify patterns and interpret complex financial data in ways that unlock deeper market insights.
+                Stop relying on gut instinct and outdated analysis. Bullseye combines 10+ years of market data, advanced AI algorithms, and 6+ research dimensions to reveal the opportunities traditional analysis misses. Get institutional-grade intelligence in real-time.
               </Typography>
 
               {/* CTA Buttons */}
@@ -146,8 +146,8 @@ const HeroSection = () => {
           {/* Right Visual - Hero Image */}
           <Grid item xs={12} md={7}>
             <ImagePlaceholder
-              src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=1400&h=800&fit=crop"
-              alt="Professional Team Collaborating"
+              src="https://images.unsplash.com/photo-1518235506717-e1ed3306a326?w=1400&h=800&fit=crop&auto=format&q=80"
+              alt="Black and White New York Skyline"
               height={{ xs: '300px', sm: '400px', md: '500px' }}
             />
           </Grid>

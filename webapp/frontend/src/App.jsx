@@ -39,14 +39,11 @@ import ETFSignals from "./pages/ETFSignals";
 import EconomicDashboard from "./pages/EconomicDashboard";
 import HedgeHelper from "./pages/HedgeHelper";
 
-// Marketing pages
+// Marketing pages - Only keep main pages and their dropdown pages
 import Home from "./pages/marketing/Home";
 import Firm from "./pages/marketing/Firm";
 import Services from "./pages/marketing/Services";
-import Research from "./pages/marketing/Research";
-import Media from "./pages/marketing/Media";
 import Contact from "./pages/marketing/Contact";
-import BecomeClient from "./pages/marketing/BecomeClient";
 import About from "./pages/marketing/About";
 import OurTeam from "./pages/marketing/OurTeam";
 import MissionValues from "./pages/marketing/MissionValues";
@@ -358,19 +355,22 @@ function App() {
     return (
       <ErrorBoundary>
         <Routes>
+          {/* Main Marketing Pages */}
           <Route path="/" element={<Home />} />
           <Route path="/firm" element={<Firm />} />
           <Route path="/services" element={<Services />} />
-          <Route path="/research" element={<Research />} />
-          <Route path="/media" element={<Media />} />
           <Route path="/contact" element={<Contact />} />
-          <Route path="/become-client" element={<BecomeClient />} />
+
+          {/* Firm Dropdown Pages */}
           <Route path="/about" element={<About />} />
           <Route path="/our-team" element={<OurTeam />} />
           <Route path="/mission-values" element={<MissionValues />} />
+
+          {/* Services Dropdown Pages */}
           <Route path="/research-insights" element={<ResearchInsights />} />
           <Route path="/investment-tools" element={<InvestmentTools />} />
           <Route path="/wealth-management" element={<WealthManagement />} />
+
           {/* Fallback for marketing - if route doesn't exist, redirect to home */}
           <Route path="*" element={<Home />} />
         </Routes>

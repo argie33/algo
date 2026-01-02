@@ -4,6 +4,7 @@ import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
 import CTASection from '../../components/marketing/CTASection';
 import PromoBanner from '../../components/marketing/PromoBanner';
+import ImagePlaceholder from '../../components/marketing/ImagePlaceholder';
 import { CheckCircle as CheckCircleIcon } from '@mui/icons-material';
 
 const MissionValues = () => {
@@ -16,32 +17,55 @@ const MissionValues = () => {
         subtitle="What drives us to innovate and serve"
       />
 
-      {/* Mission Section */}
-      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: '#f8f9fa' }}>
+      {/* Mission Section with Image */}
+      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: alpha(theme.palette.primary.main, 0.02) }}>
         <Container maxWidth="lg">
-          <Typography
-            variant="h3"
-            sx={{
-              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
-              fontWeight: 800,
-              mb: 4,
-              color: theme.palette.text.primary,
-            }}
-          >
-            Our Mission
-          </Typography>
-          <Typography
-            variant="body1"
-            sx={{
-              fontSize: '1.1rem',
-              color: theme.palette.text.secondary,
-              lineHeight: 1.8,
-              maxWidth: '800px',
-              mb: 2,
-            }}
-          >
-            To democratize access to institutional-grade market intelligence through AI-powered analysis. We believe sophisticated financial research shouldn't be limited to Wall Street professionals. By combining machine learning, real-time data, and innovative analysis, we empower individual investors and traders to compete with the best.
-          </Typography>
+          <Grid container spacing={6} alignItems="center">
+            {/* Left Content */}
+            <Grid item xs={12} md={6}>
+              <Typography
+                variant="h3"
+                sx={{
+                  fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
+                  fontWeight: 800,
+                  mb: 4,
+                  color: theme.palette.text.primary,
+                }}
+              >
+                Our Mission
+              </Typography>
+              <Typography
+                variant="body1"
+                sx={{
+                  fontSize: '1.1rem',
+                  color: theme.palette.text.secondary,
+                  lineHeight: 1.8,
+                  mb: 2,
+                }}
+              >
+                To give every investor access to the same research quality that Wall Street insiders pay millions for. No black boxes. No gatekeeping. Just institutional-grade intelligence powered by AI.
+              </Typography>
+              <Typography
+                variant="body1"
+                sx={{
+                  fontSize: '1.1rem',
+                  color: theme.palette.text.secondary,
+                  lineHeight: 1.8,
+                }}
+              >
+                We level the playing field by combining 10+ years of market data, advanced machine learning, and transparent methodology. Individual traders should compete on skill, not access.
+              </Typography>
+            </Grid>
+
+            {/* Right Image */}
+            <Grid item xs={12} md={6}>
+              <ImagePlaceholder
+                src="https://images.unsplash.com/photo-1579532537598-459e09a48fdf?w=700&h=500&fit=crop"
+                alt="Our Mission"
+                height={{ xs: '300px', md: '450px' }}
+              />
+            </Grid>
+          </Grid>
         </Container>
       </Box>
 

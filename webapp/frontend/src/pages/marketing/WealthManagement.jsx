@@ -1,9 +1,10 @@
 import React from 'react';
-import { Container, Box, Typography, Grid, Card, CardContent, useTheme } from '@mui/material';
+import { Container, Box, Typography, Grid, Card, CardContent, useTheme, alpha } from '@mui/material';
 import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
 import CTASection from '../../components/marketing/CTASection';
 import PromoBanner from '../../components/marketing/PromoBanner';
+import ImagePlaceholder from '../../components/marketing/ImagePlaceholder';
 import { TrendingUp as TrendingUpIcon } from '@mui/icons-material';
 
 const WealthManagement = () => {
@@ -13,26 +14,32 @@ const WealthManagement = () => {
     {
       title: 'Portfolio Optimization',
       description: 'Use AI-powered analysis to optimize asset allocation and sector rotation. Make data-driven decisions for your entire portfolio.',
+      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=500&h=350&fit=crop',
     },
     {
       title: 'Risk Management',
       description: 'Identify risks before they materialize. Our AI reveals hidden correlations and warning signs across your holdings.',
+      image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=500&h=350&fit=crop',
     },
     {
       title: 'Performance Tracking',
       description: 'Monitor portfolio performance against benchmarks. Track which analysis dimensions are driving your returns.',
+      image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=500&h=350&fit=crop',
     },
     {
       title: 'Sector Rotation Intelligence',
       description: 'Identify emerging sector trends and rotation patterns. Shift allocations with confidence based on AI-powered insights.',
+      image: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=500&h=350&fit=crop',
     },
     {
       title: 'Economic Impact Analysis',
       description: 'Understand how macro trends and economic changes impact your portfolio. Prepare for market shifts before they happen.',
+      image: 'https://images.unsplash.com/photo-1611432579699-484f7990f17a?w=500&h=350&fit=crop',
     },
     {
       title: 'Hedging Strategies',
       description: 'Implement intelligent hedging strategies to protect your wealth. Use AI to identify optimal hedge instruments and timing.',
+      image: 'https://images.unsplash.com/photo-1579532537598-459e09a48fdf?w=500&h=350&fit=crop',
     },
   ];
 
@@ -42,6 +49,44 @@ const WealthManagement = () => {
         title="Wealth Management"
         subtitle="AI-powered portfolio management for serious investors"
       />
+
+      {/* Hero Section with Image */}
+      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: alpha(theme.palette.primary.main, 0.02) }}>
+        <Container maxWidth="lg">
+          <Grid container spacing={6} alignItems="center">
+            <Grid item xs={12} md={6}>
+              <Typography
+                variant="h3"
+                sx={{
+                  fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' },
+                  fontWeight: 800,
+                  mb: 3,
+                  color: theme.palette.text.primary,
+                }}
+              >
+                Wealth Management Solutions
+              </Typography>
+              <Typography
+                variant="body1"
+                sx={{
+                  fontSize: '1.1rem',
+                  color: theme.palette.text.secondary,
+                  lineHeight: 1.8,
+                }}
+              >
+                Sophisticated portfolio management tools that give you edge in managing your wealth. Portfolio optimization, risk analysis, and intelligent hedging strategies all powered by AI.
+              </Typography>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <ImagePlaceholder
+                src="https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=700&h=500&fit=crop"
+                alt="Wealth Management"
+                height={{ xs: '300px', md: '450px' }}
+              />
+            </Grid>
+          </Grid>
+        </Container>
+      </Box>
 
       <Container maxWidth="lg" sx={{ py: { xs: 6, md: 8 } }}>
         <Typography
@@ -80,12 +125,28 @@ const WealthManagement = () => {
                   backgroundColor: theme.palette.background.default,
                   borderRadius: '0px',
                   transition: 'all 0.3s ease',
+                  overflow: 'hidden',
                   '&:hover': {
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                    transform: 'translateY(-2px)',
+                    boxShadow: '0 8px 20px rgba(0,0,0,0.12)',
+                    transform: 'translateY(-4px)',
                   },
                 }}
               >
+                {/* Card Image */}
+                <Box
+                  component="img"
+                  src={feature.image}
+                  alt={feature.title}
+                  sx={{
+                    width: '100%',
+                    height: '200px',
+                    objectFit: 'cover',
+                    display: 'block',
+                  }}
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                  }}
+                />
                 <CardContent>
                   <Typography
                     variant="h6"

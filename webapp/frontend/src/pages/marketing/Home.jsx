@@ -151,16 +151,31 @@ const Home = () => {
           </Typography>
           <Typography
             sx={{
-              fontSize: '1.05rem',
+              fontSize: '1.1rem',
+              color: theme.palette.text.secondary,
+              textAlign: 'center',
+              mb: 3,
+              maxWidth: '900px',
+              mx: 'auto',
+              lineHeight: 1.8,
+              fontWeight: 500,
+            }}
+          >
+            Transform how you make investment decisions. Our institutional-grade research platform combines decades of market expertise, cutting-edge AI, and comprehensive multi-dimensional data to uncover opportunities the traditional analysis misses.
+          </Typography>
+          <Typography
+            sx={{
+              fontSize: '0.95rem',
               color: theme.palette.text.secondary,
               textAlign: 'center',
               mb: 6,
               maxWidth: '800px',
               mx: 'auto',
-              lineHeight: 1.8,
+              lineHeight: 1.7,
+              fontStyle: 'italic',
             }}
           >
-            Bullseye Financial combines deep market knowledge, cutting-edge AI and big data techniques, and comprehensive data coverage across market conditions, economics, fundamentals, technicals, sectors, and sentiment to deliver research-driven insights and customized advisory solutions for every investor type.
+            6 research dimensions • 10+ years of data • 5,300+ stocks • Real-time AI-powered analysis
           </Typography>
 
           {/* Data Breadth Grid */}
@@ -198,6 +213,116 @@ const Home = () => {
                     }}
                   >
                     {item.detail}
+                  </Typography>
+                </Box>
+              </Grid>
+            ))}
+          </Grid>
+        </Container>
+      </Box>
+
+      {/* What Sets Us Apart Section */}
+      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: alpha(theme.palette.primary.main, 0.04) }}>
+        <Container maxWidth="lg">
+          <Typography
+            variant="h3"
+            sx={{
+              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
+              fontWeight: 800,
+              mb: 2,
+              textAlign: 'center',
+              color: theme.palette.text.primary,
+            }}
+          >
+            Why Professional Investors Choose Bullseye
+          </Typography>
+          <Typography
+            sx={{
+              fontSize: '1.05rem',
+              color: theme.palette.text.secondary,
+              textAlign: 'center',
+              mb: 6,
+              maxWidth: '700px',
+              mx: 'auto',
+            }}
+          >
+            We're not just another market data provider. We're your research partner.
+          </Typography>
+          <Grid container spacing={4}>
+            {[
+              {
+                number: '1',
+                title: 'Deeper Insights',
+                description: 'Our AI models find correlations and patterns traditional analysis never sees. Multi-dimensional research reveals opportunities hidden in market noise.',
+                icon: '🔍',
+              },
+              {
+                number: '2',
+                title: 'Faster Decisions',
+                description: 'Real-time analysis powered by 24/7 data processing. Get actionable intelligence the moment market conditions change.',
+                icon: '⚡',
+              },
+              {
+                number: '3',
+                title: 'Customized for You',
+                description: 'Whether you manage billions or invest your own capital, we tailor our research to match your strategy and timeline.',
+                icon: '🎯',
+              },
+              {
+                number: '4',
+                title: 'Evidence-Based',
+                description: 'Every analysis is rigorously tested against 10+ years of historical data. We focus on what works, not what sounds good.',
+                icon: '✓',
+              },
+            ].map((item, idx) => (
+              <Grid item xs={12} sm={6} md={3} key={idx}>
+                <Box
+                  sx={{
+                    p: 4,
+                    backgroundColor: theme.palette.background.paper,
+                    border: `2px solid ${theme.palette.divider}`,
+                    borderRadius: '0px',
+                    transition: 'all 0.3s ease',
+                    textAlign: 'center',
+                    '&:hover': {
+                      borderColor: theme.palette.primary.main,
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
+                      transform: 'translateY(-4px)',
+                    },
+                  }}
+                >
+                  <Box sx={{ fontSize: '3rem', mb: 2 }}>
+                    {item.icon}
+                  </Box>
+                  <Typography
+                    sx={{
+                      fontSize: '2.5rem',
+                      fontWeight: 800,
+                      color: theme.palette.primary.main,
+                      mb: 1,
+                    }}
+                  >
+                    {item.number}
+                  </Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontWeight: 700,
+                      mb: 1.5,
+                      color: theme.palette.text.primary,
+                      fontSize: '1.15rem',
+                    }}
+                  >
+                    {item.title}
+                  </Typography>
+                  <Typography
+                    sx={{
+                      color: theme.palette.text.secondary,
+                      lineHeight: 1.6,
+                      fontSize: '0.95rem',
+                    }}
+                  >
+                    {item.description}
                   </Typography>
                 </Box>
               </Grid>
@@ -575,6 +700,169 @@ const Home = () => {
         </Container>
       </Box>
 
+      {/* Latest Market Insights Section */}
+      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.paper }}>
+        <Container maxWidth="lg">
+          <Typography
+            variant="h3"
+            sx={{
+              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
+              fontWeight: 800,
+              mb: 2,
+              textAlign: 'center',
+              color: theme.palette.text.primary,
+            }}
+          >
+            Latest Market Insights
+          </Typography>
+          <Typography
+            sx={{
+              fontSize: '1.05rem',
+              color: theme.palette.text.secondary,
+              textAlign: 'center',
+              mb: 6,
+              maxWidth: '700px',
+              mx: 'auto',
+            }}
+          >
+            Stay ahead of market moves with our latest AI-powered research and analysis
+          </Typography>
+          <Grid container spacing={4}>
+            {[
+              {
+                title: 'Tech Sector Showing Renewed Strength Amid Macro Uncertainties',
+                date: 'December 23, 2025',
+                author: 'AI Research Team',
+                excerpt: 'Our AI models detected a significant shift in technical momentum for mega-cap tech stocks this week. Analysis of sentiment data and positioning metrics suggests institutional accumulation...',
+                tags: ['Technical Analysis', 'Sector Rotation', 'AI Signals'],
+                tickers: ['AAPL', 'MSFT', 'GOOGL', 'NVDA'],
+                image: 'https://images.unsplash.com/photo-1516534775068-bb57ada8d126?w=600&h=350&fit=crop',
+              },
+              {
+                title: 'Earnings Season Preview: 15 Stocks With High Surprise Probability',
+                date: 'December 22, 2025',
+                author: 'Earnings Intelligence',
+                excerpt: 'With earnings season approaching, our AI scoring system has identified 15 stocks with high probability of positive earnings surprises based on revision trends and analyst positioning...',
+                tags: ['Earnings', 'Forecasts', 'Stock Picks'],
+                tickers: ['AMZN', 'CRM', 'ASML', 'META'],
+                image: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=600&h=350&fit=crop',
+              },
+              {
+                title: 'Sentiment Divergence Creating Opportunity in Energy Sector',
+                date: 'December 20, 2025',
+                author: 'Sentiment Analytics',
+                excerpt: 'Despite bearish headlines, our sentiment tracking shows institutional accumulation in select energy names. This divergence between narrative and actual positioning suggests contrarian opportunity...',
+                tags: ['Sentiment', 'Contrarian', 'Energy'],
+                tickers: ['XLE', 'XOM', 'CVX', 'MPC'],
+                image: 'https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?w=600&h=350&fit=crop',
+              },
+            ].map((insight, idx) => (
+              <Grid item xs={12} md={4} key={idx}>
+                <Card
+                  sx={{
+                    height: '100%',
+                    border: `1px solid ${theme.palette.divider}`,
+                    backgroundColor: theme.palette.background.default,
+                    borderRadius: '0px',
+                    transition: 'all 0.3s ease',
+                    overflow: 'hidden',
+                    cursor: 'pointer',
+                    '&:hover': {
+                      boxShadow: '0 12px 30px rgba(0,0,0,0.12)',
+                      transform: 'translateY(-6px)',
+                    },
+                  }}
+                >
+                  <Box
+                    component="img"
+                    src={insight.image}
+                    alt={insight.title}
+                    sx={{
+                      width: '100%',
+                      height: 200,
+                      objectFit: 'cover',
+                      display: 'block',
+                    }}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                  <CardContent sx={{ p: 3 }}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontSize: '0.8rem',
+                        color: theme.palette.primary.main,
+                        fontWeight: 700,
+                        mb: 1,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                      }}
+                    >
+                      {insight.date} • {insight.author}
+                    </Typography>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        fontWeight: 700,
+                        mb: 1.5,
+                        color: theme.palette.text.primary,
+                        fontSize: '1.1rem',
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {insight.title}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: theme.palette.text.secondary,
+                        lineHeight: 1.6,
+                        mb: 2,
+                      }}
+                    >
+                      {insight.excerpt}
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                      {insight.tickers.map((ticker, i) => (
+                        <Box
+                          key={i}
+                          sx={{
+                            px: 1.5,
+                            py: 0.5,
+                            backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                            borderRadius: '2px',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            color: theme.palette.primary.main,
+                          }}
+                        >
+                          {ticker}
+                        </Box>
+                      ))}
+                    </Box>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {insight.tags.map((tag, i) => (
+                        <Box
+                          key={i}
+                          sx={{
+                            fontSize: '0.7rem',
+                            color: theme.palette.text.secondary,
+                            fontStyle: 'italic',
+                          }}
+                        >
+                          {tag}{i < insight.tags.length - 1 ? ',' : ''}
+                        </Box>
+                      ))}
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        </Container>
+      </Box>
+
       {/* Testimonials Section */}
       <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.default }}>
         <Container maxWidth="lg">
@@ -608,13 +896,13 @@ const Home = () => {
                 name: 'Robert Chen',
                 role: 'Portfolio Manager, Wealth Advisors LLC',
                 quote: 'Their AI scoring system has fundamentally changed how we evaluate opportunities. We\'re seeing better risk-adjusted returns and making faster, more confident investment decisions.',
-                image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop',
+                image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop',
               },
               {
                 name: 'Jennifer Williams',
                 role: 'Active Trader, Independent',
                 quote: 'The multi-dimensional research is exceptional. Fundamentals, technicals, and sentiment all work together to confirm trading opportunities. No other research platform integrates data like this.',
-                image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop',
+                image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop',
               },
               {
                 name: 'Marcus Johnson',

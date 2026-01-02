@@ -274,8 +274,11 @@ const SignalCardAccordion = ({ signals = [] }) => {
                       Moving Averages
                     </Typography>
                   </Box>
-                  <DataField label="% from EMA21" value={signal.pct_from_ema21} format="percent" />
-                  <DataField label="% from SMA50" value={signal.pct_from_sma50} format="percent" />
+                  <DataField label="SMA 50" value={signal.sma_50} format="currency" />
+                  <DataField label="SMA 200" value={signal.sma_200} format="currency" />
+                  <DataField label="EMA 21" value={signal.ema_21} format="currency" />
+                  <DataField label="% from EMA21" value={signal.pct_from_ema_21} format="percent" />
+                  <DataField label="% from SMA50" value={signal.pct_from_sma_50} format="percent" />
                   <DataField label="Daily Range %" value={signal.daily_range_pct} format="percent" />
                 </Grid>
 
