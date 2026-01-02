@@ -4203,6 +4203,79 @@ def main():
         # Each operation commits immediately, preventing cascade failures
         conn.autocommit = True
 
+        # Ensure required tables and columns exist for dependent loaders
+        logger.info("📊 Ensuring required database tables exist...")
+        try:
+            cursor = conn.cursor()
+
+            # Create momentum_metrics table if it doesn't exist
+            try:
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS momentum_metrics (
+                        id SERIAL PRIMARY KEY,
+                        symbol VARCHAR(20) NOT NULL,
+                        date DATE NOT NULL,
+                        current_price FLOAT,
+                        momentum_3m FLOAT,
+                        momentum_6m FLOAT,
+                        momentum_12m FLOAT,
+                        price_vs_sma_50 FLOAT,
+                        price_vs_sma_200 FLOAT,
+                        price_vs_52w_high FLOAT,
+                        created_at TIMESTAMP DEFAULT NOW(),
+                        UNIQUE(symbol, date)
+                    )
+                """)
+                logger.info("✅ momentum_metrics table ready")
+            except Exception as e:
+                logger.warning(f"⚠️  momentum_metrics: {e}")
+
+            # Create analyst_sentiment_analysis table if it doesn't exist
+            try:
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS analyst_sentiment_analysis (
+                        symbol VARCHAR(20),
+                        date DATE,
+                        strong_buy_count INTEGER,
+                        buy_count INTEGER,
+                        hold_count INTEGER,
+                        sell_count INTEGER,
+                        strong_sell_count INTEGER,
+                        total_analysts INTEGER,
+                        upgrades_last_30d INTEGER,
+                        downgrades_last_30d INTEGER,
+                        initiations_last_30d INTEGER,
+                        avg_price_target DECIMAL(10,4),
+                        high_price_target DECIMAL(10,4),
+                        low_price_target DECIMAL(10,4),
+                        price_target_vs_current DECIMAL(8,4),
+                        eps_revisions_up_last_30d INTEGER,
+                        eps_revisions_down_last_30d INTEGER,
+                        revenue_revisions_up_last_30d INTEGER,
+                        revenue_revisions_down_last_30d INTEGER,
+                        recommendation_mean DECIMAL(4,2),
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        PRIMARY KEY (symbol, date)
+                    )
+                """)
+                logger.info("✅ analyst_sentiment_analysis table ready")
+            except Exception as e:
+                logger.warning(f"⚠️  analyst_sentiment_analysis: {e}")
+
+            # Add missing columns to positioning_metrics if they don't exist
+            try:
+                cursor.execute("ALTER TABLE positioning_metrics ADD COLUMN IF NOT EXISTS institutional_ownership_pct FLOAT")
+                cursor.execute("ALTER TABLE positioning_metrics ADD COLUMN IF NOT EXISTS short_percent_of_float FLOAT")
+                logger.info("✅ positioning_metrics columns ready")
+            except Exception as e:
+                logger.warning(f"⚠️  positioning_metrics columns: {e}")
+
+            conn.commit()
+            cursor.close()
+        except Exception as e:
+            logger.warning(f"⚠️  Error ensuring required tables: {e}")
+
         # Create stock_scores table
         if not create_stock_scores_table(conn):
             return False
