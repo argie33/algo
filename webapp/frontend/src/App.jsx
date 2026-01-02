@@ -46,6 +46,7 @@ import Services from "./pages/marketing/Services";
 import Research from "./pages/marketing/Research";
 import Media from "./pages/marketing/Media";
 import Contact from "./pages/marketing/Contact";
+import BecomeClient from "./pages/marketing/BecomeClient";
 
 // Layout components
 import AppLayout from "./components/AppLayout";
@@ -357,6 +358,7 @@ function App() {
           <Route path="/research" element={<Research />} />
           <Route path="/media" element={<Media />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/become-client" element={<BecomeClient />} />
           {/* Fallback for marketing - if route doesn't exist, redirect to home */}
           <Route path="*" element={<Home />} />
         </Routes>

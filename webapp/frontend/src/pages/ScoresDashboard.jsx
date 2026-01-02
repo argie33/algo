@@ -1641,14 +1641,6 @@ const ScoresDashboard = () => {
                                       </TableCell>
                                     </TableRow>
                                     <TableRow>
-                                      <TableCell>Downside Volatility</TableCell>
-                                      <TableCell align="right">
-                                        {stock.stability_inputs?.downside_volatility !== null && stock.stability_inputs?.downside_volatility !== undefined
-                                          ? `${parseFloat(stock.stability_inputs.downside_volatility).toFixed(2)}%`
-                                          : ""}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow>
                                       <TableCell>Max Drawdown (52W)</TableCell>
                                       <TableCell align="right">
                                         {stock.stability_inputs?.max_drawdown_52w !== null && stock.stability_inputs?.max_drawdown_52w !== undefined

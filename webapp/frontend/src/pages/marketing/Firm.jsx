@@ -4,11 +4,13 @@ import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
 import IconCardGrid from '../../components/marketing/IconCardGrid';
 import CTASection from '../../components/marketing/CTASection';
+import PromoBanner from '../../components/marketing/PromoBanner';
 import {
   Flag as FlagIcon,
   Lightbulb as LightbulbIcon,
   Groups as GroupsIcon,
   Timeline as TimelineIcon,
+  Handshake as HandshakeIcon,
 } from '@mui/icons-material';
 
 const Firm = () => {
@@ -160,6 +162,119 @@ const Firm = () => {
           ))}
         </Grid>
       </Container>
+
+      {/* Leadership Team Section */}
+      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.paper }}>
+        <Container maxWidth="lg">
+          <Typography
+            variant="h3"
+            sx={{
+              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
+              fontWeight: 800,
+              mb: 6,
+              textAlign: 'center',
+              color: theme.palette.text.primary,
+            }}
+          >
+            Our Leadership Team
+          </Typography>
+          <Grid container spacing={4}>
+            {[
+              {
+                name: 'Sarah Chen',
+                role: 'Founder & CEO',
+                bio: 'AI strategist with 15+ years in quantitative finance. Previously led machine learning initiatives at Goldman Sachs.',
+              },
+              {
+                name: 'Michael Rodriguez',
+                role: 'Chief Research Officer',
+                bio: 'Portfolio manager and research veteran with expertise in technical analysis and market microstructure.',
+              },
+              {
+                name: 'Dr. James Park',
+                role: 'VP of AI & Engineering',
+                bio: 'PhD in Computer Science. Specializes in developing proprietary AI models for financial market analysis.',
+              },
+              {
+                name: 'Emily Thompson',
+                role: 'Chief Operations Officer',
+                bio: 'Operations leader with extensive experience scaling fintech platforms and managing institutional relationships.',
+              },
+            ].map((member, idx) => (
+              <Grid item xs={12} sm={6} md={6} lg={3} key={idx}>
+                <Card
+                  sx={{
+                    height: '100%',
+                    border: `1px solid ${theme.palette.divider}`,
+                    backgroundColor: theme.palette.background.default,
+                    borderRadius: '0px',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                      transform: 'translateY(-2px)',
+                    },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      height: 200,
+                      background: `linear-gradient(135deg, ${theme.palette.primary.main}20 0%, ${theme.palette.primary.main}05 100%)`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '3rem',
+                      fontWeight: 700,
+                      color: theme.palette.primary.main,
+                    }}
+                  >
+                    {member.name.charAt(0)}
+                  </Box>
+                  <CardContent>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        fontWeight: 700,
+                        mb: 0.5,
+                        color: theme.palette.text.primary,
+                      }}
+                    >
+                      {member.name}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontWeight: 600,
+                        color: theme.palette.primary.main,
+                        mb: 1.5,
+                      }}
+                    >
+                      {member.role}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: theme.palette.text.secondary,
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      {member.bio}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        </Container>
+      </Box>
+
+      {/* Promotional Banner */}
+      <PromoBanner
+        icon={<HandshakeIcon sx={{ color: theme.palette.primary.main }} />}
+        title="Become a Partner"
+        subtitle="Join our growing community of professional investors and traders."
+        primaryCTA={{ label: 'Get Started', href: '/become-client' }}
+        secondaryCTA={{ label: 'Learn More', href: '/services' }}
+      />
 
       {/* CTA */}
       <Box sx={{ mx: { xs: 2, md: 4 }, mb: 6 }}>
