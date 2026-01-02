@@ -12,7 +12,7 @@ const Contact = () => {
     {
       department: 'Sales & Partnerships',
       icon: <BusinessIcon />,
-      image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=600&h=350&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
       description: 'Get a demo. Discuss pricing. Explore custom solutions tailored to your investment strategy.',
       email: 'sales@bullseyefinancial.com',
       phone: '+1 (555) 123-4567',
@@ -21,7 +21,7 @@ const Contact = () => {
     {
       department: 'Support & Technical',
       icon: <PhoneIcon />,
-      image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=600&h=350&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
       description: 'Need help with the platform? Questions about data, features, or API integration?',
       email: 'support@bullseyefinancial.com',
       phone: '+1 (555) 123-4568',
@@ -30,7 +30,7 @@ const Contact = () => {
     {
       department: 'Research & Methodology',
       icon: <SchoolIcon />,
-      image: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=600&h=350&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
       description: 'Dive deep into our research. Understand our methodology. Discuss custom analysis for your portfolio.',
       email: 'research@bullseyefinancial.com',
       phone: '+1 (555) 123-4569',

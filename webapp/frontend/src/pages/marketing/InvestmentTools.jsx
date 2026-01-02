@@ -14,32 +14,32 @@ const InvestmentTools = () => {
     {
       title: 'Real-Time Stock Scoring',
       description: 'AI-powered composite scores that update in real-time. Analyze individual stocks across multiple dimensions and compare them instantly.',
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=500&h=350&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
     },
     {
       title: 'Earnings Calendar & Analysis',
       description: 'Track upcoming earnings, view historical surprise patterns, and identify stocks with positive estimate revisions using AI analysis.',
-      image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=500&h=350&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
     },
     {
       title: 'Technical Analysis Engine',
       description: 'Advanced technical indicators, pattern recognition, and AI-generated trading signals. Identify entry and exit opportunities with precision.',
-      image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=500&h=350&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
     },
     {
       title: 'Sector & Market Tools',
       description: 'Monitor sector rotation, relative strength analysis, and overall market health. Make informed allocation decisions across different asset classes.',
-      image: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=500&h=350&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
     },
     {
       title: 'Economic Dashboard',
       description: 'Track key economic indicators, macro trends, and their impact on markets. Understand the broader economic context for your trades.',
-      image: 'https://images.unsplash.com/photo-1611432579699-484f7990f17a?w=500&h=350&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
     },
     {
       title: 'Hedge Helper',
       description: 'AI-powered hedging suggestions and risk management strategies. Protect your portfolio with intelligent portfolio protection recommendations.',
-      image: 'https://images.unsplash.com/photo-1579532537598-459e09a48fdf?w=500&h=350&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
     },
   ];
 
@@ -79,7 +79,7 @@ const InvestmentTools = () => {
             </Grid>
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="https://images.unsplash.com/photo-1535320903710-d4fdf713ebcb?w=700&h=500&fit=crop"
+                src="https://picsum.photos/800/500?random="
                 alt="Investment Tools"
                 height={{ xs: '300px', md: '450px' }}
               />

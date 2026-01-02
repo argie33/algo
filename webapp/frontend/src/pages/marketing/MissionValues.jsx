@@ -60,7 +60,7 @@ const MissionValues = () => {
             {/* Right Image */}
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="https://images.unsplash.com/photo-1579532537598-459e09a48fdf?w=700&h=500&fit=crop"
+                src="https://picsum.photos/800/500?random="
                 alt="Our Mission"
                 height={{ xs: '300px', md: '450px' }}
               />

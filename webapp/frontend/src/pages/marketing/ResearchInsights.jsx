@@ -14,22 +14,22 @@ const ResearchInsights = () => {
     {
       title: 'AI-Powered Stock Analysis',
       description: 'Our composite scoring system analyzes stocks across multiple dimensions using machine learning. Get comprehensive insights beyond traditional metrics.',
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=500&h=350&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
     },
     {
       title: 'Market Research & Reports',
       description: 'In-depth analysis of market trends, sector performance, and economic indicators. Actionable insights to inform your investment strategy.',
-      image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=500&h=350&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
     },
     {
       title: 'Sentiment & Positioning Analysis',
       description: 'Track how institutional sentiment is shifting. Our AI interprets analyst positioning, upgrades/downgrades, and market psychology.',
-      image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=500&h=350&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
     },
     {
       title: 'Technical Analysis & Trading Signals',
       description: 'AI-generated signals based on price action, technical patterns, and momentum indicators. Identify entry and exit opportunities.',
-      image: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=500&h=350&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
     },
   ];
 
@@ -69,7 +69,7 @@ const ResearchInsights = () => {
             </Grid>
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="https://images.unsplash.com/photo-1611432579699-484f7990f17a?w=700&h=500&fit=crop"
+                src="https://picsum.photos/800/500?random="
                 alt="Research Intelligence"
                 height={{ xs: '300px', md: '450px' }}
               />
