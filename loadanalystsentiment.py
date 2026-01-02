@@ -174,50 +174,46 @@ def load_analyst_sentiment(symbols, cur, conn):
             current_price = None
 
         # Calculate price target vs current
-        price_target_vs_current = None
+        upside_downside_percent = None
         if data["target_mean"] and current_price:
             try:
-                price_target_vs_current = ((float(data["target_mean"]) / float(current_price)) - 1.0) * 100
+                upside_downside_percent = ((float(data["target_mean"]) / float(current_price)) - 1.0) * 100
             except Exception as e:
-                logging.warning(f"Failed to calculate price target vs current for {symbol}: {str(e)}")
+                logging.warning(f"Failed to calculate upside/downside for {symbol}: {str(e)}")
                 pass
+
+        # Map to table columns: bullish_count, neutral_count, bearish_count
+        # Note: yfinance doesn't provide breakdown, so we use None for distribution
+        bullish_count = strong_buy + buy if (strong_buy and buy) else None
+        neutral_count = hold if hold else None
+        bearish_count = strong_sell + sell if (strong_sell and sell) else None
 
         row = [
             symbol,
             datetime.now().date(),
-            data["numeric_rating"],
-            data["analyst_count"],
-            data["target_mean"],
-            price_target_vs_current,
-            strong_buy,  # None (no real distribution data from yfinance)
-            buy,         # None (no real distribution data from yfinance)
-            hold,        # None (no real distribution data from yfinance)
-            sell,        # None (no real distribution data from yfinance)
-            strong_sell, # None (no real distribution data from yfinance)
-            None,  # upgrades_last_30d (ONLY from upgrade/downgrade table with real data)
-            None,  # downgrades_last_30d (ONLY from upgrade/downgrade table with real data)
-            None,  # eps_revisions_up_last_30d (ONLY from real earnings data)
-            None,  # eps_revisions_down_last_30d (ONLY from real earnings data)
+            bullish_count,      # bullish_count (from strong_buy + buy, but likely None)
+            neutral_count,      # neutral_count (from hold, but likely None)
+            bearish_count,      # bearish_count (from strong_sell + sell, but likely None)
+            data["analyst_count"],  # total_analysts
+            data["target_mean"],    # target_price
+            current_price,          # current_price
+            upside_downside_percent  # upside_downside_percent
         ]
 
-        # Insert with UPSERT
+        # Insert with UPSERT (using actual table columns: bullish_count, neutral_count, bearish_count)
         sql = """
             INSERT INTO analyst_sentiment_analysis
-            (symbol, date_recorded, recommendation_mean, total_analysts, avg_price_target,
-             price_target_vs_current, strong_buy_count, buy_count, hold_count,
-             sell_count, strong_sell_count, upgrades_last_30d, downgrades_last_30d,
-             eps_revisions_up_last_30d, eps_revisions_down_last_30d)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (symbol, date_recorded, bullish_count, neutral_count, bearish_count,
+             total_analysts, target_price, current_price, upside_downside_percent)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol, date_recorded) DO UPDATE SET
-                recommendation_mean = EXCLUDED.recommendation_mean,
+                bullish_count = EXCLUDED.bullish_count,
+                neutral_count = EXCLUDED.neutral_count,
+                bearish_count = EXCLUDED.bearish_count,
                 total_analysts = EXCLUDED.total_analysts,
-                avg_price_target = EXCLUDED.avg_price_target,
-                price_target_vs_current = EXCLUDED.price_target_vs_current,
-                strong_buy_count = EXCLUDED.strong_buy_count,
-                buy_count = EXCLUDED.buy_count,
-                hold_count = EXCLUDED.hold_count,
-                sell_count = EXCLUDED.sell_count,
-                strong_sell_count = EXCLUDED.strong_sell_count
+                target_price = EXCLUDED.target_price,
+                current_price = EXCLUDED.current_price,
+                upside_downside_percent = EXCLUDED.upside_downside_percent
         """
 
         try:

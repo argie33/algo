@@ -5,6 +5,7 @@ import PageHeader from '../../components/marketing/PageHeader';
 import CTASection from '../../components/marketing/CTASection';
 import PromoBanner from '../../components/marketing/PromoBanner';
 import ImagePlaceholder from '../../components/marketing/ImagePlaceholder';
+import CommunitySignup from '../../components/marketing/CommunitySignup';
 import { Info as InfoIcon } from '@mui/icons-material';
 
 const About = () => {
@@ -124,6 +125,9 @@ const About = () => {
         primaryCTA={{ label: 'Explore Services', href: '/services' }}
         secondaryCTA={{ label: 'View Team', href: '/our-team' }}
       />
+
+      {/* Community Signup Section */}
+      <CommunitySignup />
 
       <Box sx={{ mx: { xs: 2, md: 4 }, mb: 6 }}>
         <CTASection
