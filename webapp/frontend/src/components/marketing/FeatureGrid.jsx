@@ -94,7 +94,7 @@ const FeatureGrid = ({ title, subtitle, features, columns = { xs: 1, sm: 2, md: 
                       } : {},
                     }}
                   >
-                    <CardContent sx={{ flexGrow: 1, pb: 2 }}>
+                    <CardContent sx={{ flexGrow: 1, pb: 2, textAlign: 'center' }}>
                       {/* Icon */}
                       {feature.icon && (
                         <Box
@@ -108,6 +108,7 @@ const FeatureGrid = ({ title, subtitle, features, columns = { xs: 1, sm: 2, md: 
                             justifyContent: 'center',
                             fontSize: '1.5rem',
                             mb: 2,
+                            mx: 'auto',
                             backgroundColor: colors.light,
                             color: colors.main,
                             transition: 'all 0.3s ease',
@@ -126,6 +127,7 @@ const FeatureGrid = ({ title, subtitle, features, columns = { xs: 1, sm: 2, md: 
                           mb: 1.5,
                           color: theme.palette.text.primary,
                           fontSize: '1.1rem',
+                          textAlign: 'center',
                         }}
                       >
                         {feature.title}
@@ -138,6 +140,7 @@ const FeatureGrid = ({ title, subtitle, features, columns = { xs: 1, sm: 2, md: 
                           color: theme.palette.text.secondary,
                           mb: 2,
                           lineHeight: 1.6,
+                          textAlign: 'center',
                         }}
                       >
                         {feature.description}
@@ -145,7 +148,7 @@ const FeatureGrid = ({ title, subtitle, features, columns = { xs: 1, sm: 2, md: 
 
                       {/* Bullet Points (Optional) */}
                       {feature.bullets && (
-                        <Box sx={{ mb: 2 }}>
+                        <Box sx={{ mb: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                           {feature.bullets.map((bullet, bidx) => (
                             <Box
                               key={bidx}
@@ -155,6 +158,7 @@ const FeatureGrid = ({ title, subtitle, features, columns = { xs: 1, sm: 2, md: 
                                 mb: 0.5,
                                 fontSize: '0.9rem',
                                 color: theme.palette.text.secondary,
+                                justifyContent: 'center',
                               }}
                             >
                               <Box
@@ -175,7 +179,7 @@ const FeatureGrid = ({ title, subtitle, features, columns = { xs: 1, sm: 2, md: 
 
                       {/* Tags (Optional) */}
                       {feature.tags && (
-                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 2 }}>
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 2, justifyContent: 'center' }}>
                           {feature.tags.map((tag, tidx) => (
                             <Chip
                               key={tidx}
