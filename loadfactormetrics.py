@@ -485,8 +485,12 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
                 if prev_revenue > 0:
                     try:
                         metrics["revenue_growth_yoy"] = ((recent_revenue - prev_revenue) / prev_revenue * 100)
+                        logging.debug(f"DEBUG {symbol} revenue_growth_yoy: {metrics['revenue_growth_yoy']}")
                     except (TypeError, ValueError, ZeroDivisionError):
+                        logging.debug(f"DEBUG {symbol} revenue_growth_yoy exception: prev={prev_revenue}, recent={recent_revenue}")
                         pass
+            else:
+                logging.debug(f"DEBUG {symbol} skipped revenue_growth_yoy: prev={prev_revenue}, recent={recent_revenue}")
 
             # Operating Income Growth: Allow any valid numeric comparison (including negative base)
             # Company going from -$10M to -$5M to +$2M shows recovery progression
@@ -1379,11 +1383,19 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
 
 def load_growth_metrics(conn, cursor, symbols: List[str]):
     """Load growth metrics for all symbols"""
-    # Recover from any aborted transactions
+    # Recover from any aborted transactions by setting autocommit mode
+    try:
+        cursor.close()
+    except:
+        pass
     try:
         conn.rollback()
     except:
         pass
+    # Set autocommit mode to reset transaction state
+    conn.autocommit = True
+    cursor = conn.cursor()
+    conn.autocommit = False  # Turn off autocommit for normal transaction mode
 
     logging.info("Loading growth metrics...")
 
@@ -1414,7 +1426,10 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
         (symbols,)
     )
 
-    for row in cursor.fetchall():
+    # Materialize results to avoid cursor state issues with nested queries
+    key_metrics_rows = cursor.fetchall()
+
+    for row in key_metrics_rows:
         try:
             ticker = row[0]
             ticker_dict = {
@@ -1463,6 +1478,11 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
             ])
         except Exception as e:
             logging.warning(f"Error processing growth metrics for {row[0] if row else 'unknown'}: {e}")
+            # Recover transaction state to continue processing other symbols
+            try:
+                conn.rollback()
+            except:
+                pass
 
     # Also process symbols that have financial statement data but no key_metrics
     # These are companies with annual income statements but missing from key_metrics table
@@ -1527,7 +1547,9 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
             ])
 
     # Upsert growth_metrics
+    logging.info(f"DEBUG: growth_rows has {len(growth_rows)} rows before upsert")
     if growth_rows:
+        logging.info(f"DEBUG: First row sample: {growth_rows[0] if growth_rows else 'EMPTY'}")
         upsert_sql = """
             INSERT INTO growth_metrics (
                 symbol, date, revenue_growth_3y_cagr, eps_growth_3y_cagr,
@@ -1559,8 +1581,11 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
             except:
                 pass
 
+            logging.info(f"DEBUG: About to execute_values with {len(growth_rows)} rows")
             execute_values(cursor, upsert_sql, growth_rows)
+            logging.info(f"DEBUG: execute_values completed successfully")
             conn.commit()
+            logging.info(f"DEBUG: commit completed")
             logging.info(f"Loaded {len(growth_rows)} growth metric records")
         except Exception as e:
             logging.error(f"Failed to insert growth metrics: {e}")
