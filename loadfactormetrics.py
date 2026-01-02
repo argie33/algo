@@ -1240,11 +1240,8 @@ def load_ad_ratings(conn, cursor, symbols: List[str]):
                 updated_count += 1
             except Exception as e:
                 logging.warning(f"Failed to update A/D for {symbol}: {e}")
-                # Rollback the bad transaction to recover
-                try:
-                    conn.rollback()
-                except:
-                    pass
+                # Don't rollback here - it aborts the whole transaction
+                # Just skip this stock and continue with the next one
 
         try:
             conn.commit()
