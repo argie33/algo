@@ -81,7 +81,6 @@ const menuItems = [
     icon: <AnalyticsIcon />,
     path: "/optimizer",
     category: "portfolio",
-    premium: true,
   },
   // Tools Section
   {

@@ -64,8 +64,8 @@ try:
     else:
         # Fall back to local environment variables with defaults
         DB_HOST     = os.environ.get("DB_HOST", "localhost")
-        DB_USER     = os.environ.get("DB_USER", "postgres")
-        DB_PASSWORD = os.environ.get("DB_PASSWORD", "password")
+        DB_USER     = os.environ.get("DB_USER", "stocks")
+        DB_PASSWORD = os.environ.get("DB_PASSWORD", "bed0elAn")
         DB_PORT     = int(os.environ.get("DB_PORT", 5432))
         DB_NAME     = os.environ.get("DB_NAME", "stocks")
         logging.info("Using local environment DB configuration")
@@ -73,8 +73,8 @@ except Exception as e:
     logging.error(f"Failed to get database configuration: {e}")
     # One more fallback - use environment defaults
     DB_HOST     = os.environ.get("DB_HOST", "localhost")
-    DB_USER     = os.environ.get("DB_USER", "postgres")
-    DB_PASSWORD = os.environ.get("DB_PASSWORD", "password")
+    DB_USER     = os.environ.get("DB_USER", "stocks")
+    DB_PASSWORD = os.environ.get("DB_PASSWORD", "bed0elAn")
     DB_PORT     = int(os.environ.get("DB_PORT", 5432))
     DB_NAME     = os.environ.get("DB_NAME", "stocks")
     logging.info("Using local environment DB configuration (after error)")

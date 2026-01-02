@@ -77,8 +77,8 @@ def get_db_config():
     return {
         "host": os.environ.get("DB_HOST", "localhost"),
         "port": int(os.environ.get("DB_PORT", "5432")),
-        "user": os.environ.get("DB_USER", "postgres"),
-        "password": os.environ.get("DB_PASSWORD", "password"),
+        "user": os.environ.get("DB_USER", "stocks"),
+        "password": os.environ.get("DB_PASSWORD", "bed0elAn"),
         "dbname": os.environ.get("DB_NAME", "stocks")
         }
 def safe_convert_to_float(value) -> Optional[float]:
