@@ -4277,6 +4277,7 @@ def main():
             try:
                 cursor.execute("ALTER TABLE positioning_metrics ADD COLUMN IF NOT EXISTS institutional_ownership_pct FLOAT")
                 cursor.execute("ALTER TABLE positioning_metrics ADD COLUMN IF NOT EXISTS insider_ownership_pct FLOAT")
+                cursor.execute("ALTER TABLE positioning_metrics ADD COLUMN IF NOT EXISTS institutional_holders_count INTEGER")
                 logger.info("✅ positioning_metrics columns ready")
             except Exception as e:
                 logger.warning(f"⚠️  positioning_metrics columns: {e}")
