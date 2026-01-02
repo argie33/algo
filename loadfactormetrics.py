@@ -1856,18 +1856,27 @@ def create_factor_metrics_tables(cursor):
         # Create momentum_metrics table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS momentum_metrics (
+                id SERIAL,
                 symbol VARCHAR(50) NOT NULL,
                 date DATE NOT NULL,
                 current_price FLOAT,
+                momentum_1m FLOAT,
                 momentum_3m FLOAT,
                 momentum_6m FLOAT,
                 momentum_12m FLOAT,
+                created_at TIMESTAMP,
                 price_vs_sma_50 FLOAT,
                 price_vs_sma_200 FLOAT,
                 price_vs_52w_high FLOAT,
                 fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (symbol, date)
             )
+        """)
+
+        # Add momentum_1m column if it doesn't exist (for existing tables)
+        cursor.execute("""
+            ALTER TABLE momentum_metrics
+            ADD COLUMN IF NOT EXISTS momentum_1m FLOAT
         """)
 
         # Add SMA columns if they don't exist (for existing tables)

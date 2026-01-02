@@ -24,9 +24,9 @@ const Services = () => {
     {
       icon: <StarIcon fontSize="large" />,
       title: 'AI-Powered Stock Analysis',
-      subtitle: 'Composite Scoring & Multi-Factor Evaluation',
+      subtitle: 'Find Winners Before the Market Does',
       description:
-        'Our proprietary AI scoring engine analyzes 100+ factors across every covered stock—from fundamental strength to technical momentum, valuation relative to peers, and institutional positioning. Machine learning models identify which factors matter most in any market regime. Real-time scores update as new data arrives.',
+        '5,300 stocks analyzed. 100+ factors evaluated. 1 simple score. Our AI discovers which stocks are genuinely undervalued by the market - not just what Wall Street consensus believes. When our scores diverge from sentiment, that\'s where the alpha lives. See exactly which factors are driving each recommendation.',
       details: [
         'Multi-factor composite scoring engine',
         'Real-time score updates as market data changes',
@@ -41,9 +41,9 @@ const Services = () => {
     {
       icon: <EventIcon fontSize="large" />,
       title: 'Earnings Intelligence System',
-      subtitle: 'Estimate Tracking & Surprise Analysis',
+      subtitle: 'Catch Surprises Before the Earnings Call',
       description:
-        'Track 5,300+ stocks across earnings cycles with 10+ years of historical data. Our AI identifies surprise patterns, revision trends, and management guidance changes that forecast future surprises. See which stocks have positive estimate momentum and which are at risk of negative guidance.',
+        'Earnings are when reality meets expectation. Our AI tracks 10+ years of historical data to predict which stocks will surprise vs. disappoint. Watch estimate momentum shift days or weeks before earnings. See when management is quietly pulling back guidance. Know which stocks have positive earnings surprises baked in before they report.',
       details: [
         'Live earnings calendar with analyst estimates',
         '10+ years of historical earnings data',
@@ -59,9 +59,9 @@ const Services = () => {
     {
       icon: <PsychologyIcon fontSize="large" />,
       title: 'Sentiment & Positioning Analytics',
-      subtitle: 'Market Psychology & Institutional Positioning',
+      subtitle: 'When Everyone Agrees, The Money Isn\'t There',
       description:
-        'When sentiment reaches extremes, opportunity emerges. Our platform analyzes analyst coverage changes, institutional positioning metrics, and market psychology signals to spot divergences between narrative and reality. AI identifies contrarian setups where smart money diverges from crowd sentiment.',
+        'The best trades happen when narrative diverges from reality. Our AI detects when institutions are quietly accumulating while headlines scream bearish. Spot when retail is panicking and smart money is loading the boat. See analyst sentiment extremes that historically precede major moves. Contrarian setups identified automatically.',
       details: [
         'Analyst rating analysis and change tracking',
         'Institutional positioning metrics',
@@ -77,9 +77,9 @@ const Services = () => {
     {
       icon: <TimelineIcon fontSize="large" />,
       title: 'Technical Analysis & Trading Signals',
-      subtitle: 'Price Action & AI-Generated Signals',
+      subtitle: 'Trade Price Action With AI Precision',
       description:
-        'Price action tells a story. Our AI engine combines traditional technical analysis with pattern recognition to generate real-time buy/sell signals. Identify support, resistance, breakouts, and momentum shifts. See which technical patterns precede major moves.',
+        'Price patterns matter more than anyone admits. Our AI doesn\'t just find chart patterns - it identifies which ones actually predict future moves. Real-time buy/sell signals that respect support/resistance. Momentum shifts detected before price confirms them. See which technical patterns have genuine predictive power in today\'s market regime.',
       details: [
         'Advanced technical indicators and patterns',
         'AI-generated buy/sell signals',
@@ -95,9 +95,9 @@ const Services = () => {
     {
       icon: <BusinessIcon fontSize="large" />,
       title: 'Sector & Industry Research',
-      subtitle: 'Rotation Analysis & Relative Strength',
+      subtitle: 'Ride Sector Rotations From Day One',
       description:
-        'Sectors lead markets. Our AI monitors relative strength across all 11 sectors, identifies rotation patterns, and connects macro trends to sector performance. Know which sectors are positioned to outperform before the market reprices.',
+        'Markets don\'t move randomly - they rotate. Our AI identifies emerging sector trends before they become obvious. Watch which sectors have momentum, which are exhausted, and which are about to break out. Understand the macro drivers shifting capital between sectors. Position your portfolio ahead of the rotation.',
       details: [
         'Sector performance tracking and ranking',
         'Relative strength analysis',
@@ -111,11 +111,11 @@ const Services = () => {
       ideal: 'Portfolio managers, asset allocators, strategic investors',
     },
     {
-      icon: <Public as PublicIcon fontSize="large" />,
+      icon: <PublicIcon fontSize="large" />,
       title: 'Economic & Macro Intelligence',
-      subtitle: 'Macro Trends & Economic Impact Analysis',
+      subtitle: 'Know What The Fed Knows Before It Moves',
       description:
-        'Macro drives markets. Our platform integrates real-time economic data, Fed policy signals, and leading indicators to forecast market shifts before they occur. Understand how rate cycles, inflation trends, and economic regimes impact your portfolio.',
+        'The Fed moves markets. Our AI tracks real-time economic data, Fed policy signals, and leading indicators months before the consensus catches on. Understand rate cycle implications. See inflation trends shifting. Anticipate economic regime changes before portfolio adjustments become crowded.',
       details: [
         'Key economic indicator tracking',
         'Macro trend analysis and forecasting',
@@ -131,9 +131,9 @@ const Services = () => {
     {
       icon: <ShowChartIcon fontSize="large" />,
       title: 'Market & Portfolio Overview',
-      subtitle: 'Breadth Analysis & Market Health',
+      subtitle: 'See What The Indices Hide',
       description:
-        'Market breadth reveals what the headline indices hide. Monitor participation rates, advance-decline lines, and market momentum. See when the market is broadening or narrowing, and identify divergences that precede major moves.',
+        'A few megacaps can hide a weakening market. Our breadth analysis shows you the truth - how many stocks are actually participating in rallies, where momentum is degrading, which divergences historically preceded corrections. Understand real market health, not just headline indices.',
       details: [
         'Market breadth indicators',
         'Advance/decline analysis',
@@ -149,9 +149,9 @@ const Services = () => {
     {
       icon: <HealthAndSafetyIcon fontSize="large" />,
       title: 'Hedge Helper & Risk Management',
-      subtitle: 'Portfolio Protection & Risk Analysis',
+      subtitle: 'Sleep At Night. Keep Your Profits.',
       description:
-        'Protection without paralysis. Our AI recommends hedging strategies tailored to your portfolio, market regime, and risk tolerance. Identify optimal puts, collars, and diversification strategies to manage downside while keeping upside intact.',
+        'The best traders protect profits. Our Hedge Helper analyzes your portfolio, market regime, and risk appetite to recommend hedging strategies that actually work. Optimal puts. Collars. Diversification approaches. All designed to protect downside without killing upside potential.',
       details: [
         'Risk metric calculations',
         'Hedging strategy recommendations',
