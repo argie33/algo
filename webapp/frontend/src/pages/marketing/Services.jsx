@@ -4,6 +4,7 @@ import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
 import CTASection from '../../components/marketing/CTASection';
 import PromoBanner from '../../components/marketing/PromoBanner';
+import ImagePlaceholder from '../../components/marketing/ImagePlaceholder';
 import { Rocket as RocketIcon, TrendingUp as TrendingUpIcon } from '@mui/icons-material';
 import {
   Star as StarIcon,
@@ -204,6 +205,17 @@ const Services = () => {
         title="Professional Research & Advisory Services"
         subtitle="Six comprehensive research dimensions powering institutional-grade analysis and customized advisory solutions"
       />
+
+      {/* Hero Image Section */}
+      <Box sx={{ py: { xs: 4, md: 6 }, backgroundColor: alpha(theme.palette.primary.main, 0.02) }}>
+        <Container maxWidth="lg">
+          <ImagePlaceholder
+            src="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=1200&h=500&fit=crop&auto=format&q=80"
+            alt="Data analysis and research dashboard"
+            height={{ xs: '250px', md: '400px' }}
+          />
+        </Container>
+      </Box>
 
       {/* Research Philosophy Section */}
       <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.default }}>
