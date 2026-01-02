@@ -1,0 +1,1 @@
+BATCH 1 FOUNDATION: stocksymbols,dailycompanydata,pricedaily,factormetrics,sentiment
