@@ -14,32 +14,32 @@ const InvestmentTools = () => {
     {
       title: 'Real-Time Stock Scoring',
       description: 'AI-powered composite scores that update in real-time. Analyze individual stocks across multiple dimensions and compare them instantly.',
-      image: 'https://picsum.photos/800/500?random=10
+      image: 'https://picsum.photos/800/500?random=10',
     },
     {
       title: 'Earnings Calendar & Analysis',
       description: 'Track upcoming earnings, view historical surprise patterns, and identify stocks with positive estimate revisions using AI analysis.',
-      image: 'https://picsum.photos/800/500?random=10
+      image: 'https://picsum.photos/800/500?random=10',
     },
     {
       title: 'Technical Analysis Engine',
       description: 'Advanced technical indicators, pattern recognition, and AI-generated trading signals. Identify entry and exit opportunities with precision.',
-      image: 'https://picsum.photos/800/500?random=10
+      image: 'https://picsum.photos/800/500?random=10',
     },
     {
       title: 'Sector & Market Tools',
       description: 'Monitor sector rotation, relative strength analysis, and overall market health. Make informed allocation decisions across different asset classes.',
-      image: 'https://picsum.photos/800/500?random=10
+      image: 'https://picsum.photos/800/500?random=10',
     },
     {
       title: 'Economic Dashboard',
       description: 'Track key economic indicators, macro trends, and their impact on markets. Understand the broader economic context for your trades.',
-      image: 'https://picsum.photos/800/500?random=10
+      image: 'https://picsum.photos/800/500?random=10',
     },
     {
       title: 'Hedge Helper',
       description: 'AI-powered hedging suggestions and risk management strategies. Protect your portfolio with intelligent portfolio protection recommendations.',
-      image: 'https://picsum.photos/800/500?random=10
+      image: 'https://picsum.photos/800/500?random=10',
     },
   ];
 

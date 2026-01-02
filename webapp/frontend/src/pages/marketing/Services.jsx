@@ -35,7 +35,7 @@ const Services = () => {
         'Historical score trends and performance tracking',
       ],
       dataTypes: ['Fundamentals', 'Technicals', 'Sentiment', 'Valuations'],
-      image: 'https://picsum.photos/800/500?random=10
+      image: 'https://picsum.photos/800/500?random=10',
       ideal: 'Portfolio managers, active traders, value investors',
     },
     {
@@ -53,7 +53,7 @@ const Services = () => {
         'Management guidance analysis',
       ],
       dataTypes: ['Financial Data', 'Analyst Estimates', 'Historical Patterns', 'Macro Context'],
-      image: 'https://picsum.photos/800/500?random=10
+      image: 'https://picsum.photos/800/500?random=10',
       ideal: 'Fundamental analysts, earnings-focused traders, fund managers',
     },
     {
@@ -71,7 +71,7 @@ const Services = () => {
         'Positioning divergence analysis',
       ],
       dataTypes: ['Analyst Sentiment', 'Positioning Data', 'Market Psychology', 'Alternative Signals'],
-      image: 'https://picsum.photos/800/500?random=10
+      image: 'https://picsum.photos/800/500?random=10',
       ideal: 'Contrarian investors, sentiment-driven traders, macro strategists',
     },
     {
@@ -89,7 +89,7 @@ const Services = () => {
         'Price pattern recognition',
       ],
       dataTypes: ['Price Data', 'Volume', 'Technical Patterns', 'Momentum Indicators'],
-      image: 'https://picsum.photos/800/500?random=10
+      image: 'https://picsum.photos/800/500?random=10',
       ideal: 'Active traders, swing traders, day traders, technical analysts',
     },
     {
@@ -107,7 +107,7 @@ const Services = () => {
         'Macro-to-sector mapping',
       ],
       dataTypes: ['Market Data', 'Economic Indicators', 'Industry Data', 'Macro Trends'],
-      image: 'https://picsum.photos/800/500?random=10
+      image: 'https://picsum.photos/800/500?random=10',
       ideal: 'Portfolio managers, asset allocators, strategic investors',
     },
     {
@@ -125,7 +125,7 @@ const Services = () => {
         'Cross-asset correlations',
       ],
       dataTypes: ['Economic Data', 'Fed Signals', 'Policy Analysis', 'Market Data'],
-      image: 'https://picsum.photos/800/500?random=10
+      image: 'https://picsum.photos/800/500?random=10',
       ideal: 'Macro strategists, portfolio managers, economic analysts',
     },
     {
@@ -143,7 +143,7 @@ const Services = () => {
         'Market regime identification',
       ],
       dataTypes: ['Market Data', 'Breadth Data', 'Volatility Metrics', 'Performance Data'],
-      image: 'https://picsum.photos/800/500?random=10
+      image: 'https://picsum.photos/800/500?random=10',
       ideal: 'Portfolio managers, risk managers, market strategists',
     },
     {
@@ -161,7 +161,7 @@ const Services = () => {
         'Max drawdown analysis',
       ],
       dataTypes: ['Portfolio Data', 'Options Data', 'Risk Metrics', 'Correlations'],
-      image: 'https://picsum.photos/800/500?random=10
+      image: 'https://picsum.photos/800/500?random=10',
       ideal: 'Risk managers, wealth managers, institutional investors',
     },
   ];
@@ -604,17 +604,17 @@ const Services = () => {
               {
                 title: 'Multi-Dimensional Stock Research',
                 desc: 'AI-powered composite analysis across fundamentals, technicals, sentiment, and macro',
-                image: 'https://picsum.photos/800/500?random=10
+                image: 'https://picsum.photos/800/500?random=10',
               },
               {
                 title: 'Research Data Dashboards',
                 desc: 'Customizable dashboards for institutions, advisors, and active investors',
-                image: 'https://picsum.photos/800/500?random=10
+                image: 'https://picsum.photos/800/500?random=10',
               },
               {
                 title: 'Real-Time Research Updates',
                 desc: 'Continuous data processing and AI analysis for actionable market intelligence',
-                image: 'https://picsum.photos/800/500?random=10
+                image: 'https://picsum.photos/800/500?random=10',
               },
             ].map((item, idx) => (
               <Grid item xs={12} md={4} key={idx}>
@@ -771,7 +771,7 @@ const Services = () => {
           {/* Left: Image */}
           <Box
             sx={{
-              backgroundImage: 'url(https://picsum.photos/800/500?random=10
+              backgroundImage: 'url(https://picsum.photos/800/500?random=10)',
               backgroundSize: 'cover',
               backgroundPosition: 'center',
               minHeight: { xs: '300px', md: '500px' },
@@ -951,7 +951,7 @@ const Services = () => {
                 ],
                 impact: 'Better risk-adjusted returns through data-driven insights',
                 icon: '📊',
-                image: 'https://picsum.photos/800/500?random=10
+                image: 'https://picsum.photos/800/500?random=10',
               },
               {
                 title: 'Wealth Advisors & RIAs',
@@ -964,7 +964,7 @@ const Services = () => {
                 ],
                 impact: 'Enhanced client outcomes and streamlined research workflow',
                 icon: '💼',
-                image: 'https://picsum.photos/800/500?random=10
+                image: 'https://picsum.photos/800/500?random=10',
               },
               {
                 title: 'Active Traders & Investors',
@@ -977,7 +977,7 @@ const Services = () => {
                 ],
                 impact: 'Faster decision-making with better timing and accuracy',
                 icon: '⚡',
-                image: 'https://picsum.photos/800/500?random=10
+                image: 'https://picsum.photos/800/500?random=10',
               },
             ].map((useCase, idx) => (
               <Grid item xs={12} md={4} key={idx}>

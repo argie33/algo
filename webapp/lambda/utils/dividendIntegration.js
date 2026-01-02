@@ -86,20 +86,23 @@ function calculateDividendContribution(stock) {
  * @returns {Object} Adjusted return metrics
  */
 function adjustReturnForDividends(baseReturn, dividendMetrics) {
+  // Provide defaults if dividendMetrics is null or undefined
+  const safeMetrics = dividendMetrics || { incomeReturn: 0, expectedDividendGrowth: 0 };
+
   // Dividend yield is relatively stable compared to price appreciation
   // So it's a reliable component of total return
-  const totalReturn = baseReturn + dividendMetrics.incomeReturn;
+  const totalReturn = baseReturn + (safeMetrics.incomeReturn || 0);
 
   // Growth component: Expected dividend growth compounds return
   // (More conservative: only add 25% of expected growth to realized return)
-  const growthComponent = dividendMetrics.expectedDividendGrowth * 0.25;
+  const growthComponent = (safeMetrics.expectedDividendGrowth || 0) * 0.25;
 
   // Total return including dividend growth (slightly more optimistic)
   const totalReturnWithGrowth = totalReturn + growthComponent;
 
   return {
     baseAppreciationReturn: parseFloat(baseReturn.toFixed(4)),
-    dividendIncomeReturn: parseFloat(dividendMetrics.incomeReturn.toFixed(4)),
+    dividendIncomeReturn: parseFloat((safeMetrics.incomeReturn || 0).toFixed(4)),
     dividendGrowthComponent: parseFloat(growthComponent.toFixed(4)),
     totalReturn: parseFloat(totalReturn.toFixed(4)),
     totalReturnWithGrowth: parseFloat(totalReturnWithGrowth.toFixed(4)),

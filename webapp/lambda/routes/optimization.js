@@ -2370,9 +2370,9 @@ router.get("/analysis", authenticateToken, async (req, res) => {
           portfolioSynergy: {
             gapAddressingScore: parseFloat(gapAddressingScore.toFixed(1)),
             concentrationReductionScore: parseFloat(concentrationReductionScore.toFixed(1)),
-            diversificationBenefitScore: parseFloat(diversificationBenefitScore.toFixed(1)),
+            diversificationBenefitScore: diversificationBenefitScore !== null ? parseFloat(diversificationBenefitScore.toFixed(1)) : null,
             overallSynergyScore: parseFloat(portfolioSynergyScore.toFixed(1)),
-            rationale: `Addresses growth gap (+${Math.round(gapAddressingScore - 50)}), reduces concentration (+${Math.round(concentrationReductionScore - 50)}), diversification benefit (+${Math.round(diversificationBenefitScore - 60)})`
+            rationale: `Addresses growth gap (+${Math.round(gapAddressingScore - 50)}), reduces concentration (+${Math.round(concentrationReductionScore - 50)})${diversificationBenefitScore !== null ? `, diversification benefit (+${Math.round(diversificationBenefitScore - 60)})` : ''}`
           },
 
           // Tax-Efficiency Metrics (Phase 1.2 - Tax considerations baked in)
