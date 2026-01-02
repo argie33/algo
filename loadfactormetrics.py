@@ -1383,21 +1383,8 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
 
 def load_growth_metrics(conn, cursor, symbols: List[str]):
     """Load growth metrics for all symbols"""
-    # Recover from any aborted transactions by setting autocommit mode
-    try:
-        cursor.close()
-    except:
-        pass
-    try:
-        conn.rollback()
-    except:
-        pass
-    # Set autocommit mode to reset transaction state
-    conn.autocommit = True
-    cursor = conn.cursor()
-    conn.autocommit = False  # Turn off autocommit for normal transaction mode
-
-    logging.info("Loading growth metrics...")
+    # Enhanced error handling to recover from transaction abort states
+    logging.info(f"Loading growth metrics for {len(symbols)} symbols...")
 
     growth_rows = []
 
@@ -2100,7 +2087,16 @@ def main():
             log_mem("After growth metrics")
         except Exception as e:
             logging.error(f"Growth metrics loading failed: {e}")
-            conn.rollback()
+            try:
+                conn.rollback()
+            except Exception as rollback_err:
+                logging.warning(f"Rollback failed, attempting disconnect/reconnect: {rollback_err}")
+                try:
+                    cursor.close()
+                    conn.close()
+                except:
+                    pass
+                conn = psycopg2.connect(**db_config)
             cursor.close()
             cursor = conn.cursor()  # Create new cursor after rollback
 

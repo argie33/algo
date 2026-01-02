@@ -489,7 +489,7 @@ def calculate_opportunities(conn, data_date):
                 total_analysts,
                 target_price,
                 CASE
-                    WHEN total_analysts > 0 THEN (bullish_count::REAL / total_analysts::REAL)
+                    WHEN total_analysts > 0 THEN ((COALESCE(strong_buy_count, 0) + COALESCE(buy_count, 0))::REAL / total_analysts::REAL)
                     ELSE NULL
                 END AS bullish_ratio
             FROM analyst_sentiment_analysis
