@@ -12,4 +12,6 @@ COPY loadbuysell_etf_daily.py .
 RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadbuysell_etf_daily.txt
 
 # Set the entrypoint
-ENTRYPOINT ["python", "loadbuysell_etf_daily.py"]
+ENV PYTHONUNBUFFERED=1
+ENV AWS_DEFAULT_REGION=us-east-1
+ENTRYPOINT ["python", "-u", "loadbuysell_etf_daily.py"]

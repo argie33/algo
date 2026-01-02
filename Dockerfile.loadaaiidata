@@ -25,5 +25,7 @@ COPY loadaaiidata.py .
 RUN chmod +x loadaaiidata.py
 
 # Run the script
-CMD ["python", "loadaaiidata.py"]
+ENV PYTHONUNBUFFERED=1
+ENV AWS_DEFAULT_REGION=us-east-1
+CMD ["python", "-u", "loadaaiidata.py"]
 # Trigger rebuild Mon Oct  6 14:22:00 CDT 2025 - Deploy to load AAII sentiment data 

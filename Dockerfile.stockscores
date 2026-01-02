@@ -11,5 +11,9 @@ COPY loadstockscores.py .
 # Install the requirements
 RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadstockscores.txt
 
+# Enable unbuffered Python output and set environment
+ENV PYTHONUNBUFFERED=1
+ENV AWS_DEFAULT_REGION=us-east-1
+
 # Set the entrypoint
-ENTRYPOINT ["python", "loadstockscores.py"]
+ENTRYPOINT ["python", "-u", "loadstockscores.py"]
