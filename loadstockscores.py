@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# BATCH 1 FOUNDATION TRIGGER: Force workflow execution with fixed GitHub Actions authentication
 """
 Stock Scores Loader - Multi-Factor Stock Scoring System
 
