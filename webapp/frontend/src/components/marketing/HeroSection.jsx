@@ -143,13 +143,23 @@ const HeroSection = () => {
             </Box>
           </Grid>
 
-          {/* Right Visual - Hero Image */}
+          {/* Right Visual - Professional Gradient Background */}
           <Grid item xs={12} md={7}>
-            <ImagePlaceholder
-              src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1400&h=800&fit=crop&auto=format&q=80"
-              alt="Black and White NYC Skyline Night"
-              height={{ xs: '300px', sm: '400px', md: '500px' }}
-            />
+            <Box
+              sx={{
+                height: { xs: '300px', sm: '400px', md: '500px' },
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+                fontSize: '1.2rem',
+                fontWeight: 500,
+              }}
+            >
+              Institutional-Grade Market Intelligence
+            </Box>
           </Grid>
         </Grid>
       </Container>
