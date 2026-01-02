@@ -730,7 +730,7 @@ router.get("/analysis", authenticateToken, async (req, res) => {
         expectedReturns[stock.symbol] = adjustedReturn.cappedTotalReturn;
         returnFactors[stock.symbol] = {
           ...factors,
-          dividendYield: dividendData.incomeReturn,
+          dividendYield: dividendData?.incomeReturn || 0,
           totalReturn: adjustedReturn.totalReturn
         };
       } else {
@@ -747,7 +747,7 @@ router.get("/analysis", authenticateToken, async (req, res) => {
         const divData2 = dividendIntegration.calculateDividendContribution(dividendDefaults2);
         const fallbackAdjusted = dividendIntegration.adjustReturnForDividends(baseReturns, divData2);
         expectedReturns[stock.symbol] = fallbackAdjusted.cappedTotalReturn;
-        returnFactors[stock.symbol] = { pnlBased: true, dividendYield: divData2.incomeReturn };
+        returnFactors[stock.symbol] = { pnlBased: true, dividendYield: divData2?.incomeReturn || 0 };
         dividendMetrics[stock.symbol] = divData2;
       }
 

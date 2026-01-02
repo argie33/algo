@@ -21,7 +21,7 @@ const Firm = () => {
       icon: <FlagIcon />,
       title: 'Deep Market Knowledge',
       description:
-        '50+ years of collective expertise in hedge funds, asset management, and proprietary trading. Our founders built successful trading operations and understand what actually works in markets, not just what sounds good.',
+        '20+ years of combined expertise in financial markets and technology. Our team understands what works in real-world trading, what data matters, and how to apply AI and data science to reveal market insights.',
     },
     {
       icon: <LightbulbIcon />,
@@ -31,9 +31,9 @@ const Firm = () => {
     },
     {
       icon: <GroupsIcon />,
-      title: 'Team of Veterans',
+      title: 'Finance & Technology Experts',
       description:
-        'Former Goldman Sachs quants, hedge fund portfolio managers, and published ML researchers. Each team member has shipped real products, managed real capital, and delivered real returns.',
+        'A team combining deep expertise in financial markets and software engineering. Over 20 years of collective experience analyzing markets, building trading systems, and developing financial technology solutions.',
     },
     {
       icon: <TrendingUpIcon />,
@@ -45,32 +45,32 @@ const Firm = () => {
 
   const teamMembers = [
     {
-      name: 'Sarah Chen',
-      role: 'Founder & CEO',
-      bio: 'AI strategist with 15+ years in quantitative finance. Previously led machine learning initiatives at Goldman Sachs. PhD in Computer Science from MIT. Published researcher in AI applications for financial markets.',
+      name: 'Team Member 1',
+      role: 'Finance & Market Expert',
+      bio: 'Financial market specialist with deep experience in equity analysis, market trends, and investment strategy. Combines traditional financial knowledge with innovative analytical approaches.',
       image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop',
-      expertise: 'AI Research, Quantitative Strategy, Machine Learning',
+      expertise: 'Market Analysis, Investment Strategy, Financial Research',
     },
     {
-      name: 'Michael Rodriguez',
-      role: 'Chief Research Officer',
-      bio: 'Portfolio manager and research veteran with 12+ years of hedge fund management experience. Expert in technical analysis, market microstructure, and trading strategy. Track record of outperformance across market cycles.',
+      name: 'Team Member 2',
+      role: 'Data & Analytics Lead',
+      bio: 'Technology expert specializing in data analysis and system architecture. Focuses on translating market insights into actionable intelligence through advanced analytics and AI.',
       image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop',
-      expertise: 'Technical Analysis, Portfolio Strategy, Trading',
+      expertise: 'Data Science, AI Development, Technical Architecture',
     },
     {
-      name: 'Dr. James Park',
-      role: 'VP of AI & Engineering',
-      bio: 'PhD in Computer Science. Specializes in developing proprietary AI models for market analysis. Published researcher in machine learning applications. 10+ years building quantitative trading systems.',
+      name: 'Team Member 3',
+      role: 'Platform Development',
+      bio: 'Software engineer and systems architect dedicated to building intuitive, robust platforms that deliver market intelligence to investors. Expert in financial technology development.',
       image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop',
-      expertise: 'Machine Learning, Algorithm Development, Data Science',
+      expertise: 'Software Engineering, Platform Development, Technology',
     },
     {
-      name: 'Emily Thompson',
-      role: 'Chief Operations Officer',
-      bio: 'Operations leader with extensive experience scaling fintech platforms and managing institutional relationships. 10+ years in financial services. Expert in client success and operational excellence.',
+      name: 'Team Member 4',
+      role: 'Operations & Growth',
+      bio: 'Business operations specialist focused on scaling the platform and ensuring clients get maximum value from our research and analytics tools.',
       image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=400&fit=crop',
-      expertise: 'Operations, Client Relations, Institutional Markets',
+      expertise: 'Operations, Client Success, Business Strategy',
     },
   ];
 
@@ -351,14 +351,14 @@ const Firm = () => {
                 maxWidth: '500px',
               }}
             >
-              Our leadership team combines 100+ years of collective experience in quantitative finance, AI research, hedge fund management, and market microstructure. We've walked in your shoes. We understand your challenges.
+              Our team combines 20+ years of combined experience in finance and technology. We bring market expertise and technical innovation together to solve real problems investors face every day.
             </Typography>
             <Box sx={{ mb: 4 }}>
               {[
-                '15+ years in quantitative finance and AI',
-                '12+ years hedge fund and portfolio management',
-                'PhD researchers in ML and computer science',
-                'Published authors in financial AI',
+                'Deep expertise in financial markets and analysis',
+                'Advanced technology and data science capabilities',
+                'Real-world understanding of investor needs',
+                'Commitment to bringing institutional-grade insights to all investors',
               ].map((credential, i) => (
                 <Box key={i} sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                   <Box

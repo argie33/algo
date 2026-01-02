@@ -43,7 +43,7 @@ const About = () => {
                   lineHeight: 1.8,
                 }}
               >
-                Bullseye Financial was founded by a team frustrated with the gap between what's possible and what exists. Our founders—former hedge fund managers, Goldman Sachs quants, and published ML researchers—knew there had to be a better way.
+                Bullseye Financial was founded by a team of finance and IT experts frustrated with the gap between what's possible and what exists. With 20+ years of combined experience in financial markets and technology, our founders knew there had to be a better way to bring sophisticated market analysis to every investor.
               </Typography>
               <Typography
                 variant="body1"
