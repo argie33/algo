@@ -42,6 +42,7 @@ import {
   AccountCircle as AccountCircleIcon,
   Login as LoginIcon,
   Logout as LogoutIcon,
+  Mail as MailIcon,
 } from "@mui/icons-material";
 
 // Admin-only page imports (Portfolio and Tools)
@@ -51,6 +52,7 @@ import PortfolioDashboard from "./pages/PortfolioDashboard";
 import PortfolioOptimizerNew from "./pages/PortfolioOptimizerNew";
 import TradeHistory from "./pages/TradeHistory";
 import Settings from "./pages/Settings";
+import Messages from "./pages/Messages";
 import { useAuth } from "./contexts/AuthContext";
 import AuthModal from "./components/auth/AuthModal";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
@@ -82,6 +84,12 @@ const menuItems = [
     premium: true,
   },
   // Tools Section
+  {
+    text: "Messages",
+    icon: <MailIcon />,
+    path: "/messages",
+    category: "tools",
+  },
   {
     text: "Settings",
     icon: <SettingsIcon />,
@@ -475,6 +483,7 @@ function App() {
             <Route path="/trade-history" element={<ProtectedRoute><TradeHistory /></ProtectedRoute>} />
             <Route path="/optimizer" element={<ProtectedRoute><PortfolioOptimizerNew /></ProtectedRoute>} />
             <Route path="/metrics" element={<MetricsDashboard />} />
+            <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
             <Route path="/service-health" element={<ServiceHealth />} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/auth-test" element={<AuthTest />} />

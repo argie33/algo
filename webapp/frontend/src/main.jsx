@@ -1,7 +1,7 @@
 import ReactDOM from "react-dom/client";
 // Fresh deployment to clear CloudFront cache and ensure correct config (2025-08-21)
 import { BrowserRouter } from "react-router-dom";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
@@ -9,6 +9,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { configureAmplify } from "./config/amplify";
 import { createComponentLogger } from "./utils/errorLogger";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { modernTheme } from "./theme/modernTheme";
 
 // Initialize comprehensive error logging service
 const logger = createComponentLogger("Main");
@@ -113,153 +114,6 @@ if (window.__CONFIG__) {
 // Configure Amplify
 configureAmplify();
 
-// Create theme
-const theme = createTheme({
-  palette: {
-    mode: "light",
-    primary: {
-      main: "#1976d2",
-      light: "#42a5f5",
-      dark: "#1565c0",
-    },
-    secondary: {
-      main: "#dc004e",
-      light: "#ff5983",
-      dark: "#9a0036",
-    },
-    background: {
-      default: "#f5f5f5",
-      paper: "#ffffff",
-    },
-    success: {
-      main: "#2e7d32",
-      light: "#4caf50",
-      dark: "#1b5e20",
-    },
-    error: {
-      main: "#d32f2f",
-      light: "#ef5350",
-      dark: "#c62828",
-    },
-    warning: {
-      main: "#b7700d",
-      light: "#d4951a",
-      dark: "#8a5409",
-    },
-    info: {
-      main: "#0277bd",
-      light: "#29b6f6",
-      dark: "#01579b",
-    },
-  },
-  typography: {
-    fontFamily:
-      'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
-    h1: {
-      fontWeight: 600,
-    },
-    h2: {
-      fontWeight: 600,
-    },
-    h3: {
-      fontWeight: 600,
-    },
-    h4: {
-      fontWeight: 600,
-    },
-    h5: {
-      fontWeight: 600,
-    },
-    h6: {
-      fontWeight: 600,
-    },
-  },
-  components: {
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          textTransform: "none",
-          fontWeight: 500,
-          minWidth: "44px",
-          minHeight: "44px",
-          "&:focus": {
-            outline: "3px solid #1976d2",
-            outlineOffset: "2px",
-            boxShadow: "0 0 0 3px rgba(25, 118, 210, 0.3)",
-          },
-          "&:focus-visible": {
-            outline: "3px solid #1976d2",
-            outlineOffset: "2px",
-            boxShadow: "0 0 0 3px rgba(25, 118, 210, 0.3)",
-          },
-        },
-      },
-    },
-    MuiIconButton: {
-      styleOverrides: {
-        root: {
-          minWidth: "44px",
-          minHeight: "44px",
-          "&:focus": {
-            outline: "3px solid #1976d2",
-            outlineOffset: "2px",
-            boxShadow: "0 0 0 3px rgba(25, 118, 210, 0.3)",
-          },
-          "&:focus-visible": {
-            outline: "3px solid #1976d2",
-            outlineOffset: "2px",
-            boxShadow: "0 0 0 3px rgba(25, 118, 210, 0.3)",
-          },
-        },
-      },
-    },
-    MuiTextField: {
-      styleOverrides: {
-        root: {
-          "& .MuiOutlinedInput-root": {
-            "&.Mui-focused": {
-              "& .MuiOutlinedInput-notchedOutline": {
-                borderColor: "#1976d2",
-                borderWidth: "2px",
-              },
-            },
-            "&:focus-within": {
-              outline: "3px solid rgba(25, 118, 210, 0.3)",
-              outlineOffset: "2px",
-            },
-          },
-        },
-      },
-    },
-    MuiCard: {
-      styleOverrides: {
-        root: {
-          boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-          borderRadius: 12,
-        },
-      },
-    },
-    MuiPaper: {
-      styleOverrides: {
-        root: {
-          borderRadius: 12,
-        },
-      },
-    },
-    MuiChip: {
-      styleOverrides: {
-        root: {
-          minHeight: "32px",
-          "& .MuiChip-label": {
-            paddingLeft: "12px",
-            paddingRight: "12px",
-          },
-        },
-      },
-    },
-  },
-});
-
 // Create React Query client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -310,7 +164,7 @@ try {
         }}
       >
         <QueryClientProvider client={queryClient}>
-          <ThemeProvider theme={theme}>
+          <ThemeProvider theme={modernTheme}>
             <CssBaseline />
             <AuthProvider>
               <App />

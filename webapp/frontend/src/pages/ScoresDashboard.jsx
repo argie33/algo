@@ -1923,17 +1923,6 @@ const ScoresDashboard = () => {
                                       {stock.value_inputs?.stock_dividend_yield != null ? parseFloat(stock.value_inputs.stock_dividend_yield).toFixed(2) + "%" : "—"}
                                     </TableCell>
                                   </TableRow>
-
-                                  <TableRow>
-                                    <TableCell>
-                                      <Tooltip title="Free Cash Flow Yield: Higher is better, measures cheapness relative to cash generation">
-                                        <span>FCF Yield</span>
-                                      </Tooltip>
-                                    </TableCell>
-                                    <TableCell align="right">
-                                      {stock.value_inputs?.stock_fcf_yield != null ? parseFloat(stock.value_inputs.stock_fcf_yield).toFixed(2) + "%" : "—"}
-                                    </TableCell>
-                                  </TableRow>
                                 </TableBody>
                               </Table>
                             </TableContainer>

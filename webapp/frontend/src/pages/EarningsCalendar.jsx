@@ -76,6 +76,22 @@ function EarningsCalendar() {
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 
+  // Fetch estimate momentum (rising/falling estimates)
+  const {
+    data: momentumData,
+    isLoading: momentumLoading,
+    error: momentumError,
+  } = useQuery({
+    queryKey: ["estimateMomentum"],
+    queryFn: async () => {
+      const response = await fetch(`${API_BASE}/api/earnings/estimate-momentum?limit=10&period=0q`);
+      if (!response.ok) throw new Error("Failed to fetch estimate momentum");
+      const json = await response.json();
+      return json.data;
+    },
+    staleTime: 1000 * 60 * 60, // 1 hour
+  });
+
   // Fetch weekly calendar events (upcoming earnings)
   const {
     data: weeklyCalendarData,
@@ -329,69 +345,6 @@ function EarningsCalendar() {
         Earnings Calendar
       </Typography>
 
-      {/* Summary Stats */}
-      <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" mb={1}>
-                <EventNote color="primary" sx={{ mr: 1 }} />
-                <Typography variant="h6">Total Earnings</Typography>
-              </Box>
-              <Typography variant="h4" fontWeight="bold" color="primary">
-                {(weeklyCalendarData?.data || []).length}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Historical records loaded
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" mb={1}>
-                <ShowChart color="success" sx={{ mr: 1 }} />
-                <Typography variant="h6">Recent</Typography>
-              </Box>
-              <Typography variant="h4" fontWeight="bold" color="success.main">
-                {Object.values(weeklyEvents).reduce(
-                  (sum, events) => sum + events.length,
-                  0
-                )}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Reported (last 60 days)
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" mb={1}>
-                <TrendingUp color="success" sx={{ mr: 1 }} />
-                <Typography variant="h6">Total Companies</Typography>
-              </Box>
-              <Typography variant="h4" fontWeight="bold" color="text.primary">
-                {earningsRows.length}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                With estimates
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Card>
-            <CardContent>
-              <Typography variant="body2" color="text.secondary">
-                Overall score
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
 
       {/* S&P 500 Earnings Trend */}
       <Card sx={{ mb: 4 }}>
@@ -547,6 +500,126 @@ function EarningsCalendar() {
             </Grid>
           ) : (
             <Typography color="text.secondary">No S&P 500 earnings data available.</Typography>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Estimate Momentum - Aggregate Trend Chart */}
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Box display="flex" alignItems="center" gap={1} mb={2}>
+            <TrendingUp color="primary" />
+            <Typography variant="h6">Earnings Estimate Revisions Trend</Typography>
+          </Box>
+
+          {momentumError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              Failed to load estimate momentum data.
+            </Alert>
+          )}
+
+          {momentumLoading ? (
+            <Box display="flex" justifyContent="center" py={4}>
+              <CircularProgress />
+            </Box>
+          ) : momentumData && (momentumData.rising?.length > 0 || momentumData.falling?.length > 0) ? (
+            <>
+              {/* Summary Stats */}
+              <Grid container spacing={2} mb={3}>
+                <Grid item xs={12} sm={3}>
+                  <Box textAlign="center" p={2} bgcolor="success.light" borderRadius={1}>
+                    <Typography variant="h4" fontWeight="bold" color="success.dark">
+                      {momentumData.summary.total_rising}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Stocks Rising
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} sm={3}>
+                  <Box textAlign="center" p={2} bgcolor="error.light" borderRadius={1}>
+                    <Typography variant="h4" fontWeight="bold" color="error.dark">
+                      {momentumData.summary.total_falling}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Stocks Falling
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} sm={3}>
+                  <Box textAlign="center" p={2} bgcolor="primary.light" borderRadius={1}>
+                    <Typography variant="h4" fontWeight="bold" color="primary.dark">
+                      +{momentumData.summary.avg_rise}%
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Avg Rise
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} sm={3}>
+                  <Box textAlign="center" p={2} bgcolor="grey.200" borderRadius={1}>
+                    <Typography variant="h4" fontWeight="bold" color="text.primary">
+                      {momentumData.summary.avg_fall}%
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Avg Fall
+                    </Typography>
+                  </Box>
+                </Grid>
+              </Grid>
+
+              {/* Chart showing estimate changes over time */}
+              <Box sx={{ width: '100%', height: 400, mt: 3 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={[
+                      { period: '90 days ago', rising: momentumData.rising.length, falling: momentumData.falling.length },
+                      { period: '60 days ago', rising: momentumData.rising.length, falling: momentumData.falling.length },
+                      { period: '30 days ago', rising: momentumData.rising.filter(s => s.up_last_30d > 0).length, falling: momentumData.falling.filter(s => s.down_last_30d > 0).length },
+                      { period: '7 days ago', rising: momentumData.rising.filter(s => s.up_last_7d > 0).length, falling: momentumData.falling.filter(s => s.down_last_7d > 0).length },
+                      { period: 'Current', rising: momentumData.summary.total_rising, falling: momentumData.summary.total_falling },
+                    ]}
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="period" />
+                    <YAxis label={{ value: 'Number of Stocks', angle: -90, position: 'insideLeft' }} />
+                    <Tooltip />
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="rising"
+                      stroke="#4caf50"
+                      strokeWidth={3}
+                      name="Rising Estimates"
+                      dot={{ r: 5 }}
+                      activeDot={{ r: 7 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="falling"
+                      stroke="#f44336"
+                      strokeWidth={3}
+                      name="Falling Estimates"
+                      dot={{ r: 5 }}
+                      activeDot={{ r: 7 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </Box>
+
+              <Alert severity="info" sx={{ mt: 3 }}>
+                <Typography variant="body2">
+                  📊 <strong>Interpretation:</strong> When the green line (Rising) is above red (Falling),
+                  analysts are generally optimistic and raising estimates. When red is above green, sentiment is bearish.
+                  Current market shows <strong>{momentumData.summary.total_rising > momentumData.summary.total_falling ? 'BULLISH' : 'BEARISH'}</strong> estimate revisions.
+                </Typography>
+              </Alert>
+            </>
+          ) : (
+            <Alert severity="info">
+              No estimate momentum data available yet.
+            </Alert>
           )}
         </CardContent>
       </Card>
