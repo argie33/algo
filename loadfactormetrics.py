@@ -1427,6 +1427,7 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                 metrics.get("net_margin_trend"),
                 metrics.get("quarterly_growth_momentum"),
                 metrics.get("asset_growth_yoy"),
+                metrics.get("revenue_growth_yoy"),
             ])
         except Exception as e:
             logging.warning(f"Error processing growth metrics for {row[0] if row else 'unknown'}: {e}")
@@ -1490,6 +1491,7 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                 metrics.get("net_margin_trend"),
                 metrics.get("quarterly_growth_momentum"),
                 metrics.get("asset_growth_yoy"),
+                metrics.get("revenue_growth_yoy"),
             ])
 
     # Upsert growth_metrics
@@ -1500,7 +1502,7 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                 operating_income_growth_yoy, roe_trend, sustainable_growth_rate,
                 fcf_growth_yoy, ocf_growth_yoy, net_income_growth_yoy, gross_margin_trend,
                 operating_margin_trend, net_margin_trend, quarterly_growth_momentum,
-                asset_growth_yoy
+                asset_growth_yoy, revenue_growth_yoy
             ) VALUES %s
             ON CONFLICT (symbol, date) DO UPDATE SET
                 revenue_growth_3y_cagr = EXCLUDED.revenue_growth_3y_cagr,
@@ -1515,7 +1517,8 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                 operating_margin_trend = EXCLUDED.operating_margin_trend,
                 net_margin_trend = EXCLUDED.net_margin_trend,
                 quarterly_growth_momentum = EXCLUDED.quarterly_growth_momentum,
-                asset_growth_yoy = EXCLUDED.asset_growth_yoy
+                asset_growth_yoy = EXCLUDED.asset_growth_yoy,
+                revenue_growth_yoy = EXCLUDED.revenue_growth_yoy
         """
         execute_values(cursor, upsert_sql, growth_rows)
         conn.commit()
