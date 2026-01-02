@@ -7,6 +7,7 @@ import FeatureGrid from '../../components/marketing/FeatureGrid';
 import ImagePlaceholder from '../../components/marketing/ImagePlaceholder';
 import CTAButtonGroup from '../../components/marketing/CTAButtonGroup';
 import CTASection from '../../components/marketing/CTASection';
+import CommunitySignup from '../../components/marketing/CommunitySignup';
 import {
   TrendingUp as TrendingUpIcon,
   Event as EventIcon,
@@ -947,6 +948,9 @@ const Home = () => {
           </Grid>
         </Container>
       </Box>
+
+      {/* Community Signup Section */}
+      <CommunitySignup />
 
       {/* CTA Section */}
       <CTASection

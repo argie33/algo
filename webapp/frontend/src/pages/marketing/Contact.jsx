@@ -4,6 +4,7 @@ import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
 import ContactForm from '../../components/marketing/ContactForm';
 import ImagePlaceholder from '../../components/marketing/ImagePlaceholder';
+import CommunitySignup from '../../components/marketing/CommunitySignup';
 import { Email as EmailIcon, Phone as PhoneIcon, LocationOn as LocationOnIcon, Business as BusinessIcon, School as SchoolIcon } from '@mui/icons-material';
 
 const Contact = () => {
@@ -359,6 +360,9 @@ const Contact = () => {
           </Grid>
         </Container>
       </Box>
+
+      {/* Community Signup Section */}
+      <CommunitySignup />
     </MarketingLayout>
   );
 };
