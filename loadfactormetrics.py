@@ -1232,6 +1232,7 @@ def load_ad_ratings(conn, cursor, symbols: List[str]):
     if ad_rows:
         logging.info(f"Updating {len(ad_rows)} A/D ratings in positioning_metrics...")
 
+        updated_count = 0
         for ad_rating, symbol in ad_rows:
             try:
                 cursor.execute("""
@@ -1239,11 +1240,21 @@ def load_ad_ratings(conn, cursor, symbols: List[str]):
                     SET ad_rating = %s, updated_at = NOW()
                     WHERE symbol = %s
                 """, (ad_rating, symbol))
+                updated_count += 1
             except Exception as e:
                 logging.warning(f"Failed to update A/D for {symbol}: {e}")
+                # Rollback the bad transaction to recover
+                try:
+                    conn.rollback()
+                except:
+                    pass
 
-        conn.commit()
-        logging.info(f"✅ Updated {len(ad_rows)} A/D ratings")
+        try:
+            conn.commit()
+            logging.info(f"✅ Updated {updated_count} A/D ratings")
+        except Exception as e:
+            logging.error(f"Failed to commit A/D updates: {e}")
+            conn.rollback()
 
 
 def load_quality_metrics(conn, cursor, symbols: List[str]):
@@ -1346,9 +1357,14 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
                 payout_ratio = EXCLUDED.payout_ratio,
                 roe_stability_index = EXCLUDED.roe_stability_index
         """
-        execute_values(cursor, upsert_sql, quality_rows)
-        conn.commit()
-        logging.info(f"Loaded {len(quality_rows)} quality metric records")
+        try:
+            execute_values(cursor, upsert_sql, quality_rows)
+            conn.commit()
+            logging.info(f"Loaded {len(quality_rows)} quality metric records")
+        except Exception as e:
+            logging.error(f"Failed to insert quality metrics: {e}")
+            conn.rollback()
+            raise
 
 
 def load_growth_metrics(conn, cursor, symbols: List[str]):
@@ -1520,9 +1536,14 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                 asset_growth_yoy = EXCLUDED.asset_growth_yoy,
                 revenue_growth_yoy = EXCLUDED.revenue_growth_yoy
         """
-        execute_values(cursor, upsert_sql, growth_rows)
-        conn.commit()
-        logging.info(f"Loaded {len(growth_rows)} growth metric records")
+        try:
+            execute_values(cursor, upsert_sql, growth_rows)
+            conn.commit()
+            logging.info(f"Loaded {len(growth_rows)} growth metric records")
+        except Exception as e:
+            logging.error(f"Failed to insert growth metrics: {e}")
+            conn.rollback()
+            raise
 
 
 def load_momentum_metrics(conn, cursor, symbols: List[str]):
@@ -1647,9 +1668,14 @@ def load_momentum_metrics(conn, cursor, symbols: List[str]):
                 price_vs_sma_200 = EXCLUDED.price_vs_sma_200,
                 price_vs_52w_high = EXCLUDED.price_vs_52w_high
         """
-        execute_values(cursor, upsert_sql, momentum_rows)
-        conn.commit()
-        logging.info(f"Loaded {len(momentum_rows)} momentum metric records (all {len(symbols)} stocks)")
+        try:
+            execute_values(cursor, upsert_sql, momentum_rows)
+            conn.commit()
+            logging.info(f"Loaded {len(momentum_rows)} momentum metric records (all {len(symbols)} stocks)")
+        except Exception as e:
+            logging.error(f"Failed to insert momentum metrics: {e}")
+            conn.rollback()
+            raise
 
 
 def load_stability_metrics(conn, cursor, symbols: List[str]):
@@ -1711,9 +1737,14 @@ def load_stability_metrics(conn, cursor, symbols: List[str]):
                 volatility_volume_ratio = EXCLUDED.volatility_volume_ratio,
                 daily_spread = EXCLUDED.daily_spread
         """
-        execute_values(cursor, upsert_sql, stability_rows)
-        conn.commit()
-        logging.info(f"Loaded {len(stability_rows)} stability metric records (including volume metrics)")
+        try:
+            execute_values(cursor, upsert_sql, stability_rows)
+            conn.commit()
+            logging.info(f"Loaded {len(stability_rows)} stability metric records (including volume metrics)")
+        except Exception as e:
+            logging.error(f"Failed to insert stability metrics: {e}")
+            conn.rollback()
+            raise
 
 
 def load_value_metrics(conn, cursor, symbols: List[str]):
@@ -1768,9 +1799,14 @@ def load_value_metrics(conn, cursor, symbols: List[str]):
                 dividend_yield = EXCLUDED.dividend_yield,
                 payout_ratio = EXCLUDED.payout_ratio
         """
-        execute_values(cursor, upsert_sql, value_rows)
-        conn.commit()
-        logging.info(f"Loaded {len(value_rows)} value metric records")
+        try:
+            execute_values(cursor, upsert_sql, value_rows)
+            conn.commit()
+            logging.info(f"Loaded {len(value_rows)} value metric records")
+        except Exception as e:
+            logging.error(f"Failed to insert value metrics: {e}")
+            conn.rollback()
+            raise
 
 
 def create_factor_metrics_tables(cursor):
