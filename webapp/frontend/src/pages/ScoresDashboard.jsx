@@ -65,6 +65,8 @@ import {
   Label,
   LabelList,
 } from "recharts";
+import { exportToCSV, exportToJSON, tableToCSV } from "../utils/exportUtils";
+import { Download as DownloadIcon, InsertDriveFile as ExportIcon } from "@mui/icons-material";
 
 // Trading Signal Component
 const TradingSignal = ({ signal, confidence = 0.75, size = "medium", showConfidence = false }) => {
@@ -695,6 +697,39 @@ const ScoresDashboard = () => {
     );
   };
 
+  // Export handlers
+  const handleExportCSV = () => {
+    const dataToExport = filteredAndSortedScores.map((stock) => ({
+      symbol: stock.symbol,
+      sector: stock.sector,
+      "composite_score": stock.composite_score,
+      "momentum_score": stock.momentum_score,
+      "quality_score": stock.quality_score,
+      "value_score": stock.value_score,
+      "growth_score": stock.growth_score,
+      "positioning_score": stock.positioning_score,
+      "price": stock.price,
+      "change_percent": stock.change_percent,
+    }));
+    exportToCSV(dataToExport, "stock-scores");
+  };
+
+  const handleExportJSON = () => {
+    const dataToExport = filteredAndSortedScores.map((stock) => ({
+      symbol: stock.symbol,
+      sector: stock.sector,
+      composite_score: stock.composite_score,
+      momentum_score: stock.momentum_score,
+      quality_score: stock.quality_score,
+      value_score: stock.value_score,
+      growth_score: stock.growth_score,
+      positioning_score: stock.positioning_score,
+      price: stock.price,
+      change_percent: stock.change_percent,
+    }));
+    exportToJSON(dataToExport, "stock-scores");
+  };
+
   if (loading) {
     return (
       <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -911,30 +946,58 @@ const ScoresDashboard = () => {
 
       {/* Overall Stocks List */}
       <Box sx={{ mb: 4 }}>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-          <Typography variant="h5" gutterBottom>
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, gap: 1, flexWrap: "wrap" }}>
+          <Typography variant="h5" gutterBottom sx={{ m: 0 }}>
             Top Overall Stocks ({filteredAndSortedScores.length})
           </Typography>
-          {filteredAndSortedScores.length > displayLimit && !showAllStocks && (
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={() => setShowAllStocks(true)}
-              startIcon={<ExpandMore />}
-            >
-              Show All {filteredAndSortedScores.length} Stocks
-            </Button>
-          )}
-          {showAllStocks && filteredAndSortedScores.length > displayLimit && (
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={() => setShowAllStocks(false)}
-              startIcon={<ExpandMore sx={{ transform: "rotate(180deg)" }} />}
-            >
-              Show Top {displayLimit} Only
-            </Button>
-          )}
+          <Box sx={{ display: "flex", gap: 1, alignItems: "center", ml: "auto" }}>
+            {filteredAndSortedScores.length > 0 && (
+              <>
+                <Tooltip title="Export as CSV">
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={handleExportCSV}
+                    startIcon={<DownloadIcon />}
+                    sx={{ whiteSpace: "nowrap" }}
+                  >
+                    CSV
+                  </Button>
+                </Tooltip>
+                <Tooltip title="Export as JSON">
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={handleExportJSON}
+                    startIcon={<DownloadIcon />}
+                    sx={{ whiteSpace: "nowrap" }}
+                  >
+                    JSON
+                  </Button>
+                </Tooltip>
+              </>
+            )}
+            {filteredAndSortedScores.length > displayLimit && !showAllStocks && (
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => setShowAllStocks(true)}
+                startIcon={<ExpandMore />}
+              >
+                Show All {filteredAndSortedScores.length}
+              </Button>
+            )}
+            {showAllStocks && filteredAndSortedScores.length > displayLimit && (
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => setShowAllStocks(false)}
+                startIcon={<ExpandMore sx={{ transform: "rotate(180deg)" }} />}
+              >
+                Show Top {displayLimit}
+              </Button>
+            )}
+          </Box>
         </Box>
 
         {filteredAndSortedScores.length === 0 ? (
