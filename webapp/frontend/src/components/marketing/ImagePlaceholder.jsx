@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Box, useTheme, alpha } from '@mui/material';
 
 /**
  * ImagePlaceholder Component
  * Reusable image container with gradient background and error handling
+ * Shows gradient background if image fails to load
  * Used by: HeroSection, Home, Services, Research pages
  */
 const ImagePlaceholder = ({
@@ -13,14 +14,18 @@ const ImagePlaceholder = ({
   onError = null,
 }) => {
   const theme = useTheme();
+  const [imageLoaded, setImageLoaded] = useState(true);
 
   const handleImageError = (e) => {
+    console.warn(`⚠️ Image failed to load: ${src}`);
+    setImageLoaded(false);
     if (onError) {
       onError(e);
-    } else {
-      // Default behavior: hide broken image
-      e.target.style.display = 'none';
     }
+  };
+
+  const handleImageLoad = () => {
+    setImageLoaded(true);
   };
 
   return (
@@ -34,6 +39,7 @@ const ImagePlaceholder = ({
         alignItems: 'center',
         justifyContent: 'center',
         overflow: 'hidden',
+        position: 'relative',
       }}
     >
       <Box
@@ -41,11 +47,13 @@ const ImagePlaceholder = ({
         src={src}
         alt={alt}
         onError={handleImageError}
+        onLoad={handleImageLoad}
         sx={{
           width: '100%',
           height: '100%',
           objectFit: 'cover',
           objectPosition: 'center',
+          display: imageLoaded ? 'block' : 'none',
         }}
       />
     </Box>

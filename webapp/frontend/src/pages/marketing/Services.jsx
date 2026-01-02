@@ -26,7 +26,7 @@ const Services = () => {
       title: 'AI-Powered Stock Analysis',
       subtitle: 'Composite Scoring & Multi-Factor Evaluation',
       description:
-        'Our proprietary machine learning model analyzes each stock across multiple dimensions—fundamentals, technicals, sentiment, and valuation—to generate comprehensive composite scores. The AI engine identifies patterns and correlations invisible to traditional analysis.',
+        'Our proprietary AI scoring engine analyzes 100+ factors across every covered stock—from fundamental strength to technical momentum, valuation relative to peers, and institutional positioning. Machine learning models identify which factors matter most in any market regime. Real-time scores update as new data arrives.',
       details: [
         'Multi-factor composite scoring engine',
         'Real-time score updates as market data changes',
@@ -35,7 +35,7 @@ const Services = () => {
         'Historical score trends and performance tracking',
       ],
       dataTypes: ['Fundamentals', 'Technicals', 'Sentiment', 'Valuations'],
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&h=400&fit=crop',
+      image: 'https://images.unsplash.com/photo-1516534775068-bb57ada8d126?w=600&h=400&fit=crop',
       ideal: 'Portfolio managers, active traders, value investors',
     },
     {
@@ -43,7 +43,7 @@ const Services = () => {
       title: 'Earnings Intelligence System',
       subtitle: 'Estimate Tracking & Surprise Analysis',
       description:
-        'Our earnings intelligence platform processes historical earnings data spanning 10+ years to identify surprise patterns, estimate revision trends, and forward-looking catalysts. Machine learning models predict earnings surprises before they occur.',
+        'Track 5,300+ stocks across earnings cycles with 10+ years of historical data. Our AI identifies surprise patterns, revision trends, and management guidance changes that forecast future surprises. See which stocks have positive estimate momentum and which are at risk of negative guidance.',
       details: [
         'Live earnings calendar with analyst estimates',
         '10+ years of historical earnings data',
@@ -53,7 +53,7 @@ const Services = () => {
         'Management guidance analysis',
       ],
       dataTypes: ['Financial Data', 'Analyst Estimates', 'Historical Patterns', 'Macro Context'],
-      image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=600&h=400&fit=crop',
+      image: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=600&h=400&fit=crop',
       ideal: 'Fundamental analysts, earnings-focused traders, fund managers',
     },
     {
@@ -61,7 +61,7 @@ const Services = () => {
       title: 'Sentiment & Positioning Analytics',
       subtitle: 'Market Psychology & Institutional Positioning',
       description:
-        'We analyze sentiment data from multiple sources—analyst ratings, positioning metrics, and market psychology signals—to reveal hidden market shifts and investor sentiment extremes. AI interprets these signals to identify contrarian opportunities.',
+        'When sentiment reaches extremes, opportunity emerges. Our platform analyzes analyst coverage changes, institutional positioning metrics, and market psychology signals to spot divergences between narrative and reality. AI identifies contrarian setups where smart money diverges from crowd sentiment.',
       details: [
         'Analyst rating analysis and change tracking',
         'Institutional positioning metrics',
@@ -79,7 +79,7 @@ const Services = () => {
       title: 'Technical Analysis & Trading Signals',
       subtitle: 'Price Action & AI-Generated Signals',
       description:
-        'Our technical analysis engine combines traditional price action analysis with AI-powered pattern recognition to generate real-time trading signals. Machine learning models identify optimal entry and exit points based on technical patterns and momentum.',
+        'Price action tells a story. Our AI engine combines traditional technical analysis with pattern recognition to generate real-time buy/sell signals. Identify support, resistance, breakouts, and momentum shifts. See which technical patterns precede major moves.',
       details: [
         'Advanced technical indicators and patterns',
         'AI-generated buy/sell signals',
@@ -89,7 +89,7 @@ const Services = () => {
         'Price pattern recognition',
       ],
       dataTypes: ['Price Data', 'Volume', 'Technical Patterns', 'Momentum Indicators'],
-      image: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=600&h=400&fit=crop',
+      image: 'https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?w=600&h=400&fit=crop',
       ideal: 'Active traders, swing traders, day traders, technical analysts',
     },
     {
@@ -97,7 +97,7 @@ const Services = () => {
       title: 'Sector & Industry Research',
       subtitle: 'Rotation Analysis & Relative Strength',
       description:
-        'Track sector rotation, relative strength, and industry-specific trends. Our AI monitors macro data and economic indicators to identify which sectors are likely to outperform. Real-time sector momentum and rotation signals guide allocation decisions.',
+        'Sectors lead markets. Our AI monitors relative strength across all 11 sectors, identifies rotation patterns, and connects macro trends to sector performance. Know which sectors are positioned to outperform before the market reprices.',
       details: [
         'Sector performance tracking and ranking',
         'Relative strength analysis',
@@ -107,7 +107,7 @@ const Services = () => {
         'Macro-to-sector mapping',
       ],
       dataTypes: ['Market Data', 'Economic Indicators', 'Industry Data', 'Macro Trends'],
-      image: 'https://images.unsplash.com/photo-1611432579699-484f7990f17a?w=600&h=400&fit=crop',
+      image: 'https://images.unsplash.com/photo-1460925895917-adf4e565db18?w=600&h=400&fit=crop',
       ideal: 'Portfolio managers, asset allocators, strategic investors',
     },
     {
@@ -115,7 +115,7 @@ const Services = () => {
       title: 'Economic & Macro Intelligence',
       subtitle: 'Macro Trends & Economic Impact Analysis',
       description:
-        'Monitor key economic indicators, macro trends, and their direct impact on markets and individual stocks. Our platform integrates employment data, GDP trends, inflation metrics, and Fed policy to provide comprehensive macro context for investment decisions.',
+        'Macro drives markets. Our platform integrates real-time economic data, Fed policy signals, and leading indicators to forecast market shifts before they occur. Understand how rate cycles, inflation trends, and economic regimes impact your portfolio.',
       details: [
         'Key economic indicator tracking',
         'Macro trend analysis and forecasting',
@@ -125,7 +125,7 @@ const Services = () => {
         'Cross-asset correlations',
       ],
       dataTypes: ['Economic Data', 'Fed Signals', 'Policy Analysis', 'Market Data'],
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&h=400&fit=crop',
+      image: 'https://images.unsplash.com/photo-1611432579699-484f7990f17a?w=600&h=400&fit=crop',
       ideal: 'Macro strategists, portfolio managers, economic analysts',
     },
     {
@@ -133,7 +133,7 @@ const Services = () => {
       title: 'Market & Portfolio Overview',
       subtitle: 'Breadth Analysis & Market Health',
       description:
-        'Comprehensive market overview tools provide real-time insights into overall market health, breadth analysis, and portfolio positioning. Monitor market participation, momentum, and relative performance across asset classes.',
+        'Market breadth reveals what the headline indices hide. Monitor participation rates, advance-decline lines, and market momentum. See when the market is broadening or narrowing, and identify divergences that precede major moves.',
       details: [
         'Market breadth indicators',
         'Advance/decline analysis',
@@ -143,7 +143,7 @@ const Services = () => {
         'Market regime identification',
       ],
       dataTypes: ['Market Data', 'Breadth Data', 'Volatility Metrics', 'Performance Data'],
-      image: 'https://images.unsplash.com/photo-1535320903710-d4fdf713ebcb?w=600&h=400&fit=crop',
+      image: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=600&h=400&fit=crop',
       ideal: 'Portfolio managers, risk managers, market strategists',
     },
     {
@@ -151,7 +151,7 @@ const Services = () => {
       title: 'Hedge Helper & Risk Management',
       subtitle: 'Portfolio Protection & Risk Analysis',
       description:
-        'AI-powered hedging recommendations and portfolio protection strategies. Identify optimal hedging instruments and timing based on risk metrics, market regime, and portfolio composition. Manage downside risk while maintaining upside potential.',
+        'Protection without paralysis. Our AI recommends hedging strategies tailored to your portfolio, market regime, and risk tolerance. Identify optimal puts, collars, and diversification strategies to manage downside while keeping upside intact.',
       details: [
         'Risk metric calculations',
         'Hedging strategy recommendations',
@@ -161,7 +161,7 @@ const Services = () => {
         'Max drawdown analysis',
       ],
       dataTypes: ['Portfolio Data', 'Options Data', 'Risk Metrics', 'Correlations'],
-      image: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=600&h=400&fit=crop',
+      image: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=600&h=400&fit=crop',
       ideal: 'Risk managers, wealth managers, institutional investors',
     },
   ];
@@ -756,6 +756,344 @@ const Services = () => {
                     >
                       {item.description}
                     </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        </Container>
+      </Box>
+
+      {/* Featured Star Tool - Hero Style Section */}
+      <Box sx={{ position: 'relative', py: { xs: 4, md: 6 }, overflow: 'hidden' }}>
+        {/* Featured AI Stock Scoring Tool */}
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 0, alignItems: 'stretch' }}>
+          {/* Left: Image */}
+          <Box
+            sx={{
+              backgroundImage: 'url(https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=600&fit=crop)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              minHeight: { xs: '300px', md: '500px' },
+              position: 'relative',
+              display: { xs: 'none', md: 'block' },
+              '&::after': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(98, 125, 152, 0.2)',
+              },
+            }}
+          />
+          {/* Right: Content */}
+          <Box
+            sx={{
+              backgroundColor: theme.palette.background.paper,
+              p: { xs: 4, md: 6 },
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              minHeight: { xs: 'auto', md: '500px' },
+            }}
+          >
+            <Box sx={{ mb: 2 }}>
+              <Typography
+                sx={{
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px',
+                  color: theme.palette.primary.main,
+                  mb: 1,
+                }}
+              >
+                ⭐ Our Most Powerful Tool
+              </Typography>
+            </Box>
+            <Typography
+              variant="h3"
+              sx={{
+                fontSize: { xs: '2rem', md: '3rem' },
+                fontWeight: 900,
+                mb: 3,
+                color: theme.palette.text.primary,
+                lineHeight: 1.2,
+              }}
+            >
+              AI Stock Scoring Engine
+            </Typography>
+            <Typography
+              sx={{
+                fontSize: '1.15rem',
+                color: theme.palette.text.secondary,
+                mb: 4,
+                lineHeight: 1.8,
+                maxWidth: '500px',
+              }}
+            >
+              Real-time composite scores across multiple dimensions. Our AI analyzes fundamentals, technicals, sentiment, and valuations simultaneously to identify winning stocks before the market catches on.
+            </Typography>
+            <Box sx={{ mb: 4 }}>
+              {[
+                'Multi-factor AI scoring engine',
+                'Real-time updates as markets move',
+                'Transparent factor breakdown',
+                'Comparable rankings across 5,300+ stocks',
+                'Performance tracking over time',
+              ].map((benefit, i) => (
+                <Box key={i} sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <Box
+                    sx={{
+                      width: '20px',
+                      height: '20px',
+                      borderRadius: '50%',
+                      backgroundColor: theme.palette.primary.main,
+                      color: '#fff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.8rem',
+                      fontWeight: 'bold',
+                      mr: 2,
+                      flexShrink: 0,
+                    }}
+                  >
+                    ✓
+                  </Box>
+                  <Typography sx={{ color: theme.palette.text.secondary, fontSize: '1rem' }}>
+                    {benefit}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <Box
+                sx={{
+                  px: 3,
+                  py: 1.5,
+                  backgroundColor: theme.palette.primary.main,
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  transition: 'all 0.3s',
+                  '&:hover': {
+                    boxShadow: '0 8px 20px rgba(98, 125, 152, 0.3)',
+                    transform: 'translateY(-2px)',
+                  },
+                }}
+              >
+                Try AI Scoring Now
+              </Box>
+              <Box
+                sx={{
+                  px: 3,
+                  py: 1.5,
+                  border: `2px solid ${theme.palette.primary.main}`,
+                  color: theme.palette.primary.main,
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  transition: 'all 0.3s',
+                  '&:hover': {
+                    backgroundColor: alpha(theme.palette.primary.main, 0.08),
+                  },
+                }}
+              >
+                Learn More
+              </Box>
+            </Box>
+          </Box>
+        </Box>
+      </Box>
+
+      {/* How Different Investors Use Bullseye */}
+      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.paper }}>
+        <Container maxWidth="lg">
+          <Box sx={{ mb: 8 }}>
+            <Typography
+              variant="h3"
+              sx={{
+                fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
+                fontWeight: 800,
+                mb: 2,
+                textAlign: 'center',
+                color: theme.palette.text.primary,
+              }}
+            >
+              Research Solutions Across Investor Types
+            </Typography>
+            <Box sx={{ width: '60px', height: '4px', backgroundColor: theme.palette.primary.main, mx: 'auto', mb: 4 }} />
+            <Typography
+              sx={{
+                fontSize: '1.05rem',
+                color: theme.palette.text.secondary,
+                textAlign: 'center',
+                mb: 6,
+                maxWidth: '700px',
+                mx: 'auto',
+              }}
+            >
+              See how institutional investors, wealth advisors, and active traders leverage our research platform to identify opportunities and manage risk.
+            </Typography>
+          </Box>
+          <Grid container spacing={4}>
+            {[
+              {
+                title: 'Institutional Asset Managers',
+                focus: 'Multi-dimensional analysis for portfolio construction',
+                uses: [
+                  'AI stock scoring for alpha generation',
+                  'Earnings intelligence for earnings-driven strategies',
+                  'Macro analysis for asset allocation decisions',
+                  'Sentiment data for contrarian positioning',
+                ],
+                impact: 'Better risk-adjusted returns through data-driven insights',
+                icon: '📊',
+                image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=600&h=350&fit=crop',
+              },
+              {
+                title: 'Wealth Advisors & RIAs',
+                focus: 'Client-ready research and customized recommendations',
+                uses: [
+                  'Stock scores for client portfolios',
+                  'Earnings calendar for tactical decisions',
+                  'Sector rotation insights for allocation',
+                  'Risk management tools for downside protection',
+                ],
+                impact: 'Enhanced client outcomes and streamlined research workflow',
+                icon: '💼',
+                image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=600&h=350&fit=crop',
+              },
+              {
+                title: 'Active Traders & Investors',
+                focus: 'Real-time signals and actionable insights',
+                uses: [
+                  'Technical signals for trade entry/exit',
+                  'Real-time stock scoring updates',
+                  'Earnings surprises for trading opportunities',
+                  'Sentiment extremes for contrarian trades',
+                ],
+                impact: 'Faster decision-making with better timing and accuracy',
+                icon: '⚡',
+                image: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=600&h=350&fit=crop',
+              },
+            ].map((useCase, idx) => (
+              <Grid item xs={12} md={4} key={idx}>
+                <Card
+                  sx={{
+                    height: '100%',
+                    border: `1px solid ${theme.palette.divider}`,
+                    backgroundColor: theme.palette.background.paper,
+                    borderRadius: '0px',
+                    transition: 'all 0.3s ease',
+                    overflow: 'hidden',
+                    '&:hover': {
+                      boxShadow: '0 12px 30px rgba(0,0,0,0.12)',
+                      transform: 'translateY(-6px)',
+                    },
+                  }}
+                >
+                  <Box
+                    component="img"
+                    src={useCase.image}
+                    alt={useCase.title}
+                    sx={{
+                      width: '100%',
+                      height: 200,
+                      objectFit: 'cover',
+                      display: 'block',
+                    }}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                  <CardContent sx={{ p: 4 }}>
+                    <Box sx={{ fontSize: '2.5rem', mb: 2 }}>
+                      {useCase.icon}
+                    </Box>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        fontWeight: 700,
+                        mb: 0.5,
+                        color: theme.palette.text.primary,
+                      }}
+                    >
+                      {useCase.title}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: theme.palette.primary.main,
+                        fontWeight: 600,
+                        mb: 2.5,
+                      }}
+                    >
+                      {useCase.focus}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: theme.palette.text.secondary,
+                        fontWeight: 600,
+                        mb: 1.5,
+                        fontSize: '0.9rem',
+                      }}
+                    >
+                      Key Uses:
+                    </Typography>
+                    <Box sx={{ mb: 3 }}>
+                      {useCase.uses.map((use, i) => (
+                        <Box
+                          key={i}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            mb: 1,
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              color: theme.palette.primary.main,
+                              mr: 1.5,
+                              mt: 0.5,
+                              fontWeight: 'bold',
+                            }}
+                          >
+                            ✓
+                          </Box>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              color: theme.palette.text.secondary,
+                              fontSize: '0.9rem',
+                            }}
+                          >
+                            {use}
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                    <Box
+                      sx={{
+                        pt: 2.5,
+                        borderTop: `1px solid ${theme.palette.divider}`,
+                      }}
+                    >
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: theme.palette.primary.main,
+                          fontWeight: 600,
+                          fontSize: '0.95rem',
+                          fontStyle: 'italic',
+                        }}
+                      >
+                        {useCase.impact}
+                      </Typography>
+                    </Box>
                   </CardContent>
                 </Card>
               </Grid>

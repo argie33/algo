@@ -21,25 +21,25 @@ const Firm = () => {
       icon: <FlagIcon />,
       title: 'Deep Market Knowledge',
       description:
-        'Our research team combines decades of collective experience in fundamental and technical analysis, portfolio management, and quantitative research. We understand market dynamics, risk management, and investment strategy from first-hand experience.',
+        '50+ years of collective expertise in hedge funds, asset management, and proprietary trading. Our founders built successful trading operations and understand what actually works in markets, not just what sounds good.',
     },
     {
       icon: <LightbulbIcon />,
       title: 'AI & Quantitative Innovation',
       description:
-        'We leverage cutting-edge artificial intelligence, machine learning, and big data quantitative techniques to identify market opportunities. Our proprietary algorithms analyze patterns across 6+ dimensions simultaneously.',
+        'We don\'t just apply AI—we develop proprietary algorithms that solve real problems. Our models analyze 100+ factors across 6+ dimensions to reveal market inefficiencies traditional analysis misses.',
     },
     {
       icon: <GroupsIcon />,
-      title: 'Team of Specialists',
+      title: 'Team of Veterans',
       description:
-        'Our research team includes AI researchers, quantitative analysts, fundamental analysts, technical specialists, and portfolio strategists. Each brings deep expertise in their domain.',
+        'Former Goldman Sachs quants, hedge fund portfolio managers, and published ML researchers. Each team member has shipped real products, managed real capital, and delivered real returns.',
     },
     {
       icon: <TrendingUpIcon />,
-      title: 'Evidence-Based Approach',
+      title: 'Evidence-Based & Transparent',
       description:
-        'Every analysis is rigorously tested and validated against historical data and real-world outcomes. We prioritize empirical evidence over opinions and consensus.',
+        'We show our work. Every analysis includes the underlying factors, confidence levels, and historical backtests. No black boxes. You understand exactly why our system recommends what it recommends.',
     },
   ];
 
@@ -280,6 +280,131 @@ const Firm = () => {
             ))}
           </Grid>
         </Container>
+      </Box>
+
+      {/* Featured: Leadership Spotlight */}
+      <Box sx={{ position: 'relative', py: { xs: 4, md: 6 }, overflow: 'hidden', backgroundColor: alpha(theme.palette.primary.main, 0.03) }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 0, alignItems: 'stretch' }}>
+          {/* Left: Image */}
+          <Box
+            sx={{
+              backgroundImage: 'url(https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=600&fit=crop)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              minHeight: { xs: '300px', md: '500px' },
+              position: 'relative',
+              display: { xs: 'none', md: 'block' },
+              '&::after': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(98, 125, 152, 0.2)',
+              },
+            }}
+          />
+          {/* Right: Content */}
+          <Box
+            sx={{
+              backgroundColor: 'white',
+              p: { xs: 4, md: 6 },
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              minHeight: { xs: 'auto', md: '500px' },
+            }}
+          >
+            <Box sx={{ mb: 2 }}>
+              <Typography
+                sx={{
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px',
+                  color: theme.palette.primary.main,
+                  mb: 1,
+                }}
+              >
+                👥 Expert Leadership
+              </Typography>
+            </Box>
+            <Typography
+              variant="h3"
+              sx={{
+                fontSize: { xs: '2rem', md: '3rem' },
+                fontWeight: 900,
+                mb: 3,
+                color: theme.palette.text.primary,
+                lineHeight: 1.2,
+              }}
+            >
+              Built by Market Veterans
+            </Typography>
+            <Typography
+              sx={{
+                fontSize: '1.15rem',
+                color: theme.palette.text.secondary,
+                mb: 4,
+                lineHeight: 1.8,
+                maxWidth: '500px',
+              }}
+            >
+              Our leadership team combines 100+ years of collective experience in quantitative finance, AI research, hedge fund management, and market microstructure. We've walked in your shoes. We understand your challenges.
+            </Typography>
+            <Box sx={{ mb: 4 }}>
+              {[
+                '15+ years in quantitative finance and AI',
+                '12+ years hedge fund and portfolio management',
+                'PhD researchers in ML and computer science',
+                'Published authors in financial AI',
+              ].map((credential, i) => (
+                <Box key={i} sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <Box
+                    sx={{
+                      width: '20px',
+                      height: '20px',
+                      borderRadius: '50%',
+                      backgroundColor: theme.palette.primary.main,
+                      color: '#fff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.8rem',
+                      fontWeight: 'bold',
+                      mr: 2,
+                      flexShrink: 0,
+                    }}
+                  >
+                    ✓
+                  </Box>
+                  <Typography sx={{ color: theme.palette.text.secondary, fontSize: '1rem' }}>
+                    {credential}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+            <Box
+              sx={{
+                px: 3,
+                py: 1.5,
+                backgroundColor: theme.palette.primary.main,
+                color: '#fff',
+                cursor: 'pointer',
+                fontWeight: 600,
+                transition: 'all 0.3s',
+                display: 'inline-block',
+                '&:hover': {
+                  boxShadow: '0 8px 20px rgba(98, 125, 152, 0.3)',
+                  transform: 'translateY(-2px)',
+                },
+              }}
+            >
+              Meet the Full Team
+            </Box>
+          </Box>
+        </Box>
       </Box>
 
       {/* Leadership Team Section */}
@@ -537,6 +662,129 @@ const Firm = () => {
                     }}
                   >
                     {item}
+                  </Typography>
+                </Box>
+              </Grid>
+            ))}
+          </Grid>
+        </Container>
+      </Box>
+
+      {/* By the Numbers Section */}
+      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.paper }}>
+        <Container maxWidth="lg">
+          <Typography
+            variant="h3"
+            sx={{
+              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
+              fontWeight: 800,
+              mb: 2,
+              textAlign: 'center',
+              color: theme.palette.text.primary,
+            }}
+          >
+            Research Firm By the Numbers
+          </Typography>
+          <Typography
+            sx={{
+              fontSize: '1.05rem',
+              color: theme.palette.text.secondary,
+              textAlign: 'center',
+              mb: 8,
+              maxWidth: '700px',
+              mx: 'auto',
+            }}
+          >
+            The depth of our research capabilities and institutional coverage at a glance
+          </Typography>
+          <Grid container spacing={4}>
+            {[
+              {
+                metric: '5,300+',
+                label: 'Stocks Covered',
+                description: 'Comprehensive analysis across the US equity market',
+                icon: '📈',
+              },
+              {
+                metric: '10+',
+                label: 'Years of Data',
+                description: 'Deep historical perspective for pattern analysis',
+                icon: '📊',
+              },
+              {
+                metric: '6',
+                label: 'Research Dimensions',
+                description: 'Market, economic, fundamental, technical, sector, sentiment',
+                icon: '🔍',
+              },
+              {
+                metric: '24/7',
+                label: 'Real-Time Updates',
+                description: 'Continuous analysis as markets move and data emerges',
+                icon: '⚡',
+              },
+              {
+                metric: '100%',
+                label: 'Data-Driven',
+                description: 'Evidence-based analysis with rigorous validation',
+                icon: '✓',
+              },
+              {
+                metric: 'AI-Powered',
+                label: 'Advanced Analytics',
+                description: 'Machine learning models identify patterns at scale',
+                icon: '🤖',
+              },
+            ].map((item, idx) => (
+              <Grid item xs={12} sm={6} md={4} key={idx}>
+                <Box
+                  sx={{
+                    textAlign: 'center',
+                    py: 4,
+                    px: 3,
+                    backgroundColor: theme.palette.background.default,
+                    border: `1px solid ${theme.palette.divider}`,
+                    borderRadius: '0px',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      transform: 'translateY(-4px)',
+                      boxShadow: '0 8px 20px rgba(0,0,0,0.08)',
+                    },
+                  }}
+                >
+                  <Box sx={{ fontSize: '3rem', mb: 2 }}>
+                    {item.icon}
+                  </Box>
+                  <Typography
+                    variant="h4"
+                    sx={{
+                      fontWeight: 800,
+                      color: theme.palette.primary.main,
+                      mb: 0.5,
+                      fontSize: '2.2rem',
+                    }}
+                  >
+                    {item.metric}
+                  </Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontWeight: 700,
+                      color: theme.palette.text.primary,
+                      mb: 1,
+                      fontSize: '1.1rem',
+                    }}
+                  >
+                    {item.label}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: theme.palette.text.secondary,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {item.description}
                   </Typography>
                 </Box>
               </Grid>

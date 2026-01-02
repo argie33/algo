@@ -65,7 +65,21 @@ export default function PortfolioOptimizerNew() {
   if (!analysis) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Alert severity="info">No portfolio data available</Alert>
+        {error ? (
+          <Alert severity="error">
+            <Typography variant="h6" sx={{ mb: 1 }}>Unable to load optimization data</Typography>
+            <Typography variant="body2">{error}</Typography>
+            <Button
+              variant="outlined"
+              onClick={fetchAnalysis}
+              sx={{ mt: 2 }}
+            >
+              Try Again
+            </Button>
+          </Alert>
+        ) : (
+          <Alert severity="info">No portfolio data available - please add holdings to get optimization recommendations</Alert>
+        )}
       </Container>
     );
   }
