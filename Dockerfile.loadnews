@@ -31,4 +31,6 @@ ENV BATCH_SIZE=30
 ENV PAUSE=0.5
 
 # Run the script
-CMD ["python", "loadnews.py"]
+ENV PYTHONUNBUFFERED=1
+ENV AWS_DEFAULT_REGION=us-east-1
+CMD ["python", "-u", "loadnews.py"]

@@ -21,4 +21,6 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r re
 # Copy script
 COPY loadcalendar.py .
 
-CMD ["python", "loadcalendar.py"]
+ENV PYTHONUNBUFFERED=1
+ENV AWS_DEFAULT_REGION=us-east-1
+CMD ["python", "-u", "loadcalendar.py"]

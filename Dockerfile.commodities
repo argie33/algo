@@ -12,4 +12,6 @@ COPY loadcommodities.py .
 RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadcommodities.txt
 
 # Set the entrypoint
-ENTRYPOINT ["python", "loadcommodities.py"]
+ENV PYTHONUNBUFFERED=1
+ENV AWS_DEFAULT_REGION=us-east-1
+ENTRYPOINT ["python", "-u", "loadcommodities.py"]
