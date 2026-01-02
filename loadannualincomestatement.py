@@ -239,6 +239,8 @@ def load_annual_income_statement(symbols: List[str], cur, conn) -> Tuple[int, in
                                 grouped[key]['pretax_income'] = value
                             elif 'net income' in item_lower and 'noncontrolling' not in item_lower:
                                 grouped[key]['net_income'] = value
+                            elif 'eps' in item_lower or 'diluted eps' in item_lower:
+                                grouped[key]['eps'] = value
 
                         # Convert to insert tuples
                         insert_data = []
@@ -249,19 +251,21 @@ def load_annual_income_statement(symbols: List[str], cur, conn) -> Tuple[int, in
                                 fields.get('revenue'),
                                 fields.get('operating_income'),
                                 fields.get('pretax_income'),
-                                fields.get('net_income')
+                                fields.get('net_income'),
+                                fields.get('eps')
                             ))
 
                         if insert_data:
                             # Insert data
                             execute_values(cur, """
-                                INSERT INTO annual_income_statement (symbol, date, revenue, operating_income, pretax_income, net_income)
+                                INSERT INTO annual_income_statement (symbol, date, revenue, operating_income, pretax_income, net_income, eps)
                                 VALUES %s
                                 ON CONFLICT (symbol, date) DO UPDATE SET
                                     revenue = COALESCE(EXCLUDED.revenue, annual_income_statement.revenue),
                                     operating_income = COALESCE(EXCLUDED.operating_income, annual_income_statement.operating_income),
                                     pretax_income = COALESCE(EXCLUDED.pretax_income, annual_income_statement.pretax_income),
                                     net_income = COALESCE(EXCLUDED.net_income, annual_income_statement.net_income),
+                                    eps = COALESCE(EXCLUDED.eps, annual_income_statement.eps),
                                     updated_at = NOW()
                             """, insert_data)
                             conn.commit()
@@ -305,6 +309,7 @@ def create_table(cur, conn):
                 operating_income DOUBLE PRECISION,
                 pretax_income DOUBLE PRECISION,
                 net_income DOUBLE PRECISION,
+                eps DOUBLE PRECISION,
                 created_at TIMESTAMP DEFAULT NOW(),
                 updated_at TIMESTAMP DEFAULT NOW(),
                 PRIMARY KEY(symbol, date)
@@ -318,7 +323,8 @@ def create_table(cur, conn):
         logging.info("Created annual income statement table")
     except Exception as e:
         logging.info(f"Table likely exists: {e}")
-        conn.rollback()
+        # Don't rollback here - it aborts the whole transaction
+        pass
 
 if __name__ == "__main__":
     log_mem("startup")
@@ -344,7 +350,7 @@ if __name__ == "__main__":
     try:
         create_table(cur, conn)
     except Exception as e:
-        conn.rollback()
+        logging.warning(f"Failed to create table: {e}")
         pass
 
     # Load stock symbols

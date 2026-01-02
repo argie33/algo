@@ -641,6 +641,8 @@ Resources:
         - Name: pricedaily-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PriceImageTag]]
           Essential: true
+          Command:
+            - "--incremental"
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn

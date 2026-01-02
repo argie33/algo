@@ -1,0 +1,105 @@
+================================================================================
+ECS LOADER STATUS QUICK REFERENCE
+Generated: 2026-01-02 17:29 CST
+================================================================================
+
+CRITICAL FAILURES (IMMEDIATE ACTION REQUIRED)
+================================================================================
+
+[FAIL] /ecs/buyselldaily-loader
+       Error: Column "signal_triggered_date" does not exist in buy_sell_daily table
+       Impact: 5,078 stock daily signals blocked (2.8% completed before failure)
+       Last Activity: 2026-01-01 21:07:46
+       Action: Fix database schema or remove column references from loader
+
+[FAIL] /ecs/pricedaily-loader
+       Error: Docker entrypoint incorrect - "python3 loadpricedaily.py" passed as arg
+       Impact: All daily price loading blocked
+       Last Activity: 2026-01-01 22:31:17
+       Action: Fix ECS task definition entrypoint/CMD configuration
+
+================================================================================
+HIGH PRIORITY WARNINGS (INVESTIGATION NEEDED)
+================================================================================
+
+[WARN] /ecs/annualcashflow-loader
+       Error: Database transaction aborted errors recurring after each stock
+       Impact: Data may be processed but inserts failing silently
+       Last Activity: 2026-01-02 00:00:44
+       Action: Check database connections and transaction management
+       Related: /ecs/annualincomestatement-loader, /ecs/quarterlyincomestatement-loader
+
+================================================================================
+WORKING LOADERS (NO ACTION NEEDED)
+================================================================================
+
+[OK] /aws/ecs/stock-scores-loader         | Last: 2026-01-02 17:11:22 | Current ✓
+[OK] /ecs/factormetrics-loader            | Last: 2026-01-02 17:26:29 | Current ✓
+[OK] /ecs/buysellmonthly-loader           | Last: 2026-01-02 16:30:05 | Recent ✓
+[OK] /ecs/buysellweekly-loader            | Last: 2026-01-02 16:58:16 | Recent ✓
+[OK] /ecs/sectors-loader                  | Last: 2026-01-02 17:18:31 | Current ✓
+
+================================================================================
+MISSING/INACTIVE LOADERS (CHECK IF NEEDED)
+================================================================================
+
+[INACTIVE] /ecs/stocksymbols-loader             - No recent activity
+[INACTIVE] /ecs/coveredcalloptions-loader       - No log streams
+[INACTIVE] /ecs/positioningmetrics-loader       - No log streams
+[INACTIVE] /ecs/analystsentiment-loader         - No log streams
+[INACTIVE] /ecs/earnings-loader                 - No log streams
+
+================================================================================
+QUICK DIAGNOSIS STEPS
+================================================================================
+
+1. Check buyselldaily-loader schema:
+   - Verify table: SELECT * FROM information_schema.columns
+                   WHERE table_name = 'buy_sell_daily'
+   - Check if column exists: signal_triggered_date
+
+2. Fix pricedaily-loader entrypoint:
+   - Check ECS task definition
+   - Search CloudFormation for "pricedaily"
+   - Fix CMD format to not double python/script name
+
+3. Investigate cashflow transactions:
+   - Check RDS connection count
+   - Look for locks: SELECT * FROM pg_locks;
+   - Review loader error handling for transaction rollback
+
+================================================================================
+IMPACT BY TIMEFRAME
+================================================================================
+
+Immediate (24 hours):
+- Daily buy/sell signals not updating (5,078 stocks)
+- Daily prices not updating
+- Annual/quarterly financial data potentially incomplete
+
+If Not Fixed (48+ hours):
+- Trading signals become stale
+- Price data gaps
+- Scoring calculations based on incomplete data
+- Dashboard shows outdated information
+
+================================================================================
+KEY FILES TO CHECK
+================================================================================
+
+Loader Code:
+- /home/stocks/algo/loadbuysell*.py
+- /home/stocks/algo/loadpricedaily.py
+- /home/stocks/algo/loadannualcashflow.py
+
+Configuration:
+- CloudFormation templates (ECS task definitions)
+- ECS service definitions
+- .env files in webapp/lambda/
+
+Database:
+- PostgreSQL buy_sell_daily table schema
+- Connection pool settings
+- Transaction settings
+
+================================================================================

@@ -186,6 +186,13 @@ def create_buy_sell_table(cur, table_name="buy_sell_daily"):
       );
     """)
 
+    # Ensure signal_triggered_date column exists (for existing tables that may lack it)
+    try:
+        cur.execute("ALTER TABLE buy_sell_daily ADD COLUMN IF NOT EXISTS signal_triggered_date DATE")
+        logging.info("✅ buy_sell_daily.signal_triggered_date column ready")
+    except Exception as e:
+        logging.warning(f"Could not add signal_triggered_date column: {e}")
+
 def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell_daily"):
     # DEBUG: Check if pivot_price exists in DataFrame
     if 'pivot_price' in df.columns:

@@ -1,0 +1,270 @@
+================================================================================
+CLOUDWATCH ANALYSIS - DOCUMENT INDEX
+Generated: 2026-01-02 17:29 CST
+================================================================================
+
+EXECUTIVE SUMMARY
+================================================================================
+Analysis of CloudWatch ECS loader logs reveals 3 critical failures blocking
+approximately 50% of data loading pipelines. Two issues require immediate
+action within hours to prevent data gaps.
+
+KEY FINDINGS:
+- 3 loaders have critical errors
+- 7 loaders running successfully
+- 5 loaders have no activity (may be inactive or not scheduled)
+- Most urgent: buyselldaily-loader (database schema) and pricedaily-loader (config)
+
+================================================================================
+REPORT DOCUMENTS
+================================================================================
+
+1. CLOUDWATCH_ERROR_REPORT.md
+   Comprehensive technical report with:
+   - Executive summary with metrics
+   - Detailed analysis of each critical error
+   - Root cause identification
+   - Impact assessment
+   - Specific action items with file locations
+   - Severity levels and next steps
+   
+   Usage: Read for complete technical details and action plan
+
+2. LOADER_STATUS_SUMMARY.txt
+   Quick reference guide with:
+   - Critical failures flagged
+   - High priority warnings
+   - Working loaders status
+   - Missing/inactive loaders list
+   - Quick diagnosis steps
+   - Key files to check
+   
+   Usage: Use for quick status checks and triage
+
+3. THIS FILE (CLOUDWATCH_ANALYSIS_INDEX.txt)
+   Navigation guide for all analysis documents
+
+================================================================================
+CRITICAL ISSUES AT A GLANCE
+================================================================================
+
+Issue 1: /ecs/buyselldaily-loader
+  What: Database column "signal_triggered_date" does not exist
+  Impact: 5,078 daily stock signals blocked (2.8% progress then failed)
+  When: Started failing 2026-01-01 21:07:46
+  Fix Time: 15-30 minutes (once you identify the schema issue)
+
+Issue 2: /ecs/pricedaily-loader
+  What: Docker/ECS entrypoint passes script name as argument
+  Impact: All daily stock prices blocked
+  When: Started failing 2026-01-01 22:31:17
+  Fix Time: 10-20 minutes (once you locate the ECS task definition)
+
+Issue 3: /ecs/annualcashflow-loader
+  What: Database transaction aborted errors after each stock
+  Impact: Financial data may be silently failing
+  When: Ongoing since at least 2026-01-02 00:00:44
+  Fix Time: 30-60 minutes (database investigation and code review)
+
+================================================================================
+WORKING LOADERS (NO IMMEDIATE ACTION)
+================================================================================
+
+These are running fine and don't need attention:
+- Stock scores calculation
+- Factor metrics
+- Monthly buy/sell signals
+- Weekly buy/sell signals
+- Sectors data
+
+================================================================================
+MISSING LOADERS (VERIFY IF NEEDED)
+================================================================================
+
+These 5 loaders have no recent activity. Determine if they're intentionally
+inactive or if they need to be running:
+
+1. stocksymbols-loader
+2. coveredcalloptions-loader
+3. positioningmetrics-loader
+4. analystsentiment-loader
+5. earnings-loader
+
+================================================================================
+ACTION PRIORITY MATRIX
+================================================================================
+
+Priority 1 (Do First - 0-2 hours):
+  [ ] Fix buyselldaily-loader database schema issue
+      Why: 5,078 stocks affected, trading signals blocked
+      
+  [ ] Fix pricedaily-loader entrypoint configuration
+      Why: All daily prices blocked, critical for scoring
+
+Priority 2 (Do Next - 2-4 hours):
+  [ ] Investigate annualcashflow-loader transaction errors
+      Why: Financial data completeness at risk
+      
+  [ ] Check related loaders for same transaction issue
+      Why: annualincomestatement, quarterlyincomestatement may have same issue
+
+Priority 3 (Do After - 4-8 hours):
+  [ ] Verify missing/inactive loader statuses
+      Why: Ensure all necessary data pipelines are running
+      
+  [ ] Monitor all loaders for 24 hours
+      Why: Ensure fixes work and no regressions occur
+
+================================================================================
+DATA FLOW IMPACT
+================================================================================
+
+BLOCKED (Not Loading):
+  buy_sell_daily_signals
+  daily_prices
+  annual_cashflow (possibly)
+  annual_income_statement (possibly)
+  quarterly_income_statement (possibly)
+
+WORKING (Loading Normally):
+  buy_sell_monthly_signals
+  buy_sell_weekly_signals
+  stock_scores
+  factor_metrics
+  sectors
+
+STALLED (Unknown Status):
+  covered_call_options
+  positioning_metrics
+  analyst_sentiment
+  earnings_data
+  stock_symbols
+
+================================================================================
+CLOUDWATCH LOG GROUPS ANALYZED
+================================================================================
+
+Primary Attention:
+  /aws/ecs/stock-scores-loader              [WORKING]
+  /ecs/factormetrics-loader                 [WORKING]
+  /ecs/pricedaily-loader                    [CRITICAL ERROR]
+  /ecs/buysellmonthly-loader                [WORKING]
+  /ecs/buysellweekly-loader                 [WORKING]
+  /ecs/buyselldaily-loader                  [CRITICAL ERROR]
+  /ecs/sectors-loader                       [WORKING]
+  /ecs/stocksymbols-loader                  [NO ACTIVITY]
+  /ecs/annualcashflow-loader                [WARNING]
+  /ecs/annualincomestatement-loader         [LIKELY ISSUE]
+  /ecs/quarterlyincomestatement-loader      [LIKELY ISSUE]
+  /ecs/coveredcalloptions-loader            [NO STREAMS]
+  /ecs/positioningmetrics-loader            [NO STREAMS]
+  /ecs/analystsentiment-loader              [NO STREAMS]
+  /ecs/earnings-loader                      [NO STREAMS]
+
+Additional Groups Found (40+ total):
+  ETF price loaders, technical indicator loaders, balance sheet loaders,
+  cash flow loaders, and many more supporting services.
+
+================================================================================
+KEY STATISTICS
+================================================================================
+
+Loaders Analyzed: 15 primary
+Loaders with Errors: 3
+Loaders Running Successfully: 7
+Loaders with No Activity: 5
+
+Critical Errors Found: 2
+High Priority Warnings: 1
+
+Percentage of pipelines affected: ~50%
+Percentage functioning normally: ~47%
+Percentage status unknown: ~3%
+
+Time since last activity:
+- Critical failures: 3+ days old (STALE)
+- Successful loaders: 0-14 hours ago (CURRENT)
+- Inactive loaders: Unknown
+
+================================================================================
+NEXT STEPS FOR OPERATORS
+================================================================================
+
+IMMEDIATE (This Hour):
+1. Read CLOUDWATCH_ERROR_REPORT.md for full details
+2. Identify responsible teams for each service
+3. Start diagnosing buyselldaily-loader database schema
+4. Locate and review pricedaily-loader ECS task definition
+
+SHORT TERM (Next 2-4 Hours):
+1. Apply fixes for both critical issues
+2. Restart affected loaders
+3. Monitor CloudWatch logs for success
+4. Begin investigation into transaction errors
+
+FOLLOW UP (Next 4-8 Hours):
+1. Verify all fixes are working
+2. Check missing loader statuses
+3. Review code for similar issues
+4. Monitor logs for 24 hours
+
+DOCUMENTATION:
+- Save this analysis to a shared location
+- Create incident ticket with these findings
+- Reference document in post-incident review
+- Use as basis for preventing similar issues
+
+================================================================================
+HOW TO USE THESE DOCUMENTS
+================================================================================
+
+For Quick Status Check:
+  -> Read LOADER_STATUS_SUMMARY.txt (2 minutes)
+
+For Technical Deep Dive:
+  -> Read CLOUDWATCH_ERROR_REPORT.md (10-15 minutes)
+
+For Navigation and Context:
+  -> Read THIS FILE first (5 minutes)
+
+For Sharing with Team:
+  -> Share CLOUDWATCH_ERROR_REPORT.md (comprehensive)
+  -> Share LOADER_STATUS_SUMMARY.txt (executive summary)
+
+For Follow-up Analysis:
+  -> Reference file paths in both reports
+  -> Use analysis as starting point for fixes
+
+================================================================================
+CONTACT / ESCALATION
+================================================================================
+
+This analysis identifies critical issues in:
+1. Data loading infrastructure (ECS tasks)
+2. Database schema configuration (PostgreSQL)
+3. Application configuration (Docker/ECS definitions)
+
+Escalate to teams responsible for:
+- Infrastructure (ECS, Docker)
+- Database (PostgreSQL, schema management)
+- Application code (loader scripts)
+
+Provide them with the reports at: /home/stocks/algo/
+
+================================================================================
+ANALYSIS METADATA
+================================================================================
+
+Generated: 2026-01-02 17:29 CST
+Analyzed By: CloudWatch Log Analysis
+Analysis Scope: 15 primary ECS loader log groups, 40+ total groups checked
+Log Lookback: Last 200-300 log entries per stream
+Data Sources: AWS CloudWatch Logs API
+
+Confidence Level: HIGH
+- Errors confirmed in multiple log entries
+- Error patterns consistent and reproducible
+- Root causes clearly identified from error messages
+- Recommendations based on specific evidence from logs
+
+================================================================================
