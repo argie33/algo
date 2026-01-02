@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# BATCH 1 FOUNDATION TRIGGER: Deploy all foundation loaders concurrently
 """
 Analyst Sentiment Data Loader for yfinance
 Extracts analyst consensus ratings, price targets, and calculates rating distribution
