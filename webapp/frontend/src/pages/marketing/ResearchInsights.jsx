@@ -14,22 +14,18 @@ const ResearchInsights = () => {
     {
       title: 'AI-Powered Stock Analysis',
       description: 'Our composite scoring system analyzes stocks across multiple dimensions using machine learning. Get comprehensive insights beyond traditional metrics.',
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
     },
     {
       title: 'Market Research & Reports',
       description: 'In-depth analysis of market trends, sector performance, and economic indicators. Actionable insights to inform your investment strategy.',
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
     },
     {
       title: 'Sentiment & Positioning Analysis',
       description: 'Track how institutional sentiment is shifting. Our AI interprets analyst positioning, upgrades/downgrades, and market psychology.',
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
     },
     {
       title: 'Technical Analysis & Trading Signals',
       description: 'AI-generated signals based on price action, technical patterns, and momentum indicators. Identify entry and exit opportunities.',
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
     },
   ];
 
@@ -69,7 +65,7 @@ const ResearchInsights = () => {
             </Grid>
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="https://picsum.photos/800/500?random="
+                src="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=800&h=500&fit=crop&auto=format&q=80"
                 alt="Research Intelligence"
                 height={{ xs: '300px', md: '450px' }}
               />
@@ -122,21 +118,6 @@ const ResearchInsights = () => {
                   },
                 }}
               >
-                {/* Card Image */}
-                <Box
-                  component="img"
-                  src={category.image}
-                  alt={category.title}
-                  sx={{
-                    width: '100%',
-                    height: '200px',
-                    objectFit: 'cover',
-                    display: 'block',
-                  }}
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                  }}
-                />
                 <CardContent>
                   <Typography
                     variant="h6"

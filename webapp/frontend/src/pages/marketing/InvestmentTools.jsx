@@ -14,32 +14,26 @@ const InvestmentTools = () => {
     {
       title: 'Real-Time Stock Scoring',
       description: 'AI-powered composite scores that update in real-time. Analyze individual stocks across multiple dimensions and compare them instantly.',
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
     },
     {
       title: 'Earnings Calendar & Analysis',
       description: 'Track upcoming earnings, view historical surprise patterns, and identify stocks with positive estimate revisions using AI analysis.',
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
     },
     {
       title: 'Technical Analysis Engine',
       description: 'Advanced technical indicators, pattern recognition, and AI-generated trading signals. Identify entry and exit opportunities with precision.',
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
     },
     {
       title: 'Sector & Market Tools',
       description: 'Monitor sector rotation, relative strength analysis, and overall market health. Make informed allocation decisions across different asset classes.',
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
     },
     {
       title: 'Economic Dashboard',
       description: 'Track key economic indicators, macro trends, and their impact on markets. Understand the broader economic context for your trades.',
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
     },
     {
       title: 'Hedge Helper',
       description: 'AI-powered hedging suggestions and risk management strategies. Protect your portfolio with intelligent portfolio protection recommendations.',
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
     },
   ];
 
@@ -79,7 +73,7 @@ const InvestmentTools = () => {
             </Grid>
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="https://picsum.photos/800/500?random="
+                src="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=800&h=500&fit=crop&auto=format&q=80"
                 alt="Investment Tools"
                 height={{ xs: '300px', md: '450px' }}
               />
@@ -132,21 +126,6 @@ const InvestmentTools = () => {
                   },
                 }}
               >
-                {/* Card Image */}
-                <Box
-                  component="img"
-                  src={tool.image}
-                  alt={tool.title}
-                  sx={{
-                    width: '100%',
-                    height: '200px',
-                    objectFit: 'cover',
-                    display: 'block',
-                  }}
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                  }}
-                />
                 <CardContent>
                   <Typography
                     variant="h6"

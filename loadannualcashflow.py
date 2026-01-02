@@ -34,6 +34,13 @@ def log_mem(stage: str):
 MAX_BATCH_RETRIES = 3
 RETRY_DELAY = 1.0
 
+# Exponential backoff for rate limits (60s → 90s → 135s → 300s)
+RATE_LIMIT_BACKOFF = [60, 90, 135, 300]
+
+class RateLimitError(Exception):
+    """Exception raised when yfinance returns rate limit error"""
+    pass
+
 def get_db_config():
     """Get database configuration from AWS Secrets Manager or local environment.
     
@@ -147,7 +154,11 @@ def get_cash_flow_data(symbol: str) -> Optional[pd.DataFrame]:
         return cash_flow
         
     except Exception as e:
-        logging.error(f"Error fetching cash flow for {symbol}: {e}")
+        error_str = str(e).lower()
+        # Detect rate limit errors  
+        if "too many requests" in error_str or "rate limit" in error_str or "429" in error_str:
+            raise RateLimitError(f"Rate limited: {e}")
+        logging.error(f"Error fetching data for {symbol}: {e}")
         return None
 
 def process_cash_flow_data(symbol: str, cash_flow: pd.DataFrame) -> List[Tuple]:
@@ -196,8 +207,9 @@ def load_annual_cash_flow(symbols: List[str], cur, conn) -> Tuple[int, int, List
 
         for symbol in batch:
             success = False
-            
-            for attempt in range(1, MAX_BATCH_RETRIES + 1):
+            rate_limit_backoff_idx = 0
+
+            while rate_limit_backoff_idx < len(RATE_LIMIT_BACKOFF):
                 try:
                     # Clean symbol for yfinance (handle special characters)
                     yf_symbol = symbol.replace('.', '-').replace('$', '-P').upper()
@@ -246,12 +258,16 @@ def load_annual_cash_flow(symbols: List[str], cur, conn) -> Tuple[int, int, List
                         logging.warning(f"✗ No valid data found for {symbol} after processing")
                         break
                         
+                except RateLimitError as e:
+                    wait_time = RATE_LIMIT_BACKOFF[rate_limit_backoff_idx]
+                    logging.warning(f"Rate limited: {e}. Waiting {wait_time}s...")
+                    time.sleep(wait_time)
+                    rate_limit_backoff_idx += 1
+                    continue
+
                 except Exception as e:
-                    logging.warning(f"Attempt {attempt} failed for {symbol}: {e}")
-                    if attempt < MAX_BATCH_RETRIES:
-                        time.sleep(RETRY_DELAY)
-                    else:
-                        conn.rollback()
+                    logging.warning(f"Error: {e}")
+                    break
             
             if not success:
                 failed.append(symbol)
