@@ -4289,12 +4289,17 @@ def main():
             except Exception as e:
                 logger.warning(f"⚠️  key_metrics columns: {e}")
 
-            # Add missing column to stock_scores if it doesn't exist
+            # Add missing columns to stock_scores if they don't exist
             try:
                 cursor.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS company_name VARCHAR(255)")
-                logger.info("✅ stock_scores company_name column ready")
+                cursor.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS stability_score DECIMAL(5,2)")
+                cursor.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS rsi NUMERIC(10,2)")
+                cursor.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS macd NUMERIC(15,2)")
+                cursor.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS sma50 NUMERIC(15,2)")
+                cursor.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS price_vs_sma_200 NUMERIC(15,2)")
+                logger.info("✅ stock_scores columns ready")
             except Exception as e:
-                logger.warning(f"⚠️  stock_scores company_name column: {e}")
+                logger.warning(f"⚠️  stock_scores columns: {e}")
 
             conn.commit()
             cursor.close()
