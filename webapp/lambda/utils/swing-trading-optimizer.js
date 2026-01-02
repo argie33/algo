@@ -116,7 +116,8 @@ function calculateRiskBasedAllocations(portfolio) {
 
   const totalScore = portfolio.reduce((sum, s) => sum + (s.composite_score || 0), 0);
 
-  const allocations = portfolio.map((stock, index) => {
+  // First pass: Calculate raw position sizes based on scores
+  let rawAllocations = portfolio.map((stock, index) => {
     // Score-weighted sizing
     const scoreWeight = (stock.composite_score || 60) / totalScore;
     let positionSize = Math.min(maxPositionSize, scoreWeight * 1.5);
@@ -126,19 +127,32 @@ function calculateRiskBasedAllocations(portfolio) {
       positionSize = 0.05;
     }
 
-    const riskAmount = positionSize * (stopLossPercent / 100);
+    return {
+      stock: stock,
+      index: index,
+      positionSize: positionSize
+    };
+  });
+
+  // Second pass: Normalize so they sum to 100%
+  const totalAllocation = rawAllocations.reduce((sum, a) => sum + a.positionSize, 0);
+  const normalizationFactor = 1.0 / totalAllocation; // Scale down to sum to 1.0
+
+  const allocations = rawAllocations.map((allocation) => {
+    const normalizedSize = allocation.positionSize * normalizationFactor;
+    const riskAmount = normalizedSize * (stopLossPercent / 100);
 
     return {
-      symbol: stock.symbol,
-      company: stock.company_name,
-      sector: stock.sector || 'Other',
-      score: Math.round(stock.composite_score),
-      position: parseFloat((positionSize * 100).toFixed(2)),
+      symbol: allocation.stock.symbol,
+      company: allocation.stock.company_name,
+      sector: allocation.stock.sector || 'Other',
+      score: Math.round(allocation.stock.composite_score),
+      position: parseFloat((normalizedSize * 100).toFixed(2)),
       stopLoss: stopLossPercent,
       riskBps: Math.round(riskAmount * 10000),
-      price: stock.current_price,
-      quality: stock.quality_score,
-      momentum: stock.momentum_score
+      price: allocation.stock.current_price,
+      quality: allocation.stock.quality_score,
+      momentum: allocation.stock.momentum_score
     };
   });
 
