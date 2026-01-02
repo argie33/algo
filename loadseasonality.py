@@ -20,7 +20,7 @@ def get_db_connection():
             host=os.environ.get("DB_HOST", "localhost"),
             port=os.environ.get("DB_PORT", "5432"),
             database=os.environ.get("DB_NAME", "stocks"),
-            user=os.environ.get("DB_USER", "postgres"),
+            user=os.environ.get("DB_USER", "stocks"),
             password=os.environ.get("DB_PASSWORD", "")
         )
         return conn

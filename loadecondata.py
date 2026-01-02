@@ -47,8 +47,8 @@ def get_db_creds():
     # Fall back to environment variables or Unix socket
     if os.environ.get("DB_HOST"):
         return {
-            "user": os.environ.get("DB_USER", "postgres"),
-            "password": os.environ.get("DB_PASSWORD", "password"),
+            "user": os.environ.get("DB_USER", "stocks"),
+            "password": os.environ.get("DB_PASSWORD", "bed0elAn"),
             "host": os.environ.get("DB_HOST", "localhost"),
             "port": int(os.environ.get("DB_PORT", 5432)),
             "dbname": os.environ.get("DB_NAME", "stocks"),
