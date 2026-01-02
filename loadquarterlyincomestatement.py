@@ -235,19 +235,22 @@ def load_quarterly_income_statement(symbols: List[str], cur, conn) -> Tuple[int,
                                 grouped[key]['operating_income'] = value
                             elif 'net income' in item_lower and 'noncontrolling' not in item_lower:
                                 grouped[key]['net_income'] = value
+                            elif 'eps' in item_lower or 'diluted eps' in item_lower:
+                                grouped[key]['eps'] = value
 
                         insert_data = []
                         for (sym, date), fields in grouped.items():
-                            insert_data.append((sym, date, fields.get('revenue'), fields.get('operating_income'), fields.get('net_income')))
+                            insert_data.append((sym, date, fields.get('revenue'), fields.get('operating_income'), fields.get('net_income'), fields.get('eps')))
 
                         if insert_data:
                             execute_values(cur, """
-                                INSERT INTO quarterly_income_statement (symbol, date, revenue, operating_income, net_income)
+                                INSERT INTO quarterly_income_statement (symbol, date, revenue, operating_income, net_income, eps)
                                 VALUES %s
                                 ON CONFLICT (symbol, date) DO UPDATE SET
                                     revenue = COALESCE(EXCLUDED.revenue, quarterly_income_statement.revenue),
                                     operating_income = COALESCE(EXCLUDED.operating_income, quarterly_income_statement.operating_income),
                                     net_income = COALESCE(EXCLUDED.net_income, quarterly_income_statement.net_income),
+                                    eps = COALESCE(EXCLUDED.eps, quarterly_income_statement.eps),
                                     updated_at = NOW()
                             """, insert_data)
                             conn.commit()
