@@ -47,6 +47,12 @@ import Research from "./pages/marketing/Research";
 import Media from "./pages/marketing/Media";
 import Contact from "./pages/marketing/Contact";
 import BecomeClient from "./pages/marketing/BecomeClient";
+import About from "./pages/marketing/About";
+import OurTeam from "./pages/marketing/OurTeam";
+import MissionValues from "./pages/marketing/MissionValues";
+import ResearchInsights from "./pages/marketing/ResearchInsights";
+import InvestmentTools from "./pages/marketing/InvestmentTools";
+import WealthManagement from "./pages/marketing/WealthManagement";
 
 // Layout components
 import AppLayout from "./components/AppLayout";
@@ -359,6 +365,12 @@ function App() {
           <Route path="/media" element={<Media />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/become-client" element={<BecomeClient />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/our-team" element={<OurTeam />} />
+          <Route path="/mission-values" element={<MissionValues />} />
+          <Route path="/research-insights" element={<ResearchInsights />} />
+          <Route path="/investment-tools" element={<InvestmentTools />} />
+          <Route path="/wealth-management" element={<WealthManagement />} />
           {/* Fallback for marketing - if route doesn't exist, redirect to home */}
           <Route path="*" element={<Home />} />
         </Routes>

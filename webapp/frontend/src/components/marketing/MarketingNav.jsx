@@ -45,18 +45,18 @@ const MarketingNav = () => {
       label: 'Firm',
       path: '/firm',
       submenu: [
-        { label: 'About', path: '/firm' },
-        { label: 'Our Team', path: '/firm' },
-        { label: 'Mission & Values', path: '/firm' },
+        { label: 'About', path: '/about' },
+        { label: 'Our Team', path: '/our-team' },
+        { label: 'Mission & Values', path: '/mission-values' },
       ]
     },
     {
       label: 'Services',
       path: '/services',
       submenu: [
-        { label: 'Research & Insights', path: '/services' },
-        { label: 'Investment Tools', path: '/services' },
-        { label: 'Wealth Management', path: '/services' },
+        { label: 'Research & Insights', path: '/research-insights' },
+        { label: 'Investment Tools', path: '/investment-tools' },
+        { label: 'Wealth Management', path: '/wealth-management' },
       ]
     },
     { label: 'Contact', path: '/contact' },
