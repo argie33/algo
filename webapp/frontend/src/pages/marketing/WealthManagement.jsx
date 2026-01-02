@@ -14,32 +14,32 @@ const WealthManagement = () => {
     {
       title: 'Portfolio Optimization',
       description: 'Use AI-powered analysis to optimize asset allocation and sector rotation. Make data-driven decisions for your entire portfolio.',
-      image: 'https://picsum.photos/800/500?random=10
+      image: 'https://picsum.photos/800/500?random=10',
     },
     {
       title: 'Risk Management',
       description: 'Identify risks before they materialize. Our AI reveals hidden correlations and warning signs across your holdings.',
-      image: 'https://picsum.photos/800/500?random=10
+      image: 'https://picsum.photos/800/500?random=10',
     },
     {
       title: 'Performance Tracking',
       description: 'Monitor portfolio performance against benchmarks. Track which analysis dimensions are driving your returns.',
-      image: 'https://picsum.photos/800/500?random=10
+      image: 'https://picsum.photos/800/500?random=10',
     },
     {
       title: 'Sector Rotation Intelligence',
       description: 'Identify emerging sector trends and rotation patterns. Shift allocations with confidence based on AI-powered insights.',
-      image: 'https://picsum.photos/800/500?random=10
+      image: 'https://picsum.photos/800/500?random=10',
     },
     {
       title: 'Economic Impact Analysis',
       description: 'Understand how macro trends and economic changes impact your portfolio. Prepare for market shifts before they happen.',
-      image: 'https://picsum.photos/800/500?random=10
+      image: 'https://picsum.photos/800/500?random=10',
     },
     {
       title: 'Hedging Strategies',
       description: 'Implement intelligent hedging strategies to protect your wealth. Use AI to identify optimal hedge instruments and timing.',
-      image: 'https://picsum.photos/800/500?random=10
+      image: 'https://picsum.photos/800/500?random=10',
     },
   ];
 
