@@ -1383,50 +1383,53 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
     )
 
     for row in cursor.fetchall():
-        ticker = row[0]
-        ticker_dict = {
-            "ticker": ticker,
-            "revenue_growth_pct": row[1],
-            "earnings_growth_pct": row[2],
-            "earnings_q_growth_pct": row[3],
-            "return_on_equity_pct": row[4],
-            "payout_ratio": row[5],
-            "gross_margin_pct": row[6],
-            "operating_margin_pct": row[7],
-            "profit_margin_pct": row[8],
-            "ebitda_margin_pct": row[9],
-            "free_cashflow": row[10],
-            "net_income": row[11],
-            "operating_cashflow": row[12],
-            "total_revenue": row[13],
-            "eps_trailing": row[14],
-            "eps_forward": row[15],
-        }
+        try:
+            ticker = row[0]
+            ticker_dict = {
+                "ticker": ticker,
+                "revenue_growth_pct": row[1],
+                "earnings_growth_pct": row[2],
+                "earnings_q_growth_pct": row[3],
+                "return_on_equity_pct": row[4],
+                "payout_ratio": row[5],
+                "gross_margin_pct": row[6],
+                "operating_margin_pct": row[7],
+                "profit_margin_pct": row[8],
+                "ebitda_margin_pct": row[9],
+                "free_cashflow": row[10],
+                "net_income": row[11],
+                "operating_cashflow": row[12],
+                "total_revenue": row[13],
+                "eps_trailing": row[14],
+                "eps_forward": row[15],
+            }
 
-        # Get growth metrics from multiple sources (priority order)
-        financial_growth = get_financial_statement_growth(cursor, ticker)
-        quarterly_growth = get_quarterly_statement_growth(cursor, ticker)
-        earnings_history_growth = get_earnings_history_growth(cursor, ticker)
+            # Get growth metrics from multiple sources (priority order)
+            financial_growth = get_financial_statement_growth(cursor, ticker)
+            quarterly_growth = get_quarterly_statement_growth(cursor, ticker)
+            earnings_history_growth = get_earnings_history_growth(cursor, ticker)
 
-        # Calculate metrics combining all available data sources
-        metrics = calculate_growth_metrics(ticker_dict, financial_growth, quarterly_growth, earnings_history_growth)
-        growth_rows.append([
-            ticker,
-            date.today(),
-            metrics.get("revenue_growth_3y_cagr"),
-            metrics.get("eps_growth_3y_cagr"),
-            metrics.get("operating_income_growth_yoy"),
-            metrics.get("roe_trend"),
-            metrics.get("sustainable_growth_rate"),
-            metrics.get("fcf_growth_yoy"),
-            metrics.get("ocf_growth_yoy"),
-            metrics.get("net_income_growth_yoy"),
-            metrics.get("gross_margin_trend"),
-            metrics.get("operating_margin_trend"),
-            metrics.get("net_margin_trend"),
-            metrics.get("quarterly_growth_momentum"),
-            metrics.get("asset_growth_yoy"),
-        ])
+            # Calculate metrics combining all available data sources
+            metrics = calculate_growth_metrics(ticker_dict, financial_growth, quarterly_growth, earnings_history_growth)
+            growth_rows.append([
+                ticker,
+                date.today(),
+                metrics.get("revenue_growth_3y_cagr"),
+                metrics.get("eps_growth_3y_cagr"),
+                metrics.get("operating_income_growth_yoy"),
+                metrics.get("roe_trend"),
+                metrics.get("sustainable_growth_rate"),
+                metrics.get("fcf_growth_yoy"),
+                metrics.get("ocf_growth_yoy"),
+                metrics.get("net_income_growth_yoy"),
+                metrics.get("gross_margin_trend"),
+                metrics.get("operating_margin_trend"),
+                metrics.get("net_margin_trend"),
+                metrics.get("quarterly_growth_momentum"),
+                metrics.get("asset_growth_yoy"),
+            ])
+        except Exception as e:
+            logging.warning(f"Error processing growth metrics for {row[0] if row else 'unknown'}: {e}")
 
     # Also process symbols that have financial statement data but no key_metrics
     # These are companies with annual income statements but missing from key_metrics table
@@ -1775,8 +1778,7 @@ def create_factor_metrics_tables(cursor):
         # Create quality_metrics table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS quality_metrics (
-                id SERIAL PRIMARY KEY,
-                symbol VARCHAR(20) NOT NULL,
+                symbol VARCHAR(50) NOT NULL,
                 date DATE NOT NULL,
                 return_on_equity_pct FLOAT,
                 return_on_assets_pct FLOAT,
@@ -1793,16 +1795,30 @@ def create_factor_metrics_tables(cursor):
                 eps_growth_stability FLOAT,
                 payout_ratio FLOAT,
                 roe_stability_index FLOAT,
+                fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 created_at TIMESTAMP DEFAULT NOW(),
-                UNIQUE(symbol, date)
+                PRIMARY KEY (symbol, date)
             )
+        """)
+
+        # Add missing columns if they don't exist (for existing tables)
+        cursor.execute("""
+            ALTER TABLE quality_metrics
+            ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()
+        """)
+        cursor.execute("""
+            ALTER TABLE quality_metrics
+            ADD COLUMN IF NOT EXISTS return_on_invested_capital_pct FLOAT
+        """)
+        cursor.execute("""
+            ALTER TABLE quality_metrics
+            ADD COLUMN IF NOT EXISTS roe_stability_index FLOAT
         """)
 
         # Create growth_metrics table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS growth_metrics (
-                id SERIAL PRIMARY KEY,
-                symbol VARCHAR(20) NOT NULL,
+                symbol VARCHAR(50) NOT NULL,
                 date DATE NOT NULL,
                 revenue_growth_3y_cagr FLOAT,
                 eps_growth_3y_cagr FLOAT,
@@ -1818,8 +1834,8 @@ def create_factor_metrics_tables(cursor):
                 quarterly_growth_momentum FLOAT,
                 asset_growth_yoy FLOAT,
                 revenue_growth_yoy FLOAT,
-                created_at TIMESTAMP DEFAULT NOW(),
-                UNIQUE(symbol, date)
+                fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (symbol, date)
             )
         """)
 
@@ -1840,8 +1856,7 @@ def create_factor_metrics_tables(cursor):
         # Create momentum_metrics table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS momentum_metrics (
-                id SERIAL PRIMARY KEY,
-                symbol VARCHAR(20) NOT NULL,
+                symbol VARCHAR(50) NOT NULL,
                 date DATE NOT NULL,
                 current_price FLOAT,
                 momentum_3m FLOAT,
@@ -1850,8 +1865,8 @@ def create_factor_metrics_tables(cursor):
                 price_vs_sma_50 FLOAT,
                 price_vs_sma_200 FLOAT,
                 price_vs_52w_high FLOAT,
-                created_at TIMESTAMP DEFAULT NOW(),
-                UNIQUE(symbol, date)
+                fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (symbol, date)
             )
         """)
 
@@ -1872,8 +1887,7 @@ def create_factor_metrics_tables(cursor):
         # Create stability_metrics table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS stability_metrics (
-                id SERIAL PRIMARY KEY,
-                symbol VARCHAR(20) NOT NULL,
+                symbol VARCHAR(50) NOT NULL,
                 date DATE NOT NULL,
                 volatility_12m FLOAT,
                 downside_volatility FLOAT,
@@ -1883,8 +1897,8 @@ def create_factor_metrics_tables(cursor):
                 turnover_velocity FLOAT,
                 volatility_volume_ratio FLOAT,
                 daily_spread FLOAT,
-                created_at TIMESTAMP DEFAULT NOW(),
-                UNIQUE(symbol, date)
+                fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (symbol, date)
             )
         """)
 
@@ -1909,8 +1923,7 @@ def create_factor_metrics_tables(cursor):
         # Create value_metrics table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS value_metrics (
-                id SERIAL PRIMARY KEY,
-                symbol VARCHAR(20) NOT NULL,
+                symbol VARCHAR(50) NOT NULL,
                 date DATE NOT NULL,
                 trailing_pe FLOAT,
                 forward_pe FLOAT,
@@ -1921,8 +1934,8 @@ def create_factor_metrics_tables(cursor):
                 ev_to_ebitda FLOAT,
                 dividend_yield FLOAT,
                 payout_ratio FLOAT,
-                created_at TIMESTAMP DEFAULT NOW(),
-                UNIQUE(symbol, date)
+                fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (symbol, date)
             )
         """)
 

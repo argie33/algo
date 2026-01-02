@@ -736,7 +736,7 @@ const Home = () => {
                 excerpt: 'Our AI models detected a significant shift in technical momentum for mega-cap tech stocks this week. Analysis of sentiment data and positioning metrics suggests institutional accumulation...',
                 tags: ['Technical Analysis', 'Sector Rotation', 'AI Signals'],
                 tickers: ['AAPL', 'MSFT', 'GOOGL', 'NVDA'],
-                image: 'https://picsum.photos/800/500?random=10',
+                image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
               },
               {
                 title: 'Earnings Season Preview: 15 Stocks With High Surprise Probability',
@@ -745,7 +745,7 @@ const Home = () => {
                 excerpt: 'With earnings season approaching, our AI scoring system has identified 15 stocks with high probability of positive earnings surprises based on revision trends and analyst positioning...',
                 tags: ['Earnings', 'Forecasts', 'Stock Picks'],
                 tickers: ['AMZN', 'CRM', 'ASML', 'META'],
-                image: 'https://picsum.photos/800/500?random=10',
+                image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
               },
               {
                 title: 'Sentiment Divergence Creating Opportunity in Energy Sector',
@@ -754,7 +754,7 @@ const Home = () => {
                 excerpt: 'Despite bearish headlines, our sentiment tracking shows institutional accumulation in select energy names. This divergence between narrative and actual positioning suggests contrarian opportunity...',
                 tags: ['Sentiment', 'Contrarian', 'Energy'],
                 tickers: ['XLE', 'XOM', 'CVX', 'MPC'],
-                image: 'https://picsum.photos/800/500?random=10',
+                image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
               },
             ].map((insight, idx) => (
               <Grid item xs={12} md={4} key={idx}>
@@ -896,19 +896,19 @@ const Home = () => {
                 name: 'Robert Chen',
                 role: 'Portfolio Manager, Wealth Advisors LLC',
                 quote: 'Their AI scoring system has fundamentally changed how we evaluate opportunities. We\'re seeing better risk-adjusted returns and making faster, more confident investment decisions.',
-                image: 'https://picsum.photos/800/500?random=10',
+                image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
               },
               {
                 name: 'Jennifer Williams',
                 role: 'Active Trader, Independent',
                 quote: 'The multi-dimensional research is exceptional. Fundamentals, technicals, and sentiment all work together to confirm trading opportunities. No other research platform integrates data like this.',
-                image: 'https://picsum.photos/800/500?random=10',
+                image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
               },
               {
                 name: 'Marcus Johnson',
                 role: 'Fund Manager, Macro Research Partners',
                 quote: 'Bullseye\'s combination of traditional research expertise with AI-powered analysis is sophisticated and unique. It\'s become essential infrastructure for our entire research operation.',
-                image: 'https://picsum.photos/800/500?random=10',
+                image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
               },
             ].map((testimonial, idx) => (
               <Grid item xs={12} sm={6} md={4} key={idx}>
