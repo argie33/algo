@@ -143,13 +143,42 @@ const HeroSection = () => {
             </Box>
           </Grid>
 
-          {/* Right Visual - NYC Skyline Image */}
+          {/* Right Visual - Professional Dark Background */}
           <Grid item xs={12} md={7}>
-            <ImagePlaceholder
-              src="https://pixabay.com/get/g7f3d918acb7a733dd4954761ad4e8774ec85dfe318e8d667c5e0ddc5b0efbb1a_640.jpg"
-              alt="NYC Manhattan Skyline"
-              height={{ xs: '300px', sm: '400px', md: '500px' }}
-            />
+            <Box
+              sx={{
+                height: { xs: '300px', sm: '400px', md: '500px' },
+                background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
+                overflow: 'hidden',
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  background: 'radial-gradient(circle at 20% 50%, rgba(100, 200, 255, 0.1) 0%, transparent 50%)',
+                },
+              }}
+            >
+              <Typography
+                sx={{
+                  color: '#fff',
+                  fontSize: '1.3rem',
+                  fontWeight: 600,
+                  textAlign: 'center',
+                  zIndex: 1,
+                  px: 3,
+                }}
+              >
+                Market Intelligence Platform
+              </Typography>
+            </Box>
           </Grid>
         </Grid>
       </Container>
