@@ -347,12 +347,11 @@ def get_quarterly_statement_growth(cursor, symbol: str) -> Dict:
         # Get recent 8 quarters of revenue and earnings
         cursor.execute("""
             SELECT date,
-                   MAX(CASE WHEN item_name = 'Total Revenue' THEN value ELSE NULL END) as revenue,
-                   MAX(CASE WHEN item_name = 'Net Income' THEN value ELSE NULL END) as net_income,
-                   MAX(CASE WHEN item_name = 'Operating Income' THEN value ELSE NULL END) as operating_income
+                   revenue,
+                   net_income,
+                   operating_income
             FROM quarterly_income_statement
             WHERE symbol = %s
-            GROUP BY date
             ORDER BY date DESC
             LIMIT 8
         """, (symbol,))
@@ -620,11 +619,10 @@ def get_earnings_surprise_metrics(cursor, symbol: str) -> Dict:
             SELECT
                 DATE_PART('YEAR', qis.date::date)::int as year,
                 DATE_PART('QUARTER', qis.date::date)::int as quarter,
-                qis.value::float as actual_eps
+                qis.eps::float as actual_eps
             FROM quarterly_income_statement qis
             WHERE qis.symbol = %s
-            AND qis.item_name = 'Diluted EPS'
-            AND qis.value IS NOT NULL
+            AND qis.eps IS NOT NULL
             ORDER BY qis.date DESC
             LIMIT 4
         """, (symbol,))
@@ -1378,7 +1376,8 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
                 conn.rollback()
             except:
                 pass
-            # Don't raise - continue to next step so data isn't completely lost
+            # Re-raise so main() can handle and recreate cursor
+            raise
 
 
 def load_growth_metrics(conn, cursor, symbols: List[str]):
