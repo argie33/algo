@@ -1733,23 +1733,32 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         analyst_record_count = 0
         try:
             cur.execute("""
-                SELECT bullish_count, bearish_count, neutral_count, total_analysts
+                SELECT strong_buy_count, buy_count, hold_count, sell_count, strong_sell_count, total_analysts, recommendation_mean
                 FROM analyst_sentiment_analysis
                 WHERE symbol = %s
-                ORDER BY date_recorded DESC
+                ORDER BY date DESC
                 LIMIT 1
             """, (symbol,))
             analyst_rec = cur.fetchone()
             if analyst_rec:
-                # Calculate sentiment score from bullish/bearish/neutral counts
-                bullish = int(analyst_rec[0]) if analyst_rec[0] is not None else 0
-                bearish = int(analyst_rec[1]) if analyst_rec[1] is not None else 0
-                neutral = int(analyst_rec[2]) if analyst_rec[2] is not None else 0
-                total = int(analyst_rec[3]) if analyst_rec[3] is not None else 0
+                # Calculate sentiment score from rating distribution
+                strong_buy = int(analyst_rec[0]) if analyst_rec[0] is not None else 0
+                buy = int(analyst_rec[1]) if analyst_rec[1] is not None else 0
+                hold = int(analyst_rec[2]) if analyst_rec[2] is not None else 0
+                sell = int(analyst_rec[3]) if analyst_rec[3] is not None else 0
+                strong_sell = int(analyst_rec[4]) if analyst_rec[4] is not None else 0
+                total = int(analyst_rec[5]) if analyst_rec[5] is not None else 0
+                avg_rating = float(analyst_rec[6]) if analyst_rec[6] is not None else None
 
-                # Sentiment score: (bullish - bearish) / total, scaled to 0-100
-                # Net sentiment: +1 = all bullish, -1 = all bearish, 0 = mixed/neutral
-                if total > 0:
+                # Use recommendation_mean if available (1=Strong Buy, 5=Strong Sell)
+                # Convert to 0-100 scale: 1->100, 5->0
+                if avg_rating is not None:
+                    analyst_score = float(((5 - avg_rating) / 4) * 100)  # Scale 1-5 to 100-0
+                    analyst_record_count = total
+                elif total > 0:
+                    # Fallback: calculate from distribution
+                    bullish = strong_buy + buy
+                    bearish = strong_sell + sell
                     analyst_score = float(((bullish - bearish) / total) * 50 + 50)  # Scale to 0-100
                     analyst_record_count = total
                 else:
@@ -4267,6 +4276,7 @@ def main():
             # Add missing columns to positioning_metrics if they don't exist
             try:
                 cursor.execute("ALTER TABLE positioning_metrics ADD COLUMN IF NOT EXISTS institutional_ownership_pct FLOAT")
+                cursor.execute("ALTER TABLE positioning_metrics ADD COLUMN IF NOT EXISTS insider_ownership_pct FLOAT")
                 cursor.execute("ALTER TABLE positioning_metrics ADD COLUMN IF NOT EXISTS short_percent_of_float FLOAT")
                 logger.info("✅ positioning_metrics columns ready")
             except Exception as e:
