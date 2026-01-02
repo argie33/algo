@@ -4277,10 +4277,16 @@ def main():
             try:
                 cursor.execute("ALTER TABLE positioning_metrics ADD COLUMN IF NOT EXISTS institutional_ownership_pct FLOAT")
                 cursor.execute("ALTER TABLE positioning_metrics ADD COLUMN IF NOT EXISTS insider_ownership_pct FLOAT")
-                cursor.execute("ALTER TABLE positioning_metrics ADD COLUMN IF NOT EXISTS short_percent_of_float FLOAT")
                 logger.info("✅ positioning_metrics columns ready")
             except Exception as e:
                 logger.warning(f"⚠️  positioning_metrics columns: {e}")
+
+            # Add missing columns to key_metrics if they don't exist
+            try:
+                cursor.execute("ALTER TABLE key_metrics ADD COLUMN IF NOT EXISTS short_percent_of_float FLOAT")
+                logger.info("✅ key_metrics columns ready")
+            except Exception as e:
+                logger.warning(f"⚠️  key_metrics columns: {e}")
 
             conn.commit()
             cursor.close()
