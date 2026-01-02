@@ -302,7 +302,8 @@ def create_table(cur, conn):
         logging.info("Created annual cash flow table")
     except Exception as e:
         logging.info(f"Table likely exists: {e}")
-        conn.rollback()
+        # Don't rollback here - it aborts the whole transaction
+        pass
 
 if __name__ == "__main__":
     log_mem("startup")
@@ -328,7 +329,7 @@ if __name__ == "__main__":
     try:
         create_table(cur, conn)
     except Exception as e:
-        conn.rollback()
+        logging.warning(f"Failed to create table: {e}")
         pass
 
     # Load stock symbols
@@ -347,8 +348,8 @@ if __name__ == "__main__":
             logging.info(f"ETFs — total: {t_e}, processed: {p_e}, failed: {len(f_e)}")
     except Exception as e:
         logging.info(f"No ETF symbols table or error: {e}")
-        conn.rollback()  # Recover from failed transaction
-        cur = conn.cursor(cursor_factory=RealDictCursor)  # Create new cursor
+        # Don't rollback here - just skip ETF loading and continue
+        pass
 
     # Record last run
     cur.execute("""

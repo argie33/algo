@@ -306,7 +306,8 @@ def create_table(cur, conn):
         logging.info("Created quarterly income statement table")
     except Exception as e:
         logging.info(f"Table likely exists: {e}")
-        conn.rollback()
+        # Don't rollback here - it aborts the whole transaction
+        pass
 
 if __name__ == "__main__":
     log_mem("startup")

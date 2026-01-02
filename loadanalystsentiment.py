@@ -206,7 +206,8 @@ def load_analyst_sentiment(symbols, cur, conn):
             (symbol, date_recorded, bullish_count, neutral_count, bearish_count,
              total_analysts, target_price, current_price, upside_downside_percent)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (symbol, date_recorded) DO UPDATE SET
+            ON CONFLICT (symbol) DO UPDATE SET
+                date_recorded = EXCLUDED.date_recorded,
                 bullish_count = EXCLUDED.bullish_count,
                 neutral_count = EXCLUDED.neutral_count,
                 bearish_count = EXCLUDED.bearish_count,

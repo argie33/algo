@@ -826,27 +826,30 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             cur.execute(
                 """
                 INSERT INTO positioning_metrics (
-                    symbol, institutional_ownership_pct, top_10_institutions_pct,
+                    symbol, date, institutional_ownership_pct, top_10_institutions_pct,
                     institutional_holders_count, insider_ownership_pct,
-                    short_ratio, short_interest_pct, ad_rating
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-                ON CONFLICT (symbol) DO UPDATE SET
+                    short_ratio, short_interest_pct, short_percent_of_float, ad_rating
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT (symbol, date) DO UPDATE SET
                     institutional_ownership_pct = EXCLUDED.institutional_ownership_pct,
                     top_10_institutions_pct = EXCLUDED.top_10_institutions_pct,
                     institutional_holders_count = EXCLUDED.institutional_holders_count,
                     insider_ownership_pct = EXCLUDED.insider_ownership_pct,
                     short_ratio = EXCLUDED.short_ratio,
                     short_interest_pct = EXCLUDED.short_interest_pct,
+                    short_percent_of_float = EXCLUDED.short_percent_of_float,
                     ad_rating = EXCLUDED.ad_rating,
                     updated_at = CURRENT_TIMESTAMP
                 """,
                 (
                     symbol,
+                    datetime.now().date(),
                     inst_own,
                     safe_float(info.get('institutionsFloatPercentHeld')) if info else None,
                     safe_int(info.get('institutionsCount')) if info else None,
                     insider_own,
                     safe_float(info.get('shortRatio')) if info else None,
+                    short_int,
                     short_int,
                     ad_rating,
                 )

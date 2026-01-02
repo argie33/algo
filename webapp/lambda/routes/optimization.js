@@ -7,6 +7,7 @@ const { authenticateToken } = require("../middleware/auth");
 const marketData = require("../utils/marketData");
 const taxOptimization = require("../utils/taxOptimization");
 const dividendIntegration = require("../utils/dividendIntegration");
+const swingTrader = require("../utils/swing-trading-optimizer");
 
 const router = express.Router();
 
@@ -16,7 +17,8 @@ router.get("/", authenticateToken, (req, res) => {
     data: {
       endpoint: "optimization",
       available_routes: [
-        "/analysis - Get portfolio optimization analysis",
+        "/analysis - Get portfolio optimization analysis (traditional approach)",
+        "/swing-trading - Get swing trading portfolio recommendations (12-15 best stocks, risk-based sizing)",
         "/execute - Execute optimization recommendations"
       ]
     },
@@ -2980,6 +2982,77 @@ router.get("/analysis", authenticateToken, async (req, res) => {
     console.error("Error generating portfolio optimization:", error.message, error.stack);
     return res.status(500).json({
       error: "Portfolio optimization failed",
+      success: false,
+      details: error.message
+    });
+  }
+});
+
+// GET /optimization/swing-trading - Get swing trading portfolio recommendations
+// Focused on 12-15 best stocks with risk-based position sizing (1% risk / 7.5% stop = 13.3% max)
+router.get("/swing-trading", authenticateToken, async (req, res) => {
+  console.log(`\n=== Swing Trading Portfolio endpoint called ===`);
+
+  try {
+    // Use the swing trading optimizer
+    const result = await swingTrader.generateSwingTradingPortfolio();
+
+    if (!result.success) {
+      return res.status(400).json({
+        error: result.error,
+        success: false
+      });
+    }
+
+    // Transform portfolio into a more detailed response
+    const portfolio = result.portfolio;
+    const allocations = result.allocations;
+    const recommendations = result.recommendations;
+
+    // Calculate portfolio metrics
+    const totalAllocation = allocations.reduce((sum, a) => sum + a.position, 0);
+    const avgScore = Math.round(allocations.reduce((sum, a) => sum + a.score, 0) / allocations.length);
+    const avgQuality = Math.round(allocations.reduce((sum, a) => sum + (a.quality || 0), 0) / allocations.length);
+    const avgMomentum = Math.round(allocations.reduce((sum, a) => sum + (a.momentum || 0), 0) / allocations.length);
+
+    // Sector breakdown
+    const sectorBreakdown = {};
+    allocations.forEach(a => {
+      sectorBreakdown[a.sector] = (sectorBreakdown[a.sector] || 0) + 1;
+    });
+
+    return res.json({
+      data: {
+        strategy: "Swing Trading Portfolio",
+        description: "12-15 best stocks with risk-based position sizing",
+        riskRules: {
+          portfolioSize: "12-15 stocks",
+          maxPositionSize: "13.3% (1% risk per trade / 7.5% stop loss)",
+          riskPerTrade: "1% of portfolio",
+          stopLoss: "7.5%",
+          riskRewardRatios: ["1:1 (target1)", "2:1 (target2)"]
+        },
+        portfolio: {
+          stocks: portfolio.length,
+          totalAllocation: `${totalAllocation.toFixed(1)}%`,
+          avgScore: avgScore,
+          avgQualityScore: avgQuality,
+          avgMomentumScore: avgMomentum,
+          sectorBreakdown: sectorBreakdown,
+          maxPositionSize: `${Math.max(...allocations.map(a => a.position)).toFixed(1)}%`,
+          minPositionSize: `${Math.min(...allocations.map(a => a.position)).toFixed(1)}%`
+        },
+        allocations: allocations,
+        recommendations: recommendations,
+        summary: result.summary
+      },
+      success: true
+    });
+
+  } catch (error) {
+    console.error("Error generating swing trading portfolio:", error.message, error.stack);
+    return res.status(500).json({
+      error: "Swing trading portfolio generation failed",
       success: false,
       details: error.message
     });
