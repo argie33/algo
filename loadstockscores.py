@@ -3328,22 +3328,27 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             # Component 4: Margin Expansion - Gross + Operating margin percentiles (converted to 0-100)
             margin_expansion_score = 0
             margin_components = 0
+
+            # Safely calculate gross margin percentile with explicit None check
             if stock_gross_margin_growth is not None:
                 gross_margin_percentile = calculate_z_score_normalized(stock_gross_margin_growth,
                                                                     growth_metrics.get('gross_margin', []))
-                if gross_margin_percentile is not None:
-                    margin_expansion_score += gross_margin_percentile  # Keep as 0-100, weight handles allocation
+                # Explicit check before arithmetic - prevent None being added to int
+                if gross_margin_percentile is not None and isinstance(gross_margin_percentile, (int, float)):
+                    margin_expansion_score = margin_expansion_score + float(gross_margin_percentile)
                     margin_components += 1
 
+            # Safely calculate operating margin percentile with explicit None check
             if stock_operating_margin_growth is not None:
                 op_margin_percentile = calculate_z_score_normalized(stock_operating_margin_growth,
                                                                 growth_metrics.get('operating_margin', []))
-                if op_margin_percentile is not None:
-                    margin_expansion_score += op_margin_percentile  # Keep as 0-100, weight handles allocation
+                # Explicit check before arithmetic - prevent None being added to int
+                if op_margin_percentile is not None and isinstance(op_margin_percentile, (int, float)):
+                    margin_expansion_score = margin_expansion_score + float(op_margin_percentile)
                     margin_components += 1
 
             # If both margins available, take average to keep scale 0-100
-            if margin_components > 1:
+            if margin_components > 1 and margin_expansion_score > 0:
                 margin_expansion_score = margin_expansion_score / margin_components
 
             # Component 5: Sustainable Growth - ROE × (1 - payout_ratio) (converted to 0-100)
@@ -3849,6 +3854,11 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 missing_metrics.append('sentiment')
         except (ValueError, TypeError):
             missing_metrics.append('sentiment')
+
+        # Ensure composite_score is always defined (safety check for variable initialization)
+        # If composite_score somehow wasn't set above, default to None
+        if 'composite_score' not in locals() or composite_score is None:
+            composite_score = None
 
         # Set status and notes based on missing data and composite_score availability
         if composite_score is None and real_factor_count < 4:
