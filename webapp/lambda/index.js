@@ -25,6 +25,7 @@ const morgan = require("morgan");
 
 // const responseFormatterMiddleware = require("./middleware/responseFormatter"); // DEPRECATED
 const errorHandler = require("./middleware/errorHandler");
+const { cacheMiddleware } = require("./middleware/cache");
 const { initializeDatabase, query } = require("./utils/database");
 const { initializeAlpacaSync } = require("./utils/alpacaSyncScheduler");
 const analystsRoutes = require("./routes/analysts");
@@ -322,6 +323,9 @@ const isProduction = nodeEnv === "production" || nodeEnv === "prod";
 if (!isProduction && nodeEnv !== 'test') {
   app.use(morgan("combined"));
 }
+
+// Add caching middleware - cache GET requests for 5 minutes
+app.use(cacheMiddleware(5 * 60 * 1000));
 
 // Global database initialization promise
 let dbInitPromise = null;
