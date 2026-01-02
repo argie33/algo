@@ -282,32 +282,32 @@ router.get("/sp500-trend", async (req, res) => {
   try {
     const { years = 10 } = req.query;
 
-    // Fetch S&P 500 EPS data from FRED (SPASTT01USQ661S - quarterly earnings)
+    // Fetch S&P 500 EPS data (SP500_EPS - 12-month trailing earnings)
     const earningsQuery = `
       SELECT
         date,
         value as earnings_per_share,
         series_id
       FROM economic_data
-      WHERE series_id = 'SPASTT01USQ661S'
+      WHERE series_id = 'SP500_EPS'
         AND date >= CURRENT_DATE - INTERVAL '${parseInt(years)} years'
       ORDER BY date ASC
     `;
 
-    // Fetch S&P 500 P/E ratio for context
-    const peQuery = `
+    // Fetch S&P 500 price for P/E calculation
+    const priceQuery = `
       SELECT
         date,
-        value as pe_ratio
+        value as price
       FROM economic_data
-      WHERE series_id = 'SP500PE'
+      WHERE series_id = 'SP500'
         AND date >= CURRENT_DATE - INTERVAL '${parseInt(years)} years'
       ORDER BY date ASC
     `;
 
-    const [earningsResult, peResult] = await Promise.all([
+    const [earningsResult, priceResult] = await Promise.all([
       query(earningsQuery),
-      query(peQuery)
+      query(priceQuery)
     ]);
 
     // Calculate trend metrics
@@ -337,9 +337,9 @@ router.get("/sp500-trend", async (req, res) => {
           date: row.date,
           value: parseFloat(row.earnings_per_share)
         })),
-        peRatio: peResult.rows.map(row => ({
+        price: priceResult.rows.map(row => ({
           date: row.date,
-          value: parseFloat(row.pe_ratio)
+          value: parseFloat(row.price)
         })),
         summary: {
           trend,
@@ -354,6 +354,110 @@ router.get("/sp500-trend", async (req, res) => {
     console.error("Error fetching S&P 500 earnings trend:", error);
     res.status(500).json({
       error: "Failed to fetch S&P 500 earnings trend",
+      success: false
+    });
+  }
+});
+
+// GET /api/earnings/estimate-momentum - Top stocks with rising/falling estimates
+router.get("/estimate-momentum", async (req, res) => {
+  try {
+    const { limit = 20, period = '0q' } = req.query;
+
+    // Get stocks with biggest estimate increases
+    const risingQuery = `
+      SELECT
+        t.symbol,
+        t.period,
+        t.current_estimate,
+        t.estimate_60d_ago,
+        ROUND((t.current_estimate - t.estimate_60d_ago) / NULLIF(t.estimate_60d_ago, 0) * 100, 2) as pct_change,
+        r.up_last_30d,
+        r.down_last_30d,
+        cp.short_name as company_name,
+        cp.sector
+      FROM earnings_estimate_trends t
+      LEFT JOIN earnings_estimate_revisions r
+        ON t.symbol = r.symbol AND t.period = r.period AND t.snapshot_date = r.snapshot_date
+      LEFT JOIN company_profile cp ON t.symbol = cp.ticker
+      WHERE t.estimate_60d_ago IS NOT NULL
+        AND t.current_estimate > t.estimate_60d_ago
+        AND t.period = $1
+      ORDER BY pct_change DESC
+      LIMIT $2
+    `;
+
+    // Get stocks with biggest estimate decreases
+    const fallingQuery = `
+      SELECT
+        t.symbol,
+        t.period,
+        t.current_estimate,
+        t.estimate_60d_ago,
+        ROUND((t.current_estimate - t.estimate_60d_ago) / NULLIF(t.estimate_60d_ago, 0) * 100, 2) as pct_change,
+        r.up_last_30d,
+        r.down_last_30d,
+        cp.short_name as company_name,
+        cp.sector
+      FROM earnings_estimate_trends t
+      LEFT JOIN earnings_estimate_revisions r
+        ON t.symbol = r.symbol AND t.period = r.period AND t.snapshot_date = r.snapshot_date
+      LEFT JOIN company_profile cp ON t.symbol = cp.ticker
+      WHERE t.estimate_60d_ago IS NOT NULL
+        AND t.current_estimate < t.estimate_60d_ago
+        AND t.period = $1
+      ORDER BY pct_change ASC
+      LIMIT $2
+    `;
+
+    const [risingResult, fallingResult] = await Promise.all([
+      query(risingQuery, [period, parseInt(limit)]),
+      query(fallingQuery, [period, parseInt(limit)])
+    ]);
+
+    const rising = risingResult.rows.map(row => ({
+      symbol: row.symbol,
+      company_name: row.company_name || row.symbol,
+      sector: row.sector,
+      period: row.period,
+      current_estimate: parseFloat(row.current_estimate),
+      estimate_60d_ago: parseFloat(row.estimate_60d_ago),
+      pct_change: parseFloat(row.pct_change),
+      up_last_30d: row.up_last_30d || 0,
+      down_last_30d: row.down_last_30d || 0,
+      net_revisions: (row.up_last_30d || 0) - (row.down_last_30d || 0)
+    }));
+
+    const falling = fallingResult.rows.map(row => ({
+      symbol: row.symbol,
+      company_name: row.company_name || row.symbol,
+      sector: row.sector,
+      period: row.period,
+      current_estimate: parseFloat(row.current_estimate),
+      estimate_60d_ago: parseFloat(row.estimate_60d_ago),
+      pct_change: parseFloat(row.pct_change),
+      up_last_30d: row.up_last_30d || 0,
+      down_last_30d: row.down_last_30d || 0,
+      net_revisions: (row.up_last_30d || 0) - (row.down_last_30d || 0)
+    }));
+
+    res.json({
+      data: {
+        rising,
+        falling,
+        summary: {
+          total_rising: rising.length,
+          total_falling: falling.length,
+          avg_rise: rising.length > 0 ? (rising.reduce((sum, s) => sum + s.pct_change, 0) / rising.length).toFixed(2) : 0,
+          avg_fall: falling.length > 0 ? (falling.reduce((sum, s) => sum + s.pct_change, 0) / falling.length).toFixed(2) : 0
+        }
+      },
+      success: true
+    });
+  } catch (error) {
+    console.error("Error fetching estimate momentum:", error);
+    res.status(500).json({
+      error: "Failed to fetch estimate momentum",
       success: false
     });
   }
