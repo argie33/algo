@@ -9,10 +9,12 @@ import {
   alpha,
   Alert,
 } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import { Email as EmailIcon } from '@mui/icons-material';
 
 const CommunitySignup = () => {
   const theme = useTheme();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState(null);
@@ -202,6 +204,7 @@ const CommunitySignup = () => {
             By continuing, you agree to the{' '}
             <Box
               component="span"
+              onClick={() => navigate('/terms')}
               sx={{
                 color: theme.palette.primary.main,
                 cursor: 'pointer',
@@ -216,6 +219,7 @@ const CommunitySignup = () => {
             {' '}and{' '}
             <Box
               component="span"
+              onClick={() => navigate('/privacy')}
               sx={{
                 color: theme.palette.primary.main,
                 cursor: 'pointer',
