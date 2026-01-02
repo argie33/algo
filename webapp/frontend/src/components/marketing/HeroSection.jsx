@@ -146,8 +146,8 @@ const HeroSection = () => {
           {/* Right Visual - Hero Image */}
           <Grid item xs={12} md={7}>
             <ImagePlaceholder
-              src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1400&h=800&fit=crop&auto=format&q=80&sat=-100"
-              alt="Black and White NYC Skyline from Empire State Building"
+              src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1400&h=800&fit=crop&auto=format&q=80"
+              alt="Black and White NYC Skyline Night"
               height={{ xs: '300px', sm: '400px', md: '500px' }}
             />
           </Grid>
