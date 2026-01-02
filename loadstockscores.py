@@ -3317,19 +3317,24 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
             # Component 4: Margin Expansion - Gross + Operating margin percentiles (converted to 0-100)
             margin_expansion_score = 0
+            margin_components = 0
             if stock_gross_margin_growth is not None:
                 gross_margin_percentile = calculate_z_score_normalized(stock_gross_margin_growth,
                                                                     growth_metrics.get('gross_margin', []))
-                margin_expansion_score += gross_margin_percentile  # Keep as 0-100, weight handles allocation
+                if gross_margin_percentile is not None:
+                    margin_expansion_score += gross_margin_percentile  # Keep as 0-100, weight handles allocation
+                    margin_components += 1
 
             if stock_operating_margin_growth is not None:
                 op_margin_percentile = calculate_z_score_normalized(stock_operating_margin_growth,
                                                                 growth_metrics.get('operating_margin', []))
-                margin_expansion_score += op_margin_percentile  # Keep as 0-100, weight handles allocation
+                if op_margin_percentile is not None:
+                    margin_expansion_score += op_margin_percentile  # Keep as 0-100, weight handles allocation
+                    margin_components += 1
 
             # If both margins available, take average to keep scale 0-100
-            if stock_gross_margin_growth is not None and stock_operating_margin_growth is not None:
-                margin_expansion_score = margin_expansion_score / 2
+            if margin_components > 1:
+                margin_expansion_score = margin_expansion_score / margin_components
 
             # Component 5: Sustainable Growth - ROE × (1 - payout_ratio) (converted to 0-100)
             sustainable_growth_score = 0
