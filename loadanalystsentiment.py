@@ -202,12 +202,12 @@ def load_analyst_sentiment(symbols, cur, conn):
         # Insert with UPSERT
         sql = """
             INSERT INTO analyst_sentiment_analysis
-            (symbol, date, recommendation_mean, total_analysts, avg_price_target,
+            (symbol, date_recorded, recommendation_mean, total_analysts, avg_price_target,
              price_target_vs_current, strong_buy_count, buy_count, hold_count,
              sell_count, strong_sell_count, upgrades_last_30d, downgrades_last_30d,
              eps_revisions_up_last_30d, eps_revisions_down_last_30d)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (symbol, date) DO UPDATE SET
+            ON CONFLICT (symbol, date_recorded) DO UPDATE SET
                 recommendation_mean = EXCLUDED.recommendation_mean,
                 total_analysts = EXCLUDED.total_analysts,
                 avg_price_target = EXCLUDED.avg_price_target,

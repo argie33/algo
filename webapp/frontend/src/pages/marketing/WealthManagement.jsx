@@ -14,32 +14,32 @@ const WealthManagement = () => {
     {
       title: 'Portfolio Optimization',
       description: 'Use AI-powered analysis to optimize asset allocation and sector rotation. Make data-driven decisions for your entire portfolio.',
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=500&h=350&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
     },
     {
       title: 'Risk Management',
       description: 'Identify risks before they materialize. Our AI reveals hidden correlations and warning signs across your holdings.',
-      image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=500&h=350&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
     },
     {
       title: 'Performance Tracking',
       description: 'Monitor portfolio performance against benchmarks. Track which analysis dimensions are driving your returns.',
-      image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=500&h=350&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
     },
     {
       title: 'Sector Rotation Intelligence',
       description: 'Identify emerging sector trends and rotation patterns. Shift allocations with confidence based on AI-powered insights.',
-      image: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=500&h=350&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
     },
     {
       title: 'Economic Impact Analysis',
       description: 'Understand how macro trends and economic changes impact your portfolio. Prepare for market shifts before they happen.',
-      image: 'https://images.unsplash.com/photo-1611432579699-484f7990f17a?w=500&h=350&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
     },
     {
       title: 'Hedging Strategies',
       description: 'Implement intelligent hedging strategies to protect your wealth. Use AI to identify optimal hedge instruments and timing.',
-      image: 'https://images.unsplash.com/photo-1579532537598-459e09a48fdf?w=500&h=350&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
     },
   ];
 
@@ -79,7 +79,7 @@ const WealthManagement = () => {
             </Grid>
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=700&h=500&fit=crop"
+                src="https://picsum.photos/800/500?random="
                 alt="Wealth Management"
                 height={{ xs: '300px', md: '450px' }}
               />

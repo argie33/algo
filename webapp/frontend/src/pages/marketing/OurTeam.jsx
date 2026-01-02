@@ -14,37 +14,37 @@ const OurTeam = () => {
       name: 'Team Member 1',
       role: 'Finance Expert & Strategy',
       bio: 'Experienced financial market analyst with deep knowledge of equity markets, trading strategies, and investment analysis. Focuses on translating market insights into actionable intelligence.',
-      image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
     },
     {
       name: 'Team Member 2',
       role: 'Technology & Data Science',
       bio: 'Software engineer and data scientist specializing in financial analytics and machine learning applications. Expert in building systems that analyze complex market data.',
-      image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
     },
     {
       name: 'Team Member 3',
       role: 'Platform Architecture & Development',
       bio: 'Full-stack engineer dedicated to building robust, scalable platforms that deliver market intelligence. Specializes in financial technology systems and user-focused design.',
-      image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
     },
     {
       name: 'Team Member 4',
       role: 'Operations & Client Success',
       bio: 'Operations specialist focused on scaling Bullseye and ensuring clients maximize value from our research and analytics platform. Expert in client relationships and business operations.',
-      image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=400&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
     },
     {
       name: 'Team Member 5',
       role: 'Research & Analytics',
       bio: 'Market researcher and data analyst with expertise in identifying patterns and trends across financial markets. Focused on developing new research methodologies and analytical approaches.',
-      image: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&h=400&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
     },
     {
       name: 'Team Member 6',
       role: 'Product & User Experience',
       bio: 'Product manager and UX specialist focused on ensuring Bullseye is intuitive and accessible to all investors. Expert in translating investor needs into platform features.',
-      image: 'https://images.unsplash.com/photo-1517841905240-74386c8b7136?w=400&h=400&fit=crop',
+      image: 'https://picsum.photos/800/500?random=10
     },
   ];
 

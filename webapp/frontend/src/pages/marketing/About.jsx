@@ -60,7 +60,7 @@ const About = () => {
             {/* Right Image */}
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=700&h=500&fit=crop"
+                src="https://picsum.photos/800/500?random="
                 alt="Bullseye Financial Team"
                 height={{ xs: '300px', md: '450px' }}
               />

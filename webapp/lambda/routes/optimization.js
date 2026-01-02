@@ -728,9 +728,10 @@ router.get("/analysis", authenticateToken, async (req, res) => {
       if (baseReturn !== 0 || factorCount > 0) {
         // Use adjusted return that includes dividend yield
         expectedReturns[stock.symbol] = adjustedReturn.cappedTotalReturn;
+        const divYield = (dividendData && dividendData.incomeReturn !== undefined) ? dividendData.incomeReturn : 0;
         returnFactors[stock.symbol] = {
           ...factors,
-          dividendYield: dividendData?.incomeReturn || 0,
+          dividendYield: divYield,
           totalReturn: adjustedReturn.totalReturn
         };
       } else {
@@ -744,10 +745,10 @@ router.get("/analysis", authenticateToken, async (req, res) => {
           stability_score: null,
           growth_score: null
         };
-        const divData2 = dividendIntegration.calculateDividendContribution(dividendDefaults2);
-        const fallbackAdjusted = dividendIntegration.adjustReturnForDividends(baseReturns, divData2);
-        expectedReturns[stock.symbol] = fallbackAdjusted.cappedTotalReturn;
-        returnFactors[stock.symbol] = { pnlBased: true, dividendYield: divData2?.incomeReturn || 0 };
+        const divData2 = dividendIntegration.calculateDividendContribution(dividendDefaults2) || { incomeReturn: 0 };
+        const fallbackAdjusted = dividendIntegration.adjustReturnForDividends(baseReturns, divData2 || { incomeReturn: 0 });
+        expectedReturns[stock.symbol] = fallbackAdjusted?.cappedTotalReturn || baseReturns;
+        returnFactors[stock.symbol] = { pnlBased: true, dividendYield: (divData2 && divData2.incomeReturn) ? divData2.incomeReturn : 0 };
         dividendMetrics[stock.symbol] = divData2;
       }
 
