@@ -1264,57 +1264,60 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
     )
 
     for row in cursor.fetchall():
-        symbol = row[0]
-        ticker_dict = {
-            "ticker": symbol,
-            "return_on_equity_pct": row[1],
-            "return_on_assets_pct": row[2],
-            "gross_margin_pct": row[3],
-            "operating_margin_pct": row[4],
-            "profit_margin_pct": row[5],
-            "free_cashflow": row[6],
-            "net_income": row[7],
-            "operating_cashflow": row[8],
-            "debt_to_equity": row[9],
-            "current_ratio": row[10],
-            "quick_ratio": row[11],
-            "payout_ratio": row[12],
-            "ebitda": row[13],
-            "total_debt": row[14],
-            "total_cash": row[15],
-            "total_revenue": row[16],
-        }
+        try:
+            symbol = row[0]
+            ticker_dict = {
+                "ticker": symbol,
+                "return_on_equity_pct": row[1],
+                "return_on_assets_pct": row[2],
+                "gross_margin_pct": row[3],
+                "operating_margin_pct": row[4],
+                "profit_margin_pct": row[5],
+                "free_cashflow": row[6],
+                "net_income": row[7],
+                "operating_cashflow": row[8],
+                "debt_to_equity": row[9],
+                "current_ratio": row[10],
+                "quick_ratio": row[11],
+                "payout_ratio": row[12],
+                "ebitda": row[13],
+                "total_debt": row[14],
+                "total_cash": row[15],
+                "total_revenue": row[16],
+            }
 
-        # Calculate quality metrics from key_metrics
-        metrics = calculate_quality_metrics(ticker_dict, ticker=None, symbol=symbol)
+            # Calculate quality metrics from key_metrics
+            metrics = calculate_quality_metrics(ticker_dict, ticker=None, symbol=symbol)
 
-        # Get earnings surprise metrics from quarterly statements
-        earnings_metrics = get_earnings_surprise_metrics(cursor, symbol)
-        metrics.update(earnings_metrics)
+            # Get earnings surprise metrics from quarterly statements
+            earnings_metrics = get_earnings_surprise_metrics(cursor, symbol)
+            metrics.update(earnings_metrics)
 
-        # Calculate ROE Stability Index from 4 years of annual data
-        roe_stability = calculate_roe_stability_index(cursor, symbol, conn=conn)
-        metrics["roe_stability_index"] = roe_stability
+            # Calculate ROE Stability Index from 4 years of annual data
+            roe_stability = calculate_roe_stability_index(cursor, symbol, conn=conn)
+            metrics["roe_stability_index"] = roe_stability
 
-        quality_rows.append([
-            ticker_dict["ticker"],
-            date.today(),
-            metrics.get("return_on_equity_pct"),
-            metrics.get("return_on_assets_pct"),
-            metrics.get("return_on_invested_capital_pct"),
-            metrics.get("gross_margin_pct"),
-            metrics.get("operating_margin_pct"),
-            metrics.get("profit_margin_pct"),
-            metrics.get("fcf_to_net_income"),
-            metrics.get("operating_cf_to_net_income"),
-            metrics.get("debt_to_equity"),
-            metrics.get("current_ratio"),
-            metrics.get("quick_ratio"),
-            metrics.get("earnings_surprise_avg"),
-            metrics.get("eps_growth_stability"),
-            metrics.get("payout_ratio"),
-            metrics.get("roe_stability_index"),
-        ])
+            quality_rows.append([
+                ticker_dict["ticker"],
+                date.today(),
+                metrics.get("return_on_equity_pct"),
+                metrics.get("return_on_assets_pct"),
+                metrics.get("return_on_invested_capital_pct"),
+                metrics.get("gross_margin_pct"),
+                metrics.get("operating_margin_pct"),
+                metrics.get("profit_margin_pct"),
+                metrics.get("fcf_to_net_income"),
+                metrics.get("operating_cf_to_net_income"),
+                metrics.get("debt_to_equity"),
+                metrics.get("current_ratio"),
+                metrics.get("quick_ratio"),
+                metrics.get("earnings_surprise_avg"),
+                metrics.get("eps_growth_stability"),
+                metrics.get("payout_ratio"),
+                metrics.get("roe_stability_index"),
+            ])
+        except Exception as e:
+            logging.warning(f"Error processing quality metrics for {symbol}: {e}")
 
     # Upsert quality_metrics
     if quality_rows:
@@ -1814,15 +1817,24 @@ def create_factor_metrics_tables(cursor):
                 net_margin_trend FLOAT,
                 quarterly_growth_momentum FLOAT,
                 asset_growth_yoy FLOAT,
+                revenue_growth_yoy FLOAT,
                 created_at TIMESTAMP DEFAULT NOW(),
                 UNIQUE(symbol, date)
             )
         """)
 
-        # Add ocf_growth_yoy column if it doesn't exist (for existing tables)
+        # Add missing columns if they don't exist (for existing tables)
         cursor.execute("""
             ALTER TABLE growth_metrics
             ADD COLUMN IF NOT EXISTS ocf_growth_yoy FLOAT
+        """)
+        cursor.execute("""
+            ALTER TABLE growth_metrics
+            ADD COLUMN IF NOT EXISTS revenue_growth_yoy FLOAT
+        """)
+        cursor.execute("""
+            ALTER TABLE growth_metrics
+            ADD COLUMN IF NOT EXISTS net_income_growth_yoy FLOAT
         """)
 
         # Create momentum_metrics table
