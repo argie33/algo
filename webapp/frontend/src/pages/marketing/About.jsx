@@ -61,7 +61,7 @@ const About = () => {
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
                 src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=600&fit=crop&auto=format&q=80"
-                alt="Professional team working together in office"
+                alt="Professional team collaborating on market research"
                 height={{ xs: '300px', md: '450px' }}
               />
             </Grid>
