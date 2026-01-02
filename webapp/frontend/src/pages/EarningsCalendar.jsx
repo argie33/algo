@@ -615,6 +615,117 @@ function EarningsCalendar() {
                   Current market shows <strong>{momentumData.summary.total_rising > momentumData.summary.total_falling ? 'BULLISH' : 'BEARISH'}</strong> estimate revisions.
                 </Typography>
               </Alert>
+
+              {/* Rising and Falling Estimates Table */}
+              <Box sx={{ mt: 4 }}>
+                <Grid container spacing={2}>
+                  {/* Rising Estimates */}
+                  <Grid item xs={12} md={6}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Box display="flex" alignItems="center" gap={1} mb={2}>
+                          <TrendingUp color="success" />
+                          <Typography variant="subtitle2" fontWeight="bold">
+                            Rising Estimates ({momentumData.rising?.length || 0})
+                          </Typography>
+                        </Box>
+                        <TableContainer>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow sx={{ backgroundColor: "success.light" }}>
+                                <TableCell>Symbol</TableCell>
+                                <TableCell align="right">Change %</TableCell>
+                                <TableCell align="right">Up (30d)</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {(momentumData.rising?.slice(0, 10) || []).map((stock, idx) => (
+                                <TableRow key={idx} hover>
+                                  <TableCell>
+                                    <Button
+                                      size="small"
+                                      color="primary"
+                                      onClick={() => {
+                                        setSearchInput(stock.symbol);
+                                        setSymbolFilter(stock.symbol);
+                                        setExpandedSymbol(stock.symbol);
+                                      }}
+                                    >
+                                      {stock.symbol}
+                                    </Button>
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={`+${stock.pct_change.toFixed(1)}%`}
+                                      size="small"
+                                      color="success"
+                                      variant="filled"
+                                    />
+                                  </TableCell>
+                                  <TableCell align="right">{stock.up_last_30d}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  {/* Falling Estimates */}
+                  <Grid item xs={12} md={6}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Box display="flex" alignItems="center" gap={1} mb={2}>
+                          <TrendingDown color="error" />
+                          <Typography variant="subtitle2" fontWeight="bold">
+                            Falling Estimates ({momentumData.falling?.length || 0})
+                          </Typography>
+                        </Box>
+                        <TableContainer>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow sx={{ backgroundColor: "error.light" }}>
+                                <TableCell>Symbol</TableCell>
+                                <TableCell align="right">Change %</TableCell>
+                                <TableCell align="right">Down (30d)</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {(momentumData.falling?.slice(0, 10) || []).map((stock, idx) => (
+                                <TableRow key={idx} hover>
+                                  <TableCell>
+                                    <Button
+                                      size="small"
+                                      color="error"
+                                      onClick={() => {
+                                        setSearchInput(stock.symbol);
+                                        setSymbolFilter(stock.symbol);
+                                        setExpandedSymbol(stock.symbol);
+                                      }}
+                                    >
+                                      {stock.symbol}
+                                    </Button>
+                                  </TableCell>
+                                  <TableCell align="right">
+                                    <Chip
+                                      label={`${stock.pct_change.toFixed(1)}%`}
+                                      size="small"
+                                      color="error"
+                                      variant="filled"
+                                    />
+                                  </TableCell>
+                                  <TableCell align="right">{stock.down_last_30d}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+              </Box>
             </>
           ) : (
             <Alert severity="info">
