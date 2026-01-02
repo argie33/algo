@@ -210,8 +210,8 @@ const Services = () => {
       <Box sx={{ py: { xs: 4, md: 6 }, backgroundColor: alpha(theme.palette.primary.main, 0.02) }}>
         <Container maxWidth="lg">
           <ImagePlaceholder
-            src="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=1200&h=500&fit=crop&auto=format&q=80"
-            alt="Data analysis and research dashboard"
+            src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=1200&h=500&fit=crop&auto=format&q=80"
+            alt="Professional research and advisory services"
             height={{ xs: '250px', md: '400px' }}
           />
         </Container>

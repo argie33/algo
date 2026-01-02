@@ -288,7 +288,7 @@ const Firm = () => {
           {/* Left: Image */}
           <Box
             sx={{
-              backgroundImage: 'url(https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop)',
+              backgroundImage: 'url(https://images.unsplash.com/photo-1552664740-d8c0db16e50b?w=800&h=500&fit=crop)',
               backgroundSize: 'cover',
               backgroundPosition: 'center',
               minHeight: { xs: '300px', md: '500px' },
