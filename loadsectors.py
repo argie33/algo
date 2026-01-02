@@ -69,7 +69,11 @@ def create_tables_if_needed(conn):
     cursor = conn.cursor()
 
     try:
-        # Create sector_ranking table
+        # Create or migrate sector_ranking table
+        # Drop old table if it exists with wrong schema (date instead of date_recorded)
+        cursor.execute("DROP TABLE IF EXISTS sector_ranking CASCADE")
+
+        # Create sector_ranking table with correct schema
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS sector_ranking (
                 id SERIAL PRIMARY KEY,
@@ -88,7 +92,10 @@ def create_tables_if_needed(conn):
         """)
         logger.info("✅ sector_ranking table ready")
 
-        # Create industry_ranking table
+        # Create or migrate industry_ranking table
+        cursor.execute("DROP TABLE IF EXISTS industry_ranking CASCADE")
+
+        # Create industry_ranking table with correct schema
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS industry_ranking (
                 id SERIAL PRIMARY KEY,
