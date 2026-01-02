@@ -241,7 +241,12 @@ function App() {
                     }}
                   >
                     <ListItemIcon>{item.icon}</ListItemIcon>
-                    <ListItemText primary={item.text} />
+                    <ListItemText
+                      primary={item.text}
+                      primaryTypographyProps={{
+                        sx: { fontSize: '0.85rem' }
+                      }}
+                    />
                   </ListItemButton>
                 </ListItem>
               ))
@@ -265,6 +270,7 @@ function App() {
                         color: "text.secondary",
                         textTransform: "uppercase",
                         letterSpacing: 0.5,
+                        fontSize: '0.75rem',
                       }}
                     />
                     {expandedSections[category] ? (
@@ -309,7 +315,7 @@ function App() {
                         <ListItemText
                           primary={item.text}
                           primaryTypographyProps={{
-                            variant: "body2",
+                            sx: { fontSize: '0.85rem' }
                           }}
                         />
                       </ListItemButton>

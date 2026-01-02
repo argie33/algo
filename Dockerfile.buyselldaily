@@ -5,11 +5,11 @@ FROM ${REGISTRY}:${TAG}
 WORKDIR /app
 
 # Copy requirements and script
-COPY requirements-loadbuysell.txt .
+COPY requirements-loadbuyselldaily.txt .
 COPY loadbuyselldaily.py .
 
 # Install the requirements
-RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadbuysell.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadbuyselldaily.txt
 
 # Set the entrypoint
 ENV PYTHONUNBUFFERED=1
