@@ -238,7 +238,12 @@ const AppLayout = ({ children, pageTitle }) => {
                     }}
                   >
                     <ListItemIcon>{item.icon}</ListItemIcon>
-                    <ListItemText primary={item.text} />
+                    <ListItemText
+                      primary={item.text}
+                      primaryTypographyProps={{
+                        sx: { fontSize: '0.85rem' }
+                      }}
+                    />
                   </ListItemButton>
                 </ListItem>
               ))
@@ -257,7 +262,7 @@ const AppLayout = ({ children, pageTitle }) => {
                       primary={sectionTitles[category]}
                       primaryTypographyProps={{
                         sx: {
-                          fontSize: '0.8rem',
+                          fontSize: '0.75rem',
                           fontWeight: 600,
                           color: 'text.secondary',
                           textTransform: 'uppercase',
@@ -298,7 +303,12 @@ const AppLayout = ({ children, pageTitle }) => {
                           <ListItemIcon sx={{ minWidth: 40 }}>
                             {item.icon}
                           </ListItemIcon>
-                          <ListItemText primary={item.text} />
+                          <ListItemText
+                            primary={item.text}
+                            primaryTypographyProps={{
+                              sx: { fontSize: '0.85rem' }
+                            }}
+                          />
                         </ListItemButton>
                       </ListItem>
                     ))}

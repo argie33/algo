@@ -16,10 +16,10 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy requirements first for better caching
-COPY requirements-loadbuysell.txt .
+COPY requirements-loadbuysellmonthly.txt .
 
 # Install Python dependencies
-RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadbuysell.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadbuysellmonthly.txt
 
 # Copy the script
 COPY loadbuysellmonthly.py .
@@ -27,7 +27,8 @@ COPY loadbuysellmonthly.py .
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV LOG_LEVEL=ERROR
+ENV AWS_DEFAULT_REGION=us-east-1
 
 # Run the script
-CMD ["python", "loadbuysellmonthly.py"]
+ENTRYPOINT ["python", "-u", "loadbuysellmonthly.py"]
 # Trigger Mon Oct 7 01:20 CDT 2025 - Deploy trading signals loaders 
