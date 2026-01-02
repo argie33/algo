@@ -24,7 +24,7 @@ const Contact = () => {
     {
       icon: <LocationOnIcon />,
       title: 'Location',
-      content: 'New York, NY',
+      content: 'Chicago, IL',
       subtitle: 'US-based company',
     },
   ];

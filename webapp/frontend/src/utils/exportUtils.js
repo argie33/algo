@@ -89,7 +89,7 @@ export const exportToJSON = (data, filename = "export") => {
  * @param {string} filename - Output filename (without extension)
  * @param {string} title - Title for the document
  */
-export const exportTableToPDF = (tableId, filename = "export", title = "Report") => {
+export const exportTableToPDF = (tableId, _filename = "export", title = "Report") => {
   const table = document.getElementById(tableId);
   if (!table) {
     console.error(`Table with ID "${tableId}" not found`);
