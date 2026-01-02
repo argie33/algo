@@ -73,7 +73,7 @@ const WealthManagement = () => {
             </Grid>
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="https://images.unsplash.com/photo-1559027615-cd4628902d4a?w=800&h=500&fit=crop&auto=format&q=80"
+                src="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=800&h=500&fit=crop&auto=format&q=80"
                 alt="Wealth Management Solutions"
                 height={{ xs: '300px', md: '450px' }}
               />

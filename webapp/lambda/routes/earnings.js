@@ -372,6 +372,8 @@ router.get("/estimate-momentum", async (req, res) => {
         t.current_estimate,
         t.estimate_60d_ago,
         ROUND((t.current_estimate - t.estimate_60d_ago) / NULLIF(t.estimate_60d_ago, 0) * 100, 2) as pct_change,
+        r.up_last_7d,
+        r.down_last_7d,
         r.up_last_30d,
         r.down_last_30d,
         cp.short_name as company_name,
@@ -395,6 +397,8 @@ router.get("/estimate-momentum", async (req, res) => {
         t.current_estimate,
         t.estimate_60d_ago,
         ROUND((t.current_estimate - t.estimate_60d_ago) / NULLIF(t.estimate_60d_ago, 0) * 100, 2) as pct_change,
+        r.up_last_7d,
+        r.down_last_7d,
         r.up_last_30d,
         r.down_last_30d,
         cp.short_name as company_name,
@@ -423,8 +427,11 @@ router.get("/estimate-momentum", async (req, res) => {
       current_estimate: parseFloat(row.current_estimate),
       estimate_60d_ago: parseFloat(row.estimate_60d_ago),
       pct_change: parseFloat(row.pct_change),
+      up_last_7d: row.up_last_7d || 0,
+      down_last_7d: row.down_last_7d || 0,
       up_last_30d: row.up_last_30d || 0,
       down_last_30d: row.down_last_30d || 0,
+      net_revisions_7d: (row.up_last_7d || 0) - (row.down_last_7d || 0),
       net_revisions: (row.up_last_30d || 0) - (row.down_last_30d || 0)
     }));
 
@@ -436,8 +443,11 @@ router.get("/estimate-momentum", async (req, res) => {
       current_estimate: parseFloat(row.current_estimate),
       estimate_60d_ago: parseFloat(row.estimate_60d_ago),
       pct_change: parseFloat(row.pct_change),
+      up_last_7d: row.up_last_7d || 0,
+      down_last_7d: row.down_last_7d || 0,
       up_last_30d: row.up_last_30d || 0,
       down_last_30d: row.down_last_30d || 0,
+      net_revisions_7d: (row.up_last_7d || 0) - (row.down_last_7d || 0),
       net_revisions: (row.up_last_30d || 0) - (row.down_last_30d || 0)
     }));
 
