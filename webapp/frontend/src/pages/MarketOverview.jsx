@@ -49,7 +49,6 @@ import {
   getMarketSentimentData,
   getMarketSeasonalityData,
   getMarketCorrelation,
-  getMarketIndicators,
 } from "../services/api";
 import MarketExposure from "../components/MarketExposure";
 import {
@@ -63,7 +62,6 @@ import SectorSeasonalityTable from "../components/SectorSeasonalityTable";
 import McClellanOscillatorChart from "../components/McClellanOscillatorChart";
 import MarketInternals from "../components/MarketInternals";
 import MarketVolatility from "../components/MarketVolatility";
-import MarketIndicators from "../components/MarketIndicators";
 import MarketCorrelation from "../components/MarketCorrelation";
 
 // Create logger instance for this component
@@ -400,14 +398,6 @@ function MarketOverview() {
   // Combined loading and error states
   const marketLoading = technicalsLoading || sentimentLoading || seasonalityLoading;
   const marketError = technicalsError || sentimentError || seasonalityError;
-
-  // Still fetch additional data that's not in unified endpoint
-  const { data: indicatorsData, isLoading: indicatorsLoading } = useQuery({
-    queryKey: ["market-indicators"],
-    queryFn: getMarketIndicators,
-    staleTime: 0, // Always fresh
-    refetchInterval: 120000,
-  });
 
   const { data: correlationData, isLoading: correlationLoading } = useQuery({
     queryKey: ["market-correlation"],
@@ -1398,22 +1388,6 @@ const handleTabChange = (event, newValue) => {
           <MarketVolatility
             data={volatilityFormatted}
             isLoading={marketLoading}
-            error={null}
-          />
-        )}
-      </Box>
-
-      {/* Market Indicators Section */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
-          Market Indicators - Top Movers
-        </Typography>
-        {indicatorsLoading ? (
-          <LinearProgress />
-        ) : (
-          <MarketIndicators
-            data={indicatorsData}
-            isLoading={indicatorsLoading}
             error={null}
           />
         )}

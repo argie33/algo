@@ -73,16 +73,17 @@ def create_tables_if_needed(conn):
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS sector_ranking (
                 id SERIAL PRIMARY KEY,
-                sector VARCHAR(255) NOT NULL,
-                date DATE NOT NULL,
+                sector_name VARCHAR(255) NOT NULL,
+                date_recorded DATE NOT NULL,
                 current_rank INT,
                 rank_1w_ago INT,
                 rank_4w_ago INT,
                 rank_12w_ago INT,
                 daily_strength_score FLOAT,
+                momentum_score FLOAT,
                 trend VARCHAR(10),
                 created_at TIMESTAMP DEFAULT NOW(),
-                UNIQUE(sector, date)
+                UNIQUE(sector_name, date_recorded)
             )
         """)
         logger.info("✅ sector_ranking table ready")
@@ -92,16 +93,17 @@ def create_tables_if_needed(conn):
             CREATE TABLE IF NOT EXISTS industry_ranking (
                 id SERIAL PRIMARY KEY,
                 industry VARCHAR(255) NOT NULL,
-                date DATE NOT NULL,
+                date_recorded DATE NOT NULL,
                 current_rank INT,
                 rank_1w_ago INT,
                 rank_4w_ago INT,
                 rank_12w_ago INT,
                 daily_strength_score FLOAT,
+                momentum_score FLOAT,
                 stock_count INT,
                 trend VARCHAR(10),
                 created_at TIMESTAMP DEFAULT NOW(),
-                UNIQUE(industry, date)
+                UNIQUE(industry, date_recorded)
             )
         """)
         logger.info("✅ industry_ranking table ready")
