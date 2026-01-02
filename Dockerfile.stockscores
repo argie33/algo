@@ -17,3 +17,7 @@ ENV AWS_DEFAULT_REGION=us-east-1
 
 # Set the entrypoint
 ENTRYPOINT ["python", "-u", "loadstockscores.py"]
+
+# REBUILD TRIGGER: Deploying fixes for None value handling in margin score calculation
+# Commit: 28f339ac9 - Fix: Handle None values in margin expansion score calculation  
+# Also includes: Unbuffered Python output, Docker filename fixes
