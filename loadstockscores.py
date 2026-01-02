@@ -1938,16 +1938,12 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             # 4. Daily Spread Score (tight spreads = higher score)
             daily_spread_score = calculate_daily_spread_score(prices)
 
-            # 5. Downside Volatility Score (downside deviation of returns)
-            downside_volatility_score = calculate_downside_volatility_score(prices)
-
             # Store 5 market liquidity metrics IMMEDIATELY (before stability calculation)
             # These are data inputs and should be stored regardless of stability score calculation success
             stability_inputs['volume_consistency'] = round(volume_consistency_score, 1) if volume_consistency_score is not None else None
             stability_inputs['turnover_velocity'] = round(turnover_velocity_score, 1) if turnover_velocity_score is not None else None
             stability_inputs['volatility_volume_ratio'] = round(volatility_volume_ratio_score, 1) if volatility_volume_ratio_score is not None else None
             stability_inputs['daily_spread'] = round(daily_spread_score, 1) if daily_spread_score is not None else None
-            stability_inputs['downside_volatility'] = round(downside_volatility_score, 1) if downside_volatility_score is not None else None
 
             # Calculate drawdown from price data (no external stability_metrics table used)
             # Price data is the source of truth for historical drawdown calculation
@@ -1972,16 +1968,13 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 max_drawdown_52w_pct = None
 
             vol_str = f"{volatility_12m_pct:.1f}%" if volatility_12m_pct is not None else "N/A"
-            downside_str = f"{downside_volatility:.1f}%" if downside_volatility is not None else "N/A"
             drawdown_str = f"{max_drawdown_52w_pct:.1f}%" if max_drawdown_52w_pct is not None else "N/A"
             beta_str = f"{beta:.2f}" if beta is not None else "N/A"
-            logger.info(f"{symbol}: Calculated risk components - Vol={vol_str}, Downside={downside_str}, Drawdown={drawdown_str}, Beta={beta_str}")
+            logger.info(f"{symbol}: Calculated risk components - Vol={vol_str}, Drawdown={drawdown_str}, Beta={beta_str}")
 
             # ALWAYS POPULATE STABILITY INPUTS REGARDLESS OF SCORE CALCULATION
             # These are raw metrics that should be stored for API display even if score can't be calculated
             stability_inputs['volatility_12m_pct'] = round(volatility_12m_pct, 4) if volatility_12m_pct is not None else None
-            stability_inputs['downside_volatility_pct'] = round(downside_volatility, 4) if downside_volatility is not None else None
-            stability_inputs['volatility_risk_component'] = round(downside_volatility_score, 2) if downside_volatility_score is not None else None
             stability_inputs['max_drawdown_52w_pct'] = round(max_drawdown_52w_pct, 2) if max_drawdown_52w_pct is not None else None
             stability_inputs['beta'] = round(beta, 3) if beta is not None else None
             stability_inputs['range_52w_pct'] = round(range_52w_pct, 2) if range_52w_pct is not None else None
@@ -2041,16 +2034,6 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 if vol_percentile is not None:
                     components.append(vol_percentile)
                     weights.append(0.25)
-
-                # Volatility Risk Component: downside volatility (10% - downside deviation of returns)
-                # Measures risk of losses relative to upside - key for risk-averse investors
-                downside_volatility_percentile = None
-                if downside_volatility_score is not None and downside_volatility_score > 0:
-                    # Convert downside volatility score (0-100) to percentile
-                    downside_volatility_percentile = 100 - downside_volatility_score  # Invert: higher downside vol = lower score
-                    if downside_volatility_percentile is not None:
-                        components.append(downside_volatility_percentile)
-                        weights.append(0.10)
 
                 # Required: drawdown (20% - directly measures maximum drop from peak)
                 if drawdown_percentile is not None:
