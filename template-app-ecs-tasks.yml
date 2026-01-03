@@ -548,7 +548,7 @@ Resources:
       ServiceName: stocksymbols-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref StockSymbolsTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -609,7 +609,7 @@ Resources:
       ServiceName: econdata-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref EconDataTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -668,7 +668,7 @@ Resources:
       ServiceName: pricedaily-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref PriceTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -725,7 +725,7 @@ Resources:
       ServiceName: priceweekly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref PriceWeeklyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -774,7 +774,7 @@ Resources:
       ServiceName: pricemonthly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref PriceMonthlyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -833,7 +833,7 @@ Resources:
       ServiceName: etfpricedaily-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref EtfPriceDailyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -888,7 +888,7 @@ Resources:
       ServiceName: etfpriceweekly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref EtfPriceWeeklyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -943,7 +943,7 @@ Resources:
       ServiceName: etfpricemonthly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref EtfPriceMonthlyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -1006,7 +1006,7 @@ Resources:
       ServiceName: technicalsdaily-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref TechnicalsDailyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -1055,7 +1055,7 @@ Resources:
       ServiceName: calendar-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref CalendarTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -1104,7 +1104,7 @@ Resources:
       ServiceName: earningsestimate-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref EarningsEstimateTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -1161,7 +1161,7 @@ Resources:
       ServiceName: earningshistory-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref EarningsHistoryTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -1210,7 +1210,7 @@ Resources:
       ServiceName: earningsmetrics-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref EarningsMetricsTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -1259,7 +1259,7 @@ Resources:
       ServiceName: analystupgradedowngrade-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref AnalystUpgradeDowngradeTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -1316,7 +1316,7 @@ Resources:
       ServiceName: revenueestimate-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref RevenueEstimateTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -1365,7 +1365,7 @@ Resources:
       ServiceName: technicalsweekly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref TechnicalsWeeklyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -1414,7 +1414,7 @@ Resources:
       ServiceName: technicalsmonthly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref TechnicalsMonthlyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -1460,7 +1460,7 @@ Resources:
       ServiceName: swingtrader-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref SwingTraderTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -1510,7 +1510,7 @@ Resources:
       ServiceName: buysell-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref BuySellTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -1567,7 +1567,7 @@ Resources:
       ServiceName: latestpricedaily-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref LatestPriceDailyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -1624,7 +1624,7 @@ Resources:
       ServiceName: latestpriceweekly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref LatestPriceWeeklyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -1681,7 +1681,7 @@ Resources:
       ServiceName: latestpricemonthly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref LatestPriceMonthlyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -1744,7 +1744,7 @@ Resources:
       ServiceName: latesttechnicalsdaily-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref LatestTechnicalsDailyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -1801,7 +1801,7 @@ Resources:
       ServiceName: latesttechnicalsweekly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref LatestTechnicalsWeeklyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -1858,7 +1858,7 @@ Resources:
       ServiceName: latesttechnicalsmonthly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref LatestTechnicalsMonthlyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -1916,7 +1916,7 @@ Resources:
       ServiceName: aaiidata-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref AaiiDataTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -1970,7 +1970,7 @@ Resources:
       ServiceName: feargreeddata-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref FearGreedDataTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2027,7 +2027,7 @@ Resources:
       ServiceName: naaimdata-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref NaaaimDataTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2084,7 +2084,7 @@ Resources:
       ServiceName: quarterlybalancesheet-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref QuarterlyBalanceSheetTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2141,7 +2141,7 @@ Resources:
       ServiceName: annualbalancesheet-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref AnnualBalanceSheetTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2198,7 +2198,7 @@ Resources:
       ServiceName: quarterlyincomestatement-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref QuarterlyIncomeStatementTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2255,7 +2255,7 @@ Resources:
       ServiceName: annualincomestatement-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref AnnualIncomeStatementTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2312,7 +2312,7 @@ Resources:
       ServiceName: quarterlycashflow-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref QuarterlyCashFlowTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2369,7 +2369,7 @@ Resources:
       ServiceName: annualcashflow-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref AnnualCashFlowTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2426,7 +2426,7 @@ Resources:
       ServiceName: ttmincomestatement-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref TTMIncomeStatementTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2483,7 +2483,7 @@ Resources:
       ServiceName: ttmcashflow-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref TTMCashFlowTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2540,7 +2540,7 @@ Resources:
       ServiceName: buyselldaily-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref BuySellDailyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2597,7 +2597,7 @@ Resources:
       ServiceName: buysellweekly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref BuySellWeeklyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2654,7 +2654,7 @@ Resources:
       ServiceName: buysellmonthly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref BuySellMonthlyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2708,7 +2708,7 @@ Resources:
       ServiceName: buysell_etf_daily-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref BuySellEtfDailyTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2823,7 +2823,7 @@ Resources:
       ServiceName: quality-metrics-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref QualityMetricsTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2884,7 +2884,7 @@ Resources:
       ServiceName: growth-metrics-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref GrowthMetricsTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2945,7 +2945,7 @@ Resources:
       ServiceName: value-metrics-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref ValueMetricsTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -3064,7 +3064,7 @@ Resources:
       ServiceName: benchmarks-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref BenchmarksTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -3114,7 +3114,7 @@ Resources:
       ServiceName: loadcompanyprofile-loader
       Cluster: !ImportValue StocksApp-ClusterArn
       TaskDefinition: !Ref LoadDailyCompanyDataTaskDefinition
-      DesiredCount: 1
+      DesiredCount: 0
       LaunchType: FARGATE
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -3160,7 +3160,7 @@ Resources:
       ServiceName: loadfinancials-loader
       Cluster: !ImportValue StocksApp-ClusterArn
       TaskDefinition: !Ref LoadFinancialsTaskDefinition
-      DesiredCount: 1
+      DesiredCount: 0
       LaunchType: FARGATE
       TaskDefinition: !Ref LoadFinancialsTaskDefinition
       NetworkConfiguration:
@@ -3207,7 +3207,7 @@ Resources:
       ServiceName: loadhistorical-loader
       Cluster: !ImportValue StocksApp-ClusterArn
       TaskDefinition: !Ref LoadHistoricalTaskDefinition
-      DesiredCount: 1
+      DesiredCount: 0
       LaunchType: FARGATE
       TaskDefinition: !Ref LoadHistoricalTaskDefinition
       NetworkConfiguration:
@@ -3254,7 +3254,7 @@ Resources:
       ServiceName: sectordata-loader
       Cluster: !ImportValue StocksApp-ClusterArn
       TaskDefinition: !Ref SectorDataTaskDefinition
-      DesiredCount: 1
+      DesiredCount: 0
       LaunchType: FARGATE
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -3482,7 +3482,7 @@ Resources:
       ServiceName: riskmetrics-loader
       Cluster: !ImportValue StocksApp-ClusterArn
       TaskDefinition: !Ref RiskMetricsTaskDefinition
-      DesiredCount: 1
+      DesiredCount: 0
       LaunchType: FARGATE
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -3539,7 +3539,7 @@ Resources:
       ServiceName: fundamentalmetrics-loader
       Cluster: !ImportValue StocksApp-ClusterArn
       TaskDefinition: !Ref FundamentalMetricsTaskDefinition
-      DesiredCount: 1
+      DesiredCount: 0
       LaunchType: FARGATE
       NetworkConfiguration:
         AwsvpcConfiguration:

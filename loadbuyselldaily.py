@@ -1730,8 +1730,8 @@ def process_symbol_set(symbols, table_name, label, max_workers=6):
         logging.info(f"{label}: No symbols to process")
         return
 
-    # Use 4 workers for balanced speed/stability (was 2, can tolerate some locks)
-    max_workers = min(max_workers, 4)
+    # Use 3 workers for faster processing (good balance of speed/stability)
+    max_workers = min(max_workers, 3)
 
     logging.info(f"Starting {label} processing with {max_workers} workers for {len(symbols)} symbols")
 
