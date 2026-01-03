@@ -2435,7 +2435,41 @@ router.get("/analysis", authenticateToken, async (req, res) => {
         };
       })
       .sort((a, b) => b.bestScore - a.bestScore)
-      .slice(0, 15) // SWING TRADING: Limit to top 15 recommendations (12-15 stock portfolio)
+      .map(r => {
+        // SWING TRADING: Add position sizing based on risk rules
+        // 1% risk per trade / 7.5% stop loss = 13.3% max position
+        const stopLossPercent = 7.5;
+        const maxPositionSize = 0.133; // 1% risk / 7.5% stop
+
+        // Position size based on recommendation score (higher score = larger position, but capped)
+        const scoreWeight = Math.min(r.bestScore / 100, 1.0);
+        let recommendedPosition = maxPositionSize * (scoreWeight / 0.7); // Scale up slightly
+        recommendedPosition = Math.min(recommendedPosition, maxPositionSize); // Cap at 13.3%
+
+        // Calculate entry/stop/targets
+        const entryPrice = r.price || 100; // Fallback to 100 if no price
+        const stopPrice = entryPrice * (1 - stopLossPercent / 100);
+        const target1Price = entryPrice * (1 + stopLossPercent / 100); // 1:1 risk/reward
+        const target2Price = entryPrice * (1 + (stopLossPercent * 2) / 100); // 2:1 risk/reward
+
+        const riskBps = Math.round(recommendedPosition * stopLossPercent * 100); // basis points
+
+        return {
+          ...r,
+          positionSizing: {
+            recommendedSize: parseFloat((recommendedPosition * 100).toFixed(2)) + '%',
+            recommendedSizeDecimal: parseFloat(recommendedPosition.toFixed(4)),
+            maxPosition: '13.3%',
+            stopLoss: stopLossPercent + '%',
+            riskPerTrade: '1% of portfolio',
+            entry: parseFloat(entryPrice.toFixed(2)),
+            stop: parseFloat(stopPrice.toFixed(2)),
+            target1: parseFloat(target1Price.toFixed(2)),
+            target2: parseFloat(target2Price.toFixed(2)),
+            riskBps: riskBps + 'bps'
+          }
+        };
+      })
 
     // ============================================================================
     // SECTOR ALLOCATION BREAKDOWN - BEFORE & AFTER

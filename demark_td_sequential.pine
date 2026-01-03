@@ -1,0 +1,143 @@
+//@version=6
+
+indicator("DeMark TD Sequential - Bottoms & Tops", overlay=true)
+
+// INPUTS
+seqLength = input.int(9, title="TD Sequential Length", minval=1)
+lookbackPeriod = input.int(4, title="Close Lookback Period", minval=1)
+
+useCombo = input.bool(true, title="Show TD Combo?")
+comboLength = input.int(9, title="TD Combo Length", minval=1)
+
+useMaFilter = input.bool(true, title="Use MA Filter?")
+maLength = input.int(50, title="MA Length")
+maType = input.string("SMA", options=["SMA", "EMA"], title="MA Type")
+
+showSetupCount = input.bool(true, title="Show Setup Count Numbers")
+showComboCount = input.bool(true, title="Show Combo Count Numbers")
+
+// CALCULATE MA FILTER
+ma = maType == "EMA" ? ta.ema(close, maLength) : ta.sma(close, maLength)
+plot(ma, title="Trend Filter MA", color=color.gray, linewidth=2, style=plot.style_line)
+
+// TD SEQUENTIAL - BUY SETUP (BOTTOMS)
+buySetupCondition = close < close[lookbackPeriod]
+buySetupCount = buySetupCondition ? nz(buySetupCount[1]) + 1 : 0
+buySetupComplete = buySetupCount == seqLength and buySetupCount[1] != seqLength
+
+buySetupHigh = buySetupComplete ? ta.highest(high, seqLength) : na
+buySetupLow = buySetupComplete ? ta.lowest(low, seqLength) : na
+
+// TD SEQUENTIAL - SELL SETUP (TOPS)
+sellSetupCondition = close > close[lookbackPeriod]
+sellSetupCount = sellSetupCondition ? nz(sellSetupCount[1]) + 1 : 0
+sellSetupComplete = sellSetupCount == seqLength and sellSetupCount[1] != seqLength
+
+sellSetupHigh = sellSetupComplete ? ta.highest(high, seqLength) : na
+sellSetupLow = sellSetupComplete ? ta.lowest(low, seqLength) : na
+
+// TD COMBO - BUY (FASTER SIGNAL)
+buyComboCondition = useCombo ? close < low[lookbackPeriod] : na
+buyComboCount = buyComboCondition ? nz(buyComboCount[1]) + 1 : 0
+buyComboComplete = buyComboCount == comboLength and buyComboCount[1] != comboLength
+
+// TD COMBO - SELL (FASTER SIGNAL)
+sellComboCondition = useCombo ? close > high[lookbackPeriod] : na
+sellComboCount = sellComboCondition ? nz(sellComboCount[1]) + 1 : 0
+sellComboComplete = sellComboCount == comboLength and sellComboCount[1] != comboLength
+
+// INVERSION DETECTION - BUY
+var float buyInversionPrice = 0.0
+var int buyInversionBar = 0
+buyInversion = false
+
+if buySetupComplete
+    buyInversionBar := bar_index
+    buyInversionPrice := buySetupHigh
+
+if close > buyInversionPrice and bar_index > buyInversionBar and buyInversionBar > 0
+    buyInversion := true
+
+// INVERSION DETECTION - SELL
+var float sellInversionPrice = 0.0
+var int sellInversionBar = 0
+sellInversion = false
+
+if sellSetupComplete
+    sellInversionBar := bar_index
+    sellInversionPrice := sellSetupLow
+
+if close < sellInversionPrice and bar_index > sellInversionBar and sellInversionBar > 0
+    sellInversion := true
+
+// ENTRY SIGNALS WITH MA FILTER
+maFilterBuy = useMaFilter ? close > ma : true
+maFilterSell = useMaFilter ? close < ma : true
+
+buyEntry = buyInversion and maFilterBuy
+sellEntry = sellInversion and maFilterSell
+
+// PLOT SETUP COMPLETION
+plotshape(buySetupComplete ? buySetupLow : na, style=shape.circle, location=location.belowbar,
+          color=color.new(color.green, 0), size=size.small, title="Buy Setup Complete")
+
+plotshape(sellSetupComplete ? sellSetupHigh : na, style=shape.circle, location=location.abovebar,
+          color=color.new(color.red, 0), size=size.small, title="Sell Setup Complete")
+
+// PLOT COMBO COMPLETION
+plotshape(buyComboComplete and useCombo ? low : na, style=shape.diamond, location=location.belowbar,
+          color=color.new(color.lime, 0), size=size.tiny, title="Buy Combo Complete")
+
+plotshape(sellComboComplete and useCombo ? high : na, style=shape.diamond, location=location.abovebar,
+          color=color.new(color.orange, 0), size=size.tiny, title="Sell Combo Complete")
+
+// MAIN ENTRY SIGNALS
+plotshape(buyInversion ? low : na, style=shape.triangleup, location=location.belowbar,
+          color=color.new(color.green, 0), size=size.large, title="BUY SIGNAL")
+
+plotshape(sellInversion ? high : na, style=shape.triangledown, location=location.abovebar,
+          color=color.new(color.red, 0), size=size.large, title="SELL SIGNAL")
+
+// PLOT STOP LEVELS
+plot(buySetupLow, style=plot.style_line, color=color.new(color.green, 50), linewidth=1,
+     title="Buy Stop Level")
+
+plot(sellSetupHigh, style=plot.style_line, color=color.new(color.red, 50), linewidth=1,
+     title="Sell Stop Level")
+
+// ENTRY ZONES
+bgcolor(buyEntry ? color.new(color.green, 90) : na, title="Buy Entry Zone")
+bgcolor(sellEntry ? color.new(color.red, 90) : na, title="Sell Entry Zone")
+
+// ALERTS
+alertcondition(buySetupComplete, title="Buy Setup Complete", message="DeMark Buy Setup 9-bar bottom")
+alertcondition(sellSetupComplete, title="Sell Setup Complete", message="DeMark Sell Setup 9-bar top")
+alertcondition(buyInversion, title="BUY ENTRY Signal", message="BUY NOW - Inversion confirmed")
+alertcondition(sellInversion, title="SELL ENTRY Signal", message="SELL NOW - Inversion confirmed")
+
+// INFO TABLE
+var table infoTable = na
+
+if barstate.islast
+    if na(infoTable)
+        infoTable := table.new(position=position.top_right, columns=2, rows=5,
+                               border_color=color.gray, border_width=1)
+
+    table.cell(infoTable, 0, 0, "DeMark TD Status", text_halign=text.align_center,
+               bgcolor=color.navy, text_color=color.white)
+
+    table.cell(infoTable, 0, 1, "Buy Setup:", bgcolor=color.new(color.green, 80))
+    table.cell(infoTable, 1, 1, str.tostring(buySetupCount) + "/9",
+               bgcolor=color.new(color.green, 80), text_color=color.white)
+
+    table.cell(infoTable, 0, 2, "Sell Setup:", bgcolor=color.new(color.red, 80))
+    table.cell(infoTable, 1, 2, str.tostring(sellSetupCount) + "/9",
+               bgcolor=color.new(color.red, 80), text_color=color.white)
+
+    table.cell(infoTable, 0, 3, "Buy Stop:", bgcolor=color.new(color.green, 90))
+    table.cell(infoTable, 1, 3, str.tostring(math.round(buySetupLow, 2)),
+               bgcolor=color.new(color.green, 90))
+
+    table.cell(infoTable, 0, 4, "Sell Stop:", bgcolor=color.new(color.red, 90))
+    table.cell(infoTable, 1, 4, str.tostring(math.round(sellSetupHigh, 2)),
+               bgcolor=color.new(color.red, 90))
