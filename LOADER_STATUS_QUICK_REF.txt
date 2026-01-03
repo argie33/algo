@@ -1,0 +1,83 @@
+================================================================================
+DATA LOADER STATUS - QUICK REFERENCE (2026-01-03 07:20 CST)
+================================================================================
+
+OVERALL HEALTH: DEGRADED - 1 CRITICAL FAILURE, 1 RUNNING, 17 STOPPED
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STATUS AT A GLANCE                                                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ RUNNING:    1 loader  │ buysellweekly-loader (HEALTHY)                      │
+│ ERROR:      1 loader  │ stock-scores-loader (BLOCKED - 14 errors)          │
+│ STOPPED:   17 loaders │ All idle/scheduled (no errors)                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ CRITICAL ISSUES: YES - stock-scores-loader is failing                      │
+│ ACTION REQUIRED: YES - Database schema fixes needed                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+CRITICAL ERRORS IN stock-scores-loader
+================================================================================
+
+ERROR #1: TypeError - margin_expansion_score calculation
+  File: /app/loadstockscores.py, Line 3340
+  Problem: gross_margin_percentile returning None instead of number
+  Fix: Debug quality metrics data source + add None checks
+
+ERROR #2: NameError - composite_score undefined after error
+  File: /app/loadstockscores.py
+  Problem: Variable used before assignment in error path
+  Fix: Initialize composite_score before try block
+
+ERROR #3: Missing column "stability_score" in stock_scores table
+  Stocks Affected: A, AAMI, AAON, AAME (and others)
+  Problem: Database table missing required column
+  Fix: ALTER TABLE stock_scores ADD COLUMN stability_score NUMERIC;
+
+ERROR #4: Missing column "bullish_count" in analyst_recommendations
+  Stocks Affected: 20+ symbols (AMS, ADGM, ADP, ADMA, ADT, ANPA, AAP, etc)
+  Problem: SQL query references non-existent columns
+  Fix: ALTER TABLE analyst_recommendations ADD COLUMN bullish_count INT;
+        ALTER TABLE analyst_recommendations ADD COLUMN bearish_count INT;
+
+ERROR #5: Missing column "short_interest_pct" in positioning_metrics
+  Problem: Query fails, marked as CRITICAL DATA REQUIRED
+  Hint: Column may be named "short_interest_date"
+  Fix: Verify column name and update query:
+       SELECT ... FROM positioning_metrics WHERE short_interest_date IS NOT NULL
+
+================================================================================
+BUYSELLWEEKLY-LOADER STATUS (HEALTHY)
+================================================================================
+
+Current Activity: PROCESSING
+Last Log Time: 2026-01-03 13:19:51 (5 minutes ago)
+Processing Stock: MKSI (Weekly)
+
+Recent Successful Stocks:
+  - MGNX: 11 trades, Win Rate 50.00%, Avg Return 3.51%, Sharpe 0.33
+  - MGPI: (processing...)
+
+Error Status: NONE - Clean operation
+Database Writes: Successfully inserting trade results with risk percentages
+Signal Generation: Working correctly
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+PRIORITY 1 (DO FIRST):
+  [ ] Add missing columns to database tables (schema fixes)
+  [ ] Restart stock-scores-loader after schema fixes
+
+PRIORITY 2 (DO SECOND):
+  [ ] Debug gross_margin_percentile None values
+  [ ] Fix composite_score initialization in error handling
+  [ ] Add data quality checks
+
+PRIORITY 3 (DO THIRD):
+  [ ] Monitor buysellweekly-loader health
+  [ ] Verify all loaders restart successfully
+  [ ] Implement schema validation on startup
+
+================================================================================

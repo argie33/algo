@@ -1,105 +1,165 @@
 ================================================================================
-ECS LOADER STATUS QUICK REFERENCE
-Generated: 2026-01-02 17:29 CST
+                  DATA LOADER STATUS REPORT - SUMMARY
+                    Generated: 2026-01-03 07:20 CST
 ================================================================================
 
-CRITICAL FAILURES (IMMEDIATE ACTION REQUIRED)
-================================================================================
-
-[FAIL] /ecs/buyselldaily-loader
-       Error: Column "signal_triggered_date" does not exist in buy_sell_daily table
-       Impact: 5,078 stock daily signals blocked (2.8% completed before failure)
-       Last Activity: 2026-01-01 21:07:46
-       Action: Fix database schema or remove column references from loader
-
-[FAIL] /ecs/pricedaily-loader
-       Error: Docker entrypoint incorrect - "python3 loadpricedaily.py" passed as arg
-       Impact: All daily price loading blocked
-       Last Activity: 2026-01-01 22:31:17
-       Action: Fix ECS task definition entrypoint/CMD configuration
+CURRENT STATUS:
+  19 total loaders monitored across all ECS log groups
+  1 loader RUNNING (buysellweekly-loader) - HEALTHY
+  1 loader IN ERROR (stock-scores-loader) - 14 critical errors
+  17 loaders STOPPED (idle/scheduled) - no errors
+  
+SYSTEM HEALTH: DEGRADED
+  Reason: stock-scores-loader blocked by database schema mismatches
+  Impact: Cannot complete stock scoring calculations
+  Severity: CRITICAL - affects core analytics pipeline
 
 ================================================================================
-HIGH PRIORITY WARNINGS (INVESTIGATION NEEDED)
+DETAILED FINDINGS
 ================================================================================
 
-[WARN] /ecs/annualcashflow-loader
-       Error: Database transaction aborted errors recurring after each stock
-       Impact: Data may be processed but inserts failing silently
-       Last Activity: 2026-01-02 00:00:44
-       Action: Check database connections and transaction management
-       Related: /ecs/annualincomestatement-loader, /ecs/quarterlyincomestatement-loader
+RUNNING LOADER:
+  buysellweekly-loader
+    - Status: ACTIVELY PROCESSING (last activity 13:19:51)
+    - Processing: MKSI (weekly timeframe)
+    - No errors detected
+    - Healthy database operations
+    - Recent stock MGNX: 11 trades, 50% win rate, Sharpe 0.33
+
+ERROR LOADER:
+  stock-scores-loader
+    - Status: RUNNING WITH ERRORS (last activity 13:15:30)
+    - Progress: Processing stock ADP of 5313 total
+    - Errors: 14 detected in log scan
+    - Root Cause: Database schema mismatches
+    
+    Error Summary:
+      1. TypeError on line 3340: gross_margin_percentile is None
+         - Affects: ANNX, AMRZ, ALLT, AKTX
+      2. NameError: composite_score undefined in error path
+         - Affects: ANNX, AMRZ
+      3. Missing column "stability_score" in stock_scores table
+         - Affects: A, AAMI, AAON, AAME, and others
+      4. Missing columns "bullish_count", "bearish_count" in analyst_recommendations
+         - Affects: 20+ stocks including AMS, ADGM, ADP, ADMA, ADT, ANPA
+      5. Missing column "short_interest_pct" in positioning_metrics
+         - Affects: ALL stocks - marked as CRITICAL DATA REQUIRED
+
+STOPPED LOADERS (17 total):
+  All with no errors, no recent activity in 15-minute window
+  - pricedaily-loader, buysellmonthly-loader, buyselldaily-loader
+  - sectors-loader, annualcashflow-loader, annualincomestatement-loader
+  - quarterlyincomestatement-loader, factormetrics-loader
+  - positioning-loader, momentum-loader, latestpricedaily-loader
+  - etfpricedaily-loader, technicalsdaily-loader, companyprofile-loader
+  - earningsmetrics-loader, priceweekly-loader, pricemonthly-loader
 
 ================================================================================
-WORKING LOADERS (NO ACTION NEEDED)
+ROOT CAUSE ANALYSIS
 ================================================================================
 
-[OK] /aws/ecs/stock-scores-loader         | Last: 2026-01-02 17:11:22 | Current ✓
-[OK] /ecs/factormetrics-loader            | Last: 2026-01-02 17:26:29 | Current ✓
-[OK] /ecs/buysellmonthly-loader           | Last: 2026-01-02 16:30:05 | Recent ✓
-[OK] /ecs/buysellweekly-loader            | Last: 2026-01-02 16:58:16 | Recent ✓
-[OK] /ecs/sectors-loader                  | Last: 2026-01-02 17:18:31 | Current ✓
+PRIMARY ISSUE: Database Schema Version Mismatch
+  The stock-scores-loader code expects columns that don't exist in the database.
+  This indicates a schema migration was incomplete or reversed.
+
+AFFECTED TABLES:
+  1. stock_scores - Missing: stability_score
+  2. analyst_recommendations - Missing: bullish_count, bearish_count
+  3. positioning_metrics - Column naming mismatch: short_interest_pct vs short_interest_date
+
+SECONDARY ISSUE: Data Quality
+  gross_margin_percentile returning None values instead of numeric scores
+  suggests quality metrics loader failed to populate data correctly
+
+TERTIARY ISSUE: Error Handling
+  When errors occur, composite_score variable is referenced without initialization
+  indicates incomplete error handling in score calculation logic
 
 ================================================================================
-MISSING/INACTIVE LOADERS (CHECK IF NEEDED)
+IMPACT ASSESSMENT
 ================================================================================
 
-[INACTIVE] /ecs/stocksymbols-loader             - No recent activity
-[INACTIVE] /ecs/coveredcalloptions-loader       - No log streams
-[INACTIVE] /ecs/positioningmetrics-loader       - No log streams
-[INACTIVE] /ecs/analystsentiment-loader         - No log streams
-[INACTIVE] /ecs/earnings-loader                 - No log streams
+IMMEDIATE IMPACT:
+  - Stock scores cannot be calculated for any symbols
+  - Analyst sentiment data unavailable (20+ stocks failing)
+  - Positioning metrics completely unavailable
+  - Score persistence to database failing
+
+DOWNSTREAM IMPACT:
+  - All analytics dashboards showing stale data
+  - Stock ranking/scoring features broken
+  - Portfolio positioning recommendations unreliable
+  - Risk analysis incomplete (no positioning data)
+
+BUSINESS IMPACT:
+  - Users cannot get current stock recommendations
+  - Technical analysis shows historical patterns only
+  - Risk metrics incomplete
 
 ================================================================================
-QUICK DIAGNOSIS STEPS
+RECOMMENDED IMMEDIATE ACTIONS
 ================================================================================
 
-1. Check buyselldaily-loader schema:
-   - Verify table: SELECT * FROM information_schema.columns
-                   WHERE table_name = 'buy_sell_daily'
-   - Check if column exists: signal_triggered_date
+STEP 1: Database Schema Fixes (CRITICAL)
+  Execute these SQL commands:
+  
+  ALTER TABLE stock_scores ADD COLUMN stability_score NUMERIC;
+  ALTER TABLE analyst_recommendations ADD COLUMN bullish_count INT;
+  ALTER TABLE analyst_recommendations ADD COLUMN bearish_count INT;
+  
+  Then verify positioning_metrics table columns:
+  SELECT column_name FROM information_schema.columns 
+  WHERE table_name = 'positioning_metrics' AND column_name LIKE '%short%';
 
-2. Fix pricedaily-loader entrypoint:
-   - Check ECS task definition
-   - Search CloudFormation for "pricedaily"
-   - Fix CMD format to not double python/script name
+STEP 2: Code Fix - gross_margin_percentile
+  In /app/loadstockscores.py line 3340 area:
+  - Add None check before += operation
+  - Example: if gross_margin_percentile is not None:
+             margin_expansion_score += gross_margin_percentile
 
-3. Investigate cashflow transactions:
-   - Check RDS connection count
-   - Look for locks: SELECT * FROM pg_locks;
-   - Review loader error handling for transaction rollback
+STEP 3: Code Fix - composite_score
+  Initialize composite_score = 0 before try block
+  Add fallback value in except clause
+
+STEP 4: Restart Loaders
+  After fixes applied:
+  1. Restart stock-scores-loader
+  2. Monitor for 15 minutes for new errors
+  3. If healthy, restart other dependent loaders
+
+STEP 5: Validation
+  Check that:
+  - score calculation completes without errors
+  - scores persist to database
+  - positioning metrics data loads
+  - analyst recommendation data loads
 
 ================================================================================
-IMPACT BY TIMEFRAME
+FILES GENERATED
 ================================================================================
 
-Immediate (24 hours):
-- Daily buy/sell signals not updating (5,078 stocks)
-- Daily prices not updating
-- Annual/quarterly financial data potentially incomplete
+1. /home/stocks/algo/LOADER_STATUS_REPORT_2026_01_03.md
+   - Comprehensive detailed report with analysis
+   
+2. /home/stocks/algo/LOADER_STATUS_QUICK_REF.txt
+   - Quick reference with error list and fixes
 
-If Not Fixed (48+ hours):
-- Trading signals become stale
-- Price data gaps
-- Scoring calculations based on incomplete data
-- Dashboard shows outdated information
+3. /home/stocks/algo/LOADER_STATUS_SUMMARY.txt
+   - This file - executive summary
 
 ================================================================================
-KEY FILES TO CHECK
+NEXT MONITORING RECOMMENDATIONS
 ================================================================================
 
-Loader Code:
-- /home/stocks/algo/loadbuysell*.py
-- /home/stocks/algo/loadpricedaily.py
-- /home/stocks/algo/loadannualcashflow.py
+Set alerts for:
+  - stock-scores-loader ERROR threshold > 5 in 15 minutes
+  - All loaders STOPPED for > 1 hour (scheduled runs may fail)
+  - Database connection errors
+  - Missing column warnings
 
-Configuration:
-- CloudFormation templates (ECS task definitions)
-- ECS service definitions
-- .env files in webapp/lambda/
-
-Database:
-- PostgreSQL buy_sell_daily table schema
-- Connection pool settings
-- Transaction settings
+Monitor recovery:
+  - After database schema fixes, watch for TypeError resolution
+  - After code fixes, watch for score completion
+  - Verify data quality metrics improve
 
 ================================================================================
