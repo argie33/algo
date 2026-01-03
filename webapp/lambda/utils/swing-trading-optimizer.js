@@ -56,11 +56,19 @@ async function generateSwingTradingPortfolio() {
     // Generate trade recommendations
     const recommendations = generateTradeRecommendations(allocations);
 
+    // Calculate portfolio analysis metrics
+    const portfolioAnalysis = calculatePortfolioAnalysis(portfolio, allocations);
+
+    // Generate performance attribution for each stock
+    const performanceAttribution = generatePerformanceAttribution(portfolio);
+
     return {
       success: true,
       portfolio: portfolio,
       allocations: allocations,
       recommendations: recommendations,
+      portfolioAnalysis: portfolioAnalysis,
+      performanceAttribution: performanceAttribution,
       summary: {
         stockCount: portfolio.length,
         totalAllocation: '100%',
@@ -69,6 +77,12 @@ async function generateSwingTradingPortfolio() {
           maxPosition: '13.3%',
           defaultStopLoss: '7.5%',
           avgRiskReward: '1:1 to 2:1'
+        },
+        portfolioMetrics: {
+          expectedSharpeRatio: portfolioAnalysis.expectedSharpeRatio.toFixed(2),
+          portfolioVolatility: portfolioAnalysis.portfolioVolatility.toFixed(2) + '%',
+          diversificationScore: portfolioAnalysis.diversificationScore.toFixed(0),
+          correlationRisk: portfolioAnalysis.correlationRisk
         }
       }
     };
@@ -180,9 +194,156 @@ function generateTradeRecommendations(allocations) {
   });
 }
 
+function calculatePortfolioAnalysis(portfolio, allocations) {
+  // Calculate portfolio volatility based on component volatilities and correlations
+  // For simplicity, estimate portfolio volatility as weighted average of component volatilities
+  // In production, would use actual correlation matrix
+
+  const avgStability = portfolio.reduce((sum, s) => sum + (s.stability_score || 50), 0) / portfolio.length;
+  const avgMomentum = portfolio.reduce((sum, s) => sum + (s.momentum_score || 50), 0) / portfolio.length;
+
+  // Estimate portfolio volatility (inverse of stability, adjusted by momentum)
+  const estimatedVolatility = (100 - avgStability) * (1 + (avgMomentum - 50) / 100);
+
+  // Calculate expected returns based on composite scores (conservative estimate)
+  const avgScore = portfolio.reduce((sum, s) => sum + (s.composite_score || 50), 0) / portfolio.length;
+  const expectedReturn = (avgScore / 100) * 0.15; // Scale to 15% max annual return
+
+  // Risk-free rate assumption (10-year Treasury)
+  const riskFreeRate = 0.04; // 4% current environment
+
+  // Calculate Sharpe ratio
+  const expectedSharpeRatio = (expectedReturn - riskFreeRate) / (estimatedVolatility / 100);
+
+  // Diversification score (1-100): Based on sector and factor diversification
+  const sectors = new Set(portfolio.map(s => s.sector));
+  const factorVariance = calculateFactorVariance(portfolio);
+  const diversificationScore = Math.min(100, (sectors.size / 6) * 50 + factorVariance * 50);
+
+  // Correlation risk assessment
+  const correlationRisk = estimateCorrelationRisk(portfolio);
+
+  return {
+    expectedReturn: expectedReturn * 100,
+    expectedVolatility: estimatedVolatility,
+    expectedSharpeRatio: Math.max(0, expectedSharpeRatio),
+    portfolioVolatility: estimatedVolatility,
+    diversificationScore: diversificationScore,
+    correlationRisk: correlationRisk,
+    numSectors: sectors.size,
+    riskFreeRate: riskFreeRate * 100
+  };
+}
+
+function calculateFactorVariance(portfolio) {
+  // Calculate variance across quality, growth, stability, value, momentum
+  const factors = ['quality_score', 'growth_score', 'stability_score', 'value_score', 'momentum_score'];
+
+  const factorAverages = factors.map(factor => {
+    const avg = portfolio.reduce((sum, s) => sum + (s[factor] || 50), 0) / portfolio.length;
+    return avg;
+  });
+
+  const variance = factorAverages.reduce((sum, avg) => {
+    const diff = avg - 50; // Centered at 50
+    return sum + (diff * diff);
+  }, 0) / factors.length;
+
+  // Return normalized variance (0-1 scale)
+  return Math.min(1, Math.sqrt(variance) / 50);
+}
+
+function estimateCorrelationRisk(portfolio) {
+  // Estimate correlation risk based on sector and industry concentration
+  const sectors = {};
+  portfolio.forEach(s => {
+    sectors[s.sector] = (sectors[s.sector] || 0) + 1;
+  });
+
+  // Calculate Herfindahl index for sector concentration
+  const sectorWeights = Object.values(sectors).map(count => count / portfolio.length);
+  const herfindahl = sectorWeights.reduce((sum, w) => sum + (w * w), 0);
+
+  // Risk assessment: High Herfindahl = high correlation risk
+  if (herfindahl > 0.15) return 'HIGH - Some sector concentration exists';
+  if (herfindahl > 0.10) return 'MODERATE - Diversification could improve';
+  return 'LOW - Well-diversified across sectors';
+}
+
+function generatePerformanceAttribution(portfolio) {
+  // Break down each stock's performance potential by factor
+  return portfolio.map(stock => ({
+    symbol: stock.symbol,
+    company: stock.company_name,
+    compositeScore: Math.round(stock.composite_score),
+    factors: {
+      quality: {
+        score: Math.round(stock.quality_score || 0),
+        contribution: 'Fundamental strength'
+      },
+      growth: {
+        score: Math.round(stock.growth_score || 0),
+        contribution: 'Earnings/revenue growth potential'
+      },
+      stability: {
+        score: Math.round(stock.stability_score || 0),
+        contribution: 'Price stability/downside protection'
+      },
+      value: {
+        score: Math.round(stock.value_score || 0),
+        contribution: 'Valuation attractiveness'
+      },
+      momentum: {
+        score: Math.round(stock.momentum_score || 0),
+        contribution: 'Technical momentum'
+      }
+    },
+    primaryDriver: identifyPrimaryDriver(stock),
+    risks: identifyStockRisks(stock)
+  }));
+}
+
+function identifyPrimaryDriver(stock) {
+  const scores = {
+    quality: stock.quality_score,
+    growth: stock.growth_score,
+    stability: stock.stability_score,
+    value: stock.value_score,
+    momentum: stock.momentum_score
+  };
+
+  const highest = Object.entries(scores).reduce((prev, current) =>
+    (prev[1] || 0) > (current[1] || 0) ? prev : current
+  );
+
+  const driverMap = {
+    quality: 'Fundamental Quality',
+    growth: 'Growth Potential',
+    stability: 'Defensive/Stable',
+    value: 'Value Play',
+    momentum: 'Momentum/Technical'
+  };
+
+  return driverMap[highest[0]];
+}
+
+function identifyStockRisks(stock) {
+  const risks = [];
+
+  if ((stock.quality_score || 0) < 40) risks.push('Low fundamental quality');
+  if ((stock.stability_score || 0) < 40) risks.push('High volatility risk');
+  if ((stock.growth_score || 0) < 30) risks.push('Limited growth prospects');
+  if ((stock.value_score || 0) < 30) risks.push('Expensive valuation');
+  if ((stock.momentum_score || 0) < 30) risks.push('Weak technical momentum');
+
+  return risks.length > 0 ? risks : ['No major risk factors identified'];
+}
+
 module.exports = {
   generateSwingTradingPortfolio,
   selectDiversifiedPortfolio,
   calculateRiskBasedAllocations,
-  generateTradeRecommendations
+  generateTradeRecommendations,
+  calculatePortfolioAnalysis,
+  generatePerformanceAttribution
 };
