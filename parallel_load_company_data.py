@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Parallel Company Data Loader - Run 4 instances simultaneously
-Each instance processes a different subset of stocks to 4x speedup
+Parallel Company Data Loader - Run 2 instances simultaneously (reduced from 4)
+Each instance processes a different subset of stocks to 2x speedup
+Reduced from 4 to 2 workers to avoid database deadlock on insider_roster insertions
 """
 import sys
 import subprocess
@@ -37,11 +38,11 @@ def main():
         cur.close()
         conn.close()
         
-        # Split into 4 chunks
-        chunk_size = (len(symbols) + 3) // 4
+        # Split into 2 chunks (reduced from 4 to avoid deadlock)
+        chunk_size = (len(symbols) + 1) // 2
         chunks = [symbols[i:i+chunk_size] for i in range(0, len(symbols), chunk_size)]
-        
-        print(f"Running 4 parallel loaders ({chunk_size} stocks each)")
+
+        print(f"Running 2 parallel loaders ({chunk_size} stocks each)")
         print(f"Started: {datetime.now()}")
         print("")
         
