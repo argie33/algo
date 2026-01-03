@@ -4336,6 +4336,27 @@ def main():
             except Exception as e:
                 logger.warning(f"⚠️  stock_scores columns: {e}")
 
+            # Add indexes to fix query timeouts (critical for performance)
+            try:
+                logger.info("📑 Creating database indexes for performance optimization...")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_signal_daily_symbol_date ON signal_daily(symbol, date DESC)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_signal_daily_symbol ON signal_daily(symbol)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_buy_sell_weekly_symbol_date ON buy_sell_weekly(symbol, date DESC)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_buy_sell_monthly_symbol_date ON buy_sell_monthly(symbol, date DESC)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_price_daily_symbol_date ON price_daily(symbol, date DESC)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_stock_scores_symbol ON stock_scores(symbol)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_key_metrics_symbol ON key_metrics(symbol)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_technical_daily_symbol_date ON technical_daily(symbol, date DESC)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_quality_metrics_symbol ON quality_metrics(symbol)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_growth_metrics_symbol ON growth_metrics(symbol)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_value_metrics_symbol ON value_metrics(symbol)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_positioning_metrics_symbol ON positioning_metrics(symbol)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_momentum_indicators_symbol_date ON momentum_indicators(symbol, date DESC)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_sentiment_daily_symbol ON sentiment_daily(symbol)")
+                logger.info("✅ Database indexes created/verified")
+            except Exception as e:
+                logger.warning(f"⚠️  Index creation (non-critical): {e}")
+
             conn.commit()
             cursor.close()
         except Exception as e:
