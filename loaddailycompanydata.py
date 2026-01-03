@@ -549,7 +549,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
 
             except Exception as e:
                 logging.error(f"Error inserting info data for {symbol}: {e}")
-                conn.rollback()
+                pass  # Don't rollback - aborts entire transaction
 
         # 2. Insert institutional holders
         if institutional_holders is not None and not institutional_holders.empty:
@@ -613,7 +613,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
 
             except Exception as e:
                 logging.error(f"Error inserting institutional holders for {symbol}: {e}")
-                conn.rollback()
+                pass  # Don't rollback - aborts entire transaction
 
         # 3. Insert mutual fund holders (NEW!)
         if mutualfund_holders is not None and not mutualfund_holders.empty:
@@ -669,7 +669,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
 
             except Exception as e:
                 logging.error(f"Error inserting mutual fund holders for {symbol}: {e}")
-                conn.rollback()
+                pass  # Don't rollback - aborts entire transaction
 
         # 4. Insert insider transactions (NEW!)
         if insider_transactions is not None and not insider_transactions.empty:
@@ -705,7 +705,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
 
             except Exception as e:
                 logging.error(f"Error inserting insider transactions for {symbol}: {e}")
-                conn.rollback()
+                pass  # Don't rollback - aborts entire transaction
 
         # 5. Insert insider roster (NEW!)
         if insider_roster is not None and not insider_roster.empty:
@@ -762,7 +762,9 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
 
             except Exception as e:
                 logging.error(f"Error inserting insider roster for {symbol}: {e}")
-                conn.rollback()
+                # Don't rollback here - it aborts the entire transaction for all symbols
+                # Just skip this symbol's data and continue with the next one
+                pass
 
         # 6. Insert positioning metrics - ALWAYS INSERT (with real data or NULLs, NEVER defaults)
         # Log what data we have from yfinance for debugging coverage
@@ -859,7 +861,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
 
         except Exception as e:
             logging.error(f"Error inserting positioning metrics for {symbol}: {e}")
-            conn.rollback()
+            pass  # Don't rollback - aborts entire transaction
 
         # 7. Insert earnings estimates
         if earnings_estimate is not None and not earnings_estimate.empty:
@@ -900,7 +902,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
 
             except Exception as e:
                 logging.error(f"Error inserting earnings estimates for {symbol}: {e}")
-                conn.rollback()
+                pass  # Don't rollback - aborts entire transaction
 
         # 8. Insert revenue estimates
         if revenue_estimate is not None and not revenue_estimate.empty:
@@ -941,7 +943,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
 
             except Exception as e:
                 logging.error(f"Error inserting revenue estimates for {symbol}: {e}")
-                conn.rollback()
+                pass  # Don't rollback - aborts entire transaction
 
         # 8.5. Insert earnings history (actual reported earnings - consolidated from loadearningshistory.py)
         try:
@@ -991,7 +993,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
 
     except Exception as e:
         logging.error(f"Error loading realtime data for {symbol}: {e}")
-        conn.rollback()
+        pass  # Don't rollback - aborts entire transaction
         return None
 
 
@@ -1105,7 +1107,7 @@ if __name__ == "__main__":
         logging.info("✅ Schema migrations complete")
     except Exception as e:
         logging.error(f"Schema migration error: {e}")
-        conn.rollback()
+        pass  # Don't rollback - aborts entire transaction
 
     # Get symbols - load all non-ETF symbols (LIMIT removed to load all 5,476 stocks)
     cur.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y') ORDER BY symbol;")
@@ -1138,7 +1140,7 @@ if __name__ == "__main__":
         except Exception as e:
             logging.error(f"Failed {symbol}: {e}")
             failed.append(symbol)
-            conn.rollback()
+            pass  # Don't rollback - aborts entire transaction
 
     logging.info("=" * 80)
     logging.info("REAL-TIME DATA LOADING COMPLETE")

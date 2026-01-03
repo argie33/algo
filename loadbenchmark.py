@@ -114,8 +114,8 @@ def insert_benchmark_data(conn, symbol, hist):
         cur.close()
         return len(records)
     except psycopg2.Error as e:
-        conn.rollback()
         logger.error(f"❌ Database error inserting {symbol} data: {e}")
+        # Don't rollback - let the loader continue with next symbol
         return 0
 
 def main():
