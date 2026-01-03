@@ -4,7 +4,7 @@ Description: >
   for stock-symbols, econ-data, monthly-price, findata, pricedaily,
   priceweekly, pricemonthly, TechnicalsDaily, companyprofile, earningsestimate,
   technicalsweekly & technicalsmonthly. Includes buysell_etf_daily and factormetrics loaders (added Dec 27, 2025).
-  Deploy trigger: Jan 1, 2026 - Force deployment of all loaders to AWS ECS.
+  Deploy trigger: Jan 3, 2026 - Fix stock-scores-loader with momentum_intraweek column and restore TTM loaders
 
 Parameters:
   StockSymbolsImageTag:
