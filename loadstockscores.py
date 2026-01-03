@@ -3782,6 +3782,12 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 return None
             return max(0, min(100, float(score)))
 
+        # Clamp to DECIMAL(5,2) range (-99.99 to 99.99) for percentage/ratio fields
+        def clamp_decimal52(value):
+            if value is None:
+                return None
+            return max(-99.99, min(99.99, float(value)))
+
         # Option 1 + API Flagging: Track missing metrics for data completeness flagging
         # Identify available metrics and flag missing ones
         available_metrics = []
@@ -3893,26 +3899,26 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             'pe_ratio': float(round(pe_ratio, 2)) if pe_ratio is not None else None,
             'forward_pe': float(round(forward_pe, 2)) if forward_pe is not None else None,
             # Momentum components (technical confirmation + 3m/6m/12-3m percentiles)
-            'momentum_intraweek': float(round(momentum_intraweek, 2)) if momentum_intraweek is not None else None,
-            'momentum_short_term': float(round(momentum_3m_score, 2)) if momentum_3m_score is not None else None,
-            'momentum_medium_term': float(round(momentum_6m_score, 2)) if momentum_6m_score is not None else None,
-            'momentum_long_term': float(round(momentum_12_3_score, 2)) if momentum_12_3_score is not None else None,
+            'momentum_intraweek': float(round(clamp_decimal52(momentum_intraweek), 2)) if momentum_intraweek is not None else None,
+            'momentum_short_term': float(round(clamp_decimal52(momentum_3m_score), 2)) if momentum_3m_score is not None else None,
+            'momentum_medium_term': float(round(clamp_decimal52(momentum_6m_score), 2)) if momentum_6m_score is not None else None,
+            'momentum_long_term': float(round(clamp_decimal52(momentum_12_3_score), 2)) if momentum_12_3_score is not None else None,
             'momentum_consistency': None,
-            'price_vs_sma_50': float(round(price_vs_sma_50, 2)) if price_vs_sma_50 is not None else None,
-            'price_vs_sma_200': float(round(price_vs_sma_200, 2)) if price_vs_sma_200 is not None else None,
-            'price_vs_52w_high': float(round(price_vs_52w_high, 2)) if price_vs_52w_high is not None else None,
-            'roc_10d': float(round(roc_10d, 2)) if roc_10d is not None else None,
-            'roc_20d': float(round(roc_20d, 2)) if roc_20d is not None else None,
-            'roc_60d': float(round(roc_60d, 2)) if roc_60d is not None else None,
-            'roc_120d': float(round(roc_120d, 2)) if roc_120d is not None else None,
-            'roc_252d': float(round(roc_252d, 2)) if roc_252d is not None else None,
-            'mom': float(round(mom_10d, 2)) if mom_10d is not None else None,
-            'mansfield_rs': float(round(mansfield_rs, 2)) if mansfield_rs is not None else None,
+            'price_vs_sma_50': float(round(clamp_decimal52(price_vs_sma_50), 2)) if price_vs_sma_50 is not None else None,
+            'price_vs_sma_200': float(round(clamp_decimal52(price_vs_sma_200), 2)) if price_vs_sma_200 is not None else None,
+            'price_vs_52w_high': float(round(clamp_decimal52(price_vs_52w_high), 2)) if price_vs_52w_high is not None else None,
+            'roc_10d': float(round(clamp_decimal52(roc_10d), 2)) if roc_10d is not None else None,
+            'roc_20d': float(round(clamp_decimal52(roc_20d), 2)) if roc_20d is not None else None,
+            'roc_60d': float(round(clamp_decimal52(roc_60d), 2)) if roc_60d is not None else None,
+            'roc_120d': float(round(clamp_decimal52(roc_120d), 2)) if roc_120d is not None else None,
+            'roc_252d': float(round(clamp_decimal52(roc_252d), 2)) if roc_252d is not None else None,
+            'mom': float(round(clamp_decimal52(mom_10d), 2)) if mom_10d is not None else None,
+            'mansfield_rs': float(round(clamp_decimal52(mansfield_rs), 2)) if mansfield_rs is not None else None,
             # Positioning component: Accumulation/Distribution Rating
-            'accumulation_distribution': float(round(acc_dist_rating, 2)) if acc_dist_rating is not None else None,
-            'short_interest': float(round(short_percent_of_float, 2)) if short_percent_of_float is not None else None,
-            'institutional_ownership': float(round(institutional_ownership, 2)) if institutional_ownership is not None else None,
-            'insider_ownership': float(round(insider_ownership, 2)) if insider_ownership is not None else None,
+            'accumulation_distribution': float(round(clamp_decimal52(acc_dist_rating), 2)) if acc_dist_rating is not None else None,
+            'short_interest': float(round(clamp_decimal52(short_percent_of_float), 2)) if short_percent_of_float is not None else None,
+            'institutional_ownership': float(round(clamp_decimal52(institutional_ownership), 2)) if institutional_ownership is not None else None,
+            'insider_ownership': float(round(clamp_decimal52(insider_ownership), 2)) if insider_ownership is not None else None,
             'institution_count': int(institution_count) if institution_count is not None else None,
             # JSONB Input Columns - Store all component details for frontend display
             'momentum_inputs': json.dumps({
