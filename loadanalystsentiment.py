@@ -200,21 +200,12 @@ def load_analyst_sentiment(symbols, cur, conn):
             upside_downside_percent  # upside_downside_percent
         ]
 
-        # Insert with UPSERT (using actual table columns: bullish_count, neutral_count, bearish_count)
+        # Insert analyst sentiment data (fresh load, no conflicts expected)
         sql = """
             INSERT INTO analyst_sentiment_analysis
             (symbol, date_recorded, bullish_count, neutral_count, bearish_count,
              total_analysts, target_price, current_price, upside_downside_percent)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (symbol) DO UPDATE SET
-                date_recorded = EXCLUDED.date_recorded,
-                bullish_count = EXCLUDED.bullish_count,
-                neutral_count = EXCLUDED.neutral_count,
-                bearish_count = EXCLUDED.bearish_count,
-                total_analysts = EXCLUDED.total_analysts,
-                target_price = EXCLUDED.target_price,
-                current_price = EXCLUDED.current_price,
-                upside_downside_percent = EXCLUDED.upside_downside_percent
         """
 
         try:
