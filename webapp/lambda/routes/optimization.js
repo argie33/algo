@@ -3044,8 +3044,6 @@ router.get("/swing-trading", authenticateToken, async (req, res) => {
         },
         allocations: allocations,
         recommendations: recommendations,
-        portfolioAnalysis: result.portfolioAnalysis,
-        performanceAttribution: result.performanceAttribution,
         summary: result.summary
       },
       success: true
