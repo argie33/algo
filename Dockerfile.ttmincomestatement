@@ -24,4 +24,5 @@ COPY loadttmincomestatement.py .
 ENV PYTHONUNBUFFERED=1
 
 # Run the loader
+# Build trigger: 2026-01-03 08:00 CST
 CMD ["python", "loadttmincomestatement.py"] 

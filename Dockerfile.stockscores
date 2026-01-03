@@ -18,6 +18,6 @@ ENV AWS_DEFAULT_REGION=us-east-1
 # Set the entrypoint
 ENTRYPOINT ["python", "-u", "loadstockscores.py"]
 
-# REBUILD TRIGGER: Deploying fixes for None value handling in margin score calculation
-# Commit: 28f339ac9 - Fix: Handle None values in margin expansion score calculation  
-# Also includes: Unbuffered Python output, Docker filename fixes
+# REBUILD TRIGGER: 2026-01-03 08:01 CST - Adding missing momentum_intraweek column
+# Fix: Ensure momentum_intraweek column exists in stock_scores table
+# Prevents "column ss.momentum_intraweek does not exist" database errors

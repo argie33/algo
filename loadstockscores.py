@@ -4331,6 +4331,7 @@ def main():
                 cursor.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS analyst_rating DECIMAL(5,2)")
                 cursor.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS news_sentiment DECIMAL(5,2)")
                 cursor.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS aaii_sentiment DECIMAL(5,2)")
+                cursor.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS momentum_intraweek DECIMAL(5,2)")
                 logger.info("✅ stock_scores ALL columns ready")
             except Exception as e:
                 logger.warning(f"⚠️  stock_scores columns: {e}")
