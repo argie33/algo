@@ -60,6 +60,68 @@ async function fixLoaderTableSchemas() {
   console.log("🔧 Fixing loader table schemas to match loader scripts...");
 
   try {
+    // CRITICAL FIX #1: Add missing momentum_intraweek column to stock_scores
+    console.log("  📊 Adding missing momentum_intraweek column to stock_scores...");
+    try {
+      await query("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS momentum_intraweek DECIMAL(5,2);");
+      console.log("  ✅ momentum_intraweek column added to stock_scores");
+    } catch (e) {
+      console.log("  ℹ️  momentum_intraweek column already exists");
+    }
+
+    // CRITICAL FIX #2: Create performance indexes for query optimization (prevents HTTP 500 timeouts)
+    console.log("  📊 Creating critical performance indexes...");
+    const indexes = [
+      "CREATE INDEX IF NOT EXISTS idx_signal_daily_symbol_date ON signal_daily(symbol, date DESC)",
+      "CREATE INDEX IF NOT EXISTS idx_signal_weekly_symbol_date ON signal_weekly(symbol, date DESC)",
+      "CREATE INDEX IF NOT EXISTS idx_signal_monthly_symbol_date ON signal_monthly(symbol, date DESC)",
+      "CREATE INDEX IF NOT EXISTS idx_price_daily_symbol_date ON price_daily(symbol, date DESC)",
+      "CREATE INDEX IF NOT EXISTS idx_price_weekly_symbol_date ON price_weekly(symbol, date DESC)",
+      "CREATE INDEX IF NOT EXISTS idx_price_monthly_symbol_date ON price_monthly(symbol, date DESC)",
+      "CREATE INDEX IF NOT EXISTS idx_stock_scores_symbol ON stock_scores(symbol)",
+      "CREATE INDEX IF NOT EXISTS idx_stock_scores_composite ON stock_scores(composite_score DESC)",
+      "CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_symbol ON buy_sell_daily(symbol, date DESC)",
+      "CREATE INDEX IF NOT EXISTS idx_buy_sell_weekly_symbol ON buy_sell_weekly(symbol, date DESC)",
+      "CREATE INDEX IF NOT EXISTS idx_buy_sell_monthly_symbol ON buy_sell_monthly(symbol, date DESC)",
+      "CREATE INDEX IF NOT EXISTS idx_company_profile_ticker ON company_profile(ticker)",
+      "CREATE INDEX IF NOT EXISTS idx_etf_symbols_symbol ON etf_symbols(symbol)",
+      "CREATE INDEX IF NOT EXISTS idx_stock_symbols_symbol ON stock_symbols(symbol)"
+    ];
+
+    for (const indexSql of indexes) {
+      try {
+        await query(indexSql);
+      } catch (e) {
+        // Index might already exist, continue
+      }
+    }
+    console.log("  ✅ Performance indexes created");
+
+    // CRITICAL FIX #3: Ensure optimization_trades table exists without user_id requirement
+    console.log("  📊 Ensuring optimization_trades table schema...");
+    try {
+      await query(`
+        CREATE TABLE IF NOT EXISTS optimization_trades (
+          id SERIAL PRIMARY KEY,
+          symbol VARCHAR(20) NOT NULL,
+          entry_price DECIMAL(10,4) NOT NULL,
+          exit_price DECIMAL(10,4),
+          quantity INTEGER NOT NULL,
+          executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          exited_at TIMESTAMP,
+          status VARCHAR(20) DEFAULT 'open',
+          pnl DECIMAL(10,2),
+          return_pct DECIMAL(10,4),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      console.log("  ✅ optimization_trades table created");
+    } catch (e) {
+      // Table might already exist
+      console.log("  ℹ️  optimization_trades table already exists");
+    }
+
     // Fix earnings_metrics table - recreate to match loadearningsmetrics.py schema
     console.log("  📊 Fixing earnings_metrics table schema...");
 
@@ -85,6 +147,7 @@ async function fixLoaderTableSchemas() {
     await query("CREATE INDEX IF NOT EXISTS idx_earnings_metrics_date ON earnings_metrics(report_date DESC);");
 
     console.log("  ✅ earnings_metrics table schema fixed");
+    console.log("  ✅ All critical database schema fixes applied");
 
   } catch (error) {
     console.error("  ❌ Loader table schema fix error:", error);
