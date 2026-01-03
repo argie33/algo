@@ -597,3 +597,5 @@ module.exports.handler = serverlessHttp(app);
 // Emergency fix 1759448244
 // Trigger Lambda deployment - test schema fixes
 // Fixed: Added serverless-http handler export 2025-10-28 17:04 UTC
+// Fixed: Restored stocks.js route handler (HTTP 404 fix)
+// Trigger: Rebuild Lambda with fixed routes - 2026-01-03
