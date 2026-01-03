@@ -882,65 +882,48 @@ def load_sentiment_batch(symbols: List[str], conn, cur, batch_size: int = 10) ->
                 if analyst_data:
                     analyst_insert = """
                         INSERT INTO analyst_sentiment_analysis
-                        (symbol, date, strong_buy_count, buy_count, hold_count, sell_count,
-                         strong_sell_count, total_analysts, upgrades_last_30d, downgrades_last_30d, initiations_last_30d,
-                         avg_price_target, high_price_target, low_price_target,
-                         price_target_vs_current, eps_revisions_up_last_30d, eps_revisions_down_last_30d,
-                         revenue_revisions_up_last_30d, revenue_revisions_down_last_30d,
-                         recommendation_mean)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (symbol, date) DO UPDATE SET
-                            strong_buy_count = EXCLUDED.strong_buy_count,
-                            buy_count = EXCLUDED.buy_count,
-                            hold_count = EXCLUDED.hold_count,
-                            sell_count = EXCLUDED.sell_count,
-                            strong_sell_count = EXCLUDED.strong_sell_count,
+                        (symbol, date_recorded, bullish_count, neutral_count, bearish_count,
+                         total_analysts, target_price, current_price, upside_downside_percent)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (symbol) DO UPDATE SET
+                            date_recorded = EXCLUDED.date_recorded,
+                            bullish_count = EXCLUDED.bullish_count,
+                            neutral_count = EXCLUDED.neutral_count,
+                            bearish_count = EXCLUDED.bearish_count,
                             total_analysts = EXCLUDED.total_analysts,
-                            upgrades_last_30d = EXCLUDED.upgrades_last_30d,
-                            downgrades_last_30d = EXCLUDED.downgrades_last_30d,
-                            initiations_last_30d = EXCLUDED.initiations_last_30d,
-                            avg_price_target = EXCLUDED.avg_price_target,
-                            high_price_target = EXCLUDED.high_price_target,
-                            low_price_target = EXCLUDED.low_price_target,
-                            price_target_vs_current = EXCLUDED.price_target_vs_current,
-                            eps_revisions_up_last_30d = EXCLUDED.eps_revisions_up_last_30d,
-                            eps_revisions_down_last_30d = EXCLUDED.eps_revisions_down_last_30d,
-                            revenue_revisions_up_last_30d = EXCLUDED.revenue_revisions_up_last_30d,
-                            revenue_revisions_down_last_30d = EXCLUDED.revenue_revisions_down_last_30d,
-                            recommendation_mean = EXCLUDED.recommendation_mean
+                            target_price = EXCLUDED.target_price,
+                            current_price = EXCLUDED.current_price,
+                            upside_downside_percent = EXCLUDED.upside_downside_percent
                     """
                     for analyst_tuple in analyst_data:
                         try:
-                            # analyst_tuple is (symbol, date, strong_buy, buy, hold, sell, strong_sell,
-                            #                   total, upgrades, downgrades, initiations, avg_target, high_target,
-                            #                   low_target, price_vs_current, eps_up, eps_down, rev_up, rev_down, rec_mean)
+                            # analyst_tuple contains analyst data - map to new schema
+                            # Structure: (symbol, date, strong_buy, buy, hold, sell, strong_sell,
+                            #            total, upgrades, downgrades, initiations, avg_target, ...)
                             symbol = analyst_tuple[0]
                             date_val = analyst_tuple[1]
-                            strong_buy = analyst_tuple[2]
-                            buy = analyst_tuple[3]
-                            hold = analyst_tuple[4]
-                            sell = analyst_tuple[5]
-                            strong_sell = analyst_tuple[6]
-                            total = analyst_tuple[7]
-                            upgrades = analyst_tuple[8]
-                            downgrades = analyst_tuple[9]
-                            initiations = analyst_tuple[10]
-                            avg_target = analyst_tuple[11]
-                            high_target = analyst_tuple[12]
-                            low_target = analyst_tuple[13]
-                            price_vs_current = analyst_tuple[14]
-                            eps_up = analyst_tuple[15]
-                            eps_down = analyst_tuple[16]
-                            rev_up = analyst_tuple[17]
-                            rev_down = analyst_tuple[18]
-                            rec_mean = analyst_tuple[19]
+                            strong_buy = analyst_tuple[2] if len(analyst_tuple) > 2 else None
+                            buy = analyst_tuple[3] if len(analyst_tuple) > 3 else None
+                            hold = analyst_tuple[4] if len(analyst_tuple) > 4 else None
+                            sell = analyst_tuple[5] if len(analyst_tuple) > 5 else None
+                            strong_sell = analyst_tuple[6] if len(analyst_tuple) > 6 else None
+                            total = analyst_tuple[7] if len(analyst_tuple) > 7 else None
+                            avg_target = analyst_tuple[11] if len(analyst_tuple) > 11 else None
+
+                            # Map old schema to new schema columns
+                            bullish_count = None
+                            if strong_buy is not None and buy is not None:
+                                bullish_count = strong_buy + buy
+
+                            neutral_count = hold
+
+                            bearish_count = None
+                            if sell is not None and strong_sell is not None:
+                                bearish_count = sell + strong_sell
 
                             cur.execute(analyst_insert, (
-                                symbol, date_val, strong_buy, buy, hold, sell, strong_sell,
-                                total, upgrades, downgrades, initiations,
-                                avg_target, high_target, low_target,
-                                price_vs_current, eps_up, eps_down, rev_up, rev_down,
-                                rec_mean
+                                symbol, date_val, bullish_count, neutral_count, bearish_count,
+                                total, avg_target, None, None
                             ))
                             logging.debug(f"✓ Inserted analyst data for {symbol}: {total} analysts")
                         except Exception as e:

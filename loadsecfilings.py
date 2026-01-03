@@ -203,18 +203,20 @@ def load_sec_data():
             if "revenue" in data:
                 try:
                     cur.execute("""
-                        INSERT INTO annual_income_statement (symbol, date, revenue, operating_income, net_income)
-                        VALUES (%s, %s, %s, %s, %s)
+                        INSERT INTO annual_income_statement (symbol, date, revenue, operating_income, net_income, eps)
+                        VALUES (%s, %s, %s, %s, %s, %s)
                         ON CONFLICT (symbol, date) DO UPDATE SET
                             revenue = COALESCE(EXCLUDED.revenue, annual_income_statement.revenue),
                             operating_income = COALESCE(EXCLUDED.operating_income, annual_income_statement.operating_income),
-                            net_income = COALESCE(EXCLUDED.net_income, annual_income_statement.net_income)
+                            net_income = COALESCE(EXCLUDED.net_income, annual_income_statement.net_income),
+                            eps = COALESCE(EXCLUDED.eps, annual_income_statement.eps)
                     """, (
                         symbol,
                         data.get("revenue_date"),
                         data.get("revenue"),
                         data.get("operating_income"),
-                        data.get("net_income")
+                        data.get("net_income"),
+                        None
                     ))
                     conn.commit()
                     loaded += 1
