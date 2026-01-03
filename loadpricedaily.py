@@ -436,44 +436,32 @@ if __name__ == "__main__":
 
     conn.commit()
 
-    # Load stock symbols
+    # Load stock symbols - only ones not already in price_daily
     cur.execute("SELECT symbol FROM stock_symbols;")
     all_stock_syms = [r["symbol"] for r in cur.fetchall()]
 
-    # In incremental mode, reload ALL symbols to get recent data
-    # In full historical mode, only load symbols without any data
-    if args.incremental:
-        stock_syms = all_stock_syms
-        logging.info(f"INCREMENTAL MODE: Reloading recent data for ALL {len(all_stock_syms)} stocks")
-    else:
-        # Get symbols that already have price data (only for historical/default mode)
-        cur.execute("SELECT DISTINCT symbol FROM price_daily;")
-        loaded_stock_syms = {r["symbol"] for r in cur.fetchall()}
+    # Get symbols that already have price data
+    cur.execute("SELECT DISTINCT symbol FROM price_daily;")
+    loaded_stock_syms = {r["symbol"] for r in cur.fetchall()}
 
-        # Filter to only missing symbols
-        stock_syms = [s for s in all_stock_syms if s not in loaded_stock_syms]
-        logging.info(f"Total stock symbols: {len(all_stock_syms)}, already loaded: {len(loaded_stock_syms)}, remaining: {len(stock_syms)}")
+    # Filter to only missing symbols
+    stock_syms = [s for s in all_stock_syms if s not in loaded_stock_syms]
+    logging.info(f"Total stock symbols: {len(all_stock_syms)}, already loaded: {len(loaded_stock_syms)}, remaining: {len(stock_syms)}")
 
     t_s, i_s, f_s = load_prices("price_daily", stock_syms, cur, conn)
 
-    # Load all ETF symbols (from etf_symbols table if it exists)
+    # Load all ETF symbols (from etf_symbols table if it exists) - only ones not already in etf_price_daily
     try:
         cur.execute("SELECT symbol FROM etf_symbols;")
         all_etf_syms = [r["symbol"] for r in cur.fetchall()]
 
-        # In incremental mode, reload ALL symbols to get recent data
-        # In full historical mode, only load symbols without any data
-        if args.incremental:
-            etf_syms = all_etf_syms
-            logging.info(f"INCREMENTAL MODE: Reloading recent data for ALL {len(all_etf_syms)} ETFs")
-        else:
-            # Get ETF symbols that already have price data
-            cur.execute("SELECT DISTINCT symbol FROM etf_price_daily;")
-            loaded_etf_syms = {r["symbol"] for r in cur.fetchall()}
+        # Get ETF symbols that already have price data
+        cur.execute("SELECT DISTINCT symbol FROM etf_price_daily;")
+        loaded_etf_syms = {r["symbol"] for r in cur.fetchall()}
 
-            # Filter to only missing ETF symbols
-            etf_syms = [s for s in all_etf_syms if s not in loaded_etf_syms]
-            logging.info(f"Total ETF symbols: {len(all_etf_syms)}, already loaded: {len(loaded_etf_syms)}, remaining: {len(etf_syms)}")
+        # Filter to only missing ETF symbols
+        etf_syms = [s for s in all_etf_syms if s not in loaded_etf_syms]
+        logging.info(f"Total ETF symbols: {len(all_etf_syms)}, already loaded: {len(loaded_etf_syms)}, remaining: {len(etf_syms)}")
 
         t_w, i_w, f_w = load_prices("etf_price_daily", etf_syms, cur, conn)
     except psycopg2.errors.UndefinedTable:
