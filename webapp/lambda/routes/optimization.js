@@ -2434,7 +2434,8 @@ router.get("/analysis", authenticateToken, async (req, res) => {
           executionPriority: bestScore > 75 ? 'EXECUTE IMMEDIATELY' : bestScore > 60 ? 'EXECUTE SOON' : 'EXECUTE WITHIN MONTH'
         };
       })
-      .sort((a, b) => b.bestScore - a.bestScore); // Return ALL recommendations, sorted by quality
+      .sort((a, b) => b.bestScore - a.bestScore)
+      .slice(0, 15) // SWING TRADING: Limit to top 15 recommendations (12-15 stock portfolio)
 
     // ============================================================================
     // SECTOR ALLOCATION BREAKDOWN - BEFORE & AFTER
