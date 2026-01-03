@@ -436,32 +436,19 @@ if __name__ == "__main__":
 
     conn.commit()
 
-    # Load stock symbols - only ones not already in price_daily
+    # Load ALL stock symbols - daily loader must update all symbols every day
+    # (not just new symbols like the initial load)
     cur.execute("SELECT symbol FROM stock_symbols;")
-    all_stock_syms = [r["symbol"] for r in cur.fetchall()]
-
-    # Get symbols that already have price data
-    cur.execute("SELECT DISTINCT symbol FROM price_daily;")
-    loaded_stock_syms = {r["symbol"] for r in cur.fetchall()}
-
-    # Filter to only missing symbols
-    stock_syms = [s for s in all_stock_syms if s not in loaded_stock_syms]
-    logging.info(f"Total stock symbols: {len(all_stock_syms)}, already loaded: {len(loaded_stock_syms)}, remaining: {len(stock_syms)}")
+    stock_syms = [r["symbol"] for r in cur.fetchall()]
+    logging.info(f"Loading daily prices for ALL {len(stock_syms)} stock symbols (daily update mode)")
 
     t_s, i_s, f_s = load_prices("price_daily", stock_syms, cur, conn)
 
-    # Load all ETF symbols (from etf_symbols table if it exists) - only ones not already in etf_price_daily
+    # Load ALL ETF symbols (from etf_symbols table if it exists) - daily loader updates all symbols
     try:
         cur.execute("SELECT symbol FROM etf_symbols;")
-        all_etf_syms = [r["symbol"] for r in cur.fetchall()]
-
-        # Get ETF symbols that already have price data
-        cur.execute("SELECT DISTINCT symbol FROM etf_price_daily;")
-        loaded_etf_syms = {r["symbol"] for r in cur.fetchall()}
-
-        # Filter to only missing ETF symbols
-        etf_syms = [s for s in all_etf_syms if s not in loaded_etf_syms]
-        logging.info(f"Total ETF symbols: {len(all_etf_syms)}, already loaded: {len(loaded_etf_syms)}, remaining: {len(etf_syms)}")
+        etf_syms = [r["symbol"] for r in cur.fetchall()]
+        logging.info(f"Loading daily prices for ALL {len(etf_syms)} ETF symbols (daily update mode)")
 
         t_w, i_w, f_w = load_prices("etf_price_daily", etf_syms, cur, conn)
     except psycopg2.errors.UndefinedTable:
