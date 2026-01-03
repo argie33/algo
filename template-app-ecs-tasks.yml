@@ -2823,7 +2823,7 @@ Resources:
       ServiceName: quality-metrics-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 0
+      DesiredCount: 1
       TaskDefinition: !Ref QualityMetricsTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2884,7 +2884,7 @@ Resources:
       ServiceName: growth-metrics-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 0
+      DesiredCount: 1
       TaskDefinition: !Ref GrowthMetricsTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2945,7 +2945,7 @@ Resources:
       ServiceName: value-metrics-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 0
+      DesiredCount: 1
       TaskDefinition: !Ref ValueMetricsTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
