@@ -116,6 +116,7 @@ def create_tables_if_needed(conn):
         logger.info("✅ industry_ranking table ready")
 
         # Create sector_performance table
+        cursor.execute("DROP TABLE IF EXISTS sector_performance CASCADE")
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS sector_performance (
                 id SERIAL PRIMARY KEY,
@@ -132,6 +133,7 @@ def create_tables_if_needed(conn):
         logger.info("✅ sector_performance table ready")
 
         # Create industry_performance table
+        cursor.execute("DROP TABLE IF EXISTS industry_performance CASCADE")
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS industry_performance (
                 id SERIAL PRIMARY KEY,
@@ -148,6 +150,7 @@ def create_tables_if_needed(conn):
         logger.info("✅ industry_performance table ready")
 
         # Create sector_technical_data table
+        cursor.execute("DROP TABLE IF EXISTS sector_technical_data CASCADE")
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS sector_technical_data (
                 id SERIAL PRIMARY KEY,
@@ -166,6 +169,7 @@ def create_tables_if_needed(conn):
         logger.info("✅ sector_technical_data table ready")
 
         # Create industry_technical_data table
+        cursor.execute("DROP TABLE IF EXISTS industry_technical_data CASCADE")
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS industry_technical_data (
                 id SERIAL PRIMARY KEY,
