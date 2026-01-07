@@ -50,12 +50,13 @@ logger = logging.getLogger("loadoptionschains")
 def get_db_config():
     """Get database configuration from environment or AWS Secrets Manager."""
     # Try local environment first
-    if os.environ.get("DB_HOST"):
+    db_host = os.environ.get("DB_HOST") or os.environ.get("DATABASE_HOST")
+    if db_host:
         return {
-            "host": os.environ.get("DB_HOST", "localhost"),
+            "host": db_host,
             "port": int(os.environ.get("DB_PORT", "5432")),
             "user": os.environ.get("DB_USER", "stocks"),
-            "password": os.environ.get("DB_PASSWORD", ""),
+            "password": os.environ.get("DB_PASSWORD", "bed0elAn"),
             "dbname": os.environ.get("DB_NAME", "stocks")
         }
 
@@ -63,7 +64,15 @@ def get_db_config():
     try:
         secret_arn = os.environ.get("DB_SECRET_ARN")
         if not secret_arn:
-            raise ValueError("DB_SECRET_ARN not set and DB_HOST not found")
+            # If no DB_HOST and no DB_SECRET_ARN, assume local defaults
+            logger.warning("DB_SECRET_ARN not set and DB_HOST not found, using localhost defaults")
+            return {
+                "host": "localhost",
+                "port": 5432,
+                "user": "stocks",
+                "password": "bed0elAn",
+                "dbname": "stocks"
+            }
 
         client = boto3.client("secretsmanager")
         secret_str = client.get_secret_value(SecretId=secret_arn)["SecretString"]

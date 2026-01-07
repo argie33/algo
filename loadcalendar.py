@@ -57,8 +57,8 @@ def get_db_config():
 
     # Fall back to environment variables (for local development)
     return (
-        os.getenv("DB_USER", "postgres"),
-        os.getenv("DB_PASSWORD", "password"),
+        os.getenv("DB_USER", "stocks"),
+        os.getenv("DB_PASSWORD", "bed0elAn"),
         os.getenv("DB_HOST", "localhost"),
         int(os.getenv("DB_PORT", 5432)),
         os.getenv("DB_NAME", "stocks")
