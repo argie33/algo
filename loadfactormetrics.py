@@ -18,7 +18,7 @@ Data Loaded:
 
 Author: Financial Dashboard System
 Updated: 2025-11-17
-Trigger: 20251227-120600-AWS-ECS - Load factor metrics derived from key metrics
+Trigger: 20260107-220000-AWS-ECS - Force rebuild with improved beta calculation
 """
 
 import gc

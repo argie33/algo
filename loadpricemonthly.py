@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Monthly price data loader - fetches monthly OHLCV data for all symbols
-# Trigger deploy-app-stocks workflow test - monthly loader update v13 - API key encryption secret added to Lambda environment
+# FORCE REBUILD TRIGGER: 20260107-220000-AWS-ECS - Monthly price loader with signal-based timeout
 import sys
 import time
 import logging
