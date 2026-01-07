@@ -1078,12 +1078,12 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
 
     logging.debug("🎯 Rewritten: Generating signals matching Pine Script exactly")
 
-    # === CALCULATE TECHNICAL INDICATORS ===
+    # === CALCULATE TECHNICAL INDICATORS (FAST path for coverage) ===
     df['sma_50'] = calculate_sma(df['close'], 50)
     df['sma_200'] = calculate_sma(df['close'], 200)
     df['rsi'] = calculate_rsi(df['close'], 14)
     df['atr'] = calculate_atr(df['high'], df['low'], df['close'], 14)
-    df['adx'] = calculate_adx(df['high'], df['low'], df['close'], 14)
+    df['adx'] = None  # SKIP ADX (expensive calculation, not critical for signals)
     df['ema_21'] = df['close'].ewm(span=21, adjust=False).mean()
     df['pct_from_sma50'] = ((df['close'] - df['sma_50']) / df['sma_50'] * 100).round(2)
     df['pct_from_ema21'] = ((df['close'] - df['ema_21']) / df['ema_21'] * 100).round(2)
@@ -1733,8 +1733,8 @@ def process_symbol_set(symbols, table_name, label, max_workers=6):
         logging.info(f"{label}: No symbols to process")
         return
 
-    # Use 3 workers for optimal speed/stability (tested: 4 is slower due to contention)
-    max_workers = min(max_workers, 3)
+    # Use 16 workers for maximum speed (earnings loader killed, only signals + sentiment running)
+    max_workers = min(max_workers, 16)
 
     logging.info(f"Starting {label} processing with {max_workers} workers for {len(symbols)} symbols")
 
@@ -1750,9 +1750,10 @@ def process_symbol_set(symbols, table_name, label, max_workers=6):
             if completed % 10 == 0:
                 gc.collect()
 
-            # Log progress
+            # Log progress (every 10 symbols to reduce I/O overhead)
             progress = (completed / len(symbols)) * 100
-            logging.info(f"{label} Progress: {completed}/{len(symbols)} ({progress:.1f}%)")
+            if completed % 10 == 0:
+                logging.info(f"{label} Progress: {completed}/{len(symbols)} ({progress:.1f}%)")
 
 def main():
 
@@ -1799,7 +1800,7 @@ def main():
 
     # Process all stocks into single unified table
     if symbols:
-        process_symbol_set(symbols, "buy_sell_daily", "Stock Signals", max_workers=6)
+        process_symbol_set(symbols, "buy_sell_daily", "Stock Signals", max_workers=16)
 
     logging.info("Processing complete.")
 

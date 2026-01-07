@@ -148,17 +148,16 @@ const FeatureGrid = ({ title, subtitle, features, columns = { xs: 1, sm: 2, md: 
 
                       {/* Bullet Points (Optional) */}
                       {feature.bullets && (
-                        <Box sx={{ mb: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <Box sx={{ mb: 2, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1, width: '100%', px: 2 }}>
                           {feature.bullets.map((bullet, bidx) => (
                             <Box
                               key={bidx}
                               sx={{
                                 display: 'flex',
-                                alignItems: 'center',
-                                mb: 0.5,
+                                alignItems: 'flex-start',
                                 fontSize: '0.9rem',
                                 color: theme.palette.text.secondary,
-                                justifyContent: 'center',
+                                gap: 1,
                               }}
                             >
                               <Box
@@ -167,11 +166,11 @@ const FeatureGrid = ({ title, subtitle, features, columns = { xs: 1, sm: 2, md: 
                                   height: 4,
                                   borderRadius: '50%',
                                   backgroundColor: colors.main,
-                                  mr: 1.5,
                                   flexShrink: 0,
+                                  mt: 0.75,
                                 }}
                               />
-                              {bullet}
+                              <Box sx={{ flex: 1 }}>{bullet}</Box>
                             </Box>
                           ))}
                         </Box>

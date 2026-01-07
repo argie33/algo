@@ -1,25 +1,17 @@
 /**
- * Email Service Utility
- * Supports SendGrid, Mailgun, or SES
- * Configure EMAIL_SERVICE_PROVIDER environment variable
+ * Email Service Utility - AWS SES
+ * Sends emails via AWS Simple Email Service
  */
 
-const sgMail = process.env.EMAIL_SERVICE_PROVIDER === 'sendgrid'
-  ? require('@sendgrid/mail')
-  : null;
+const AWS = require('aws-sdk');
 
-let emailServiceProvider = process.env.EMAIL_SERVICE_PROVIDER || 'sendgrid';
-
-// Initialize SendGrid if configured
-if (emailServiceProvider === 'sendgrid' && sgMail) {
-  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-}
+const ses = new AWS.SES({ region: process.env.AWS_REGION || 'us-east-1' });
 
 /**
  * Send confirmation email to new subscriber
  * @param {string} email - Recipient email address
  * @param {object} options - Configuration options
- * @returns {Promise<object>} - Response from email service
+ * @returns {Promise<object>} - Response from SES
  */
 async function sendConfirmationEmail(email, options = {}) {
   try {
@@ -32,17 +24,32 @@ async function sendConfirmationEmail(email, options = {}) {
 
     const emailContent = generateWelcomeEmail(firstName, unsubscribeLink);
 
-    if (emailServiceProvider === 'sendgrid') {
-      return await sendWithSendGrid(email, fromEmail, fromName, emailContent);
-    } else if (emailServiceProvider === 'mailgun') {
-      return await sendWithMailgun(email, fromEmail, fromName, emailContent);
-    } else {
-      console.warn(`Email service provider '${emailServiceProvider}' not configured. Email would be sent to: ${email}`);
-      return { success: true, provider: 'none', message: 'Email service not configured - no email sent' };
-    }
+    const params = {
+      Source: `${fromName} <${fromEmail}>`,
+      Destination: {
+        ToAddresses: [email],
+      },
+      Message: {
+        Subject: {
+          Data: 'Welcome to Bullseye Financial Community',
+        },
+        Body: {
+          Html: {
+            Data: emailContent.html,
+          },
+          Text: {
+            Data: emailContent.text,
+          },
+        },
+      },
+    };
+
+    const result = await ses.sendEmail(params).promise();
+    console.log(`✅ Email sent via AWS SES to ${email}`);
+    return { success: true, provider: 'ses', messageId: result.MessageId };
 
   } catch (error) {
-    console.error('Error sending confirmation email:', error);
+    console.error('SES error:', error.message);
     throw error;
   }
 }
@@ -51,7 +58,7 @@ async function sendConfirmationEmail(email, options = {}) {
  * Send weekly newsletter
  * @param {string[]} emails - Array of recipient emails
  * @param {object} newsletter - Newsletter content
- * @returns {Promise<object>} - Response from email service
+ * @returns {Promise<object>} - Response from SES
  */
 async function sendNewsletter(emails, newsletter) {
   try {
@@ -63,85 +70,32 @@ async function sendNewsletter(emails, newsletter) {
       fromName = 'Bullseye Financial',
     } = newsletter;
 
-    if (emailServiceProvider === 'sendgrid') {
-      return await sendWithSendGrid(emails, fromEmail, fromName, { html: htmlContent, text: textContent }, subject);
-    } else if (emailServiceProvider === 'mailgun') {
-      return await sendWithMailgun(emails, fromEmail, fromName, { html: htmlContent, text: textContent }, subject);
-    } else {
-      console.warn(`Email service provider '${emailServiceProvider}' not configured. Newsletter would be sent to ${emails.length} recipients`);
-      return { success: true, provider: 'none', recipientCount: emails.length };
-    }
-
-  } catch (error) {
-    console.error('Error sending newsletter:', error);
-    throw error;
-  }
-}
-
-/**
- * Send with SendGrid
- */
-async function sendWithSendGrid(to, fromEmail, fromName, content, subject = 'Welcome to Bullseye Financial Community') {
-  try {
-    if (!process.env.SENDGRID_API_KEY) {
-      throw new Error('SENDGRID_API_KEY is not configured');
-    }
-
-    const msg = {
-      to: Array.isArray(to) ? to : [to],
-      from: {
-        email: fromEmail,
-        name: fromName,
+    const params = {
+      Source: `${fromName} <${fromEmail}>`,
+      Destination: {
+        ToAddresses: emails,
       },
-      subject,
-      html: content.html || content,
-      text: content.text || '',
-      trackingSettings: {
-        clickTracking: { enable: true },
-        openTracking: { enable: true },
+      Message: {
+        Subject: {
+          Data: subject,
+        },
+        Body: {
+          Html: {
+            Data: htmlContent,
+          },
+          Text: {
+            Data: textContent,
+          },
+        },
       },
     };
 
-    const response = await sgMail.send(msg);
-    console.log(`✅ Email sent via SendGrid to ${Array.isArray(to) ? to.length : 1} recipient(s)`);
-    return { success: true, provider: 'sendgrid', response };
+    const result = await ses.sendEmail(params).promise();
+    console.log(`✅ Newsletter sent via AWS SES to ${emails.length} recipients`);
+    return { success: true, provider: 'ses', messageId: result.MessageId };
 
   } catch (error) {
-    console.error('SendGrid error:', error.message);
-    throw error;
-  }
-}
-
-/**
- * Send with Mailgun
- */
-async function sendWithMailgun(to, fromEmail, fromName, content, subject = 'Welcome to Bullseye Financial Community') {
-  try {
-    if (!process.env.MAILGUN_API_KEY || !process.env.MAILGUN_DOMAIN) {
-      throw new Error('MAILGUN_API_KEY or MAILGUN_DOMAIN is not configured');
-    }
-
-    const mailgun = require('mailgun.js');
-    const client = new mailgun.default({ key: process.env.MAILGUN_API_KEY });
-    const mg = client.messages;
-
-    const messageData = {
-      from: `${fromName} <${fromEmail}>`,
-      to: Array.isArray(to) ? to.join(',') : to,
-      subject,
-      html: content.html || content,
-      text: content.text || '',
-      'o:tracking': true,
-      'o:tracking-clicks': true,
-      'o:tracking-opens': true,
-    };
-
-    const response = await mg.create(process.env.MAILGUN_DOMAIN, messageData);
-    console.log(`✅ Email sent via Mailgun to ${Array.isArray(to) ? to.length : 1} recipient(s)`);
-    return { success: true, provider: 'mailgun', response };
-
-  } catch (error) {
-    console.error('Mailgun error:', error.message);
+    console.error('SES error:', error.message);
     throw error;
   }
 }

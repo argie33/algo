@@ -1,0 +1,102 @@
+//@version=4
+
+study("DeMark TD Sequential - Bottoms & Tops", overlay=true)
+
+// === BACKTEST RANGE ===
+Start = input(defval = timestamp("01 Jan 2019 06:00 +0000"), title = "Start Time", type = input.time)
+Finish = input(defval = timestamp("01 Jan 2100 00:00 +0000"), title = "End Time", type = input.time)
+
+// === DEMARK SETTINGS ===
+seqLength = input(defval = 9, title = "TD Sequential Length", minval = 1)
+lookbackPeriod = input(defval = 4, title = "Close Lookback Period", minval = 1)
+
+useMaFilter = input(title = "Use MA Filter?", type = input.bool, defval = true)
+maType = input(defval="SMA", options=["EMA", "SMA"], title = "MA Type For Filtering")
+maLength = input(defval = 50, title = "MA Period for Filtering", minval = 1)
+
+// === MA FILTER ===
+ma(maType, src, length) =>
+    maType == "EMA" ? ema(src, length) : sma(src, length)
+maFilter = ma(maType, close, maLength)
+plot(maFilter, title = "Trend Filter MA", color = color.green, linewidth = 2, style = plot.style_line, transp = 50)
+
+maFilterCheck = if useMaFilter == true
+    maFilter
+else
+    0
+
+// === TD SEQUENTIAL - BUY SETUP (BOTTOMS) ===
+buySetupCondition = close < close[lookbackPeriod]
+buySetupCount = buySetupCondition ? nz(buySetupCount[1]) + 1 : 0
+buySetupComplete = buySetupCount == seqLength and buySetupCount[1] != seqLength
+
+buySetupHigh = buySetupComplete ? highest(high, seqLength) : na
+buySetupLow = buySetupComplete ? lowest(low, seqLength) : na
+
+// === TD SEQUENTIAL - SELL SETUP (TOPS) ===
+sellSetupCondition = close > close[lookbackPeriod]
+sellSetupCount = sellSetupCondition ? nz(sellSetupCount[1]) + 1 : 0
+sellSetupComplete = sellSetupCount == seqLength and sellSetupCount[1] != seqLength
+
+sellSetupHigh = sellSetupComplete ? highest(high, seqLength) : na
+sellSetupLow = sellSetupComplete ? lowest(low, seqLength) : na
+
+// === INVERSION DETECTION - BUY ===
+var float buyInversionPrice = 0.0
+var int buyInversionBar = 0
+buyInversion = false
+
+if buySetupComplete
+    buyInversionBar := bar_index
+    buyInversionPrice := buySetupHigh
+
+if close > buyInversionPrice and bar_index > buyInversionBar and buyInversionBar > 0
+    buyInversion := true
+
+// === INVERSION DETECTION - SELL ===
+var float sellInversionPrice = 0.0
+var int sellInversionBar = 0
+sellInversion = false
+
+if sellSetupComplete
+    sellInversionBar := bar_index
+    sellInversionPrice := sellSetupLow
+
+if close < sellInversionPrice and bar_index > sellInversionBar and sellInversionBar > 0
+    sellInversion := true
+
+// === ENTRY SIGNALS ===
+buy = buyInversion and time > Start and time < Finish and buySetupLow > maFilterCheck
+sell = sellInversion and time > Start and time < Finish
+
+// === PLOT SIGNALS ===
+plotshape(buySetupComplete ? buySetupLow : na, style = shape.circle, location = location.belowbar, color = #228B22, text = "Buy Setup")
+plotshape(sellSetupComplete ? sellSetupHigh : na, style = shape.circle, location = location.abovebar, color = #DC143C, text = "Sell Setup")
+
+plotshape(buyInversion ? low : na, style = shape.triangleup, location = location.belowbar, color = #00FF00, text = "BUY")
+plotshape(sellInversion ? high : na, style = shape.triangledown, location = location.abovebar, color = #FF0000, text = "SELL")
+
+// === STOP LEVELS ===
+plot(buySetupLow, style=plot.style_line, color=color.green, show_last=1, linewidth=1, transp=50, trackprice=true, title="Buy Stop Level")
+plot(sellSetupHigh, style=plot.style_line, color=color.red, show_last=1, linewidth=1, transp=50, trackprice=true, title="Sell Stop Level")
+
+// === ALERTS ===
+alertcondition(buy, title='DeMark Buy Setup', message='DeMark Buy Setup - Bottom Identified')
+alertcondition(sell, title='DeMark Sell Setup', message='DeMark Sell Setup - Top Identified')
+
+// === BACKGROUND COLOR ===
+inPosition = bool(na)
+inPosition := buy[1] ? true : sell[1] ? false : inPosition[1]
+flat = bool(na)
+flat := not inPosition
+
+tradeBackground = input(title="Color Background for Trades?", type=input.bool, defval=true)
+tradeBackgroundColor = tradeBackground and inPosition ? #00FF00 : na
+bgcolor(tradeBackgroundColor, transp=95)
+
+noTradeBackgroundColor = tradeBackground and flat ? #FF0000 : na
+bgcolor(noTradeBackgroundColor, transp=90)
+
+testPeriodBackground = input(title="Color Background - Test Period?", type=input.bool, defval=false)
+testPeriodBackgroundColor = testPeriodBackground and (time >= Start) and (time <= Finish) ? #00FF00 : na
+bgcolor(testPeriodBackgroundColor, transp=95)

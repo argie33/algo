@@ -36,7 +36,6 @@ import {
   Event as EventIcon,
   Timeline as TimelineIcon,
   Psychology as PsychologyIcon,
-  AccountBalance as AccountBalanceIcon,
   Analytics as AnalyticsIcon,
   HealthAndSafety as HealthAndSafetyIcon,
   Storage as StorageIcon,
@@ -117,12 +116,6 @@ const menuItems = [
     text: 'Hedge Helper',
     icon: <HealthAndSafetyIcon />,
     path: '/app/hedge-helper',
-    category: 'tools',
-  },
-  {
-    text: 'Portfolio Dashboard',
-    icon: <AccountBalanceIcon />,
-    path: '/app/portfolio',
     category: 'tools',
   },
 ];
