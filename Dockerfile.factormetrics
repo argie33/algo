@@ -13,5 +13,5 @@ COPY loadfactormetrics.py .
 ENV PYTHONUNBUFFERED=1
 ENV AWS_DEFAULT_REGION=us-east-1
 CMD ["python", "-u", "loadfactormetrics.py"]
-# Trigger: Improved beta calculation and edge case handling
-# Updated Jan 7 2026 - Better error messages and validation
+# Trigger: Force rebuild - Improved beta calculation and edge case handling
+# Updated Jan 7 2026 22:00 UTC - Force all loaders to build
