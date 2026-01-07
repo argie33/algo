@@ -15,5 +15,5 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r re
 ENV PYTHONUNBUFFERED=1
 ENV AWS_DEFAULT_REGION=us-east-1
 ENTRYPOINT ["python", "-u", "loadanalystsentiment.py"]
-# Trigger: Estimate analyst distribution from average rating
-# Updated Jan 7 2026 - Improved data completeness
+# Trigger: Force rebuild - Estimate analyst distribution from average rating
+# Updated Jan 7 2026 22:00 UTC - Force all loaders to build
