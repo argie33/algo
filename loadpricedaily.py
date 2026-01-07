@@ -4,7 +4,7 @@
 # Daily price data loader - fetches OHLCV data for all symbols
 # CRITICAL: Database has 0 price records. Must run to populate price_daily table for all pages/APIs
 # TRIGGER: 2025-10-27 - Loading price history for volatility, beta, Sharpe ratio calculations
-# Trigger: 20251225-AWS-RUN - Load price data to populate frontend (AWS deployment)
+# Trigger: 20260107-220000-AWS-RUN - Force rebuild with optimized batch processing
 import sys
 import time
 import logging

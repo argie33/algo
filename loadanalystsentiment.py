@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# BATCH 1 FOUNDATION TRIGGER: Deploy all foundation loaders concurrently
+# FORCE REBUILD TRIGGER: 20260107-220000-AWS-ECS - Ensure analyst sentiment images built
 """
 Analyst Sentiment Data Loader for yfinance
 Extracts analyst consensus ratings, price targets, and calculates rating distribution

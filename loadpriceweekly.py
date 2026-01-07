@@ -1,6 +1,6 @@
 #!/usr/bin/env python3 
 # Weekly price data loader - fetches weekly OHLCV data for all symbols
-# Trigger deploy-app-stocks workflow test - weekly loader update v13 - API key encryption secret added to Lambda environment
+# FORCE REBUILD TRIGGER: 20260107-220000-AWS-ECS - Weekly price loader with signal-based timeout
 import sys
 import time
 import logging
