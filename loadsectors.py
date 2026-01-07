@@ -459,13 +459,17 @@ def populate_sector_performance(conn):
             WHERE rn_1d = 1
         ),
         perf_5d AS (
-            SELECT sector, AVG(avg_return) as return_5d
+            SELECT
+                sector,
+                ((EXP(SUM(LN(1 + avg_return/100))) - 1) * 100) as return_5d
             FROM perf_windows
             WHERE trading_date <= latest_date AND trading_date > latest_date - INTERVAL '5 days'
             GROUP BY sector
         ),
         perf_20d AS (
-            SELECT sector, AVG(avg_return) as return_20d
+            SELECT
+                sector,
+                ((EXP(SUM(LN(1 + avg_return/100))) - 1) * 100) as return_20d
             FROM perf_windows
             WHERE trading_date <= latest_date AND trading_date > latest_date - INTERVAL '20 days'
             GROUP BY sector
@@ -582,13 +586,17 @@ def populate_industry_performance(conn):
             WHERE rn_1d = 1
         ),
         perf_5d AS (
-            SELECT industry, AVG(avg_return) as return_5d
+            SELECT
+                industry,
+                ((EXP(SUM(LN(1 + avg_return/100))) - 1) * 100) as return_5d
             FROM perf_windows
             WHERE trading_date <= latest_date AND trading_date > latest_date - INTERVAL '5 days'
             GROUP BY industry
         ),
         perf_20d AS (
-            SELECT industry, AVG(avg_return) as return_20d
+            SELECT
+                industry,
+                ((EXP(SUM(LN(1 + avg_return/100))) - 1) * 100) as return_20d
             FROM perf_windows
             WHERE trading_date <= latest_date AND trading_date > latest_date - INTERVAL '20 days'
             GROUP BY industry

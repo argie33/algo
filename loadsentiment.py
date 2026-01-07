@@ -772,13 +772,14 @@ def create_sentiment_tables(cur, conn):
     cur.execute(social_sql)
     cur.execute(sentiment_sql)
     
-    # Create indexes
+    # Create indexes - use CREATE INDEX IF NOT EXISTS to avoid errors if tables/indexes already exist
+    # Note: analyst_sentiment_analysis uses date_recorded, social_sentiment_analysis uses date
     indexes = [
         "CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_symbol ON analyst_sentiment_analysis(symbol);",
         "CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_date ON analyst_sentiment_analysis(date_recorded DESC);",
 
         "CREATE INDEX IF NOT EXISTS idx_social_sentiment_symbol ON social_sentiment_analysis(symbol);",
-        "CREATE INDEX IF NOT EXISTS idx_social_sentiment_date ON social_sentiment_analysis(date_recorded DESC);"
+        "CREATE INDEX IF NOT EXISTS idx_social_sentiment_date ON social_sentiment_analysis(date DESC);"
     ]
     
     for index_sql in indexes:
@@ -1072,13 +1073,13 @@ if __name__ == "__main__":
     
     # Get symbols to process
     cur.execute("""
-        SELECT symbol FROM stock_symbols_enhanced
+        SELECT symbol FROM stock_symbols
         ORDER BY symbol
     """)
     symbols = [row['symbol'] for row in cur.fetchall()]
     
     if not symbols:
-        logging.warning("No symbols found in stock_symbols_enhanced table. Run loadsymbols.py first.")
+        logging.warning("No symbols found in stock_symbols table. Run loadsymbols.py first.")
         sys.exit(1)
     
     logging.info(f"Loading sentiment data for {len(symbols)} symbols")
@@ -1110,7 +1111,7 @@ if __name__ == "__main__":
                a.total_analysts, a.recommendation_mean, a.price_target_vs_current,
                s.reddit_mention_count, s.news_sentiment_score, s.search_volume_index
         FROM analyst_sentiment_analysis a
-        JOIN stock_symbols_enhanced se ON a.symbol = se.symbol
+        JOIN stock_symbols se ON a.symbol = se.symbol
         LEFT JOIN social_sentiment_analysis s ON a.symbol = s.symbol AND a.date = s.date
         WHERE a.total_analysts > 0
         ORDER BY a.price_target_vs_current DESC NULLS LAST
