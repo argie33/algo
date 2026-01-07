@@ -3060,6 +3060,97 @@ Resources:
       LogGroupName: !Sub "/aws/ecs/benchmarks-loader"
       RetentionInDays: 3
 
+  # Missing log group resources for task definitions
+  AnalystUpgradeDowngradeLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/analystupgradedowngrade-loader
+      RetentionInDays: 3
+
+  CalendarLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/calendar-loader
+      RetentionInDays: 3
+
+  EarningsHistoryLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/earningshistory-loader
+      RetentionInDays: 3
+
+  FundamentalMetricsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/fundamentalmetrics-loader
+      RetentionInDays: 3
+
+  GrowthMetricsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/growthmetrics-loader
+      RetentionInDays: 3
+
+  LoadCompanyProfileLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/loadcompanyprofile-loader
+      RetentionInDays: 3
+
+  LoadFinancialsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/loadfinancials-loader
+      RetentionInDays: 3
+
+  LoadHistoricalLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/loadhistorical-loader
+      RetentionInDays: 3
+
+  MomentumLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/momentum-loader
+      RetentionInDays: 3
+
+  PositioningLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/positioning-loader
+      RetentionInDays: 3
+
+  QualityMetricsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/qualitymetrics-loader
+      RetentionInDays: 3
+
+  RiskMetricsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/riskmetrics-loader
+      RetentionInDays: 3
+
+  SectorDataLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/sectordata-loader
+      RetentionInDays: 3
+
+  SectorsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/sectors-loader
+      RetentionInDays: 3
+
+  ValueMetricsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/value-metrics-calculator
+      RetentionInDays: 3
+
   BenchmarksService:
     Type: AWS::ECS::Service
     Properties:
