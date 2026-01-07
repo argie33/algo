@@ -9,6 +9,7 @@ import os
 import gc
 import resource
 import math
+import signal
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
@@ -16,6 +17,38 @@ from datetime import datetime
 
 import boto3
 import yfinance as yf
+
+# ─── Timeout handler to forcibly kill hung downloads ───────────────
+class TimeoutException(Exception):
+    pass
+
+def timeout_handler(signum, frame):
+    raise TimeoutException("Download timed out - forcing kill")
+
+def download_with_timeout(tickers, period="max", interval="1mo", timeout_seconds=90):
+    """Wrapper that FORCIBLY kills downloads after timeout_seconds"""
+    signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(timeout_seconds)  # Set alarm
+    try:
+        df = yf.download(
+            tickers=tickers,
+            period=period,
+            interval=interval,
+            group_by="ticker",
+            auto_adjust=False,
+            actions=True,
+            threads=True,
+            progress=False,
+            timeout=60
+        )
+        signal.alarm(0)  # Cancel alarm
+        return df
+    except TimeoutException:
+        signal.alarm(0)  # Cancel alarm
+        raise TimeoutException(f"Download timeout after {timeout_seconds}s")
+    except Exception as e:
+        signal.alarm(0)  # Cancel alarm
+        raise
 
 # -------------------------------
 # Script metadata & logging setup
@@ -100,7 +133,7 @@ def load_prices(table_name, symbols, cur, conn):
     logging.info(f"Loading {table_name}: {total} symbols")
     inserted, failed = 0, []
     timeout_failures = []  # Track timeouts separately for end-of-load retry
-    CHUNK_SIZE, PAUSE = 20, 0.1
+    CHUNK_SIZE, PAUSE = 5, 0.1  # Reduced from 20 to prevent yf.download() hangs
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     for batch_idx in range(batches):
@@ -113,17 +146,7 @@ def load_prices(table_name, symbols, cur, conn):
             logging.info(f"{table_name} – batch {batch_idx+1}/{batches}, download attempt {attempt}")
             log_mem(f"{table_name} batch {batch_idx+1} start")
             try:
-                df = yf.download(
-                    tickers=yq_batch,
-                    period="max",
-                    interval="1mo",
-                    group_by="ticker",
-                    auto_adjust=False,   # FIXED: Match TradingView unadjusted prices
-                    actions=True,        # preserved
-                    threads=True,        # preserved
-                    progress=False,      # preserved
-                    timeout=60           # increased from default 10s to handle slow connections
-                )
+                df = download_with_timeout(yq_batch, timeout_seconds=90)
                 break
             except Exception as e:
                 logging.warning(f"{table_name} download failed: {e}; retrying…")
@@ -137,7 +160,7 @@ def load_prices(table_name, symbols, cur, conn):
                 last_error = None
                 for sym_attempt in range(1, MAX_SYMBOL_RETRIES + 1):
                     try:
-                        single_df = yf.download(orig_sym, period="max", interval="1mo", auto_adjust=False, actions=True, progress=False, timeout=60)
+                        single_df = download_with_timeout([orig_sym], timeout_seconds=90)
                         if not single_df.empty:
                             per_symbol_results[orig_sym] = single_df
                             symbol_success = True

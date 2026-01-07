@@ -479,11 +479,11 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
             prev_date, prev_revenue, prev_oi, prev_ni = income_data[1]
 
             # Calculate YoY (year-over-year) growth
-            # Only set if both current and previous values are valid
-            if prev_revenue and recent_revenue:
-                if prev_revenue > 0:
+            # Allow any valid numeric comparison (including negative/zero base values)
+            if prev_revenue is not None and recent_revenue is not None:
+                if prev_revenue != 0:
                     try:
-                        metrics["revenue_growth_yoy"] = ((recent_revenue - prev_revenue) / prev_revenue * 100)
+                        metrics["revenue_growth_yoy"] = ((recent_revenue - prev_revenue) / abs(prev_revenue) * 100)
                         logging.debug(f"DEBUG {symbol} revenue_growth_yoy: {metrics['revenue_growth_yoy']}")
                     except (TypeError, ValueError, ZeroDivisionError):
                         logging.debug(f"DEBUG {symbol} revenue_growth_yoy exception: prev={prev_revenue}, recent={recent_revenue}")
@@ -1025,7 +1025,11 @@ def get_stability_metrics(cursor, symbol: str) -> Dict:
         """, ('SPY',))
 
         spy_data = cursor.fetchall()
-        if len(spy_data) >= 20:
+        logging.debug(f"{symbol}: Beta calc - {len(price_data)} stock prices, {len(spy_data)} SPY prices")
+
+        if len(spy_data) < 20:
+            logging.warning(f"{symbol}: Insufficient SPY data for beta calculation ({len(spy_data)} days)")
+        elif len(spy_data) >= 20:
             spy_data = list(reversed(spy_data))
             spy_prices = [p[1] for p in spy_data]
 
@@ -1046,21 +1050,80 @@ def get_stability_metrics(cursor, symbol: str) -> Dict:
                 covariance = np.cov(stock_ret, spy_ret)[0][1]
                 market_variance = np.var(spy_ret)
 
-                if market_variance > 0:
+                if market_variance <= 0:
+                    logging.warning(f"{symbol}: Beta calculation skipped - market variance is {market_variance}")
+                elif market_variance > 0:
                     try:
                         beta = covariance / market_variance
                         # Handle complex numbers by taking the real part
                         if isinstance(beta, complex):
                             beta = beta.real
                         beta_f = float(beta)
-                        metrics["beta"] = beta_f if not np.isnan(beta_f) else None
-                    except (TypeError, ValueError):
-                        pass
+                        if np.isnan(beta_f):
+                            logging.warning(f"{symbol}: Beta calculation resulted in NaN")
+                            metrics["beta"] = None
+                        else:
+                            metrics["beta"] = beta_f
+                    except (TypeError, ValueError) as e:
+                        logging.warning(f"{symbol}: Beta calculation error: {e}")
 
     except Exception as e:
         logging.error(f"Error calculating stability metrics for {symbol}: {e}")
 
     return metrics
+
+
+def validate_beta_with_yfinance(symbol: str, calculated_beta: Optional[float]) -> Dict:
+    """
+    Validate our calculated beta against yfinance beta (for testing/validation only)
+
+    Returns:
+        dict with yfinance_beta, difference_pct, validation_status
+    """
+    import yfinance as yf
+
+    validation = {
+        "yfinance_beta": None,
+        "calculated_beta": calculated_beta,
+        "difference_pct": None,
+        "status": "NO_CALCULATED_BETA"
+    }
+
+    if calculated_beta is None:
+        return validation
+
+    try:
+        ticker = yf.Ticker(symbol)
+        yf_beta = ticker.info.get('beta')
+
+        if yf_beta is None:
+            validation["status"] = "NO_YFINANCE_BETA"
+            logging.debug(f"{symbol}: yfinance beta not available")
+            return validation
+
+        validation["yfinance_beta"] = float(yf_beta)
+
+        # Calculate percentage difference
+        if yf_beta != 0:
+            diff_pct = abs((calculated_beta - yf_beta) / yf_beta) * 100
+            validation["difference_pct"] = diff_pct
+
+            if diff_pct <= 10:
+                validation["status"] = "MATCH"
+            elif diff_pct <= 25:
+                validation["status"] = "CLOSE"
+                logging.info(f"{symbol}: Beta diff {diff_pct:.1f}% - Calculated: {calculated_beta:.3f}, yfinance: {yf_beta:.3f}")
+            else:
+                validation["status"] = "MISMATCH"
+                logging.warning(f"{symbol}: LARGE beta diff {diff_pct:.1f}% - Calculated: {calculated_beta:.3f}, yfinance: {yf_beta:.3f}")
+        else:
+            validation["status"] = "YFINANCE_BETA_ZERO"
+
+    except Exception as e:
+        logging.debug(f"{symbol}: Error validating beta: {e}")
+        validation["status"] = "ERROR"
+
+    return validation
 
 
 def calculate_momentum_metrics(
@@ -1722,6 +1785,37 @@ def load_stability_metrics(conn, cursor, symbols: List[str]):
             # Get traditional stability metrics (volatility, drawdown, beta)
             stability = get_stability_metrics(cursor, symbol)
 
+            # Validate beta if enabled (for testing/verification)
+            if os.environ.get("VALIDATE_BETA", "false").lower() == "true":
+                if stability.get("beta") is not None:
+                    validation = validate_beta_with_yfinance(symbol, stability["beta"])
+                    logging.debug(f"{symbol}: Beta validation result - {validation['status']}")
+
+                    # Store validation results in beta_validation table
+                    if validation["yfinance_beta"] is not None:
+                        try:
+                            cursor.execute("""
+                                INSERT INTO beta_validation
+                                (symbol, date, beta_calculated, beta_yfinance, difference_pct, validation_status)
+                                VALUES (%s, %s, %s, %s, %s, %s)
+                                ON CONFLICT (symbol, date) DO UPDATE SET
+                                    beta_calculated = EXCLUDED.beta_calculated,
+                                    beta_yfinance = EXCLUDED.beta_yfinance,
+                                    difference_pct = EXCLUDED.difference_pct,
+                                    validation_status = EXCLUDED.validation_status,
+                                    created_at = CURRENT_TIMESTAMP
+                            """, (
+                                symbol,
+                                today,
+                                validation["calculated_beta"],
+                                validation["yfinance_beta"],
+                                validation["difference_pct"],
+                                validation["status"]
+                            ))
+                            conn.commit()
+                        except Exception as e:
+                            logging.debug(f"Could not store beta validation for {symbol}: {e}")
+
             # Get volume-based stability metrics (consistency, velocity, ratio, spread)
             volume_metrics = get_volume_metrics(cursor, symbol)
 
@@ -2030,6 +2124,30 @@ def create_factor_metrics_tables(cursor):
         cursor.execute("""
             ALTER TABLE value_metrics
             ADD COLUMN IF NOT EXISTS payout_ratio FLOAT
+        """)
+
+        # Create beta_validation table for testing/validation
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS beta_validation (
+                symbol VARCHAR(50) NOT NULL,
+                date DATE NOT NULL,
+                beta_calculated DOUBLE PRECISION,
+                beta_yfinance DOUBLE PRECISION,
+                difference_pct DOUBLE PRECISION,
+                validation_status VARCHAR(50),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (symbol, date)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_beta_validation_symbol_date
+            ON beta_validation(symbol, date DESC)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_beta_validation_status
+            ON beta_validation(validation_status)
         """)
 
         # Create indexes for better performance
