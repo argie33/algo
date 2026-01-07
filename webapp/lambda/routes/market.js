@@ -2709,7 +2709,7 @@ router.get("/sentiment", async (req, res) => {
             ROUND(CAST(bullish AS decimal) / CAST((bullish + bearish + neutral) AS decimal) * 100, 2) as pct_bullish,
             ROUND(CAST(bearish AS decimal) / CAST((bullish + bearish + neutral) AS decimal) * 100, 2) as pct_bearish,
             date,
-            timestamp
+            fetched_at as timestamp
           FROM aaii_sentiment
           ORDER BY date DESC
           LIMIT 252
@@ -2721,11 +2721,11 @@ router.get("/sentiment", async (req, res) => {
       (async () => {
         const result = await query(`
           SELECT
-            value,
+            index_value as value,
             rating,
-            description,
+            '' as description,
             date,
-            timestamp
+            fetched_at as timestamp
           FROM fear_greed_index
           ORDER BY date DESC
           LIMIT 252
@@ -2737,12 +2737,12 @@ router.get("/sentiment", async (req, res) => {
       (async () => {
         const result = await query(`
           SELECT
-            mean,
-            median,
-            min_val as min,
-            max_val as max,
+            naaim_number_mean as mean,
+            quart2 as median,
+            quart1 as min,
+            quart3 as max,
             date,
-            timestamp
+            fetched_at as timestamp
           FROM naaim
           ORDER BY date DESC
           LIMIT 252

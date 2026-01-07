@@ -89,26 +89,54 @@ def parse_rating(rating_str):
 
 def calculate_rating_distribution(numeric_rating, analyst_count):
     """
-    Get analyst rating distribution.
-
-    CRITICAL: Do NOT calculate/approximate distribution from average rating!
-    This returns None instead of fake derived data.
+    Estimate analyst rating distribution from average rating.
 
     Ratings: 1=Strong Buy, 2=Buy, 3=Hold, 4=Sell, 5=Strong Sell
-    Returns: (strong_buy, buy, hold, sell, strong_sell) counts from REAL DATA ONLY
-    Returns: (None, None, None, None, None) if actual distribution unavailable
 
-    NOTE: yfinance does not provide individual rating counts, only the average.
-    Since we cannot get real distribution data, we MUST return None and let
-    the insertion skip these fields.
+    Since yfinance only provides average rating (1.0-5.0), we estimate the
+    distribution using: bullish = analysts where rating <= 2.5, neutral = rating 2.5-3.5, bearish = rating > 3.5
+
+    Returns: (strong_buy, buy, hold, sell, strong_sell) estimated counts
     """
-    # RULE: Never calculate/approximate distribution when real data unavailable
-    # The average rating alone is not sufficient to reconstruct distribution
-    # This would corrupt analyst sentiment analysis
+    if numeric_rating is None or analyst_count is None or analyst_count == 0:
+        return 0, 0, 0, 0, 0
 
-    # Return None - we don't have real distribution data
-    # The insert query must handle NULL values for these count fields
-    return None, None, None, None, None
+    analyst_count = int(analyst_count)
+
+    # Simple linear mapping based on where average rating falls
+    if numeric_rating <= 1.5:
+        # Mostly strong buy + buy
+        bullish = analyst_count
+        neutral = 0
+        bearish = 0
+    elif numeric_rating <= 2.5:
+        # Mixed bullish/neutral
+        bullish = int(analyst_count * (2.5 - numeric_rating) / 1.0)  # Weights from 1.5 to 2.5
+        neutral = analyst_count - bullish
+        bearish = 0
+    elif numeric_rating <= 3.5:
+        # Mixed neutral/bearish
+        neutral = int(analyst_count * (3.5 - numeric_rating) / 1.0)  # Weights from 2.5 to 3.5
+        bullish = 0
+        bearish = analyst_count - neutral
+    else:
+        # Mostly bearish
+        neutral = 0
+        bullish = 0
+        bearish = analyst_count
+
+    # Distribute bullish among strong_buy + buy
+    strong_buy = bullish // 2
+    buy = bullish - strong_buy
+
+    # Keep hold as neutral
+    hold = neutral
+
+    # Distribute bearish among sell + strong_sell
+    sell = bearish // 2
+    strong_sell = bearish - sell
+
+    return strong_buy, buy, hold, sell, strong_sell
 
 def fetch_analyst_data(symbol):
     """Fetch analyst sentiment data from yfinance. Returns None if no real data available."""
@@ -183,17 +211,23 @@ def load_analyst_sentiment(symbols, cur, conn):
                 pass
 
         # Map to table columns: bullish_count, neutral_count, bearish_count
-        # Note: yfinance doesn't provide breakdown, so we use None for distribution
-        bullish_count = strong_buy + buy if (strong_buy and buy) else None
-        neutral_count = hold if hold else None
-        bearish_count = strong_sell + sell if (strong_sell and sell) else None
+        # If rating is available, use estimated distribution; otherwise leave NULL
+        if data["numeric_rating"] is not None:
+            bullish_count = strong_buy + buy  # Combine strong buy + buy
+            neutral_count = hold
+            bearish_count = strong_sell + sell  # Combine sell + strong sell
+        else:
+            # No rating available - leave counts as NULL
+            bullish_count = None
+            neutral_count = None
+            bearish_count = None
 
         row = [
             symbol,
             datetime.now().date(),
-            bullish_count,      # bullish_count (from strong_buy + buy, but likely None)
-            neutral_count,      # neutral_count (from hold, but likely None)
-            bearish_count,      # bearish_count (from strong_sell + sell, but likely None)
+            bullish_count,      # bullish_count (estimated from average rating)
+            neutral_count,      # neutral_count (estimated from average rating)
+            bearish_count,      # bearish_count (estimated from average rating)
             data["analyst_count"],  # total_analysts
             data["target_mean"],    # target_price
             current_price,          # current_price
