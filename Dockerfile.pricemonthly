@@ -28,5 +28,5 @@ ENV LOG_LEVEL=ERROR
 
 # Run the script
 CMD ["python", "loadpricemonthly.py"]
-# Trigger Mon Oct 7 01:45 CDT 2025 - Deploy price loaders for weekly/monthly signals
-# Trigger Mon Oct 7 02:15 CDT 2025 - Fix Dockerfile base image
+# Trigger: Signal-based timeout and batch optimization
+# Updated Jan 7 2026 - Forced timeout handlers for reliability
