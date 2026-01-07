@@ -1,0 +1,115 @@
+//@version=4
+
+// Revision:        2
+// Author:          @millerrh
+// Strategy:  Enter long when recent swing high breaks out, using recent swing low as stop level.  Move stops up as higher lows print to act
+// as trailing stops.  Ride trend as long as it is there and the higher lows aren't breached.
+// Conditions/Variables
+//    1. Can place a user-defined percentage below swing low and swing high to use as a buffer for your stop to help avoid stop hunts
+//    2. Can add a filter to only take setups that are above a user-defined moving average (helps avoid trading counter trend)
+//    3. Manually configure which dates to back test
+//    4. Color background of backtested dates - allows for easier measuring buy & hold return of time periods that don't go up to current date
+
+
+// === CALL STRATEGY/STUDY, PROGRAMATICALLY ENTER STRATEGY PARAMETERS HERE SO YOU DON'T HAVE TO CHANGE THEM EVERY TIME YOU RUN A TEST ===
+// (STRATEGY ONLY) - Comment out srategy() when in a study()
+//strategy("Breakout Trend Follower", overlay=true, initial_capital=10000, currency='USD',
+//   default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_type=strategy.commission.percent, commission_value=0.1)
+// (STUDY ONLY) - Comment out study() when in a strategy()
+study("Breakout Trend Follower", overlay=true)
+
+// === BACKTEST RANGE ===
+Start = input(defval = timestamp("01 Jan 2019 06:00 +0000"), title = "Start Time", type = input.time)
+Finish = input(defval = timestamp("01 Jan 2100 00:00 +0000"), title = "End Time", type = input.time)
+
+// == FILTERING ==
+// Inputs
+useMaFilter = input(title = "Use MA for Filtering?", type = input.bool, defval = true,
+ tooltip = "Signals will be ignored when price is under this moving average.  The intent is to keep you out of bear periods and only buying when price is showing strength.")
+maType = input(defval="SMA", options=["EMA", "SMA"], title = "MA Type For Filtering")
+maLength   = input(defval = 50, title = "MA Period for Filtering", minval = 1)
+
+// Declare function to be able to swap out EMA/SMA
+ma(maType, src, length) =>
+    maType == "EMA" ? ema(src, length) : sma(src, length) //Ternary Operator (if maType equals EMA, then do ema calc, else do sma calc)
+maFilter = ma(maType, close, maLength)
+plot(maFilter, title = "Trend Filter MA", color = color.green, linewidth = 3, style = plot.style_line, transp = 50)
+
+// Check to see if the useMaFilter check box is checked, this then inputs this conditional "maFilterCheck" variable into the strategy entry
+maFilterCheck = if useMaFilter == true
+    maFilter
+else
+    0
+
+// === PLOT SWING HIGH/LOW AND MOST RECENT LOW TO USE AS STOP LOSS EXIT POINT ===
+// Change these values to adjust the look back and look forward periods for your swing high/low calculations
+pvtLenL       = 3
+pvtLenR       = 3
+
+// Get High and Low Pivot Points
+pvthi_ = pivothigh(high, pvtLenL, pvtLenR)
+pvtlo_ = pivotlow(low, pvtLenL, pvtLenR)
+
+// Force Pivot completion before plotting.
+Shunt = 1 //Wait for close before printing pivot? 1 for true 0 for flase
+maxLvlLen = 0 //Maximum Extension Length
+pvthi = pvthi_[Shunt]
+pvtlo = pvtlo_[Shunt]
+
+// Count How many candles for current Pivot Level, If new reset.
+counthi = barssince(not na(pvthi))
+countlo = barssince(not na(pvtlo))
+
+pvthis = fixnan(pvthi)
+pvtlos = fixnan(pvtlo)
+hipc = change(pvthis) != 0 ? na : color.maroon
+lopc = change(pvtlos) != 0 ? na : color.green
+
+// Display Pivot lines
+plot((maxLvlLen == 0 or counthi < maxLvlLen) ? pvthis : na, color=hipc, transp=0, linewidth=1, offset=-pvtLenR-Shunt, title="Top Levels")
+plot((maxLvlLen == 0 or countlo < maxLvlLen) ? pvtlos : na, color=lopc, transp=0, linewidth=1, offset=-pvtLenR-Shunt, title="Bottom Levels")
+plot((maxLvlLen == 0 or counthi < maxLvlLen) ? pvthis : na, color=hipc, transp=0, linewidth=1, offset=0, title="Top Levels 2")
+plot((maxLvlLen == 0 or countlo < maxLvlLen) ? pvtlos : na, color=lopc, transp=0, linewidth=1, offset=0, title="Bottom Levels 2")
+
+// Stop Levels
+stopLevel = valuewhen(pvtlo_, low[pvtLenR], 0) //Stop Level at Swing Low
+plot(stopLevel, style=plot.style_line, color=color.orange, show_last=1, linewidth=1, transp=50, trackprice=true)
+buyLevel = valuewhen(pvthi_, high[pvtLenR], 0) //Buy level at Swing High
+plot(buyLevel, style=plot.style_line, color=color.blue, show_last=1, linewidth=1, transp=50, trackprice=true)
+
+// Conditions for entry and exit
+buySignal = high > buyLevel
+buy = buySignal and time > Start and time < Finish and buyLevel > maFilterCheck // All these conditions need to be met to buy
+sellSignal = low < stopLevel // Code to act like a stop-loss for the Study
+
+// (STRATEGY ONLY) Comment out for Study
+// strategy.entry("Long", strategy.long, stop = buyLevel2, when = time > Start and time < Finish and buyLevel2 > maFilterCheck)
+// strategy.exit("Exit Long", from_entry = "Long", stop=stopLevel2)
+
+// == (STUDY ONLY) Comment out for Strategy ==
+// Check if in position or not
+inPosition = bool(na)
+inPosition := buy[1] ? true : sellSignal[1] ? false : inPosition[1]
+flat = bool(na)
+flat := not inPosition
+buyStudy = buy and flat
+sellStudy = sellSignal and inPosition
+//Plot indicators on chart and set up alerts for Study
+plotshape(buyStudy, style = shape.triangleup, location = location.belowbar, color = #1E90FF, text = "Buy")
+plotshape(sellStudy, style = shape.triangledown, location = location.abovebar, color = #EE82EE, text = "Sell")
+alertcondition(buyStudy, title='Breakout Trend Follower Buy', message='Breakout Trend Follower Buy')
+alertcondition(sellStudy, title='Breakout Trend Follower Sell', message='Breakout Trend Follower Sell')
+alertcondition(buyStudy or sellStudy, title='Breakout Trend Follower Buy/Sell', message='Breakout Trend Follower Buy/Sell')
+
+// Color background when trade active (for easier visual on what charts are OK to enter on)
+tradeBackground = input(title="Color Background for Trades?", type=input.bool, defval=true)
+tradeBackgroundColor = tradeBackground and inPosition ? #00FF00 : na
+bgcolor(tradeBackgroundColor, transp=95)
+noTradeBackgroundColor = tradeBackground and flat ? #FF0000 : na
+bgcolor(noTradeBackgroundColor, transp=90)
+
+// A switch to control background coloring of the test period - Use for easy visualization of backtest range and manual calculation of
+// buy and hold (via measurement) if doing prior periods since value in Strategy Tester extends to current date by default
+testPeriodBackground = input(title="Color Background - Test Period?", type=input.bool, defval=false)
+testPeriodBackgroundColor = testPeriodBackground and (time >= Start) and (time <= Finish) ? #00FF00 : na
+bgcolor(testPeriodBackgroundColor, transp=95)

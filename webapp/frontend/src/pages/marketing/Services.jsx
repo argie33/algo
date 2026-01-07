@@ -25,15 +25,15 @@ const Services = () => {
     {
       icon: <StarIcon fontSize="large" />,
       title: 'AI-Powered Stock Analysis',
-      subtitle: 'Find Winners Before the Market Does',
+      subtitle: 'Comprehensive Multi-Factor Stock Evaluation',
       description:
-        '5,300 stocks analyzed. 100+ factors evaluated. 1 simple score. Our AI discovers which stocks are genuinely undervalued by the market - not just what Wall Street consensus believes. When our scores diverge from sentiment, that\'s where the alpha lives. See exactly which factors are driving each recommendation.',
+        '5,300 stocks analyzed. Multiple factors evaluated. 1 composite score. Our AI combines different analytical dimensions to provide a comprehensive view of each stock. See how different factors influence the scoring. Use the analysis to inform your investment decisions.',
       details: [
         'Multi-factor composite scoring engine',
-        'Real-time score updates as market data changes',
+        'Frequent score updates during market hours',
         'Comparative ranking across all covered stocks',
-        'Underlying factor breakdown and transparency',
-        'Historical score trends and performance tracking',
+        'Factor breakdown and transparency',
+        'Historical score trends and tracking',
       ],
       dataTypes: ['Fundamentals', 'Technicals', 'Sentiment', 'Valuations'],
       ideal: 'Portfolio managers, active traders, value investors',
@@ -41,16 +41,16 @@ const Services = () => {
     {
       icon: <EventIcon fontSize="large" />,
       title: 'Earnings Intelligence System',
-      subtitle: 'Catch Surprises Before the Earnings Call',
+      subtitle: 'Comprehensive Earnings Research & Analysis',
       description:
-        'Earnings are when reality meets expectation. Our AI tracks 10+ years of historical data to predict which stocks will surprise vs. disappoint. Watch estimate momentum shift days or weeks before earnings. See when management is quietly pulling back guidance. Know which stocks have positive earnings surprises baked in before they report.',
+        'Earnings are when reality meets expectation. Our platform analyzes 10+ years of historical data and current trends. Track estimate momentum, identify when guidance is changing, and analyze historical earnings patterns to inform your earnings strategy.',
       details: [
         'Live earnings calendar with analyst estimates',
         '10+ years of historical earnings data',
         'Earnings surprise pattern analysis',
         'Estimate revision tracking and trends',
-        'Forward earnings surprise predictions',
-        'Management guidance analysis',
+        'Historical earnings pattern analysis',
+        'Management guidance tracking',
       ],
       dataTypes: ['Financial Data', 'Analyst Estimates', 'Historical Patterns', 'Macro Context'],
       ideal: 'Fundamental analysts, earnings-focused traders, fund managers',
@@ -74,13 +74,13 @@ const Services = () => {
     },
     {
       icon: <TimelineIcon fontSize="large" />,
-      title: 'Technical Analysis & Trading Signals',
-      subtitle: 'Trade Price Action With AI Precision',
+      title: 'Technical Analysis & Trading Research',
+      subtitle: 'Multi-Dimensional Technical Research Tools',
       description:
-        'Price patterns matter more than anyone admits. Our AI doesn\'t just find chart patterns - it identifies which ones actually predict future moves. Real-time buy/sell signals that respect support/resistance. Momentum shifts detected before price confirms them. See which technical patterns have genuine predictive power in today\'s market regime.',
+        'Price patterns and technical levels are important for trading. Our platform identifies support/resistance levels, momentum shifts, and technical patterns. Use comprehensive technical analysis tools to inform your trading decisions.',
       details: [
         'Advanced technical indicators and patterns',
-        'AI-generated buy/sell signals',
+        'Technical analysis signals',
         'Support and resistance level detection',
         'Momentum and breadth analysis',
         'Volume and liquidity analysis',
@@ -109,12 +109,12 @@ const Services = () => {
     {
       icon: <PublicIcon fontSize="large" />,
       title: 'Economic & Macro Intelligence',
-      subtitle: 'Know What The Fed Knows Before It Moves',
+      subtitle: 'Macro Trends & Economic Impact Analysis',
       description:
-        'The Fed moves markets. Our AI tracks real-time economic data, Fed policy signals, and leading indicators months before the consensus catches on. Understand rate cycle implications. See inflation trends shifting. Anticipate economic regime changes before portfolio adjustments become crowded.',
+        'The Fed and economic conditions move markets. Our platform tracks economic data, Fed policy, and leading indicators. Understand rate cycle implications, monitor inflation trends, and analyze economic factors affecting sector and stock performance.',
       details: [
         'Key economic indicator tracking',
-        'Macro trend analysis and forecasting',
+        'Macro trend analysis',
         'Federal Reserve policy monitoring',
         'Economic impact on sector/stock performance',
         'Leading vs. lagging indicator analysis',
@@ -188,11 +188,11 @@ const Services = () => {
       client: 'Active Investors',
       description: 'Individual traders, active investors, sophisticated investors',
       research: [
-        'Real-time stock analysis',
-        'Trading signals and alerts',
-        'Portfolio optimization tools',
+        'Comprehensive stock analysis',
+        'Research tools and alerts',
+        'Portfolio monitoring',
         'Educational research content',
-        'Technical analysis courses',
+        'Technical analysis resources',
         'Community insights',
       ],
     },

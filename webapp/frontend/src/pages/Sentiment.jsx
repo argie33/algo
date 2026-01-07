@@ -112,7 +112,6 @@ const ComprehensiveAnalystMetrics = ({ symbol }) => {
   const theme = useTheme();
   const [sentimentTrend, setSentimentTrend] = React.useState(null);
   const [momentum, setMomentum] = React.useState(null);
-  const [epsRevisions, setEpsRevisions] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
 
@@ -122,24 +121,28 @@ const ComprehensiveAnalystMetrics = ({ symbol }) => {
         setLoading(true);
         setError(null);
 
-        // Fetch from multiple analyst endpoints
-        const [trendRes, momentumRes, epsRes] = await Promise.all([
-          fetch(`${API_BASE}/api/analysts/${symbol}/sentiment-trend`).catch(() => null),
-          fetch(`${API_BASE}/api/analysts/${symbol}/analyst-momentum`).catch(() => null),
-          fetch(`${API_BASE}/api/analysts/${symbol}/eps-revisions`).catch(() => null),
+        // Fetch analyst sentiment data and upgrades from working endpoints
+        const [sentimentRes, upgradesRes] = await Promise.all([
+          fetch(`${API_BASE}/api/sentiment/data?symbol=${symbol}`).catch(() => null),
+          fetch(`${API_BASE}/api/analysts/upgrades?limit=50`).catch(() => null),
         ]);
 
-        if (trendRes?.ok) {
-          const trendData = await trendRes.json();
-          setSentimentTrend(trendData?.data || trendData);
+        // Get sentiment data for this symbol
+        if (sentimentRes?.ok) {
+          const sentimentData = await sentimentRes.json();
+          const symbolData = sentimentData.items?.find(item => item.symbol === symbol);
+          if (symbolData) {
+            setSentimentTrend(symbolData);
+          }
         }
-        if (momentumRes?.ok) {
-          const momentumData = await momentumRes.json();
-          setMomentum(momentumData?.data || momentumData);
-        }
-        if (epsRes?.ok) {
-          const epsData = await epsRes.json();
-          setEpsRevisions(epsData?.data || epsData);
+
+        // Filter upgrades for this symbol
+        if (upgradesRes?.ok) {
+          const upgradesData = await upgradesRes.json();
+          const symbolUpgrades = upgradesData.data?.filter(item => item.symbol === symbol) || [];
+          if (symbolUpgrades.length > 0) {
+            setMomentum(symbolUpgrades.slice(0, 10)); // Show latest 10
+          }
         }
       } catch (err) {
         setError(err.message);
@@ -170,7 +173,7 @@ const ComprehensiveAnalystMetrics = ({ symbol }) => {
       {sentimentTrend && (
         <Card variant="outlined" sx={{ mb: 2 }}>
           <CardContent>
-            <Typography variant="h6" gutterBottom>Analyst Sentiment Trend</Typography>
+            <Typography variant="h6" gutterBottom>Analyst Sentiment</Typography>
             {Array.isArray(sentimentTrend) ? (
               <TableContainer>
                 <Table size="small">
@@ -203,108 +206,94 @@ const ComprehensiveAnalystMetrics = ({ symbol }) => {
                 </Table>
               </TableContainer>
             ) : (
-              <Typography variant="body2" color="textSecondary">No trend data available</Typography>
+              <Grid container spacing={2}>
+                {(() => {
+                  const total = sentimentTrend.analyst_count || 1;
+                  const bullish = sentimentTrend.bullish_count || 0;
+                  const neutral = sentimentTrend.neutral_count || 0;
+                  const bearish = sentimentTrend.bearish_count || 0;
+                  const bullishPct = ((bullish / total) * 100).toFixed(1);
+                  const neutralPct = ((neutral / total) * 100).toFixed(1);
+                  const bearishPct = ((bearish / total) * 100).toFixed(1);
+                  return (
+                    <>
+                      <Grid item xs={12} sm={6} md={4}>
+                        <Box sx={{ p: 1.5, bgcolor: alpha(theme.palette.success.main, 0.1), borderRadius: 1 }}>
+                          <Typography variant="caption" color="textSecondary">Bullish</Typography>
+                          <Typography variant="h5" sx={{ fontWeight: 'bold', color: theme.palette.success.main }}>
+                            {bullishPct}%
+                          </Typography>
+                          <Typography variant="caption" color="textSecondary">({bullish} analysts)</Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12} sm={6} md={4}>
+                        <Box sx={{ p: 1.5, bgcolor: alpha(theme.palette.warning.main, 0.1), borderRadius: 1 }}>
+                          <Typography variant="caption" color="textSecondary">Neutral</Typography>
+                          <Typography variant="h5" sx={{ fontWeight: 'bold', color: theme.palette.warning.main }}>
+                            {neutralPct}%
+                          </Typography>
+                          <Typography variant="caption" color="textSecondary">({neutral} analysts)</Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12} sm={6} md={4}>
+                        <Box sx={{ p: 1.5, bgcolor: alpha(theme.palette.error.main, 0.1), borderRadius: 1 }}>
+                          <Typography variant="caption" color="textSecondary">Bearish</Typography>
+                          <Typography variant="h5" sx={{ fontWeight: 'bold', color: theme.palette.error.main }}>
+                            {bearishPct}%
+                          </Typography>
+                          <Typography variant="caption" color="textSecondary">({bearish} analysts)</Typography>
+                        </Box>
+                      </Grid>
+                    </>
+                  );
+                })()}
+              </Grid>
             )}
           </CardContent>
         </Card>
       )}
 
-      {/* Momentum Data */}
-      {momentum && (
+      {/* Momentum Data - Analyst Upgrades/Downgrades */}
+      {momentum && Array.isArray(momentum) && momentum.length > 0 && (
         <Card variant="outlined" sx={{ mb: 2 }}>
           <CardContent>
-            <Typography variant="h6" gutterBottom>Analyst Actions & Momentum</Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6} md={3}>
-                <Box sx={{ p: 1.5, bgcolor: alpha(theme.palette.success.main, 0.1), borderRadius: 1 }}>
-                  <Typography variant="caption" color="textSecondary">Upgrades (30d)</Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: theme.palette.success.main }}>
-                    {momentum.upgrades_30d ?? momentum.upgrades ?? 'N/A'}
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Box sx={{ p: 1.5, bgcolor: alpha(theme.palette.error.main, 0.1), borderRadius: 1 }}>
-                  <Typography variant="caption" color="textSecondary">Downgrades (30d)</Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: theme.palette.error.main }}>
-                    {momentum.downgrades_30d ?? momentum.downgrades ?? 'N/A'}
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Box sx={{ p: 1.5, bgcolor: alpha(theme.palette.info.main, 0.1), borderRadius: 1 }}>
-                  <Typography variant="caption" color="textSecondary">Initiations</Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: theme.palette.info.main }}>
-                    {momentum.initiations ?? 'N/A'}
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Box sx={{ p: 1.5, bgcolor: alpha(theme.palette.warning.main, 0.1), borderRadius: 1 }}>
-                  <Typography variant="caption" color="textSecondary">Maintained</Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: theme.palette.warning.main }}>
-                    {momentum.maintained ?? 'N/A'}
-                  </Typography>
-                </Box>
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* EPS Revisions */}
-      {epsRevisions && (
-        <Card variant="outlined">
-          <CardContent>
-            <Typography variant="h6" gutterBottom>EPS Revisions & Estimates</Typography>
-            {Array.isArray(epsRevisions) ? (
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Period</TableCell>
-                      <TableCell align="center">Current Estimate</TableCell>
-                      <TableCell align="center">7-Day Change</TableCell>
-                      <TableCell align="center">30-Day Change</TableCell>
-                      <TableCell align="center">Count</TableCell>
+            <Typography variant="h6" gutterBottom>Recent Analyst Actions</Typography>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Date</TableCell>
+                    <TableCell>Firm</TableCell>
+                    <TableCell>Action</TableCell>
+                    <TableCell align="center">Old Rating</TableCell>
+                    <TableCell align="center">New Rating</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {momentum.slice(0, 10).map((item, idx) => (
+                    <TableRow key={`upgrade-${item.date}-${idx}`}>
+                      <TableCell>{new Date(item.date || item.timestamp).toLocaleDateString()}</TableCell>
+                      <TableCell>{item.firm || item.analyst || 'N/A'}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={item.action || 'N/A'}
+                          size="small"
+                          color={item.action?.toLowerCase().includes('upgrade') ? 'success' : item.action?.toLowerCase().includes('downgrade') ? 'error' : 'default'}
+                        />
+                      </TableCell>
+                      <TableCell align="center">{item.old_rating || 'N/A'}</TableCell>
+                      <TableCell align="center">{item.new_rating || 'N/A'}</TableCell>
                     </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {epsRevisions.slice(0, 5).map((item, idx) => (
-                      <TableRow key={`eps-rev-${item.period}-${idx}`}>
-                        <TableCell>{item.period || item.fiscal_period || 'N/A'}</TableCell>
-                        <TableCell align="center">${item.current_estimate || item.estimate || 0}</TableCell>
-                        <TableCell align="center">
-                          <Chip
-                            label={`${item.seven_day_change || 0 > 0 ? '+' : ''}${item.seven_day_change || 0}%`}
-                            size="small"
-                            color={item.seven_day_change > 0 ? 'success' : 'error'}
-                            variant={item.seven_day_change ? 'filled' : 'outlined'}
-                          />
-                        </TableCell>
-                        <TableCell align="center">
-                          <Chip
-                            label={`${item.thirty_day_change || 0 > 0 ? '+' : ''}${item.thirty_day_change || 0}%`}
-                            size="small"
-                            color={item.thirty_day_change > 0 ? 'success' : 'error'}
-                            variant={item.thirty_day_change ? 'filled' : 'outlined'}
-                          />
-                        </TableCell>
-                        <TableCell align="center">{item.estimate_count || 0}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            ) : (
-              <Typography variant="body2" color="textSecondary">No EPS revision data available</Typography>
-            )}
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           </CardContent>
         </Card>
       )}
 
-      {!sentimentTrend && !momentum && !epsRevisions && !loading && (
-        <Alert severity="info">No comprehensive analyst metrics available for {symbol}</Alert>
+      {!sentimentTrend && !momentum && !loading && (
+        <Alert severity="info">No analyst data available for {symbol}</Alert>
       )}
     </Box>
   );
@@ -559,7 +548,6 @@ const AnalystTrendCard = ({ symbol }) => {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
   const [insightsData, setInsightsData] = React.useState(null);
-  const [epsRevisions, setEpsRevisions] = React.useState(null);
   const [sentimentTrend, setSentimentTrend] = React.useState(null);
   const [analystMomentum, setAnalystMomentum] = React.useState(null);
 
@@ -570,36 +558,35 @@ const AnalystTrendCard = ({ symbol }) => {
         setLoading(true);
         setError(null);
 
-        // Fetch from all endpoints in parallel
-        const [insightsRes, epsRes, trendRes, momentumRes] = await Promise.all([
+        // Fetch from available endpoints
+        const [insightsRes, sentimentRes, upgradesRes] = await Promise.all([
           fetch(`${API_BASE}/api/sentiment/analyst/insights/${symbol}`).catch(() => null),
-          fetch(`${API_BASE}/api/analysts/${symbol}/eps-revisions`).catch(() => null),
-          fetch(`${API_BASE}/api/analysts/${symbol}/sentiment-trend`).catch(() => null),
-          fetch(`${API_BASE}/api/analysts/${symbol}/analyst-momentum`).catch(() => null),
+          fetch(`${API_BASE}/api/sentiment/data?symbol=${symbol}`).catch(() => null),
+          fetch(`${API_BASE}/api/analysts/upgrades?limit=50`).catch(() => null),
         ]);
 
-        // Process insights data
+        // Process insights data (primary source)
         if (insightsRes?.ok) {
           const insights = await insightsRes.json();
           setInsightsData(insights);
         }
 
-        // Process EPS revisions
-        if (epsRes?.ok) {
-          const eps = await epsRes.json();
-          setEpsRevisions(eps);
+        // Get sentiment data for this symbol
+        if (sentimentRes?.ok) {
+          const sentimentData = await sentimentRes.json();
+          const symbolData = sentimentData.items?.find(item => item.symbol === symbol);
+          if (symbolData) {
+            setSentimentTrend(symbolData);
+          }
         }
 
-        // Process sentiment trend
-        if (trendRes?.ok) {
-          const trend = await trendRes.json();
-          setSentimentTrend(trend);
-        }
-
-        // Process analyst momentum
-        if (momentumRes?.ok) {
-          const momentum = await momentumRes.json();
-          setAnalystMomentum(momentum);
+        // Filter upgrades for this symbol
+        if (upgradesRes?.ok) {
+          const upgradesData = await upgradesRes.json();
+          const symbolUpgrades = upgradesData.data?.filter(item => item.symbol === symbol) || [];
+          if (symbolUpgrades.length > 0) {
+            setAnalystMomentum(symbolUpgrades.slice(0, 10));
+          }
         }
       } catch (err) {
         setError(err.message);
@@ -1037,59 +1024,6 @@ const AnalystTrendCard = ({ symbol }) => {
           </>
         )}
 
-        {/* EPS Revisions */}
-        {epsRevisions && (
-          <>
-            <Divider sx={{ my: 2 }} />
-            <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
-              EPS Revisions & Estimates
-            </Typography>
-            {epsRevisions.data ? (
-              <TableContainer component={Paper} variant="outlined">
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Period</TableCell>
-                      <TableCell align="center">Current Estimate</TableCell>
-                      <TableCell align="center">7-Day Change</TableCell>
-                      <TableCell align="center">30-Day Change</TableCell>
-                      <TableCell align="center">Analyst Count</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {(epsRevisions.data || []).slice(0, 8).map((item, idx) => (
-                      <TableRow key={`eps-data-${item.period}-${idx}`}>
-                        <TableCell>{item.period || item.fiscal_period || 'N/A'}</TableCell>
-                        <TableCell align="center">
-                          ${parseFloat(item.current_estimate || item.estimate || 0).toFixed(2)}
-                        </TableCell>
-                        <TableCell align="center">
-                          <Chip
-                            label={`${item.seven_day_change > 0 ? '+' : ''}${(item.seven_day_change || 0).toFixed(1)}%`}
-                            size="small"
-                            color={item.seven_day_change > 0 ? 'success' : item.seven_day_change < 0 ? 'error' : 'default'}
-                            variant="outlined"
-                          />
-                        </TableCell>
-                        <TableCell align="center">
-                          <Chip
-                            label={`${item.thirty_day_change > 0 ? '+' : ''}${(item.thirty_day_change || 0).toFixed(1)}%`}
-                            size="small"
-                            color={item.thirty_day_change > 0 ? 'success' : item.thirty_day_change < 0 ? 'error' : 'default'}
-                            variant="outlined"
-                          />
-                        </TableCell>
-                        <TableCell align="center">{item.estimate_count || item.analyst_count || 0}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            ) : (
-              <Typography variant="body2" color="textSecondary">No EPS revision data available</Typography>
-            )}
-          </>
-        )}
 
         {/* Sentiment Trend */}
         {sentimentTrend && sentimentTrend.chartData && (
@@ -1202,7 +1136,7 @@ const AnalystTrendCard = ({ symbol }) => {
         )}
 
         {/* No data message */}
-        {!metrics && !momentum && !priceTargets && !recentUpgrades && !epsRevisions && !sentimentTrend && (
+        {!metrics && !momentum && !priceTargets && !recentUpgrades && !sentimentTrend && (
           <Typography variant="body2" color="textSecondary">
             No comprehensive analyst sentiment data available for this stock
           </Typography>

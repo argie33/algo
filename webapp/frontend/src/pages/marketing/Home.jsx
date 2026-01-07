@@ -24,7 +24,7 @@ const Home = () => {
   const navigate = useNavigate();
 
   const dataCapabilities = [
-    { label: 'Market Data', detail: 'Real-time pricing, volume, and liquidity analysis' },
+    { label: 'Market Data', detail: 'Current pricing, volume, and liquidity analysis during market hours' },
     { label: 'Economic Data', detail: 'Macro indicators, employment, GDP, inflation trends' },
     { label: 'Fundamentals', detail: 'Financial statements, valuation metrics, profitability' },
     { label: 'Technical', detail: 'Price patterns, momentum indicators, support/resistance' },
@@ -44,11 +44,11 @@ const Home = () => {
       icon: <AnalyticsIcon fontSize="large" />,
       title: 'AI-Powered Stock Analysis',
       description:
-        'Our proprietary composite scoring system applies machine learning across multiple dimensions to identify opportunities before the consensus.',
+        'Our composite scoring system analyzes multiple dimensions to provide comprehensive stock evaluation and comparative ranking.',
       bullets: [
-        'Multi-factor AI scoring engine',
-        'Real-time score updates',
-        'Comparable ranking system',
+        'Multi-factor scoring engine',
+        'Frequent score updates',
+        'Comparative stock ranking',
       ],
       tags: ['AI Analysis', 'Scoring', 'Quantitative'],
       link: '/app/scores',
@@ -260,7 +260,7 @@ const Home = () => {
               {
                 number: '2',
                 title: 'Faster Decisions',
-                description: 'Real-time analysis powered by 24/7 data processing. Get actionable intelligence the moment market conditions change.',
+                description: 'Fast analysis across multiple dimensions. Get actionable intelligence quickly when market conditions change during trading hours.',
                 icon: '⚡',
               },
               {
@@ -877,19 +877,19 @@ const Home = () => {
           <Grid container spacing={4}>
             {[
               {
-                name: 'Robert Chen',
-                role: 'Portfolio Manager, Wealth Advisors LLC',
-                quote: 'Their AI scoring system has fundamentally changed how we evaluate opportunities. We\'re seeing better risk-adjusted returns and making faster, more confident investment decisions.',
+                name: 'Professional Investor',
+                role: 'Portfolio Management',
+                quote: 'Access to multi-dimensional research across technicals, fundamentals, and market sentiment helps inform investment decisions. The platform integrates data in a way that\'s useful for analysis.',
               },
               {
-                name: 'Jennifer Williams',
-                role: 'Active Trader, Independent',
-                quote: 'The multi-dimensional research is exceptional. Fundamentals, technicals, and sentiment all work together to confirm trading opportunities. No other research platform integrates data like this.',
+                name: 'Active Trader',
+                role: 'Independent Trading',
+                quote: 'Having multiple research dimensions in one place streamlines workflow. The combination of different analytical approaches provides a more complete picture of market conditions.',
               },
               {
-                name: 'Marcus Johnson',
-                role: 'Fund Manager, Macro Research Partners',
-                quote: 'Bullseye\'s combination of traditional research expertise with AI-powered analysis is sophisticated and unique. It\'s become essential infrastructure for our entire research operation.',
+                name: 'Research Professional',
+                role: 'Investment Research',
+                quote: 'Bullseye provides comprehensive market research infrastructure combining traditional analysis with AI-powered insights. It\'s a useful tool for conducting multi-dimensional analysis.',
               },
             ].map((testimonial, idx) => (
               <Grid item xs={12} sm={6} md={4} key={idx}>

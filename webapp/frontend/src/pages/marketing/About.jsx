@@ -44,7 +44,7 @@ const About = () => {
                   lineHeight: 1.8,
                 }}
               >
-                Bullseye Financial was founded by a team of finance and IT experts frustrated with the gap between what's possible and what exists. With 20+ years of combined experience in financial markets and technology, our founders knew there had to be a better way to bring sophisticated market analysis to every investor.
+                Bullseye Financial was founded by a team of finance and technology experts who saw an opportunity to improve how market research and analysis is delivered. Our founders combined expertise in financial markets and technology development to create a better platform for investor research.
               </Typography>
               <Typography
                 variant="body1"
@@ -54,7 +54,7 @@ const About = () => {
                   lineHeight: 1.8,
                 }}
               >
-                We built Bullseye to level the playing field. 10+ years of market data. 6+ research dimensions. 100+ analytical factors. All processed through proprietary AI algorithms. Institutional-grade intelligence. Actually accessible.
+                We built Bullseye to provide accessible market research. 10+ years of historical market data. 6 research dimensions. Multiple analytical factors. All processed through AI algorithms. Professional-grade research accessible to different investor types.
               </Typography>
             </Grid>
 
