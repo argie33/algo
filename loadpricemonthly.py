@@ -78,7 +78,7 @@ def log_mem(stage: str):
 MAX_BATCH_RETRIES   = 3
 RETRY_DELAY         = 0.2   # seconds between download retries
 MAX_SYMBOL_RETRIES  = 5     # retries for individual symbols
-RATE_LIMIT_BASE_DELAY = 5   # fixed 5-second delay for rate limits
+RATE_LIMIT_BASE_DELAY = 60  # aggressive 60 second delay for rate limits
 
 # -------------------------------
 # Price-monthly columns
@@ -133,7 +133,7 @@ def load_prices(table_name, symbols, cur, conn):
     logging.info(f"Loading {table_name}: {total} symbols")
     inserted, failed = 0, []
     timeout_failures = []  # Track timeouts separately for end-of-load retry
-    CHUNK_SIZE, PAUSE = 5, 0.1  # Reduced from 20 to prevent yf.download() hangs
+    CHUNK_SIZE, PAUSE = 1, 3.5  # Single symbol, 3.5s pause to avoid rate limits
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     for batch_idx in range(batches):
@@ -174,7 +174,7 @@ def load_prices(table_name, symbols, cur, conn):
                     except Exception as e:
                         error_msg = str(e)
                         last_error = error_msg
-                        if "Too Many Requests" in error_msg or "Rate limit" in error_msg:
+                        if "Too Many Requests" in error_msg or "Rate limit" in error_msg or "YFRateLimit" in str(type(e).__name__):
                             delay = RATE_LIMIT_BASE_DELAY
                             logging.warning(f"{table_name} — {orig_sym}: rate limited (attempt {sym_attempt}/{MAX_SYMBOL_RETRIES}), waiting {delay}s")
                             time.sleep(delay)
@@ -330,64 +330,84 @@ if __name__ == "__main__":
         conn.autocommit = False
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Recreate tables
-        logging.info("Recreating price_monthly table…")
-        cur.execute("DROP TABLE IF EXISTS price_monthly;")
-        cur.execute("""
-            CREATE TABLE price_monthly (
-                id           SERIAL PRIMARY KEY,
-                symbol       VARCHAR(10) NOT NULL,
-                date         DATE         NOT NULL,
-                open         DOUBLE PRECISION,
-                high         DOUBLE PRECISION,
-                low          DOUBLE PRECISION,
-                close        DOUBLE PRECISION,
-                adj_close    DOUBLE PRECISION,
-                volume       BIGINT,
-                dividends    DOUBLE PRECISION,
-                stock_splits DOUBLE PRECISION,
-                fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
+        # Recreate tables with error handling
+        try:
+            logging.info("Recreating price_monthly table…")
+            cur.execute("DROP TABLE IF EXISTS price_monthly CASCADE;")
+            cur.execute("""
+                CREATE TABLE price_monthly (
+                    id           SERIAL PRIMARY KEY,
+                    symbol       VARCHAR(10) NOT NULL,
+                    date         DATE         NOT NULL,
+                    open         DOUBLE PRECISION,
+                    high         DOUBLE PRECISION,
+                    low          DOUBLE PRECISION,
+                    close        DOUBLE PRECISION,
+                    adj_close    DOUBLE PRECISION,
+                    volume       BIGINT,
+                    dividends    DOUBLE PRECISION,
+                    stock_splits DOUBLE PRECISION,
+                    fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            logging.info("✅ price_monthly table created")
+            conn.commit()
+        except Exception as e:
+            logging.error(f"❌ Failed to create price_monthly table: {e}")
+            conn.rollback()
+            raise
 
-        logging.info("Recreating etf_price_monthly table…")
-        cur.execute("DROP TABLE IF EXISTS etf_price_monthly;")
-        cur.execute("""
-            CREATE TABLE etf_price_monthly (
-                id           SERIAL PRIMARY KEY,
-                symbol       VARCHAR(10) NOT NULL,
-                date         DATE         NOT NULL,
-                open         DOUBLE PRECISION,
-                high         DOUBLE PRECISION,
-                low          DOUBLE PRECISION,
-                close        DOUBLE PRECISION,
-                adj_close    DOUBLE PRECISION,
-                volume       BIGINT,
-                dividends    DOUBLE PRECISION,
-                stock_splits DOUBLE PRECISION,
-                fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
+        try:
+            logging.info("Recreating etf_price_monthly table…")
+            cur.execute("DROP TABLE IF EXISTS etf_price_monthly CASCADE;")
+            cur.execute("""
+                CREATE TABLE etf_price_monthly (
+                    id           SERIAL PRIMARY KEY,
+                    symbol       VARCHAR(10) NOT NULL,
+                    date         DATE         NOT NULL,
+                    open         DOUBLE PRECISION,
+                    high         DOUBLE PRECISION,
+                    low          DOUBLE PRECISION,
+                    close        DOUBLE PRECISION,
+                    adj_close    DOUBLE PRECISION,
+                    volume       BIGINT,
+                    dividends    DOUBLE PRECISION,
+                    stock_splits DOUBLE PRECISION,
+                    fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            logging.info("✅ etf_price_monthly table created")
+            conn.commit()
+        except Exception as e:
+            logging.error(f"❌ Failed to create etf_price_monthly table: {e}")
+            conn.rollback()
+            raise
 
-        logging.info("Recreating price_monthly_etf table…")
-        cur.execute("DROP TABLE IF EXISTS price_monthly_etf;")
-        cur.execute("""
-            CREATE TABLE price_monthly_etf (
-                id           SERIAL PRIMARY KEY,
-                symbol       VARCHAR(10) NOT NULL,
-                date         DATE         NOT NULL,
-                open         DOUBLE PRECISION,
-                high         DOUBLE PRECISION,
-                low          DOUBLE PRECISION,
-                close        DOUBLE PRECISION,
-                adj_close    DOUBLE PRECISION,
-                volume       BIGINT,
-                dividends    DOUBLE PRECISION,
-                stock_splits DOUBLE PRECISION,
-                fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-        conn.commit()
+        try:
+            logging.info("Recreating price_monthly_etf table…")
+            cur.execute("DROP TABLE IF EXISTS price_monthly_etf CASCADE;")
+            cur.execute("""
+                CREATE TABLE price_monthly_etf (
+                    id           SERIAL PRIMARY KEY,
+                    symbol       VARCHAR(10) NOT NULL,
+                    date         DATE         NOT NULL,
+                    open         DOUBLE PRECISION,
+                    high         DOUBLE PRECISION,
+                    low          DOUBLE PRECISION,
+                    close        DOUBLE PRECISION,
+                    adj_close    DOUBLE PRECISION,
+                    volume       BIGINT,
+                    dividends    DOUBLE PRECISION,
+                    stock_splits DOUBLE PRECISION,
+                    fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            logging.info("✅ price_monthly_etf table created")
+            conn.commit()
+        except Exception as e:
+            logging.error(f"❌ Failed to create price_monthly_etf table: {e}")
+            conn.rollback()
+            raise
 
         # Load stock symbols
         cur.execute("SELECT symbol FROM stock_symbols;")

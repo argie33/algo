@@ -139,7 +139,7 @@ async function getFactorMetricsInBatch(symbols) {
           `;
         } else if (table === 'value_metrics') {
           // For value_metrics, merge data from multiple dates to get complete records
-          // 2025-12-10 has forward_pe, 2025-12-09 has other metrics - combine via COALESCE
+          // Check top 10 rows per symbol to find data for all fields
           metricsQuery = `
             WITH ranked AS (
               SELECT symbol, trailing_pe, forward_pe, price_to_book, price_to_sales_ttm,
@@ -148,30 +148,33 @@ async function getFactorMetricsInBatch(symbols) {
               FROM ${table}
               WHERE symbol IN (${placeholders})
             ),
-            latest_row AS (
+            rows_1_to_10 AS (
               SELECT symbol, trailing_pe, forward_pe, price_to_book, price_to_sales_ttm,
-                     peg_ratio, ev_to_revenue, ev_to_ebitda, dividend_yield, payout_ratio, date
-              FROM ranked WHERE rn = 1
-            ),
-            prev_row AS (
-              SELECT symbol, trailing_pe, forward_pe, price_to_book, price_to_sales_ttm,
-                     peg_ratio, ev_to_revenue, ev_to_ebitda, dividend_yield, payout_ratio, date
-              FROM ranked WHERE rn = 2
+                     peg_ratio, ev_to_revenue, ev_to_ebitda, dividend_yield, payout_ratio, date, rn
+              FROM ranked WHERE rn <= 10
             )
-            SELECT
-              l.symbol,
-              COALESCE(l.trailing_pe, p.trailing_pe) as trailing_pe,
-              COALESCE(l.forward_pe, p.forward_pe) as forward_pe,
-              COALESCE(l.price_to_book, p.price_to_book) as price_to_book,
-              COALESCE(l.price_to_sales_ttm, p.price_to_sales_ttm) as price_to_sales_ttm,
-              COALESCE(l.peg_ratio, p.peg_ratio) as peg_ratio,
-              COALESCE(l.ev_to_revenue, p.ev_to_revenue) as ev_to_revenue,
-              COALESCE(l.ev_to_ebitda, p.ev_to_ebitda) as ev_to_ebitda,
-              COALESCE(l.dividend_yield, p.dividend_yield) as dividend_yield,
-              COALESCE(l.payout_ratio, p.payout_ratio) as payout_ratio,
-              COALESCE(l.date, p.date) as date
-            FROM latest_row l
-            LEFT JOIN prev_row p ON l.symbol = p.symbol
+            SELECT symbol,
+              COALESCE(MAX(CASE WHEN trailing_pe IS NOT NULL THEN trailing_pe END) OVER (PARTITION BY symbol),
+                       (ARRAY_AGG(trailing_pe) FILTER (WHERE trailing_pe IS NOT NULL) OVER (PARTITION BY symbol))[1]) as trailing_pe,
+              COALESCE(MAX(CASE WHEN forward_pe IS NOT NULL THEN forward_pe END) OVER (PARTITION BY symbol),
+                       (ARRAY_AGG(forward_pe) FILTER (WHERE forward_pe IS NOT NULL) OVER (PARTITION BY symbol))[1]) as forward_pe,
+              COALESCE(MAX(CASE WHEN price_to_book IS NOT NULL THEN price_to_book END) OVER (PARTITION BY symbol),
+                       (ARRAY_AGG(price_to_book) FILTER (WHERE price_to_book IS NOT NULL) OVER (PARTITION BY symbol))[1]) as price_to_book,
+              COALESCE(MAX(CASE WHEN price_to_sales_ttm IS NOT NULL THEN price_to_sales_ttm END) OVER (PARTITION BY symbol),
+                       (ARRAY_AGG(price_to_sales_ttm) FILTER (WHERE price_to_sales_ttm IS NOT NULL) OVER (PARTITION BY symbol))[1]) as price_to_sales_ttm,
+              COALESCE(MAX(CASE WHEN peg_ratio IS NOT NULL THEN peg_ratio END) OVER (PARTITION BY symbol),
+                       (ARRAY_AGG(peg_ratio) FILTER (WHERE peg_ratio IS NOT NULL) OVER (PARTITION BY symbol))[1]) as peg_ratio,
+              COALESCE(MAX(CASE WHEN ev_to_revenue IS NOT NULL THEN ev_to_revenue END) OVER (PARTITION BY symbol),
+                       (ARRAY_AGG(ev_to_revenue) FILTER (WHERE ev_to_revenue IS NOT NULL) OVER (PARTITION BY symbol))[1]) as ev_to_revenue,
+              COALESCE(MAX(CASE WHEN ev_to_ebitda IS NOT NULL THEN ev_to_ebitda END) OVER (PARTITION BY symbol),
+                       (ARRAY_AGG(ev_to_ebitda) FILTER (WHERE ev_to_ebitda IS NOT NULL) OVER (PARTITION BY symbol))[1]) as ev_to_ebitda,
+              COALESCE(MAX(CASE WHEN dividend_yield IS NOT NULL THEN dividend_yield END) OVER (PARTITION BY symbol),
+                       (ARRAY_AGG(dividend_yield) FILTER (WHERE dividend_yield IS NOT NULL) OVER (PARTITION BY symbol))[1]) as dividend_yield,
+              COALESCE(MAX(CASE WHEN payout_ratio IS NOT NULL THEN payout_ratio END) OVER (PARTITION BY symbol),
+                       (ARRAY_AGG(payout_ratio) FILTER (WHERE payout_ratio IS NOT NULL) OVER (PARTITION BY symbol))[1]) as payout_ratio,
+              MAX(date) OVER (PARTITION BY symbol) as date
+            FROM rows_1_to_10
+            QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol) = 1
           `;
         } else if (table === 'stability_metrics') {
           // For stability_metrics, prioritize records with non-null beta
