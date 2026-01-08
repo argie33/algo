@@ -113,7 +113,7 @@ def get_symbols_from_db(limit=None):
         cur.close()
         conn.close()
 
-def create_buy_sell_table(cur, table_name="buy_sell_daily_etf"):
+def create_buy_sell_table(cur, conn, table_name="buy_sell_daily_etf"):
     # CRITICAL: Do NOT drop table - preserve existing data for incremental loads
     # cur.execute(f"DROP TABLE IF EXISTS {table_name};")
     cur.execute(f"""
@@ -1890,7 +1890,7 @@ def main():
     conn = get_db_connection()
     conn.autocommit = True
     cur = conn.cursor()
-    create_buy_sell_table(cur, "buy_sell_daily_etf")
+    create_buy_sell_table(cur, conn, "buy_sell_daily_etf")
     cur.close()
     conn.close()
 
