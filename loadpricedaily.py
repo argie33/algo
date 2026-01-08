@@ -49,9 +49,10 @@ def log_mem(stage: str):
 # Retry settings
 # -------------------------------
 MAX_BATCH_RETRIES   = 3
-RETRY_DELAY         = 0.2   # seconds between download retries
-MAX_SYMBOL_RETRIES  = 5     # retries for individual symbols
+RETRY_DELAY         = 0.5   # seconds between download retries
+MAX_SYMBOL_RETRIES  = 8     # increased from 5 - more retries for timeout symbols
 RATE_LIMIT_BASE_DELAY = 30  # start with 30 seconds, increases dynamically (aggressive backoff for rate limits)
+TIMEOUT_RETRY_DELAY = 10    # extra delay when retrying timeout failures at end-of-load
 
 # -------------------------------
 # Price-daily columns
@@ -106,7 +107,7 @@ def load_prices(table_name, symbols, cur, conn):
     logging.info(f"Loading {table_name}: {total} symbols")
     inserted, failed = 0, []
     timeout_failures = []  # Track timeouts separately for end-of-load retry
-    CHUNK_SIZE, PAUSE = 1, 5.0  # Single symbol at a time with 5s pause to avoid yfinance rate limits (was 5, 3.0)
+    CHUNK_SIZE, PAUSE = 1, 1.5  # Single symbol at a time with 1.5s pause - faster but safe (was 5.0)
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     # Skip if no symbols to load
