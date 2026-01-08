@@ -76,7 +76,7 @@ def load_prices(table_name, symbols, cur, conn):
     total = len(symbols)
     logging.info(f"Loading {table_name}: {total} symbols")
     inserted, failed = 0, []
-    CHUNK_SIZE, PAUSE = 20, 1.0
+    CHUNK_SIZE, PAUSE = 1, 3.5  # Single symbol, 3.5s pause to avoid rate limits
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     if total == 0:

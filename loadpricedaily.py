@@ -51,7 +51,7 @@ def log_mem(stage: str):
 MAX_BATCH_RETRIES   = 3
 RETRY_DELAY         = 0.5   # seconds between download retries
 MAX_SYMBOL_RETRIES  = 8     # increased from 5 - more retries for timeout symbols
-RATE_LIMIT_BASE_DELAY = 30  # start with 30 seconds, increases dynamically (aggressive backoff for rate limits)
+RATE_LIMIT_BASE_DELAY = 60  # start with 60 seconds when rate limited (yfinance is aggressive)
 TIMEOUT_RETRY_DELAY = 10    # extra delay when retrying timeout failures at end-of-load
 
 # -------------------------------
@@ -107,7 +107,7 @@ def load_prices(table_name, symbols, cur, conn):
     logging.info(f"Loading {table_name}: {total} symbols")
     inserted, failed = 0, []
     timeout_failures = []  # Track timeouts separately for end-of-load retry
-    CHUNK_SIZE, PAUSE = 1, 1.5  # Single symbol at a time with 1.5s pause - faster but safe (was 5.0)
+    CHUNK_SIZE, PAUSE = 1, 3.5  # Single symbol at a time with 3.5s pause - balance between speed and rate limits
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     # Skip if no symbols to load
@@ -181,8 +181,8 @@ def load_prices(table_name, symbols, cur, conn):
                         error_msg = str(e)
                         last_error = error_msg
                         # Check if it's a rate limit error
-                        if "Too Many Requests" in error_msg or "Rate limit" in error_msg:
-                            # Use simple fixed delay (research shows 2-5s works best)
+                        if "Too Many Requests" in error_msg or "Rate limit" in error_msg or "YFRateLimit" in str(type(e).__name__):
+                            # Use aggressive delay for rate limits
                             delay = RATE_LIMIT_BASE_DELAY
                             logging.warning(f"{table_name} — {orig_sym}: rate limited (attempt {sym_attempt}/{MAX_SYMBOL_RETRIES}), waiting {delay}s")
                             time.sleep(delay)
