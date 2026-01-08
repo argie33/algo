@@ -356,16 +356,16 @@ def load_prices(table_name, symbols, cur, conn):
                     else:
                         logging.warning(f"{table_name} — {orig_sym}: still no data on retry (attempt {sym_attempt}/{MAX_SYMBOL_RETRIES})")
                         if sym_attempt < MAX_SYMBOL_RETRIES:
-                            time.sleep(2)
+                            time.sleep(TIMEOUT_RETRY_DELAY)  # Use longer delay for timeout retries (10s)
                 except Exception as e:
                     error_msg = str(e)
                     if "Timeout" in error_msg:
                         logging.warning(f"{table_name} — {orig_sym}: timeout on retry (attempt {sym_attempt}/{MAX_SYMBOL_RETRIES})")
-                        time.sleep(5)
+                        time.sleep(TIMEOUT_RETRY_DELAY)  # Use longer delay for timeout (10s)
                     else:
                         logging.warning(f"{table_name} — {orig_sym}: error on retry (attempt {sym_attempt}/{MAX_SYMBOL_RETRIES}): {e}")
                         if sym_attempt < MAX_SYMBOL_RETRIES:
-                            time.sleep(2)
+                            time.sleep(TIMEOUT_RETRY_DELAY)
             if not symbol_success:
                 failed.append(orig_sym)
                 logging.error(f"{table_name} — {orig_sym}: FAILED on retry - moving to failed list")

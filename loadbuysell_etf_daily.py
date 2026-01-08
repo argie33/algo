@@ -195,23 +195,39 @@ def create_buy_sell_table(cur, conn, table_name="buy_sell_daily_etf"):
 
     # Ensure UNIQUE constraint exists (for tables created before constraint was added)
     # First, try to clean up any duplicate rows by keeping only the latest one per (symbol, timeframe, date)
+    # NOTE: Skip cleanup if table is very large - constraint may still work with duplicates for new data
     try:
-        logging.info(f"🧹 Cleaning duplicate rows from {table_name}...")
-        cleanup_sql = f"""
-        DELETE FROM {table_name}
-        WHERE id NOT IN (
-            SELECT MAX(id) FROM {table_name}
-            GROUP BY symbol, timeframe, date
-        );
-        """
-        cur.execute(cleanup_sql)
-        deleted_count = cur.rowcount
-        if deleted_count > 0:
-            logging.info(f"✅ Deleted {deleted_count} duplicate rows from {table_name}")
-        conn.commit()
+        logging.info(f"🧹 Checking for duplicate rows in {table_name}...")
+        # Just check count, don't try to clean large tables
+        cur.execute(f"SELECT COUNT(*) FROM {table_name} WHERE id NOT IN (SELECT MAX(id) FROM {table_name} GROUP BY symbol, timeframe, date)")
+        dup_count = cur.fetchone()[0]
+
+        if dup_count > 0 and dup_count < 100000:
+            # Only try cleanup if there are duplicates but not too many
+            logging.info(f"Found {dup_count} duplicate rows, cleaning...")
+            cleanup_sql = f"""
+            DELETE FROM {table_name}
+            WHERE id NOT IN (
+                SELECT MAX(id) FROM {table_name}
+                GROUP BY symbol, timeframe, date
+            );
+            """
+            cur.execute(cleanup_sql)
+            deleted_count = cur.rowcount
+            if deleted_count > 0:
+                logging.info(f"✅ Deleted {deleted_count} duplicate rows from {table_name}")
+            conn.commit()
+        elif dup_count >= 100000:
+            logging.warning(f"⚠️ Table has {dup_count} duplicate rows - too many to clean in one pass, skipping cleanup")
+            conn.commit()
+        else:
+            logging.info(f"✅ No duplicates found in {table_name}")
     except Exception as e:
         logging.warning(f"Could not clean duplicates from {table_name}: {e}")
-        conn.rollback()
+        try:
+            conn.rollback()
+        except:
+            pass
 
     # Now try to add the constraint
     try:
