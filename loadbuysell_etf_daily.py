@@ -194,20 +194,39 @@ def create_buy_sell_table(cur, table_name="buy_sell_daily_etf"):
             raise
 
     # Ensure UNIQUE constraint exists (for tables created before constraint was added)
+    # First, try to clean up any duplicate rows by keeping only the latest one per (symbol, timeframe, date)
+    try:
+        logging.info(f"🧹 Cleaning duplicate rows from {table_name}...")
+        cleanup_sql = f"""
+        DELETE FROM {table_name}
+        WHERE id NOT IN (
+            SELECT MAX(id) FROM {table_name}
+            GROUP BY symbol, timeframe, date
+        );
+        """
+        cur.execute(cleanup_sql)
+        deleted_count = cur.rowcount
+        if deleted_count > 0:
+            logging.info(f"✅ Deleted {deleted_count} duplicate rows from {table_name}")
+        conn.commit()
+    except Exception as e:
+        logging.warning(f"Could not clean duplicates from {table_name}: {e}")
+        conn.rollback()
+
+    # Now try to add the constraint
     try:
         # Try to add the constraint - if it already exists, this will fail gracefully
         cur.execute(f"ALTER TABLE {table_name} ADD CONSTRAINT uq_{table_name}_symbol_timeframe_date UNIQUE (symbol, timeframe, date)")
         logging.info(f"✅ {table_name} UNIQUE constraint added")
         conn.commit()
     except psycopg2.Error as e:
-        # Check if constraint already exists
-        if "already exists" in str(e).lower() or "duplicate key" in str(e).lower() or "constraint" in str(e).lower():
-            logging.debug(f"ℹ️ {table_name} UNIQUE constraint already exists or conflicts detected: {e}")
+        error_str = str(e).lower()
+        if "already exists" in error_str or "duplicate key" in error_str or "constraint" in error_str:
+            logging.debug(f"ℹ️ {table_name} UNIQUE constraint already exists or conflicts detected")
             conn.rollback()
         else:
             logging.warning(f"Could not add UNIQUE constraint to {table_name}: {e}")
             conn.rollback()
-            # Continue anyway - ON CONFLICT might still work if constraint exists under different name
     except Exception as e:
         logging.warning(f"Could not add UNIQUE constraint to {table_name}: {e}")
         conn.rollback()
