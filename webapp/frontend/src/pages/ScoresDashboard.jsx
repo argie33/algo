@@ -1409,12 +1409,6 @@ const ScoresDashboard = () => {
                                             <TableCell align="right">{parseFloat(stock.quality_inputs.quick_ratio).toFixed(2)}</TableCell>
                                           </TableRow>
                                         )}
-                                        {stock.quality_inputs.earnings_surprise_avg !== null && stock.quality_inputs.earnings_surprise_avg !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Earnings Surprise Avg (4Q)</TableCell>
-                                            <TableCell align="right">{`${parseFloat(stock.quality_inputs.earnings_surprise_avg).toFixed(2)}%`}</TableCell>
-                                          </TableRow>
-                                        )}
                                         {stock.quality_inputs.eps_growth_stability !== null && stock.quality_inputs.eps_growth_stability !== undefined && (
                                           <TableRow>
                                             <TableCell>EPS Growth Stability (Std Dev)</TableCell>
@@ -1431,12 +1425,6 @@ const ScoresDashboard = () => {
                                           <TableRow>
                                             <TableCell>Return on Invested Capital (ROIC)</TableCell>
                                             <TableCell align="right">{`${parseFloat(stock.quality_inputs.return_on_invested_capital_pct).toFixed(1)}%`}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.roe_stability_index !== null && stock.quality_inputs.roe_stability_index !== undefined && (
-                                          <TableRow>
-                                            <TableCell>ROE Stability Index (4Y Trend)</TableCell>
-                                            <TableCell align="right">{parseFloat(stock.quality_inputs.roe_stability_index).toFixed(1)}</TableCell>
                                           </TableRow>
                                         )}
                                       </>

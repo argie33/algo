@@ -286,6 +286,12 @@ def load_annual_income_statement(symbols: List[str], cur, conn) -> Tuple[int, in
 
                 except Exception as e:
                     logging.warning(f"Error processing {symbol}: {e}")
+                    # CRITICAL: Rollback on error to prevent "transaction aborted" state
+                    try:
+                        conn.rollback()
+                        logging.debug(f"Transaction rolled back for {symbol}")
+                    except Exception as rb_error:
+                        logging.warning(f"Rollback failed: {rb_error}")
                     break
 
             if not success:
@@ -323,8 +329,11 @@ def create_table(cur, conn):
         logging.info("Created annual income statement table")
     except Exception as e:
         logging.info(f"Table likely exists: {e}")
-        # Don't rollback here - it aborts the whole transaction
-        pass
+        # Rollback to prevent transaction abort state
+        try:
+            conn.rollback()
+        except Exception as rb_error:
+            logging.warning(f"Rollback failed: {rb_error}")
 
 if __name__ == "__main__":
     log_mem("startup")
