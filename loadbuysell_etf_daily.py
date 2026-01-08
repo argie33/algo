@@ -193,6 +193,25 @@ def create_buy_sell_table(cur, table_name="buy_sell_daily_etf"):
         if "already exists" not in str(e).lower():
             raise
 
+    # Ensure UNIQUE constraint exists (for tables created before constraint was added)
+    try:
+        # Try to add the constraint - if it already exists, this will fail gracefully
+        cur.execute(f"ALTER TABLE {table_name} ADD CONSTRAINT uq_{table_name}_symbol_timeframe_date UNIQUE (symbol, timeframe, date)")
+        logging.info(f"✅ {table_name} UNIQUE constraint added")
+        conn.commit()
+    except psycopg2.Error as e:
+        # Check if constraint already exists
+        if "already exists" in str(e).lower() or "duplicate key" in str(e).lower() or "constraint" in str(e).lower():
+            logging.debug(f"ℹ️ {table_name} UNIQUE constraint already exists or conflicts detected: {e}")
+            conn.rollback()
+        else:
+            logging.warning(f"Could not add UNIQUE constraint to {table_name}: {e}")
+            conn.rollback()
+            # Continue anyway - ON CONFLICT might still work if constraint exists under different name
+    except Exception as e:
+        logging.warning(f"Could not add UNIQUE constraint to {table_name}: {e}")
+        conn.rollback()
+
 def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell_daily_etf"):
     # DEBUG: Check if pivot_price exists in DataFrame
     if 'pivot_price' in df.columns:

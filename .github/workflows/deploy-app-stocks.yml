@@ -1140,12 +1140,12 @@ jobs:
           esac
 
           # Run ECS task with the updated task definition
+          # NOTE: Do NOT override container command - let the Dockerfile ENTRYPOINT handle it
           TASK_ARN=$(aws ecs run-task \
             --cluster "${{ steps.infra.outputs.cluster }}" \
             --task-definition "$NEW_TASK_DEF_ARN" \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.subnet1 }},${{ steps.infra.outputs.subnet2 }}],securityGroups=[${{ steps.infra.outputs.security-group }}],assignPublicIp=ENABLED}" \
-            --overrides "{\"containerOverrides\":[{\"name\":\"$CONTAINER_NAME\",\"command\":[\"python3\",\"$SCRIPT_NAME\"]}]}" \
             --query "tasks[0].taskArn" \
             --output text)
 

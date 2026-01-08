@@ -39,12 +39,17 @@ function removeNullValues(obj) {
     return obj.map(item => removeNullValues(item));
   }
 
+  // Don't recurse into Date objects or strings (like last_updated timestamps)
+  if (obj instanceof Date || typeof obj === 'string') {
+    return obj;
+  }
+
   const cleaned = {};
   for (const [key, value] of Object.entries(obj)) {
     if (value === null || value === undefined) {
       continue; // Skip null/undefined values entirely
     }
-    if (typeof value === 'object') {
+    if (typeof value === 'object' && !(value instanceof Date) && typeof value !== 'string') {
       cleaned[key] = removeNullValues(value);
     } else {
       cleaned[key] = value;
@@ -167,6 +172,15 @@ async function getFactorMetricsInBatch(symbols) {
               COALESCE(l.date, p.date) as date
             FROM latest_row l
             LEFT JOIN prev_row p ON l.symbol = p.symbol
+          `;
+        } else if (table === 'stability_metrics') {
+          // For stability_metrics, prioritize records with non-null beta
+          // This ensures we get beta values when available
+          metricsQuery = `
+            SELECT DISTINCT ON (symbol)
+              symbol, * FROM ${table}
+            WHERE symbol IN (${placeholders})
+            ORDER BY symbol, beta IS NULL, date DESC
           `;
         } else {
           metricsQuery = `

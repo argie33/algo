@@ -20,6 +20,7 @@ from psycopg2.extras import RealDictCursor, execute_values
 from datetime import datetime
 
 import boto3
+import pandas as pd
 import yfinance as yf
 
 # -------------------------------
@@ -50,7 +51,7 @@ def log_mem(stage: str):
 MAX_BATCH_RETRIES   = 3
 RETRY_DELAY         = 0.2   # seconds between download retries
 MAX_SYMBOL_RETRIES  = 5     # retries for individual symbols
-RATE_LIMIT_BASE_DELAY = 10  # start with 10 seconds, increases dynamically (increased from 5 to handle API limits better)
+RATE_LIMIT_BASE_DELAY = 30  # start with 30 seconds, increases dynamically (aggressive backoff for rate limits)
 
 # -------------------------------
 # Price-daily columns
@@ -105,7 +106,7 @@ def load_prices(table_name, symbols, cur, conn):
     logging.info(f"Loading {table_name}: {total} symbols")
     inserted, failed = 0, []
     timeout_failures = []  # Track timeouts separately for end-of-load retry
-    CHUNK_SIZE, PAUSE = 5, 3.0  # Reduced batch size and increased pause to prevent yfinance rate limiting (was 20, 1.0)
+    CHUNK_SIZE, PAUSE = 1, 5.0  # Single symbol at a time with 5s pause to avoid yfinance rate limits (was 5, 3.0)
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     # Skip if no symbols to load
@@ -221,8 +222,9 @@ def load_prices(table_name, symbols, cur, conn):
             for yq_sym, orig_sym in mapping.items():
                 try:
                     # Handle both single and multi-ticker dataframes
-                    if len(yq_batch) > 1:
-                        # Batch download returns MultiIndex columns (ticker, OHLCV)
+                    # When CHUNK_SIZE=1, even single downloads have MultiIndex columns from yfinance
+                    if isinstance(df.columns, pd.MultiIndex):
+                        # MultiIndex columns - extract the data for this symbol
                         if yq_sym in df.columns.get_level_values(0):
                             sub = df[yq_sym]
                         else:
@@ -230,7 +232,7 @@ def load_prices(table_name, symbols, cur, conn):
                             failed.append(orig_sym)
                             continue
                     else:
-                        # Single ticker download
+                        # Flat columns - this is a single symbol download
                         sub = df
                 except (KeyError, AttributeError) as e:
                     logging.warning(f"No data for {orig_sym}: {e}; skipping")
@@ -238,21 +240,14 @@ def load_prices(table_name, symbols, cur, conn):
                     continue
 
                 sub = sub.sort_index()
-                # CRITICAL FIX: Normalize ALL column names to lowercase (yfinance returns UPPERCASE from both batch and per-symbol downloads)
-                # This handles both formats:
-                # - Batch downloads with MultiIndex: extract right side of tuple and lowercase
-                # - Single downloads with flat columns: already strings, just lowercase them
-                normalized_cols = {}
-                for col in sub.columns:
-                    if isinstance(col, tuple):
-                        # MultiIndex case: col is like ('Open',) or ('High',), extract and lowercase
-                        normalized_cols[col] = col[1].lower() if len(col) > 1 else str(col[0]).lower()
-                    else:
-                        # Regular string case: just lowercase it
-                        normalized_cols[col] = str(col).lower()
-
-                # Apply the normalization by renaming the dataframe columns
-                sub = sub.rename(columns=normalized_cols)
+                # CRITICAL FIX: Normalize ALL column names to lowercase (yfinance returns UPPERCASE)
+                # Flatten any remaining MultiIndex structure and lowercase
+                if isinstance(sub.columns, pd.MultiIndex):
+                    # Extract the rightmost level of the MultiIndex
+                    sub.columns = [col[-1].lower() if isinstance(col, tuple) else str(col).lower() for col in sub.columns]
+                else:
+                    # Regular columns - just lowercase them
+                    sub.columns = [col.lower() for col in sub.columns]
 
                 # Verify that 'open' column exists after normalization
                 if "open" not in sub.columns:
@@ -286,7 +281,17 @@ def load_prices(table_name, symbols, cur, conn):
                     failed.append(orig_sym)
                     continue
 
-                sql = f"INSERT INTO {table_name} ({COL_LIST}) VALUES %s"
+                sql = f"""INSERT INTO {table_name} ({COL_LIST}) VALUES %s
+                    ON CONFLICT (symbol, date) DO UPDATE SET
+                    open = EXCLUDED.open,
+                    high = EXCLUDED.high,
+                    low = EXCLUDED.low,
+                    close = EXCLUDED.close,
+                    adj_close = EXCLUDED.adj_close,
+                    volume = EXCLUDED.volume,
+                    dividends = EXCLUDED.dividends,
+                    stock_splits = EXCLUDED.stock_splits
+                """
                 execute_values(cur, sql, rows)
                 conn.commit()
                 inserted += len(rows)
@@ -330,7 +335,17 @@ def load_prices(table_name, symbols, cur, conn):
                                 0.0  if ("stock splits" not in row or math.isnan(row["stock splits"])) else float(row["stock splits"])
                             ])
                         if rows:
-                            sql = f"INSERT INTO {table_name} ({COL_LIST}) VALUES %s"
+                            sql = f"""INSERT INTO {table_name} ({COL_LIST}) VALUES %s
+                                ON CONFLICT (symbol, date) DO UPDATE SET
+                                open = EXCLUDED.open,
+                                high = EXCLUDED.high,
+                                low = EXCLUDED.low,
+                                close = EXCLUDED.close,
+                                adj_close = EXCLUDED.adj_close,
+                                volume = EXCLUDED.volume,
+                                dividends = EXCLUDED.dividends,
+                                stock_splits = EXCLUDED.stock_splits
+                            """
                             execute_values(cur, sql, rows)
                             conn.commit()
                             inserted += len(rows)
