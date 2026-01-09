@@ -264,18 +264,22 @@ def load_prices(table_name, symbols, cur, conn):
 
                 rows = []
                 for idx, row in sub.iterrows():
-                    rows.append([
-                        orig_sym,
-                        idx.date(),
-                        None if math.isnan(row["open"])      else float(row["open"]),
-                        None if math.isnan(row["high"])      else float(row["high"]),
-                        None if math.isnan(row["low"])       else float(row["low"]),
-                        None if math.isnan(row["close"])     else float(row["close"]),
-                        None if math.isnan(row.get("adj close", row["close"])) else float(row.get("adj close", row["close"])),
-                        None if math.isnan(row["volume"])    else int(row["volume"]),
-                        0.0  if ("dividends" not in row or math.isnan(row["dividends"])) else float(row["dividends"]),
-                        0.0  if ("stock splits" not in row or math.isnan(row["stock splits"])) else float(row["stock splits"])
-                    ])
+                    try:
+                        rows.append([
+                            orig_sym,
+                            idx.date(),
+                            None if math.isnan(row.get("open", float("nan")))      else float(row["open"]),
+                            None if math.isnan(row.get("high", float("nan")))      else float(row["high"]),
+                            None if math.isnan(row.get("low", float("nan")))       else float(row["low"]),
+                            None if math.isnan(row.get("close", float("nan")))     else float(row["close"]),
+                            None if math.isnan(row.get("adj close", row.get("close", float("nan")))) else float(row.get("adj close", row["close"])),
+                            None if math.isnan(row.get("volume", float("nan")))    else int(row.get("volume", 0)),
+                            0.0  if ("dividends" not in row or math.isnan(row.get("dividends", float("nan")))) else float(row["dividends"]),
+                            0.0  if ("stock splits" not in row or math.isnan(row.get("stock splits", float("nan")))) else float(row["stock splits"])
+                        ])
+                    except (KeyError, ValueError, TypeError) as e:
+                        logging.debug(f"{orig_sym} row parse error: {e}, skipping row")
+                        continue
 
                 if not rows:
                     logging.warning(f"{orig_sym}: no rows after cleaning; skipping")
