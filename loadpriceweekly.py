@@ -219,7 +219,22 @@ def load_prices(table_name, symbols, cur, conn):
                     continue
 
                 sub = sub.sort_index()
-                sub = sub[sub["Open"].notna()]
+
+                # Normalize column names to lowercase for consistent access
+                normalized_cols = {}
+                for col in sub.columns:
+                    if isinstance(col, tuple):
+                        normalized_cols[col] = col[1].lower() if len(col) > 1 else str(col[0]).lower()
+                    else:
+                        normalized_cols[col] = str(col).lower()
+                sub = sub.rename(columns=normalized_cols)
+
+                if "open" not in sub.columns:
+                    logging.warning(f"No 'open' column for {orig_sym}")
+                    failed.append(orig_sym)
+                    continue
+
+                sub = sub[sub["open"].notna()]
                 if sub.empty:
                     logging.warning(f"No valid price rows for {orig_sym}; skipping")
                     failed.append(orig_sym)
@@ -227,18 +242,22 @@ def load_prices(table_name, symbols, cur, conn):
 
                 rows = []
                 for idx, row in sub.iterrows():
-                    rows.append([
-                        orig_sym,
-                        idx.date(),
-                        None if math.isnan(row["Open"])      else float(row["Open"]),
-                        None if math.isnan(row["High"])      else float(row["High"]),
-                        None if math.isnan(row["Low"])       else float(row["Low"]),
-                        None if math.isnan(row["Close"])     else float(row["Close"]),
-                        None if math.isnan(row.get("Adj Close", row["Close"])) else float(row.get("Adj Close", row["Close"])),
-                        None if math.isnan(row["Volume"])    else int(row["Volume"]),
-                        0.0  if ("Dividends" not in row or (isinstance(row["Dividends"], float) and math.isnan(row["Dividends"]))) else (0.0 if not isinstance(row["Dividends"], (int, float)) else float(row["Dividends"])),
-                        0.0  if ("Stock Splits" not in row or (isinstance(row["Stock Splits"], float) and math.isnan(row["Stock Splits"]))) else (0.0 if not isinstance(row["Stock Splits"], (int, float)) else float(row["Stock Splits"]))
-                    ])
+                    try:
+                        rows.append([
+                            orig_sym,
+                            idx.date(),
+                            None if math.isnan(row.get("open", float("nan")))      else float(row["open"]),
+                            None if math.isnan(row.get("high", float("nan")))      else float(row["high"]),
+                            None if math.isnan(row.get("low", float("nan")))       else float(row["low"]),
+                            None if math.isnan(row.get("close", float("nan")))     else float(row["close"]),
+                            None if math.isnan(row.get("adj close", row.get("close", float("nan")))) else float(row.get("adj close", row["close"])),
+                            None if math.isnan(row.get("volume", float("nan")))    else int(row.get("volume", 0)),
+                            0.0  if ("dividends" not in row or (isinstance(row["dividends"], float) and math.isnan(row["dividends"]))) else (0.0 if not isinstance(row["dividends"], (int, float)) else float(row["dividends"])),
+                            0.0  if ("stock splits" not in row or (isinstance(row["stock splits"], float) and math.isnan(row["stock splits"]))) else (0.0 if not isinstance(row["stock splits"], (int, float)) else float(row["stock splits"]))
+                        ])
+                    except (KeyError, ValueError, TypeError) as e:
+                        logging.debug(f"{orig_sym} row parse error: {e}, skipping row")
+                        continue
 
                 if not rows:
                     logging.warning(f"{orig_sym}: no rows after cleaning; skipping")
