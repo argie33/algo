@@ -121,17 +121,22 @@ def get_db_config():
     db_secret_arn = os.environ.get("DB_SECRET_ARN")
 
     if db_secret_arn:
-        secret_str = boto3.client("secretsmanager").get_secret_value(
-            SecretId=db_secret_arn
-        )["SecretString"]
-        sec = json.loads(secret_str)
-        return {
-            "host": sec["host"],
-            "port": int(sec.get("port", 5432)),
-            "user": sec["username"],
-            "password": sec["password"],
-            "dbname": sec["dbname"],
-        }
+        try:
+            secret_str = boto3.client("secretsmanager").get_secret_value(
+                SecretId=db_secret_arn
+            )["SecretString"]
+            sec = json.loads(secret_str)
+            logging.info(f"Using AWS Secrets Manager for database credentials")
+            return {
+                "host": sec["host"],
+                "port": int(sec.get("port", 5432)),
+                "user": sec["username"],
+                "password": sec["password"],
+                "dbname": sec["dbname"],
+            }
+        except Exception as e:
+            logging.warning(f"Failed to get AWS Secrets Manager credentials: {e}")
+            logging.info("Falling back to local database configuration")
 
     # Try local socket connection first (peer authentication) - for local development
     try:
@@ -142,16 +147,18 @@ def get_db_config():
         )
         test_conn.close()
         # Socket connection works, use it
+        logging.info("Using local socket connection to database")
         return {
             "host": None,  # Use socket
             "user": "stocks",
             "password": None,
             "dbname": os.environ.get("DB_NAME", "stocks"),
         }
-    except:
-        pass
+    except Exception as e:
+        logging.debug(f"Socket connection failed: {e}, trying environment variables")
 
     # Fall back to environment variables
+    logging.info("Using environment variables for database configuration")
     return {
         "host": os.environ.get("DB_HOST", "localhost"),
         "port": int(os.environ.get("DB_PORT", "5432")),
