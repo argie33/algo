@@ -8,6 +8,7 @@ Uses yfinance for reliable market data access
 import sys
 import logging
 import os
+import time
 import psycopg2
 from psycopg2.extras import execute_values
 from datetime import datetime, timedelta
@@ -48,22 +49,36 @@ def get_db_connection():
         logger.error(f"❌ Database connection failed: {e}")
         sys.exit(1)
 
-def fetch_benchmark_data(symbol, lookback_days=365):
-    """Fetch benchmark historical data from yfinance"""
-    try:
-        logger.info(f"📊 Fetching {symbol} data from yfinance (last {lookback_days} days)...")
+def fetch_benchmark_data(symbol, lookback_days=365, max_retries=5):
+    """Fetch benchmark historical data from yfinance with retry logic for rate limits"""
+    for attempt in range(1, max_retries + 1):
+        try:
+            logger.info(f"📊 Fetching {symbol} data from yfinance (last {lookback_days} days) [attempt {attempt}/{max_retries}]...")
 
-        hist = yf.Ticker(symbol.replace(".", "-").replace("$", "-").upper()).history(period=f"{lookback_days}d")
+            hist = yf.Ticker(symbol.replace(".", "-").replace("$", "-").upper()).history(period=f"{lookback_days}d")
 
-        if hist.empty:
-            logger.warning(f"⚠️  No historical data for {symbol}")
-            return None
+            if hist.empty:
+                logger.warning(f"⚠️  No historical data for {symbol}")
+                return None
 
-        logger.info(f"✅ Retrieved {len(hist)} {symbol} bars from yfinance")
-        return hist
-    except Exception as e:
-        logger.error(f"❌ Failed to fetch {symbol} data: {e}")
-        return None
+            logger.info(f"✅ Retrieved {len(hist)} {symbol} bars from yfinance")
+            return hist
+        except Exception as e:
+            error_msg = str(e)
+            if "Too Many Requests" in error_msg or "Rate limit" in error_msg or "YFRateLimit" in str(type(e).__name__):
+                delay = min(60 * (2 ** (attempt - 1)), 300)  # exponential backoff, max 5 mins
+                logger.warning(f"⚠️  {symbol}: Rate limited (attempt {attempt}/{max_retries}), waiting {delay}s before retry...")
+                if attempt < max_retries:
+                    time.sleep(delay)
+                else:
+                    logger.error(f"❌ {symbol}: Rate limit exceeded after {max_retries} attempts")
+                    return None
+            else:
+                logger.error(f"❌ Failed to fetch {symbol} data (attempt {attempt}/{max_retries}): {e}")
+                if attempt < max_retries:
+                    time.sleep(2)
+                else:
+                    return None
 
 def insert_benchmark_data(conn, symbol, hist):
     """Insert benchmark bars into price_daily table"""

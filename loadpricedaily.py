@@ -110,7 +110,7 @@ def load_prices(table_name, symbols, cur, conn):
     logging.info(f"Loading {table_name}: {total} symbols")
     inserted, failed = 0, []
     timeout_failures = []  # Track timeouts separately for end-of-load retry
-    CHUNK_SIZE, PAUSE = 1, 5.0  # Single symbol at a time with 3.5s pause - balance between speed and rate limits
+    CHUNK_SIZE, PAUSE = 1, 2.5  # Single symbol at a time with 3.5s pause - balance between speed and rate limits
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     # Skip if no symbols to load
