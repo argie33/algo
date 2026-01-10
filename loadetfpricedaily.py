@@ -15,6 +15,7 @@ from psycopg2.extras import RealDictCursor, execute_values
 from datetime import datetime
 
 import boto3
+import pandas as pd
 import yfinance as yf
 
 # Script metadata & logging setup
@@ -53,16 +54,19 @@ def get_db_config():
             "dbname": os.environ.get("DB_NAME", "stocks")
         }
     if os.environ.get("DB_SECRET_ARN"):
-        secret_str = boto3.client("secretsmanager") \
-                         .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
-        sec = json.loads(secret_str)
-        return {
-            "host":   sec["host"],
-            "port":   int(sec.get("port", 5432)),
-            "user":   sec["username"],
-            "password": sec["password"],
-            "dbname": sec["dbname"]
-        }
+        try:
+            secret_str = boto3.client("secretsmanager") \
+                             .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
+            sec = json.loads(secret_str)
+            return {
+                "host":   sec["host"],
+                "port":   int(sec.get("port", 5432)),
+                "user":   sec["username"],
+                "password": sec["password"],
+                "dbname": sec["dbname"]
+            }
+        except Exception as e:
+            logging.warning(f"Failed to fetch from AWS Secrets Manager: {e}, falling back to environment variables")
     # Fallback to defaults
     return {
         "host":   "localhost",
@@ -76,7 +80,7 @@ def load_prices(table_name, symbols, cur, conn):
     total = len(symbols)
     logging.info(f"Loading {table_name}: {total} symbols")
     inserted, failed = 0, []
-    CHUNK_SIZE, PAUSE = 1, 3.5  # Single symbol, 3.5s pause to avoid rate limits
+    CHUNK_SIZE, PAUSE = 1, 5.0  # Single symbol, 3.5s pause to avoid rate limits
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     if total == 0:
@@ -156,17 +160,17 @@ def load_prices(table_name, symbols, cur, conn):
                     continue
 
                 sub = sub.sort_index()
-                normalized_cols = {}
-                for col in sub.columns:
-                    if isinstance(col, tuple):
-                        normalized_cols[col] = col[1].lower() if len(col) > 1 else str(col[0]).lower()
-                    else:
-                        normalized_cols[col] = str(col).lower()
 
-                sub = sub.rename(columns=normalized_cols)
+                # Flatten MultiIndex columns if needed
+                if isinstance(sub.columns, pd.MultiIndex):
+                    # Extract the data column (last level) and make lowercase
+                    sub.columns = [col[-1].lower() for col in sub.columns]
+                else:
+                    # Regular columns - just lowercase
+                    sub.columns = [str(col).lower() for col in sub.columns]
 
                 if "open" not in sub.columns:
-                    logging.warning(f"No 'open' column for {orig_sym}")
+                    logging.warning(f"No 'open' column for {orig_sym} - have: {list(sub.columns)}")
                     failed.append(orig_sym)
                     continue
 

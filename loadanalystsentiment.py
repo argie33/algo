@@ -54,8 +54,7 @@ def get_db_config():
                 "dbname": sec["dbname"]
             }
         except Exception as e:
-            logging.error(f"Failed to get secrets from AWS: {e}")
-            raise
+            logging.warning(f"Failed to get secrets from AWS: {e}, falling back to environment variables")
 
     # Local mode - use environment variables
     logging.info("Using local database configuration from environment variables")

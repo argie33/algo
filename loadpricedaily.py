@@ -51,7 +51,7 @@ def log_mem(stage: str):
 MAX_BATCH_RETRIES   = 3
 RETRY_DELAY         = 0.5   # seconds between download retries
 MAX_SYMBOL_RETRIES  = 8     # increased from 5 - more retries for timeout symbols
-RATE_LIMIT_BASE_DELAY = 60  # start with 60 seconds when rate limited (yfinance is aggressive)
+RATE_LIMIT_BASE_DELAY = 120  # start with 60 seconds when rate limited (yfinance is aggressive)
 TIMEOUT_RETRY_DELAY = 10    # extra delay when retrying timeout failures at end-of-load
 
 # -------------------------------
@@ -79,16 +79,19 @@ def get_db_config():
 
     # Fall back to AWS Secrets Manager if available
     if os.environ.get("DB_SECRET_ARN"):
-        secret_str = boto3.client("secretsmanager") \
-                         .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
-        sec = json.loads(secret_str)
-        return {
-            "host":   sec["host"],
-            "port":   int(sec.get("port", 5432)),
-            "user":   sec["username"],
-            "password": sec["password"],
-            "dbname": sec["dbname"]
-        }
+        try:
+            secret_str = boto3.client("secretsmanager") \
+                             .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
+            sec = json.loads(secret_str)
+            return {
+                "host":   sec["host"],
+                "port":   int(sec.get("port", 5432)),
+                "user":   sec["username"],
+                "password": sec["password"],
+                "dbname": sec["dbname"]
+            }
+        except Exception as e:
+            logging.warning(f"Failed to fetch from AWS Secrets Manager: {e}, falling back to environment variables")
 
     # Final fallback to localhost defaults
     return {
@@ -107,7 +110,7 @@ def load_prices(table_name, symbols, cur, conn):
     logging.info(f"Loading {table_name}: {total} symbols")
     inserted, failed = 0, []
     timeout_failures = []  # Track timeouts separately for end-of-load retry
-    CHUNK_SIZE, PAUSE = 1, 3.5  # Single symbol at a time with 3.5s pause - balance between speed and rate limits
+    CHUNK_SIZE, PAUSE = 1, 5.0  # Single symbol at a time with 3.5s pause - balance between speed and rate limits
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     # Skip if no symbols to load
