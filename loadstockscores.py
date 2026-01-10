@@ -75,6 +75,7 @@ DB_NAME = os.getenv('DB_NAME', 'stocks')
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+SCRIPT_NAME = "loadstockscores.py"
 
 # ============================================================================
 # TECHNICAL INDICATOR FUNCTIONS
@@ -351,7 +352,7 @@ def get_stock_symbols(conn, limit=None):
             FROM stock_symbols s
             LEFT JOIN price_daily p ON s.symbol = p.symbol
             LEFT JOIN key_metrics km ON s.symbol = km.ticker
-            WHERE s.exchange IN ('NASDAQ', 'New York Stock Exchange', 'American Stock Exchange', 'NYSE Arca')
+            WHERE s.exchange IN ('NASDAQ', 'New York Stock Exchange', 'American Stock Exchange', 'NYSE Arca', 'BATS Global Markets')
               AND (s.etf = 'N' OR s.etf IS NULL OR s.etf = '')
             GROUP BY s.symbol
             ORDER BY s.symbol
@@ -1857,8 +1858,48 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 logger.debug(f"{symbol}: Could not fetch beta from stability_metrics: {e}")
                 beta = None
 
-            # No fallback calculation - beta must come from database or remain None
-            # Never calculate synthetic beta from price data as a fallback
+            # FALLBACK: Calculate beta from price data if not in database
+            # Beta = covariance(stock_returns, market_returns) / variance(market_returns)
+            # Uses SPY as market proxy (S&P 500 index)
+            if beta is None and len(df) >= 252:
+                try:
+                    import numpy as np
+                    # Get stock returns (daily percentage change)
+                    stock_prices = df['close'].astype(float).values
+                    stock_returns = np.diff(stock_prices) / stock_prices[:-1] * 100
+
+                    # Get SPY returns for same dates (last 252 trading days)
+                    # Query only recent dates from our stock data
+                    recent_dates = df['date'].tail(252).values
+                    date_list = tuple(str(d) for d in recent_dates)
+
+                    cur.execute("""
+                        SELECT date, close FROM price_daily
+                        WHERE symbol = 'SPY'
+                        AND date IN ({})
+                        ORDER BY date
+                    """.format(','.join(['%s'] * len(date_list))), date_list)
+
+                    spy_data = cur.fetchall()
+                    if len(spy_data) >= 100:  # At least 100 trading days for reasonable beta
+                        spy_prices = np.array([float(p[1]) for p in spy_data])
+                        spy_returns = np.diff(spy_prices) / spy_prices[:-1] * 100
+
+                        # Align lengths
+                        min_len = min(len(stock_returns), len(spy_returns))
+                        if min_len >= 100:
+                            stock_ret = stock_returns[-min_len:]
+                            spy_ret = spy_returns[-min_len:]
+
+                            # Calculate beta
+                            covariance = np.cov(stock_ret, spy_ret)[0][1]
+                            variance = np.var(spy_ret)
+                            if variance != 0:
+                                beta = covariance / variance
+                                logger.debug(f"{symbol}: Calculated beta from price data ({min_len} days): {beta:.3f}")
+                except Exception as e:
+                    logger.debug(f"{symbol}: Could not calculate beta from price data: {e}")
+                    beta = None
 
             if not stability_metrics or not stability_metrics.get('beta'):
                 logger.debug(f"{symbol}: Beta distribution not available - will calculate stability without beta")
@@ -1921,126 +1962,121 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             stability_inputs['beta'] = round(beta, 3) if beta is not None else None
             stability_inputs['range_52w_pct'] = round(range_52w_pct, 2) if range_52w_pct is not None else None
 
-            # PHASE 3 FIX: Calculate stability_score with ONLY max_drawdown available if needed
-            # MIN REQUIREMENT: At least max_drawdown_52w_pct from database OR calculated from price data
-            # volatility_12m_pct can be None - will use only available components
-            if max_drawdown_52w_pct is None:
-                stability_score = None
-                logger.info(f"{symbol} Stability Score: None (missing essential drawdown data)")
+            # PHASE 3 FIX: Calculate stability_score with FLEXIBLE component requirements
+            # MIN REQUIREMENT: At least ONE stability metric available (volatility, drawdown, beta, liquidity, or range)
+            # This allows scoring stocks even if some data is missing - uses whatever is available
+            # Convert all to 0-100 scale using DYNAMIC percentile ranking (CRITICAL FIX #1)
+            # NOTE: downside_volatility not available in risk_metrics table, so only using volatility, drawdown, beta
+
+            # Volatility: lower is better (inverted percentile - lower volatility = higher score)
+            vol_percentile = None
+            if stability_metrics is not None and volatility_12m_pct is not None:
+                volatility_list = stability_metrics.get('volatility')
+                if volatility_list and len(volatility_list) > 0:
+                    vol_percentile = calculate_z_score_normalized(volatility_12m_pct, volatility_list)
+                    # Invert: lower volatility should score higher
+                    vol_percentile = 100 - vol_percentile if vol_percentile is not None else None
+                else:
+                    logger.debug(f"{symbol}: Volatility distribution list empty or missing")
+
+            # Drawdown: lower is better (inverted percentile)
+            drawdown_percentile = None
+            if stability_metrics is not None and max_drawdown_52w_pct is not None:
+                drawdown_list = stability_metrics.get('drawdown')
+                if drawdown_list and len(drawdown_list) > 0:
+                    drawdown_percentile = calculate_z_score_normalized(max_drawdown_52w_pct, drawdown_list)
+                    # Invert: lower drawdown should score higher
+                    drawdown_percentile = 100 - drawdown_percentile if drawdown_percentile is not None else None
+                else:
+                    logger.debug(f"{symbol}: Drawdown distribution list empty or missing")
+
+            # 52-Week Range: lower range = more stable (convert to 0-100 score directly)
+            # Range < 20% = 100 (very stable), Range > 200% = 0 (very volatile)
+            range_52w_score = None
+            if range_52w_pct is not None:
+                # Linear mapping: 0% range = 100, 300% range = 0
+                # Formula: max(0, min(100, 100 - (range_52w_pct / 3)))
+                range_52w_score = max(0, min(100, 100 - (range_52w_pct / 3)))
+                logger.debug(f"{symbol}: 52-week range = {range_52w_pct:.1f}%, stability score = {range_52w_score:.1f}")
+
+            # Calculate composite stability score - REAL DATA ONLY, no fallback defaults
+            # Enhanced Multi-Timeframe Model: Price Action (50%) + Liquidity (35%) + Long-Term Range (15%)
+            # SHORT-TERM: Volatility + drawdown + beta (price action)
+            # LONG-TERM: 52-week range (captures annual stability bounds)
+            # MARKET-CONDITION: Liquidity metrics
+            components = []
+            weights = []
+
+            # PRICE ACTION METRICS (50% total) - short-term stability:
+            # Required: volatility (25% - directly measures daily price movement stability)
+            if vol_percentile is not None:
+                components.append(vol_percentile)
+                weights.append(0.25)
+
+            # Required: drawdown (20% - directly measures maximum drop from peak)
+            if drawdown_percentile is not None:
+                components.append(drawdown_percentile)
+                weights.append(0.20)
+
+            # Optional: beta (5% if available - measures market correlation)
+            if beta is not None and stability_metrics and stability_metrics.get('beta'):
+                # Use DYNAMIC percentile ranking for beta (lower is better - less volatile than market)
+                beta_percentile = calculate_z_score_normalized(beta, stability_metrics['beta'])
+                # Invert: lower beta (more stable) should score higher
+                beta_percentile = 100 - beta_percentile if beta_percentile is not None else None
+                if beta_percentile is not None:
+                    components.append(beta_percentile)
+                    weights.append(0.05)
             else:
-                # All components available - calculate risk score
-                # Convert all to 0-100 scale using DYNAMIC percentile ranking (CRITICAL FIX #1)
-                # NOTE: downside_volatility not available in risk_metrics table, so only using volatility, drawdown, beta
+                logger.info(f"{symbol}: Beta missing - calculating stability without beta")
 
-                # Volatility: lower is better (inverted percentile - lower volatility = higher score)
-                vol_percentile = None
-                if stability_metrics is not None and volatility_12m_pct is not None:
-                    volatility_list = stability_metrics.get('volatility')
-                    if volatility_list and len(volatility_list) > 0:
-                        vol_percentile = calculate_z_score_normalized(volatility_12m_pct, volatility_list)
-                        # Invert: lower volatility should score higher
-                        vol_percentile = 100 - vol_percentile if vol_percentile is not None else None
-                    else:
-                        logger.debug(f"{symbol}: Volatility distribution list empty or missing")
+            # LONG-TERM STABILITY (15% total) - annual price range:
+            # 52-week range measures whether stock stays in consistent band or has wild swings
+            if range_52w_score is not None:
+                components.append(range_52w_score)
+                weights.append(0.15)
 
-                # Drawdown: lower is better (inverted percentile)
-                drawdown_percentile = None
-                if stability_metrics is not None and max_drawdown_52w_pct is not None:
-                    drawdown_list = stability_metrics.get('drawdown')
-                    if drawdown_list and len(drawdown_list) > 0:
-                        drawdown_percentile = calculate_z_score_normalized(max_drawdown_52w_pct, drawdown_list)
-                        # Invert: lower drawdown should score higher
-                        drawdown_percentile = 100 - drawdown_percentile if drawdown_percentile is not None else None
-                    else:
-                        logger.debug(f"{symbol}: Drawdown distribution list empty or missing")
+            # LIQUIDITY METRICS (35% total - illiquid stocks = less stable price action):
+            # These measure trading volume consistency and cost (spreads) - key indicator of price stability
+            if volume_consistency_score is not None:
+                components.append(volume_consistency_score)
+                weights.append(0.12)
+            if daily_spread_score is not None:
+                components.append(daily_spread_score)
+                weights.append(0.12)
+            if turnover_velocity_score is not None:
+                components.append(turnover_velocity_score)
+                weights.append(0.11)
 
-                # 52-Week Range: lower range = more stable (convert to 0-100 score directly)
-                # Range < 20% = 100 (very stable), Range > 200% = 0 (very volatile)
-                range_52w_score = None
-                if range_52w_pct is not None:
-                    # Linear mapping: 0% range = 100, 300% range = 0
-                    # Formula: max(0, min(100, 100 - (range_52w_pct / 3)))
-                    range_52w_score = max(0, min(100, 100 - (range_52w_pct / 3)))
-                    logger.debug(f"{symbol}: 52-week range = {range_52w_pct:.1f}%, stability score = {range_52w_score:.1f}")
+            # Check if we have at least one component
+            if len(components) == 0:
+                risk_stability_score = None
+                logger.warning(f"{symbol}: ⚠️ NO STABILITY COMPONENTS FOUND - vol_percentile={vol_percentile}, drawdown_percentile={drawdown_percentile}, range_52w={range_52w_score}, vol_consistency={volume_consistency_score}, beta={beta}")
+            else:
+                # Re-normalize weights to sum to 1.0 (in case some components are missing)
+                total_weight = sum(weights)
+                if total_weight > 0:
+                    normalized_weights = [w / total_weight for w in weights]
 
-                # Calculate composite stability score - REAL DATA ONLY, no fallback defaults
-                # Enhanced Multi-Timeframe Model: Price Action (50%) + Liquidity (35%) + Long-Term Range (15%)
-                # SHORT-TERM: Volatility + drawdown + beta (price action)
-                # LONG-TERM: 52-week range (captures annual stability bounds)
-                # MARKET-CONDITION: Liquidity metrics
-                components = []
-                weights = []
-
-                # PRICE ACTION METRICS (50% total) - short-term stability:
-                # Required: volatility (25% - directly measures daily price movement stability)
-                if vol_percentile is not None:
-                    components.append(vol_percentile)
-                    weights.append(0.25)
-
-                # Required: drawdown (20% - directly measures maximum drop from peak)
-                if drawdown_percentile is not None:
-                    components.append(drawdown_percentile)
-                    weights.append(0.20)
-
-                # Optional: beta (5% if available - measures market correlation)
-                if beta is not None and stability_metrics and stability_metrics.get('beta'):
-                    # Use DYNAMIC percentile ranking for beta (lower is better - less volatile than market)
-                    beta_percentile = calculate_z_score_normalized(beta, stability_metrics['beta'])
-                    # Invert: lower beta (more stable) should score higher
-                    beta_percentile = 100 - beta_percentile if beta_percentile is not None else None
-                    if beta_percentile is not None:
-                        components.append(beta_percentile)
-                        weights.append(0.05)
+                    # Calculate weighted composite (multi-timeframe: 50% price action + 35% liquidity + 15% annual range)
+                    risk_stability_score = sum(c * w for c, w in zip(components, normalized_weights))
+                    risk_stability_score = max(0, min(100, risk_stability_score))
                 else:
-                    logger.info(f"{symbol}: Beta missing - calculating stability without beta")
-
-                # LONG-TERM STABILITY (15% total) - annual price range:
-                # 52-week range measures whether stock stays in consistent band or has wild swings
-                if range_52w_score is not None:
-                    components.append(range_52w_score)
-                    weights.append(0.15)
-
-                # LIQUIDITY METRICS (35% total - illiquid stocks = less stable price action):
-                # These measure trading volume consistency and cost (spreads) - key indicator of price stability
-                if volume_consistency_score is not None:
-                    components.append(volume_consistency_score)
-                    weights.append(0.12)
-                if daily_spread_score is not None:
-                    components.append(daily_spread_score)
-                    weights.append(0.12)
-                if turnover_velocity_score is not None:
-                    components.append(turnover_velocity_score)
-                    weights.append(0.11)
-
-                # Check if we have at least one component
-                if len(components) == 0:
                     risk_stability_score = None
-                    logger.warning(f"{symbol}: ⚠️ NO STABILITY COMPONENTS FOUND - vol_percentile={vol_percentile}, drawdown_percentile={drawdown_percentile}, range_52w={range_52w_score}, vol_consistency={volume_consistency_score}, beta={beta}")
-                else:
-                    # Re-normalize weights to sum to 1.0 (in case some components are missing)
-                    total_weight = sum(weights)
-                    if total_weight > 0:
-                        normalized_weights = [w / total_weight for w in weights]
+                    logger.warning(f"{symbol}: Total weight is zero - stability calculation impossible")
 
-                        # Calculate weighted composite (multi-timeframe: 50% price action + 35% liquidity + 15% annual range)
-                        risk_stability_score = sum(c * w for c, w in zip(components, normalized_weights))
-                        risk_stability_score = max(0, min(100, risk_stability_score))
-                    else:
-                        risk_stability_score = None
-                        logger.warning(f"{symbol}: Total weight is zero - stability calculation impossible")
+            # NOTE: stability_inputs already populated above (BEFORE score calculation)
+            # Multi-timeframe model - short-term volatility, long-term range, market liquidity
+            # Log with proper null handling
+            vol_str = f"{vol_percentile:.0f}" if vol_percentile is not None else "N/A"
+            drawdown_str = f"{drawdown_percentile:.0f}" if drawdown_percentile is not None else "N/A"
+            range_str = f", Range_52W={range_52w_pct:.1f}%" if range_52w_pct is not None else ""
+            beta_str = f", Beta_pct={100 - calculate_z_score_normalized(beta, stability_metrics['beta']):.0f}" if (beta is not None and stability_metrics and stability_metrics.get('beta') and calculate_z_score_normalized(beta, stability_metrics['beta']) is not None) else ""
+            stability_score_str = f"{risk_stability_score:.1f}" if risk_stability_score is not None else "NULL"
+            logger.info(f"{symbol} Stability Score: {stability_score_str} (Vol_pct={vol_str}, Drawdown_pct={drawdown_str}{range_str}{beta_str}, multi-timeframe: 50% price action + 35% liquidity + 15% annual range)")
 
-                    # NOTE: stability_inputs already populated above (BEFORE score calculation)
-                    # Multi-timeframe model - short-term volatility, long-term range, market liquidity
-
-                    # Log with proper null handling
-                    vol_str = f"{vol_percentile:.0f}" if vol_percentile is not None else "N/A"
-                    drawdown_str = f"{drawdown_percentile:.0f}" if drawdown_percentile is not None else "N/A"
-                    range_str = f", Range_52W={range_52w_pct:.1f}%" if range_52w_pct is not None else ""
-                    beta_str = f", Beta_pct={100 - calculate_z_score_normalized(beta, stability_metrics['beta']):.0f}" if (beta is not None and stability_metrics and stability_metrics.get('beta') and calculate_z_score_normalized(beta, stability_metrics['beta']) is not None) else ""
-                    logger.info(f"{symbol} Stability Score: {risk_stability_score:.1f} (Vol_pct={vol_str}, Drawdown_pct={drawdown_str}{range_str}{beta_str}, multi-timeframe: 50% price action + 35% liquidity + 15% annual range)")
-
-                    # Assign to stability_score for final output
-                    stability_score = risk_stability_score
+            # Assign to stability_score for final output
+            stability_score = risk_stability_score
 
         except Exception as e:
             import traceback

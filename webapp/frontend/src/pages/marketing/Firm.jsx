@@ -604,7 +604,7 @@ const Firm = () => {
               'Multi-factor quantitative models validated through rigorous backtesting',
               'Comprehensive coverage of 5,300+ US equities with 10+ years of data',
               'Evidence-based methodology prioritizing data over market narratives',
-              'Research offerings customized for institutions, RIAs, and active traders',
+              'Research platform serving institutions, RIAs, and active traders',
               'Transparent methodology with clear factor explanations',
               'Analysis updated during market hours with historical context',
               'Professional research platform designed for serious investors',
