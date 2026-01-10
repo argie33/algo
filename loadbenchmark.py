@@ -14,6 +14,8 @@ from psycopg2.extras import execute_values
 from datetime import datetime, timedelta
 import yfinance as yf
 import pandas as pd
+from db_helper import get_db_connection
+from yfinance_helper import fetch_ticker_history
 
 # Setup logging
 logging.basicConfig(
@@ -23,62 +25,41 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Database configuration
-DB_HOST = os.getenv('DB_HOST', 'localhost')
-DB_PORT = os.getenv('DB_PORT', '5432')
-DB_USER = os.getenv('DB_USER', 'stocks')
-DB_PASSWORD = os.getenv('DB_PASSWORD', 'bed0elAn')
-DB_NAME = os.getenv('DB_NAME', 'stocks')
+SCRIPT_NAME = "loadbenchmark.py"
 
 # Benchmark symbols to load
 BENCHMARK_SYMBOLS = ['SPY', 'QQQ', 'IWM', 'DIA', 'VTI']
 
-def get_db_connection():
-    """Create PostgreSQL database connection"""
-    try:
-        conn = psycopg2.connect(
-            host=DB_HOST,
-            port=DB_PORT,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            database=DB_NAME
-        )
-        logger.info(f"✅ Connected to database: {DB_NAME}")
-        return conn
-    except psycopg2.Error as e:
-        logger.error(f"❌ Database connection failed: {e}")
-        sys.exit(1)
-
 def fetch_benchmark_data(symbol, lookback_days=365, max_retries=5):
-    """Fetch benchmark historical data from yfinance with retry logic for rate limits"""
-    for attempt in range(1, max_retries + 1):
-        try:
-            logger.info(f"📊 Fetching {symbol} data from yfinance (last {lookback_days} days) [attempt {attempt}/{max_retries}]...")
+    """Fetch benchmark historical data from yfinance with smart retry logic"""
+    # Clean symbol
+    clean_symbol = symbol.replace(".", "-").replace("$", "-").upper()
 
-            hist = yf.Ticker(symbol.replace(".", "-").replace("$", "-").upper()).history(period=f"{lookback_days}d")
+    # Convert days to period string
+    period_map = {
+        365: "1y",
+        730: "2y",
+        1095: "3y",
+        1825: "5y",
+    }
+    period = period_map.get(lookback_days, "max")
 
-            if hist.empty:
-                logger.warning(f"⚠️  No historical data for {symbol}")
-                return None
+    logger.info(f"📊 Fetching {symbol} data from yfinance (period: {period})...")
 
-            logger.info(f"✅ Retrieved {len(hist)} {symbol} bars from yfinance")
-            return hist
-        except Exception as e:
-            error_msg = str(e)
-            if "Too Many Requests" in error_msg or "Rate limit" in error_msg or "YFRateLimit" in str(type(e).__name__):
-                delay = min(60 * (2 ** (attempt - 1)), 300)  # exponential backoff, max 5 mins
-                logger.warning(f"⚠️  {symbol}: Rate limited (attempt {attempt}/{max_retries}), waiting {delay}s before retry...")
-                if attempt < max_retries:
-                    time.sleep(delay)
-                else:
-                    logger.error(f"❌ {symbol}: Rate limit exceeded after {max_retries} attempts")
-                    return None
-            else:
-                logger.error(f"❌ Failed to fetch {symbol} data (attempt {attempt}/{max_retries}): {e}")
-                if attempt < max_retries:
-                    time.sleep(2)
-                else:
-                    return None
+    # Use the yfinance helper with better rate limit handling
+    hist = fetch_ticker_history(
+        clean_symbol,
+        period=period,
+        max_retries=max_retries,
+        min_rows=0
+    )
+
+    if hist is not None:
+        logger.info(f"✅ Retrieved {len(hist)} {symbol} bars from yfinance")
+    else:
+        logger.warning(f"⚠️  No data retrieved for {symbol}")
+
+    return hist
 
 def insert_benchmark_data(conn, symbol, hist):
     """Insert benchmark bars into price_daily table"""
@@ -138,10 +119,19 @@ def main():
     logger.info(f"📊 Loading benchmarks: {', '.join(BENCHMARK_SYMBOLS)}")
 
     # Connect to database
-    conn = get_db_connection()
+    conn = get_db_connection(SCRIPT_NAME)
+    if not conn:
+        logger.error("❌ Failed to connect to database")
+        sys.exit(1)
 
     total_inserted = 0
-    for symbol in BENCHMARK_SYMBOLS:
+    for i, symbol in enumerate(BENCHMARK_SYMBOLS):
+        # Add delay between benchmark fetches to avoid rate limiting
+        if i > 0:
+            delay = 5
+            logger.info(f"⏳ Waiting {delay}s before fetching next benchmark (rate limit avoidance)...")
+            time.sleep(delay)
+
         # Fetch benchmark data from yfinance
         hist = fetch_benchmark_data(symbol, lookback_days=365)
 
