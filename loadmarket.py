@@ -40,6 +40,8 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from db_helper import get_db_connection
+from yfinance_helper import retry_with_backoff
 
 # Script configuration
 SCRIPT_NAME = "loadmarket.py"
@@ -54,28 +56,6 @@ def log_mem(stage: str):
     mb = usage / 1024 if sys.platform.startswith("linux") else usage / (1024 * 1024)
     logging.info(f"[MEM] {stage}: {mb:.1f} MB RSS")
 
-def get_db_config():
-    """Get database configuration"""
-    try:
-        import boto3
-        secret_str = boto3.client("secretsmanager") \
-                         .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
-        sec = json.loads(secret_str)
-        return {
-            "host": sec["host"],
-            "port": int(sec.get("port", 5432)),
-            "user": sec["username"],
-            "password": sec["password"],
-            "dbname": sec["dbname"]
-        }
-    except Exception:
-        return {
-            "host": os.environ.get("DB_HOST", "localhost"),
-            "port": int(os.environ.get("DB_PORT", 5432)),
-            "user": os.environ.get("DB_USER", "stocks"),
-            "password": os.environ.get("DB_PASSWORD", ""),
-            "dbname": os.environ.get("DB_NAME", "stocks")
-        }
 
 def safe_float(value, default=None):
     """Convert to float safely"""
@@ -163,12 +143,16 @@ class MarketDataCollector:
     def get_market_data(self, period: str = "1y") -> Optional[Dict]:
         """Get comprehensive market data for the symbol"""
         try:
-            # Get historical data
-            hist = self.ticker.history(period=period)
-            if hist.empty:
+            # Get historical data with retry logic
+            @retry_with_backoff(max_retries=3, verbose=False)
+            def fetch_history():
+                return self.ticker.history(period=period)
+
+            hist = fetch_history()
+            if hist is None or hist.empty:
                 logging.warning(f"No historical data for {self.symbol}")
                 return None
-            
+
             # Get basic info
             info = self.ticker.info
             
@@ -399,7 +383,13 @@ def load_market_data_batch(symbols_dict: Dict[str, str], conn, cur, batch_size: 
         batch = symbols_list[i:i + batch_size]
         batch_num = i // batch_size + 1
         total_batches = (len(symbols_list) + batch_size - 1) // batch_size
-        
+
+        # Add delay between batches to avoid rate limiting
+        if i > 0:
+            delay = 5  # 5 seconds between batches
+            logging.info(f"⏳ Waiting {delay}s before next batch (rate limit avoidance)...")
+            time.sleep(delay)
+
         logging.info(f"Processing market data batch {batch_num}/{total_batches}: {len(batch)} symbols")
         log_mem(f"Market batch {batch_num} start")
         
