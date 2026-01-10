@@ -23,10 +23,9 @@ export const getApiConfig = () => {
     if (hostname === "localhost" || hostname === "127.0.0.1") {
       apiUrl = "http://localhost:3001";
     } else {
-      // AWS or production - construct API URL with port 3001
-      // Handle both explicit ports (replace) and default ports (append)
-      const protocolHost = `${protocol}//${hostname}`;
-      apiUrl = `${protocolHost}:3001`;
+      // AWS production - use Lambda API Gateway endpoint
+      // Default to AWS Lambda endpoint for serverless API
+      apiUrl = "https://qda42av7je.execute-api.us-east-1.amazonaws.com/dev";
     }
   }
 
