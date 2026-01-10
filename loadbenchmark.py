@@ -105,24 +105,23 @@ def insert_benchmark_data(conn, symbol, hist):
                 None   # stock_splits
             ))
 
-        # Delete existing data for this symbol first
+        # Insert with ON CONFLICT to upsert data
         if records:
-            start_date = records[0][1]
-            end_date = records[-1][1]
-            cur.execute(
-                f"DELETE FROM price_daily WHERE symbol = %s AND date BETWEEN %s AND %s",
-                (symbol, start_date, end_date)
-            )
-            deleted_count = cur.rowcount
-            logger.info(f"Cleared {deleted_count} existing {symbol} records")
+            query = """
+                INSERT INTO price_daily (symbol, date, open, high, low, close, adj_close, volume, dividends, stock_splits)
+                VALUES %s
+                ON CONFLICT (symbol, date) DO UPDATE SET
+                    open = EXCLUDED.open,
+                    high = EXCLUDED.high,
+                    low = EXCLUDED.low,
+                    close = EXCLUDED.close,
+                    adj_close = EXCLUDED.adj_close,
+                    volume = EXCLUDED.volume,
+                    dividends = EXCLUDED.dividends,
+                    stock_splits = EXCLUDED.stock_splits
+            """
 
-        # Insert new data (already deleted old records above)
-        query = """
-            INSERT INTO price_daily (symbol, date, open, high, low, close, adj_close, volume, dividends, stock_splits)
-            VALUES %s
-        """
-
-        execute_values(cur, query, records)
+            execute_values(cur, query, records)
         conn.commit()
 
         logger.info(f"✅ Inserted/updated {len(records)} {symbol} price records")
