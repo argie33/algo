@@ -3,9 +3,9 @@
  * Sends emails via AWS Simple Email Service
  */
 
-const AWS = require('aws-sdk');
+const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
 
-const ses = new AWS.SES({ region: process.env.AWS_REGION || 'us-east-1' });
+const sesClient = new SESClient({ region: process.env.AWS_REGION || 'us-east-1' });
 
 /**
  * Send confirmation email to new subscriber
@@ -44,7 +44,8 @@ async function sendConfirmationEmail(email, options = {}) {
       },
     };
 
-    const result = await ses.sendEmail(params).promise();
+    const command = new SendEmailCommand(params);
+    const result = await sesClient.send(command);
     console.log(`✅ Email sent via AWS SES to ${email}`);
     return { success: true, provider: 'ses', messageId: result.MessageId };
 
@@ -90,7 +91,8 @@ async function sendNewsletter(emails, newsletter) {
       },
     };
 
-    const result = await ses.sendEmail(params).promise();
+    const command = new SendEmailCommand(params);
+    const result = await sesClient.send(command);
     console.log(`✅ Newsletter sent via AWS SES to ${emails.length} recipients`);
     return { success: true, provider: 'ses', messageId: result.MessageId };
 
