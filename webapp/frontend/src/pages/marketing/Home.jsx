@@ -24,72 +24,72 @@ const Home = () => {
   const navigate = useNavigate();
 
   const dataCapabilities = [
-    { label: 'Market Data', detail: 'Current pricing, volume, and liquidity analysis during market hours' },
-    { label: 'Economic Data', detail: 'Macro indicators, employment, GDP, inflation trends' },
-    { label: 'Fundamentals', detail: 'Financial statements, valuation metrics, profitability' },
-    { label: 'Technical', detail: 'Price patterns, momentum indicators, support/resistance' },
-    { label: 'Sector Analysis', detail: 'Industry trends, competitive positioning, rotation signals' },
-    { label: 'Sentiment Data', detail: 'Analyst ratings, positioning, market psychology signals' },
+    { label: 'Equity Research', detail: 'Comprehensive stock analysis, valuation models, and comparative rankings' },
+    { label: 'Earnings Analysis', detail: 'Historical trends, estimate revisions, surprise patterns' },
+    { label: 'Market Intelligence', detail: 'Price action, volume analysis, technical patterns during market hours' },
+    { label: 'Economic Research', detail: 'Fed policy, macro indicators, interest rate impacts' },
+    { label: 'Sector Coverage', detail: 'Industry rotation, relative strength, competitive dynamics' },
+    { label: 'Quantitative Models', detail: 'Factor analysis, pattern recognition, historical backtesting' },
   ];
 
   const stats = [
-    { number: '5,300+', label: 'Stocks Covered', description: 'Comprehensive US equity analysis' },
-    { number: '10+ Years', label: 'Market Data', description: 'Deep historical perspective' },
-    { number: '6 Dimensions', label: 'Data Analysis', description: 'Market, economy, fundamentals, technicals, sector, sentiment' },
-    { number: 'AI-Powered', label: 'Research', description: 'Cutting-edge ML and quantitative techniques' },
+    { number: '5,300+', label: 'Stocks Covered', description: 'Full US equity market coverage' },
+    { number: '10+ Years', label: 'Historical Data', description: 'Backtested research methodology' },
+    { number: 'Multi-Factor', label: 'Research Model', description: 'Fundamental, technical, and quantitative analysis' },
+    { number: 'Independent', label: 'Research', description: 'No investment banking conflicts' },
   ];
 
   const keyFeatures = [
     {
       icon: <AnalyticsIcon fontSize="large" />,
-      title: 'AI-Powered Stock Analysis',
+      title: 'Quantitative Stock Analysis',
       description:
-        'Our composite scoring system analyzes multiple dimensions to provide comprehensive stock evaluation and comparative ranking.',
+        'Multi-factor research models evaluate stocks across valuation, quality, momentum, and technical metrics. Comparative rankings updated during market hours.',
       bullets: [
-        'Multi-factor scoring engine',
-        'Frequent score updates',
-        'Comparative stock ranking',
+        'Multi-factor quantitative models',
+        'Updated during market hours',
+        'Comparative rankings across universe',
       ],
-      tags: ['AI Analysis', 'Scoring', 'Quantitative'],
+      tags: ['Quantitative', 'Equity Research', 'Analytics'],
       link: '/app/scores',
     },
     {
       icon: <EventIcon fontSize="large" />,
-      title: 'Earnings Intelligence',
+      title: 'Earnings Research',
       description:
-        'Track upcoming earnings, analyze historical surprise patterns, and identify estimate revision trends using historical and real-time data.',
+        'Comprehensive earnings analysis including historical patterns, estimate revisions, and surprise trends. 10+ years of earnings data for pattern recognition.',
       bullets: [
-        'Live earnings calendar',
-        '10+ years historical data',
-        'Surprise and revision analysis',
+        'Earnings calendar and estimates',
+        '10+ years historical analysis',
+        'Estimate revision tracking',
       ],
-      tags: ['Earnings', 'Fundamentals', 'Intelligence'],
+      tags: ['Earnings', 'Fundamentals', 'Research'],
       link: '/app/earnings',
     },
     {
       icon: <PsychologyIcon fontSize="large" />,
-      title: 'Sentiment & Positioning Analysis',
+      title: 'Market Sentiment Research',
       description:
-        'AI-interpreted analysis of market psychology, analyst sentiment, and institutional positioning to reveal hidden market shifts.',
+        'Track analyst ratings, institutional positioning, and market sentiment indicators. Identify extremes that historically precede reversals.',
       bullets: [
-        'Sentiment metrics and trends',
-        'Institutional positioning data',
-        'Market psychology signals',
+        'Analyst rating analysis',
+        'Positioning metrics',
+        'Sentiment extremes',
       ],
-      tags: ['Sentiment', 'Psychology', 'AI'],
+      tags: ['Sentiment', 'Contrarian', 'Research'],
       link: '/app/sentiment',
     },
     {
       icon: <BusinessIcon fontSize="large" />,
-      title: 'Sector & Market Research',
+      title: 'Sector & Macro Research',
       description:
-        'Monitor sector rotation, relative strength, economic impacts, and macro trends for comprehensive portfolio positioning.',
+        'Sector rotation analysis, economic research, and macro trend monitoring. Understand how Fed policy and economic data impact markets.',
       bullets: [
-        'Sector performance tracking',
-        'Macro trend analysis',
-        'Economic indicator integration',
+        'Sector rotation signals',
+        'Economic indicator tracking',
+        'Fed policy analysis',
       ],
-      tags: ['Markets', 'Sectors', 'Macro'],
+      tags: ['Sectors', 'Economics', 'Macro'],
       link: '/app/market',
     },
   ];
@@ -148,7 +148,7 @@ const Home = () => {
               color: theme.palette.text.primary,
             }}
           >
-            Research Firm &amp; Advisory Platform
+            Independent Equity Research
           </Typography>
           <Typography
             sx={{
@@ -162,7 +162,7 @@ const Home = () => {
               fontWeight: 500,
             }}
           >
-            Transform how you make investment decisions. Our institutional-grade research platform combines decades of market expertise, cutting-edge AI, and comprehensive multi-dimensional data to uncover opportunities the traditional analysis misses.
+            Bullseye Financial delivers evidence-based equity research combining quantitative analysis, fundamental research, and technical insights. Our multi-dimensional approach helps institutional investors, RIAs, and active traders make better-informed decisions.
           </Typography>
           <Typography
             sx={{
@@ -176,7 +176,7 @@ const Home = () => {
               fontStyle: 'italic',
             }}
           >
-            6 research dimensions • 10+ years of data • 5,300+ stocks • Real-time AI-powered analysis
+            5,300+ stocks covered • 10+ years historical data • Analysis updated during market hours
           </Typography>
 
           {/* Data Breadth Grid */}
@@ -235,7 +235,7 @@ const Home = () => {
               color: theme.palette.text.primary,
             }}
           >
-            Why Professional Investors Choose Bullseye
+            What Sets Our Research Apart
           </Typography>
           <Typography
             sx={{
@@ -247,44 +247,46 @@ const Home = () => {
               mx: 'auto',
             }}
           >
-            We're not just another market data provider. We're your research partner.
+            Independent research built on rigorous quantitative analysis and fundamental insights
           </Typography>
           <Grid container spacing={4}>
             {[
               {
                 number: '1',
-                title: 'Deeper Insights',
-                description: 'Our AI models find correlations and patterns traditional analysis never sees. Multi-dimensional research reveals opportunities hidden in market noise.',
-                icon: '🔍',
+                title: 'Multi-Dimensional Analysis',
+                description: 'We combine fundamental analysis, technical research, and quantitative models to provide comprehensive stock coverage. Our approach integrates earnings data, valuation metrics, price action, and sector trends.',
+                image: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&h=400&fit=crop',
               },
               {
                 number: '2',
-                title: 'Faster Decisions',
-                description: 'Fast analysis across multiple dimensions. Get actionable intelligence quickly when market conditions change during trading hours.',
-                icon: '⚡',
+                title: 'Evidence-Based Methodology',
+                description: 'Every signal is backtested against 10+ years of market data. We validate our models against real market outcomes and continuously refine our research process based on performance.',
+                image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=600&h=400&fit=crop',
               },
               {
                 number: '3',
-                title: 'Customized for You',
-                description: 'Whether you manage billions or invest your own capital, we tailor our research to match your strategy and timeline.',
-                icon: '🎯',
+                title: 'Institutional-Grade Tools',
+                description: 'Access the same caliber of research tools used by professional investors. Our platform provides detailed analytics, custom screening, and portfolio monitoring for serious investors.',
+                image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=600&h=400&fit=crop',
               },
               {
                 number: '4',
-                title: 'Evidence-Based',
-                description: 'Every analysis is rigorously tested against 10+ years of historical data. We focus on what works, not what sounds good.',
-                icon: '✓',
+                title: 'Independent & Transparent',
+                description: 'We publish independent research without investment banking conflicts. Our methodology is transparent, and we explain the factors driving our analysis and recommendations.',
+                image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=600&h=400&fit=crop',
               },
             ].map((item, idx) => (
               <Grid item xs={12} sm={6} md={3} key={idx}>
                 <Box
                   sx={{
-                    p: 4,
                     backgroundColor: theme.palette.background.paper,
-                    border: `2px solid ${theme.palette.divider}`,
+                    border: `1px solid ${theme.palette.divider}`,
                     borderRadius: '0px',
                     transition: 'all 0.3s ease',
-                    textAlign: 'center',
+                    overflow: 'hidden',
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
                     '&:hover': {
                       borderColor: theme.palette.primary.main,
                       boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
@@ -292,39 +294,44 @@ const Home = () => {
                     },
                   }}
                 >
-                  <Box sx={{ fontSize: '3rem', mb: 2 }}>
-                    {item.icon}
+                  <ImagePlaceholder
+                    src={item.image}
+                    alt={item.title}
+                    height={{ xs: '200px', md: '200px' }}
+                  />
+                  <Box sx={{ p: 3, flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <Typography
+                      sx={{
+                        fontSize: '1.8rem',
+                        fontWeight: 800,
+                        color: theme.palette.primary.main,
+                        mb: 1,
+                      }}
+                    >
+                      {item.number}
+                    </Typography>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        fontWeight: 700,
+                        mb: 1.5,
+                        color: theme.palette.text.primary,
+                        fontSize: '1.15rem',
+                      }}
+                    >
+                      {item.title}
+                    </Typography>
+                    <Typography
+                      sx={{
+                        color: theme.palette.text.secondary,
+                        lineHeight: 1.6,
+                        fontSize: '0.95rem',
+                        flex: 1,
+                      }}
+                    >
+                      {item.description}
+                    </Typography>
                   </Box>
-                  <Typography
-                    sx={{
-                      fontSize: '2.5rem',
-                      fontWeight: 800,
-                      color: theme.palette.primary.main,
-                      mb: 1,
-                    }}
-                  >
-                    {item.number}
-                  </Typography>
-                  <Typography
-                    variant="h6"
-                    sx={{
-                      fontWeight: 700,
-                      mb: 1.5,
-                      color: theme.palette.text.primary,
-                      fontSize: '1.15rem',
-                    }}
-                  >
-                    {item.title}
-                  </Typography>
-                  <Typography
-                    sx={{
-                      color: theme.palette.text.secondary,
-                      lineHeight: 1.6,
-                      fontSize: '0.95rem',
-                    }}
-                  >
-                    {item.description}
-                  </Typography>
                 </Box>
               </Grid>
             ))}
@@ -397,8 +404,8 @@ const Home = () => {
 
       {/* Core Research Capabilities */}
       <FeatureGrid
-        title="Research-Driven Analysis Capabilities"
-        subtitle="Professional-grade research and analysis across multiple market dimensions"
+        title="Core Research Capabilities"
+        subtitle="Independent equity research across fundamentals, technicals, and quantitative analysis"
         features={keyFeatures}
         columns={{ xs: 1, sm: 2, md: 2, lg: 2 }}
       />
@@ -416,7 +423,7 @@ const Home = () => {
               color: theme.palette.text.primary,
             }}
           >
-            Our Research Methodology
+            Our Research Approach
           </Typography>
           <Typography
             sx={{
@@ -429,34 +436,34 @@ const Home = () => {
               lineHeight: 1.8,
             }}
           >
-            We combine traditional fundamental and technical analysis with cutting-edge artificial intelligence and big data quantitative techniques to identify market opportunities across different market conditions.
+            Bullseye combines fundamental analysis, quantitative research, and technical insights to deliver comprehensive equity coverage. Our methodology integrates multiple data sources and is validated through rigorous backtesting.
           </Typography>
 
           <Grid container spacing={4}>
             {[
               {
-                title: 'Multi-Dimensional Analysis',
-                description: 'We analyze markets across 6+ independent dimensions—fundamentals, technicals, sentiment, sector rotation, macroeconomics, and positioning—then synthesize findings into unified insights.',
+                title: 'Fundamental Research',
+                description: 'Comprehensive analysis of financial statements, valuation metrics, earnings quality, and competitive positioning. We evaluate companies using traditional metrics alongside proprietary screening models.',
               },
               {
-                title: 'AI & Machine Learning',
-                description: 'Our proprietary machine learning models identify patterns and correlations invisible to traditional analysis. Models are continuously trained on 10+ years of market data and validated against real-world outcomes.',
+                title: 'Quantitative Analysis',
+                description: 'Multi-factor models evaluate stocks across value, quality, momentum, and technical factors. All models are backtested against 10+ years of data and validated for statistical significance.',
               },
               {
-                title: 'Big Data Integration',
-                description: 'We integrate traditional financial data with alternative data sources, including economic indicators, sentiment signals, and positioning metrics, to provide comprehensive market intelligence.',
+                title: 'Technical Research',
+                description: 'Price action analysis, support/resistance identification, and momentum indicators. We track technical patterns that have historically preceded significant moves.',
               },
               {
-                title: 'Evidence-Based Approach',
-                description: 'Every analysis dimension is rigorously tested and validated. We focus on data-driven insights rather than opinions, and always explain our reasoning and confidence levels.',
+                title: 'Earnings Intelligence',
+                description: 'Historical earnings analysis, estimate revision tracking, and surprise pattern recognition. We identify stocks with improving fundamentals before consensus catches on.',
               },
               {
-                title: 'Customized Solutions',
-                description: 'Each investor is different. We tailor our analysis and recommendations based on individual goals, risk tolerance, time horizon, and specific market mandates.',
+                title: 'Economic & Sector Analysis',
+                description: 'Macro research covering Fed policy, economic indicators, and sector rotation. We analyze how changing economic conditions impact different industries and investment styles.',
               },
               {
-                title: 'Continuous Learning',
-                description: 'Our research team and AI models continuously learn from market outcomes. We adapt our methodology as market conditions evolve and new data becomes available.',
+                title: 'Independent Research',
+                description: 'We maintain independence from investment banking and operate without conflicts of interest. Our research is based on data and analysis, not Wall Street relationships.',
               },
             ].map((item, idx) => (
               <Grid item xs={12} md={6} key={idx}>
@@ -877,19 +884,19 @@ const Home = () => {
           <Grid container spacing={4}>
             {[
               {
-                name: 'Professional Investor',
-                role: 'Portfolio Management',
-                quote: 'Access to multi-dimensional research across technicals, fundamentals, and market sentiment helps inform investment decisions. The platform integrates data in a way that\'s useful for analysis.',
+                name: 'Portfolio Manager',
+                role: 'Mid-sized Asset Manager',
+                quote: 'The quantitative scoring models help us identify opportunities across our coverage universe. The earnings analysis has been particularly useful for timing positions around quarterly reports.',
               },
               {
-                name: 'Active Trader',
-                role: 'Independent Trading',
-                quote: 'Having multiple research dimensions in one place streamlines workflow. The combination of different analytical approaches provides a more complete picture of market conditions.',
+                name: 'Registered Investment Advisor',
+                role: 'Independent RIA',
+                quote: 'Bullseye\'s research saves me hours of analysis time. The multi-factor approach gives me confidence in stock selection, and the sector rotation signals help with tactical allocation decisions.',
               },
               {
-                name: 'Research Professional',
-                role: 'Investment Research',
-                quote: 'Bullseye provides comprehensive market research infrastructure combining traditional analysis with AI-powered insights. It\'s a useful tool for conducting multi-dimensional analysis.',
+                name: 'Active Investor',
+                role: 'Individual Trader',
+                quote: 'The platform gives me access to institutional-caliber research at a fraction of the cost. The technical analysis tools combined with fundamental metrics help me make better-informed trading decisions.',
               },
             ].map((testimonial, idx) => (
               <Grid item xs={12} sm={6} md={4} key={idx}>

@@ -14,6 +14,7 @@ from psycopg2.extras import RealDictCursor, execute_values
 import boto3
 import yfinance as yf
 import pandas as pd
+from db_helper import get_db_connection
 
 SCRIPT_NAME = "loadquarterlycashflow.py"
 logging.basicConfig(

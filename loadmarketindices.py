@@ -21,6 +21,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import yfinance as yf
 import pandas as pd
+from db_helper import get_db_connection
 
 # Script configuration
 SCRIPT_NAME = "loadmarketindices.py"

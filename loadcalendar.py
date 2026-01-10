@@ -16,6 +16,7 @@ from psycopg2.extras import DictCursor
 import yfinance as yf
 import pandas as pd
 import math
+from db_helper import get_db_connection
 
 # -------------------------------
 # Script metadata & logging setup

@@ -17,6 +17,7 @@ load_dotenv('/home/stocks/algo/.env.local')
 
 # Setup rotating log file handler to prevent disk exhaustion from excessive logging
 from logging.handlers import RotatingFileHandler
+from db_helper import get_db_connection
 log_handler = RotatingFileHandler(
     '/tmp/loadbuysell_etf_monthly.log',
     maxBytes=100*1024*1024,  # 100MB max per file

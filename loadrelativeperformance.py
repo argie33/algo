@@ -13,6 +13,7 @@ import pandas as pd
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
 from datetime import datetime, timedelta
+from db_helper import get_db_connection
 
 logging.basicConfig(
     level=logging.INFO,

@@ -24,6 +24,7 @@ from datetime import date, datetime, timedelta
 import psycopg2
 from psycopg2.extras import execute_values
 import boto3
+from db_helper import get_db_connection
 
 # ===========================
 # Logging Setup

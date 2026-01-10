@@ -13,6 +13,7 @@ import boto3
 import psycopg2
 import requests
 from psycopg2.extras import execute_values
+from db_helper import get_db_connection
 
 # ─── Logging setup ─────────────────────────────────────────────────────────────
 logging.basicConfig(
