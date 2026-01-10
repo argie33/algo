@@ -20,6 +20,7 @@ from datetime import datetime
 
 import boto3
 import yfinance as yf
+from db_helper import get_db_connection
 
 SCRIPT_NAME = "loadanalystupgradedowngrade.py"
 logging.basicConfig(
@@ -37,35 +38,6 @@ def get_rss_mb():
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
-def get_db_config():
-    """Get database configuration from local env or AWS Secrets Manager."""
-    db_secret_arn = os.environ.get("DB_SECRET_ARN")
-
-    # AWS mode - use Secrets Manager
-    if db_secret_arn:
-        try:
-            secret_str = boto3.client("secretsmanager") \
-                             .get_secret_value(SecretId=db_secret_arn)["SecretString"]
-            sec = json.loads(secret_str)
-            return {
-                "host":   sec["host"],
-                "port":   int(sec.get("port", 5432)),
-                "user":   sec["username"],
-                "password": sec["password"],
-                "dbname": sec["dbname"]
-            }
-        except Exception as e:
-            logging.warning(f"Failed to get secrets from AWS: {e}, falling back to environment variables")
-
-    # Local mode - use environment variables
-    logging.info("Using local database configuration from environment variables")
-    return {
-        "host":   os.environ.get("DB_HOST", "localhost"),
-        "port":   int(os.environ.get("DB_PORT", 5432)),
-        "user":   os.environ.get("DB_USER", "stocks"),
-        "password": os.environ.get("DB_PASSWORD", "bed0elAn"),
-        "dbname": os.environ.get("DB_NAME", "stocks")
-    }
 
 def create_table(cur):
     logging.info("Recreating analyst_upgrade_downgrade table…")
@@ -166,12 +138,10 @@ def load_analyst_actions(symbols, cur, conn):
 
 def lambda_handler(event, context):
     log_mem("startup")
-    cfg  = get_db_config()
-    conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
-        dbname=cfg["dbname"]
-    )
+    conn = get_db_connection(SCRIPT_NAME)
+    if not conn:
+        logging.error("❌ Failed to connect to database")
+        return {"error": "Database connection failed"}
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
