@@ -14,6 +14,7 @@ from psycopg2.extras import RealDictCursor, execute_values
 import boto3
 import yfinance as yf
 import pandas as pd
+from db_helper import get_db_connection
 
 SCRIPT_NAME = "loadttmincomestatement.py"
 logging.basicConfig(
@@ -34,53 +35,6 @@ def log_mem(stage: str):
 MAX_BATCH_RETRIES = 3
 RETRY_DELAY = 1.0
 
-def get_db_config():
-    """Get database configuration - works in AWS, locally via socket, or with env vars"""
-    db_secret_arn = os.environ.get("DB_SECRET_ARN")
-
-    if db_secret_arn:
-        try:
-            import boto3
-            secret_str = boto3.client("secretsmanager").get_secret_value(
-                SecretId=db_secret_arn
-            )["SecretString"]
-            sec = json.loads(secret_str)
-            return {
-                "host": sec["host"],
-                "port": int(sec.get("port", 5432)),
-                "user": sec["username"],
-                "password": sec["password"],
-                "dbname": sec["dbname"],
-            }
-        except Exception as e:
-            logging.warning(f"Failed to fetch from AWS Secrets Manager: {e}, falling back to local connection")
-
-    # Try local socket connection first (peer authentication) - for local development
-    try:
-        # Test socket connection without storing config
-        test_conn = psycopg2.connect(
-            dbname=os.environ.get("DB_NAME", "stocks"),
-            user="stocks"
-        )
-        test_conn.close()
-        # Socket connection works, use it
-        return {
-            "host": None,  # Use socket
-            "user": "stocks",
-            "password": None,
-            "dbname": os.environ.get("DB_NAME", "stocks"),
-        }
-    except:
-        pass
-
-    # Fall back to environment variables
-    return {
-        "host": os.environ.get("DB_HOST", "localhost"),
-        "port": int(os.environ.get("DB_PORT", "5432")),
-        "user": os.environ.get("DB_USER", "postgres"),
-        "password": os.environ.get("DB_PASSWORD", "password"),
-        "dbname": os.environ.get("DB_NAME", "stocks"),
-    }
 def safe_convert_to_float(value) -> Optional[float]:
     """Safely convert value to float, handling various edge cases"""
     if pd.isna(value) or value is None:
@@ -312,19 +266,10 @@ if __name__ == "__main__":
     log_mem("startup")
 
     # Connect to DB
-    cfg = get_db_config()
-    if cfg["host"]:
-        conn = psycopg2.connect(
-            host=cfg["host"], port=cfg.get("port", 5432),
-            user=cfg["user"], password=cfg["password"],
-            dbname=cfg["dbname"]
-        )
-    else:
-        # Socket connection (peer auth)
-        conn = psycopg2.connect(
-            dbname=cfg["dbname"],
-            user=cfg["user"]
-        )
+    conn = get_db_connection(SCRIPT_NAME)
+    if not conn:
+        logging.error("❌ Failed to connect to database")
+        sys.exit(1)
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 

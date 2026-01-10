@@ -60,6 +60,8 @@ import numpy as np
 from datetime import datetime, timedelta
 import logging
 import boto3
+from scipy import stats
+from db_helper import get_db_connection
 
 # Database configuration
 DB_SECRET_ARN = os.getenv('DB_SECRET_ARN')
@@ -73,67 +75,6 @@ DB_NAME = os.getenv('DB_NAME', 'stocks')
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# ============================================================================
-# DATABASE CONNECTION FUNCTION
-# ============================================================================
-def get_db_credentials_from_aws():
-    """Fetch DB credentials from AWS Secrets Manager"""
-    try:
-        secret_str = boto3.client("secretsmanager", region_name="us-east-1") \
-                         .get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"]
-        sec = json.loads(secret_str)
-        return {
-            "host": sec["host"],
-            "port": int(sec.get("port", 5432)),
-            "user": sec["username"],
-            "password": sec["password"],
-            "dbname": sec["dbname"]
-        }
-    except Exception as e:
-        logger.error(f"❌ Failed to get credentials from AWS Secrets Manager: {e}")
-        return None
-
-def get_db_connection():
-    """Create PostgreSQL database connection"""
-    try:
-        # Try AWS Secrets Manager first if DB_SECRET_ARN is set
-        if DB_SECRET_ARN:
-            creds = get_db_credentials_from_aws()
-            if creds:
-                conn = psycopg2.connect(
-                    host=creds["host"],
-                    port=creds["port"],
-                    user=creds["user"],
-                    password=creds["password"],
-                    database=creds["dbname"]
-                )
-                logger.info(f"✅ Connected to database: {creds['dbname']} (AWS)")
-                return conn
-
-        # Try local socket connection first (peer authentication)
-        try:
-            conn = psycopg2.connect(
-                dbname=DB_NAME,
-                user="stocks"
-            )
-            logger.info(f"✅ Connected to database: {DB_NAME} (socket)")
-            return conn
-        except:
-            pass
-
-        # Fall back to environment variables
-        conn = psycopg2.connect(
-            host=DB_HOST,
-            port=DB_PORT,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            database=DB_NAME
-        )
-        logger.info(f"✅ Connected to database: {DB_NAME}")
-        return conn
-    except psycopg2.Error as e:
-        logger.error(f"❌ Database connection failed: {e}")
-        return None
 
 # ============================================================================
 # TECHNICAL INDICATOR FUNCTIONS
@@ -820,12 +761,13 @@ def calculate_z_score_normalized(value, all_values):
     # Calculate z-score: (value - mean) / std_dev
     z_score = (value_float - mean) / std_dev
 
-    # Convert z-score to 0-100 scale: center at 50, scale by 15 (±3σ = 5-95)
-    # This caps extreme outliers naturally while still rewarding them
-    normalized_score = 50 + (z_score * 15)
+    # Cap at ±3 sigma (industry standard outlier handling)
+    z_score_capped = np.clip(z_score, -3, 3)
 
-    # Clamp to 0-100 range to prevent extreme scores
-    normalized_score = max(0, min(100, normalized_score))
+    # Convert z-score to percentile using proper statistical method (CDF)
+    # stats.norm.cdf() converts z-scores to actual percentiles (0-1), multiply by 100 for 0-100 scale
+    # This is the industry standard for financial scoring (e.g., Fama-French)
+    normalized_score = stats.norm.cdf(z_score_capped) * 100
 
     # CRITICAL: Convert to native Python float to avoid NumPy type issues
     # NumPy scalars cause "ambiguous truth value" errors in boolean context
@@ -2113,7 +2055,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 try:
                     # Try to reconnect if transaction is in bad state
                     conn.close()
-                    conn = get_db_connection()
+                    conn = get_db_connection(SCRIPT_NAME)
                     if conn:
                         logger.info(f"{symbol}: Reconnected to database")
                 except Exception as reconnect_error:
@@ -4211,7 +4153,7 @@ def main():
     logger.info("🚀 Starting stock scores loader...")
 
     # Get database connection
-    conn = get_db_connection()
+    conn = get_db_connection(SCRIPT_NAME)
     if not conn:
         logger.error("❌ Failed to connect to database")
         return False
