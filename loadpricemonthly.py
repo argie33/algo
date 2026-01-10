@@ -352,12 +352,11 @@ if __name__ == "__main__":
         conn.autocommit = False
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Recreate tables with error handling
+        # Create table if it doesn't exist (preserve existing data)
         try:
-            logging.info("Recreating price_monthly table…")
-            cur.execute("DROP TABLE IF EXISTS price_monthly CASCADE;")
+            logging.info("Ensuring price_monthly table exists…")
             cur.execute("""
-                CREATE TABLE price_monthly (
+                CREATE TABLE IF NOT EXISTS price_monthly (
                     id           SERIAL PRIMARY KEY,
                     symbol       VARCHAR(10) NOT NULL,
                     date         DATE         NOT NULL,
@@ -372,7 +371,8 @@ if __name__ == "__main__":
                     fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
                 );
             """)
-            logging.info("✅ price_monthly table created")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_price_monthly_symbol ON price_monthly(symbol);")
+            logging.info("✅ price_monthly table ready")
             conn.commit()
         except Exception as e:
             logging.error(f"❌ Failed to create price_monthly table: {e}")
