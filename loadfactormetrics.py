@@ -945,8 +945,14 @@ def get_volume_metrics(cursor, symbol: str) -> Dict:
     return metrics
 
 
-def get_stability_metrics(cursor, symbol: str) -> Dict:
-    """Calculate stability metrics from price data (volatility, drawdown, beta)"""
+def get_stability_metrics(cursor, symbol: str, benchmark_cache: Dict = None) -> Dict:
+    """Calculate stability metrics from price data (volatility, drawdown, beta)
+
+    Args:
+        cursor: Database cursor
+        symbol: Stock symbol
+        benchmark_cache: Cached benchmark (SPY) price data to avoid redundant queries
+    """
     metrics = {
         "volatility_12m": None,
         "downside_volatility": None,
@@ -1015,22 +1021,30 @@ def get_stability_metrics(cursor, symbol: str) -> Dict:
             metrics["max_drawdown_52w"] = float(max_dd) if max_dd > 0 else None
 
         # Beta calculation (vs SPY - market benchmark)
-        # Get SPY prices for same period
-        cursor.execute("""
-            SELECT date, adj_close
-            FROM price_daily
-            WHERE symbol = %s
-            ORDER BY date DESC
-            LIMIT 252
-        """, ('SPY',))
+        # Use cached benchmark data instead of querying every time
+        if benchmark_cache is None:
+            benchmark_cache = {}
 
-        spy_data = cursor.fetchall()
+        # If benchmark data not in cache, fetch it once and cache for all remaining symbols
+        if 'SPY' not in benchmark_cache:
+            cursor.execute("""
+                SELECT date, adj_close
+                FROM price_daily
+                WHERE symbol = 'SPY'
+                ORDER BY date DESC
+                LIMIT 252
+            """)
+            spy_data = list(reversed(cursor.fetchall()))
+            benchmark_cache['SPY'] = spy_data
+            logging.debug(f"Loaded SPY benchmark cache with {len(spy_data)} records")
+        else:
+            spy_data = benchmark_cache['SPY']
+
         logging.debug(f"{symbol}: Beta calc - {len(price_data)} stock prices, {len(spy_data)} SPY prices")
 
         if len(spy_data) < 20:
             logging.warning(f"{symbol}: Insufficient SPY data for beta calculation ({len(spy_data)} days)")
         elif len(spy_data) >= 20:
-            spy_data = list(reversed(spy_data))
             spy_prices = [p[1] for p in spy_data]
 
             # Calculate SPY returns (match the period with our stock)
@@ -1315,7 +1329,7 @@ def load_ad_ratings(conn, cursor, symbols: List[str]):
 
 
 def load_quality_metrics(conn, cursor, symbols: List[str]):
-    """Load quality metrics for all symbols"""
+    """Load quality metrics for all symbols - with fallback for missing key_metrics"""
     logging.info("Loading quality metrics...")
 
     # Recover from any previous transaction abort
@@ -1326,7 +1340,7 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
 
     quality_rows = []
 
-    # Get all key_metrics data in one query
+    # First: Get all key_metrics data in one query
     cursor.execute(
         "SELECT ticker, return_on_equity_pct, return_on_assets_pct, "
         "gross_margin_pct, operating_margin_pct, profit_margin_pct, "
@@ -1337,9 +1351,12 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
         (symbols,)
     )
 
+    processed_symbols = set()
+
     for row in cursor.fetchall():
         try:
             symbol = row[0]
+            processed_symbols.add(symbol)
             ticker_dict = {
                 "ticker": symbol,
                 "return_on_equity_pct": row[1],
@@ -1392,6 +1409,112 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
             ])
         except Exception as e:
             logging.warning(f"Error processing quality metrics for {symbol}: {e}")
+
+    # FALLBACK: Process stocks missing from key_metrics but with financial statement data
+    missing_symbols = set(symbols) - processed_symbols
+    if missing_symbols:
+        logging.info(f"Processing {len(missing_symbols)} symbols with financial data but no key_metrics data")
+
+        for symbol in missing_symbols:
+            try:
+                # Calculate quality metrics from balance sheet and income statement
+                # Get balance sheet data
+                cursor.execute("""
+                    SELECT total_assets, total_debt, total_cash, current_assets, current_liabilities,
+                           quick_assets
+                    FROM annual_balance_sheet
+                    WHERE symbol = %s
+                    ORDER BY fiscal_date DESC
+                    LIMIT 1
+                """, (symbol,))
+
+                balance_row = cursor.fetchone()
+
+                # Get income statement data
+                cursor.execute("""
+                    SELECT total_revenue, gross_profit, operating_income, net_income, ebitda
+                    FROM annual_income_statement
+                    WHERE symbol = %s
+                    ORDER BY fiscal_date DESC
+                    LIMIT 1
+                """, (symbol,))
+
+                income_row = cursor.fetchone()
+
+                # Create minimal ticker dict from available data
+                ticker_dict = {
+                    "ticker": symbol,
+                    "return_on_equity_pct": None,
+                    "return_on_assets_pct": None,
+                    "gross_margin_pct": None,
+                    "operating_margin_pct": None,
+                    "profit_margin_pct": None,
+                    "free_cashflow": None,
+                    "net_income": income_row[3] if income_row else None,
+                    "operating_cashflow": None,
+                    "debt_to_equity": None,
+                    "current_ratio": None,
+                    "quick_ratio": None,
+                    "payout_ratio": None,
+                    "ebitda": income_row[4] if income_row else None,
+                    "total_debt": balance_row[1] if balance_row else None,
+                    "total_cash": balance_row[2] if balance_row else None,
+                    "total_revenue": income_row[0] if income_row else None,
+                }
+
+                # Calculate what we can from available data
+                if balance_row and income_row:
+                    total_assets, total_debt, total_cash, current_assets, current_liabilities, quick_assets = balance_row
+                    total_revenue, gross_profit, operating_income, net_income, ebitda = income_row
+
+                    # Calculate ratios from balance sheet and income statement
+                    if total_assets and net_income:
+                        ticker_dict["return_on_assets_pct"] = (net_income / total_assets) * 100
+                    if total_debt and gross_profit and total_revenue:
+                        ticker_dict["debt_to_equity"] = total_debt / max(total_assets - total_debt, 1)
+                    if current_assets and current_liabilities:
+                        ticker_dict["current_ratio"] = current_assets / max(current_liabilities, 1)
+                    if quick_assets and current_liabilities:
+                        ticker_dict["quick_ratio"] = quick_assets / max(current_liabilities, 1)
+                    if total_revenue:
+                        if gross_profit:
+                            ticker_dict["gross_margin_pct"] = (gross_profit / total_revenue) * 100
+                        if operating_income:
+                            ticker_dict["operating_margin_pct"] = (operating_income / total_revenue) * 100
+                        if net_income:
+                            ticker_dict["profit_margin_pct"] = (net_income / total_revenue) * 100
+
+                metrics = calculate_quality_metrics(ticker_dict, ticker=None, symbol=symbol)
+
+                # Get earnings surprise metrics from quarterly statements
+                earnings_metrics = get_earnings_surprise_metrics(cursor, symbol)
+                metrics.update(earnings_metrics)
+
+                # Calculate ROE Stability Index from 4 years of annual data
+                roe_stability = calculate_roe_stability_index(cursor, symbol, conn=conn)
+                metrics["roe_stability_index"] = roe_stability
+
+                quality_rows.append([
+                    symbol,
+                    date.today(),
+                    metrics.get("return_on_equity_pct"),
+                    metrics.get("return_on_assets_pct"),
+                    metrics.get("return_on_invested_capital_pct"),
+                    metrics.get("gross_margin_pct"),
+                    metrics.get("operating_margin_pct"),
+                    metrics.get("profit_margin_pct"),
+                    metrics.get("fcf_to_net_income"),
+                    metrics.get("operating_cf_to_net_income"),
+                    metrics.get("debt_to_equity"),
+                    metrics.get("current_ratio"),
+                    metrics.get("quick_ratio"),
+                    metrics.get("earnings_surprise_avg"),
+                    metrics.get("eps_growth_stability"),
+                    metrics.get("payout_ratio"),
+                    metrics.get("roe_stability_index"),
+                ])
+            except Exception as e:
+                logging.warning(f"Error processing fallback quality metrics for {symbol}: {e}")
 
     # Upsert quality_metrics
     if quality_rows:
@@ -1780,10 +1903,16 @@ def load_stability_metrics(conn, cursor, symbols: List[str]):
     stability_rows = []
     today = date.today()
 
+    # Initialize benchmark cache to avoid redundant SPY queries
+    # This reduces database load from 5000+ SPY queries to just 1
+    benchmark_cache = {}
+    logging.info(f"📊 Benchmark cache initialized - SPY data will be loaded once and reused for {len(symbols)} symbols")
+
     for i, symbol in enumerate(symbols, 1):
         try:
             # Get traditional stability metrics (volatility, drawdown, beta)
-            stability = get_stability_metrics(cursor, symbol)
+            # Pass benchmark_cache to reuse SPY data for all symbols
+            stability = get_stability_metrics(cursor, symbol, benchmark_cache)
 
             # Validate beta if enabled (for testing/verification)
             if os.environ.get("VALIDATE_BETA", "false").lower() == "true":

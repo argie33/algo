@@ -139,7 +139,7 @@ async function getFactorMetricsInBatch(symbols) {
           `;
         } else if (table === 'value_metrics') {
           // For value_metrics, merge data from multiple dates to get complete records
-          // Check top 10 rows per symbol to find data for all fields
+          // Look at top 10 records per symbol and aggregate to find best available data
           metricsQuery = `
             WITH ranked AS (
               SELECT symbol, trailing_pe, forward_pe, price_to_book, price_to_sales_ttm,
@@ -147,34 +147,125 @@ async function getFactorMetricsInBatch(symbols) {
                      ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
               FROM ${table}
               WHERE symbol IN (${placeholders})
+                AND (trailing_pe IS NOT NULL OR forward_pe IS NOT NULL OR price_to_book IS NOT NULL
+                     OR price_to_sales_ttm IS NOT NULL OR ev_to_revenue IS NOT NULL OR ev_to_ebitda IS NOT NULL)
             ),
             rows_1_to_10 AS (
               SELECT symbol, trailing_pe, forward_pe, price_to_book, price_to_sales_ttm,
                      peg_ratio, ev_to_revenue, ev_to_ebitda, dividend_yield, payout_ratio, date, rn
               FROM ranked WHERE rn <= 10
+            ),
+            aggregated AS (
+              SELECT symbol,
+                COALESCE((ARRAY_AGG(trailing_pe) FILTER (WHERE trailing_pe IS NOT NULL))[1]) as trailing_pe,
+                COALESCE((ARRAY_AGG(forward_pe) FILTER (WHERE forward_pe IS NOT NULL))[1]) as forward_pe,
+                COALESCE((ARRAY_AGG(price_to_book) FILTER (WHERE price_to_book IS NOT NULL))[1]) as price_to_book,
+                COALESCE((ARRAY_AGG(price_to_sales_ttm) FILTER (WHERE price_to_sales_ttm IS NOT NULL))[1]) as price_to_sales_ttm,
+                COALESCE((ARRAY_AGG(peg_ratio) FILTER (WHERE peg_ratio IS NOT NULL))[1]) as peg_ratio,
+                COALESCE((ARRAY_AGG(ev_to_revenue) FILTER (WHERE ev_to_revenue IS NOT NULL))[1]) as ev_to_revenue,
+                COALESCE((ARRAY_AGG(ev_to_ebitda) FILTER (WHERE ev_to_ebitda IS NOT NULL))[1]) as ev_to_ebitda,
+                COALESCE((ARRAY_AGG(dividend_yield) FILTER (WHERE dividend_yield IS NOT NULL))[1]) as dividend_yield,
+                COALESCE((ARRAY_AGG(payout_ratio) FILTER (WHERE payout_ratio IS NOT NULL))[1]) as payout_ratio,
+                MAX(date) as date
+              FROM rows_1_to_10
+              GROUP BY symbol
             )
-            SELECT symbol,
-              COALESCE(MAX(CASE WHEN trailing_pe IS NOT NULL THEN trailing_pe END) OVER (PARTITION BY symbol),
-                       (ARRAY_AGG(trailing_pe) FILTER (WHERE trailing_pe IS NOT NULL) OVER (PARTITION BY symbol))[1]) as trailing_pe,
-              COALESCE(MAX(CASE WHEN forward_pe IS NOT NULL THEN forward_pe END) OVER (PARTITION BY symbol),
-                       (ARRAY_AGG(forward_pe) FILTER (WHERE forward_pe IS NOT NULL) OVER (PARTITION BY symbol))[1]) as forward_pe,
-              COALESCE(MAX(CASE WHEN price_to_book IS NOT NULL THEN price_to_book END) OVER (PARTITION BY symbol),
-                       (ARRAY_AGG(price_to_book) FILTER (WHERE price_to_book IS NOT NULL) OVER (PARTITION BY symbol))[1]) as price_to_book,
-              COALESCE(MAX(CASE WHEN price_to_sales_ttm IS NOT NULL THEN price_to_sales_ttm END) OVER (PARTITION BY symbol),
-                       (ARRAY_AGG(price_to_sales_ttm) FILTER (WHERE price_to_sales_ttm IS NOT NULL) OVER (PARTITION BY symbol))[1]) as price_to_sales_ttm,
-              COALESCE(MAX(CASE WHEN peg_ratio IS NOT NULL THEN peg_ratio END) OVER (PARTITION BY symbol),
-                       (ARRAY_AGG(peg_ratio) FILTER (WHERE peg_ratio IS NOT NULL) OVER (PARTITION BY symbol))[1]) as peg_ratio,
-              COALESCE(MAX(CASE WHEN ev_to_revenue IS NOT NULL THEN ev_to_revenue END) OVER (PARTITION BY symbol),
-                       (ARRAY_AGG(ev_to_revenue) FILTER (WHERE ev_to_revenue IS NOT NULL) OVER (PARTITION BY symbol))[1]) as ev_to_revenue,
-              COALESCE(MAX(CASE WHEN ev_to_ebitda IS NOT NULL THEN ev_to_ebitda END) OVER (PARTITION BY symbol),
-                       (ARRAY_AGG(ev_to_ebitda) FILTER (WHERE ev_to_ebitda IS NOT NULL) OVER (PARTITION BY symbol))[1]) as ev_to_ebitda,
-              COALESCE(MAX(CASE WHEN dividend_yield IS NOT NULL THEN dividend_yield END) OVER (PARTITION BY symbol),
-                       (ARRAY_AGG(dividend_yield) FILTER (WHERE dividend_yield IS NOT NULL) OVER (PARTITION BY symbol))[1]) as dividend_yield,
-              COALESCE(MAX(CASE WHEN payout_ratio IS NOT NULL THEN payout_ratio END) OVER (PARTITION BY symbol),
-                       (ARRAY_AGG(payout_ratio) FILTER (WHERE payout_ratio IS NOT NULL) OVER (PARTITION BY symbol))[1]) as payout_ratio,
-              MAX(date) OVER (PARTITION BY symbol) as date
-            FROM rows_1_to_10
-            QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol) = 1
+            SELECT * FROM aggregated
+          `;
+        } else if (table === 'quality_metrics') {
+          // For quality_metrics, merge data from multiple dates to get complete records
+          // Look at top 10 records per symbol and aggregate to find best available data
+          metricsQuery = `
+            WITH ranked AS (
+              SELECT symbol, return_on_equity_pct, return_on_assets_pct,
+                     return_on_invested_capital_pct, gross_margin_pct, operating_margin_pct,
+                     profit_margin_pct, fcf_to_net_income, operating_cf_to_net_income,
+                     debt_to_equity, current_ratio, quick_ratio, earnings_surprise_avg,
+                     eps_growth_stability, payout_ratio, roe_stability_index, date,
+                     ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
+              FROM ${table}
+              WHERE symbol IN (${placeholders})
+                AND (return_on_equity_pct IS NOT NULL OR return_on_assets_pct IS NOT NULL
+                     OR debt_to_equity IS NOT NULL OR current_ratio IS NOT NULL
+                     OR fcf_to_net_income IS NOT NULL OR operating_margin_pct IS NOT NULL)
+            ),
+            rows_1_to_10 AS (
+              SELECT symbol, return_on_equity_pct, return_on_assets_pct,
+                     return_on_invested_capital_pct, gross_margin_pct, operating_margin_pct,
+                     profit_margin_pct, fcf_to_net_income, operating_cf_to_net_income,
+                     debt_to_equity, current_ratio, quick_ratio, earnings_surprise_avg,
+                     eps_growth_stability, payout_ratio, roe_stability_index, date, rn
+              FROM ranked WHERE rn <= 10
+            ),
+            aggregated AS (
+              SELECT symbol,
+                COALESCE((ARRAY_AGG(return_on_equity_pct) FILTER (WHERE return_on_equity_pct IS NOT NULL))[1]) as return_on_equity_pct,
+                COALESCE((ARRAY_AGG(return_on_assets_pct) FILTER (WHERE return_on_assets_pct IS NOT NULL))[1]) as return_on_assets_pct,
+                COALESCE((ARRAY_AGG(return_on_invested_capital_pct) FILTER (WHERE return_on_invested_capital_pct IS NOT NULL))[1]) as return_on_invested_capital_pct,
+                COALESCE((ARRAY_AGG(gross_margin_pct) FILTER (WHERE gross_margin_pct IS NOT NULL))[1]) as gross_margin_pct,
+                COALESCE((ARRAY_AGG(operating_margin_pct) FILTER (WHERE operating_margin_pct IS NOT NULL))[1]) as operating_margin_pct,
+                COALESCE((ARRAY_AGG(profit_margin_pct) FILTER (WHERE profit_margin_pct IS NOT NULL))[1]) as profit_margin_pct,
+                COALESCE((ARRAY_AGG(fcf_to_net_income) FILTER (WHERE fcf_to_net_income IS NOT NULL))[1]) as fcf_to_net_income,
+                COALESCE((ARRAY_AGG(operating_cf_to_net_income) FILTER (WHERE operating_cf_to_net_income IS NOT NULL))[1]) as operating_cf_to_net_income,
+                COALESCE((ARRAY_AGG(debt_to_equity) FILTER (WHERE debt_to_equity IS NOT NULL))[1]) as debt_to_equity,
+                COALESCE((ARRAY_AGG(current_ratio) FILTER (WHERE current_ratio IS NOT NULL))[1]) as current_ratio,
+                COALESCE((ARRAY_AGG(quick_ratio) FILTER (WHERE quick_ratio IS NOT NULL))[1]) as quick_ratio,
+                COALESCE((ARRAY_AGG(earnings_surprise_avg) FILTER (WHERE earnings_surprise_avg IS NOT NULL))[1]) as earnings_surprise_avg,
+                COALESCE((ARRAY_AGG(eps_growth_stability) FILTER (WHERE eps_growth_stability IS NOT NULL))[1]) as eps_growth_stability,
+                COALESCE((ARRAY_AGG(payout_ratio) FILTER (WHERE payout_ratio IS NOT NULL))[1]) as payout_ratio,
+                COALESCE((ARRAY_AGG(roe_stability_index) FILTER (WHERE roe_stability_index IS NOT NULL))[1]) as roe_stability_index,
+                MAX(date) as date
+              FROM rows_1_to_10
+              GROUP BY symbol
+            )
+            SELECT * FROM aggregated
+          `;
+        } else if (table === 'growth_metrics') {
+          // For growth_metrics, merge data from multiple dates to get complete records
+          // Look at top 10 records per symbol and aggregate to find best available data
+          metricsQuery = `
+            WITH ranked AS (
+              SELECT symbol, revenue_growth_3y_cagr, eps_growth_3y_cagr,
+                     operating_income_growth_yoy, roe_trend, sustainable_growth_rate,
+                     fcf_growth_yoy, ocf_growth_yoy, net_income_growth_yoy, gross_margin_trend,
+                     operating_margin_trend, net_margin_trend, quarterly_growth_momentum,
+                     asset_growth_yoy, revenue_growth_yoy, date,
+                     ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
+              FROM ${table}
+              WHERE symbol IN (${placeholders})
+                AND (revenue_growth_3y_cagr IS NOT NULL OR eps_growth_3y_cagr IS NOT NULL
+                     OR operating_income_growth_yoy IS NOT NULL OR roe_trend IS NOT NULL
+                     OR fcf_growth_yoy IS NOT NULL OR net_income_growth_yoy IS NOT NULL)
+            ),
+            rows_1_to_10 AS (
+              SELECT symbol, revenue_growth_3y_cagr, eps_growth_3y_cagr,
+                     operating_income_growth_yoy, roe_trend, sustainable_growth_rate,
+                     fcf_growth_yoy, ocf_growth_yoy, net_income_growth_yoy, gross_margin_trend,
+                     operating_margin_trend, net_margin_trend, quarterly_growth_momentum,
+                     asset_growth_yoy, revenue_growth_yoy, date, rn
+              FROM ranked WHERE rn <= 10
+            ),
+            aggregated AS (
+              SELECT symbol,
+                COALESCE((ARRAY_AGG(revenue_growth_3y_cagr) FILTER (WHERE revenue_growth_3y_cagr IS NOT NULL))[1]) as revenue_growth_3y_cagr,
+                COALESCE((ARRAY_AGG(eps_growth_3y_cagr) FILTER (WHERE eps_growth_3y_cagr IS NOT NULL))[1]) as eps_growth_3y_cagr,
+                COALESCE((ARRAY_AGG(operating_income_growth_yoy) FILTER (WHERE operating_income_growth_yoy IS NOT NULL))[1]) as operating_income_growth_yoy,
+                COALESCE((ARRAY_AGG(roe_trend) FILTER (WHERE roe_trend IS NOT NULL))[1]) as roe_trend,
+                COALESCE((ARRAY_AGG(sustainable_growth_rate) FILTER (WHERE sustainable_growth_rate IS NOT NULL))[1]) as sustainable_growth_rate,
+                COALESCE((ARRAY_AGG(fcf_growth_yoy) FILTER (WHERE fcf_growth_yoy IS NOT NULL))[1]) as fcf_growth_yoy,
+                COALESCE((ARRAY_AGG(ocf_growth_yoy) FILTER (WHERE ocf_growth_yoy IS NOT NULL))[1]) as ocf_growth_yoy,
+                COALESCE((ARRAY_AGG(net_income_growth_yoy) FILTER (WHERE net_income_growth_yoy IS NOT NULL))[1]) as net_income_growth_yoy,
+                COALESCE((ARRAY_AGG(gross_margin_trend) FILTER (WHERE gross_margin_trend IS NOT NULL))[1]) as gross_margin_trend,
+                COALESCE((ARRAY_AGG(operating_margin_trend) FILTER (WHERE operating_margin_trend IS NOT NULL))[1]) as operating_margin_trend,
+                COALESCE((ARRAY_AGG(net_margin_trend) FILTER (WHERE net_margin_trend IS NOT NULL))[1]) as net_margin_trend,
+                COALESCE((ARRAY_AGG(quarterly_growth_momentum) FILTER (WHERE quarterly_growth_momentum IS NOT NULL))[1]) as quarterly_growth_momentum,
+                COALESCE((ARRAY_AGG(asset_growth_yoy) FILTER (WHERE asset_growth_yoy IS NOT NULL))[1]) as asset_growth_yoy,
+                COALESCE((ARRAY_AGG(revenue_growth_yoy) FILTER (WHERE revenue_growth_yoy IS NOT NULL))[1]) as revenue_growth_yoy,
+                MAX(date) as date
+              FROM rows_1_to_10
+              GROUP BY symbol
+            )
+            SELECT * FROM aggregated
           `;
         } else if (table === 'stability_metrics') {
           // For stability_metrics, prioritize records with non-null beta
@@ -186,6 +277,7 @@ async function getFactorMetricsInBatch(symbols) {
             ORDER BY symbol, beta IS NULL, date DESC
           `;
         } else {
+          // Default for momentum_metrics and other tables
           metricsQuery = `
             SELECT DISTINCT ON (symbol)
               symbol, * FROM ${table}

@@ -55,18 +55,21 @@ def get_db_config():
     db_secret_arn = os.environ.get("DB_SECRET_ARN")
 
     if db_secret_arn:
-        import boto3
-        secret_str = boto3.client("secretsmanager").get_secret_value(
-            SecretId=db_secret_arn
-        )["SecretString"]
-        sec = json.loads(secret_str)
-        return {
-            "host": sec["host"],
-            "port": int(sec.get("port", 5432)),
-            "user": sec["username"],
-            "password": sec["password"],
-            "dbname": sec["dbname"],
-        }
+        try:
+            import boto3
+            secret_str = boto3.client("secretsmanager").get_secret_value(
+                SecretId=db_secret_arn
+            )["SecretString"]
+            sec = json.loads(secret_str)
+            return {
+                "host": sec["host"],
+                "port": int(sec.get("port", 5432)),
+                "user": sec["username"],
+                "password": sec["password"],
+                "dbname": sec["dbname"],
+            }
+        except Exception as e:
+            logging.warning(f"Failed to fetch from AWS Secrets Manager: {e}, falling back to local connection")
 
     # Try local socket connection first (peer authentication) - for local development
     try:

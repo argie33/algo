@@ -16,6 +16,7 @@ from psycopg2.extras import RealDictCursor, execute_values
 from datetime import datetime
 
 import boto3
+import pandas as pd
 import yfinance as yf
 
 # ─── Timeout handler to forcibly kill hung downloads ───────────────
@@ -78,7 +79,7 @@ def log_mem(stage: str):
 MAX_BATCH_RETRIES   = 3
 RETRY_DELAY         = 0.2   # seconds between download retries
 MAX_SYMBOL_RETRIES  = 5     # retries for individual symbols
-RATE_LIMIT_BASE_DELAY = 60  # start with 60 seconds for rate limits
+RATE_LIMIT_BASE_DELAY = 120  # start with 60 seconds for rate limits
 
 # -------------------------------
 # Price-weekly columns
@@ -105,16 +106,19 @@ def get_db_config():
 
     # Fall back to AWS Secrets Manager if available
     if os.environ.get("DB_SECRET_ARN"):
-        secret_str = boto3.client("secretsmanager") \
-                         .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
-        sec = json.loads(secret_str)
-        return {
-            "host":   sec["host"],
-            "port":   int(sec.get("port", 5432)),
-            "user":   sec["username"],
-            "password": sec["password"],
-            "dbname": sec["dbname"]
-        }
+        try:
+            secret_str = boto3.client("secretsmanager") \
+                             .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
+            sec = json.loads(secret_str)
+            return {
+                "host":   sec["host"],
+                "port":   int(sec.get("port", 5432)),
+                "user":   sec["username"],
+                "password": sec["password"],
+                "dbname": sec["dbname"]
+            }
+        except Exception as e:
+            logging.warning(f"Failed to fetch from AWS Secrets Manager: {e}, falling back to environment variables")
 
     # Final fallback to localhost defaults
     return {
@@ -133,7 +137,7 @@ def load_prices(table_name, symbols, cur, conn):
     logging.info(f"Loading {table_name}: {total} symbols")
     inserted, failed = 0, []
     timeout_failures = []  # Track timeouts separately for end-of-load retry
-    CHUNK_SIZE, PAUSE = 1, 3.5  # Single symbol, 3.5s pause to avoid rate limits
+    CHUNK_SIZE, PAUSE = 1, 5.0  # Single symbol, 3.5s pause to avoid rate limits
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     for batch_idx in range(batches):
@@ -220,17 +224,16 @@ def load_prices(table_name, symbols, cur, conn):
 
                 sub = sub.sort_index()
 
-                # Normalize column names to lowercase for consistent access
-                normalized_cols = {}
-                for col in sub.columns:
-                    if isinstance(col, tuple):
-                        normalized_cols[col] = col[1].lower() if len(col) > 1 else str(col[0]).lower()
-                    else:
-                        normalized_cols[col] = str(col).lower()
-                sub = sub.rename(columns=normalized_cols)
+                # Flatten MultiIndex columns if needed
+                if isinstance(sub.columns, pd.MultiIndex):
+                    # Extract the data column (last level) and make lowercase
+                    sub.columns = [col[-1].lower() for col in sub.columns]
+                else:
+                    # Regular columns - just lowercase
+                    sub.columns = [str(col).lower() for col in sub.columns]
 
                 if "open" not in sub.columns:
-                    logging.warning(f"No 'open' column for {orig_sym}")
+                    logging.warning(f"No 'open' column for {orig_sym} - columns: {list(sub.columns)}")
                     failed.append(orig_sym)
                     continue
 
@@ -376,67 +379,12 @@ if __name__ == "__main__":
             conn.rollback()
             raise
 
-        try:
-            logging.info("Recreating etf_price_weekly table…")
-            cur.execute("DROP TABLE IF EXISTS etf_price_weekly CASCADE;")
-            cur.execute("""
-                CREATE TABLE etf_price_weekly (
-                    id           SERIAL PRIMARY KEY,
-                    symbol       VARCHAR(10) NOT NULL,
-                    date         DATE         NOT NULL,
-                    open         DOUBLE PRECISION,
-                    high         DOUBLE PRECISION,
-                    low          DOUBLE PRECISION,
-                    close        DOUBLE PRECISION,
-                    adj_close    DOUBLE PRECISION,
-                    volume       BIGINT,
-                    dividends    DOUBLE PRECISION,
-                    stock_splits DOUBLE PRECISION,
-                    fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
-            logging.info("✅ etf_price_weekly table created")
-            conn.commit()
-        except Exception as e:
-            logging.error(f"❌ Failed to create etf_price_weekly table: {e}")
-            conn.rollback()
-            raise
-
-        try:
-            logging.info("Recreating price_weekly_etf table…")
-            cur.execute("DROP TABLE IF EXISTS price_weekly_etf CASCADE;")
-            cur.execute("""
-                CREATE TABLE price_weekly_etf (
-                    id           SERIAL PRIMARY KEY,
-                    symbol       VARCHAR(10) NOT NULL,
-                    date         DATE         NOT NULL,
-                    open         DOUBLE PRECISION,
-                    high         DOUBLE PRECISION,
-                    low          DOUBLE PRECISION,
-                    close        DOUBLE PRECISION,
-                    adj_close    DOUBLE PRECISION,
-                    volume       BIGINT,
-                    dividends    DOUBLE PRECISION,
-                    stock_splits DOUBLE PRECISION,
-                    fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
-            logging.info("✅ price_weekly_etf table created")
-            conn.commit()
-        except Exception as e:
-            logging.error(f"❌ Failed to create price_weekly_etf table: {e}")
-            conn.rollback()
-            raise
-
-        # Load stock symbols
+        # Load stock symbols only (ETF tables are managed by loadetfpriceweekly.py)
         cur.execute("SELECT symbol FROM stock_symbols;")
         stock_syms = [r["symbol"] for r in cur.fetchall()]
         t_s, i_s, f_s = load_prices("price_weekly", stock_syms, cur, conn)
 
-        # Load all ETF symbols (from etf_symbols table)
-        cur.execute("SELECT symbol FROM etf_symbols;")
-        all_etf_syms = [r["symbol"] for r in cur.fetchall()]
-        t_w, i_w, f_w = load_prices("etf_price_weekly", all_etf_syms, cur, conn)
+        t_w, i_w, f_w = 0, 0, []  # ETFs handled by separate loader
 
         # Record last run
         cur.execute("""
