@@ -25,6 +25,7 @@ SCRIPT_NAME = "loadbuysell_etf_daily.py"
 
 # Setup rotating log file handler to prevent disk exhaustion from excessive logging
 from logging.handlers import RotatingFileHandler
+from db_helper import get_db_connection
 log_handler = RotatingFileHandler(
     '/tmp/loadbuysell_etf_daily.log',
     maxBytes=100*1024*1024,  # 100MB max per file
@@ -1921,7 +1922,7 @@ def main():
 
     # Process all ETFs into single unified table
     if all_etf_symbols:
-        process_symbol_set(all_etf_symbols, "buy_sell_daily_etf", "ETF Signals", max_workers=6)
+        process_symbol_set(all_etf_symbols, "buy_sell_daily_etf", "ETF Signals", max_workers=2)
 
     logging.info("Processing complete.")
 

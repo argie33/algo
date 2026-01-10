@@ -11,6 +11,8 @@ from psycopg2.extras import RealDictCursor, execute_values
 from datetime import datetime
 import pandas as pd
 import numpy as np
+import boto3
+from db_helper import get_db_connection
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,16 +29,28 @@ def get_db_config():
             "password": os.environ.get("DB_PASSWORD", "password"),
             "dbname": os.environ.get("DB_NAME", "stocks")
         }
-    secret_str = boto3.client("secretsmanager").get_secret_value(
-        SecretId=os.environ["DB_SECRET_ARN"]
-    )["SecretString"]
-    sec = json.loads(secret_str)
+    if os.environ.get("DB_SECRET_ARN"):
+        try:
+            secret_str = boto3.client("secretsmanager").get_secret_value(
+                SecretId=os.environ["DB_SECRET_ARN"]
+            )["SecretString"]
+            sec = json.loads(secret_str)
+            return {
+                "host": sec["host"],
+                "port": int(sec.get("port", 5432)),
+                "user": sec["username"],
+                "password": sec["password"],
+                "dbname": sec["dbname"]
+            }
+        except Exception as e:
+            logging.warning(f"AWS Secrets Manager failed: {e}. Falling back to localhost.")
+            pass
     return {
-        "host": sec["host"],
-        "port": int(sec.get("port", 5432)),
-        "user": sec["username"],
-        "password": sec["password"],
-        "dbname": sec["dbname"]
+        "host": "localhost",
+        "port": 5432,
+        "user": "stocks",
+        "password": "bed0elAn",
+        "dbname": "stocks"
     }
 
 def generate_etf_signals(symbol, prices_df, timeframe, cur, conn):

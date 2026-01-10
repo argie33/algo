@@ -202,8 +202,8 @@ const Services = () => {
     <MarketingLayout>
       {/* Header */}
       <PageHeader
-        title="Professional Research & Advisory Services"
-        subtitle="Six comprehensive research dimensions powering institutional-grade analysis and customized advisory solutions"
+        title="Equity Research Services"
+        subtitle="Independent research combining quantitative analysis, fundamental insights, and technical research for institutional and individual investors"
       />
 
       {/* Hero Image Section */}
@@ -243,30 +243,30 @@ const Services = () => {
               lineHeight: 1.8,
             }}
           >
-            We combine deep market knowledge with cutting-edge artificial intelligence and big data quantitative techniques to analyze six independent research dimensions. This multi-dimensional approach reveals opportunities and risks that traditional analysis misses.
+            Bullseye delivers comprehensive equity research through quantitative models, fundamental analysis, and technical research. Our evidence-based approach combines multiple analytical dimensions validated through rigorous backtesting.
           </Typography>
 
           <Grid container spacing={4}>
             {[
               {
-                number: '6',
-                label: 'Research Dimensions',
-                detail: 'Fundamentals, Technicals, Sentiment, Macro, Sector, Positioning',
+                number: 'Multi-Factor',
+                label: 'Research Models',
+                detail: 'Quantitative, fundamental, and technical analysis',
               },
               {
                 number: '10+',
                 label: 'Years of Data',
-                detail: 'Historical perspective for pattern recognition',
+                detail: 'Historical backtesting and validation',
               },
               {
                 number: '5,300+',
-                label: 'Stocks Analyzed',
-                detail: 'Comprehensive US equity coverage',
+                label: 'Stocks Covered',
+                detail: 'Complete US equity market coverage',
               },
               {
-                number: '24/7',
-                label: 'Real-Time Updates',
-                detail: 'Continuous data feeds and AI analysis',
+                number: 'Daily',
+                label: 'Updates',
+                detail: 'Analysis refreshed during market hours',
               },
             ].map((item, idx) => (
               <Grid item xs={12} sm={6} md={3} key={idx}>

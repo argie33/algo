@@ -38,6 +38,7 @@ import pandas as pd
 import numpy as np
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from db_helper import get_db_connection
 
 # Sentiment analysis imports
 try:

@@ -19,27 +19,27 @@ const Firm = () => {
   const expertise = [
     {
       icon: <FlagIcon />,
-      title: 'Deep Market Knowledge',
+      title: 'Independent Research',
       description:
-        '20+ years of combined expertise in financial markets and technology. Our team understands what works in real-world trading, what data matters, and how to apply AI and data science to reveal market insights.',
+        'We operate without investment banking relationships or sell-side conflicts. Our research is driven purely by analysis and data, allowing us to publish unbiased views on companies and markets.',
     },
     {
       icon: <LightbulbIcon />,
-      title: 'AI & Quantitative Innovation',
+      title: 'Quantitative & Fundamental Analysis',
       description:
-        'We don\'t just apply AI—we develop proprietary algorithms that solve real problems. Our models analyze 100+ factors across 6+ dimensions to reveal market inefficiencies traditional analysis misses.',
+        'Our research combines quantitative factor models with fundamental analysis. We evaluate stocks using multi-factor scoring across value, quality, momentum, and technical metrics validated through historical backtesting.',
     },
     {
       icon: <GroupsIcon />,
-      title: 'Finance & Technology Experts',
+      title: 'Comprehensive Market Coverage',
       description:
-        'A team combining deep expertise in financial markets and software engineering. Over 20 years of collective experience analyzing markets, building trading systems, and developing financial technology solutions.',
+        'Research coverage across 5,300+ US equities with 10+ years of historical data. We publish analysis on earnings, sector trends, economic indicators, and market technicals to provide complete investment intelligence.',
     },
     {
       icon: <TrendingUpIcon />,
-      title: 'Evidence-Based & Transparent',
+      title: 'Evidence-Based Methodology',
       description:
-        'We show our work. Every analysis includes the underlying factors, confidence levels, and historical backtests. No black boxes. You understand exactly why our system recommends what it recommends.',
+        'All research models are backtested against historical data and validated for statistical significance. We explain our methodology transparently and show the factors driving our analysis.',
     },
   ];
 
@@ -79,7 +79,7 @@ const Firm = () => {
       {/* Header */}
       <PageHeader
         title="About Bullseye Financial"
-        subtitle="A research firm and advisory platform combining deep market knowledge with cutting-edge AI and big data techniques"
+        subtitle="Independent equity research firm delivering quantitative analysis, fundamental insights, and technical research to institutional and individual investors"
       />
 
       {/* Who We Are Section */}
@@ -107,7 +107,7 @@ const Firm = () => {
               mx: 'auto',
             }}
           >
-            Bullseye Financial is a research firm and advisory platform dedicated to democratizing access to institutional-grade market intelligence. We combine decades of collective Wall Street experience with cutting-edge artificial intelligence and machine learning to deliver research-driven insights that traditional analysis misses.
+            Bullseye Financial is an independent research firm providing comprehensive equity analysis to institutional investors, registered investment advisors, and active traders. We publish research combining quantitative models, fundamental analysis, and technical insights across 5,300+ US equities.
           </Typography>
           <Typography
             sx={{
@@ -118,7 +118,7 @@ const Firm = () => {
               mx: 'auto',
             }}
           >
-            Our mission is simple: empower investors—whether institutions, advisors, or individuals—with the same research-grade analysis and insights traditionally available only to Wall Street professionals. We believe sophisticated financial research shouldn't be limited to those with access to expensive institutional platforms.
+            Our research covers earnings analysis, sector rotation, economic trends, and multi-factor stock scoring. We maintain research independence without investment banking conflicts, allowing us to publish unbiased analysis focused solely on investment merit.
           </Typography>
         </Container>
       </Box>
@@ -216,28 +216,28 @@ const Firm = () => {
           <Grid container spacing={4}>
             {[
               {
-                principle: 'Multi-Dimensional Analysis',
-                description: 'We analyze markets across 6+ independent dimensions—fundamentals, technicals, sentiment, macro trends, sector dynamics, and positioning. This comprehensive approach reveals opportunities and risks that single-dimension analysis misses.',
+                principle: 'Quantitative Rigor',
+                description: 'All factor models are backtested against 10+ years of historical data. We validate statistical significance and measure out-of-sample performance before deploying any research model in production.',
               },
               {
-                principle: 'Data-Driven Insights',
-                description: 'Every recommendation is grounded in rigorous data analysis. We process 10+ years of historical data and real-time market information through proprietary AI models to identify patterns and trends.',
+                principle: 'Fundamental Analysis',
+                description: 'We evaluate companies using traditional fundamental metrics including valuation, profitability, financial strength, and earnings quality. Fundamental analysis remains the foundation of long-term investment decisions.',
               },
               {
-                principle: 'Continuous Innovation',
-                description: 'Financial markets evolve constantly. Our research team and AI models continuously learn from market outcomes, adapting methodologies and improving accuracy as conditions change.',
+                principle: 'Research Independence',
+                description: 'Bullseye maintains complete research independence. We have no investment banking relationships, no underwriting business, and no conflicts that compromise our analytical objectivity.',
               },
               {
-                principle: 'Transparency & Explanation',
-                description: 'We believe clients deserve to understand how our analysis works. We explain our methodology, show our reasoning, and provide confidence levels for every recommendation.',
+                principle: 'Transparent Methodology',
+                description: 'We explain our research methodology and show the factors driving our analysis. Clients understand what metrics we evaluate and why certain stocks score positively or negatively.',
               },
               {
-                principle: 'Customized Solutions',
-                description: 'Different investors have different needs. We customize our research offerings based on client type, investment strategy, time horizon, and specific mandates.',
+                principle: 'Comprehensive Coverage',
+                description: 'Our research universe covers 5,300+ US equities across all market capitalizations and sectors. We provide the breadth needed for portfolio construction and relative value analysis.',
               },
               {
-                principle: 'Evidence Over Opinion',
-                description: 'We focus on what the data shows, not what the consensus believes. Our research prioritizes empirical evidence, testing methodologies against real-world outcomes.',
+                principle: 'Continuous Validation',
+                description: 'Research models are continuously monitored and validated. We track performance, refine models based on changing market conditions, and adapt our approach as evidence dictates.',
               },
             ].map((item, idx) => (
               <Grid item xs={12} md={6} key={idx}>
@@ -520,24 +520,24 @@ const Firm = () => {
           <Grid container spacing={4}>
             {[
               {
-                title: 'Innovation First',
+                title: 'Research Quality',
                 description:
-                  'We constantly push boundaries with cutting-edge AI and machine learning to uncover insights others miss. Our research team works relentlessly to improve our models and discover new analytical approaches.',
+                  'We prioritize research quality over volume. Every model is rigorously tested, every signal is validated, and every recommendation is backed by thorough analysis and historical evidence.',
               },
               {
-                title: 'Data-Driven Truth',
+                title: 'Client Focus',
                 description:
-                  'We follow the data, not narratives. Every indicator, every signal is rigorously tested and validated. We prioritize accuracy over consensus and evidence over emotion.',
+                  'Our research serves institutional investors, RIAs, and active traders. We design our platform and analysis to meet the specific needs of professional investors who demand high-quality research.',
               },
               {
-                title: 'Transparency Always',
+                title: 'Analytical Independence',
                 description:
-                  'You understand how our analysis works. We explain our methodology, our sources, and our confidence levels. No black boxes, no hidden secrets.',
+                  'We maintain complete analytical independence. No investment banking relationships, no underwriting conflicts, no pressure to maintain buy ratings. Our research reflects only our analytical views.',
               },
               {
-                title: 'Excellence Daily',
+                title: 'Continuous Improvement',
                 description:
-                  'We measure our success by your success. Our platform is built by experienced traders and investors who understand what you need to succeed.',
+                  'We continuously refine our research models based on performance and changing market conditions. Our methodology evolves as we learn from outcomes and incorporate new data sources.',
               },
             ].map((value, idx) => (
               <Grid item xs={12} sm={6} key={idx}>
@@ -600,14 +600,14 @@ const Firm = () => {
 
           <Grid container spacing={3}>
             {[
-              'Institutional-grade research previously available only to Wall Street professionals',
-              'Multi-dimensional analysis across 6+ independent market perspectives',
-              'AI-powered insights trained on 10+ years of market data',
-              'Evidence-based approach prioritizing empirical data over consensus',
-              'Customized solutions tailored to your investment strategy and needs',
-              'Transparent methodology—we explain our reasoning and confidence levels',
-              'Real-time analysis and actionable intelligence 24/7',
-              'Dedicated support for institutions, advisors, and active investors',
+              'Independent research without investment banking conflicts',
+              'Multi-factor quantitative models validated through rigorous backtesting',
+              'Comprehensive coverage of 5,300+ US equities with 10+ years of data',
+              'Evidence-based methodology prioritizing data over market narratives',
+              'Research offerings customized for institutions, RIAs, and active traders',
+              'Transparent methodology with clear factor explanations',
+              'Analysis updated during market hours with historical context',
+              'Professional research platform designed for serious investors',
             ].map((item, idx) => (
               <Grid item xs={12} sm={6} md={4} key={idx}>
                 <Box
@@ -688,38 +688,32 @@ const Firm = () => {
               {
                 metric: '5,300+',
                 label: 'Stocks Covered',
-                description: 'Comprehensive analysis across the US equity market',
-                icon: '📈',
+                description: 'Comprehensive US equity research coverage',
               },
               {
                 metric: '10+',
                 label: 'Years of Data',
-                description: 'Deep historical perspective for pattern analysis',
-                icon: '📊',
+                description: 'Historical data for backtesting and validation',
               },
               {
-                metric: '6',
-                label: 'Research Dimensions',
-                description: 'Market, economic, fundamental, technical, sector, sentiment',
-                icon: '🔍',
+                metric: 'Multi-Factor',
+                label: 'Research Models',
+                description: 'Quantitative, fundamental, and technical analysis',
               },
               {
-                metric: '24/7',
-                label: 'Real-Time Updates',
-                description: 'Continuous analysis as markets move and data emerges',
-                icon: '⚡',
+                metric: 'Daily',
+                label: 'Research Updates',
+                description: 'Analysis refreshed during market hours',
               },
               {
-                metric: '100%',
-                label: 'Data-Driven',
-                description: 'Evidence-based analysis with rigorous validation',
-                icon: '✓',
+                metric: 'Independent',
+                label: 'Research Firm',
+                description: 'No investment banking conflicts of interest',
               },
               {
-                metric: 'AI-Powered',
-                label: 'Advanced Analytics',
-                description: 'Machine learning models identify patterns at scale',
-                icon: '🤖',
+                metric: 'Evidence-Based',
+                label: 'Methodology',
+                description: 'Backtested models with statistical validation',
               },
             ].map((item, idx) => (
               <Grid item xs={12} sm={6} md={4} key={idx}>
@@ -738,9 +732,6 @@ const Firm = () => {
                     },
                   }}
                 >
-                  <Box sx={{ fontSize: '3rem', mb: 2 }}>
-                    {item.icon}
-                  </Box>
                   <Typography
                     variant="h4"
                     sx={{
@@ -748,6 +739,7 @@ const Firm = () => {
                       color: theme.palette.primary.main,
                       mb: 0.5,
                       fontSize: '2.2rem',
+                      mt: 2,
                     }}
                   >
                     {item.metric}

@@ -21,6 +21,7 @@ load_dotenv('.env.local')
 
 import psycopg2
 import numpy as np
+from db_helper import get_db_connection
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

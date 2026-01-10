@@ -14,6 +14,7 @@ import pandas as pd
 from fredapi import Fred
 import psycopg2
 from psycopg2.extras import execute_values
+from db_helper import get_db_connection
 
 # ─── Logging setup ───────────────────────────────────────────────────────────────
 # Send all INFO+ logs to stdout so awslogs picks them up

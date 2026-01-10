@@ -37,6 +37,7 @@ import psycopg2
 import psycopg2.extensions
 import numpy as np
 from psycopg2.extras import RealDictCursor, execute_values
+from db_helper import get_db_connection
 
 # Script metadata
 SCRIPT_NAME = "loadfactormetrics.py"
@@ -157,6 +158,14 @@ def calculate_quality_metrics(ticker_data: Dict, ticker=None, symbol=None) -> Di
     pr = ticker_data.get("payout_ratio")
     roe = ticker_data.get("return_on_equity_pct")
     roa = ticker_data.get("return_on_assets_pct")
+
+    # FIX: Recalculate profit_margin if it's 0 and we have net_income/revenue
+    # This handles cases where key_metrics has profit_margin_pct = 0 for negative earnings companies
+    if (pm == 0 or pm is None) and ticker_data.get("net_income") is not None and ticker_data.get("total_revenue") is not None:
+        net_income = ticker_data.get("net_income")
+        total_revenue = ticker_data.get("total_revenue")
+        if total_revenue != 0 and total_revenue is not None:
+            pm = (net_income / total_revenue) * 100
 
     metrics = {
         "return_on_equity_pct": normalize_percentage(roe),
@@ -545,9 +554,12 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
             prev_fcf = cf_data[1][1] if cf_data[1] else None
             # Allow growth from negative FCF to positive (company improving cash generation)
             # Or from positive to positive (normal growth)
-            if recent_fcf is not None and prev_fcf is not None and prev_fcf != 0:
+            # BUT: Only calculate if base FCF is meaningful (abs value > 1M to avoid extreme %'s from tiny bases)
+            if recent_fcf is not None and prev_fcf is not None and prev_fcf != 0 and abs(prev_fcf) > 1000000:
                 try:
-                    metrics["fcf_growth_yoy"] = ((recent_fcf - prev_fcf) / abs(prev_fcf) * 100)
+                    fcf_pct = ((recent_fcf - prev_fcf) / abs(prev_fcf) * 100)
+                    # Cap at ±500% to avoid meaningless extreme values from calculation errors
+                    metrics["fcf_growth_yoy"] = max(-500, min(500, fcf_pct))
                 except (TypeError, ValueError, ZeroDivisionError):
                     pass
 
@@ -567,9 +579,12 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
             prev_ocf = ocf_data[1][1] if ocf_data[1] else None
             # Allow growth from negative OCF to positive (company improving operations)
             # Or from positive to positive (normal growth)
-            if recent_ocf is not None and prev_ocf is not None and prev_ocf != 0:
+            # BUT: Only calculate if base OCF is meaningful (abs value > 1M to avoid extreme %'s from tiny bases)
+            if recent_ocf is not None and prev_ocf is not None and prev_ocf != 0 and abs(prev_ocf) > 1000000:
                 try:
-                    metrics["ocf_growth_yoy"] = ((recent_ocf - prev_ocf) / abs(prev_ocf) * 100)
+                    ocf_pct = ((recent_ocf - prev_ocf) / abs(prev_ocf) * 100)
+                    # Cap at ±500% to avoid meaningless extreme values
+                    metrics["ocf_growth_yoy"] = max(-500, min(500, ocf_pct))
                 except (TypeError, ValueError, ZeroDivisionError):
                     pass
 
@@ -1338,6 +1353,11 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
     except:
         pass
 
+    # Helper function to cap extreme ratio values that exceed database NUMERIC(8,4) precision
+    def cap_ratio(val, max_val=9999):
+        if val is None: return None
+        return max(-max_val, min(max_val, float(val)))
+
     quality_rows = []
 
     # First: Get all key_metrics data in one query
@@ -1399,9 +1419,9 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
                 metrics.get("profit_margin_pct"),
                 metrics.get("fcf_to_net_income"),
                 metrics.get("operating_cf_to_net_income"),
-                metrics.get("debt_to_equity"),
-                metrics.get("current_ratio"),
-                metrics.get("quick_ratio"),
+                cap_ratio(metrics.get("debt_to_equity")),  # Cap D/E at ±9999
+                cap_ratio(metrics.get("current_ratio")),  # Cap current ratio at ±9999
+                cap_ratio(metrics.get("quick_ratio")),    # Cap quick ratio at ±9999
                 metrics.get("earnings_surprise_avg"),
                 metrics.get("eps_growth_stability"),
                 metrics.get("payout_ratio"),
@@ -1505,9 +1525,9 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
                     metrics.get("profit_margin_pct"),
                     metrics.get("fcf_to_net_income"),
                     metrics.get("operating_cf_to_net_income"),
-                    metrics.get("debt_to_equity"),
-                    metrics.get("current_ratio"),
-                    metrics.get("quick_ratio"),
+                    cap_ratio(metrics.get("debt_to_equity")),  # Cap D/E at ±9999
+                    cap_ratio(metrics.get("current_ratio")),  # Cap current ratio at ±9999
+                    cap_ratio(metrics.get("quick_ratio")),    # Cap quick ratio at ±9999
                     metrics.get("earnings_surprise_avg"),
                     metrics.get("eps_growth_stability"),
                     metrics.get("payout_ratio"),

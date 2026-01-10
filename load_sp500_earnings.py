@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 import psycopg2
 from psycopg2.extras import execute_values
+from db_helper import get_db_connection
 
 # Database connection
 DB_HOST = os.getenv("DB_HOST", "localhost")

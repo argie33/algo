@@ -22,6 +22,7 @@ from datetime import datetime
 import boto3
 import pandas as pd
 import yfinance as yf
+from db_helper import get_db_connection
 
 # -------------------------------
 # Script metadata & logging setup
@@ -289,17 +290,7 @@ def load_prices(table_name, symbols, cur, conn):
                     failed.append(orig_sym)
                     continue
 
-                sql = f"""INSERT INTO {table_name} ({COL_LIST}) VALUES %s
-                    ON CONFLICT (symbol, date) DO UPDATE SET
-                    open = EXCLUDED.open,
-                    high = EXCLUDED.high,
-                    low = EXCLUDED.low,
-                    close = EXCLUDED.close,
-                    adj_close = EXCLUDED.adj_close,
-                    volume = EXCLUDED.volume,
-                    dividends = EXCLUDED.dividends,
-                    stock_splits = EXCLUDED.stock_splits
-                """
+                sql = f"INSERT INTO {table_name} ({COL_LIST}) VALUES %s ON CONFLICT (symbol, date) DO UPDATE SET open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low, close = EXCLUDED.close, adj_close = EXCLUDED.adj_close, volume = EXCLUDED.volume, dividends = EXCLUDED.dividends, stock_splits = EXCLUDED.stock_splits"
                 execute_values(cur, sql, rows)
                 conn.commit()
                 inserted += len(rows)

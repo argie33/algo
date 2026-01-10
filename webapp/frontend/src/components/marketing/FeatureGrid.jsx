@@ -64,7 +64,7 @@ const FeatureGrid = ({ title, subtitle, features, columns = { xs: 1, sm: 2, md: 
         )}
 
         {/* Feature Grid */}
-        <Grid container spacing={3}>
+        <Grid container spacing={3} sx={{ justifyContent: 'center' }}>
           {features.map((feature, idx) => {
             const colors = getColorFromIndex(idx);
             return (

@@ -27,6 +27,7 @@ SCRIPT_NAME = "loadbuyselldaily.py"
 
 # Setup rotating log file handler to prevent disk exhaustion from excessive logging
 from logging.handlers import RotatingFileHandler
+from db_helper import get_db_connection
 log_handler = RotatingFileHandler(
     '/tmp/loadbuyselldaily.log',
     maxBytes=100*1024*1024,  # 100MB max per file
@@ -1852,9 +1853,9 @@ def main():
     # Process ONLY regular stocks (NO ETFs)
     logging.info(f"Processing {len(symbols)} regular stocks only (excluding {len(country_symbols)} country symbols)")
 
-    # Process all stocks into single unified table
+    # Process all stocks into single unified table (reduced to 2 workers to prevent WSL resource drain)
     if symbols:
-        process_symbol_set(symbols, "buy_sell_daily", "Stock Signals", max_workers=16)
+        process_symbol_set(symbols, "buy_sell_daily", "Stock Signals", max_workers=2)
 
     logging.info("Processing complete.")
 
