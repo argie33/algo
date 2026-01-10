@@ -2312,6 +2312,102 @@ def create_factor_metrics_tables(cursor):
         raise
 
 
+def fill_metric_gaps(conn, cursor):
+    """
+    Fill NULL gaps in quality_metrics by calculating from key_metrics.
+
+    Calculations (using available columns):
+    - D/E Ratio = Total Debt / Book Value (equity)
+    - ROE % = (Net Income / Book Value) * 100
+    - Profit Margin = (Net Income / Revenue) * 100
+    """
+    try:
+        logging.info("=" * 70)
+        logging.info("FILLING METRIC GAPS FROM KEY_METRICS DATA")
+        logging.info("=" * 70)
+
+        # Calculate and fill Debt-to-Equity where missing (using book_value as equity)
+        logging.info("\n[1] Calculating D/E Ratio = total_debt / book_value...")
+        cursor.execute("""
+            UPDATE quality_metrics qm
+            SET debt_to_equity = CASE
+                WHEN km.total_debt IS NOT NULL
+                AND km.book_value IS NOT NULL
+                AND km.book_value > 0
+                THEN ROUND((km.total_debt::numeric / km.book_value), 4)
+                ELSE NULL
+            END
+            FROM key_metrics km
+            WHERE qm.symbol = km.ticker
+            AND qm.debt_to_equity IS NULL
+        """)
+        de_count = cursor.rowcount
+        logging.info(f"  ✓ D/E Ratio filled: {de_count} records")
+
+        # Calculate and fill ROE where missing (using book_value as shareholders equity)
+        logging.info("\n[2] Calculating ROE % = (net_income / book_value) * 100...")
+        cursor.execute("""
+            UPDATE quality_metrics qm
+            SET return_on_equity_pct = CASE
+                WHEN km.net_income IS NOT NULL
+                AND km.book_value IS NOT NULL
+                AND km.book_value > 0
+                THEN ROUND(((km.net_income::numeric / km.book_value) * 100), 2)
+                ELSE NULL
+            END
+            FROM key_metrics km
+            WHERE qm.symbol = km.ticker
+            AND qm.return_on_equity_pct IS NULL
+        """)
+        roe_count = cursor.rowcount
+        logging.info(f"  ✓ ROE % filled: {roe_count} records")
+
+        # Calculate and fill Profit Margin where missing or zero
+        logging.info("\n[3] Calculating Profit Margin % = (net_income / revenue) * 100...")
+        cursor.execute("""
+            UPDATE quality_metrics qm
+            SET profit_margin_pct = CASE
+                WHEN km.net_income IS NOT NULL
+                AND km.total_revenue IS NOT NULL
+                AND km.total_revenue > 0
+                THEN ROUND(((km.net_income::numeric / km.total_revenue) * 100), 2)
+                ELSE NULL
+            END
+            FROM key_metrics km
+            WHERE qm.symbol = km.ticker
+            AND (qm.profit_margin_pct IS NULL OR qm.profit_margin_pct = 0)
+        """)
+        pm_count = cursor.rowcount
+        logging.info(f"  ✓ Profit Margin % filled: {pm_count} records")
+
+        conn.commit()
+
+        # Report final coverage
+        logging.info("\n" + "=" * 70)
+        logging.info("FINAL METRIC COVERAGE AFTER GAP FILLING")
+        logging.info("=" * 70)
+
+        cursor.execute("""
+            SELECT
+                COUNT(*) as total,
+                COUNT(CASE WHEN profit_margin_pct IS NOT NULL THEN 1 END) as pm_filled,
+                COUNT(CASE WHEN debt_to_equity IS NOT NULL THEN 1 END) as de_filled,
+                COUNT(CASE WHEN return_on_equity_pct IS NOT NULL THEN 1 END) as roe_filled
+            FROM quality_metrics
+        """)
+
+        total, pm_filled, de_filled, roe_filled = cursor.fetchone()
+        logging.info(f"\nQuality Metrics Coverage:")
+        logging.info(f"  Profit Margin: {pm_filled:,}/{total:,} ({pm_filled/total*100:.1f}%)")
+        logging.info(f"  D/E Ratio: {de_filled:,}/{total:,} ({de_filled/total*100:.1f}%)")
+        logging.info(f"  ROE %: {roe_filled:,}/{total:,} ({roe_filled/total*100:.1f}%)")
+        logging.info("\n✅ Gap filling completed")
+
+    except Exception as e:
+        logging.error(f"Error filling metric gaps: {e}", exc_info=True)
+        conn.rollback()
+
+
 def main():
     """Main loader entry point"""
     log_mem("Start")
@@ -2398,6 +2494,14 @@ def main():
             conn.rollback()
             cursor.close()
             cursor = conn.cursor()  # Create new cursor after rollback
+
+        # Fill metric gaps from available data
+        try:
+            fill_metric_gaps(conn, cursor)
+            log_mem("After gap filling")
+        except Exception as e:
+            logging.error(f"Metric gap filling failed: {e}")
+            conn.rollback()
 
         cursor.close()
         conn.close()

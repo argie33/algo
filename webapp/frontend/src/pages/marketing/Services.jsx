@@ -164,36 +164,36 @@ const Services = () => {
       client: 'Institutional Investors',
       description: 'Asset managers, hedge funds, institutional advisors',
       research: [
-        'Enterprise research data feeds',
-        'Customized analysis dashboards',
-        'Dedicated research team support',
+        'Full platform research access',
+        'Quantitative stock scoring',
+        'Earnings analysis and calendar',
         'API access for integration',
-        'Custom report generation',
-        'Performance attribution',
+        'Sector and macro research',
+        'Bulk data exports',
       ],
     },
     {
       client: 'Wealth Advisors & RIAs',
       description: 'Financial advisors, wealth managers, portfolio managers',
       research: [
-        'Client-ready research reports',
-        'Customizable analysis tools',
-        'Portfolio monitoring dashboards',
-        'Client communication materials',
-        'Co-branded research',
-        'Advisor education programs',
+        'Research platform access',
+        'Stock screening and analysis',
+        'Portfolio monitoring tools',
+        'Earnings and sentiment data',
+        'Technical analysis tools',
+        'Market and sector research',
       ],
     },
     {
       client: 'Active Investors',
       description: 'Individual traders, active investors, sophisticated investors',
       research: [
-        'Comprehensive stock analysis',
-        'Research tools and alerts',
-        'Portfolio monitoring',
-        'Educational research content',
-        'Technical analysis resources',
-        'Community insights',
+        'Stock analysis and scoring',
+        'Technical research tools',
+        'Earnings calendar and data',
+        'Sector rotation signals',
+        'Market screening tools',
+        'Platform access',
       ],
     },
   ];
@@ -456,7 +456,7 @@ const Services = () => {
         </Container>
       </Box>
 
-      {/* Customized Solutions by Client Type */}
+      {/* Research Platform by Client Type */}
       <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.default }}>
         <Container maxWidth="lg">
           <Typography
@@ -469,7 +469,7 @@ const Services = () => {
               color: theme.palette.text.primary,
             }}
           >
-            Customized Research Solutions
+            Research Platform Access
           </Typography>
           <Typography
             sx={{
@@ -481,7 +481,7 @@ const Services = () => {
               mx: 'auto',
             }}
           >
-            Different investor types require different research and advisory approaches. We customize our research offerings for each client segment.
+            Our research platform provides the same comprehensive equity analysis to all client types. Institutional clients can access data via API.
           </Typography>
 
           <Grid container spacing={4}>
@@ -591,8 +591,8 @@ const Services = () => {
                 desc: 'AI-powered composite analysis across fundamentals, technicals, sentiment, and macro',
               },
               {
-                title: 'Research Data Dashboards',
-                desc: 'Customizable dashboards for institutions, advisors, and active investors',
+                title: 'Research Platform Dashboards',
+                desc: 'Web-based platform for institutions, advisors, and active investors',
               },
               {
                 title: 'Real-Time Research Updates',
@@ -678,12 +678,12 @@ const Services = () => {
                 description: 'Every analysis is rigorously tested and validated. We focus on data-driven insights, not opinions.',
               },
               {
-                title: 'Customized Solutions',
-                description: 'Different investors need different research. We tailor offerings for institutions, advisors, and individuals.',
+                title: 'Platform for All Investors',
+                description: 'Our platform serves institutions, advisors, and individuals with the same comprehensive research. Institutional clients can access data via API.',
               },
               {
-                title: 'Real-Time Intelligence',
-                description: '24/7 data processing and AI analysis deliver actionable insights as markets move.',
+                title: 'Market Hours Updates',
+                description: 'Analysis updated during market hours with the latest pricing, earnings, and economic data.',
               },
               {
                 title: 'Comprehensive Coverage',
@@ -922,7 +922,7 @@ const Services = () => {
               },
               {
                 title: 'Wealth Advisors & RIAs',
-                focus: 'Client-ready research and customized recommendations',
+                focus: 'Research platform for portfolio management and client service',
                 uses: [
                   'Stock scores for client portfolios',
                   'Earnings calendar for tactical decisions',
@@ -1057,7 +1057,7 @@ const Services = () => {
       <PromoBanner
         icon={<RocketIcon sx={{ color: theme.palette.primary.main }} />}
         title="Ready to Access Professional Research?"
-        subtitle="Explore our research dimensions and customize your analysis approach."
+        subtitle="Explore our comprehensive equity research platform covering 5,300+ stocks."
         primaryCTA={{ label: 'Launch Research Platform', href: '/app/market' }}
         secondaryCTA={{ label: 'Learn About Our Team', href: '/our-team' }}
       />
@@ -1067,7 +1067,7 @@ const Services = () => {
         <CTASection
           variant="primary"
           title="Experience Institutional-Grade Research"
-          subtitle="Get comprehensive, multi-dimensional market analysis powered by AI and big data. Customize your research approach based on your investment strategy."
+          subtitle="Access comprehensive equity research combining quantitative analysis, fundamental insights, and technical research across 5,300+ stocks."
           primaryCTA={{ label: 'Explore Platform', link: '/app/market' }}
           secondaryCTA={{ label: 'View Pricing', link: '/become-client' }}
         />

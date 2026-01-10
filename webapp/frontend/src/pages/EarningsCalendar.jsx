@@ -656,7 +656,7 @@ function EarningsCalendar() {
                                   </TableCell>
                                   <TableCell align="right">
                                     <Chip
-                                      label={`+${stock.pct_change.toFixed(1)}%`}
+                                      label={`+${stock.pct_change != null ? stock.pct_change.toFixed(1) : 'N/A'}%`}
                                       size="small"
                                       color="success"
                                       variant="filled"
@@ -709,7 +709,7 @@ function EarningsCalendar() {
                                   </TableCell>
                                   <TableCell align="right">
                                     <Chip
-                                      label={`${stock.pct_change.toFixed(1)}%`}
+                                      label={`${stock.pct_change != null ? stock.pct_change.toFixed(1) : 'N/A'}%`}
                                       size="small"
                                       color="error"
                                       variant="filled"

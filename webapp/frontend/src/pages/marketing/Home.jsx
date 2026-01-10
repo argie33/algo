@@ -96,35 +96,35 @@ const Home = () => {
 
   const clientSegments = [
     {
-      segment: 'Institutions',
+      segment: 'Institutional Investors',
       description: 'Asset managers, hedge funds, and institutional advisors',
       offerings: [
-        'Enterprise research data feeds',
-        'Customized analysis dashboards',
-        'Dedicated research support',
+        'Full research platform access',
+        'Quantitative stock scoring',
+        'Earnings analysis and calendar',
         'API access for integration',
       ],
       icon: <GroupsIcon fontSize="large" />,
     },
     {
-      segment: 'Advisors',
+      segment: 'Financial Advisors',
       description: 'RIAs, wealth managers, and financial advisors',
       offerings: [
-        'Client-ready research reports',
-        'Customizable analysis tools',
-        'Portfolio monitoring solutions',
-        'Client communication materials',
+        'Research platform access',
+        'Stock screening and analysis',
+        'Portfolio monitoring tools',
+        'Market and sector research',
       ],
       icon: <SchoolIcon fontSize="large" />,
     },
     {
-      segment: 'Individual Investors',
-      description: 'Active traders and individual investors',
+      segment: 'Active Traders',
+      description: 'Individual investors and active traders',
       offerings: [
-        'Real-time stock analysis',
-        'Trading signals and alerts',
-        'Portfolio optimization tools',
-        'Educational research content',
+        'Stock analysis and scoring',
+        'Technical research tools',
+        'Earnings calendar and data',
+        'Sector rotation signals',
       ],
       icon: <TrendingUpIcon fontSize="large" />,
     },
@@ -266,7 +266,7 @@ const Home = () => {
               {
                 number: '3',
                 title: 'Institutional-Grade Tools',
-                description: 'Access the same caliber of research tools used by professional investors. Our platform provides detailed analytics, custom screening, and portfolio monitoring for serious investors.',
+                description: 'Access the same caliber of research tools used by professional investors. Our platform provides detailed analytics, stock screening, and portfolio monitoring for serious investors.',
                 image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=600&h=400&fit=crop',
               },
               {
@@ -533,7 +533,7 @@ const Home = () => {
               mx: 'auto',
             }}
           >
-            We offer customized research data and advisory solutions tailored to institutions, advisors, and individual investors
+            Our research platform serves institutions, advisors, and individual investors with comprehensive equity analysis
           </Typography>
 
           <Grid container spacing={4}>
@@ -586,7 +586,7 @@ const Home = () => {
                         letterSpacing: 0.5,
                       }}
                     >
-                      Custom Offerings:
+                      Platform Access:
                     </Typography>
                     <Box component="ul" sx={{ pl: 2, m: 0 }}>
                       {client.offerings.map((offering, oidx) => (
@@ -658,8 +658,8 @@ const Home = () => {
               },
               {
                 step: '4',
-                title: 'Customized Delivery',
-                description: 'Research is tailored to each client type—detailed reports for institutions, actionable summaries for advisors, real-time signals for active investors.',
+                title: 'Platform Access',
+                description: 'All research is available through our platform interface. Institutional clients can access data via API, while advisors and traders use the web platform for analysis and screening.',
               },
             ].map((item, idx) => (
               <Grid item xs={12} sm={6} md={3} key={idx}>

@@ -14,7 +14,7 @@ const Contact = () => {
     {
       department: 'Sales & Partnerships',
       icon: <BusinessIcon />,
-      description: 'Get a demo. Discuss pricing. Explore custom solutions tailored to your investment strategy.',
+      description: 'Get a demo of our research platform. Discuss pricing and access options for your firm.',
       email: 'sales@bullseyefinancial.com',
       phone: '+1 (555) 123-4567',
       hours: 'Mon-Fri, 9AM-5PM EST',
@@ -30,7 +30,7 @@ const Contact = () => {
     {
       department: 'Research & Methodology',
       icon: <SchoolIcon />,
-      description: 'Dive deep into our research. Understand our methodology. Discuss custom analysis for your portfolio.',
+      description: 'Questions about our research methodology, factor models, or data sources.',
       email: 'research@bullseyefinancial.com',
       phone: '+1 (555) 123-4569',
       hours: 'Mon-Fri, 9AM-5PM EST',
@@ -63,7 +63,7 @@ const Contact = () => {
       {/* Header */}
       <PageHeader
         title="Contact Our Research Team"
-        subtitle="Interested in our institutional-grade research solutions? Have questions about our methodology or data? Want to discuss a custom research partnership? Get in touch with our team."
+        subtitle="Questions about our research platform, methodology, or pricing? Get in touch with our team."
       />
 
       {/* Hero Image Section */}
@@ -213,7 +213,7 @@ const Contact = () => {
                     lineHeight: 1.6,
                   }}
                 >
-                  Have specific questions about our research platform, custom solutions, or partnership opportunities? Fill out the form below and we'll get back to you promptly.
+                  Have specific questions about our research platform, pricing, or partnership opportunities? Fill out the form below and we'll get back to you promptly.
                 </Typography>
                 <ContactForm
                   onSubmit={async (data) => {
@@ -339,9 +339,9 @@ const Contact = () => {
                       mb: 3,
                     }}
                   >
-                    <strong>Can I get a custom research solution?</strong>
+                    <strong>Do you offer institutional data access?</strong>
                     <br />
-                    Yes! We specialize in customized solutions. Our research team can tailor data dimensions, delivery methods, and analysis focus to match your specific investment strategy and requirements.
+                    Yes. Institutional clients can access our research data via API for integration with internal systems. Contact our sales team to discuss enterprise access options.
                   </Typography>
                   <Typography
                     variant="body2"
