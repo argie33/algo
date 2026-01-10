@@ -126,9 +126,9 @@ def main():
 
     total_inserted = 0
     for i, symbol in enumerate(BENCHMARK_SYMBOLS):
-        # Add delay between benchmark fetches to avoid rate limiting
+        # Add longer delay between benchmark fetches to avoid rate limiting
         if i > 0:
-            delay = 5
+            delay = 15  # Increased from 5s to 15s for better rate limit handling
             logger.info(f"⏳ Waiting {delay}s before fetching next benchmark (rate limit avoidance)...")
             time.sleep(delay)
 
