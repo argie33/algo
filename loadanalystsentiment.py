@@ -254,7 +254,7 @@ def load_analyst_sentiment(symbols, cur, conn):
             failed.append(symbol)
 
         gc.collect()
-        time.sleep(0.02)  # Rate limiting
+        time.sleep(1)  # Rate limiting - 1 second delay per symbol to avoid yfinance rate limits
 
     return total, inserted, no_data, failed
 
