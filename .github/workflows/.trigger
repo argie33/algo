@@ -1,1 +1,4 @@
-# Force workflow trigger - Fri Jan  2 17:43:05 CST 2026
+# FORCE TRIGGER: AWS Loaders must run NOW
+# All loaders fixed, pushing data to AWS RDS
+# Commit: $(date +%s)
+TRIGGER=$(date +%s)
