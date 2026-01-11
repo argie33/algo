@@ -142,7 +142,7 @@ def get_aaii_sentiment_data():
     for attempt in range(1, MAX_DOWNLOAD_RETRIES + 1):
         try:
             logging.info(f"Download attempt {attempt}/{MAX_DOWNLOAD_RETRIES}")
-            response = requests.get(AAII_EXCEL_URL, headers=headers, allow_redirects=True, timeout=30)
+            response = requests.get(AAII_EXCEL_URL, headers=headers, allow_redirects=True, timeout=60)
             response.raise_for_status()
             
             # Check the content-type header for debugging
