@@ -12,6 +12,43 @@ import boto3
 
 logger = logging.getLogger(__name__)
 
+def get_db_config():
+    """
+    Get database configuration dict with multiple fallback strategies.
+    Returns: dict with keys: host, port, user, password, dbname
+    """
+    db_secret_arn = os.environ.get("DB_SECRET_ARN")
+    db_host = os.environ.get("DB_HOST", "localhost")
+    db_port = os.environ.get("DB_PORT", "5432")
+    db_user = os.environ.get("DB_USER", "stocks")
+    db_password = os.environ.get("DB_PASSWORD", "bed0elAn")
+    db_name = os.environ.get("DB_NAME", "stocks")
+
+    # Try AWS Secrets Manager first
+    if db_secret_arn:
+        try:
+            secret_str = boto3.client("secretsmanager", region_name="us-east-1") \
+                             .get_secret_value(SecretId=db_secret_arn)["SecretString"]
+            sec = json.loads(secret_str)
+            return {
+                "host": sec["host"],
+                "port": int(sec.get("port", 5432)),
+                "user": sec["username"],
+                "password": sec["password"],
+                "dbname": sec["dbname"]
+            }
+        except Exception as e:
+            logger.warning(f"AWS Secrets Manager failed: {e}, using environment vars")
+
+    # Fall back to environment variables
+    return {
+        "host": db_host,
+        "port": int(db_port),
+        "user": db_user,
+        "password": db_password,
+        "dbname": db_name
+    }
+
 def get_db_connection(script_name="loader"):
     """
     Get database connection with multiple fallback strategies:

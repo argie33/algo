@@ -40,7 +40,7 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from db_helper import get_db_connection
+from db_helper import get_db_connection, get_db_config
 from yfinance_helper import retry_with_backoff
 
 # Script configuration
