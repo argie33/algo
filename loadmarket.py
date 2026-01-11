@@ -393,27 +393,24 @@ def load_market_data_batch(symbols_dict: Dict[str, str], conn, cur, batch_size: 
         logging.info(f"Processing market data batch {batch_num}/{total_batches}: {len(batch)} symbols")
         log_mem(f"Market batch {batch_num} start")
         
-        # Process with limited concurrency
+        # Process sequentially to avoid yfinance rate limiting (no parallel requests)
         market_data = []
-        with ThreadPoolExecutor(max_workers=3) as executor:
-            future_to_symbol = {
-                executor.submit(process_market_symbol, symbol, name): symbol
-                for symbol, name in batch
-            }
-            
-            for future in as_completed(future_to_symbol):
-                symbol = future_to_symbol[future]
-                try:
-                    data = future.result(timeout=30)
-                    if data:
-                        market_data.append(data)
-                    else:
-                        failed_symbols.append(symbol)
-                except Exception as e:
+        for idx, (symbol, name) in enumerate(batch):
+            # Add delay between individual symbol requests to avoid rate limiting
+            if idx > 0:
+                time.sleep(2)  # 2 second delay between each symbol
+
+            try:
+                data = process_market_symbol(symbol, name)
+                if data:
+                    market_data.append(data)
+                else:
                     failed_symbols.append(symbol)
-                    logging.error(f"Exception processing market data for {symbol}: {e}")
-                
-                total_processed += 1
+            except Exception as e:
+                failed_symbols.append(symbol)
+                logging.error(f"Exception processing market data for {symbol}: {e}")
+
+            total_processed += 1
         
         # Insert to database
         if market_data:
