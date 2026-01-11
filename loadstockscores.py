@@ -782,7 +782,8 @@ def fetch_all_quality_metrics(conn):
     try:
         cur = conn.cursor()
 
-        # Fetch quality metrics from key_metrics and price_daily tables
+        # Fetch quality metrics from key_metrics table
+        # FIX: Remove price_daily filter to include all stocks with quality metrics
         cur.execute("""
             SELECT
                 km.return_on_equity_pct,
@@ -800,11 +801,8 @@ def fetch_all_quality_metrics(conn):
                 km.total_cash,
                 km.operating_cashflow,
                 km.payout_ratio,
-                pd.symbol
+                km.ticker
             FROM key_metrics km
-            INNER JOIN (
-                SELECT DISTINCT symbol FROM price_daily
-            ) pd ON km.ticker = pd.symbol
             WHERE km.return_on_equity_pct IS NOT NULL
                OR km.return_on_assets_pct IS NOT NULL
                OR km.gross_margin_pct IS NOT NULL
@@ -919,26 +917,45 @@ def fetch_all_quality_metrics(conn):
         try:
             qm_cur = conn.cursor()  # Create new cursor since main cursor was closed
             qm_cur.execute("""
-                SELECT eps_growth_stability, earnings_surprise_avg
+                SELECT eps_growth_stability, earnings_surprise_avg, earnings_beat_rate,
+                       estimate_revision_direction, consecutive_positive_quarters, surprise_consistency
                 FROM quality_metrics
                 WHERE eps_growth_stability IS NOT NULL OR earnings_surprise_avg IS NOT NULL
+                   OR earnings_beat_rate IS NOT NULL OR estimate_revision_direction IS NOT NULL
+                   OR consecutive_positive_quarters IS NOT NULL OR surprise_consistency IS NOT NULL
             """)
 
             qm_rows = qm_cur.fetchall()
             metrics['eps_growth_stability'] = []
             metrics['earnings_surprise_avg'] = []
+            metrics['earnings_beat_rate'] = []
+            metrics['estimate_revision_direction'] = []
+            metrics['consecutive_positive_quarters'] = []
+            metrics['surprise_consistency'] = []
 
-            for eps_stab, earn_surp in qm_rows:
+            for eps_stab, earn_surp, beat_rate, est_revision, consec_pos, surprise_cons in qm_rows:
                 if eps_stab is not None:
                     metrics['eps_growth_stability'].append(float(eps_stab))
                 if earn_surp is not None:
                     metrics['earnings_surprise_avg'].append(float(earn_surp))
+                if beat_rate is not None:
+                    metrics['earnings_beat_rate'].append(float(beat_rate))
+                if est_revision is not None:
+                    metrics['estimate_revision_direction'].append(float(est_revision))
+                if consec_pos is not None:
+                    metrics['consecutive_positive_quarters'].append(float(consec_pos))
+                if surprise_cons is not None:
+                    metrics['surprise_consistency'].append(float(surprise_cons))
 
             qm_cur.close()
         except Exception as e:
-            logger.warning(f"Could not fetch eps_growth_stability/earnings_surprise_avg from quality_metrics: {e}")
+            logger.warning(f"Could not fetch earnings metrics from quality_metrics: {e}")
             metrics['eps_growth_stability'] = []
             metrics['earnings_surprise_avg'] = []
+            metrics['earnings_beat_rate'] = []
+            metrics['estimate_revision_direction'] = []
+            metrics['consecutive_positive_quarters'] = []
+            metrics['surprise_consistency'] = []
 
         logger.info(f"📊 Loaded quality metrics for percentile calculation:")
         logger.info(f"   ROE: {len(metrics['roe'])} stocks")
@@ -951,6 +968,10 @@ def fetch_all_quality_metrics(conn):
         logger.info(f"   Volatility: {len(metrics['volatility'])} stocks")
         logger.info(f"   EPS Growth Stability: {len(metrics.get('eps_growth_stability', []))} stocks")
         logger.info(f"   Earnings Surprise: {len(metrics.get('earnings_surprise_avg', []))} stocks")
+        logger.info(f"   Earnings Beat Rate: {len(metrics.get('earnings_beat_rate', []))} stocks")
+        logger.info(f"   Estimate Revision Direction: {len(metrics.get('estimate_revision_direction', []))} stocks")
+        logger.info(f"   Consecutive Positive Quarters: {len(metrics.get('consecutive_positive_quarters', []))} stocks")
+        logger.info(f"   Surprise Consistency: {len(metrics.get('surprise_consistency', []))} stocks")
 
         return metrics
 
@@ -969,6 +990,7 @@ def fetch_all_growth_metrics(conn):
 
         # Fetch growth metrics from key_metrics table - use LEFT JOIN to get all stocks
         # Even if a stock has sparse key_metrics data, it should still be included for percentile calculation
+        # FIX: Do NOT filter by price_daily - include all stocks in key_metrics
         cur.execute("""
             SELECT
                 km.revenue_growth_pct,
@@ -980,12 +1002,9 @@ def fetch_all_growth_metrics(conn):
                 km.payout_ratio,
                 gm.fcf_growth_yoy,
                 gm.ocf_growth_yoy,
-                pd.symbol
-            FROM (
-                SELECT DISTINCT symbol FROM price_daily
-            ) pd
-            LEFT JOIN key_metrics km ON km.ticker = pd.symbol
-            LEFT JOIN growth_metrics gm ON gm.symbol = pd.symbol
+                km.ticker
+            FROM key_metrics km
+            LEFT JOIN growth_metrics gm ON gm.symbol = km.ticker
             WHERE km.revenue_growth_pct IS NOT NULL
                OR km.earnings_growth_pct IS NOT NULL
                OR km.gross_margin_pct IS NOT NULL
@@ -1177,6 +1196,7 @@ def fetch_all_positioning_metrics(conn):
         cur = conn.cursor()
 
         # Fetch positioning metrics from positioning_metrics table using correct column names
+        # FIX: Remove price_daily filter to include all stocks with positioning metrics
         cur.execute("""
             SELECT
                 pm.institutional_ownership_pct,
@@ -1184,9 +1204,6 @@ def fetch_all_positioning_metrics(conn):
                 pm.institutional_holders_count,
                 pm.short_interest_pct
             FROM positioning_metrics pm
-            INNER JOIN (
-                SELECT DISTINCT symbol FROM price_daily
-            ) pd ON pm.symbol = pd.symbol
             WHERE pm.institutional_ownership_pct IS NOT NULL
                OR pm.insider_ownership_pct IS NOT NULL
                OR pm.institutional_holders_count IS NOT NULL
@@ -1245,15 +1262,13 @@ def fetch_all_stability_metrics(conn):
         cur = conn.cursor()
 
         # Fetch stability metrics - get LATEST data per symbol (table has multiple dates)
+        # FIX: Remove price_daily filter to include all stocks with stability metrics
         cur.execute("""
             SELECT
                 sm.volatility_12m,
                 sm.max_drawdown_52w,
                 sm.beta
             FROM stability_metrics sm
-            INNER JOIN (
-                SELECT DISTINCT symbol FROM price_daily
-            ) pd ON sm.symbol = pd.symbol
             INNER JOIN (
                 SELECT symbol, MAX(date) as latest_date
                 FROM stability_metrics
@@ -2161,7 +2176,11 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                     eps_growth_stability,
                     earnings_surprise_avg,
                     operating_cf_to_net_income,
-                    roe_stability_index
+                    roe_stability_index,
+                    earnings_beat_rate,
+                    estimate_revision_direction,
+                    consecutive_positive_quarters,
+                    surprise_consistency
                 FROM quality_metrics
                 WHERE symbol = %s
                 ORDER BY date DESC
@@ -2170,10 +2189,14 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
             qm_row = cur.fetchone()
             if qm_row:
-                fcf_ni, eps_stab, earn_surp, ocf_ni, roe_stab = qm_row
+                fcf_ni, eps_stab, earn_surp, ocf_ni, roe_stab, beat_rate, est_revision, consec_pos_q, surprise_cons = qm_row
                 stock_fcf_to_ni = float(fcf_ni) if fcf_ni is not None else None
                 stock_eps_growth_stability = float(eps_stab) if eps_stab is not None else None
                 stock_roe_stability_index = float(roe_stab) if roe_stab is not None else None
+                stock_earnings_beat_rate = float(beat_rate) if beat_rate is not None else None
+                stock_estimate_revision_direction = float(est_revision) if est_revision is not None else None
+                stock_consecutive_positive_quarters = int(consec_pos_q) if consec_pos_q is not None else None
+                stock_surprise_consistency = float(surprise_cons) if surprise_cons is not None else None
                 # earnings_surprise_score will be calculated from this below
                 # stock_operating_cf_to_ni = float(ocf_ni) if ocf_ni is not None else None
         except psycopg2.Error as e:
@@ -2457,8 +2480,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         if momentum_3m is not None and len(all_3m) > 0:
             momentum_3m_percentile = calculate_z_score_normalized(float(momentum_3m), all_3m)
             if momentum_3m_percentile is not None:
-                momentum_3m_score = (momentum_3m_percentile / 100) * 100
-                momentum_components.append(momentum_3m_score)
+                momentum_components.append(momentum_3m_percentile)
                 momentum_weights.append(0.20)  # 20% for medium-term
             else:
                 logger.debug(f"{symbol}: momentum_3m percentile calculation returned None (value={momentum_3m}, pool_size={len(all_3m)})")
@@ -2467,8 +2489,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         if momentum_6m is not None and len(all_6m) > 0:
             momentum_6m_percentile = calculate_z_score_normalized(float(momentum_6m), all_6m)
             if momentum_6m_percentile is not None:
-                momentum_6m_score = (momentum_6m_percentile / 100) * 100
-                momentum_components.append(momentum_6m_score)
+                momentum_components.append(momentum_6m_percentile)
                 momentum_weights.append(0.20)  # 20% for longer medium-term
             else:
                 logger.debug(f"{symbol}: momentum_6m percentile calculation returned None (value={momentum_6m}, pool_size={len(all_6m)})")
@@ -2477,8 +2498,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         if momentum_12_3 is not None and len(all_12_3) > 0:
             momentum_12_3_percentile = calculate_z_score_normalized(float(momentum_12_3), all_12_3)
             if momentum_12_3_percentile is not None:
-                momentum_12_3_score = (momentum_12_3_percentile / 100) * 100
-                momentum_components.append(momentum_12_3_score)
+                momentum_components.append(momentum_12_3_percentile)
                 momentum_weights.append(0.15)  # 15% for long-term trend
             else:
                 logger.debug(f"{symbol}: momentum_12_3 percentile calculation returned None (value={momentum_12_3}, pool_size={len(all_12_3)})")
@@ -2502,10 +2522,9 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         if rsi is not None and len(all_rsi) > 100:
             rsi_percentile = calculate_z_score_normalized(float(rsi), all_rsi)
             if rsi_percentile is not None:
-                rsi_score = (rsi_percentile / 100) * 100
-                momentum_components.append(rsi_score)
+                momentum_components.append(rsi_percentile)
                 momentum_weights.append(0.10)  # 10% for RSI momentum indicator
-                logger.debug(f"{symbol}: Added RSI to momentum (percentile={rsi_percentile:.1f}, score={rsi_score:.1f})")
+                logger.debug(f"{symbol}: Added RSI to momentum (percentile={rsi_percentile:.1f})")
 
         # MACD (Moving Average Convergence Divergence) - momentum indicator
         all_macd = []
@@ -2526,10 +2545,9 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         if macd is not None and len(all_macd) > 100:
             macd_percentile = calculate_z_score_normalized(float(macd), all_macd)
             if macd_percentile is not None:
-                macd_score = (macd_percentile / 100) * 100
-                momentum_components.append(macd_score)
+                momentum_components.append(macd_percentile)
                 momentum_weights.append(0.10)  # 10% for MACD momentum indicator
-                logger.debug(f"{symbol}: Added MACD to momentum (percentile={macd_percentile:.1f}, score={macd_score:.1f})")
+                logger.debug(f"{symbol}: Added MACD to momentum (percentile={macd_percentile:.1f})")
 
         # ADDITIONAL MOMENTUM COMPONENTS: Price position relative to moving averages
         # These provide trend confirmation and reversal signals
@@ -2560,10 +2578,9 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         if price_vs_sma_50 is not None and len(all_price_vs_sma50) > 100:
             price_vs_sma50_percentile = calculate_z_score_normalized(float(price_vs_sma_50), all_price_vs_sma50)
             if price_vs_sma50_percentile is not None:
-                price_vs_sma50_score = (price_vs_sma50_percentile / 100) * 100
-                momentum_components.append(price_vs_sma50_score)
+                momentum_components.append(price_vs_sma50_percentile)
                 momentum_weights.append(0.16)  # 16% weight for trend confirmation
-                logger.debug(f"{symbol}: Added price_vs_sma50 to momentum (percentile={price_vs_sma50_percentile:.1f}, score={price_vs_sma50_score:.1f})")
+                logger.debug(f"{symbol}: Added price_vs_sma50 to momentum (percentile={price_vs_sma50_percentile:.1f})")
 
         # Price vs SMA200 (longer-term trend)
         all_price_vs_sma200 = []
@@ -2589,10 +2606,9 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         if price_vs_sma_200 is not None and len(all_price_vs_sma200) > 100:
             price_vs_sma200_percentile = calculate_z_score_normalized(float(price_vs_sma_200), all_price_vs_sma200)
             if price_vs_sma200_percentile is not None:
-                price_vs_sma200_score = (price_vs_sma200_percentile / 100) * 100
-                momentum_components.append(price_vs_sma200_score)
+                momentum_components.append(price_vs_sma200_percentile)
                 momentum_weights.append(0.17)  # 17% weight for long-term trend
-                logger.debug(f"{symbol}: Added price_vs_sma200 to momentum (percentile={price_vs_sma200_percentile:.1f}, score={price_vs_sma200_score:.1f})")
+                logger.debug(f"{symbol}: Added price_vs_sma200 to momentum (percentile={price_vs_sma200_percentile:.1f})")
 
         # Price vs 52W High (recovery potential)
         all_price_vs_52w = []
@@ -2615,10 +2631,9 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         if price_vs_52w_high is not None and len(all_price_vs_52w) > 100:
             price_vs_52w_percentile = calculate_z_score_normalized(float(price_vs_52w_high), all_price_vs_52w)
             if price_vs_52w_percentile is not None:
-                price_vs_52w_score = (price_vs_52w_percentile / 100) * 100
-                momentum_components.append(price_vs_52w_score)
+                momentum_components.append(price_vs_52w_percentile)
                 momentum_weights.append(0.17)  # 17% weight for recovery potential
-                logger.debug(f"{symbol}: Added price_vs_52w_high to momentum (percentile={price_vs_52w_percentile:.1f}, score={price_vs_52w_score:.1f})")
+                logger.debug(f"{symbol}: Added price_vs_52w_high to momentum (percentile={price_vs_52w_percentile:.1f})")
 
         # Calculate momentum score using percentile normalization (consistent with other scores)
         # FLEXIBLE: Require at least 2/6 components with dynamic weight normalization
@@ -3234,6 +3249,47 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 quality_components.append(earnings_surprise_score)
                 quality_weights.append(5)
                 quality_weight_names.append("EarningsSurprise")
+
+            # Add new earnings metrics to quality score
+            # earnings_beat_rate: Already 0-100 scale (% of quarters beating estimates)
+            if stock_earnings_beat_rate is not None:
+                quality_components.append(stock_earnings_beat_rate)
+                quality_weights.append(10)
+                quality_weight_names.append("EarningsBeatRate")
+
+            # estimate_revision_direction: -100 to +100 scale, convert to 0-100
+            # Positive revisions (analysts raising targets) correlate with better performance
+            if stock_estimate_revision_direction is not None:
+                # Convert from -100 to +100 scale to 0-100 scale
+                est_revision_score = (stock_estimate_revision_direction + 100) / 2
+                quality_components.append(est_revision_score)
+                quality_weights.append(10)
+                quality_weight_names.append("EstimateRevisions")
+
+            # consecutive_positive_quarters: Count of quarters with positive EPS
+            # Use percentile ranking for consistency with other metrics
+            if stock_consecutive_positive_quarters is not None:
+                consec_pos_percentile = calculate_z_score_normalized(
+                    stock_consecutive_positive_quarters,
+                    quality_metrics.get('consecutive_positive_quarters', [])
+                )
+                if consec_pos_percentile is not None:
+                    quality_components.append(consec_pos_percentile)
+                    quality_weights.append(5)
+                    quality_weight_names.append("ConsecutivePositive")
+
+            # surprise_consistency: Standard deviation of surprise percentages
+            # Lower stddev is better (more predictable earnings), so invert for scoring
+            if stock_surprise_consistency is not None and stock_surprise_consistency >= 0:
+                # Use negative value for percentile calculation (lower is better)
+                surprise_cons_percentile = calculate_z_score_normalized(
+                    -stock_surprise_consistency,
+                    [-s for s in quality_metrics.get('surprise_consistency', []) if s is not None and s > 0]
+                )
+                if surprise_cons_percentile is not None:
+                    quality_components.append(surprise_cons_percentile)
+                    quality_weights.append(5)
+                    quality_weight_names.append("SurpriseConsistency")
 
             # Data Quality Gate - Use whatever components are available
             # Re-normalize weights based on actual data present
@@ -4155,13 +4211,13 @@ def save_stock_score(conn, score_data):
         """
 
         cur.execute(upsert_sql, score_data)
+        conn.commit()
         cur.close()
-        # Don't commit here - let the caller handle commits to maintain transaction control
         return True
 
     except psycopg2.Error as e:
         logger.error(f"❌ Failed to save score for {score_data['symbol']}: {e}")
-        # In autocommit mode, no need to rollback - error is already isolated
+        conn.rollback()
         return False
 
 def sync_ad_scores_to_positioning_metrics(conn):
