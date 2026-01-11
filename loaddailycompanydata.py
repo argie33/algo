@@ -1147,12 +1147,13 @@ if __name__ == "__main__":
             else:
                 failed.append(symbol)
 
-            time.sleep(3.0)  # Rate limiting - yfinance free tier ~20 req/min MAX
-
         except Exception as e:
             logging.error(f"Failed {symbol}: {e}")
             failed.append(symbol)
             pass  # Don't rollback - aborts entire transaction
+
+        finally:
+            time.sleep(5.0)  # Rate limiting - ensure delay even on errors to prevent API throttling
 
     logging.info("=" * 80)
     logging.info("REAL-TIME DATA LOADING COMPLETE")
