@@ -1,5 +1,8 @@
 name: Data Loaders Pipeline
 
+# Force infrastructure recovery from rollback state
+# GitHub Actions will rebuild CloudFormation stack with all ECS task definitions
+
 on:
   workflow_dispatch:
     inputs:
