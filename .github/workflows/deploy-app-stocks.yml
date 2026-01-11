@@ -1110,11 +1110,22 @@ jobs:
             --query "taskDefinition" \
             --output json)
 
-          # Update the container image in the task definition
+          # Update the container image AND set environment variables for AWS RDS access
           UPDATED_TASK_DEF=$(echo "$TASK_DEF_JSON" | jq \
             --arg imageUri "$IMAGE_URI" \
             --arg containerName "$CONTAINER_NAME" \
-            '.containerDefinitions |= map(if .name == $containerName then .image = $imageUri else . end) | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)')
+            --arg dbSecretArn "arn:aws:secretsmanager:us-east-1:626216981288:secret:rds-stocks-secret" \
+            '.containerDefinitions |= map(if .name == $containerName then
+              .image = $imageUri |
+              .environment = ((.environment // []) | map(select(.name | IN("PATH", "HOME", "AWS_DEFAULT_REGION", "AWS_REGION", "PYTHONUNBUFFERED"))) + [
+                {"name": "DB_SECRET_ARN", "value": $dbSecretArn},
+                {"name": "DB_HOST", "value": "rds-stocks.c2gujitq3h1b.us-east-1.rds.amazonaws.com"},
+                {"name": "DB_PORT", "value": "5432"},
+                {"name": "DB_USER", "value": "stocks"},
+                {"name": "DB_PASSWORD", "value": ""},
+                {"name": "DB_NAME", "value": "stocks"}
+              ])
+            else . end) | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)')
 
           # Register new task definition revision
           # Write JSON to temporary file for AWS CLI
