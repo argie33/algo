@@ -342,6 +342,13 @@ def load_news_data(symbols, cur, conn):
                 for news_item in news_data:
                     # Extract news data
                     uuid = news_item.get('uuid')
+
+                    # Generate UUID if missing (use hash of title + link)
+                    if not uuid:
+                        title = news_item.get('title', '')
+                        link = news_item.get('link', '')
+                        uuid = hashlib.md5(f"{title}{link}".encode()).hexdigest()
+
                     title = news_item.get('title', '')
                     publisher = news_item.get('publisher', '')
                     link = news_item.get('link', '')
