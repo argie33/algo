@@ -21,7 +21,7 @@ import yfinance as yf
 import requests
 import feedparser
 from textblob import TextBlob
-from db_helper import get_db_connection
+from db_helper import get_db_connection, get_db_config
 
 # -------------------------------
 # Script metadata & logging setup 
@@ -50,21 +50,6 @@ def log_mem(stage: str):
 # -------------------------------
 MAX_BATCH_RETRIES = 3
 RETRY_DELAY = 0.2  # seconds between download retries
-
-# -------------------------------
-# DB config loader
-# -------------------------------
-def get_db_config():
-    secret_str = boto3.client("secretsmanager") \
-                     .get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"]
-    secret_json = json.loads(secret_str)
-    return {
-        "host": secret_json["host"],
-        "port": secret_json["port"],
-        "user": secret_json.get("user", secret_json.get("username")),
-        "password": secret_json["password"],
-        "dbname": secret_json["dbname"]
-    }
 
 # -------------------------------
 # Environment
