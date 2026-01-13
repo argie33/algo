@@ -1427,6 +1427,30 @@ const ScoresDashboard = () => {
                                             <TableCell align="right">{`${parseFloat(stock.quality_inputs.return_on_invested_capital_pct).toFixed(1)}%`}</TableCell>
                                           </TableRow>
                                         )}
+                                        {stock.quality_inputs.earnings_beat_rate !== null && stock.quality_inputs.earnings_beat_rate !== undefined && (
+                                          <TableRow>
+                                            <TableCell>Earnings Beat Rate</TableCell>
+                                            <TableCell align="right">{`${parseFloat(stock.quality_inputs.earnings_beat_rate).toFixed(1)}%`}</TableCell>
+                                          </TableRow>
+                                        )}
+                                        {stock.quality_inputs.estimate_revision_direction !== null && stock.quality_inputs.estimate_revision_direction !== undefined && (
+                                          <TableRow>
+                                            <TableCell>Estimate Revision Direction</TableCell>
+                                            <TableCell align="right">{parseFloat(stock.quality_inputs.estimate_revision_direction).toFixed(1)}</TableCell>
+                                          </TableRow>
+                                        )}
+                                        {stock.quality_inputs.consecutive_positive_quarters !== null && stock.quality_inputs.consecutive_positive_quarters !== undefined && (
+                                          <TableRow>
+                                            <TableCell>Consecutive Positive Quarters</TableCell>
+                                            <TableCell align="right">{stock.quality_inputs.consecutive_positive_quarters}</TableCell>
+                                          </TableRow>
+                                        )}
+                                        {stock.quality_inputs.surprise_consistency !== null && stock.quality_inputs.surprise_consistency !== undefined && (
+                                          <TableRow>
+                                            <TableCell>Earnings Surprise Consistency (Std Dev)</TableCell>
+                                            <TableCell align="right">{parseFloat(stock.quality_inputs.surprise_consistency).toFixed(2)}</TableCell>
+                                          </TableRow>
+                                        )}
                                       </>
                                     )}
                                   </TableBody>

@@ -255,64 +255,21 @@ def pyval(val):
 
 
 def calculate_missing_metrics(symbol: str, info: dict, ticker) -> dict:
-    """Calculate missing earnings_growth_pct, payout_ratio, and debt_to_equity when not provided by yfinance"""
+    """REAL DATA ONLY - Get metrics directly from yfinance, no calculations or fallbacks"""
 
     metrics = {
         'earnings_growth': info.get('earningsGrowth'),
         'payout_ratio': info.get('payoutRatio'),
         'debt_to_equity': info.get('debtToEquity'),
-        'de_source': 'YFINANCE',  # Track source: YFINANCE or CALCULATED
+        'de_source': 'YFINANCE',
     }
 
-    # If earningsGrowth is missing, try to calculate from earnings_estimate
-    if not metrics['earnings_growth']:
-        try:
-            earnings_est = ticker.earnings_estimate
-            if earnings_est is not None and not earnings_est.empty:
-                # Get current year and previous year estimates
-                current_eps = info.get('epsCurrentYear')
-                trailing_eps = info.get('trailingEps')
-                if current_eps and trailing_eps and trailing_eps > 0:
-                    metrics['earnings_growth'] = (current_eps - trailing_eps) / trailing_eps
-        except Exception as e:
-            logging.warning(f"Failed to calculate earnings_growth for {symbol}: {str(e)}")
-
-    # If payoutRatio is missing, try to calculate from dividend and earnings data (REAL DATA ONLY)
-    if metrics['payout_ratio'] is None or metrics['payout_ratio'] == 0:
-        try:
-            annual_dividend = info.get('trailingAnnualDividendRate')  # None if missing (NOT fake 0)
-            trailing_eps = info.get('trailingEps')
-            if annual_dividend is not None and annual_dividend > 0 and trailing_eps and trailing_eps > 0:
-                metrics['payout_ratio'] = min(1.0, annual_dividend / trailing_eps)
-        except Exception as e:
-            logging.warning(f"Failed to calculate payout_ratio for {symbol}: {str(e)}")
-
-    # ENHANCED: Calculate debt_to_equity from ACTUAL balance sheet data
-    # Formula: debt_to_equity = Total Debt / Stockholders Equity
-    if metrics['debt_to_equity'] is None:
-        try:
-            # First try yfinance values
-            total_debt = safe_float(info.get('totalDebt'), min_val=0)
-
-            # Use totalEquity if available (TOTAL shareholder equity, not per-share)
-            total_equity = safe_float(info.get('totalStockholderEquity'), min_val=0.01)
-
-            # If totalStockholderEquity missing, try calculating from assets - liabilities
-            if total_equity is None:
-                total_assets = safe_float(info.get('totalAssets'), min_val=0)
-                total_liabilities = safe_float(info.get('totalLiab'), min_val=0)
-                if total_assets is not None and total_liabilities is not None:
-                    total_equity = total_assets - total_liabilities
-
-            if total_debt is not None and total_equity is not None and total_equity > 0:
-                calculated_de = total_debt / total_equity
-                # Sanity check: D/E should typically be between 0 and 1000
-                if 0 <= calculated_de <= 1000:
-                    metrics['debt_to_equity'] = calculated_de
-                    metrics['de_source'] = 'CALCULATED'
-                    logging.info(f"{symbol}: Calculated D/E = {calculated_de:.2f} (debt={total_debt:,.0f} / equity={total_equity:,.0f})")
-        except Exception as e:
-            logging.debug(f"{symbol}: Could not calculate D/E: {e}")
+    # NO FALLBACK CALCULATIONS
+    # If yfinance doesn't provide a metric, it stays NULL (not calculated)
+    # Do not calculate from:
+    #  - earnings_estimate (causes estimation bias)
+    #  - dividend/EPS ratios (approximations)
+    #  - balance sheet components (too much data quality variation)
 
     return metrics
 
@@ -545,13 +502,8 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         safe_int(info.get("sharesShort")),
                         safe_int(info.get("sharesShortPriorMonth")),
                         safe_float(info.get("shortRatio"), max_val=9999.99),
-                        # Calculate shortPercentOfFloat if yfinance doesn't provide it (e.g., for Canadian stocks like TD)
-                        safe_float(
-                            info.get("shortPercentOfFloat") or
-                            (float(info.get("sharesShort") or 0) / float(info.get("floatShares") or 1) * 100
-                             if (info.get("sharesShort") and info.get("floatShares")) else None),
-                            max_val=100, min_val=0
-                        ),
+                        # REAL DATA ONLY: Use only yfinance shortPercentOfFloat, no fallback calculations
+                        safe_float(info.get("shortPercentOfFloat"), max_val=100, min_val=0),
                         safe_int(info.get("impliedSharesOutstanding") or info.get("sharesOutstanding")),
                         safe_int(info.get("floatShares")),
                     ),
@@ -797,43 +749,18 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
         else:
             logging.warning(f"Positioning data MISSING for {symbol}: yfinance returned no positioning fields")
 
-        # ALWAYS insert (with real data or NULL, but never default values)
+        # REAL DATA ONLY - No fallbacks, no calculations
+        # Use only direct yfinance values, return NULL if unavailable
         try:
-            # Calculate A/D Rating based on positioning patterns
+            # Get institutional, insider, and short data ONLY from yfinance info dict
+            # DO NOT calculate from holder DataFrames (causes > 100% values and double-counting)
             inst_own = safe_float(info.get('heldPercentInstitutions')) if info else None
             insider_own = safe_float(info.get('heldPercentInsiders')) if info else None
             short_int = safe_float(info.get('shortPercentOfFloat')) if info else None
 
-            # If info doesn't have the data, calculate from holder DataFrames
-            if inst_own is None and institutional_holders is not None and not institutional_holders.empty:
-                # Calculate total institutional ownership from '% Out' column
-                if '% Out' in institutional_holders.columns:
-                    # Sum the top holders' percentages (already in decimal form like 0.05 for 5%)
-                    inst_own = float(institutional_holders['% Out'].sum())
-                    logging.debug(f"{symbol}: Calculated institutional ownership from holders: {inst_own:.4f}")
-
-            if insider_own is None and major_holders is not None and not major_holders.empty:
-                # Try to extract insider ownership from major_holders
-                # major_holders has format like "5.23%" in Value column with description in row
-                for idx, row in major_holders.iterrows():
-                    if 'Held by Insiders' in str(row.iloc[0]):
-                        try:
-                            insider_pct_str = str(row.iloc[1]).replace('%', '')
-                            insider_own = float(insider_pct_str) / 100.0
-                            logging.debug(f"{symbol}: Calculated insider ownership from major_holders: {insider_own:.4f}")
-                        except:
-                            pass
-
-            if short_int is None and major_holders is not None and not major_holders.empty:
-                # Try to extract short % from major_holders
-                for idx, row in major_holders.iterrows():
-                    if 'Short % of Float' in str(row.iloc[0]) or 'Short % of Shares' in str(row.iloc[0]):
-                        try:
-                            short_pct_str = str(row.iloc[1]).replace('%', '')
-                            short_int = float(short_pct_str) / 100.0
-                            logging.debug(f"{symbol}: Calculated short interest from major_holders: {short_int:.4f}")
-                        except:
-                            pass
+            # If data is missing from yfinance, store as NULL (not a calculated fallback)
+            # institutional_holders and major_holders DataFrames are NOT used
+            # because summing individual holders' percentages causes > 100% values
 
             ad_rating = calculate_ad_rating(inst_own, insider_own, short_int, cur, symbol)
 

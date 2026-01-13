@@ -78,7 +78,9 @@ function convertMetricValuesToNumbers(metrics) {
     'rsi', 'macd', 'trailing_pe', 'forward_pe', 'price_to_book', 'price_to_sales_ttm', 'peg_ratio',
     'ev_to_revenue', 'ev_to_ebitda', 'dividend_yield', 'institutional_ownership_pct',
     'top_10_institutions_pct', 'institutional_holders_count', 'insider_ownership_pct',
-    'short_ratio', 'short_interest_pct', 'short_percent_of_float', 'ad_rating'
+    'short_ratio', 'short_interest_pct', 'short_percent_of_float', 'ad_rating',
+    'earnings_beat_rate', 'estimate_revision_direction', 'consecutive_positive_quarters',
+    'surprise_consistency', 'roe_stability_index'
   ];
 
   numericFields.forEach(field => {
@@ -157,12 +159,15 @@ async function getFactorMetricsInBatch(symbols) {
               return_on_invested_capital_pct, gross_margin_pct, operating_margin_pct,
               profit_margin_pct, fcf_to_net_income, operating_cf_to_net_income,
               debt_to_equity, current_ratio, quick_ratio, earnings_surprise_avg,
-              eps_growth_stability, payout_ratio, roe_stability_index, date
+              eps_growth_stability, payout_ratio, roe_stability_index,
+              earnings_beat_rate, estimate_revision_direction, consecutive_positive_quarters,
+              surprise_consistency, date
             FROM ${table}
             WHERE symbol IN (${placeholders})
               AND (return_on_equity_pct IS NOT NULL OR return_on_assets_pct IS NOT NULL
                    OR debt_to_equity IS NOT NULL OR current_ratio IS NOT NULL
-                   OR fcf_to_net_income IS NOT NULL OR operating_margin_pct IS NOT NULL)
+                   OR fcf_to_net_income IS NOT NULL OR operating_margin_pct IS NOT NULL
+                   OR earnings_beat_rate IS NOT NULL OR estimate_revision_direction IS NOT NULL)
             ORDER BY symbol, date DESC
           `;
         } else if (table === 'growth_metrics') {
@@ -628,9 +633,10 @@ async function queryScores(options = {}) {
       // Map momentum metrics field names to match frontend expectations
       // Note: Database has momentum_3m/6m/12m, current_price, price_vs_sma_50/200, price_vs_52w_high, rsi, macd
       if (metrics.momentum_metrics) {
-        // Get RSI and MACD from either momentum_metrics or rsiMacdMap
-        const rsiValue = metrics.momentum_metrics.rsi || (rsiMacdMap.data[row.symbol.toUpperCase()] && rsiMacdMap.data[row.symbol.toUpperCase()].rsi);
-        const macdValue = metrics.momentum_metrics.macd || (rsiMacdMap.data[row.symbol.toUpperCase()] && rsiMacdMap.data[row.symbol.toUpperCase()].macd);
+        // Use ONLY momentum_metrics data - NO fallbacks for finance data
+        // If data doesn't exist in primary source, return null (not fallback to secondary)
+        const rsiValue = metrics.momentum_metrics.rsi || null;
+        const macdValue = metrics.momentum_metrics.macd || null;
 
         const cleaned = cleanMetrics(metrics.momentum_metrics);
         stock.momentum_inputs = {
@@ -641,6 +647,7 @@ async function queryScores(options = {}) {
         delete stock.momentum_inputs.momentum_12m; // Remove duplicate, use momentum_12_3 instead
 
         // Also add RSI and MACD to top-level stock object (frontend expects them there)
+        // IMPORTANT: Use null if unavailable - NOT fallback to rsiMacdMap or other sources
         stock.rsi = rsiValue;
         stock.macd = macdValue;
       }
@@ -667,22 +674,26 @@ async function queryScores(options = {}) {
       // Note: Database has institutional_ownership_pct, top_10_institutions_pct, insider_ownership_pct, short_ratio, short_interest_pct, short_percent_of_float, ad_rating
       if (metrics.positioning_metrics) {
         const cleaned = cleanMetrics(metrics.positioning_metrics);
+
+        // Data validation: Cap ownership percentages at 100% (they shouldn't exceed this biologically)
+        const capAt100 = (val) => val !== null && val !== undefined ? Math.min(100, Math.max(0, parseFloat(val))) : val;
+
         stock.positioning_inputs = {
-          institutional_ownership_pct: cleaned.institutional_ownership_pct,
-          top_10_institutions_pct: cleaned.top_10_institutions_pct,
+          institutional_ownership_pct: capAt100(cleaned.institutional_ownership_pct),
+          top_10_institutions_pct: capAt100(cleaned.top_10_institutions_pct),
           institutional_holders_count: cleaned.institutional_holders_count,
-          insider_ownership_pct: cleaned.insider_ownership_pct,
+          insider_ownership_pct: capAt100(cleaned.insider_ownership_pct),
           short_ratio: cleaned.short_ratio,
-          short_interest_pct: cleaned.short_interest_pct,
-          short_percent_of_float: cleaned.short_percent_of_float,
+          short_interest_pct: capAt100(cleaned.short_interest_pct),
+          short_percent_of_float: capAt100(cleaned.short_percent_of_float),
           ad_rating: cleaned.ad_rating // Synced from stock_scores.momentum_intraweek by loader
         };
 
         // Build score_breakdown object from positioning inputs for frontend display
         stock.score_breakdown = {
-          institutional: cleaned.institutional_ownership_pct,
-          insider: cleaned.insider_ownership_pct,
-          short_interest: cleaned.short_interest_pct,
+          institutional: capAt100(cleaned.institutional_ownership_pct),
+          insider: capAt100(cleaned.insider_ownership_pct),
+          short_interest: capAt100(cleaned.short_interest_pct),
           smart_money: null // Will be calculated from institutional_positioning data below
         };
       }

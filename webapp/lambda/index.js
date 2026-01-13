@@ -325,8 +325,9 @@ if (!isProduction && nodeEnv !== 'test') {
   app.use(morgan("combined"));
 }
 
-// Add caching middleware - cache GET requests for 5 minutes
-app.use(cacheMiddleware(5 * 60 * 1000));
+// DISABLED: No caching for finance data - must always be fresh
+// app.use(cacheMiddleware(5 * 60 * 1000));
+// Finance sites MUST NOT serve stale data
 
 // Global database initialization promise
 let dbInitPromise = null;
