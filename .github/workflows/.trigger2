@@ -1,0 +1,5 @@
+# FINAL TRIGGER: All loader fixes deployed
+# - AWS environment variables configured in ECS tasks
+# - loadnews.py using db_helper with AWS fallback
+# - market_data table schema fixed
+# Time: $(date +%s)
