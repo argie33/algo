@@ -65,8 +65,6 @@ import {
   Label,
   LabelList,
 } from "recharts";
-import { exportToCSV, exportToJSON, tableToCSV } from "../utils/exportUtils";
-import { Download as DownloadIcon, InsertDriveFile as ExportIcon } from "@mui/icons-material";
 
 // Trading Signal Component
 const TradingSignal = ({ signal, confidence = 0.75, size = "medium", showConfidence = false }) => {
@@ -697,39 +695,6 @@ const ScoresDashboard = () => {
     );
   };
 
-  // Export handlers
-  const handleExportCSV = () => {
-    const dataToExport = filteredAndSortedScores.map((stock) => ({
-      symbol: stock.symbol,
-      sector: stock.sector,
-      "composite_score": stock.composite_score,
-      "momentum_score": stock.momentum_score,
-      "quality_score": stock.quality_score,
-      "value_score": stock.value_score,
-      "growth_score": stock.growth_score,
-      "positioning_score": stock.positioning_score,
-      "price": stock.price,
-      "change_percent": stock.change_percent,
-    }));
-    exportToCSV(dataToExport, "stock-scores");
-  };
-
-  const handleExportJSON = () => {
-    const dataToExport = filteredAndSortedScores.map((stock) => ({
-      symbol: stock.symbol,
-      sector: stock.sector,
-      composite_score: stock.composite_score,
-      momentum_score: stock.momentum_score,
-      quality_score: stock.quality_score,
-      value_score: stock.value_score,
-      growth_score: stock.growth_score,
-      positioning_score: stock.positioning_score,
-      price: stock.price,
-      change_percent: stock.change_percent,
-    }));
-    exportToJSON(dataToExport, "stock-scores");
-  };
-
   if (loading) {
     return (
       <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -946,58 +911,30 @@ const ScoresDashboard = () => {
 
       {/* Overall Stocks List */}
       <Box sx={{ mb: 4 }}>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, gap: 1, flexWrap: "wrap" }}>
-          <Typography variant="h5" gutterBottom sx={{ m: 0 }}>
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+          <Typography variant="h5" gutterBottom>
             Top Overall Stocks ({filteredAndSortedScores.length})
           </Typography>
-          <Box sx={{ display: "flex", gap: 1, alignItems: "center", ml: "auto" }}>
-            {filteredAndSortedScores.length > 0 && (
-              <>
-                <Tooltip title="Export as CSV">
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={handleExportCSV}
-                    startIcon={<DownloadIcon />}
-                    sx={{ whiteSpace: "nowrap" }}
-                  >
-                    CSV
-                  </Button>
-                </Tooltip>
-                <Tooltip title="Export as JSON">
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={handleExportJSON}
-                    startIcon={<DownloadIcon />}
-                    sx={{ whiteSpace: "nowrap" }}
-                  >
-                    JSON
-                  </Button>
-                </Tooltip>
-              </>
-            )}
-            {filteredAndSortedScores.length > displayLimit && !showAllStocks && (
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={() => setShowAllStocks(true)}
-                startIcon={<ExpandMore />}
-              >
-                Show All {filteredAndSortedScores.length}
-              </Button>
-            )}
-            {showAllStocks && filteredAndSortedScores.length > displayLimit && (
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={() => setShowAllStocks(false)}
-                startIcon={<ExpandMore sx={{ transform: "rotate(180deg)" }} />}
-              >
-                Show Top {displayLimit}
-              </Button>
-            )}
-          </Box>
+          {filteredAndSortedScores.length > displayLimit && !showAllStocks && (
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => setShowAllStocks(true)}
+              startIcon={<ExpandMore />}
+            >
+              Show All {filteredAndSortedScores.length} Stocks
+            </Button>
+          )}
+          {showAllStocks && filteredAndSortedScores.length > displayLimit && (
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => setShowAllStocks(false)}
+              startIcon={<ExpandMore sx={{ transform: "rotate(180deg)" }} />}
+            >
+              Show Top {displayLimit} Only
+            </Button>
+          )}
         </Box>
 
         {filteredAndSortedScores.length === 0 ? (
@@ -1409,6 +1346,12 @@ const ScoresDashboard = () => {
                                             <TableCell align="right">{parseFloat(stock.quality_inputs.quick_ratio).toFixed(2)}</TableCell>
                                           </TableRow>
                                         )}
+                                        {stock.quality_inputs.earnings_surprise_avg !== null && stock.quality_inputs.earnings_surprise_avg !== undefined && (
+                                          <TableRow>
+                                            <TableCell>Earnings Surprise Avg (4Q)</TableCell>
+                                            <TableCell align="right">{`${parseFloat(stock.quality_inputs.earnings_surprise_avg).toFixed(2)}%`}</TableCell>
+                                          </TableRow>
+                                        )}
                                         {stock.quality_inputs.eps_growth_stability !== null && stock.quality_inputs.eps_growth_stability !== undefined && (
                                           <TableRow>
                                             <TableCell>EPS Growth Stability (Std Dev)</TableCell>
@@ -1425,30 +1368,6 @@ const ScoresDashboard = () => {
                                           <TableRow>
                                             <TableCell>Return on Invested Capital (ROIC)</TableCell>
                                             <TableCell align="right">{`${parseFloat(stock.quality_inputs.return_on_invested_capital_pct).toFixed(1)}%`}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.earnings_beat_rate !== null && stock.quality_inputs.earnings_beat_rate !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Earnings Beat Rate</TableCell>
-                                            <TableCell align="right">{`${parseFloat(stock.quality_inputs.earnings_beat_rate).toFixed(1)}%`}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.estimate_revision_direction !== null && stock.quality_inputs.estimate_revision_direction !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Estimate Revision Direction</TableCell>
-                                            <TableCell align="right">{parseFloat(stock.quality_inputs.estimate_revision_direction).toFixed(1)}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.consecutive_positive_quarters !== null && stock.quality_inputs.consecutive_positive_quarters !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Consecutive Positive Quarters</TableCell>
-                                            <TableCell align="right">{stock.quality_inputs.consecutive_positive_quarters}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.surprise_consistency !== null && stock.quality_inputs.surprise_consistency !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Earnings Surprise Consistency (Std Dev)</TableCell>
-                                            <TableCell align="right">{parseFloat(stock.quality_inputs.surprise_consistency).toFixed(2)}</TableCell>
                                           </TableRow>
                                         )}
                                       </>
@@ -1649,6 +1568,14 @@ const ScoresDashboard = () => {
                                       <TableCell align="right">
                                         {stock.stability_inputs?.volatility_12m !== null && stock.stability_inputs?.volatility_12m !== undefined
                                           ? `${parseFloat(stock.stability_inputs.volatility_12m).toFixed(2)}%`
+                                          : ""}
+                                      </TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                      <TableCell>Downside Volatility</TableCell>
+                                      <TableCell align="right">
+                                        {stock.stability_inputs?.downside_volatility !== null && stock.stability_inputs?.downside_volatility !== undefined
+                                          ? `${parseFloat(stock.stability_inputs.downside_volatility).toFixed(2)}%`
                                           : ""}
                                       </TableCell>
                                     </TableRow>
@@ -1988,6 +1915,17 @@ const ScoresDashboard = () => {
                                     </TableCell>
                                     <TableCell align="right">
                                       {stock.value_inputs?.stock_dividend_yield != null ? parseFloat(stock.value_inputs.stock_dividend_yield).toFixed(2) + "%" : "—"}
+                                    </TableCell>
+                                  </TableRow>
+
+                                  <TableRow>
+                                    <TableCell>
+                                      <Tooltip title="Free Cash Flow Yield: Higher is better, measures cheapness relative to cash generation">
+                                        <span>FCF Yield</span>
+                                      </Tooltip>
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      {stock.value_inputs?.stock_fcf_yield != null ? parseFloat(stock.value_inputs.stock_fcf_yield).toFixed(2) + "%" : "—"}
                                     </TableCell>
                                   </TableRow>
                                 </TableBody>
