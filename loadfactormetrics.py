@@ -1184,10 +1184,10 @@ def get_stability_metrics(cursor, symbol: str, benchmark_cache: Dict = None) -> 
         price_data = list(reversed(price_data))
         prices = [p[1] for p in price_data]
 
-        # Calculate daily returns
+        # Calculate daily returns (filter out None/invalid prices)
         returns = []
         for i in range(1, len(prices)):
-            if prices[i-1] > 0:
+            if prices[i-1] is not None and prices[i] is not None and prices[i-1] > 0:
                 ret = ((prices[i] - prices[i-1]) / prices[i-1]) * 100
                 returns.append(ret)
 
@@ -1216,15 +1216,18 @@ def get_stability_metrics(cursor, symbol: str, benchmark_cache: Dict = None) -> 
 
         # Max drawdown (52-week window)
         if len(prices) >= 52:
-            max_dd = 0
-            peak = prices[0]
-            for price in prices[-252:]:  # Last 252 trading days ~= 1 year
-                if price > peak:
-                    peak = price
-                dd = ((peak - price) / peak) * 100
-                if dd > max_dd:
-                    max_dd = dd
-            metrics["max_drawdown_52w"] = float(max_dd) if max_dd > 0 else None
+            # Filter out None values from prices
+            valid_prices = [p for p in prices[-252:] if p is not None and p > 0]  # Last 252 trading days
+            if len(valid_prices) >= 10:  # Need at least 10 valid prices
+                max_dd = 0
+                peak = valid_prices[0]
+                for price in valid_prices:
+                    if price > peak:
+                        peak = price
+                    dd = ((peak - price) / peak) * 100
+                    if dd > max_dd:
+                        max_dd = dd
+                metrics["max_drawdown_52w"] = float(max_dd) if max_dd > 0 else None
 
         # Beta calculation (vs SPY - market benchmark)
         # Use cached benchmark data instead of querying every time
