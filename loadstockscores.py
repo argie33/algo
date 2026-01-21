@@ -1638,32 +1638,9 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             shares_outstanding = None
             market_cap = None
 
-        # VALIDATION FIX: Check if calculated market_cap is unreasonably high
-        # Issue: implied_shares_outstanding from yfinance may be based on stale prices
-        # Solution: validate against volume-based estimate and use that if market_cap is inflated
-        if market_cap is not None and volume_avg_30d is not None and volume_avg_30d > 0 and current_price is not None and current_price > 0:
-            # Estimate market cap from average daily trading volume as reality check
-            # Assumption: typical daily volume is ~10% of market cap annual turnover
-            # So shares_outstanding = volume / 0.1 (10% daily turnover)
-            estimated_shares = volume_avg_30d * 10
-            estimated_market_cap = current_price * estimated_shares
-
-            # If calculated market_cap is >5x the estimated value, use estimate instead
-            # This handles cases where shares_outstanding is inflated from stale yfinance data
-            if market_cap > estimated_market_cap * 5:
-                logger.info(f"{symbol}: Market cap {market_cap:,.0f} appears inflated (est: {estimated_market_cap:,.0f}), using volume-based estimate")
-                market_cap = estimated_market_cap
-
-        # If market_cap still None, calculate from volume estimate
-        if market_cap is None and volume_avg_30d is not None and volume_avg_30d > 0 and current_price is not None and current_price > 0:
-            # Estimate market cap from average daily trading volume
-            # Assumption: typical daily volume is 5-10% of shares outstanding
-            # So shares_outstanding ≈ volume / average_daily_turnover_rate (0.1 = 10%)
-            # Using 10% as realistic estimate: shares = volume * 10
-            estimated_shares = volume_avg_30d * 10  # Realistic estimate (10% daily turnover)
-            market_cap = current_price * estimated_shares
-            logger.debug(f"{symbol}: Estimated market cap from volume (no shares data): ${market_cap:,.0f}")
-
+        # REAL DATA ONLY: Use implied_shares_outstanding from key_metrics
+        # NO volume-based estimates - let it be NULL if shares data is missing
+        # This ensures accurate market caps for all large-cap stocks
         # Get sentiment data for Sentiment Score - NO SILENT FAILURES
         sentiment_score_raw = None
         news_count = None
@@ -1873,48 +1850,8 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 logger.debug(f"{symbol}: Could not fetch beta from stability_metrics: {e}")
                 beta = None
 
-            # FALLBACK: Calculate beta from price data if not in database
-            # Beta = covariance(stock_returns, market_returns) / variance(market_returns)
-            # Uses SPY as market proxy (S&P 500 index)
-            if beta is None and len(df) >= 252:
-                try:
-                    import numpy as np
-                    # Get stock returns (daily percentage change)
-                    stock_prices = df['close'].astype(float).values
-                    stock_returns = np.diff(stock_prices) / stock_prices[:-1] * 100
-
-                    # Get SPY returns for same dates (last 252 trading days)
-                    # Query only recent dates from our stock data
-                    recent_dates = df['date'].tail(252).values
-                    date_list = tuple(str(d) for d in recent_dates)
-
-                    cur.execute("""
-                        SELECT date, close FROM price_daily
-                        WHERE symbol = 'SPY'
-                        AND date IN ({})
-                        ORDER BY date
-                    """.format(','.join(['%s'] * len(date_list))), date_list)
-
-                    spy_data = cur.fetchall()
-                    if len(spy_data) >= 100:  # At least 100 trading days for reasonable beta
-                        spy_prices = np.array([float(p[1]) for p in spy_data])
-                        spy_returns = np.diff(spy_prices) / spy_prices[:-1] * 100
-
-                        # Align lengths
-                        min_len = min(len(stock_returns), len(spy_returns))
-                        if min_len >= 100:
-                            stock_ret = stock_returns[-min_len:]
-                            spy_ret = spy_returns[-min_len:]
-
-                            # Calculate beta
-                            covariance = np.cov(stock_ret, spy_ret)[0][1]
-                            variance = np.var(spy_ret)
-                            if variance != 0:
-                                beta = covariance / variance
-                                logger.debug(f"{symbol}: Calculated beta from price data ({min_len} days): {beta:.3f}")
-                except Exception as e:
-                    logger.debug(f"{symbol}: Could not calculate beta from price data: {e}")
-                    beta = None
+            # REAL DATA ONLY: Use beta from stability_metrics table
+            # NO calculated fallbacks - let it be NULL if not in database
 
             if not stability_metrics or not stability_metrics.get('beta'):
                 logger.debug(f"{symbol}: Beta distribution not available - will calculate stability without beta")
@@ -2169,6 +2106,15 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             logger.warning(f"Key metrics table query failed for {symbol}: {e}")
 
         # Fetch missing quality components from quality_metrics table (populated by loadfactormetrics.py)
+        # Initialize variables to None before query
+        stock_fcf_to_ni = None
+        stock_eps_growth_stability = None
+        stock_roe_stability_index = None
+        stock_earnings_beat_rate = None
+        stock_estimate_revision_direction = None
+        stock_consecutive_positive_quarters = None
+        stock_surprise_consistency = None
+
         try:
             cur.execute("""
                 SELECT
@@ -2180,7 +2126,8 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                     earnings_beat_rate,
                     estimate_revision_direction,
                     consecutive_positive_quarters,
-                    surprise_consistency
+                    surprise_consistency,
+                    return_on_invested_capital_pct
                 FROM quality_metrics
                 WHERE symbol = %s
                 ORDER BY date DESC
@@ -2189,7 +2136,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
             qm_row = cur.fetchone()
             if qm_row:
-                fcf_ni, eps_stab, earn_surp, ocf_ni, roe_stab, beat_rate, est_revision, consec_pos_q, surprise_cons = qm_row
+                fcf_ni, eps_stab, earn_surp, ocf_ni, roe_stab, beat_rate, est_revision, consec_pos_q, surprise_cons, roic = qm_row
                 stock_fcf_to_ni = float(fcf_ni) if fcf_ni is not None else None
                 stock_eps_growth_stability = float(eps_stab) if eps_stab is not None else None
                 stock_roe_stability_index = float(roe_stab) if roe_stab is not None else None
@@ -2197,8 +2144,9 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 stock_estimate_revision_direction = float(est_revision) if est_revision is not None else None
                 stock_consecutive_positive_quarters = int(consec_pos_q) if consec_pos_q is not None else None
                 stock_surprise_consistency = float(surprise_cons) if surprise_cons is not None else None
+                stock_roic = float(roic) if roic is not None else None
+                stock_operating_cf_to_ni = float(ocf_ni) if ocf_ni is not None else None
                 # earnings_surprise_score will be calculated from this below
-                # stock_operating_cf_to_ni = float(ocf_ni) if ocf_ni is not None else None
         except psycopg2.Error as e:
             conn.rollback()
             logger.debug(f"Quality metrics table query failed for {symbol}: {e}")
@@ -3932,6 +3880,25 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             'market_cap': int(market_cap) if market_cap is not None else None,
             'pe_ratio': float(round(pe_ratio, 2)) if pe_ratio is not None else None,
             'forward_pe': float(round(forward_pe, 2)) if forward_pe is not None else None,
+            # Top-level fields for stock_scores table (required by INSERT statement)
+            'pb_ratio': float(round(price_to_book, 2)) if price_to_book is not None else None,
+            'ps_ratio': float(round(price_to_sales_ttm, 2)) if price_to_sales_ttm is not None else None,
+            'peg_ratio': float(round(peg_ratio_val, 2)) if peg_ratio_val is not None else None,
+            'ev_revenue': float(round(ev_to_revenue, 2)) if ev_to_revenue is not None else None,
+            'roe': float(round(stock_roe, 2)) if stock_roe is not None else None,
+            'roa': float(round(stock_roa, 2)) if stock_roa is not None else None,
+            'debt_ratio': float(round(stock_debt_to_equity, 4)) if stock_debt_to_equity is not None else None,
+            'fcf_ni_ratio': float(round(stock_fcf_to_ni, 4)) if stock_fcf_to_ni is not None else None,
+            'earnings_surprise': float(round(earnings_surprise_avg, 2)) if earnings_surprise_avg is not None else None,
+            'earnings_growth': float(round(stock_earnings_growth * 100, 2)) if stock_earnings_growth is not None else None,
+            'revenue_growth': float(round(stock_revenue_growth * 100, 2)) if stock_revenue_growth is not None else None,
+            'margin_trend': float(round(stock_gross_margin_growth * 100, 2)) if stock_gross_margin_growth is not None else None,
+            'volatility': float(round(volatility_30d, 4)) if volatility_30d is not None else None,
+            'downside_volatility': float(round(downside_volatility, 4)) if downside_volatility is not None else None,
+            'max_drawdown': float(round(max_drawdown_52w_pct, 4)) if max_drawdown_52w_pct is not None else None,
+            'analyst_rating': None,  # TODO: Add analyst rating calculation
+            'news_sentiment': None,  # TODO: Add news sentiment calculation
+            'aaii_sentiment': None,  # TODO: Add AAII sentiment calculation
             # Momentum components (technical confirmation + 3m/6m/12-3m percentiles)
             'momentum_intraweek': float(round(clamp_decimal52(momentum_intraweek), 2)) if momentum_intraweek is not None else None,
             'momentum_short_term': float(round(clamp_decimal52(momentum_3m_score), 2)) if momentum_3m_score is not None else None,
