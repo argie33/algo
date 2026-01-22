@@ -2120,6 +2120,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 fcf_ni, eps_stab, earn_surp, ocf_ni, roe_stab, beat_rate, est_revision, consec_pos_q, surprise_cons, roic = qm_row
                 stock_fcf_to_ni = float(fcf_ni) if fcf_ni is not None else None
                 stock_eps_growth_stability = float(eps_stab) if eps_stab is not None else None
+                earnings_surprise_avg = float(earn_surp) if earn_surp is not None else None
                 stock_roe_stability_index = float(roe_stab) if roe_stab is not None else None
                 stock_earnings_beat_rate = float(beat_rate) if beat_rate is not None else None
                 stock_estimate_revision_direction = float(est_revision) if est_revision is not None else None
@@ -2127,7 +2128,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 stock_surprise_consistency = float(surprise_cons) if surprise_cons is not None else None
                 stock_roic = float(roic) if roic is not None else None
                 stock_operating_cf_to_ni = float(ocf_ni) if ocf_ni is not None else None
-                # earnings_surprise_score will be calculated from this below
+                # earnings_surprise_avg now properly set from quality_metrics
         except psycopg2.Error as e:
             conn.rollback()
             logger.debug(f"Quality metrics table query failed for {symbol}: {e}")
@@ -2183,7 +2184,8 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         try:
             cur.execute("""
                 SELECT quarterly_growth_momentum, operating_margin_trend, net_margin_trend,
-                       operating_income_growth_yoy, net_income_growth_yoy, fcf_growth_yoy, ocf_growth_yoy, asset_growth_yoy
+                       operating_income_growth_yoy, net_income_growth_yoy, fcf_growth_yoy, ocf_growth_yoy, asset_growth_yoy,
+                       eps_growth_3y_cagr
                 FROM growth_metrics
                 WHERE symbol = %s
                 ORDER BY date DESC
@@ -2192,7 +2194,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
             qgm_data = cur.fetchone()
             if qgm_data:
-                qgm_value, op_margin_trend, net_margin_trend, oi_growth_yoy, ni_growth_yoy, fcf_growth_yoy, ocf_growth_yoy, asset_growth_yoy = qgm_data
+                qgm_value, op_margin_trend, net_margin_trend, oi_growth_yoy, ni_growth_yoy, fcf_growth_yoy, ocf_growth_yoy, asset_growth_yoy, eps_growth_3y = qgm_data
                 stock_quarterly_growth_momentum = float(qgm_value) if qgm_value is not None else None
                 stock_operating_margin_growth = float(op_margin_trend) if op_margin_trend is not None else None
                 stock_net_margin_growth = float(net_margin_trend) if net_margin_trend is not None else None
@@ -2201,6 +2203,9 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 stock_fcf_growth_yoy = float(fcf_growth_yoy) if fcf_growth_yoy is not None else None
                 stock_ocf_growth_yoy = float(ocf_growth_yoy) if ocf_growth_yoy is not None else None
                 stock_asset_growth_yoy = float(asset_growth_yoy) if asset_growth_yoy is not None else None
+                # Use eps_growth_3y_cagr as fallback for earnings_growth if not available from key_metrics
+                if stock_earnings_growth is None and eps_growth_3y is not None:
+                    stock_earnings_growth = float(eps_growth_3y)
         except psycopg2.Error as e:
             conn.rollback()
             logger.debug(f"Growth metrics query failed for {symbol}: {e}")
@@ -2630,6 +2635,50 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 last_annual_dividend_amt = km[11]
                 eps_trailing = km[12]
                 net_income = km[13]
+
+                # FALLBACK: If valuation metrics missing from key_metrics, try value_metrics table
+                # This provides better coverage for stocks where yfinance data is incomplete
+                if trailing_pe is None:
+                    try:
+                        cur.execute("""
+                            SELECT trailing_pe FROM value_metrics
+                            WHERE symbol = %s
+                            ORDER BY date DESC
+                            LIMIT 1
+                        """, (symbol,))
+                        vm_row = cur.fetchone()
+                        if vm_row and vm_row[0] is not None:
+                            trailing_pe = float(vm_row[0])
+                    except:
+                        pass
+
+                if price_to_book is None:
+                    try:
+                        cur.execute("""
+                            SELECT price_to_book FROM value_metrics
+                            WHERE symbol = %s
+                            ORDER BY date DESC
+                            LIMIT 1
+                        """, (symbol,))
+                        vm_row = cur.fetchone()
+                        if vm_row and vm_row[0] is not None:
+                            price_to_book = float(vm_row[0])
+                    except:
+                        pass
+
+                if price_to_sales_ttm is None:
+                    try:
+                        cur.execute("""
+                            SELECT price_to_sales_ttm FROM value_metrics
+                            WHERE symbol = %s
+                            ORDER BY date DESC
+                            LIMIT 1
+                        """, (symbol,))
+                        vm_row = cur.fetchone()
+                        if vm_row and vm_row[0] is not None:
+                            price_to_sales_ttm = float(vm_row[0])
+                    except:
+                        pass
 
                 # CHECK IF COMPANY IS UNPROFITABLE
                 # For VALUE scoring, unprofitable companies should rank at bottom, not be excluded
@@ -3972,93 +4021,11 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
     except Exception as e:
         import traceback
-        logger.warning(f"⚠️ Error calculating scores for {symbol} - checking data completeness: {e}")
-        logger.warning(f"FULL TRACEBACK:\n{traceback.format_exc()}")
-
-        # INDUSTRY STANDARD DATA QUALITY: Save if we have 5+ out of 6 factors
-        # This follows professional practice: comprehensive scores require most (not all) factors
-        # Allows for occasional missing metrics while preventing sparse/incomplete coverage
-        try:
-            # Check if 6 factor scores are available
-            # Use try-except to safely handle NumPy scalars/arrays which can't be compared directly
-            try:
-                has_momentum = 'momentum_score' in locals() and momentum_score is not None
-            except (ValueError, TypeError):
-                has_momentum = False
-            try:
-                has_value = 'value_score' in locals() and value_score is not None
-            except (ValueError, TypeError):
-                has_value = False
-            try:
-                has_quality = 'quality_score' in locals() and quality_score is not None
-            except (ValueError, TypeError):
-                has_quality = False
-            try:
-                has_growth = 'growth_score' in locals() and growth_score is not None
-            except (ValueError, TypeError):
-                has_growth = False
-            try:
-                has_positioning = 'positioning_score' in locals() and positioning_score is not None
-            except (ValueError, TypeError):
-                has_positioning = False
-            try:
-                has_stability = 'risk_stability_score' in locals() and risk_stability_score is not None
-            except (ValueError, TypeError):
-                has_stability = False
-
-            factor_count = sum([has_momentum, has_value, has_quality, has_growth, has_positioning, has_stability])
-            sufficient_factors = factor_count >= 1  # Need at least 1 out of 6 factors to maximize coverage (score ALL stocks)
-
-            if sufficient_factors:
-                # 1+ factors available - save this score (maximize coverage approach)
-                logger.info(f"📊 {symbol}: {factor_count}/6 factors available (minimum threshold: 1) - saving score")
-
-                # Collect calculated input JSON strings from try block if available, otherwise None
-                # These are already-calculated JSON strings from earlier sections, not fallback data
-                momentum_inputs_data = momentum_inputs if 'momentum_inputs' in locals() else None
-                growth_inputs_data = growth_inputs if 'growth_inputs' in locals() else None
-                quality_inputs_data = quality_inputs if 'quality_inputs' in locals() else None
-                positioning_inputs_data = positioning_inputs if 'positioning_inputs' in locals() else None
-                value_inputs_data = value_inputs if 'value_inputs' in locals() else None
-                stability_inputs_data = stability_inputs if 'stability_inputs' in locals() else None
-
-                calculated_score = {
-                    'symbol': symbol,
-                    'company_name': company_name if 'company_name' in locals() else None,
-                    'composite_score': float(round(composite_score, 2)) if composite_score is not None else None,
-                    'momentum_score': float(momentum_score) if momentum_score is not None else None,
-                    'value_score': float(value_score) if value_score is not None else None,
-                    'quality_score': float(quality_score) if quality_score is not None else None,
-                    'growth_score': float(growth_score) if growth_score is not None else None,
-                    'positioning_score': float(positioning_score) if positioning_score is not None else None,
-                    'sentiment_score': float(sentiment_score) if 'sentiment_score' in locals() and sentiment_score is not None else None,
-                    'stability_score': float(risk_stability_score) if risk_stability_score is not None else None,
-                    'beta': float(round(beta, 3)) if 'beta' in locals() and beta is not None else None,
-                    # fcf_yield removed completely
-                    'stock_dividend_yield': float(round(dividend_yield_val * 100, 2)) if 'dividend_yield_val' in locals() and dividend_yield_val is not None else None,
-                    'peg_ratio': float(round(peg_ratio_val, 2)) if 'peg_ratio_val' in locals() and peg_ratio_val is not None else None,
-                }
-
-                conn.rollback()
-                return calculated_score
-            else:
-                # Insufficient factor coverage - DO NOT SAVE
-                # Require at least 1 factor to score (maximize coverage approach)
-                missing = []
-                if not has_momentum: missing.append('momentum')
-                if not has_value: missing.append('value')
-                if not has_quality: missing.append('quality')
-                if not has_growth: missing.append('growth')
-                if not has_positioning: missing.append('positioning')
-                if not has_stability: missing.append('stability')
-
-                logger.error(f"❌ {symbol}: INSUFFICIENT_DATA - Only {factor_count}/6 factors available (need 1+). Missing: {', '.join(missing)} - SKIPPING")
-                conn.rollback()
-                return None
-        except Exception as error:
-            logger.error(f"❌ {symbol}: Error during score calculation: {error}")
-            conn.rollback()
-            return None
+        logger.error(f"❌ Error calculating scores for {symbol}: {e}")
+        logger.debug(f"TRACEBACK:\n{traceback.format_exc()}")
+        # In error state, return None and let main loop handle it
+        conn.rollback()
+        return None
 
 def save_stock_score(conn, score_data):
     """Save stock score to database."""
