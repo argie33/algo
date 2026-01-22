@@ -1029,6 +1029,21 @@ jobs:
             "buysell_etf_monthly")
               TASK_DEF_NAME="BuySellEtfMonthlyTaskDefArn"
               ;;
+            "benchmark")
+              TASK_DEF_NAME="BenchmarksTaskDefArn"
+              ;;
+            "etfpricedaily")
+              TASK_DEF_NAME="EtfPriceDailyTaskDefArn"
+              ;;
+            "etfpricemonthly")
+              TASK_DEF_NAME="EtfPriceMonthlyTaskDefArn"
+              ;;
+            "etfpriceweekly")
+              TASK_DEF_NAME="EtfPriceWeeklyTaskDefArn"
+              ;;
+            "factormetrics")
+              TASK_DEF_NAME="FactormetricsTaskDefArn"
+              ;;
             *)
 
               # Default case: convert to proper case (first letter uppercase, rest lowercase)
