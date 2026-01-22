@@ -1304,14 +1304,8 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         cur = conn.cursor()
 
         # Convert Decimal to native Python types helper
-        def to_float(val):
-            """Convert Decimal or any numeric type to float, or return None"""
-            if val is None:
-                return None
-            from decimal import Decimal
-            if isinstance(val, Decimal):
-                return float(val)
-            return float(val) if val is not None else None
+        # NOTE: Use global to_float() from line 84 - do NOT redefine locally
+        # Local redefinition causes inconsistent type handling across codebase
 
         # Get company name from company_profile table
         company_name = None
@@ -1374,6 +1368,19 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         dividend_yield = None
         dividend_yield_val = None
         # fcf_yield removed completely
+
+        # Initialize all score variables to prevent UnboundLocalError in return statement
+        momentum_score = None
+        growth_score = None
+        value_score = None
+        quality_score = None
+        stability_score = None
+        risk_stability_score = None
+        positioning_score = None
+        sentiment_score = None
+        beta = None
+        rsi = None
+        macd = None
 
         # Get price data from price_daily table (last 200 days to ensure 65+ trading days)
         # Note: 200 calendar days accounts for weekends/holidays to guarantee ~130+ trading days
