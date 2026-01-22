@@ -177,21 +177,10 @@ def calculate_quality_metrics(ticker_data: Dict, ticker=None, symbol=None) -> Di
         "eps_growth_stability": None,   # Calculated by get_earnings_surprise_metrics() from quarterly EPS data
     }
 
-    # Calculate FCF to Net Income ratio with improved coverage
-    # Primary: Use free_cashflow if available
-    # Fallback: Use operating_cashflow as conservative proxy (assumes ~20% capex)
-    # This improves coverage for stocks where yfinance doesn't provide free_cashflow
-    if ticker_data.get("net_income") and ticker_data["net_income"] != 0:
-        fcf = ticker_data.get("free_cashflow")
-
-        # Primary source: free_cashflow
-        if fcf:
-            metrics["fcf_to_net_income"] = fcf / ticker_data["net_income"]
-        # Fallback: operating_cashflow if FCF not available
-        elif ticker_data.get("operating_cashflow"):
-            # Use 80% of OCF as conservative FCF estimate (capex is typically 20% of OCF)
-            conservative_fcf = ticker_data["operating_cashflow"] * 0.8
-            metrics["fcf_to_net_income"] = conservative_fcf / ticker_data["net_income"]
+    # Calculate FCF to Net Income ratio - REAL DATA ONLY
+    # Only calculate if we have actual free_cashflow data
+    if ticker_data.get("free_cashflow") and ticker_data.get("net_income") and ticker_data["net_income"] != 0:
+        metrics["fcf_to_net_income"] = ticker_data["free_cashflow"] / ticker_data["net_income"]
 
     # Calculate Operating CF to Net Income ratio (primary calculation only, no fallback)
     if ticker_data.get("operating_cashflow") and ticker_data.get("net_income"):
@@ -200,29 +189,17 @@ def calculate_quality_metrics(ticker_data: Dict, ticker=None, symbol=None) -> Di
                 ticker_data["operating_cashflow"] / ticker_data["net_income"]
             )
 
-    # Calculate ROIC with improved coverage for better data availability across all stocks
-    # Primary: EBITDA / (Total Debt + Total Cash) - most accurate measure
-    # Fallback: Operating Income / (Total Debt + Equity) when EBITDA missing
-    # This ensures ROIC is calculated for more stocks (especially those where yfinance lacks EBITDA data)
+    # Calculate ROIC - REAL DATA ONLY
+    # EBITDA / (Total Debt + Total Cash) - most accurate measure
+    # Only calculate if we have actual EBITDA data
     ebitda = ticker_data.get("ebitda")
-    operating_income = ticker_data.get("operating_income")
     total_debt = ticker_data.get("total_debt")
     total_cash = ticker_data.get("total_cash")
-    equity = ticker_data.get("total_equity") or ticker_data.get("book_value")
 
-    # Try primary calculation: EBITDA / (Debt + Cash)
     if ebitda and ebitda > 0 and total_debt is not None and total_cash is not None:
         invested_capital = total_debt + total_cash
         if invested_capital > 0:
             roic_value = ebitda / invested_capital
-            roic_pct = roic_value * 100
-            metrics["return_on_invested_capital_pct"] = max(-100, min(roic_pct, 200))
-
-    # Fallback: Use Operating Income if EBITDA not available
-    elif operating_income and operating_income > 0 and total_debt is not None and equity is not None:
-        invested_capital = total_debt + equity
-        if invested_capital > 0:
-            roic_value = operating_income / invested_capital
             roic_pct = roic_value * 100
             metrics["return_on_invested_capital_pct"] = max(-100, min(roic_pct, 200))
 
