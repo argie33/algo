@@ -74,14 +74,14 @@ else:
     raise ValueError("Database configuration not provided")
 
 def get_db_connection():
-    # Set statement timeout to 30 seconds (30000 ms)
+    # Set statement timeout to 300 seconds (300000 ms) to allow for large queries
     conn = psycopg2.connect(
         host=DB_HOST,
         port=DB_PORT,
         user=DB_USER,
         password=DB_PASSWORD,
         dbname=DB_NAME,
-        options='-c statement_timeout=30000'
+        options='-c statement_timeout=300000'
     )
     return conn
 

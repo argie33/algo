@@ -81,14 +81,14 @@ except Exception as e:
     logging.info("Using local environment DB configuration (after error)")
 
 def get_db_connection():
-    # Set statement timeout to 30 seconds (30000 ms)
+    # Set statement timeout to 300 seconds (300000 ms) to allow for large queries
     conn = psycopg2.connect(
         host=DB_HOST,
         port=DB_PORT,
         user=DB_USER,
         password=DB_PASSWORD,
         dbname=DB_NAME,
-        options='-c statement_timeout=30000'
+        options='-c statement_timeout=300000'
     )
     return conn
 
@@ -196,33 +196,31 @@ def create_buy_sell_table(cur, conn, table_name="buy_sell_daily_etf"):
 
     # Ensure UNIQUE constraint exists (for tables created before constraint was added)
     # First, try to clean up any duplicate rows by keeping only the latest one per (symbol, timeframe, date)
-    # NOTE: Skip cleanup if table is very large - constraint may still work with duplicates for new data
+    # NOTE: Skip cleanup if table is very large - constraint will prevent new duplicates
     try:
         logging.info(f"🧹 Checking for duplicate rows in {table_name}...")
-        # Just check count, don't try to clean large tables
-        cur.execute(f"SELECT COUNT(*) FROM {table_name} WHERE id NOT IN (SELECT MAX(id) FROM {table_name} GROUP BY symbol, timeframe, date)")
-        dup_count = cur.fetchone()[0]
+        # Use LIMIT-based check instead of COUNT to avoid timeout on large tables
+        # Try to find one duplicate - if found, log warning but skip cleanup (table too large)
+        cur.execute(f"""
+            SELECT COUNT(*) FROM (
+                SELECT 1 FROM {table_name}
+                WHERE (symbol, timeframe, date, id) NOT IN (
+                    SELECT DISTINCT ON (symbol, timeframe, date)
+                           symbol, timeframe, date, MAX(id)
+                    FROM {table_name}
+                    GROUP BY symbol, timeframe, date
+                )
+                LIMIT 1
+            ) t;
+        """)
+        has_duplicates = cur.fetchone()[0] > 0
 
-        if dup_count > 0 and dup_count < 100000:
-            # Only try cleanup if there are duplicates but not too many
-            logging.info(f"Found {dup_count} duplicate rows, cleaning...")
-            cleanup_sql = f"""
-            DELETE FROM {table_name}
-            WHERE id NOT IN (
-                SELECT MAX(id) FROM {table_name}
-                GROUP BY symbol, timeframe, date
-            );
-            """
-            cur.execute(cleanup_sql)
-            deleted_count = cur.rowcount
-            if deleted_count > 0:
-                logging.info(f"✅ Deleted {deleted_count} duplicate rows from {table_name}")
-            conn.commit()
-        elif dup_count >= 100000:
-            logging.warning(f"⚠️ Table has {dup_count} duplicate rows - too many to clean in one pass, skipping cleanup")
-            conn.commit()
-        else:
+        if not has_duplicates:
             logging.info(f"✅ No duplicates found in {table_name}")
+        else:
+            # Skip cleanup - rely on UNIQUE constraint to prevent new duplicates
+            logging.warning(f"⚠️ Table has existing duplicates - skipping cleanup (constraint will prevent new ones)")
+
     except Exception as e:
         logging.warning(f"Could not clean duplicates from {table_name}: {e}")
         try:
