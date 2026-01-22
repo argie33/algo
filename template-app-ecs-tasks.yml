@@ -2736,6 +2736,8 @@ Resources:
       ContainerDefinitions:
         - Name: factormetrics-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref FactormetricsImageTag]]
+          Cpu: 1024
+          Memory: 2048
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -2793,6 +2795,8 @@ Resources:
       ContainerDefinitions:
         - Name: qualitymetrics-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref QualityMetricsImageTag]]
+          Cpu: 512
+          Memory: 1024
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -2854,6 +2858,8 @@ Resources:
       ContainerDefinitions:
         - Name: growthmetrics-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref GrowthMetricsImageTag]]
+          Cpu: 1024
+          Memory: 2048
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -2915,6 +2921,8 @@ Resources:
       ContainerDefinitions:
         - Name: value-metrics-calculator
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref ValueMetricsImageTag]]
+          Cpu: 1024
+          Memory: 2048
           Essential: true
           Environment:
             - Name: DB_SECRET_ARN
@@ -2975,6 +2983,8 @@ Resources:
       ContainerDefinitions:
         - Name: stockscores-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref StockScoresImageTag]]
+          Cpu: 512
+          Memory: 1024
           Essential: true
           LogConfiguration:
             LogDriver: awslogs
@@ -3433,6 +3443,8 @@ Resources:
       ContainerDefinitions:
         - Name: positioning-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref PositioningImageTag]]
+          Cpu: 512
+          Memory: 1024
           Essential: true
           Environment:
             - Name: DB_HOST
@@ -3490,6 +3502,8 @@ Resources:
       ContainerDefinitions:
         - Name: momentum-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref MomentumImageTag]]
+          Cpu: 512
+          Memory: 1024
           Essential: true
           Environment:
             - Name: DB_HOST

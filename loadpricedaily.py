@@ -47,13 +47,14 @@ def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
 # -------------------------------
-# Retry settings
+# Retry settings - improved for better network resilience
 # -------------------------------
 MAX_BATCH_RETRIES   = 3
 RETRY_DELAY         = 0.5   # seconds between download retries
-MAX_SYMBOL_RETRIES  = 8     # increased from 5 - more retries for timeout symbols
-RATE_LIMIT_BASE_DELAY = 120  # start with 60 seconds when rate limited (yfinance is aggressive)
-TIMEOUT_RETRY_DELAY = 10    # extra delay when retrying timeout failures at end-of-load
+MAX_SYMBOL_RETRIES  = 12    # increased from 8 - more retries for timeout-prone symbols
+RATE_LIMIT_BASE_DELAY = 120  # start with 120 seconds when rate limited (yfinance is aggressive)
+TIMEOUT_RETRY_DELAY = 30    # extra delay when retrying timeout failures at end-of-load (increased from 10)
+TIMEOUT_MAX_DELAY   = 120   # max seconds to wait for a single timeout retry
 
 # -------------------------------
 # Price-daily columns
@@ -184,8 +185,8 @@ def load_prices(table_name, symbols, cur, conn):
                     except Exception as e:
                         error_msg = str(e)
                         last_error = error_msg
-                        # Calculate exponential backoff delay (2^attempt seconds, max 60s)
-                        exp_backoff_delay = min(2 ** (sym_attempt - 1), 60)
+                        # Calculate exponential backoff delay (2^attempt seconds, max TIMEOUT_MAX_DELAY)
+                        exp_backoff_delay = min(2 ** (sym_attempt - 1), TIMEOUT_MAX_DELAY)
 
                         # Check if it's a rate limit error
                         if "Too Many Requests" in error_msg or "Rate limit" in error_msg or "YFRateLimit" in str(type(e).__name__):
@@ -194,7 +195,7 @@ def load_prices(table_name, symbols, cur, conn):
                             logging.warning(f"{table_name} — {orig_sym}: rate limited (attempt {sym_attempt}/{MAX_SYMBOL_RETRIES}), waiting {delay}s")
                             time.sleep(delay)
                         elif "Timeout" in error_msg or "timed out" in error_msg.lower() or "connection" in error_msg.lower():
-                            # Use exponential backoff for timeout errors
+                            # Use exponential backoff for timeout errors (longer delays for retry)
                             logging.warning(f"{table_name} — {orig_sym}: timeout (attempt {sym_attempt}/{MAX_SYMBOL_RETRIES}), exponential backoff: {exp_backoff_delay}s")
                             if sym_attempt < MAX_SYMBOL_RETRIES:
                                 time.sleep(exp_backoff_delay)
