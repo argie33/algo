@@ -1415,7 +1415,7 @@ def calculate_accumulation_distribution_rating(cursor, symbol: str) -> Optional[
     """
     Calculate IBD-style Accumulation/Distribution Rating (0-100 scale).
 
-    Analyzes 63 trading days of volume data to determine institutional
+    Analyzes 20-60 trading days of volume data to determine institutional
     buying/selling patterns:
     - A: 90-100% accumulation volume = Strong Accumulation
     - B: 70-89% accumulation volume = Moderate Accumulation
@@ -1424,21 +1424,27 @@ def calculate_accumulation_distribution_rating(cursor, symbol: str) -> Optional[
     - E: 0-29% accumulation volume = Strong Distribution
 
     Returns numeric score on 50-100 scale (all positive).
+
+    Coverage improvement: Minimum 20 days (reduced from 60) for better coverage of new stocks
+    and low-liquidity securities. 20 days = 4 weeks of trading = meaningful A/D signal.
     """
     try:
-        # Get last 63+ trading days of price/volume data (13 weeks)
+        # Get last 60+ trading days of price/volume data (12 weeks)
+        # Try to get 60 days first (ideal), fallback to 30 days minimum for coverage
         cursor.execute("""
             SELECT date, close, volume
             FROM price_daily
             WHERE symbol = %s
             ORDER BY date DESC
-            LIMIT 63
+            LIMIT 60
         """, (symbol,))
 
         rows = cursor.fetchall()
 
-        # Need at least 60 days of data
-        if len(rows) < 60:
+        # Need at least 20 days of data for A/D calculation (reduced from 60 for better coverage)
+        # 20 days = 4 weeks of trading activity, good balance between reliability and coverage
+        # Improved from original 60-day requirement to cover new stocks and low-liquidity securities
+        if len(rows) < 20:
             return None
 
         # Reverse to chronological order (oldest first)
@@ -1470,6 +1476,11 @@ def calculate_accumulation_distribution_rating(cursor, symbol: str) -> Optional[
         # If no trading volume, can't calculate
         if total_volume == 0:
             return None
+
+        # If we have some data but less than 20 days, warn that it's minimal
+        # But still calculate since we met the minimum requirement
+        if len(rows) < 30 and len(rows) >= 20:
+            logging.debug(f"{symbol}: A/D rating calculated with {len(rows)} days (ideal: 30+ days)")
 
         # Calculate accumulation percentage (0-100)
         accumulation_pct = (accumulation_volume / total_volume) * 100
