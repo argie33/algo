@@ -912,6 +912,13 @@ def fetch_all_quality_metrics(conn):
             metrics['surprise_consistency'] = []
 
         logger.info(f"📊 Loaded quality metrics for percentile calculation:")
+        # Apply winsorization to ALL quality metrics (1-99 percentile)
+        # Prevents extreme outliers from skewing percentile rankings
+        for key in metrics.keys():
+            if metrics[key] and isinstance(metrics[key], list):  # Only if list has values
+                metrics[key] = winsorize(metrics[key], lower_percentile=1.0, upper_percentile=99.0)
+
+        logger.info(f"📊 Loaded quality metrics for percentile calculation (WINSORIZED):")
         logger.info(f"   ROE: {len(metrics['roe'])} stocks")
         logger.info(f"   ROA: {len(metrics['roa'])} stocks")
         logger.info(f"   Gross Margin: {len(metrics['gross_margin'])} stocks")
@@ -1008,7 +1015,13 @@ def fetch_all_growth_metrics(conn):
                 sustainable_growth = float(roe) * (1 - payout_ratio)
                 metrics['sustainable_growth'].append(sustainable_growth)
 
-        logger.info(f"📊 Loaded growth metrics for percentile calculation:")
+        # Apply winsorization to ALL growth metrics (1-99 percentile)
+        # This prevents single extreme values (e.g., earnings_growth=500%) from corrupting percentile calculations
+        for key in metrics.keys():
+            if metrics[key]:  # Only if list has values
+                metrics[key] = winsorize(metrics[key], lower_percentile=1.0, upper_percentile=99.0)
+
+        logger.info(f"📊 Loaded growth metrics for percentile calculation (WINSORIZED):")
         logger.info(f"   Revenue Growth: {len(metrics['revenue_growth'])} stocks")
         logger.info(f"   Earnings Growth: {len(metrics['earnings_growth'])} stocks")
         logger.info(f"   Earnings Q Growth: {len(metrics['earnings_q_growth'])} stocks")
