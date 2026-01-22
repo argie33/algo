@@ -597,6 +597,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !Ref RDSUsername
+            - Name: DB_PASSWORD
+              Value: !Ref RDSPassword
             - Name: FRED_API_KEY
               Value: !Ref FREDApiKey
           LogConfiguration:
@@ -1828,6 +1830,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !Ref RDSUsername
+            - Name: DB_PASSWORD
+              Value: !Ref RDSPassword
             - Name: ECS_MEMORY_MB
               Value: "512"
             - Name: MEMORY_THRESHOLD_MB
@@ -2949,6 +2953,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !Ref RDSUsername
+            - Name: DB_PASSWORD
+              Value: !Ref RDSPassword
             - Name: NODE_ENV
               Value: production
             - Name: WEBAPP_AWS_REGION
@@ -3012,6 +3018,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !Ref RDSUsername
+            - Name: DB_PASSWORD
+              Value: !Ref RDSPassword
             - Name: NODE_ENV
               Value: production
             - Name: WEBAPP_AWS_REGION
@@ -3075,6 +3083,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !Ref RDSUsername
+            - Name: DB_PASSWORD
+              Value: !Ref RDSPassword
             - Name: NODE_ENV
               Value: production
             - Name: WEBAPP_AWS_REGION
@@ -3141,6 +3151,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !Ref RDSUsername
+            - Name: DB_PASSWORD
+              Value: !Ref RDSPassword
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
 
@@ -3199,6 +3211,8 @@ Resources:
               Value: !ImportValue StocksApp-DBName
             - Name: DB_USER
               Value: !Ref RDSUsername
+            - Name: DB_PASSWORD
+              Value: !Ref RDSPassword
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
 
