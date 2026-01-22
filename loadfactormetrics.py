@@ -1877,13 +1877,48 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                 "eps_forward": row[15],
             }
 
-            # Get growth metrics from multiple sources (priority order)
-            financial_growth = get_financial_statement_growth(cursor, ticker)
-            quarterly_growth = get_quarterly_statement_growth(cursor, ticker)
-            earnings_history_growth = get_earnings_history_growth(cursor, ticker)
+            # Get growth metrics from multiple sources (priority order) with error recovery
+            financial_growth = None
+            quarterly_growth = None
+            earnings_history_growth = None
+
+            try:
+                financial_growth = get_financial_statement_growth(cursor, ticker)
+            except Exception as fge:
+                logging.debug(f"Could not get financial growth for {ticker}: {fge}")
+                try:
+                    conn.rollback()
+                except:
+                    pass
+
+            try:
+                quarterly_growth = get_quarterly_statement_growth(cursor, ticker)
+            except Exception as qge:
+                logging.debug(f"Could not get quarterly growth for {ticker}: {qge}")
+                try:
+                    conn.rollback()
+                except:
+                    pass
+
+            try:
+                earnings_history_growth = get_earnings_history_growth(cursor, ticker)
+            except Exception as ege:
+                logging.debug(f"Could not get earnings history growth for {ticker}: {ege}")
+                try:
+                    conn.rollback()
+                except:
+                    pass
 
             # Calculate metrics combining all available data sources
-            metrics = calculate_growth_metrics(ticker_dict, financial_growth, quarterly_growth, earnings_history_growth, cursor, ticker)
+            try:
+                metrics = calculate_growth_metrics(ticker_dict, financial_growth, quarterly_growth, earnings_history_growth, cursor, ticker)
+            except Exception as mce:
+                logging.debug(f"Error calculating growth metrics for {ticker}: {mce}")
+                try:
+                    conn.rollback()
+                except:
+                    pass
+                metrics = {}  # Return empty metrics instead of failing
             growth_rows.append([
                 ticker,
                 date.today(),
@@ -1926,10 +1961,43 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
         logging.info(f"Processing {len(missing_key_metrics_symbols)} symbols with financial statements but no key_metrics")
 
         for symbol in missing_key_metrics_symbols:
-            # Get growth metrics from multiple sources (priority order)
-            financial_growth = get_financial_statement_growth(cursor, symbol)
-            quarterly_growth = get_quarterly_statement_growth(cursor, symbol)
-            earnings_history_growth = get_earnings_history_growth(cursor, symbol)
+            # Recover transaction state before processing each symbol
+            try:
+                conn.rollback()
+            except:
+                pass
+
+            # Get growth metrics from multiple sources (priority order) with error recovery
+            financial_growth = None
+            quarterly_growth = None
+            earnings_history_growth = None
+
+            try:
+                financial_growth = get_financial_statement_growth(cursor, symbol)
+            except Exception as fge:
+                logging.debug(f"Could not get financial growth for {symbol}: {fge}")
+                try:
+                    conn.rollback()
+                except:
+                    pass
+
+            try:
+                quarterly_growth = get_quarterly_statement_growth(cursor, symbol)
+            except Exception as qge:
+                logging.debug(f"Could not get quarterly growth for {symbol}: {qge}")
+                try:
+                    conn.rollback()
+                except:
+                    pass
+
+            try:
+                earnings_history_growth = get_earnings_history_growth(cursor, symbol)
+            except Exception as ege:
+                logging.debug(f"Could not get earnings history growth for {symbol}: {ege}")
+                try:
+                    conn.rollback()
+                except:
+                    pass
 
             # Create minimal metrics dict (no key_metrics available)
             ticker_dict = {

@@ -197,36 +197,9 @@ def create_buy_sell_table(cur, conn, table_name="buy_sell_daily_etf"):
     # Ensure UNIQUE constraint exists (for tables created before constraint was added)
     # First, try to clean up any duplicate rows by keeping only the latest one per (symbol, timeframe, date)
     # NOTE: Skip cleanup if table is very large - constraint will prevent new duplicates
-    try:
-        logging.info(f"🧹 Checking for duplicate rows in {table_name}...")
-        # Use LIMIT-based check instead of COUNT to avoid timeout on large tables
-        # Try to find one duplicate - if found, log warning but skip cleanup (table too large)
-        cur.execute(f"""
-            SELECT COUNT(*) FROM (
-                SELECT 1 FROM {table_name}
-                WHERE (symbol, timeframe, date, id) NOT IN (
-                    SELECT DISTINCT ON (symbol, timeframe, date)
-                           symbol, timeframe, date, MAX(id)
-                    FROM {table_name}
-                    GROUP BY symbol, timeframe, date
-                )
-                LIMIT 1
-            ) t;
-        """)
-        has_duplicates = cur.fetchone()[0] > 0
-
-        if not has_duplicates:
-            logging.info(f"✅ No duplicates found in {table_name}")
-        else:
-            # Skip cleanup - rely on UNIQUE constraint to prevent new duplicates
-            logging.warning(f"⚠️ Table has existing duplicates - skipping cleanup (constraint will prevent new ones)")
-
-    except Exception as e:
-        logging.warning(f"Could not clean duplicates from {table_name}: {e}")
-        try:
-            conn.rollback()
-        except:
-            pass
+    # Skip expensive duplicate check - it times out on large tables
+    # The UNIQUE constraint will prevent new duplicates from being inserted
+    logging.info(f"🧹 Skipping duplicate cleanup for large table (will use UNIQUE constraint)...")
 
     # Now try to add the constraint
     try:
