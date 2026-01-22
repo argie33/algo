@@ -78,6 +78,33 @@ logger = logging.getLogger(__name__)
 SCRIPT_NAME = "loadstockscores.py"
 
 # ============================================================================
+# UTILITY FUNCTIONS - Type Conversion
+# ============================================================================
+
+def to_float(val):
+    """
+    CENTRALIZED type conversion: Convert Decimal, NumPy types, or any numeric to float
+    Handles PostgreSQL Decimal types that cause ambiguous truth value errors in NumPy context
+
+    Args:
+        val: Value to convert (can be Decimal, float, int, numpy scalar, None)
+
+    Returns:
+        float or None
+    """
+    if val is None:
+        return None
+    try:
+        from decimal import Decimal
+        # Handle PostgreSQL Decimal types
+        if isinstance(val, Decimal):
+            return float(val)
+        # Handle NumPy types by forcing float conversion
+        return float(val)
+    except (ValueError, TypeError):
+        return None
+
+# ============================================================================
 # TECHNICAL INDICATOR FUNCTIONS
 # ============================================================================
 def calculate_rsi(prices, period=14):
@@ -1221,9 +1248,10 @@ def fetch_all_stability_metrics(conn):
         cur.close()
 
         # Build raw metrics dictionary (no filtering yet)
-        volatility_raw = [float(row[0]) for row in volatility_rows if row[0] is not None]
-        drawdown_raw = [float(row[0]) for row in drawdown_rows if row[0] is not None]
-        beta_raw = [float(row[0]) for row in beta_rows if row[0] is not None]
+        # Use to_float() to handle Decimal and NumPy types from PostgreSQL
+        volatility_raw = [to_float(row[0]) for row in volatility_rows if row[0] is not None]
+        drawdown_raw = [to_float(row[0]) for row in drawdown_rows if row[0] is not None]
+        beta_raw = [to_float(row[0]) for row in beta_rows if row[0] is not None]
 
         # Use percentile-based filtering (5-95%) to remove extreme outliers
         # while preserving representative distribution for z-score normalization
@@ -1766,7 +1794,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 """, (symbol,))
                 beta_row = cur.fetchone()
                 if beta_row and beta_row[0] is not None:
-                    beta = float(beta_row[0])
+                    beta = to_float(beta_row[0])
             except Exception as e:
                 logger.debug(f"{symbol}: Could not fetch beta from stability_metrics: {e}")
                 beta = None
@@ -2391,12 +2419,12 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             """)
             for row in cur.fetchall():
                 if row[0] is not None:
-                    all_rsi.append(float(row[0]))
+                    all_rsi.append(to_float(row[0]))
         except Exception as e:
             logger.debug(f"{symbol}: Could not fetch RSI distribution: {e}")
 
         if rsi is not None and len(all_rsi) > 100:
-            rsi_percentile = calculate_z_score_normalized(float(rsi), all_rsi)
+            rsi_percentile = calculate_z_score_normalized(to_float(rsi), all_rsi)
             if rsi_percentile is not None:
                 momentum_components.append(rsi_percentile)
                 momentum_weights.append(0.10)  # 10% for RSI momentum indicator
@@ -2414,12 +2442,12 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             """)
             for row in cur.fetchall():
                 if row[0] is not None:
-                    all_macd.append(float(row[0]))
+                    all_macd.append(to_float(row[0]))
         except Exception as e:
             logger.debug(f"{symbol}: Could not fetch MACD distribution: {e}")
 
         if macd is not None and len(all_macd) > 100:
-            macd_percentile = calculate_z_score_normalized(float(macd), all_macd)
+            macd_percentile = calculate_z_score_normalized(to_float(macd), all_macd)
             if macd_percentile is not None:
                 momentum_components.append(macd_percentile)
                 momentum_weights.append(0.10)  # 10% for MACD momentum indicator
@@ -2447,12 +2475,12 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 """)
                 for row in cur.fetchall():
                     if row[0] is not None:
-                        all_price_vs_sma50.append(float(row[0]))
+                        all_price_vs_sma50.append(to_float(row[0]))
         except Exception as e:
             logger.debug(f"{symbol}: Could not fetch price_vs_sma50 distribution: {e}")
 
         if price_vs_sma_50 is not None and len(all_price_vs_sma50) > 100:
-            price_vs_sma50_percentile = calculate_z_score_normalized(float(price_vs_sma_50), all_price_vs_sma50)
+            price_vs_sma50_percentile = calculate_z_score_normalized(to_float(price_vs_sma_50), all_price_vs_sma50)
             if price_vs_sma50_percentile is not None:
                 momentum_components.append(price_vs_sma50_percentile)
                 momentum_weights.append(0.16)  # 16% weight for trend confirmation
@@ -2475,12 +2503,12 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 """)
                 for row in cur.fetchall():
                     if row[0] is not None:
-                        all_price_vs_sma200.append(float(row[0]))
+                        all_price_vs_sma200.append(to_float(row[0]))
         except Exception as e:
             logger.debug(f"{symbol}: Could not fetch price_vs_sma200 distribution: {e}")
 
         if price_vs_sma_200 is not None and len(all_price_vs_sma200) > 100:
-            price_vs_sma200_percentile = calculate_z_score_normalized(float(price_vs_sma_200), all_price_vs_sma200)
+            price_vs_sma200_percentile = calculate_z_score_normalized(to_float(price_vs_sma_200), all_price_vs_sma200)
             if price_vs_sma200_percentile is not None:
                 momentum_components.append(price_vs_sma200_percentile)
                 momentum_weights.append(0.17)  # 17% weight for long-term trend
@@ -2590,7 +2618,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                         """, (symbol,))
                         vm_row = cur.fetchone()
                         if vm_row and vm_row[0] is not None:
-                            trailing_pe = float(vm_row[0])
+                            trailing_pe = to_float(vm_row[0])
                     except:
                         pass
 
@@ -2604,7 +2632,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                         """, (symbol,))
                         vm_row = cur.fetchone()
                         if vm_row and vm_row[0] is not None:
-                            price_to_book = float(vm_row[0])
+                            price_to_book = to_float(vm_row[0])
                     except:
                         pass
 
@@ -2618,7 +2646,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                         """, (symbol,))
                         vm_row = cur.fetchone()
                         if vm_row and vm_row[0] is not None:
-                            price_to_sales_ttm = float(vm_row[0])
+                            price_to_sales_ttm = to_float(vm_row[0])
                     except:
                         pass
 
