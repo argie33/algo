@@ -1897,7 +1897,7 @@ def main():
 
     # Process all ETFs into single unified table
     if all_etf_symbols:
-        process_symbol_set(all_etf_symbols, "buy_sell_daily_etf", "ETF Signals", max_workers=2)
+        process_symbol_set(all_etf_symbols, "buy_sell_daily_etf", "ETF Signals", max_workers=12)
 
     logging.info("Processing complete.")
 

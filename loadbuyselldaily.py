@@ -1853,9 +1853,9 @@ def main():
     # Process ONLY regular stocks (NO ETFs)
     logging.info(f"Processing {len(symbols)} regular stocks only (excluding {len(country_symbols)} country symbols)")
 
-    # Process all stocks into single unified table (reduced to 2 workers to prevent WSL resource drain)
+    # Process all stocks into single unified table (increased to 8 workers for better performance)
     if symbols:
-        process_symbol_set(symbols, "buy_sell_daily", "Stock Signals", max_workers=2)
+        process_symbol_set(symbols, "buy_sell_daily", "Stock Signals", max_workers=8)
 
     logging.info("Processing complete.")
 

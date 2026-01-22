@@ -1020,7 +1020,17 @@ jobs:
             "dailycompanydata")
               TASK_DEF_NAME="DailycompanydataTaskDefArn"
               ;;
+            "buysell_etf_daily")
+              TASK_DEF_NAME="BuySellEtfDailyTaskDefArn"
+              ;;
+            "buysell_etf_weekly")
+              TASK_DEF_NAME="BuySellEtfWeeklyTaskDefArn"
+              ;;
+            "buysell_etf_monthly")
+              TASK_DEF_NAME="BuySellEtfMonthlyTaskDefArn"
+              ;;
             *)
+
               # Default case: convert to proper case (first letter uppercase, rest lowercase)
               TASK_DEF_NAME=$(echo "$LOADER_NAME" | sed 's/./\U&/' | sed 's/.*/\L&/' | sed 's/^./\U&/')TaskDefArn
               ;;
