@@ -1259,41 +1259,42 @@ def fetch_all_stability_metrics(conn):
     try:
         cur = conn.cursor()
 
-        # Fetch stability metrics - get LATEST data per symbol (table has multiple dates)
-        # FIX: Remove price_daily filter to include all stocks with stability metrics
-        cur.execute("""
-            SELECT
-                sm.volatility_12m,
-                sm.max_drawdown_52w,
-                sm.beta
-            FROM stability_metrics sm
-            INNER JOIN (
-                SELECT symbol, MAX(date) as latest_date
-                FROM stability_metrics
-                GROUP BY symbol
-            ) latest ON sm.symbol = latest.symbol AND sm.date = latest.latest_date
-            WHERE sm.volatility_12m IS NOT NULL
-               OR sm.max_drawdown_52w IS NOT NULL
-               OR sm.beta IS NOT NULL
-        """)
+        # Fetch stability metrics - get LATEST NON-NULL value for EACH metric independently
+        # CRITICAL FIX: Don't require all metrics to be from the same date
+        # Different metrics may have different update schedules
 
-        rows = cur.fetchall()
+        # Fetch latest volatility values (one per symbol, most recent date with volatility)
+        cur.execute("""
+            SELECT DISTINCT ON (symbol) volatility_12m
+            FROM stability_metrics
+            WHERE volatility_12m IS NOT NULL AND volatility_12m > 0
+            ORDER BY symbol, date DESC
+        """)
+        volatility_rows = cur.fetchall()
+
+        # Fetch latest drawdown values (one per symbol, most recent date with drawdown)
+        cur.execute("""
+            SELECT DISTINCT ON (symbol) max_drawdown_52w
+            FROM stability_metrics
+            WHERE max_drawdown_52w IS NOT NULL AND max_drawdown_52w >= 0 AND max_drawdown_52w <= 100
+            ORDER BY symbol, date DESC
+        """)
+        drawdown_rows = cur.fetchall()
+
+        # Fetch latest beta values (one per symbol, most recent date with beta)
+        cur.execute("""
+            SELECT DISTINCT ON (symbol) beta
+            FROM stability_metrics
+            WHERE beta IS NOT NULL AND beta > 0
+            ORDER BY symbol, date DESC
+        """)
+        beta_rows = cur.fetchall()
         cur.close()
 
         # Build raw metrics dictionary (no filtering yet)
-        volatility_raw = []
-        drawdown_raw = []
-        beta_raw = []
-
-        for row in rows:
-            volatility, drawdown, beta = row
-
-            if volatility is not None and volatility > 0:
-                volatility_raw.append(float(volatility))
-            if drawdown is not None and 0 <= drawdown <= 100:
-                drawdown_raw.append(float(drawdown))
-            if beta is not None and beta > 0:
-                beta_raw.append(float(beta))
+        volatility_raw = [float(row[0]) for row in volatility_rows if row[0] is not None]
+        drawdown_raw = [float(row[0]) for row in drawdown_rows if row[0] is not None]
+        beta_raw = [float(row[0]) for row in beta_rows if row[0] is not None]
 
         # Use percentile-based filtering (5-95%) to remove extreme outliers
         # while preserving representative distribution for z-score normalization
