@@ -913,6 +913,11 @@ def fetch_symbol_from_db(symbol, timeframe):
     num_cols = ['open','high','low','close','volume']
     for c in num_cols:
         df[c] = pd.to_numeric(df[c], errors='coerce')
+
+    # FIX #4: Calculate 52-week high (13 months for monthly ≈ 12 bars)
+    # Mansfield RS needs this to calculate current price vs 52-week high
+    df['high_52w'] = df['high'].rolling(window=12, min_periods=1).max()
+
     return df.reset_index(drop=True)
 
 ###############################################################################
