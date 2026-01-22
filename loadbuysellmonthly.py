@@ -214,7 +214,8 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
         # REAL DATA ONLY: Return None for invalid data, not fake 'WEAK'
         if row['low'] <= 0 or row['avg_volume_50d'] <= 0 or row['volume_surge_pct'] is None or row.get('close') is None:
             return None  # Insufficient data
-        daily_range_pct = ((row['high'] - row['low']) / row['low']) * 100
+        # FIX: Use close not low to avoid inflating low-priced stock scores (standard formula)
+        daily_range_pct = ((row['high'] - row['low']) / row['close']) * 100
         volume_surge = row['volume_surge_pct']
 
         # Determine if close is in upper or lower half of daily range (direction matters)
@@ -371,9 +372,9 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
         if price_diff_pct is None:
             return None
 
-        # Detect MA direction - tuned thresholds for better discrimination
-        is_ma_rising = ma_slope > 1.5 if pd.notna(ma_slope) else False  # ✅ Tuned: 1.0 → 1.5
-        is_ma_falling = ma_slope < -1.5 if pd.notna(ma_slope) else False  # ✅ Tuned: -1.0 → -1.5
+        # Detect MA direction - standardized threshold (0.15) across all timeframes for consistency
+        is_ma_rising = ma_slope > 0.15 if pd.notna(ma_slope) else False  # FIXED: Standardized to 0.15 (was 1.5)
+        is_ma_falling = ma_slope < -0.15 if pd.notna(ma_slope) else False  # FIXED: Standardized to -0.15 (was -1.5)
         is_ma_flat = not is_ma_rising and not is_ma_falling
 
         # === Weinstein Stage Detection ===
@@ -516,7 +517,8 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
     # === GET MANSFIELD RS FROM STOCK_SCORES ===
     # DISABLED: mansfield_rs column was moved out of stock_scores table
     # This query was causing loader to crash. Keeping fields as None for now.
-    df['mansfield_rs'] = None
+    # FIXED #4: Calculate Mansfield RS from 52-week high
+    df['mansfield_rs'] = df.apply(lambda row: round((row['close'] / row['high_52w']) * 100, 2) if (row.get('high_52w') and row.get('high_52w') > 0 and row.get('close')) else None, axis=1)
     df['sata_score'] = None
     # Previous code that queried non-existent column is commented out:
     # try:
