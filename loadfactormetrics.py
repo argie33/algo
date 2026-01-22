@@ -1236,7 +1236,7 @@ def get_stability_metrics(cursor, symbol: str, benchmark_cache: Dict = None) -> 
             # Calculate SPY returns (match the period with our stock)
             spy_returns = []
             for i in range(1, min(len(spy_prices), len(prices))):
-                if spy_prices[i-1] > 0:
+                if spy_prices[i-1] is not None and spy_prices[i] is not None and spy_prices[i-1] > 0:
                     spy_ret = ((spy_prices[i] - spy_prices[i-1]) / spy_prices[i-1]) * 100
                     spy_returns.append(spy_ret)
 
@@ -1623,6 +1623,11 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
             ])
         except Exception as e:
             logging.warning(f"Error processing quality metrics for {symbol}: {e}")
+            # Recover from transaction abort to continue processing other symbols
+            try:
+                conn.rollback()
+            except:
+                pass
 
     # FALLBACK: Process stocks missing from key_metrics but with financial statement data
     missing_symbols = set(symbols) - processed_symbols
@@ -1741,6 +1746,11 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
                 ])
             except Exception as e:
                 logging.warning(f"Error processing fallback quality metrics for {symbol}: {e}")
+                # Recover from transaction abort to continue processing other symbols
+                try:
+                    conn.rollback()
+                except:
+                    pass
 
     # Upsert quality_metrics
     if quality_rows:
