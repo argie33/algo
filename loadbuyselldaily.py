@@ -83,14 +83,14 @@ except Exception as e:
     logging.info("Using local environment DB configuration (after error)")
 
 def get_db_connection():
-    # Set statement timeout to 300 seconds (300000 ms) to allow for large queries
+    # Set statement timeout to 600 seconds (600000 ms) to allow for large queries with parallelized workers
     conn = psycopg2.connect(
         host=DB_HOST,
         port=DB_PORT,
         user=DB_USER,
         password=DB_PASSWORD,
         dbname=DB_NAME,
-        options='-c statement_timeout=300000'
+        options='-c statement_timeout=600000'
     )
     return conn
 
