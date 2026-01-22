@@ -354,6 +354,8 @@ def get_stock_symbols(conn, limit=None):
             LEFT JOIN key_metrics km ON s.symbol = km.ticker
             WHERE s.exchange IN ('NASDAQ', 'New York Stock Exchange', 'American Stock Exchange', 'NYSE Arca', 'BATS Global Markets')
               AND (s.etf = 'N' OR s.etf IS NULL OR s.etf = '')
+              AND (s.test_issue != 'Y' OR s.test_issue IS NULL)
+              AND (s.financial_status != 'D' OR s.financial_status IS NULL)
             GROUP BY s.symbol
             ORDER BY s.symbol
             {limit_clause}
@@ -814,21 +816,6 @@ def fetch_all_quality_metrics(conn):
         """)
 
         rows = cur.fetchall()
-
-        # Fetch volatility data for all stocks (CRITICAL FIX: Added LIMIT to prevent millions of rows being fetched)
-        # Instead of fetching ALL 120 days x 5000+ symbols = millions of rows, use aggregation
-        cur.execute("""
-            SELECT symbol,
-                   stddev_pop(CAST(close AS FLOAT)) as volatility,
-                   COUNT(*) as data_points
-            FROM price_daily
-            WHERE date >= CURRENT_DATE - INTERVAL '30 days'
-            GROUP BY symbol
-            HAVING COUNT(*) >= 20
-        """)
-
-        volatility_rows = cur.fetchall()
-        price_rows = []  # Not needed anymore, using aggregated data
         cur.close()
 
         # Build metrics dictionary
@@ -844,7 +831,6 @@ def fetch_all_quality_metrics(conn):
             'fcf_to_ni': [],
             'operating_cf_to_ni': [],
             'roic': [],
-            'volatility': [],
             'payout_ratio': []
         }
 
@@ -905,13 +891,6 @@ def fetch_all_quality_metrics(conn):
                 except (ValueError, TypeError):
                     pass
 
-        # Process volatility data (now using aggregated stddev from query, much faster)
-        for row in volatility_rows:
-            symbol, volatility, data_points = row
-            if volatility is not None:
-                # Convert stddev to percentage volatility for consistency
-                metrics['volatility'].append(float(volatility))
-
         # Fetch EPS growth stability and earnings surprise from quality_metrics table
         # These are pre-calculated by loadfactormetrics.py and needed for quality component scores
         try:
@@ -965,7 +944,6 @@ def fetch_all_quality_metrics(conn):
         logger.info(f"   Current Ratio: {len(metrics['current_ratio'])} stocks")
         logger.info(f"   FCF/NI: {len(metrics['fcf_to_ni'])} stocks")
         logger.info(f"   ROIC: {len(metrics['roic'])} stocks")
-        logger.info(f"   Volatility: {len(metrics['volatility'])} stocks")
         logger.info(f"   EPS Growth Stability: {len(metrics.get('eps_growth_stability', []))} stocks")
         logger.info(f"   Earnings Surprise: {len(metrics.get('earnings_surprise_avg', []))} stocks")
         logger.info(f"   Earnings Beat Rate: {len(metrics.get('earnings_beat_rate', []))} stocks")

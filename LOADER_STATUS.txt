@@ -1,0 +1,27 @@
+# Data Loader Status - Jan 13, 2026 08:00
+
+## ✅ FIXED: Schema Bug
+- Added UNIQUE(symbol, date) constraints to all 6 price loader table creation code
+- Fix tested and verified working
+- No more crashes!
+
+## ✅ RUNNING SUCCESSFULLY
+
+**Stock Price Loaders (continuous updates):**
+- loadpricedaily.py - batch 77/5272 (1.5%) - RUNNING
+- loadpriceweekly.py - batch 96/5272 (1.8%) - RUNNING  
+- loadpricemonthly.py - batch 103/5272 (2%) - RUNNING
+
+**ETF Price Loaders (completed):**
+- loadetfpricedaily.py - ✓ DONE (1 symbol, 37 rows, 0 failed)
+- loadetfpriceweekly.py - ✓ DONE (0 new symbols)
+- loadetfpricemonthly.py - ✓ DONE (0 new symbols)
+
+## Error Status
+NO ERRORS - All loaders running clean with schema fix applied
+
+## Next Actions
+- Stock loaders will continue running for ~2-4 hours (5,272 symbols total)
+- Monitor with: ./loader_status.sh
+- ETF data already loaded from previous runs
+- Schema fix will auto-apply on AWS when loaders deploy
