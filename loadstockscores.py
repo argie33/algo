@@ -105,6 +105,89 @@ def to_float(val):
         return None
 
 # ============================================================================
+# BEST PRACTICE: DATA VALIDATION & QUALITY CHECKS
+# ============================================================================
+
+def validate_score(score, score_name, min_val=0, max_val=100):
+    """
+    Validate that score is within valid range and is not NaN/Inf.
+    This is CRITICAL for preventing bad data from being saved to database.
+
+    Args:
+        score: Score value to validate
+        score_name: Name of score for logging
+        min_val: Minimum valid value (default 0)
+        max_val: Maximum valid value (default 100)
+
+    Returns:
+        float: Valid score, or None if invalid
+    """
+    if score is None:
+        return None
+
+    try:
+        score_float = float(score)
+
+        # CRITICAL: Check for NaN and Inf (numerical instability)
+        if np.isnan(score_float) or np.isinf(score_float):
+            logger.warning(f"❌ {score_name}: Invalid value {score_float} (NaN/Inf) - returning None")
+            return None
+
+        # Check range bounds
+        if score_float < min_val or score_float > max_val:
+            logger.warning(f"❌ {score_name}: {score_float} outside valid range [{min_val}, {max_val}] - returning None")
+            return None
+
+        return score_float
+    except (ValueError, TypeError):
+        logger.warning(f"❌ {score_name}: Cannot convert {score} to float")
+        return None
+
+def safe_divide(numerator, denominator, default=None):
+    """
+    Safely divide two numbers, protecting against division by zero.
+    Best practice for financial calculations.
+
+    Returns:
+        float: Result of division, or default if denominator is 0/None
+    """
+    if denominator is None or numerator is None:
+        return default
+
+    try:
+        denominator_float = float(denominator)
+        if denominator_float == 0:
+            return default
+
+        result = float(numerator) / denominator_float
+
+        # Check for NaN/Inf from division
+        if np.isnan(result) or np.isinf(result):
+            return default
+
+        return result
+    except (ValueError, TypeError, ZeroDivisionError):
+        return default
+
+def validate_data_completeness(symbol, data_dict):
+    """
+    Report which data fields are available vs missing for a stock.
+    Prevents silent data loss and ensures transparency.
+
+    Args:
+        symbol: Stock symbol
+        data_dict: Dictionary of {field_name: value} pairs
+
+    Returns:
+        tuple: (count_available, count_missing, list_of_missing_fields)
+    """
+    available = sum(1 for v in data_dict.values() if v is not None)
+    missing = sum(1 for v in data_dict.values() if v is None)
+    missing_fields = [k for k, v in data_dict.items() if v is None]
+
+    return available, missing, missing_fields
+
+# ============================================================================
 # TECHNICAL INDICATOR FUNCTIONS
 # ============================================================================
 def calculate_rsi(prices, period=14):
@@ -4029,9 +4112,35 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         return None
 
 def save_stock_score(conn, score_data):
-    """Save stock score to database."""
+    """
+    Save stock score to database with BEST PRACTICE validation.
+    Prevents NaN/Inf and out-of-range values from being persisted.
+    """
     try:
         cur = conn.cursor()
+
+        # BEST PRACTICE: Validate all scores before saving
+        # This prevents bad data from being permanently stored
+        symbol = score_data.get('symbol', 'UNKNOWN')
+
+        # Validate key scores (0-100 range)
+        score_fields = [
+            'composite_score', 'momentum_score', 'value_score', 'quality_score',
+            'growth_score', 'positioning_score', 'sentiment_score', 'stability_score'
+        ]
+
+        for field in score_fields:
+            score_val = score_data.get(field)
+            if score_val is not None:
+                # Validate score is not NaN/Inf and is in valid range
+                validated = validate_score(score_val, f"{symbol}.{field}", min_val=0, max_val=100)
+                if validated is None and score_val is not None:
+                    # Score was invalid - log and set to None (don't save bad data)
+                    logger.warning(f"{symbol}: Rejecting invalid {field} = {score_val}")
+                    score_data[field] = None
+                elif validated is not None:
+                    # Update with validated value (may be rounded)
+                    score_data[field] = validated
 
         # Ensure all required keys exist in score_data with None as default
         # This handles cases where indicator data wasn't collected
