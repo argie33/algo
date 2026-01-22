@@ -610,7 +610,32 @@ async function queryScores(options = {}) {
     // Map database field names to frontend-expected field names
     const metrics = metricsMap.data[row.symbol.toUpperCase()];
     if (metrics) {
-      stock.quality_inputs = cleanMetrics(metrics.quality_metrics);
+      // Combine ALL metrics into quality_inputs for comprehensive frontend display of ALL metrics
+      stock.quality_inputs = {
+        // Core quality metrics from quality_metrics table
+        ...cleanMetrics(metrics.quality_metrics),
+        // Add key financial metrics from row (key_metrics table)
+        ebitda_margin_pct: row.ebitda_margin_pct,
+        total_cash: row.total_cash,
+        total_debt: row.total_debt,
+        operating_cashflow: row.operating_cashflow,
+        free_cashflow: row.free_cashflow,
+        earnings_growth_pct: row.earnings_growth_pct,
+        revenue_growth_pct: row.revenue_growth_pct,
+        cash_per_share: row.cash_per_share,
+        // Growth metrics
+        ...cleanMetrics(metrics.growth_metrics),
+        // Stability metrics
+        ...cleanMetrics(metrics.stability_metrics),
+        // Momentum metrics
+        ...cleanMetrics(metrics.momentum_metrics),
+        // Value metrics
+        ...cleanMetrics(metrics.value_metrics),
+        // Positioning metrics
+        ...cleanMetrics(metrics.positioning_metrics),
+        // Relative performance metrics
+        ...cleanMetrics(metrics.relative_performance_metrics)
+      };
       stock.growth_inputs = cleanMetrics(metrics.growth_metrics);
       stock.stability_inputs = cleanMetrics(metrics.stability_metrics);
 
@@ -641,8 +666,10 @@ async function queryScores(options = {}) {
         const cleaned = cleanMetrics(metrics.momentum_metrics);
         stock.momentum_inputs = {
           ...cleaned,
-          momentum_12_3: cleaned.momentum_12m
-          // Removed: id, created_at, rsi, macd (duplicates), momentum_12m (use momentum_12_3 instead)
+          momentum_12_3: cleaned.momentum_12m,
+          rsi: rsiValue,
+          macd: macdValue
+          // Note: id, created_at, momentum_12m removed (use momentum_12_3 instead)
         };
         delete stock.momentum_inputs.momentum_12m; // Remove duplicate, use momentum_12_3 instead
 
