@@ -56,7 +56,7 @@ router.get("/daily", async (req, res) => {
     }
 
     if (days) {
-      sql += (symbol ? " AND" : " WHERE") + ` trading_date >= CURRENT_DATE - INTERVAL '${days} days'`;
+      sql += (symbol ? " AND" : " WHERE") + ` date >= CURRENT_DATE - INTERVAL '${days} days'`;
     }
 
     const countResult = await query(
@@ -66,7 +66,7 @@ router.get("/daily", async (req, res) => {
     const total = countResult.rows[0]?.count || 0;
 
     const result = await query(
-      sql + ` ORDER BY trading_date DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      sql + ` ORDER BY date DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
       [...params, limit, offset]
     );
 
@@ -113,7 +113,7 @@ router.get("/weekly", async (req, res) => {
     const total = countResult.rows[0]?.count || 0;
 
     const result = await query(
-      sql + ` ORDER BY trading_date DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      sql + ` ORDER BY date DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
       [...params, limit, offset]
     );
 
@@ -153,7 +153,7 @@ router.get("/monthly", async (req, res) => {
     const total = countResult.rows[0]?.count || 0;
 
     const result = await query(
-      sql + ` ORDER BY trading_date DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      sql + ` ORDER BY date DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
       [...params, limit, offset]
     );
 
@@ -179,7 +179,7 @@ router.get("/daily/etf", async (req, res) => {
     const total = countResult.rows[0]?.count || 0;
 
     const result = await query(
-      "SELECT * FROM etf_price_daily ORDER BY trading_date DESC LIMIT $1 OFFSET $2",
+      "SELECT * FROM etf_price_daily ORDER BY date DESC LIMIT $1 OFFSET $2",
       [limit, offset]
     );
 
@@ -205,7 +205,7 @@ router.get("/weekly/etf", async (req, res) => {
     const total = countResult.rows[0]?.count || 0;
 
     const result = await query(
-      "SELECT * FROM etf_price_weekly ORDER BY trading_date DESC LIMIT $1 OFFSET $2",
+      "SELECT * FROM etf_price_weekly ORDER BY date DESC LIMIT $1 OFFSET $2",
       [limit, offset]
     );
 
@@ -231,7 +231,7 @@ router.get("/monthly/etf", async (req, res) => {
     const total = countResult.rows[0]?.count || 0;
 
     const result = await query(
-      "SELECT * FROM etf_price_monthly ORDER BY trading_date DESC LIMIT $1 OFFSET $2",
+      "SELECT * FROM etf_price_monthly ORDER BY date DESC LIMIT $1 OFFSET $2",
       [limit, offset]
     );
 
