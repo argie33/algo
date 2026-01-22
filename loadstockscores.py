@@ -1228,9 +1228,10 @@ def fetch_all_positioning_metrics(conn):
             if inst_count is not None and inst_count > 0:
                 metrics['institution_count'].append(float(inst_count))
             if short_pct is not None and short_pct >= 0:
-                # short_interest_pct stored as percentage value (0-100)
-                short_pct_value = float(short_pct) * 100 if short_pct <= 1 else float(short_pct)
-                if 0 <= short_pct_value <= 100:
+                # short_interest_pct stored as decimal (0-1), NOT percentage
+                # Keep in same format as institutional_ownership and insider_ownership
+                short_pct_value = float(short_pct)
+                if 0 <= short_pct_value <= 1:
                     metrics['short_percent_of_float'].append(short_pct_value)
 
         cur.close()
@@ -1720,20 +1721,21 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             aaii_sentiment_component = None
 
         # Get real positioning data - use actual institutional_positioning table
-        # CRITICAL FIX: Data stored as decimals (0-1) but scoring expects percentages (0-100)
-        # Multiply by 100 to convert for proper threshold comparison - NO SILENT FAILURES
+        # CRITICAL FIX: Data stored as decimals (0-1), NOT percentages (0-100)
+        # Percentile calculation works scale-independently - NO CONVERSION NEEDED
         institutional_ownership = None
         insider_ownership = None
         short_percent_of_float = None
         institution_count = None
 
         # ============================================================
-        # CRITICAL FIX #2: Ensure positioning metrics use consistent 0-100 scale
+        # CRITICAL FIX #2: Ensure positioning metrics use consistent 0-1 decimal scale
         # Data sources:
-        # - institutional_positioning.market_share: stored as percentage (0-100)
-        # - key_metrics.held_percent_insiders: stored as decimal (0-1), needs *100
-        # - key_metrics.short_percent_of_float: stored as decimal (0-1), needs *100
-        # - positioning_metrics table: used for percentile lists, ensure consistent scale
+        # - positioning_metrics.institutional_ownership_pct: stored as decimal (0-1)
+        # - positioning_metrics.insider_ownership_pct: stored as decimal (0-1)
+        # - positioning_metrics.short_interest_pct: stored as decimal (0-1)
+        # - positioning_metrics.institutional_holders_count: stored as count (integer)
+        # - All percentile calculations work on 0-1 decimal format consistently
         # ============================================================
 
         # 1. Get institutional + insider ownership from positioning_metrics table (REAL DATA SOURCE) - NO SILENT FAILURES
@@ -1749,17 +1751,17 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             """, (symbol,))
             pos_data = cur.fetchone()
             if pos_data:
-                # positioning_metrics stores values as NUMERIC percentages (0-100 scale) - CONVERT DECIMAL TYPES
+                # positioning_metrics stores values as DECIMAL (0-1) - not percentages
                 institutional_ownership = to_float(pos_data[0])
                 insider_ownership = to_float(pos_data[1])
                 institution_count = int(pos_data[2]) if pos_data[2] is not None else None
 
                 # REAL DATA ONLY - if values are None, they stay None (no fake defaults)
-                if institutional_ownership is not None and (institutional_ownership < 0 or institutional_ownership > 100):
-                    logger.warning(f"{symbol}: institutional_ownership {institutional_ownership} outside 0-100 range, skipping")
+                if institutional_ownership is not None and (institutional_ownership < 0 or institutional_ownership > 1):
+                    logger.warning(f"{symbol}: institutional_ownership {institutional_ownership} outside 0-1 range, skipping")
                     institutional_ownership = None
-                if insider_ownership is not None and (insider_ownership < 0 or insider_ownership > 100):
-                    logger.warning(f"{symbol}: insider_ownership {insider_ownership} outside 0-100 range, skipping")
+                if insider_ownership is not None and (insider_ownership < 0 or insider_ownership > 1):
+                    logger.warning(f"{symbol}: insider_ownership {insider_ownership} outside 0-1 range, skipping")
                     insider_ownership = None
             else:
                 # No positioning_metrics data available - return None (REAL DATA ONLY)
