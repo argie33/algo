@@ -1135,7 +1135,13 @@ def fetch_all_value_metrics(conn):
         # FCF Yield REMOVED - can't reliably calculate without market_cap data
         # metrics['fcf_yield'] = []  # Removed from value calculation
 
-        logger.info(f"📊 Loaded value metrics for percentile calculation (FLEXIBLE WEIGHTING):")
+        # Apply winsorization to ALL value metrics (1-99 percentile)
+        # Critical for handling extreme P/E ratios (e.g., P/E=8249, P/B=-10260)
+        for key in metrics.keys():
+            if metrics[key] and isinstance(metrics[key], list):  # Only if list has values
+                metrics[key] = winsorize(metrics[key], lower_percentile=1.0, upper_percentile=99.0)
+
+        logger.info(f"📊 Loaded value metrics for percentile calculation (WINSORIZED + FLEXIBLE WEIGHTING):")
         logger.info(f"   P/E Ratio: {len(metrics['pe'])} stocks")
         logger.info(f"   Forward P/E: {len(metrics['forward_pe'])} stocks")
         logger.info(f"   P/B Ratio: {len(metrics['pb'])} stocks")
@@ -1205,7 +1211,12 @@ def fetch_all_positioning_metrics(conn):
 
         cur.close()
 
-        logger.info(f"📊 Loaded positioning metrics for percentile calculation:")
+        # Apply winsorization to ALL positioning metrics (1-99 percentile)
+        for key in metrics.keys():
+            if metrics[key] and isinstance(metrics[key], list):  # Only if list has values
+                metrics[key] = winsorize(metrics[key], lower_percentile=1.0, upper_percentile=99.0)
+
+        logger.info(f"📊 Loaded positioning metrics for percentile calculation (WINSORIZED):")
         logger.info(f"   Institutional Ownership: {len(metrics['institutional_ownership'])} stocks")
         logger.info(f"   Insider Ownership: {len(metrics['insider_ownership'])} stocks")
         logger.info(f"   Institution Count: {len(metrics['institution_count'])} stocks")
@@ -1299,7 +1310,7 @@ def fetch_all_stability_metrics(conn):
             'beta': beta_filtered
         }
 
-        logger.info(f"📊 Loaded stability metrics for percentile calculation (5-95% filtering):")
+        logger.info(f"📊 Loaded stability metrics for percentile calculation (1-99% WINSORIZED):")
         logger.info(f"   Volatility (12M): {len(volatility_filtered)}/{len(volatility_raw)} stocks")
         logger.info(f"   Drawdown (52W): {len(drawdown_filtered)}/{len(drawdown_raw)} stocks")
         logger.info(f"   Beta: {len(beta_filtered)}/{len(beta_raw)} stocks")
