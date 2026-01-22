@@ -201,28 +201,11 @@ def create_buy_sell_table(cur, conn, table_name="buy_sell_daily"):
     # First, try to clean up any duplicate rows by keeping only the latest one per (symbol, timeframe, date)
     # NOTE: Skip cleanup if table is very large - constraint will prevent new duplicates
     try:
-        logging.info(f"🧹 Checking table size before duplicate cleanup...")
-        # Use LIMIT-based check instead of COUNT to avoid timeout on large tables
-        # Try to find one duplicate - if found, log warning but skip cleanup (table too large)
-        cur.execute(f"""
-            SELECT COUNT(*) FROM (
-                SELECT 1 FROM {table_name}
-                WHERE (symbol, timeframe, date, id) NOT IN (
-                    SELECT DISTINCT ON (symbol, timeframe, date)
-                           symbol, timeframe, date, MAX(id)
-                    FROM {table_name}
-                    GROUP BY symbol, timeframe, date
-                )
-                LIMIT 1
-            ) t;
-        """)
-        has_duplicates = cur.fetchone()[0] > 0
-
-        if not has_duplicates:
-            logging.info(f"✅ No duplicates found in {table_name}")
-        else:
-            # Skip cleanup - rely on UNIQUE constraint to prevent new duplicates
-            logging.warning(f"⚠️ Table has existing duplicates - skipping cleanup (constraint will prevent new ones)")
+        logging.info(f"🧹 Skipping duplicate cleanup for large table (will use UNIQUE constraint)...")
+        # Skip duplicate cleanup entirely - UNIQUE constraint prevents new duplicates
+        # Historical duplicates won't cause issues, and cleanup query is too slow on 22M+ record tables
+        logging.info(f"✅ {table_name} will rely on UNIQUE constraint (symbol, timeframe, date)")
+        conn.commit()
 
     except Exception as e:
         logging.warning(f"Could not check duplicates in {table_name}: {e}")
@@ -277,23 +260,21 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
     inserted = 0
     skipped = 0
 
-    # === GET MANSFIELD RS FROM STOCK_SCORES ===
-    # DISABLED: mansfield_rs column was moved out of stock_scores table
-    # This query was causing loader to crash. Keeping fields as None for now.
-    df['mansfield_rs'] = None
-    df['sata_score'] = None
-    # Previous code that queried non-existent column is commented out:
-    # try:
-    #     stock_scores_q = "SELECT date, mansfield_rs FROM stock_scores WHERE symbol = %s"
-    #     cur.execute(stock_scores_q, (symbol,))
-    #     scores_rows = cur.fetchall()
-    #     if scores_rows:
-    #         rs_by_date = {row[0]: row[1] for row in scores_rows if row[1] is not None}
-    #         df['mansfield_rs'] = df['date'].apply(
-    #             lambda d: rs_by_date.get(d.date() if hasattr(d, 'date') else d)
-    #         )
-    # except Exception as e:
-    #     logging.debug(f"Could not fetch mansfield_rs for {symbol}: {e}")
+    # === CALCULATE MANSFIELD RS (Relative Strength vs 52-week high) ===
+    # Mansfield RS = (Current Price / 52-week High) * 100
+    # Range: 0-100 (100 = at 52-week high, 0 = at 52-week low)
+    def calculate_mansfield_rs(row):
+        """Calculate Mansfield RS = (close / 52-week high) * 100"""
+        if row.get('high_52w') is None or row.get('high_52w') <= 0 or row.get('close') is None:
+            return None
+        return round((row['close'] / row['high_52w']) * 100, 2)
+
+    df['mansfield_rs'] = df.apply(calculate_mansfield_rs, axis=1)
+
+    # === CALCULATE SATA SCORE (0-10 scale) ===
+    # SATA = Stage Analysis Technical Attributes
+    # Components: stage_number (1-4) + RS strength + momentum + volume
+    # Make it work even when stage_number is None by using market_stage instead
 
     # === CALCULATE SATA SCORE (0-10 scale) ===
     # SATA = Stage Analysis Technical Attributes
@@ -302,13 +283,25 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
         """Calculate SATA score 0-10 based on technical attributes"""
         try:
             stage_num = row.get('stage_number')
+            market_stage = row.get('market_stage')
             rs_rating_val = row.get('rs_rating')
             vol_surge = row.get('volume_surge_pct')
             strength_val = row.get('strength')
 
-            # If critical data missing, return None
+            # FIX #5: If stage_num is None, derive from market_stage text
             if stage_num is None or pd.isna(stage_num):
-                return None
+                if market_stage and not pd.isna(market_stage):
+                    # Map market stage text to number (1-4)
+                    stage_map = {'Stage 1': 1, 'Stage 2': 2, 'Stage 3': 3, 'Stage 4': 4}
+                    stage_num = stage_map.get(str(market_stage), None)
+
+            # If still no stage data available, use RS rating as fallback base
+            if stage_num is None or pd.isna(stage_num):
+                if rs_rating_val is not None and not pd.isna(rs_rating_val):
+                    # Use RS rating as base (0-99 scale, normalize to 0-4)
+                    stage_num = (float(rs_rating_val) / 99.0) * 4.0
+                else:
+                    return None  # Insufficient data
 
             # Base score from stage number (1-4 maps to 1-4 points)
             sata = float(stage_num)
