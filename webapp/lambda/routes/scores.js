@@ -656,14 +656,16 @@ async function queryScores(options = {}) {
 
 
       // Map momentum metrics field names to match frontend expectations
-      // Note: Database has momentum_3m/6m/12m, current_price, price_vs_sma_50/200, price_vs_52w_high, rsi, macd
+      // Note: momentum_metrics has momentum_3m/6m/12m, current_price, price_vs_sma_50/200, price_vs_52w_high
+      // NOTE: RSI/MACD come from technical_data_daily table (fetched separately via rsiMacdMap)
       if (metrics.momentum_metrics) {
-        // Use ONLY momentum_metrics data - NO fallbacks for finance data
-        // If data doesn't exist in primary source, return null (not fallback to secondary)
-        const rsiValue = metrics.momentum_metrics.rsi || null;
-        const macdValue = metrics.momentum_metrics.macd || null;
-
         const cleaned = cleanMetrics(metrics.momentum_metrics);
+
+        // Get RSI/MACD from rsiMacdMap (fetched from technical_data_daily)
+        const rsiMacdData = rsiMacdMap.data && rsiMacdMap.data[row.symbol.toUpperCase()];
+        const rsiValue = rsiMacdData ? rsiMacdData.rsi : null;
+        const macdValue = rsiMacdData ? rsiMacdData.macd : null;
+
         stock.momentum_inputs = {
           ...cleaned,
           momentum_12_3: cleaned.momentum_12m,
@@ -674,7 +676,6 @@ async function queryScores(options = {}) {
         delete stock.momentum_inputs.momentum_12m; // Remove duplicate, use momentum_12_3 instead
 
         // Also add RSI and MACD to top-level stock object (frontend expects them there)
-        // IMPORTANT: Use null if unavailable - NOT fallback to rsiMacdMap or other sources
         stock.rsi = rsiValue;
         stock.macd = macdValue;
       }
