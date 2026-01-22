@@ -1636,29 +1636,43 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
 
         for symbol in missing_symbols:
             try:
+                # Recover transaction state before processing each symbol
+                try:
+                    conn.rollback()
+                except:
+                    pass
+
                 # Calculate quality metrics from balance sheet and income statement
                 # Get balance sheet data
-                cursor.execute("""
-                    SELECT total_assets, total_debt, total_cash, current_assets, current_liabilities,
-                           quick_assets
-                    FROM annual_balance_sheet
-                    WHERE symbol = %s
-                    ORDER BY fiscal_date DESC
-                    LIMIT 1
-                """, (symbol,))
-
-                balance_row = cursor.fetchone()
+                balance_row = None
+                try:
+                    cursor.execute("""
+                        SELECT total_assets, total_debt, total_cash, current_assets, current_liabilities,
+                               quick_assets
+                        FROM annual_balance_sheet
+                        WHERE symbol = %s
+                        ORDER BY fiscal_date DESC
+                        LIMIT 1
+                    """, (symbol,))
+                    balance_row = cursor.fetchone()
+                except Exception as e:
+                    logging.debug(f"Could not fetch balance sheet for {symbol}: {e}")
+                    conn.rollback()
 
                 # Get income statement data
-                cursor.execute("""
-                    SELECT total_revenue, gross_profit, operating_income, net_income, ebitda
-                    FROM annual_income_statement
-                    WHERE symbol = %s
-                    ORDER BY fiscal_date DESC
-                    LIMIT 1
-                """, (symbol,))
-
-                income_row = cursor.fetchone()
+                income_row = None
+                try:
+                    cursor.execute("""
+                        SELECT total_revenue, gross_profit, operating_income, net_income, ebitda
+                        FROM annual_income_statement
+                        WHERE symbol = %s
+                        ORDER BY fiscal_date DESC
+                        LIMIT 1
+                    """, (symbol,))
+                    income_row = cursor.fetchone()
+                except Exception as e:
+                    logging.debug(f"Could not fetch income statement for {symbol}: {e}")
+                    conn.rollback()
 
                 # Create minimal ticker dict from available data
                 ticker_dict = {
