@@ -75,23 +75,28 @@ def get_db_connection(script_name="loader"):
                 port=int(sec.get("port", 5432)),
                 user=sec["username"],
                 password=sec["password"],
-                database=sec["dbname"]
+                database=sec["dbname"],
+                options='-c statement_timeout=300000'
             )
             logger.info(f"[{script_name}] ✅ Connected via AWS Secrets Manager")
             return conn
         except Exception as e:
             logger.warning(f"[{script_name}] AWS Secrets Manager failed ({type(e).__name__}): {e}")
             logger.warning(f"[{script_name}] Falling back to local connection methods...")
-    
+
     # Strategy 2: Try local socket connection (peer authentication)
     try:
         logger.info(f"[{script_name}] Attempting local socket connection...")
-        conn = psycopg2.connect(dbname=db_name, user=db_user)
+        conn = psycopg2.connect(
+            dbname=db_name,
+            user=db_user,
+            options='-c statement_timeout=300000'
+        )
         logger.info(f"[{script_name}] ✅ Connected via local socket")
         return conn
     except Exception as e:
         logger.debug(f"[{script_name}] Local socket failed: {e}")
-    
+
     # Strategy 3: Use environment variables
     try:
         logger.info(f"[{script_name}] Attempting environment variable connection...")
@@ -100,7 +105,8 @@ def get_db_connection(script_name="loader"):
             port=int(db_port),
             user=db_user,
             password=db_password,
-            database=db_name
+            database=db_name,
+            options='-c statement_timeout=300000'
         )
         logger.info(f"[{script_name}] ✅ Connected via environment variables")
         return conn
