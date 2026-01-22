@@ -422,99 +422,11 @@ def calculate_downside_volatility(prices):
     downside_vol = np.std(downside_returns) * np.sqrt(252) * 100
     return round(downside_vol, 2)
 
-def fetch_beta_from_database(conn, symbol):
-    """
-    Fetch beta from database (populated by loaddailycompanydata.py from yfinance).
-
-    Beta is pre-fetched from yfinance.ticker.info by the ingestion loader.
-    Uses a fresh cursor to isolate from main transaction to prevent abort cascades.
-    Returns None if not found - NO FALLBACK (real data only).
-    """
-    try:
-        # Use a fresh cursor for this operation to avoid transaction abort propagation
-        cur = conn.cursor()
-
-        # Try PRIMARY SOURCE: risk_metrics (where loaddailycompanydata populates beta)
-        try:
-            cur.execute("""
-                SELECT beta FROM risk_metrics
-                WHERE symbol = %s AND beta IS NOT NULL
-                ORDER BY date DESC LIMIT 1
-            """, (symbol,))
-            result = cur.fetchone()
-            if result:
-                cur.close()
-                return result[0]
-        except Exception as e:
-            # Ignore individual table errors - they don't abort main transaction due to try-except
-            logger.debug(f"Beta not in risk_metrics for {symbol}: {e}")
-            pass
-
-        # Try stability_metrics (where loadfactormetrics.py stores beta)
-        try:
-            cur.execute("""
-                SELECT beta FROM stability_metrics
-                WHERE symbol = %s AND beta IS NOT NULL
-                ORDER BY date DESC LIMIT 1
-            """, (symbol,))
-            result = cur.fetchone()
-            if result:
-                cur.close()
-                return result[0]
-        except Exception as e:
-            logger.debug(f"Beta not in stability_metrics for {symbol}: {e}")
-            pass
-
-        # Try key_metrics as backup
-        try:
-            cur.execute("""
-                SELECT beta FROM key_metrics
-                WHERE symbol = %s AND beta IS NOT NULL
-                ORDER BY date DESC LIMIT 1
-            """, (symbol,))
-            result = cur.fetchone()
-            if result:
-                cur.close()
-                return result[0]
-        except Exception as e:
-            logger.debug(f"Beta not in key_metrics for {symbol}: {e}")
-            pass
-
-        # Try quality_metrics as fallback
-        try:
-            cur.execute("""
-                SELECT beta FROM quality_metrics
-                WHERE symbol = %s AND beta IS NOT NULL
-                ORDER BY date DESC LIMIT 1
-            """, (symbol,))
-            result = cur.fetchone()
-            if result:
-                cur.close()
-                return result[0]
-        except Exception as e:
-            logger.debug(f"Beta not in quality_metrics for {symbol}: {e}")
-            pass
-
-        # Try financial_ratios as last resort
-        try:
-            cur.execute("""
-                SELECT beta FROM financial_ratios
-                WHERE symbol = %s AND beta IS NOT NULL
-                LIMIT 1
-            """, (symbol,))
-            result = cur.fetchone()
-            if result:
-                cur.close()
-                return result[0]
-        except Exception as e:
-            logger.debug(f"Beta not in financial_ratios for {symbol}: {e}")
-            pass
-
-        cur.close()
-        return None  # Return None - caller will use neutral 1.0 fallback
-    except Exception as e:
-        logger.debug(f"Could not fetch beta from database for {symbol}: {e}")
-        return None
+# DELETED: fetch_beta_from_database() function
+# REASON: Violated "NO FALLBACK, REAL THING ONLY" requirement
+# The function tried 5 table sources (risk_metrics, stability_metrics, key_metrics, quality_metrics, financial_ratios)
+# Beta now fetches ONLY from stability_metrics (line ~1850) with NO fallback to other tables
+# Returns None if data unavailable - no fake/fallback values
 
 def calculate_liquidity_risk(volume_avg_30d, current_price, shares_outstanding=None):
     """
@@ -1739,23 +1651,25 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         # - All percentile calculations work on 0-1 decimal format consistently
         # ============================================================
 
-        # 1. Get institutional + insider ownership from positioning_metrics table (REAL DATA SOURCE) - NO SILENT FAILURES
+        # 1. Get ALL positioning metrics from positioning_metrics table (REAL DATA SOURCE ONLY) - NO SILENT FAILURES
         try:
             cur.execute("""
                 SELECT
                     institutional_ownership_pct,
                     insider_ownership_pct,
-                    institutional_holders_count
+                    institutional_holders_count,
+                    short_interest_pct
                 FROM positioning_metrics
                 WHERE symbol = %s
                 LIMIT 1
             """, (symbol,))
             pos_data = cur.fetchone()
             if pos_data:
-                # positioning_metrics stores values as DECIMAL (0-1) - not percentages
+                # positioning_metrics stores ALL values as DECIMAL (0-1) - not percentages
                 institutional_ownership = to_float(pos_data[0])
                 insider_ownership = to_float(pos_data[1])
                 institution_count = int(pos_data[2]) if pos_data[2] is not None else None
+                short_percent_of_float = to_float(pos_data[3])  # Already in 0-1 decimal format
 
                 # REAL DATA ONLY - if values are None, they stay None (no fake defaults)
                 if institutional_ownership is not None and (institutional_ownership < 0 or institutional_ownership > 1):
@@ -1764,39 +1678,21 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 if insider_ownership is not None and (insider_ownership < 0 or insider_ownership > 1):
                     logger.warning(f"{symbol}: insider_ownership {insider_ownership} outside 0-1 range, skipping")
                     insider_ownership = None
+                if short_percent_of_float is not None and (short_percent_of_float < 0 or short_percent_of_float > 1):
+                    logger.warning(f"{symbol}: short_interest_pct {short_percent_of_float} outside 0-1 range, skipping")
+                    short_percent_of_float = None
             else:
                 # No positioning_metrics data available - return None (REAL DATA ONLY)
                 institutional_ownership = None
                 insider_ownership = None
                 institution_count = None
+                short_percent_of_float = None
         except psycopg2.Error as e:
             conn.rollback()
             logger.error(f"❌ POSITIONING_METRICS QUERY FAILED for {symbol}: {str(e)[:100]}")  # ✅ VISIBLE ERROR
             institutional_ownership = None
             insider_ownership = None
             institution_count = None
-
-        # 3. Get short interest from key_metrics table (stored as decimal 0-1, convert to percentage) - NO SILENT FAILURES
-        try:
-            cur.execute("""
-                SELECT short_percent_of_float FROM key_metrics WHERE ticker = %s
-            """, (symbol,))
-            short_data = cur.fetchone()
-            if short_data and short_data[0] is not None:
-                # positioning_metrics.short_percent_of_float is stored as DECIMAL (0-1)
-                raw_value = to_float(short_data[0])
-                # Normalize to 0-100 percentage scale
-                # Values should be 0-1 (0% to 100%), multiply by 100 to get percentage form
-                if raw_value > 1.5:  # Clearly already a percentage (e.g., 50 = 50%)
-                    short_percent_of_float = raw_value
-                elif raw_value > 1.0:  # Ambiguous (could be 1.5% or 150% - but short interest max is ~100%)
-                    # Cap at 100% since short interest cannot exceed 100% of float
-                    short_percent_of_float = min(raw_value, 100.0)
-                else:  # 0-1 form (most common), convert to percentage
-                    short_percent_of_float = raw_value * 100
-        except psycopg2.Error as e:
-            conn.rollback()
-            logger.error(f"❌ SHORT INTEREST QUERY FAILED for {symbol}: {str(e)[:100]}")  # ✅ VISIBLE ERROR
             short_percent_of_float = None
 
         # ============================================================
