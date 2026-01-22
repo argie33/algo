@@ -1316,9 +1316,13 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     df['Signal'] = signals
     df['inPosition'] = positions  # Use actual position states
 
-    # === Simplified signal strength and type (just based on signal type) ===
+    # === Calculate signal strength (REAL DATA ONLY - None for no signal, not fake 0.0) ===
     df['signal_type'] = df['Signal']
-    df['strength'] = df['Signal'].apply(lambda x: 1.0 if x == 'Buy' else (0.5 if x == 'Sell' else 0.0))
+    strengths = []
+    for i in range(len(df)):
+        strength = calculate_signal_strength(df, i)
+        strengths.append(strength)
+    df['strength'] = strengths
 
     # === CALCULATE MISSING FIELDS (match daily loader) ===
     # initial_stop = stopLevel
