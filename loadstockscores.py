@@ -227,21 +227,38 @@ def calculate_composite_score(scores):
     """Calculate weighted composite score from factor scores
 
     NOTE: sentiment_score is excluded from composite calculation (available separately only).
+    CRITICAL: Uses SAME WEIGHTS as main loop (line 3582-3588) for consistency
     The 6 core factor scores are weighted to sum to 1.0:
     """
     try:
         if not scores or all(v is None for v in scores.values()):
             return None
-        # Weight factors - SENTIMENT EXCLUDED (kept separate, not in composite)
+        # Weight factors - MUST MATCH main loop (line 3582-3588) for consistency
+        # SENTIMENT EXCLUDED (kept separate, not in composite)
         weights = {
-            'momentum': 0.22,
-            'growth': 0.20,
-            'value': 0.16,
-            'quality': 0.16,
-            'stability': 0.15,
-            'positioning': 0.11
+            'momentum': 0.1200,      # 12.00%
+            'growth': 0.1800,        # 18.00%
+            'value': 0.1800,         # 18.00%
+            'quality': 0.2500,       # 25.00% PRIMARY
+            'stability': 0.1600,     # 16.00%
+            'positioning': 0.1100    # 11.00%
+            # TOTAL: 1.0000 (100.00%)
         }
-        composite = sum(scores.get(k, 0) * v for k, v in weights.items() if scores.get(k) is not None)
+
+        # Calculate weighted sum only for factors present
+        weighted_sum = 0
+        total_weight = 0
+        for k, v in weights.items():
+            if scores.get(k) is not None:
+                weighted_sum += scores[k] * v
+                total_weight += v
+
+        # If we have data, normalize by available weight
+        if total_weight > 0:
+            composite = weighted_sum
+        else:
+            return None
+
         return float(max(0, min(100, composite)))
     except Exception as e:
         logger.debug(f"Composite score calculation error: {e}")
