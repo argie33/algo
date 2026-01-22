@@ -1025,19 +1025,46 @@ jobs:
               TASK_DEF_NAME=$(echo "$LOADER_NAME" | sed 's/./\U&/' | sed 's/.*/\L&/' | sed 's/^./\U&/')TaskDefArn
               ;;
           esac
-          TASK_DEF_ARN=$(aws cloudformation describe-stacks \
-            --stack-name stocks-ecs-tasks-stack \
-            --query "Stacks[0].Outputs[?OutputKey=='${TASK_DEF_NAME}'].OutputValue" \
+
+          # Wait for CloudFormation stack to complete (max 5 minutes)
+          echo "⏳ Waiting for CloudFormation stack to reach CREATE_COMPLETE..."
+          for i in {1..30}; do
+            STACK_STATUS=$(aws cloudformation describe-stacks \
+              --stack-name stocks-ecs-tasks-stack \
+              --query 'Stacks[0].StackStatus' \
+              --output text)
+            if [[ "$STACK_STATUS" == "CREATE_COMPLETE" ]]; then
+              echo "✅ Stack ready"
+              break
+            elif [[ "$STACK_STATUS" == *"FAILED"* ]]; then
+              echo "❌ Stack creation failed: $STACK_STATUS"
+              exit 1
+            else
+              echo "  Status: $STACK_STATUS (attempt $i/30)"
+              sleep 10
+            fi
+          done
+
+          # Get task definition ARN from CloudFormation exports
+          TASK_DEF_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='${TASK_DEF_NAME}'].Value" \
             --output text)
+
+          # Fallback: If exports not yet available, try stack outputs
+          if [[ -z "$TASK_DEF_ARN" || "$TASK_DEF_ARN" == "None" ]]; then
+            TASK_DEF_ARN=$(aws cloudformation describe-stacks \
+              --stack-name stocks-ecs-tasks-stack \
+              --query "Stacks[0].Outputs[?OutputKey=='${TASK_DEF_NAME}'].OutputValue" \
+              --output text)
+          fi
 
           # Validate task definition exists
           if [[ -z "$TASK_DEF_ARN" || "$TASK_DEF_ARN" == "None" ]]; then
-            echo "❌ No task definition found for ${{ matrix.loader }} (looking for output: $TASK_DEF_NAME)"
-            echo "Available task definitions in CloudFormation:"
-            aws cloudformation describe-stacks \
-              --stack-name stocks-ecs-tasks-stack \
-              --query "Stacks[0].Outputs[?contains(OutputKey, 'TaskDefArn')].OutputKey" \
-              --output text
+            echo "❌ No task definition found for ${{ matrix.loader }} (looking for: $TASK_DEF_NAME)"
+            echo "Available CloudFormation exports containing 'TaskDefArn':"
+            aws cloudformation list-exports \
+              --query "Exports[?contains(Name, 'TaskDefArn')].Name" \
+              --output text || echo "  (none yet - stack may still be creating)"
             exit 1
           fi
           
