@@ -111,7 +111,7 @@ def load_prices(table_name, symbols, cur, conn):
     logging.info(f"Loading {table_name}: {total} symbols")
     inserted, failed = 0, []
     timeout_failures = []  # Track timeouts separately for end-of-load retry
-    CHUNK_SIZE, PAUSE = 1, 2.5  # Single symbol at a time with 3.5s pause - balance between speed and rate limits
+    CHUNK_SIZE, PAUSE = 1, 0.5  # Single symbol at a time with 0.5s pause - optimized for speed while respecting rate limits
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     # Skip if no symbols to load
@@ -334,17 +334,7 @@ def load_prices(table_name, symbols, cur, conn):
                                 0.0  if ("stock splits" not in row or math.isnan(row["stock splits"])) else float(row["stock splits"])
                             ])
                         if rows:
-                            sql = f"""INSERT INTO {table_name} ({COL_LIST}) VALUES %s
-                                ON CONFLICT (symbol, date) DO UPDATE SET
-                                open = EXCLUDED.open,
-                                high = EXCLUDED.high,
-                                low = EXCLUDED.low,
-                                close = EXCLUDED.close,
-                                adj_close = EXCLUDED.adj_close,
-                                volume = EXCLUDED.volume,
-                                dividends = EXCLUDED.dividends,
-                                stock_splits = EXCLUDED.stock_splits
-                            """
+                            sql = f"INSERT INTO {table_name} ({COL_LIST}) VALUES %s ON CONFLICT (symbol, date) DO UPDATE SET open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low, close = EXCLUDED.close, adj_close = EXCLUDED.adj_close, volume = EXCLUDED.volume, dividends = EXCLUDED.dividends, stock_splits = EXCLUDED.stock_splits"
                             execute_values(cur, sql, rows)
                             conn.commit()
                             inserted += len(rows)
@@ -427,6 +417,9 @@ if __name__ == "__main__":
     # Create index for efficient lookups
     cur.execute("CREATE INDEX IF NOT EXISTS idx_price_daily_symbol ON price_daily(symbol);")
 
+    # Create unique constraint for ON CONFLICT upserts
+    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_price_daily_symbol_date ON price_daily(symbol, date);")
+
     logging.info("Ensuring etf_price_daily table exists…")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS etf_price_daily (
@@ -447,6 +440,9 @@ if __name__ == "__main__":
 
     # Create index for efficient lookups
     cur.execute("CREATE INDEX IF NOT EXISTS idx_etf_price_daily_symbol ON etf_price_daily(symbol);")
+
+    # Create unique constraint for ON CONFLICT upserts
+    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_etf_price_daily_symbol_date ON etf_price_daily(symbol, date);")
 
     conn.commit()
 

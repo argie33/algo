@@ -261,6 +261,7 @@ if __name__ == "__main__":
         );
     """)
     cur.execute("CREATE INDEX IF NOT EXISTS idx_etf_price_weekly_symbol ON etf_price_weekly(symbol);")
+    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_etf_price_weekly_symbol_date ON etf_price_weekly(symbol, date);")
     conn.commit()
 
     # Load ETF symbols from etf_symbols table

@@ -138,7 +138,7 @@ def load_prices(table_name, symbols, cur, conn):
     logging.info(f"Loading {table_name}: {total} symbols")
     inserted, failed = 0, []
     timeout_failures = []  # Track timeouts separately for end-of-load retry
-    CHUNK_SIZE, PAUSE = 1, 2.5  # Single symbol, 3.5s pause to avoid rate limits
+    CHUNK_SIZE, PAUSE = 1, 0.5  # Single symbol, 0.5s pause - optimized for speed
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     for batch_idx in range(batches):
@@ -373,6 +373,7 @@ if __name__ == "__main__":
                 );
             """)
             cur.execute("CREATE INDEX IF NOT EXISTS idx_price_monthly_symbol ON price_monthly(symbol);")
+            cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_price_monthly_symbol_date ON price_monthly(symbol, date);")
             logging.info("✅ price_monthly table ready")
             conn.commit()
         except Exception as e:

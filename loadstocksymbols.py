@@ -161,6 +161,8 @@ PATTERNS = [
     r"\bspac\b",
     r"\bspecial purpose\b",
     r"\binvestment corp\b",
+    # Low-quality/shell company filters (keep legit foreign companies like BABA)
+    r"\bAardvark\b",  # Aardvark Therapeutics - micro-cap shell
 ]
 
 
@@ -179,6 +181,11 @@ def parse_nasdaq(text: str):
         name = r.get("Security Name", "").strip()
         # skip ETFs here
         if r.get("ETF", "").upper() == "Y" or should_exclude(name):
+            continue
+        # Skip test issues and deficient financial status
+        if r.get("Test Issue", "").upper() == "Y":
+            continue
+        if r.get("Financial Status", "").strip() == "D":
             continue
         try:
             lot = int(r.get("Round Lot Size") or 0)
@@ -249,6 +256,11 @@ def parse_other(text: str):
         name = r.get("Security Name", "").strip()
         # skip ETFs here
         if r.get("ETF", "").upper() == "Y" or should_exclude(name):
+            continue
+        # Skip test issues and deficient financial status
+        if r.get("Test Issue", "").upper() == "Y":
+            continue
+        if r.get("Financial Status", "").strip() == "D":
             continue
         try:
             lot = int(r.get("Round Lot Size") or 0)
