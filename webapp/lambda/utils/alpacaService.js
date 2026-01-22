@@ -86,6 +86,11 @@ class AlpacaService {
       };
     } catch (error) {
       console.error("Alpaca account fetch error:", error.message);
+      // Check if it's a 401 (authentication failure)
+      if (error.status === 401 || error.message.includes('401') || error.message.includes('Unauthorized')) {
+        console.error("⚠️ CRITICAL: Alpaca API returned 401 Unauthorized - API credentials may be invalid or expired");
+        console.error("⚠️ Please verify ALPACA_API_KEY and ALPACA_API_SECRET in environment variables");
+      }
       throw new Error(`Failed to fetch account information: ${error.message}`);
     }
   }
@@ -123,6 +128,11 @@ class AlpacaService {
       }));
     } catch (error) {
       console.error("Alpaca positions fetch error:", error.message);
+      // Check if it's a 401 (authentication failure)
+      if (error.status === 401 || error.message.includes('401') || error.message.includes('Unauthorized')) {
+        console.error("⚠️ CRITICAL: Alpaca API returned 401 Unauthorized - API credentials may be invalid or expired");
+        console.error("⚠️ Please verify ALPACA_API_KEY and ALPACA_API_SECRET in environment variables");
+      }
       throw new Error(`Failed to fetch positions: ${error.message}`);
     }
   }

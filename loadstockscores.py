@@ -1218,6 +1218,50 @@ def fetch_all_value_metrics(conn):
         # FCF Yield REMOVED - can't reliably calculate without market_cap data
         # metrics['fcf_yield'] = []  # Removed from value calculation
 
+        # ENHANCEMENT: Also collect calculated PEG ratios from forward earnings estimates
+        # This increases PEG ratio distribution coverage significantly
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT
+                    ee.symbol,
+                    km.trailing_pe,
+                    ee.avg_estimate as forward_eps,
+                    ee.growth
+                FROM earnings_estimates ee
+                LEFT JOIN key_metrics km ON ee.symbol = km.ticker
+                WHERE ee.period = '+1y'
+                  AND ee.avg_estimate IS NOT NULL
+                  AND ee.avg_estimate > 0
+                  AND (km.peg_ratio IS NULL OR km.peg_ratio <= 0)
+                  AND km.trailing_pe IS NOT NULL
+                  AND km.trailing_pe > 0
+                ORDER BY ee.fetched_at DESC
+            """)
+
+            peg_rows = cur.fetchall()
+            calculated_peg_count = 0
+            for row in peg_rows:
+                symbol, trailing_pe, forward_eps, growth = row
+                try:
+                    if growth is not None and float(growth) > 0:
+                        # growth in earnings_estimates is already in decimal (0.05 = 5%)
+                        # convert to percentage
+                        growth_pct = float(growth) * 100
+                        peg_calc = float(trailing_pe) / growth_pct
+                        if peg_calc > 0 and peg_calc < 500:
+                            metrics['peg'].append(peg_calc)
+                            calculated_peg_count += 1
+                except:
+                    pass
+
+            if calculated_peg_count > 0:
+                logger.info(f"   📈 Added {calculated_peg_count} calculated PEG ratios from earnings estimates")
+
+            cur.close()
+        except Exception as e:
+            logger.debug(f"Note: Could not fetch calculated PEG ratios from earnings_estimates: {e}")
+
         # Apply winsorization to ALL value metrics (1-99 percentile)
         # Critical for handling extreme P/E ratios (e.g., P/E=8249, P/B=-10260)
         for key in metrics.keys():
@@ -2814,6 +2858,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                     try:
                         price_val = float(current_price)
                         if price_val > 0:
+                            # Try dividend_rate first, then last_annual_dividend_amt
                             annual_div = dividend_rate if dividend_rate is not None else last_annual_dividend_amt
                             if annual_div is not None:
                                 div_val = float(annual_div)
@@ -2822,6 +2867,49 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                                     logger.debug(f"{symbol}: Calculated dividend_yield={dividend_yield_val:.2f}% from div={div_val:.2f} / price={price_val:.2f}")
                     except (ValueError, TypeError, decimal.InvalidOperation):
                         pass
+
+                # FETCH FORWARD EARNINGS ESTIMATES for PEG and Forward P/E calculation
+                # This provides 80%+ coverage for forward-looking metrics
+                forward_eps_estimate = None
+                analyst_growth_rate = None
+                try:
+                    # Get next fiscal year estimate ('+1y' period)
+                    cur.execute("""
+                        SELECT avg_estimate, growth
+                        FROM earnings_estimates
+                        WHERE symbol = %s AND period = '+1y'
+                        ORDER BY fetched_at DESC
+                        LIMIT 1
+                    """, (symbol,))
+
+                    ee_row = cur.fetchone()
+                    if ee_row:
+                        forward_eps_estimate = to_float(ee_row[0])
+                        analyst_growth_rate = to_float(ee_row[1])
+
+                        # Convert growth percentage to decimal (e.g., -0.3786 = -37.86%)
+                        if analyst_growth_rate is not None:
+                            analyst_growth_rate = analyst_growth_rate * 100  # Convert to percentage
+                            logger.debug(f"{symbol}: Analyst forecast - FWD EPS={forward_eps_estimate}, Growth={analyst_growth_rate:.2f}%")
+                except Exception as e:
+                    logger.debug(f"{symbol}: Error fetching forward earnings: {e}")
+
+                # CALCULATE FORWARD P/E if missing
+                # Forward P/E = Current Price / Forward EPS
+                if forward_pe is None and forward_eps_estimate is not None and current_price is not None:
+                    try:
+                        price_val = float(current_price)
+                        eps_val = float(forward_eps_estimate)
+                        if price_val > 0 and eps_val > 0:
+                            forward_pe = price_val / eps_val
+                            logger.debug(f"{symbol}: Calculated forward_pe={forward_pe:.2f} from price={price_val:.2f} / fwd_eps={eps_val:.4f}")
+                    except (ValueError, TypeError, decimal.InvalidOperation):
+                        pass
+
+                # USE ANALYST GROWTH for PEG calculation if earnings_growth_pct not available
+                if earnings_growth_pct is None and analyst_growth_rate is not None and analyst_growth_rate > 0:
+                    earnings_growth_pct = analyst_growth_rate
+                    logger.debug(f"{symbol}: Using analyst growth rate={earnings_growth_pct:.2f}% for PEG calculation")
 
                 # FCF Yield REMOVED completely
 

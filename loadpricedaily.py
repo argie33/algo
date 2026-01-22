@@ -184,15 +184,20 @@ def load_prices(table_name, symbols, cur, conn):
                     except Exception as e:
                         error_msg = str(e)
                         last_error = error_msg
+                        # Calculate exponential backoff delay (2^attempt seconds, max 60s)
+                        exp_backoff_delay = min(2 ** (sym_attempt - 1), 60)
+
                         # Check if it's a rate limit error
                         if "Too Many Requests" in error_msg or "Rate limit" in error_msg or "YFRateLimit" in str(type(e).__name__):
                             # Use aggressive delay for rate limits
                             delay = RATE_LIMIT_BASE_DELAY
                             logging.warning(f"{table_name} — {orig_sym}: rate limited (attempt {sym_attempt}/{MAX_SYMBOL_RETRIES}), waiting {delay}s")
                             time.sleep(delay)
-                        elif "Timeout" in error_msg:
-                            logging.warning(f"{table_name} — {orig_sym}: timeout (attempt {sym_attempt}/{MAX_SYMBOL_RETRIES})")
-                            time.sleep(5)
+                        elif "Timeout" in error_msg or "timed out" in error_msg.lower() or "connection" in error_msg.lower():
+                            # Use exponential backoff for timeout errors
+                            logging.warning(f"{table_name} — {orig_sym}: timeout (attempt {sym_attempt}/{MAX_SYMBOL_RETRIES}), exponential backoff: {exp_backoff_delay}s")
+                            if sym_attempt < MAX_SYMBOL_RETRIES:
+                                time.sleep(exp_backoff_delay)
                         elif "Period" in error_msg and "invalid" in error_msg:
                             logging.error(f"{table_name} — {orig_sym}: invalid period (test symbol) - skipping")
                             break
@@ -202,7 +207,7 @@ def load_prices(table_name, symbols, cur, conn):
                         else:
                             logging.warning(f"{table_name} — {orig_sym}: error (attempt {sym_attempt}/{MAX_SYMBOL_RETRIES}): {e}")
                             if sym_attempt < MAX_SYMBOL_RETRIES:
-                                time.sleep(2)
+                                time.sleep(exp_backoff_delay)
 
                 if not symbol_success:
                     # Track timeout failures separately for end-of-load retry
