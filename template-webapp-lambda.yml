@@ -31,6 +31,8 @@ Globals:
         COGNITO_USER_POOL_ID: !Ref UserPool
         COGNITO_CLIENT_ID: !Ref UserPoolClient
         WEBAPP_AWS_REGION: !Ref AWS::Region
+        DB_STATEMENT_TIMEOUT: '300000'
+        DB_QUERY_TIMEOUT: '280000'
 
 Resources:
   # Cognito User Pool for authentication
