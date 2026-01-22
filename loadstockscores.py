@@ -104,15 +104,31 @@ def calculate_rsi(prices, period=14):
         logger.debug(f"RSI calculation error: {e}")
         return None
 
-def calculate_macd(prices, fast=12, slow=26):
-    """Calculate MACD (Moving Average Convergence Divergence)"""
+def calculate_macd(prices, fast=12, slow=26, signal=9):
+    """Calculate MACD (Moving Average Convergence Divergence) using proper EMA"""
     try:
         if prices is None or len(prices) < slow:
             return None
 
         prices = np.array(prices, dtype=float)
-        ema_fast = prices[-fast:].mean()  # Simplified EMA
-        ema_slow = prices[-slow:].mean()  # Simplified EMA
+
+        # Calculate true EMA (Exponential Moving Average)
+        # EMA = previous_ema * (1 - multiplier) + current_price * multiplier
+        # multiplier = 2 / (period + 1)
+        ema_fast_mult = 2 / (fast + 1)
+        ema_slow_mult = 2 / (slow + 1)
+
+        # Initialize with SMA as first EMA value
+        ema_fast = prices[:fast].mean()
+        ema_slow = prices[:slow].mean()
+
+        # Calculate exponential moving averages
+        for price in prices[fast:]:
+            ema_fast = ema_fast * (1 - ema_fast_mult) + price * ema_fast_mult
+
+        for price in prices[slow:]:
+            ema_slow = ema_slow * (1 - ema_slow_mult) + price * ema_slow_mult
+
         macd = ema_fast - ema_slow
         return float(macd) if macd else None
     except Exception as e:
@@ -1030,9 +1046,9 @@ def fetch_all_growth_metrics(conn):
                 metrics['ocf_growth'].append(float(ocf_growth))
 
             # Calculate sustainable growth rate: ROE × (1 - payout_ratio)
+            # Allow payout_ratio > 1.0 for accurate SGR (negative SGR for shrinking companies)
             if roe is not None and payout is not None:
-                # If payout_ratio is > 1 (payout > 100%), cap it at 1
-                payout_ratio = min(float(payout), 1.0)
+                payout_ratio = float(payout)
                 sustainable_growth = float(roe) * (1 - payout_ratio)
                 metrics['sustainable_growth'].append(sustainable_growth)
 
@@ -1518,8 +1534,13 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                     roc_60d = ((prices[-1] - prices[-61]) / prices[-61]) * 100
                 if len(df) >= 121:
                     roc_120d = ((prices[-1] - prices[-121]) / prices[-121]) * 100
+                # ROC_252d requires 252 trading days (~1 year) - not always available
+                # Use roc_120d (6 months) as proxy when full year not available
                 if len(df) >= 253:
                     roc_252d = ((prices[-1] - prices[-253]) / prices[-253]) * 100
+                elif len(df) >= 121 and roc_120d is not None:
+                    # Use 120d ROC when 252d not available (better than NULL)
+                    roc_252d = roc_120d
 
         # Get dual momentum metrics from momentum_metrics table (optional - handle gracefully if table doesn't exist)
         momentum_12_3 = None
@@ -1759,13 +1780,16 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             """, (symbol,))
             short_data = cur.fetchone()
             if short_data and short_data[0] is not None:
-                # key_metrics.short_percent_of_float is stored as DECIMAL (0-1), MULTIPLY BY 100 to normalize to 0-100 scale
+                # positioning_metrics.short_percent_of_float is stored as DECIMAL (0-1)
                 raw_value = to_float(short_data[0])
-                # Detect and normalize scale if needed
-                if raw_value > 1:  # Already in percentage form (0-100)
+                # Normalize to 0-100 percentage scale
+                # Values should be 0-1 (0% to 100%), multiply by 100 to get percentage form
+                if raw_value > 1.5:  # Clearly already a percentage (e.g., 50 = 50%)
                     short_percent_of_float = raw_value
-                    logger.debug(f"{symbol}: short interest already in 0-100 scale: {raw_value}")
-                else:  # 0-1 form, convert to percentage
+                elif raw_value > 1.0:  # Ambiguous (could be 1.5% or 150% - but short interest max is ~100%)
+                    # Cap at 100% since short interest cannot exceed 100% of float
+                    short_percent_of_float = min(raw_value, 100.0)
+                else:  # 0-1 form (most common), convert to percentage
                     short_percent_of_float = raw_value * 100
         except psycopg2.Error as e:
             conn.rollback()
@@ -2173,8 +2197,10 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 stock_payout_ratio = float(payout) if payout is not None else None
 
                 # Calculate sustainable growth rate: ROE × (1 - payout_ratio)
+                # NOTE: payout_ratio can exceed 1.0 (100%) if company pays out > 100% of earnings
+                # This results in negative SGR (shrinking company), which is mathematically correct
                 if roe_for_growth is not None and payout is not None:
-                    payout_ratio = min(float(payout), 1.0)  # Cap at 1.0
+                    payout_ratio = float(payout)  # Allow values > 1.0 for accurate SGR calculation
                     stock_sustainable_growth = float(roe_for_growth) * (1 - payout_ratio)
         except psycopg2.Error as e:
             conn.rollback()
@@ -2920,9 +2946,9 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                             value_score = calculate_z_score_normalized(aggregated_value, value_metrics['aggregated_value'])
                         else:
                             # Fallback: use aggregated value directly (already 0-100 from input percentiles)
-                            # Cap at 95 to avoid artificial 100 ceiling (reserves 100 for truly exceptional cases)
-                            # This prevents high-percentile stocks from all clustering at 100
-                            value_score = max(0, min(95, aggregated_value))
+                            # Use full 0-100 scale range - no artificial capping at 95
+                            # This maintains proper distribution and scale contract
+                            value_score = max(0, min(100, aggregated_value))
                         logger.debug(f"{symbol} Value Score: {value_score:.2f} (SINGLE LEVEL NORMALIZATION - {len(value_components)} components)")
                     else:
                         value_score = None
