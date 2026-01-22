@@ -54,7 +54,7 @@ router.get("/daily", async (req, res) => {
     const total = countResult.rows[0]?.count || 0;
 
     const result = await query(
-      sql + ` ORDER BY trading_date DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      sql + ` ORDER BY date DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
       [...params, limit, offset]
     );
 
@@ -103,7 +103,7 @@ router.get("/weekly", async (req, res) => {
     const total = countResult.rows[0]?.count || 0;
 
     const result = await query(
-      sql + ` ORDER BY trading_date DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      sql + ` ORDER BY date DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
       [...params, limit, offset]
     );
 
@@ -143,7 +143,7 @@ router.get("/monthly", async (req, res) => {
     const total = countResult.rows[0]?.count || 0;
 
     const result = await query(
-      sql + ` ORDER BY trading_date DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      sql + ` ORDER BY date DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
       [...params, limit, offset]
     );
 
