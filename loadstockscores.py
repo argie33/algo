@@ -2528,12 +2528,12 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 """)
                 for row in cur.fetchall():
                     if row[0] is not None:
-                        all_price_vs_52w.append(float(row[0]))
+                        all_price_vs_52w.append(to_float(row[0]))
         except Exception as e:
             logger.debug(f"{symbol}: Could not fetch price_vs_52w distribution: {e}")
 
         if price_vs_52w_high is not None and len(all_price_vs_52w) > 100:
-            price_vs_52w_percentile = calculate_z_score_normalized(float(price_vs_52w_high), all_price_vs_52w)
+            price_vs_52w_percentile = calculate_z_score_normalized(to_float(price_vs_52w_high), all_price_vs_52w)
             if price_vs_52w_percentile is not None:
                 momentum_components.append(price_vs_52w_percentile)
                 momentum_weights.append(0.17)  # 17% weight for recovery potential
