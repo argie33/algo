@@ -208,19 +208,22 @@ def calculate_momentum_score(rsi, macd):
         return None
 
 def calculate_composite_score(scores):
-    """Calculate weighted composite score from factor scores"""
+    """Calculate weighted composite score from factor scores
+
+    NOTE: sentiment_score is excluded from composite calculation (available separately only).
+    The 6 core factor scores are weighted to sum to 1.0:
+    """
     try:
         if not scores or all(v is None for v in scores.values()):
             return None
-        # Weight factors
+        # Weight factors - SENTIMENT EXCLUDED (kept separate, not in composite)
         weights = {
             'momentum': 0.22,
             'growth': 0.20,
             'value': 0.16,
             'quality': 0.16,
             'stability': 0.15,
-            'positioning': 0.12,
-            'sentiment': 0.05
+            'positioning': 0.11
         }
         composite = sum(scores.get(k, 0) * v for k, v in weights.items() if scores.get(k) is not None)
         return float(max(0, min(100, composite)))
