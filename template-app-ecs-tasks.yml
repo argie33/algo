@@ -2713,7 +2713,7 @@ Resources:
       ServiceName: factormetrics-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref FactormetricsTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2779,7 +2779,7 @@ Resources:
       ServiceName: quality-metrics-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref QualityMetricsTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2845,7 +2845,7 @@ Resources:
       ServiceName: growth-metrics-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref GrowthMetricsTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2910,7 +2910,7 @@ Resources:
       ServiceName: value-metrics-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref ValueMetricsTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -2969,7 +2969,7 @@ Resources:
       ServiceName: stock-scores-service
       Cluster: !ImportValue StocksApp-ClusterArn
       LaunchType: FARGATE
-      DesiredCount: 1
+      DesiredCount: 0
       TaskDefinition: !Ref StockScoresTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -3310,7 +3310,7 @@ Resources:
       ServiceName: sectors-loader
       Cluster: !ImportValue StocksApp-ClusterArn
       TaskDefinition: !Ref SectorsTaskDefinition
-      DesiredCount: 1
+      DesiredCount: 0
       LaunchType: FARGATE
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -3370,7 +3370,7 @@ Resources:
       ServiceName: positioning-loader
       Cluster: !ImportValue StocksApp-ClusterArn
       TaskDefinition: !Ref PositioningTaskDefinition
-      DesiredCount: 1
+      DesiredCount: 0
       LaunchType: FARGATE
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -3430,7 +3430,7 @@ Resources:
       ServiceName: momentum-loader
       Cluster: !ImportValue StocksApp-ClusterArn
       TaskDefinition: !Ref MomentumTaskDefinition
-      DesiredCount: 1
+      DesiredCount: 0
       LaunchType: FARGATE
       NetworkConfiguration:
         AwsvpcConfiguration:
