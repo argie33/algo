@@ -655,41 +655,36 @@ def get_earnings_surprise_metrics(cursor, symbol: str) -> Dict:
 
 
 def get_earnings_beat_rate(cursor, symbol: str) -> Optional[float]:
-    """Calculate earnings beat rate - % of quarters beating estimates"""
+    """Calculate earnings beat rate - % of quarters beating estimates (REAL DATA)"""
     try:
-        # Get actual quarterly EPS
+        # REAL DATA: Use earnings_history table which has actual vs estimated EPS
         cursor.execute("""
-            SELECT date, eps FROM quarterly_income_statement
-            WHERE symbol = %s AND eps IS NOT NULL
-            ORDER BY date DESC
+            SELECT quarter, eps_actual, eps_estimate
+            FROM earnings_history
+            WHERE symbol = %s
+              AND eps_actual IS NOT NULL
+              AND eps_estimate IS NOT NULL
+            ORDER BY quarter DESC
             LIMIT 8
         """, (symbol,))
 
-        actual_data = cursor.fetchall()
-        if not actual_data or len(actual_data) < 2:
+        earnings_data = cursor.fetchall()
+        if not earnings_data or len(earnings_data) < 2:
             return None
 
-        # Get estimate data (using avg_estimate from earnings_estimates)
-        cursor.execute("""
-            SELECT period, avg_estimate FROM earnings_estimates
-            WHERE symbol = %s AND avg_estimate IS NOT NULL
-            ORDER BY fetched_at DESC
-            LIMIT 1
-        """, (symbol,))
-
-        est_row = cursor.fetchone()
-        if not est_row:
-            return None
-
-        # Simple beat rate: if we have actual EPS > historical average, count as beat
-        # This is a simplified version using available data
+        # Count beats: actual >= estimate (real comparison, not fake)
         beat_count = 0
-        for actual_eps, actual_date in [(row[1], row[0]) for row in actual_data]:
-            if actual_eps and float(actual_eps) > 0:
-                beat_count += 1
+        for quarter, actual, estimate in earnings_data:
+            try:
+                actual_val = float(actual)
+                estimate_val = float(estimate)
+                if estimate_val != 0 and actual_val >= estimate_val:
+                    beat_count += 1
+            except (ValueError, TypeError):
+                pass
 
-        if actual_data:
-            return (float(beat_count) / len(actual_data)) * 100
+        if earnings_data:
+            return (float(beat_count) / len(earnings_data)) * 100
 
     except Exception as e:
         logging.debug(f"Could not calculate earnings beat rate for {symbol}: {e}")
@@ -726,28 +721,24 @@ def get_consecutive_positive_quarters(cursor, symbol: str) -> Optional[int]:
 
 
 def get_surprise_consistency(cursor, symbol: str) -> Optional[float]:
-    """Calculate consistency of earnings surprises (std dev of EPS volatility)"""
+    """Calculate consistency of earnings surprises (std dev of actual vs estimate surprise % - REAL DATA)"""
     try:
+        # REAL DATA: Use actual vs estimate surprises from earnings_history
         cursor.execute("""
-            SELECT eps FROM quarterly_income_statement
-            WHERE symbol = %s AND eps IS NOT NULL
-            ORDER BY date DESC
+            SELECT surprise_percent FROM earnings_history
+            WHERE symbol = %s AND surprise_percent IS NOT NULL
+            ORDER BY quarter DESC
             LIMIT 8
         """, (symbol,))
 
-        eps_values = [row[0] for row in cursor.fetchall()]
-        if len(eps_values) < 4:
+        surprise_values = [float(row[0]) for row in cursor.fetchall()]
+        if len(surprise_values) < 4:
             return None
 
-        # Calculate quarter-over-quarter changes (surprise proxy)
-        changes = []
-        for i in range(len(eps_values) - 1):
-            if eps_values[i+1] is not None and float(eps_values[i+1]) != 0:
-                change = ((float(eps_values[i]) - float(eps_values[i+1])) / abs(float(eps_values[i+1]))) * 100
-                changes.append(change)
-
-        if len(changes) >= 2:
-            return float(np.std(changes))
+        # Calculate consistency: std deviation of actual surprise percentages
+        # Higher std = less consistent surprises, Lower std = more consistent
+        if len(surprise_values) >= 2:
+            return float(np.std(surprise_values))
     except Exception as e:
         logging.debug(f"Could not calculate surprise consistency for {symbol}: {e}")
 

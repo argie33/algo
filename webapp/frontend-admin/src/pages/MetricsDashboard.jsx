@@ -30,6 +30,7 @@ import {
 } from "@mui/material";
 import {
   TrendingUp,
+  TrendingDown,
   Info,
   Assessment,
   AttachMoney,
@@ -45,6 +46,7 @@ const MetricsDashboard = () => {
   const [stocks, setStocks] = useState([]);
   const [sectors, setSectors] = useState([]);
   const [topStocks, setTopStocks] = useState({});
+  const [bottomStocks, setBottomStocks] = useState({});
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState("");
@@ -74,6 +76,7 @@ const MetricsDashboard = () => {
   useEffect(() => {
     if (activeTab === 2) {
       fetchTopStocks();
+      fetchBottomStocks();
     }
   }, [activeTab]);
 
@@ -163,6 +166,87 @@ const MetricsDashboard = () => {
       if (import.meta.env && import.meta.env.DEV)
         console.error("Error fetching top stocks:", err);
       setError(err.message);
+    }
+  };
+
+  const fetchBottomStocks = async () => {
+    try {
+      // Fetch large dataset to ensure we get enough bottom performers
+      // Note: We fetch a large limit and sort client-side to get bottom performers
+      const response = await api.get(`/api/scores/stockscores?limit=500&sortBy=composite_score`);
+
+      if (!response || !response.data) {
+        throw new Error('No data received from bottom stocks API');
+      }
+
+      // Response structure: { items: [...], pagination: {...}, success: true }
+      const stocks = response.data?.items || [];
+
+      if (!stocks || stocks.length === 0) {
+        console.warn("No stocks returned from API");
+        setBottomStocks({});
+        return;
+      }
+
+      // Create mappings for each category with proper API field names (ASCENDING order for worst performers)
+      const bottomStocksData = {
+        composite: stocks
+          .filter(s => s.composite_score !== null && s.composite_score !== undefined)
+          .sort((a, b) => a.composite_score - b.composite_score)
+          .slice(0, 10)
+          .map(stock => ({
+            ...stock,
+            companyName: stock.company_name || "N/A",
+            categoryMetric: stock.composite_score,
+            sector: stock.sector || "N/A"
+          })),
+        quality: stocks
+          .filter(s => s.quality_score !== null && s.quality_score !== undefined)
+          .sort((a, b) => a.quality_score - b.quality_score)
+          .slice(0, 10)
+          .map(stock => ({
+            ...stock,
+            companyName: stock.company_name || "N/A",
+            categoryMetric: stock.quality_score,
+            sector: stock.sector || "N/A"
+          })),
+        value: stocks
+          .filter(s => s.value_score !== null && s.value_score !== undefined)
+          .sort((a, b) => a.value_score - b.value_score)
+          .slice(0, 10)
+          .map(stock => ({
+            ...stock,
+            companyName: stock.company_name || "N/A",
+            categoryMetric: stock.value_score,
+            sector: stock.sector || "N/A"
+          })),
+        growth: stocks
+          .filter(s => s.growth_score !== null && s.growth_score !== undefined)
+          .sort((a, b) => a.growth_score - b.growth_score)
+          .slice(0, 10)
+          .map(stock => ({
+            ...stock,
+            companyName: stock.company_name || "N/A",
+            categoryMetric: stock.growth_score,
+            sector: stock.sector || "N/A"
+          })),
+        momentum: stocks
+          .filter(s => s.momentum_score !== null && s.momentum_score !== undefined)
+          .sort((a, b) => a.momentum_score - b.momentum_score)
+          .slice(0, 10)
+          .map(stock => ({
+            ...stock,
+            companyName: stock.company_name || "N/A",
+            categoryMetric: stock.momentum_score,
+            sector: stock.sector || "N/A"
+          })),
+      };
+
+      setBottomStocks(bottomStocksData);
+    } catch (err) {
+      console.error("Error fetching bottom stocks:", err);
+      setError(err.message);
+      setBottomStocks({});
     }
   };
 
@@ -442,6 +526,69 @@ const MetricsDashboard = () => {
     </Grid>
   );
 
+  const BottomStocks = () => (
+    <Grid container spacing={3} sx={{ mt: 2 }}>
+      {Object.entries(bottomStocks).map(([category, stocks]) => (
+        stocks && stocks.length > 0 && (
+          <Grid item xs={12} md={6} key={`bottom-${category}`}>
+            <Card>
+              <CardContent>
+                <Typography
+                  variant="h6"
+                  gutterBottom
+                  sx={{ textTransform: "capitalize" }}
+                >
+                  Bottom {category === "composite" ? "Overall" : category} Stocks
+                </Typography>
+                <Box sx={{ maxHeight: 400, overflow: "auto" }}>
+                  {stocks.map((stock, index) => (
+                    <Box
+                      key={`${stock.symbol}-${index}`}
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        py: 1,
+                        borderBottom: index < stocks.length - 1 ? "1px solid #eee" : "none",
+                      }}
+                    >
+                      <Box>
+                        <Typography
+                          variant="subtitle2"
+                          sx={{ fontWeight: "bold" }}
+                        >
+                          {index + 1}. {stock.symbol}
+                        </Typography>
+                        <Typography variant="caption" color="textSecondary">
+                          {stock.companyName?.substring(0, 25)}
+                          {stock.companyName?.length > 25 ? "..." : ""}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ textAlign: "right" }}>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: getMetricColor(stock.categoryMetric),
+                            fontWeight: "bold",
+                          }}
+                        >
+                          {stock.categoryMetric.toFixed(3)}
+                        </Typography>
+                        <Typography variant="caption" color="textSecondary">
+                          {stock.sector}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  ))}
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        )
+      ))}
+    </Grid>
+  );
+
   if (error) {
     return (
       <Container maxWidth="lg" sx={{ mt: 4 }}>
@@ -470,7 +617,7 @@ const MetricsDashboard = () => {
           onChange={(e, newValue) => setActiveTab(newValue)}
         >
           <Tab value={0} label="Stock Metrics" />
-          <Tab value={2} label="Top Performers" />
+          <Tab value={2} label="Top & Bottom Performers" />
         </Tabs>
       </Box>
 
@@ -568,7 +715,14 @@ const MetricsDashboard = () => {
       ) : (
         <>
           {activeTab === 0 && <MainMetricsTable />}
-          {activeTab === 2 && <TopStocks />}
+          {activeTab === 2 && (
+            <>
+              <Typography variant="h5" sx={{ fontWeight: 700, mb: 3, mt: 4 }}>Top Performers by Category</Typography>
+              <TopStocks />
+              <Typography variant="h5" sx={{ fontWeight: 700, mb: 3, mt: 6 }}>Bottom Performers by Category</Typography>
+              <BottomStocks />
+            </>
+          )}
         </>
       )}
 
