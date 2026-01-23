@@ -211,8 +211,8 @@ def create_buy_sell_table(cur, conn, table_name="buy_sell_daily"):
         logging.warning(f"Could not check duplicates in {table_name}: {e}")
         try:
             conn.rollback()
-        except:
-            pass
+        except Exception as rollback_err:
+            logging.warning(f"⚠️  Rollback failed: {rollback_err}")
 
     # Now try to add the constraint
     try:
@@ -324,6 +324,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
             # Clamp to 0-10 range
             return max(0, min(10, int(round(sata))))
         except Exception as e:
+            logging.warning(f"⚠️  SATA calculation error: {e} | Row data: stage={row.get('stage_number')}, rs={row.get('rs_rating')}")
             return None
 
     df['sata_score'] = df.apply(calculate_sata, axis=1)
@@ -368,7 +369,8 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
                         fv = float(row.get('buyLevel'))
                         if not (np.isnan(fv) or np.isinf(fv)):
                             buyLevel_val = fv
-                    except (ValueError, TypeError): pass
+                    except (ValueError, TypeError) as e:
+                        logging.debug(f"⚠️  buyLevel conversion failed for {symbol}: {row.get('buyLevel')} -> {e}")
 
                 stopLevel_val = None
                 if pd.notna(row.get('stopLevel')):
@@ -376,7 +378,8 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
                         fv = float(row.get('stopLevel'))
                         if not (np.isnan(fv) or np.isinf(fv)):
                             stopLevel_val = fv
-                    except (ValueError, TypeError): pass
+                    except (ValueError, TypeError) as e:
+                        logging.debug(f"⚠️  stopLevel conversion failed for {symbol}: {row.get('stopLevel')} -> {e}")
 
                 inPos_val = bool(row.get('inPosition', False))
 
@@ -386,7 +389,8 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
                         fv = float(row.get('strength'))
                         if not (np.isnan(fv) or np.isinf(fv)):
                             strength_val = fv
-                    except (ValueError, TypeError): pass
+                    except (ValueError, TypeError) as e:
+                        logging.debug(f"⚠️  strength conversion failed for {symbol}: {row.get('strength')} -> {e}")
 
             except (ValueError, OverflowError) as ve:
                 logging.warning(f"Skipping row {idx}: type conversion error: {ve}")
@@ -585,7 +589,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
 
         except Exception as e:
             # Skip this row and continue - validation errors in data prep
-            logging.debug(f"Row validation skipped for {symbol} {timeframe} row {idx}: {e}")
+            logging.warning(f"🚨 Row validation FAILED for {symbol} {timeframe} row {idx}: {e}")
             skipped += 1
             continue
 
@@ -598,15 +602,19 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
             logging.debug(f"✅ Bulk inserted {len(insert_rows)} rows for {symbol} {timeframe}")
         except psycopg2.IntegrityError as ie:
             conn.rollback()
-            # Some rows may have duplicates - that's OK, try with ON CONFLICT
-            logging.warning(f"Some integrity errors during bulk insert for {symbol} {timeframe}: {ie}")
-            inserted = len(insert_rows)  # Count what we attempted
+            # CRITICAL FIX: Integrity error means ENTIRE batch was rolled back - ZERO rows inserted
+            logging.error(f"🚨 BATCH INSERT FAILED: IntegrityError for {symbol} {timeframe} - ROLLED BACK {len(insert_rows)} rows: {ie}")
+            inserted = 0  # MUST be 0 - entire batch rolled back
         except Exception as e:
             conn.rollback()
-            logging.error(f"Bulk insert failed for {symbol} {timeframe}: {e}")
+            logging.error(f"🚨 BATCH INSERT FAILED: Generic error for {symbol} {timeframe} - ROLLED BACK {len(insert_rows)} rows: {e}")
             inserted = 0
 
-    logging.debug(f"Inserted {inserted} rows, skipped {skipped} rows for {symbol} {timeframe}")
+    # Alert if skipped rows or batch failures
+    if skipped > 0 or inserted == 0:
+        logging.warning(f"⚠️  {symbol} {timeframe}: Inserted {inserted} rows, SKIPPED {skipped} rows")
+    else:
+        logging.info(f"✅ {symbol} {timeframe}: Successfully inserted {inserted} rows")
 
 ###############################################################################
 # 2) RISK-FREE RATE (FRED)
