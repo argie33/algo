@@ -1377,12 +1377,14 @@ def fetch_all_stability_metrics(conn):
         # Fetch stability metrics - get LATEST NON-NULL value for EACH metric independently
         # CRITICAL FIX: Don't require all metrics to be from the same date
         # Different metrics may have different update schedules
+        # ADDITIONAL FIX: Filter out obvious data errors (volatility > 500%) before percentile calculation
 
         # Fetch latest volatility values (one per symbol, most recent date with volatility)
+        # FILTER OUT: Extreme outliers (> 500% volatility) which are calculation errors
         cur.execute("""
             SELECT DISTINCT ON (symbol) volatility_12m
             FROM stability_metrics
-            WHERE volatility_12m IS NOT NULL AND volatility_12m > 0
+            WHERE volatility_12m IS NOT NULL AND volatility_12m > 0 AND volatility_12m <= 500
             ORDER BY symbol, date DESC
         """)
         volatility_rows = cur.fetchall()
@@ -1397,10 +1399,11 @@ def fetch_all_stability_metrics(conn):
         drawdown_rows = cur.fetchall()
 
         # Fetch latest beta values (one per symbol, most recent date with beta)
+        # FILTER OUT: Extreme outliers (> 10 beta) which are calculation errors
         cur.execute("""
             SELECT DISTINCT ON (symbol) beta
             FROM stability_metrics
-            WHERE beta IS NOT NULL AND beta > 0
+            WHERE beta IS NOT NULL AND beta > 0 AND beta <= 10
             ORDER BY symbol, date DESC
         """)
         beta_rows = cur.fetchall()
@@ -2844,21 +2847,12 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                     except Exception as e:
                         logger.debug(f"{symbol}: Error fetching earnings_growth_pct from growth_metrics: {e}")
 
-                # CALCULATE PEG RATIO if missing (3X better coverage by calculating ourselves)
-                # PEG = PE / Earnings Growth Rate
-                if peg_ratio_val is None and earnings_growth_pct is not None:
-                    try:
-                        growth_pct = float(earnings_growth_pct)
-                        if growth_pct > 0:
-                            # Use forward PE if available, otherwise trailing PE
-                            pe_for_peg = forward_pe if forward_pe is not None and forward_pe > 0 else trailing_pe
-                            if pe_for_peg is not None:
-                                pe_val = float(pe_for_peg)
-                                if pe_val > 0:
-                                    peg_ratio_val = pe_val / growth_pct
-                                    logger.debug(f"{symbol}: Calculated PEG={peg_ratio_val:.2f} from PE={pe_val:.2f} / Growth={growth_pct:.2f}%")
-                    except (ValueError, TypeError, decimal.InvalidOperation):
-                        pass
+                # NO PEG CALCULATION - Real data only requirement
+                # Calculating PEG from P/E ÷ trailing_growth would be a FALLBACK/PROXY
+                # Yahoo calculates PEG using their own forward earnings estimates (not our data)
+                # Result: Calculated PEG ≠ Yahoo's PEG (we don't have access to Yahoo's growth rates)
+                # Policy: No fallbacks = use only Yahoo's PEG if provided, otherwise NULL
+                # If peg_ratio_val is None here, it stays None = REAL DATA ONLY
 
                 # CALCULATE DIVIDEND YIELD if missing
                 # Dividend Yield = (Annual Dividend / Current Price) * 100
@@ -4250,7 +4244,8 @@ def save_stock_score(conn, score_data):
             'earnings_growth', 'revenue_growth', 'margin_trend',
             'volatility', 'downside_volatility', 'max_drawdown', 'beta',
             'institutional_ownership', 'insider_ownership', 'short_interest', 'accumulation_distribution', 'institution_count',
-            'analyst_rating', 'news_sentiment', 'aaii_sentiment'
+            'analyst_rating', 'news_sentiment', 'aaii_sentiment',
+            'momentum_reason', 'growth_reason', 'value_reason', 'quality_reason', 'positioning_reason', 'stability_reason'
         ]
         for key in required_keys:
             if key not in score_data:
@@ -4269,6 +4264,7 @@ def save_stock_score(conn, score_data):
             volatility, downside_volatility, max_drawdown, beta,
             institutional_ownership, insider_ownership, short_interest, accumulation_distribution, institution_count,
             analyst_rating, news_sentiment, aaii_sentiment,
+            momentum_reason, growth_reason, value_reason, quality_reason, positioning_reason, stability_reason,
             score_date, last_updated
         ) VALUES (
             %(symbol)s, %(company_name)s, %(composite_score)s, %(momentum_score)s, %(value_score)s, %(quality_score)s,
@@ -4281,6 +4277,7 @@ def save_stock_score(conn, score_data):
             %(volatility)s, %(downside_volatility)s, %(max_drawdown)s, %(beta)s,
             %(institutional_ownership)s, %(insider_ownership)s, %(short_interest)s, %(accumulation_distribution)s, %(institution_count)s,
             %(analyst_rating)s, %(news_sentiment)s, %(aaii_sentiment)s,
+            %(momentum_reason)s, %(growth_reason)s, %(value_reason)s, %(quality_reason)s, %(positioning_reason)s, %(stability_reason)s,
             CURRENT_DATE, CURRENT_TIMESTAMP
         ) ON CONFLICT (symbol) DO UPDATE SET
             company_name = EXCLUDED.company_name,
@@ -4327,6 +4324,12 @@ def save_stock_score(conn, score_data):
             analyst_rating = EXCLUDED.analyst_rating,
             news_sentiment = EXCLUDED.news_sentiment,
             aaii_sentiment = EXCLUDED.aaii_sentiment,
+            momentum_reason = EXCLUDED.momentum_reason,
+            growth_reason = EXCLUDED.growth_reason,
+            value_reason = EXCLUDED.value_reason,
+            quality_reason = EXCLUDED.quality_reason,
+            positioning_reason = EXCLUDED.positioning_reason,
+            stability_reason = EXCLUDED.stability_reason,
             score_date = CURRENT_DATE,
             last_updated = CURRENT_TIMESTAMP
         """
@@ -4629,6 +4632,21 @@ def main():
                 # Create a fresh cursor for each stock to avoid transaction abort issues
                 score_data = get_stock_data_from_database(conn, symbol, quality_metrics, growth_metrics, value_metrics, positioning_metrics, stability_metrics)
                 if score_data:
+                    # Set reason fields for NULL scores to ensure consistency
+                    # This explains to users WHY certain scores are NULL (legitimate business facts, not data errors)
+                    if score_data.get('momentum_score') is None:
+                        score_data['momentum_reason'] = 'insufficient_momentum_data'
+                    if score_data.get('growth_score') is None:
+                        score_data['growth_reason'] = 'insufficient_growth_data'
+                    if score_data.get('value_score') is None:
+                        score_data['value_reason'] = 'unprofitable_no_valuation_metrics'
+                    if score_data.get('quality_score') is None:
+                        score_data['quality_reason'] = 'insufficient_quality_data'
+                    if score_data.get('positioning_score') is None:
+                        score_data['positioning_reason'] = 'insufficient_positioning_data'
+                    if score_data.get('stability_score') is None:
+                        score_data['stability_reason'] = 'insufficient_stability_data'
+
                     # Save to database
                     if save_stock_score(conn, score_data):
                         # Autocommit mode handles commits automatically

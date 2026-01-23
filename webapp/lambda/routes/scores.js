@@ -32,11 +32,12 @@ function safeFloat(value) {
 }
 
 // Helper: Remove all null values from objects (recursively)
-function removeNullValues(obj) {
+// IMPORTANT: Keep reason fields that explain why scores are NULL (for frontend transparency)
+function removeNullValues(obj, keepReasonFields = true) {
   if (!obj || typeof obj !== 'object') return obj;
 
   if (Array.isArray(obj)) {
-    return obj.map(item => removeNullValues(item));
+    return obj.map(item => removeNullValues(item, keepReasonFields));
   }
 
   // Don't recurse into Date objects or strings (like last_updated timestamps)
@@ -44,13 +45,27 @@ function removeNullValues(obj) {
     return obj;
   }
 
+  // Reason fields to preserve (explain why scores are NULL)
+  const reasonFields = new Set([
+    'momentum_reason', 'growth_reason', 'value_reason',
+    'quality_reason', 'positioning_reason', 'stability_reason'
+  ]);
+
   const cleaned = {};
   for (const [key, value] of Object.entries(obj)) {
+    // Keep reason fields even if null (they explain NULL scores)
+    if (keepReasonFields && reasonFields.has(key)) {
+      if (value !== null && value !== undefined) {
+        cleaned[key] = value;
+      }
+      continue;
+    }
+
     if (value === null || value === undefined) {
       continue; // Skip null/undefined values entirely
     }
     if (typeof value === 'object' && !(value instanceof Date) && typeof value !== 'string') {
-      cleaned[key] = removeNullValues(value);
+      cleaned[key] = removeNullValues(value, keepReasonFields);
     } else {
       cleaned[key] = value;
     }
@@ -452,6 +467,12 @@ const SCORE_COLUMNS = [
   'beta',
   'short_interest',
   'accumulation_distribution',
+  'momentum_reason',
+  'growth_reason',
+  'value_reason',
+  'quality_reason',
+  'positioning_reason',
+  'stability_reason',
   'last_updated'
 ];
 
@@ -575,14 +596,20 @@ async function queryScores(options = {}) {
       company_name: row.company_name,
       composite_score: row.composite_score == null ? null : parseFloat(row.composite_score),
       momentum_score: row.momentum_score == null ? null : parseFloat(row.momentum_score),
+      momentum_reason: row.momentum_reason,
       momentum_3m: row.momentum_3m == null ? null : parseFloat(row.momentum_3m),
       momentum_6m: row.momentum_6m == null ? null : parseFloat(row.momentum_6m),
       momentum_12m: row.momentum_12m == null ? null : parseFloat(row.momentum_12m),
       value_score: row.value_score == null ? null : parseFloat(row.value_score),
+      value_reason: row.value_reason,
       quality_score: row.quality_score == null ? null : parseFloat(row.quality_score),
+      quality_reason: row.quality_reason,
       growth_score: row.growth_score == null ? null : parseFloat(row.growth_score),
+      growth_reason: row.growth_reason,
       positioning_score: row.positioning_score == null ? null : parseFloat(row.positioning_score),
+      positioning_reason: row.positioning_reason,
       stability_score: row.stability_score == null ? null : parseFloat(row.stability_score),
+      stability_reason: row.stability_reason,
       last_updated: row.last_updated
     };
 
