@@ -574,8 +574,19 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
     if insert_rows:
         try:
             cur.executemany(insert_q, insert_rows)
+            rows_affected = cur.rowcount
             conn.commit()
-            logging.debug(f"✅ Bulk inserted {len(insert_rows)} rows for {symbol} {timeframe}")
+
+            # CRITICAL: Check if ALL rows were silently skipped by ON CONFLICT
+            if rows_affected == 0 and len(insert_rows) > 0:
+                logging.error(f"🚨 SILENT FAILURE: ON CONFLICT silently skipped ALL {len(insert_rows)} rows for {symbol} {timeframe} - data already exists for (symbol, timeframe, date)")
+                inserted = 0
+            elif rows_affected < len(insert_rows):
+                logging.warning(f"⚠️  PARTIAL CONFLICT: {rows_affected}/{len(insert_rows)} rows inserted for {symbol} {timeframe} - {len(insert_rows) - rows_affected} skipped by ON CONFLICT")
+                inserted = rows_affected
+            else:
+                logging.debug(f"✅ Bulk inserted {rows_affected} rows for {symbol} {timeframe}")
+
         except psycopg2.IntegrityError as ie:
             conn.rollback()
             # CRITICAL FIX: Integrity error means ENTIRE batch was rolled back - ZERO rows inserted
