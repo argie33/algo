@@ -503,7 +503,19 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
         mansfield_rs, sata_score,
         rsi, adx, atr, sma_50, sma_200, ema_21, pct_from_ema21, pct_from_sma50, entry_price
       ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-      ON CONFLICT (symbol, timeframe, date) DO NOTHING;
+      ON CONFLICT (symbol, timeframe, date) DO UPDATE SET
+        open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low, close = EXCLUDED.close, volume = EXCLUDED.volume,
+        signal = EXCLUDED.signal, signal_triggered_date = EXCLUDED.signal_triggered_date, buylevel = EXCLUDED.buylevel, stoplevel = EXCLUDED.stoplevel, inposition = EXCLUDED.inposition, strength = EXCLUDED.strength,
+        signal_type = EXCLUDED.signal_type, pivot_price = EXCLUDED.pivot_price, buy_zone_start = EXCLUDED.buy_zone_start, buy_zone_end = EXCLUDED.buy_zone_end,
+        exit_trigger_1_price = EXCLUDED.exit_trigger_1_price, exit_trigger_2_price = EXCLUDED.exit_trigger_2_price, exit_trigger_3_condition = EXCLUDED.exit_trigger_3_condition, exit_trigger_3_price = EXCLUDED.exit_trigger_3_price,
+        exit_trigger_4_condition = EXCLUDED.exit_trigger_4_condition, exit_trigger_4_price = EXCLUDED.exit_trigger_4_price, initial_stop = EXCLUDED.initial_stop, trailing_stop = EXCLUDED.trailing_stop,
+        base_type = EXCLUDED.base_type, base_length_days = EXCLUDED.base_length_days, avg_volume_50d = EXCLUDED.avg_volume_50d, volume_surge_pct = EXCLUDED.volume_surge_pct,
+        rs_rating = EXCLUDED.rs_rating, breakout_quality = EXCLUDED.breakout_quality, risk_reward_ratio = EXCLUDED.risk_reward_ratio, current_gain_pct = EXCLUDED.current_gain_pct, days_in_position = EXCLUDED.days_in_position,
+        market_stage = EXCLUDED.market_stage, stage_number = EXCLUDED.stage_number, stage_confidence = EXCLUDED.stage_confidence, substage = EXCLUDED.substage, entry_quality_score = EXCLUDED.entry_quality_score,
+        risk_pct = EXCLUDED.risk_pct, position_size_recommendation = EXCLUDED.position_size_recommendation, profit_target_8pct = EXCLUDED.profit_target_8pct, profit_target_20pct = EXCLUDED.profit_target_20pct, profit_target_25pct = EXCLUDED.profit_target_25pct, sell_level = EXCLUDED.sell_level,
+        mansfield_rs = EXCLUDED.mansfield_rs, sata_score = EXCLUDED.sata_score,
+        rsi = EXCLUDED.rsi, adx = EXCLUDED.adx, atr = EXCLUDED.atr, sma_50 = EXCLUDED.sma_50, sma_200 = EXCLUDED.sma_200, ema_21 = EXCLUDED.ema_21, pct_from_ema21 = EXCLUDED.pct_from_ema21, pct_from_sma50 = EXCLUDED.pct_from_sma50, entry_price = EXCLUDED.entry_price
+      RETURNING xmax;
     """
     # === POSITION SIZE RECOMMENDATION (based on risk) ===
     df['position_size_recommendation'] = df.apply(
