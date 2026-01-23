@@ -502,6 +502,14 @@ def get_stock_symbols(conn, limit=None):
               AND (s.etf = 'N' OR s.etf IS NULL OR s.etf = '')
               AND (s.test_issue != 'Y' OR s.test_issue IS NULL)
               AND (s.financial_status != 'D' OR s.financial_status IS NULL)
+              AND s.symbol NOT ILIKE '%$%'
+              AND s.security_name NOT ILIKE '%SPAC%'
+              AND s.security_name NOT ILIKE '%Special Purpose%'
+              AND s.security_name NOT ILIKE '%Blank Check%'
+              AND s.security_name NOT ILIKE '%Acquisition Company%'
+              AND s.security_name NOT ILIKE '%ETN%'
+              AND s.security_name NOT ILIKE '%Fund%'
+              AND s.security_name NOT ILIKE '%Trust%'
             GROUP BY s.symbol
             ORDER BY s.symbol
             {limit_clause}
