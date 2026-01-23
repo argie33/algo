@@ -2900,7 +2900,7 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: !Ref StockScoresLogGroup
+              awslogs-group: /aws/ecs/stock-scores-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
           Environment:
@@ -2953,7 +2953,7 @@ Resources:
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: !Ref BenchmarksLogGroup
+              awslogs-group: /aws/ecs/benchmarks-loader
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
           Environment:
