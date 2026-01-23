@@ -1,10 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  ECS TaskDefinitions, CloudWatch LogGroups, and zero-scale Services
+  ECS TaskDefinitions and zero-scale Services (log groups created by ECS)
   for stock-symbols, econ-data, monthly-price, findata, pricedaily,
   priceweekly, pricemonthly, TechnicalsDaily, companyprofile, earningsestimate,
-  technicalsweekly & technicalsmonthly. Includes buysell_etf_daily and factormetrics loaders (added Dec 27, 2025).
-  Deploy trigger: Jan 3, 2026 - Fix stock-scores-loader with momentum_intraweek column and restore TTM loaders
+  technicalsweekly & technicalsmonthly. Includes buysell_etf_daily and factormetrics loaders.
+  FIXED: Removed explicit log groups - ECS creates them automatically with awslogs-create-group: true
 
 Parameters:
   StockSymbolsImageTag:
