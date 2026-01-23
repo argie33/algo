@@ -1,10 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  ECS TaskDefinitions and zero-scale Services (log groups created by ECS)
+  ECS TaskDefinitions and zero-scale Services
   for stock-symbols, econ-data, monthly-price, findata, pricedaily,
   priceweekly, pricemonthly, TechnicalsDaily, companyprofile, earningsestimate,
   technicalsweekly & technicalsmonthly. Includes buysell_etf_daily and factormetrics loaders.
-  FIXED: Removed explicit log groups - ECS creates them automatically with awslogs-create-group: true
+  FIXED: Added CloudWatch log groups with explicit DependsOn relationships to prevent
+  CreateLogStream failures. Services now wait for log groups to be created first.
 
 Parameters:
   StockSymbolsImageTag:
@@ -268,6 +269,48 @@ Resources:
   ########################################
   # B) CloudWatch Log Groups             #
   ########################################
+  StockScoresLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/ecs/stock-scores-loader
+      RetentionInDays: 7
+
+  FactormetricsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/ecs/factormetrics-loader
+      RetentionInDays: 7
+
+  MomentumLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/ecs/momentum-loader
+      RetentionInDays: 7
+
+  PositioningLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/ecs/positioning-loader
+      RetentionInDays: 7
+
+  QualityMetricsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/ecs/quality-metrics-service
+      RetentionInDays: 7
+
+  GrowthMetricsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/ecs/growth-metrics-service
+      RetentionInDays: 7
+
+  BenchmarksLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/ecs/benchmarks-loader
+      RetentionInDays: 7
+
   StockSymbolsTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -2665,6 +2708,7 @@ Resources:
 
   FactormetricsLoaderService:
     Type: AWS::ECS::Service
+    DependsOn: FactormetricsLogGroup
     Properties:
       ServiceName: factormetrics-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
@@ -2730,6 +2774,7 @@ Resources:
 
   QualityMetricsService:
     Type: AWS::ECS::Service
+    DependsOn: QualityMetricsLogGroup
     Properties:
       ServiceName: quality-metrics-service
       Cluster: !ImportValue StocksApp-ClusterArn
@@ -2795,6 +2840,7 @@ Resources:
 
   GrowthMetricsService:
     Type: AWS::ECS::Service
+    DependsOn: GrowthMetricsLogGroup
     Properties:
       ServiceName: growth-metrics-service
       Cluster: !ImportValue StocksApp-ClusterArn
@@ -2918,6 +2964,7 @@ Resources:
               Value: !ImportValue StocksApp-SecretArn
   StockScoresService:
     Type: AWS::ECS::Service
+    DependsOn: StockScoresLogGroup
     Properties:
       ServiceName: stock-scores-service
       Cluster: !ImportValue StocksApp-ClusterArn
@@ -2971,6 +3018,7 @@ Resources:
               Value: !ImportValue StocksApp-SecretArn
   BenchmarksService:
     Type: AWS::ECS::Service
+    DependsOn: BenchmarksLogGroup
     Properties:
       ServiceName: benchmarks-service
       Cluster: !ImportValue StocksApp-ClusterArn
@@ -3317,6 +3365,7 @@ Resources:
 
   PositioningLoaderService:
     Type: AWS::ECS::Service
+    DependsOn: PositioningLogGroup
     Properties:
       ServiceName: positioning-loader
       Cluster: !ImportValue StocksApp-ClusterArn
@@ -3376,6 +3425,7 @@ Resources:
 
   MomentumLoaderService:
     Type: AWS::ECS::Service
+    DependsOn: MomentumLogGroup
     Properties:
       ServiceName: momentum-loader
       Cluster: !ImportValue StocksApp-ClusterArn
