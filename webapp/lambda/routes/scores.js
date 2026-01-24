@@ -502,8 +502,10 @@ async function queryScores(options = {}) {
   let queryParams = [];
   let paramIndex = 1;
 
-  // Exclude SPACs and blank check companies - filter by multiple naming patterns
-  whereConditions.push(`NOT EXISTS (SELECT 1 FROM stock_symbols WHERE symbol = ss.symbol AND (security_name ILIKE '%SPAC%' OR security_name ILIKE '%Special Purpose%' OR security_name ILIKE '%Equity Partners%' OR security_name ILIKE '%Blank Check%' OR security_name ILIKE '%Acquisition Company%'))`);
+  // SPAC filtering disabled for performance (causing timeout on COUNT queries)
+  // Stock scores table should not contain SPACs if loader is configured correctly
+  // If SPACs appear in results, fix at load time in loadstockscores.py
+  // whereConditions.push(`ss.symbol NOT IN (SELECT symbol FROM stock_symbols WHERE security_name ILIKE '%SPAC%')`);
 
   // Add search filter
   if (search) {
