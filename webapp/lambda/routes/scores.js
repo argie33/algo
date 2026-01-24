@@ -450,7 +450,7 @@ async function getInsiderDataInBatch(symbols) {
   }
 }
 
-// Standard columns returned from stock_scores table
+// Standard columns returned from stock_scores table (only columns that exist in database)
 const SCORE_COLUMNS = [
   'symbol',
   'company_name',
@@ -464,15 +464,6 @@ const SCORE_COLUMNS = [
   'growth_score',
   'positioning_score',
   'stability_score',
-  'beta',
-  'short_interest',
-  'accumulation_distribution',
-  'momentum_reason',
-  'growth_reason',
-  'value_reason',
-  'quality_reason',
-  'positioning_reason',
-  'stability_reason',
   'last_updated'
 ];
 
@@ -596,20 +587,14 @@ async function queryScores(options = {}) {
       company_name: row.company_name,
       composite_score: row.composite_score == null ? null : parseFloat(row.composite_score),
       momentum_score: row.momentum_score == null ? null : parseFloat(row.momentum_score),
-      momentum_reason: row.momentum_reason,
       momentum_3m: row.momentum_3m == null ? null : parseFloat(row.momentum_3m),
       momentum_6m: row.momentum_6m == null ? null : parseFloat(row.momentum_6m),
       momentum_12m: row.momentum_12m == null ? null : parseFloat(row.momentum_12m),
       value_score: row.value_score == null ? null : parseFloat(row.value_score),
-      value_reason: row.value_reason,
       quality_score: row.quality_score == null ? null : parseFloat(row.quality_score),
-      quality_reason: row.quality_reason,
       growth_score: row.growth_score == null ? null : parseFloat(row.growth_score),
-      growth_reason: row.growth_reason,
       positioning_score: row.positioning_score == null ? null : parseFloat(row.positioning_score),
-      positioning_reason: row.positioning_reason,
       stability_score: row.stability_score == null ? null : parseFloat(row.stability_score),
-      stability_reason: row.stability_reason,
       last_updated: row.last_updated
     };
 
@@ -666,9 +651,9 @@ async function queryScores(options = {}) {
       stock.growth_inputs = cleanMetrics(metrics.growth_metrics);
       stock.stability_inputs = cleanMetrics(metrics.stability_metrics);
 
-      // Add beta to stability_inputs (factor metric from stock_scores table)
-      if (stock.stability_inputs && row.beta != null) {
-        stock.stability_inputs.beta = parseFloat(row.beta);
+      // Beta column removed from stock_scores table - set to null
+      if (stock.stability_inputs) {
+        stock.stability_inputs.beta = null;
       }
 
       // Add volatility_risk_component to stability_inputs (derived from downside_volatility)
