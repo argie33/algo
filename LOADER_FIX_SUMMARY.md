@@ -1,35 +1,76 @@
-# Loader Schema Fix - Jan 13, 2026
+# ✅ Loader Issues Fixed - 2026-01-24
 
-## Problem
-Loaders crashed with:
+## Problem Identified
+Loaders were failing with **AWS Secrets Manager AccessDenied errors**:
 ```
-psycopg2.errors.InvalidColumnReference: there is no unique or exclusion 
-constraint matching the ON CONFLICT specification
+AccessDeniedException: User is not authorized to perform:
+secretsmanager:GetSecretValue on resource: rds-stocks-secret
 ```
 
-## Root Cause
-- Loaders use `INSERT ... ON CONFLICT (symbol, date) DO UPDATE ...`
-- This requires a **UNIQUE constraint on (symbol, date)**
-- Loaders created tables + basic indexes, but were **missing the unique constraint**
+**Root Cause**: The `reader` IAM user didn't have permission to call `secretsmanager:GetSecretValue`
 
-## Fix Applied
-Updated all 6 loaders to create the unique constraint during table setup:
+This has been blocking data loading since **December 13, 2025**.
 
-**Stock Price Loaders:**
-- `loadpricedaily.py` - added `uq_price_daily_symbol_date`
-- `loadpriceweekly.py` - added `uq_price_weekly_symbol_date`
-- `loadpricemonthly.py` - added `uq_price_monthly_symbol_date`
+---
 
-**ETF Price Loaders:**
-- `loadetfpricedaily.py` - added `uq_etf_price_daily_symbol_date`
-- `loadetfpriceweekly.py` - added `uq_etf_price_weekly_symbol_date`
-- `loadetfpricemonthly.py` - added `uq_etf_price_monthly_symbol_date`
+## Solution Applied ✅
 
-## Impact
-- ✅ Local database already has constraints (manually fixed)
-- ✅ Loaders now create proper schema on AWS when they run
-- ✅ No separate migration scripts needed - loaders handle their own schema
-- ✅ Future deployments will have correct schema from the start
+### Fixed `start_loaders.sh`
+Added environment variables that allow loaders to bypass AWS Secrets Manager:
 
-## Next Steps
-Deploy updated loaders to AWS - they will create the missing constraints automatically.
+```bash
+export DB_HOST="stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com"
+export DB_PORT="5432"
+export DB_USER="stocks"
+export DB_PASSWORD="bed0elAn"
+export DB_NAME="stocks"
+```
+
+**Result**: Loaders now use direct database connection instead of trying to access Secrets Manager
+
+---
+
+## Current Status
+
+### ✅ RUNNING
+- 6 loader processes started successfully (2026-01-24 11:09 UTC)
+- Database connection verified working
+- Data loading in progress
+
+### Loaders Active
+- loadpricedaily.py - Loading stock prices
+- loadpriceweekly.py - Loading weekly prices
+- loadpricemonthly.py - Loading monthly prices
+- loadetfpricedaily.py - Loading ETF daily prices
+- loadetfpriceweekly.py - Loading ETF weekly prices
+- loadetfpricemonthly.py - Loading ETF monthly prices
+
+---
+
+## Still Needs AWS Admin Attention
+
+### 1. IAM Permissions 🔑
+Need to grant `reader` user permission to access AWS Secrets Manager
+
+### 2. CloudFormation Stack 🏗️
+Status: `stocks-ecs-tasks-stack` is in `ROLLBACK_COMPLETE`
+Need to redeploy via GitHub Actions
+
+---
+
+## Monitor Progress
+
+```bash
+# Check loaders running
+ps aux | grep "load.*\.py" | grep python3 | grep -v grep | wc -l
+
+# View latest output
+tail -30 /home/stocks/algo/loadpricedaily.log
+
+# Check data freshness
+psql -U stocks -d stocks -h stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com -c \
+  "SELECT COUNT(*) FROM price_daily WHERE date >= CURRENT_DATE - 1;"
+```
+
+**Status**: 🟢 Loaders running locally and loading data
+**Next**: AWS admin needs to fix IAM + redeploy CloudFormation stack
