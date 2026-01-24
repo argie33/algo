@@ -1,6 +1,7 @@
 #!/bin/bash
 cd /home/stocks/algo
 
+# Loader restart trigger - 2026-01-24
 # Kill any existing loaders
 echo "Stopping any existing loaders..."
 killall -9 loadpricedaily.py loadpriceweekly.py loadpricemonthly.py loadetfpricedaily.py loadetfpriceweekly.py loadetfpricemonthly.py 2>/dev/null || true
