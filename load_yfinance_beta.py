@@ -8,6 +8,8 @@ import sys
 import logging
 import yfinance as yf
 from db_helper import get_db_connection
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from psycopg2.extras import execute_values
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -37,39 +39,63 @@ def main():
         conn.commit()
         logger.info("✅ beta_yfinance table ready")
         
-        # Get all symbols from stock_symbols
-        cur.execute("SELECT symbol FROM stock_symbols LIMIT 5312")
+        # Get all symbols that DON'T already have beta
+        cur.execute("""
+            SELECT s.symbol FROM stock_symbols s
+            LEFT JOIN beta_yfinance b ON s.symbol = b.symbol
+            WHERE b.symbol IS NULL
+            LIMIT 5312
+        """)
         symbols = [row[0] for row in cur.fetchall()]
-        logger.info(f"📥 Loading beta for {len(symbols)} symbols...")
-        
-        loaded = 0
-        skipped = 0
-        errors = 0
-        
-        for i, symbol in enumerate(symbols):
+        logger.info(f"📥 Loading beta for {len(symbols)} symbols (skipping already loaded)...")
+
+        # Use batch yfinance API for speed
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        def fetch_beta(symbol):
             try:
-                # Get beta from yfinance
                 yf_symbol = symbol.replace('.', '-').upper()
                 ticker = yf.Ticker(yf_symbol)
                 beta = ticker.info.get('beta')
-                
-                if beta:
-                    cur.execute("""
-                        INSERT INTO beta_yfinance (symbol, beta)
-                        VALUES (%s, %s)
-                        ON CONFLICT (symbol) DO UPDATE SET beta = EXCLUDED.beta
-                    """, (symbol, float(beta)))
-                    loaded += 1
-                else:
-                    skipped += 1
-                
-                if (i + 1) % 100 == 0:
-                    logger.info(f"  Processed {i + 1}/{len(symbols)} - Loaded: {loaded}, Skipped: {skipped}")
-                    conn.commit()
-                    
+                return (symbol, beta)
             except Exception as e:
-                logger.warning(f"  Error loading {symbol}: {e}")
-                errors += 1
+                logger.warning(f"Error loading {symbol}: {e}")
+                return (symbol, None)
+
+        loaded = 0
+        skipped = 0
+        errors = 0
+        betas = []
+
+        # Parallel fetching with max 10 workers to avoid overwhelming yfinance API
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(fetch_beta, symbol) for symbol in symbols]
+
+            for i, future in enumerate(as_completed(futures)):
+                try:
+                    symbol, beta = future.result()
+                    if beta:
+                        betas.append((symbol, float(beta)))
+                        loaded += 1
+                    else:
+                        skipped += 1
+                except Exception as e:
+                    logger.warning(f"Error processing future: {e}")
+                    errors += 1
+
+                if (i + 1) % 50 == 0:
+                    logger.info(f"  Processed {i + 1}/{len(symbols)} - Found: {loaded}, Skipped: {skipped}")
+
+        # Batch insert all betas at once
+        if betas:
+            from psycopg2.extras import execute_values
+            execute_values(cur, """
+                INSERT INTO beta_yfinance (symbol, beta)
+                VALUES %s
+                ON CONFLICT (symbol) DO UPDATE SET beta = EXCLUDED.beta
+            """, betas)
+            conn.commit()
+            logger.info(f"  Batch inserted {len(betas)} beta values")
         
         conn.commit()
         logger.info(f"✅ Beta loading complete:")
