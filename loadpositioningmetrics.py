@@ -25,9 +25,43 @@ def main():
         sys.exit(1)
 
     try:
-        # Placeholder: Positioning metrics loading
-        logger.info("📊 Positioning metrics loader (placeholder)")
-        logger.info("✅ Loader completed successfully")
+        logger.info("📊 Loading positioning metrics from major_holders data...")
+
+        cur = conn.cursor()
+
+        # Get all symbols with major_holders data
+        cur.execute("""
+            SELECT DISTINCT symbol FROM major_holders
+            WHERE major_holders IS NOT NULL
+        """)
+        symbols = [row[0] for row in cur.fetchall()]
+        logger.info(f"Processing positioning data for {len(symbols)} symbols...")
+
+        # Load positioning metrics from major_holders data
+        count = 0
+        for symbol in symbols:
+            try:
+                cur.execute("""
+                    INSERT INTO positioning_metrics (symbol, institutional_ownership_pct, insider_ownership_pct)
+                    SELECT
+                        %s,
+                        SUM(CASE WHEN holder_type = 'Institutional' THEN percentage ELSE 0 END),
+                        SUM(CASE WHEN holder_type = 'Insiders' THEN percentage ELSE 0 END)
+                    FROM major_holders WHERE symbol = %s
+                    ON CONFLICT (symbol) DO UPDATE SET
+                        institutional_ownership_pct = EXCLUDED.institutional_ownership_pct,
+                        insider_ownership_pct = EXCLUDED.insider_ownership_pct
+                """, (symbol, symbol))
+                count += 1
+                if count % 500 == 0:
+                    logger.info(f"  Processed {count}/{len(symbols)} symbols")
+                    conn.commit()
+            except Exception as e:
+                logger.warning(f"  Error processing {symbol}: {e}")
+
+        conn.commit()
+        logger.info(f"✅ Positioning metrics loaded for {count} symbols")
+        cur.close()
         sys.exit(0)
     except Exception as e:
         logger.error(f"❌ Error: {e}")
