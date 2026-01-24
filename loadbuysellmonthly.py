@@ -110,9 +110,10 @@ def get_symbols_from_db(limit=None):
         conn.close()
 
 def create_buy_sell_table(cur, table_name="buy_sell_monthly"):
-    cur.execute(f"DROP TABLE IF EXISTS {table_name};")
+    # CRITICAL: Do NOT drop table - preserve existing data for incremental loads
+    # cur.execute(f"DROP TABLE IF EXISTS {table_name};")
     cur.execute(f"""
-      CREATE TABLE {table_name} (
+      CREATE TABLE IF NOT EXISTS {table_name} (
         id                  SERIAL PRIMARY KEY,
         symbol              VARCHAR(20)    NOT NULL,
         timeframe           VARCHAR(10)    NOT NULL,
