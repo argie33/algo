@@ -8,6 +8,8 @@ on:
   # Allow manual trigger from GitHub Actions UI
   workflow_dispatch
 
+# Trigger: Loading signals data - Jan 24 2026
+
 jobs:
   update-signals:
     runs-on: ubuntu-latest
