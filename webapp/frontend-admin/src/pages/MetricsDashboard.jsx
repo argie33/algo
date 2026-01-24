@@ -74,7 +74,7 @@ const MetricsDashboard = () => {
   ]);
 
   useEffect(() => {
-    if (activeTab === 2) {
+    if (activeTab === 0) {
       fetchTopStocks();
       fetchBottomStocks();
     }
@@ -526,68 +526,84 @@ const MetricsDashboard = () => {
     </Grid>
   );
 
-  const BottomStocks = () => (
-    <Grid container spacing={3} sx={{ mt: 2 }}>
-      {Object.entries(bottomStocks).map(([category, stocks]) => (
-        stocks && stocks.length > 0 && (
-          <Grid item xs={12} md={6} key={`bottom-${category}`}>
-            <Card>
-              <CardContent>
-                <Typography
-                  variant="h6"
-                  gutterBottom
-                  sx={{ textTransform: "capitalize" }}
-                >
-                  Bottom {category === "composite" ? "Overall" : category} Stocks
-                </Typography>
-                <Box sx={{ maxHeight: 400, overflow: "auto" }}>
-                  {stocks.map((stock, index) => (
-                    <Box
-                      key={`${stock.symbol}-${index}`}
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        py: 1,
-                        borderBottom: index < stocks.length - 1 ? "1px solid #eee" : "none",
-                      }}
+  const BottomStocks = () => {
+    const hasData = bottomStocks && Object.keys(bottomStocks).length > 0;
+
+    return (
+      <Grid container spacing={3} sx={{ mt: 2 }}>
+        {hasData ? (
+          Object.entries(bottomStocks).map(([category, stocks]) => (
+            stocks && stocks.length > 0 && (
+              <Grid item xs={12} md={6} key={`bottom-${category}`}>
+                <Card>
+                  <CardContent>
+                    <Typography
+                      variant="h6"
+                      gutterBottom
+                      sx={{ textTransform: "capitalize" }}
                     >
-                      <Box>
-                        <Typography
-                          variant="subtitle2"
-                          sx={{ fontWeight: "bold" }}
-                        >
-                          {index + 1}. {stock.symbol}
-                        </Typography>
-                        <Typography variant="caption" color="textSecondary">
-                          {stock.companyName?.substring(0, 25)}
-                          {stock.companyName?.length > 25 ? "..." : ""}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ textAlign: "right" }}>
-                        <Typography
-                          variant="body2"
+                      Bottom {category === "composite" ? "Overall" : category} Stocks
+                    </Typography>
+                    <Box sx={{ maxHeight: 400, overflow: "auto" }}>
+                      {stocks.map((stock, index) => (
+                        <Box
+                          key={`${stock.symbol}-${index}`}
                           sx={{
-                            color: getMetricColor(stock.categoryMetric),
-                            fontWeight: "bold",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            py: 1,
+                            borderBottom: index < stocks.length - 1 ? "1px solid #eee" : "none",
                           }}
                         >
-                          {stock.categoryMetric.toFixed(3)}
-                        </Typography>
-                        <Typography variant="caption" color="textSecondary">
-                          {stock.sector}
-                        </Typography>
-                      </Box>
+                          <Box>
+                            <Typography
+                              variant="subtitle2"
+                              sx={{ fontWeight: "bold" }}
+                            >
+                              {index + 1}. {stock.symbol}
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary">
+                              {stock.companyName?.substring(0, 25)}
+                              {stock.companyName?.length > 25 ? "..." : ""}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ textAlign: "right" }}>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                color: getMetricColor(stock.categoryMetric),
+                                fontWeight: "bold",
+                              }}
+                            >
+                              {stock.categoryMetric.toFixed(3)}
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary">
+                              {stock.sector}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      ))}
                     </Box>
-                  ))}
-                </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            )
+          ))
+        ) : (
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography color="textSecondary">
+                  Loading bottom performers...
+                </Typography>
               </CardContent>
             </Card>
           </Grid>
-        )
-      ))}
-    </Grid>
-  );
+        )}
+      </Grid>
+    );
+  };
 
   if (error) {
     return (
@@ -617,7 +633,6 @@ const MetricsDashboard = () => {
           onChange={(e, newValue) => setActiveTab(newValue)}
         >
           <Tab value={0} label="Stock Metrics" />
-          <Tab value={2} label="Top & Bottom Performers" />
         </Tabs>
       </Box>
 
@@ -714,10 +729,10 @@ const MetricsDashboard = () => {
         </Box>
       ) : (
         <>
-          {activeTab === 0 && <MainMetricsTable />}
-          {activeTab === 2 && (
+          {activeTab === 0 && (
             <>
-              <Typography variant="h5" sx={{ fontWeight: 700, mb: 3, mt: 4 }}>Top Performers by Category</Typography>
+              <MainMetricsTable />
+              <Typography variant="h5" sx={{ fontWeight: 700, mb: 3, mt: 6 }}>Top Performers by Category</Typography>
               <TopStocks />
               <Typography variant="h5" sx={{ fontWeight: 700, mb: 3, mt: 6 }}>Bottom Performers by Category</Typography>
               <BottomStocks />
