@@ -114,12 +114,29 @@ router.get("/stocks", async (req, res) => {
       paramIndex++;
     }
 
-    // Build actual columns based on REAL database schema
-    // Database only has: id, symbol, timeframe, date, open, high, low, close, volume, signal, buylevel, stoplevel, inposition
+    // Build actual columns based on REAL database schema - INCLUDE ALL O'NEILL SIGNAL COLUMNS
     const actualColumns = `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
+      bsd.signal_triggered_date,
       bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
-      bsd.signal, bsd.buylevel, bsd.stoplevel, bsd.inposition
+      bsd.signal, bsd.buylevel, bsd.stoplevel, bsd.inposition,
+      bsd.strength, bsd.signal_type, bsd.pivot_price,
+      bsd.buy_zone_start, bsd.buy_zone_end,
+      bsd.exit_trigger_1_price, bsd.exit_trigger_2_price,
+      bsd.exit_trigger_3_condition, bsd.exit_trigger_3_price,
+      bsd.exit_trigger_4_condition, bsd.exit_trigger_4_price,
+      bsd.initial_stop, bsd.trailing_stop,
+      bsd.base_type, bsd.base_length_days,
+      bsd.avg_volume_50d, bsd.volume_surge_pct,
+      bsd.rs_rating, bsd.breakout_quality,
+      bsd.risk_reward_ratio, bsd.current_gain_pct, bsd.days_in_position,
+      bsd.market_stage, bsd.stage_number, bsd.stage_confidence, bsd.substage,
+      bsd.entry_quality_score, bsd.risk_pct,
+      bsd.position_size_recommendation, bsd.profit_target_8pct,
+      bsd.profit_target_20pct, bsd.profit_target_25pct, bsd.sell_level,
+      bsd.mansfield_rs, bsd.sata_score,
+      bsd.rsi, bsd.adx, bsd.atr, bsd.sma_50, bsd.sma_200,
+      bsd.ema_21, bsd.pct_from_ema21, bsd.pct_from_sma50, bsd.entry_price
     `;
 
     const tddJoin = ``;
@@ -166,13 +183,14 @@ router.get("/stocks", async (req, res) => {
     // Summary statistics are calculated on frontend from items array per RULES.md
     const signalData = signalsResult.rows;
 
-    // Format the response data - ONLY include fields that exist in database
+    // Format the response data - INCLUDE ALL O'NEILL SIGNAL COLUMNS FOR STOCKS
     const formattedData = signalsResult.rows.map(row => ({
       // Basic signal info
       id: row.id,
       symbol: row.symbol,
       signal: row.signal,
       date: row.date,
+      signal_triggered_date: row.signal_triggered_date || null,
       timeframe: row.timeframe || timeframe,
 
       // Price data
@@ -187,6 +205,66 @@ router.get("/stocks", async (req, res) => {
       buylevel: row.buylevel !== null && row.buylevel !== undefined ? parseFloat(row.buylevel) : null,
       stoplevel: row.stoplevel !== null && row.stoplevel !== undefined ? parseFloat(row.stoplevel) : null,
       inposition: row.inposition || false,
+
+      // O'Neill signal columns
+      strength: row.strength || null,
+      signal_type: row.signal_type || null,
+      pivot_price: row.pivot_price !== null ? parseFloat(row.pivot_price) : null,
+      buy_zone_start: row.buy_zone_start !== null ? parseFloat(row.buy_zone_start) : null,
+      buy_zone_end: row.buy_zone_end !== null ? parseFloat(row.buy_zone_end) : null,
+      exit_trigger_1_price: row.exit_trigger_1_price !== null ? parseFloat(row.exit_trigger_1_price) : null,
+      exit_trigger_2_price: row.exit_trigger_2_price !== null ? parseFloat(row.exit_trigger_2_price) : null,
+      exit_trigger_3_condition: row.exit_trigger_3_condition || null,
+      exit_trigger_3_price: row.exit_trigger_3_price !== null ? parseFloat(row.exit_trigger_3_price) : null,
+      exit_trigger_4_condition: row.exit_trigger_4_condition || null,
+      exit_trigger_4_price: row.exit_trigger_4_price !== null ? parseFloat(row.exit_trigger_4_price) : null,
+      initial_stop: row.initial_stop !== null ? parseFloat(row.initial_stop) : null,
+      trailing_stop: row.trailing_stop !== null ? parseFloat(row.trailing_stop) : null,
+
+      // Base and volume
+      base_type: row.base_type || null,
+      base_length_days: row.base_length_days || null,
+      avg_volume_50d: row.avg_volume_50d || null,
+      volume_surge_pct: row.volume_surge_pct !== null ? parseFloat(row.volume_surge_pct) : null,
+
+      // Ratings and quality
+      rs_rating: row.rs_rating || null,
+      breakout_quality: row.breakout_quality || null,
+      risk_reward_ratio: row.risk_reward_ratio !== null ? parseFloat(row.risk_reward_ratio) : null,
+      current_gain_pct: row.current_gain_pct !== null ? parseFloat(row.current_gain_pct) : null,
+      days_in_position: row.days_in_position || null,
+
+      // Market stage
+      market_stage: row.market_stage || null,
+      stage_number: row.stage_number || null,
+      stage_confidence: row.stage_confidence !== null ? parseFloat(row.stage_confidence) : null,
+      substage: row.substage || null,
+
+      // Entry quality and positioning
+      entry_quality_score: row.entry_quality_score !== null ? parseFloat(row.entry_quality_score) : null,
+      risk_pct: row.risk_pct !== null ? parseFloat(row.risk_pct) : null,
+      position_size_recommendation: row.position_size_recommendation || null,
+
+      // Profit targets
+      profit_target_8pct: row.profit_target_8pct !== null ? parseFloat(row.profit_target_8pct) : null,
+      profit_target_20pct: row.profit_target_20pct !== null ? parseFloat(row.profit_target_20pct) : null,
+      profit_target_25pct: row.profit_target_25pct !== null ? parseFloat(row.profit_target_25pct) : null,
+      sell_level: row.sell_level !== null ? parseFloat(row.sell_level) : null,
+
+      // Scores
+      mansfield_rs: row.mansfield_rs !== null ? parseFloat(row.mansfield_rs) : null,
+      sata_score: row.sata_score || null,
+
+      // Technical indicators
+      rsi: row.rsi !== null ? parseFloat(row.rsi) : null,
+      adx: row.adx !== null ? parseFloat(row.adx) : null,
+      atr: row.atr !== null ? parseFloat(row.atr) : null,
+      sma_50: row.sma_50 !== null ? parseFloat(row.sma_50) : null,
+      sma_200: row.sma_200 !== null ? parseFloat(row.sma_200) : null,
+      ema_21: row.ema_21 !== null ? parseFloat(row.ema_21) : null,
+      pct_from_ema21: row.pct_from_ema21 !== null ? parseFloat(row.pct_from_ema21) : null,
+      pct_from_sma50: row.pct_from_sma50 !== null ? parseFloat(row.pct_from_sma50) : null,
+      entry_price: row.entry_price !== null ? parseFloat(row.entry_price) : null,
 
       // Company and earnings information (from joined tables)
       company_name: row.company_name || null,
