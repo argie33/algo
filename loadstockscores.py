@@ -375,18 +375,9 @@ def calculate_composite_score(scores):
         return None
 
 def clear_old_stock_scores(conn):
-    """Clear old stock scores before loading new ones to avoid stale data."""
-    try:
-        cur = conn.cursor()
-        cur.execute("DELETE FROM stock_scores;")
-        conn.commit()
-        logger.info("🗑️  Cleared all old stock_scores data - fresh load starting")
-        cur.close()
-        return True
-    except Exception as e:
-        logger.error(f"❌ Failed to clear stock_scores: {e}")
-        conn.rollback()
-        return False
+    """Skip clearing to enable incremental loading - symbols with existing scores will be updated via INSERT OR UPDATE."""
+    logger.info("📝 Running in INCREMENTAL mode - will update existing scores, add new ones (no truncation)")
+    return True
 
 def create_stock_scores_table(conn):
     """Create stock_scores table if it doesn't exist."""
