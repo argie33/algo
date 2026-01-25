@@ -4622,12 +4622,18 @@ def main():
         successful = 0
         failed = 0
         import time
+        import gc
 
         for i, symbol in enumerate(symbols, 1):
             try:
                 # Log every 10th stock to reduce I/O overhead
                 if i % 10 == 1:
                     logger.info(f"📈 Processing {symbol} ({i}/{len(symbols)})")
+
+                # Force garbage collection every 100 symbols to avoid OOM
+                if i % 100 == 0:
+                    gc.collect()
+                    logger.debug(f"🧹 Memory cleanup after {i} symbols")
 
                 # Create a fresh cursor for each stock to avoid transaction abort issues
                 score_data = get_stock_data_from_database(conn, symbol, quality_metrics, growth_metrics, value_metrics, positioning_metrics, stability_metrics)
