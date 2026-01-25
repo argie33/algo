@@ -1165,7 +1165,7 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     df['sma_200'] = calculate_sma(df['close'], 200)
     df['rsi'] = calculate_rsi(df['close'], 14)
     df['atr'] = calculate_atr(df['high'], df['low'], df['close'], 14)
-    df['adx'] = None  # SKIP ADX (expensive calculation, not critical for signals)
+    df['adx'] = calculate_adx(df['high'], df['low'], df['close'], 14)  # Calculate ADX for trend strength
     df['ema_21'] = df['close'].ewm(span=21, adjust=False).mean()
     df['pct_from_sma50'] = ((df['close'] - df['sma_50']) / df['sma_50'] * 100).round(2)
     df['pct_from_ema21'] = ((df['close'] - df['ema_21']) / df['ema_21'] * 100).round(2)
@@ -1334,17 +1334,19 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     # pivot_price is calculated earlier as technical indicator (H+L+C)/3
     # No need to override it here - use the technical pivot price
 
-    # buy_zone_start and buy_zone_end (set to None if not using for now)
-    df['buy_zone_start'] = np.nan
-    df['buy_zone_end'] = np.nan
+    # buy_zone_start and buy_zone_end: Zone around the pivot level for entry
+    # buy_zone_start = 2% below buyLevel (pivot high)
+    # buy_zone_end = buyLevel (pivot high) - defines entry zone
+    df['buy_zone_start'] = df['buyLevel'] * 0.98  # 2% below pivot
+    df['buy_zone_end'] = df['buyLevel']  # At pivot high
 
-    # exit_trigger fields (not in current strategy)
-    df['exit_trigger_1_price'] = np.nan
-    df['exit_trigger_2_price'] = np.nan
-    df['exit_trigger_3_condition'] = None
-    df['exit_trigger_3_price'] = np.nan
-    df['exit_trigger_4_condition'] = None
-    df['exit_trigger_4_price'] = np.nan
+    # exit_trigger fields: Define profit targets and stop loss conditions
+    df['exit_trigger_1_price'] = df['buyLevel'] * 1.20  # 20% profit target
+    df['exit_trigger_2_price'] = df['buyLevel'] * 1.25  # 25% profit target
+    df['exit_trigger_3_condition'] = '50_SMA_BREACH_WITH_VOLUME'  # Condition type
+    df['exit_trigger_3_price'] = df['sma_50']  # Current 50-day SMA level
+    df['exit_trigger_4_condition'] = 'STOP_LOSS_HIT'  # Hard stop condition
+    df['exit_trigger_4_price'] = df['stopLevel']  # Stop loss price (pivot low)
 
     # === BASE/CONSOLIDATION ANALYSIS ===
     # base_type: Detect consolidation patterns by looking at price volatility (VECTORIZED)
@@ -1355,10 +1357,12 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     )
 
     # base_length_days: Count consecutive days in consolidation (simplified - count at signal)
+    # Calculate for all signals (Buy/Sell), showing consolidation length before signal
     df['base_length_days'] = None
     for i in range(1, len(df)):
-        if df.iloc[i]['Signal'] == 'Buy':
-            # Count consecutive consolidation days before this buy (max 20 days)
+        signal = df.iloc[i]['Signal']
+        if signal in ['Buy', 'Sell']:
+            # Count consecutive consolidation days before this signal (max 20 days)
             length = 0
             for j in range(i - 1, max(-1, i - 21), -1):
                 if df.iloc[j]['base_type'] in ['TIGHT_RANGE', 'NORMAL_RANGE']:
