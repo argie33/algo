@@ -53,25 +53,39 @@ def main():
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         def fetch_beta(symbol):
-            try:
-                yf_symbol = symbol.replace('.', '-').upper()
-                ticker = yf.Ticker(yf_symbol)
-                beta = ticker.info.get('beta')
-                return (symbol, beta)
-            except Exception as e:
-                logger.warning(f"Error loading {symbol}: {e}")
-                return (symbol, None)
+            import time
+            # Retry logic: try up to 3 times with exponential backoff for rate limiting
+            for attempt in range(3):
+                try:
+                    yf_symbol = symbol.replace('.', '-').upper()
+                    ticker = yf.Ticker(yf_symbol)
+                    beta = ticker.info.get('beta')
+                    return (symbol, beta)
+                except Exception as e:
+                    if 'Too Many Requests' in str(e) or '429' in str(e):
+                        # Rate limited - wait and retry
+                        wait_time = 0.5 * (2 ** attempt)  # 0.5s, 1s, 2s
+                        logger.debug(f"{symbol}: Rate limited, retrying in {wait_time}s (attempt {attempt+1}/3)")
+                        time.sleep(wait_time)
+                    elif attempt == 2:
+                        # Last attempt failed
+                        logger.warning(f"Error loading {symbol}: {e}")
+                        return (symbol, None)
+            return (symbol, None)
 
         loaded = 0
         skipped = 0
         errors = 0
         betas = []
 
-        # Parallel fetching with max 10 workers to avoid overwhelming yfinance API
-        with ThreadPoolExecutor(max_workers=5) as executor:
+        # Sequential fetching (max_workers=1) to avoid yfinance rate limiting
+        # yfinance API gets rate-limited with parallel requests - better to be slower and reliable
+        import time
+        with ThreadPoolExecutor(max_workers=1) as executor:
             futures = [executor.submit(fetch_beta, symbol) for symbol in symbols]
 
             for i, future in enumerate(as_completed(futures)):
+                time.sleep(0.1)  # 100ms delay between requests to avoid rate limiting
                 try:
                     symbol, beta = future.result()
                     if beta:
