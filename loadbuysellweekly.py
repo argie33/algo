@@ -86,16 +86,20 @@ def get_db_connection():
 ###############################################################################
 # 1) DATABASE FUNCTIONS
 ###############################################################################
-def get_symbols_from_db(limit=None):
+def get_symbols_from_db(limit=None, skip_completed=False):
     conn = get_db_connection()
     cur  = conn.cursor()
     try:
         q = """
           SELECT symbol
             FROM stock_symbols
-           WHERE exchange IN ('NASDAQ','New York Stock Exchange')
-              OR etf='Y'
+           WHERE (exchange IN ('NASDAQ','New York Stock Exchange')
+              OR etf='Y')
         """
+        # OPTIMIZATION: Skip symbols already processed in buy_sell_weekly
+        if skip_completed:
+            q += " AND symbol NOT IN (SELECT DISTINCT symbol FROM buy_sell_weekly)"
+
         if limit:
             q += " LIMIT %s"
             cur.execute(q, (limit,))
@@ -1785,10 +1789,12 @@ def main():
         logging.warning(f"Failed to get risk-free rate: {e}")
         annual_rfr = 0.0
 
-    symbols = get_symbols_from_db(limit=None)  # Process all symbols - no limit
+    symbols = get_symbols_from_db(limit=None, skip_completed=True)  # Process ONLY incomplete symbols
     if not symbols:
-        print("No stock symbols in DB.")
-        symbols = []
+        logging.info("✅ No more symbols to process - all stocks complete!")
+        return
+
+    logging.info(f"📊 Found {len(symbols)} incomplete symbols to process")
 
     # Load country ETF symbols (from stock_symbols where etf='Y' AND country IS NOT NULL)
     country_symbols = []
@@ -1811,8 +1817,8 @@ def main():
                'Weekly':{'rets':[],'durs':[]},
                'Monthly':{'rets':[],'durs':[]}}
 
-    # Process ONLY regular stocks (NO ETFs)
-    logging.info(f"Processing {len(symbols)} regular stocks only (excluding {len(country_symbols)} country symbols)")
+    # Process ONLY regular stocks (NO ETFs) - NOW ONLY INCOMPLETE
+    logging.info(f"🚀 Processing {len(symbols)} remaining regular stocks (excluding {len(country_symbols)} country symbols)")
 
     for sym in symbols:
         logging.info(f"=== {sym} ===")
