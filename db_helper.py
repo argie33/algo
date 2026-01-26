@@ -2,6 +2,9 @@
 """
 Shared database connection helper with robust AWS Secrets Manager fallback
 Used by all loaders to ensure consistent error handling and fallback logic
+
+REBUILD TRIGGER: 2026-01-26 16:50 UTC
+This version is now included in base-loader Docker image via Dockerfile update.
 """
 
 import os
