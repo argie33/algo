@@ -226,11 +226,14 @@ def calculate_roe_stability_index(cursor, symbol: str, conn=None) -> Optional[fl
 
         # Get ROE from last 4 fiscal years (from key_metrics historical data)
         # We calculate ROE from annual statements: Net Income / Shareholders Equity
+        # JOIN annual_income_statement (has net_income) with annual_balance_sheet (has total_assets, total_liabilities)
         temp_cur.execute("""
-            SELECT net_income, total_assets, total_liabilities
-            FROM annual_balance_sheet
-            WHERE symbol = %s
-            ORDER BY fiscal_year DESC
+            SELECT ai.net_income, ab.total_assets, ab.total_liabilities
+            FROM annual_income_statement ai
+            JOIN annual_balance_sheet ab
+                ON ai.symbol = ab.symbol AND ai.date = ab.date
+            WHERE ai.symbol = %s
+            ORDER BY ai.date DESC
             LIMIT 4
         """, (symbol,))
 
