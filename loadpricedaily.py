@@ -1,10 +1,11 @@
-# TEST BATCH 1: 20260101_111748 - Run 3 loaders to test AWS deployment
-# BATCH 1 FOUNDATION TRIGGER: Deploy all foundation loaders concurrently
+# AUTO-TRIGGER: GitHub Actions will auto-run on code push (2026-01-26 13:30 UTC)
+# ============================================================================
 #!/usr/bin/env python3
 # Daily price data loader - fetches OHLCV data for all symbols
-# CRITICAL: Database has 0 price records. Must run to populate price_daily table for all pages/APIs
-# TRIGGER: 2025-10-27 - Loading price history for volatility, beta, Sharpe ratio calculations
-# Trigger: 20260107-220000-AWS-RUN - Force rebuild with optimized batch processing
+# CRITICAL: Populates price_daily table with OHLCV data for all 5000+ symbols
+# Required by: volatility calculations, technical indicators, momentum metrics
+# Trigger: 2025-10-27 - Loading price history for volatility calculations
+# Updated: 2026-01-26 - Enable auto-push triggered GitHub Actions pipeline
 import sys
 import time
 import logging
