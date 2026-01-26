@@ -885,6 +885,13 @@ def fetch_symbol_from_db(symbol, timeframe):
         logging.warning(f"Skipping {symbol} {timeframe}: insufficient data ({len(rows)} bars, need 50+ for SMA-50)")
         return pd.DataFrame()
 
+    # CRITICAL: Skip symbols with excessive zero-volume data (causes rolling window to hang)
+    zero_volume_count = sum(1 for r in rows if r.get('volume', 0) == 0)
+    zero_volume_pct = (zero_volume_count / len(rows)) * 100 if rows else 0
+    if zero_volume_pct > 50:
+        logging.warning(f"Skipping {symbol} {timeframe}: {zero_volume_pct:.1f}% zero-volume bars (causes calculation hang)")
+        return pd.DataFrame()
+
     df = pd.DataFrame(rows)
     df['date'] = pd.to_datetime(df['date'])
     num_cols = ['open','high','low','close','volume']
