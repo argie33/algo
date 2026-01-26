@@ -4,6 +4,14 @@ name: Data Loaders Pipeline
 # GitHub Actions will rebuild CloudFormation stack with all ECS task definitions
 
 on:
+  push:
+    paths:
+      - 'load*.py'
+      - 'db_helper.py'
+      - 'Dockerfile.*'
+      - 'requirements-load*.txt'
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       loaders:
