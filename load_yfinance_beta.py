@@ -55,11 +55,10 @@ def main():
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         def fetch_beta(symbol):
-            # Retry logic: try up to 5 times with exponential backoff + jitter for rate limiting
+            # Retry logic: try up to 5 times with exponential backoff for rate limiting
             for attempt in range(5):
                 try:
                     yf_symbol = symbol.replace('.', '-').upper()
-                    # Create a fresh session for each symbol to avoid connection issues
                     ticker = yf.Ticker(yf_symbol)
                     beta = ticker.info.get('beta')
                     if beta is not None:
@@ -68,9 +67,9 @@ def main():
                 except Exception as e:
                     error_str = str(e).lower()
                     if 'too many' in error_str or '429' in error_str or 'rate' in error_str:
-                        # Rate limited - wait with exponential backoff + random jitter
-                        wait_time = (0.5 * (2 ** attempt)) + random.uniform(0, 1)  # 0.5-1.5s, 1-3s, 2-6s, etc
-                        logger.debug(f"{symbol}: Rate limited, retry {attempt+1}/5 in {wait_time:.1f}s")
+                        # Rate limited - exponential backoff: 0.2-0.5s, 0.5-1s, 1-2s, 2-4s, 4-8s
+                        wait_time = (0.1 * (2 ** attempt)) + random.uniform(0, 0.1 * (2 ** attempt))
+                        logger.debug(f"{symbol}: Rate limited, retry {attempt+1}/5 in {wait_time:.2f}s")
                         time.sleep(wait_time)
                     elif attempt == 4:
                         # Last attempt failed
@@ -79,7 +78,7 @@ def main():
                     else:
                         # Other error, retry
                         logger.debug(f"{symbol}: Error (attempt {attempt+1}/5): {str(e)[:50]}")
-                        time.sleep(0.5)
+                        time.sleep(0.1)
             return (symbol, None)
 
         loaded = 0
@@ -87,13 +86,12 @@ def main():
         errors = 0
         betas = []
 
-        # Sequential fetching (max_workers=1) to avoid yfinance rate limiting
-        # Uses 5 retries with exponential backoff to handle rate limiting gracefully
-        with ThreadPoolExecutor(max_workers=1) as executor:
+        # Parallel fetching (max_workers=5) with intelligent retry logic for rate limiting
+        # Exponential backoff on rate limit errors handles API throttling automatically
+        with ThreadPoolExecutor(max_workers=5) as executor:
             futures = [executor.submit(fetch_beta, symbol) for symbol in symbols]
 
             for i, future in enumerate(as_completed(futures)):
-                time.sleep(0.1)  # 100ms delay between requests to avoid rate limiting
                 try:
                     symbol, beta = future.result()
                     if beta:
