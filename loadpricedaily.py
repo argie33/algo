@@ -1,4 +1,4 @@
-# AUTO-TRIGGER: GitHub Actions will auto-run on code push (2026-01-26 13:30 UTC)
+# URGENT REBUILD: 2026-01-26 16:50 UTC - Force base-loader rebuild with db_helper.py
 # ============================================================================
 #!/usr/bin/env python3
 # Daily price data loader - fetches OHLCV data for all symbols
