@@ -9,6 +9,12 @@ Loads company info, positioning data, analyst estimates, and earnings history wi
 Updated: 2025-12-03 - Added earnings history consolidation from loadearningshistory.py
 Consolidation: Now loads both analyst estimates AND historical earnings in single loader
 
+PERFORMANCE NOTE (AWS): This loader experiences timeout issues with yfinance API calls.
+- Known issue: yfinance hangs on certain ticker.info() calls
+- Recommendation: Implement parallel processing with concurrent futures
+- Current status: Works locally but times out under AWS load
+- Last stable run: 2026-01-23
+
 Replaces:
 - loadinfo.py (ticker.info)
 - loadpositioning.py (institutional/mutual fund holders)

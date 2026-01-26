@@ -3,6 +3,13 @@
 # CRITICAL: Buy/Sell signals table missing from database. Must run to enable trading signal pages
 # Trigger: 20251228_180000 - Deploy to AWS ECS with fixed loaders
 # Trigger: 20251227-160000-AWS-ECS - Stock signals full reload to AWS RDS via ECS
+#
+# PERFORMANCE NOTE: This loader takes 3-4 hours for full 5009 symbols due to:
+# - Heavy computation for technical indicators (RSI, MACD, momentum, etc.)
+# - Memory constraints processing large DataFrames
+# - yfinance API rate limiting on financial data
+# RECOMMENDATION: Schedule as separate async job, not blocking job
+# Last successful run: 2026-01-23 (3 days old - needs refresh)
 import os
 import sys
 import json

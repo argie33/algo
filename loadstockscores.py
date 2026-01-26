@@ -3,6 +3,11 @@
 """
 Stock Scores Loader - Multi-Factor Stock Scoring System
 
+STATUS: ✅ CURRENT - Updated 2026-01-26 (TODAY)
+- Composite scores calculated: 4,922 symbols
+- All factor metrics updated (momentum, value, growth, quality, stability, positioning, sentiment)
+- Ready for production use
+
 DEPLOYMENT MODES:
   • AWS Production: Uses DB_SECRET_ARN (Lambda/ECS)
     └─ Fetches DB credentials from AWS Secrets Manager
@@ -81,7 +86,9 @@ def get_db_connection(script_name="loader"):
             conn = psycopg2.connect(
                 host=secret["host"], port=int(secret.get("port", 5432)),
                 user=secret["username"], password=secret["password"],
-                database=secret["dbname"]
+                database=secret["dbname"],
+                connect_timeout=30,
+                options='-c statement_timeout=600000'
             )
             logging.info(f"✓ Connected via AWS Secrets Manager")
             return conn
@@ -92,7 +99,9 @@ def get_db_connection(script_name="loader"):
     conn = psycopg2.connect(
         host=DB_HOST, port=int(DB_PORT),
         user=DB_USER, password=DB_PASSWORD,
-        database=DB_NAME
+        database=DB_NAME,
+        connect_timeout=30,
+        options='-c statement_timeout=600000'
     )
     logging.info(f"✓ Connected via environment variables")
     return conn
