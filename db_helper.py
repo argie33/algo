@@ -27,9 +27,12 @@ def get_db_config():
     # Try AWS Secrets Manager first
     if db_secret_arn:
         try:
-            secret_str = boto3.client("secretsmanager", region_name="us-east-1") \
-                             .get_secret_value(SecretId=db_secret_arn)["SecretString"]
+            logger.debug(f"get_db_config: Fetching secrets from {db_secret_arn[:50]}...")
+            sm_client = boto3.client("secretsmanager", region_name="us-east-1")
+            secret_response = sm_client.get_secret_value(SecretId=db_secret_arn)
+            secret_str = secret_response["SecretString"]
             sec = json.loads(secret_str)
+            logger.info(f"✓ AWS Secrets Manager: Loaded config for {sec['username']}@{sec['host']}:{sec.get('port', 5432)}")
             return {
                 "host": sec["host"],
                 "port": int(sec.get("port", 5432)),
@@ -38,7 +41,7 @@ def get_db_config():
                 "dbname": sec["dbname"]
             }
         except Exception as e:
-            logger.warning(f"AWS Secrets Manager failed: {e}, using environment vars")
+            logger.warning(f"✗ AWS Secrets Manager failed: {str(e)[:100]}, falling back to environment vars")
 
     # Fall back to environment variables
     return {
@@ -66,9 +69,10 @@ def get_db_connection(script_name="loader"):
     # Strategy 1: Try AWS Secrets Manager if ARN is provided
     if db_secret_arn:
         try:
-            logger.info(f"[{script_name}] Attempting AWS Secrets Manager connection...")
-            secret_str = boto3.client("secretsmanager", region_name="us-east-1") \
-                             .get_secret_value(SecretId=db_secret_arn)["SecretString"]
+            logger.info(f"[{script_name}] Attempting AWS Secrets Manager connection (ARN: {db_secret_arn[:50]}...)...")
+            sm_client = boto3.client("secretsmanager", region_name="us-east-1")
+            secret_response = sm_client.get_secret_value(SecretId=db_secret_arn)
+            secret_str = secret_response["SecretString"]
             sec = json.loads(secret_str)
             conn = psycopg2.connect(
                 host=sec["host"],
@@ -111,5 +115,6 @@ def get_db_connection(script_name="loader"):
         logger.info(f"[{script_name}] ✅ Connected via environment variables")
         return conn
     except psycopg2.Error as e:
-        logger.error(f"[{script_name}] ❌ All connection strategies failed: {e}")
-        return None
+        logger.error(f"[{script_name}] ❌ Environment variable connection failed: {e}")
+        logger.error(f"[{script_name}] ❌ ALL CONNECTION STRATEGIES EXHAUSTED - Check DB_HOST/DB_USER/DB_PASSWORD")
+        raise RuntimeError(f"Database connection failed: {e}") from e
