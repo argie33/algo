@@ -1277,8 +1277,8 @@ def fetch_all_value_metrics(conn):
                         if peg_calc > 0 and peg_calc < 500:
                             metrics['peg'].append(peg_calc)
                             calculated_peg_count += 1
-                except:
-                    pass
+                except (ValueError, TypeError, ZeroDivisionError) as e:
+                    logger.debug(f"PEG calculation failed for {symbol}: {e}")
 
             if calculated_peg_count > 0:
                 logger.info(f"   📈 Added {calculated_peg_count} calculated PEG ratios from earnings estimates")
@@ -1563,22 +1563,29 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
         # Get price data from price_daily table (last 200 days to ensure 65+ trading days)
         # Note: 200 calendar days accounts for weekends/holidays to guarantee ~130+ trading days
-        cur.execute("""
-            SELECT date, open, high, low, close, volume, adj_close
-            FROM price_daily
-            WHERE symbol = %s
-            AND date >= CURRENT_DATE - INTERVAL '200 days'
-            ORDER BY date DESC
-            LIMIT 200
-        """, (symbol,))
+        try:
+            cur.execute("""
+                SELECT date, open, high, low, close, volume, adj_close
+                FROM price_daily
+                WHERE symbol = %s
+                AND date >= CURRENT_DATE - INTERVAL '200 days'
+                ORDER BY date DESC
+                LIMIT 200
+            """, (symbol,))
 
-        price_data = cur.fetchall()
-        if not price_data:
-            logger.warning(f"⚠️ No price data for {symbol}, calculating scores with NULL inputs")
-            # Don't return None - calculate what we can with empty price data
-        elif len(price_data) < 20:
-            logger.debug(f"⚠️ Limited price data for {symbol}: {len(price_data)} records (need 20+ for full accuracy)")
-            # Continue - we'll calculate what we can with partial data
+            price_data = cur.fetchall()
+            if not price_data:
+                logger.error(f"❌ {symbol}: NO PRICE DATA available - cannot calculate technical scores")
+                # Don't return None - calculate what we can with empty price data
+            elif len(price_data) < 20:
+                logger.warning(f"⚠️ {symbol}: LIMITED PRICE DATA - only {len(price_data)} records (need 20+ for accuracy)")
+                # Continue - we'll calculate what we can with partial data
+        except psycopg2.Error as e:
+            logger.error(f"❌ {symbol}: PRICE DATA QUERY FAILED - {str(e)[:100]}")
+            price_data = []
+        except Exception as e:
+            logger.error(f"❌ {symbol}: Unexpected error fetching price data - {type(e).__name__}: {str(e)[:100]}")
+            price_data = []
 
         # Convert to pandas DataFrame for easier calculations
         if price_data:
@@ -1610,15 +1617,24 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             range_52w_pct = ((high_52w - low_52w) / low_52w) * 100
 
         # Get latest technical data including momentum indicators
-        cur.execute("""
-            SELECT rsi, macd, macd_hist, sma_20, sma_50, sma_200, atr, mom, roc
-            FROM technical_data_daily
-            WHERE symbol = %s
-            ORDER BY date DESC
-            LIMIT 1
-        """, (symbol,))
+        tech_data = None
+        try:
+            cur.execute("""
+                SELECT rsi, macd, macd_hist, sma_20, sma_50, sma_200, atr, mom, roc
+                FROM technical_data_daily
+                WHERE symbol = %s
+                ORDER BY date DESC
+                LIMIT 1
+            """, (symbol,))
 
-        tech_data = cur.fetchone()
+            tech_data = cur.fetchone()
+            if not tech_data:
+                logger.warning(f"⚠️ {symbol}: NO TECHNICAL DATA available (technical_data_daily table)")
+        except psycopg2.Error as e:
+            logger.error(f"❌ {symbol}: TECHNICAL DATA QUERY FAILED - {str(e)[:100]}")
+        except Exception as e:
+            logger.error(f"❌ {symbol}: Unexpected error fetching technical data - {type(e).__name__}: {str(e)[:100]}")
+
         if tech_data and len(tech_data) >= 9:
             # Convert Decimal types from PostgreSQL to float immediately after fetching
             raw_rsi, raw_macd, raw_macd_hist, raw_sma_20, raw_sma_50, raw_sma_200, raw_atr, raw_mom_10d, raw_roc_10d = tech_data
@@ -1721,10 +1737,12 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                     momentum_12_3 = momentum_12m - momentum_3m
                 else:
                     momentum_12_3 = None
-        except Exception:
-            # If momentum_metrics table doesn't exist or query fails, skip momentum data
-            # Variables already initialized to None above
-            pass
+            else:
+                logger.warning(f"⚠️ {symbol}: No momentum_metrics data found")
+        except psycopg2.Error as e:
+            logger.error(f"❌ {symbol}: momentum_metrics query failed - {str(e)[:100]}")
+        except Exception as e:
+            logger.error(f"❌ {symbol}: Unexpected error fetching momentum_metrics - {type(e).__name__}: {str(e)[:100]}")
 
         if len(df) > 0:
             prices = df['close'].astype(float).values
@@ -1742,20 +1760,35 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             )
             db_result = cur.fetchone()
             acc_dist_rating = db_result[0] if db_result and db_result[0] is not None else None
-        except (psycopg2.Error, TypeError):
-            acc_dist_rating = None
+            if acc_dist_rating is None:
+                logger.debug(f"{symbol}: NO A/D RATING from positioning_metrics")
+        except psycopg2.Error as e:
+            logger.error(f"❌ {symbol}: A/D RATING QUERY FAILED - {str(e)[:100]}")
+        except TypeError as e:
+            logger.error(f"❌ {symbol}: A/D RATING TYPE ERROR - {str(e)[:100]}")
+        except Exception as e:
+            logger.error(f"❌ {symbol}: Unexpected error fetching A/D rating - {type(e).__name__}: {str(e)[:100]}")
 
         # Get earnings data for PE ratio calculation only
-        cur.execute("""
-            SELECT eps_actual, quarter
-            FROM earnings_history
-            WHERE symbol = %s
-            AND quarter >= CURRENT_DATE - INTERVAL '24 months'
-            ORDER BY quarter DESC
-            LIMIT 4
-        """, (symbol,))
+        earnings_data = None
+        try:
+            cur.execute("""
+                SELECT eps_actual, quarter
+                FROM earnings_history
+                WHERE symbol = %s
+                AND quarter >= CURRENT_DATE - INTERVAL '24 months'
+                ORDER BY quarter DESC
+                LIMIT 4
+            """, (symbol,))
 
-        earnings_data = cur.fetchall()
+            earnings_data = cur.fetchall()
+            if not earnings_data:
+                logger.warning(f"⚠️ {symbol}: NO EARNINGS DATA available (earnings_history table)")
+        except psycopg2.Error as e:
+            logger.error(f"❌ {symbol}: EARNINGS DATA QUERY FAILED - {str(e)[:100]}")
+        except Exception as e:
+            logger.error(f"❌ {symbol}: Unexpected error fetching earnings data - {type(e).__name__}: {str(e)[:100]}")
+
         pe_ratio = None
 
         if earnings_data:
@@ -2805,8 +2838,13 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                         vm_row = cur.fetchone()
                         if vm_row and vm_row[0] is not None:
                             trailing_pe = to_float(vm_row[0])
-                    except:
-                        pass
+                            logger.debug(f"{symbol}: Loaded trailing_pe from value_metrics fallback: {trailing_pe}")
+                        else:
+                            logger.debug(f"{symbol}: value_metrics trailing_pe lookup returned no data")
+                    except psycopg2.Error as e:
+                        logger.error(f"❌ {symbol}: value_metrics trailing_pe query failed - {str(e)[:100]}")
+                    except Exception as e:
+                        logger.error(f"❌ {symbol}: Unexpected error in trailing_pe fallback - {type(e).__name__}: {str(e)[:100]}")
 
                 if price_to_book is None:
                     try:
@@ -2819,8 +2857,13 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                         vm_row = cur.fetchone()
                         if vm_row and vm_row[0] is not None:
                             price_to_book = to_float(vm_row[0])
-                    except:
-                        pass
+                            logger.debug(f"{symbol}: Loaded price_to_book from value_metrics fallback: {price_to_book}")
+                        else:
+                            logger.debug(f"{symbol}: value_metrics price_to_book lookup returned no data")
+                    except psycopg2.Error as e:
+                        logger.error(f"❌ {symbol}: value_metrics price_to_book query failed - {str(e)[:100]}")
+                    except Exception as e:
+                        logger.error(f"❌ {symbol}: Unexpected error in price_to_book fallback - {type(e).__name__}: {str(e)[:100]}")
 
                 if price_to_sales_ttm is None:
                     try:
@@ -2833,8 +2876,13 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                         vm_row = cur.fetchone()
                         if vm_row and vm_row[0] is not None:
                             price_to_sales_ttm = to_float(vm_row[0])
-                    except:
-                        pass
+                            logger.debug(f"{symbol}: Loaded price_to_sales_ttm from value_metrics fallback: {price_to_sales_ttm}")
+                        else:
+                            logger.debug(f"{symbol}: value_metrics price_to_sales_ttm lookup returned no data")
+                    except psycopg2.Error as e:
+                        logger.error(f"❌ {symbol}: value_metrics price_to_sales_ttm query failed - {str(e)[:100]}")
+                    except Exception as e:
+                        logger.error(f"❌ {symbol}: Unexpected error in price_to_sales_ttm fallback - {type(e).__name__}: {str(e)[:100]}")
 
                 # CHECK IF COMPANY IS UNPROFITABLE
                 # For VALUE scoring, unprofitable companies should rank at bottom, not be excluded
