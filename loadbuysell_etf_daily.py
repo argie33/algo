@@ -95,7 +95,7 @@ def get_db_connection():
 ###############################################################################
 # 1) DATABASE FUNCTIONS
 ###############################################################################
-def get_symbols_from_db(limit=None):
+def get_symbols_from_db(limit=None, skip_completed=False):
     conn = get_db_connection()
     cur  = conn.cursor()
     try:
@@ -104,6 +104,10 @@ def get_symbols_from_db(limit=None):
             FROM etf_symbols
            WHERE etf='Y'
         """
+        # OPTIMIZATION: Skip symbols already processed in buy_sell_daily_etf
+        if skip_completed:
+            q += " AND symbol NOT IN (SELECT DISTINCT symbol FROM buy_sell_daily_etf)"
+
         if limit:
             q += " LIMIT %s"
             cur.execute(q, (limit,))
@@ -1893,17 +1897,20 @@ def main():
         logging.warning(f"Failed to get risk-free rate: {e}")
         annual_rfr = 0.0
 
-    # Load symbols from database
-    symbols = get_symbols_from_db(limit=None)  # Load ALL stocks
+    # Load symbols from database - SKIP ALREADY COMPLETED
+    symbols = get_symbols_from_db(limit=None, skip_completed=True)  # Load ONLY incomplete ETFs
     if not symbols:
-        print("No stock symbols in DB.")
-        symbols = []
+        logging.info("✅ No more symbols to process - all ETFs complete!")
+        return
+
+    logging.info(f"📊 Found {len(symbols)} incomplete ETF symbols to process")
 
     # Load country ETF symbols (from etf_symbols where etf='Y' AND country IS NOT NULL)
+    # Note: Also need to filter country symbols by skip_completed
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT symbol FROM etf_symbols WHERE etf='Y' AND country IS NOT NULL;")
+        cur.execute("SELECT symbol FROM etf_symbols WHERE etf='Y' AND country IS NOT NULL AND symbol NOT IN (SELECT DISTINCT symbol FROM buy_sell_daily_etf);")
         country_symbols = [r[0] for r in cur.fetchall()]
     except:
         logging.warning("Could not load country ETF symbols from etf_symbols")
@@ -1922,7 +1929,7 @@ def main():
 
     # Combine regular and country ETF symbols into single list
     all_etf_symbols = symbols + country_symbols
-    logging.info(f"Processing {len(symbols)} regular ETFs + {len(country_symbols)} country ETFs = {len(all_etf_symbols)} total ETFs")
+    logging.info(f"🚀 Processing {len(symbols)} incomplete regular ETFs + {len(country_symbols)} incomplete country ETFs = {len(all_etf_symbols)} total ETFs")
 
     # BLACKLIST: Skip bond ETFs that don't work with breakout strategy
     blacklist = {'SHY', 'IEF', 'TLT', 'SHV', 'BND', 'AGG'}  # Bond ETFs - too stable
