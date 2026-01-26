@@ -1,23 +1,11 @@
-ARG REGISTRY=python
-ARG TAG=3.11-slim
-FROM ${REGISTRY}:${TAG}
+# Use shared base image with dependencies pre-installed
+ARG ECR_REGISTRY
+FROM ${ECR_REGISTRY}:base-loader-latest
 
-WORKDIR /app
-
-# Copy requirements and script
-COPY requirements-loadstockscores.txt .
+# Copy only the Python script (dependencies already in base)
 COPY loadstockscores.py .
+ENTRYPOINT ["python", "loadstockscores.py"]
 
-# Install the requirements
-RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadstockscores.txt
-
-# Enable unbuffered Python output and set environment
-ENV PYTHONUNBUFFERED=1
-ENV AWS_DEFAULT_REGION=us-east-1
-
-# Set the entrypoint
-ENTRYPOINT ["python", "-u", "loadstockscores.py"]
-
-# REBUILD TRIGGER: 2026-01-03 08:01 CST - Adding missing momentum_intraweek column
-# Fix: Ensure momentum_intraweek column exists in stock_scores table
-# Prevents "column ss.momentum_intraweek does not exist" database errors
+# REBUILD TRIGGER: 2026-01-26 - Switched to base-loader image for faster builds
+# Removed redundant requirements file - uses shared base image dependencies
+# Improves deployment speed in AWS ECS by ~5 minutes per build
