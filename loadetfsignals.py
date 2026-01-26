@@ -12,7 +12,6 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 import boto3
-from db_helper import get_db_connection
 
 logging.basicConfig(
     level=logging.INFO,

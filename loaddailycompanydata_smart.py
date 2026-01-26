@@ -15,7 +15,6 @@ from loaddailycompanydata import (
     load_all_realtime_data, get_db_config, log_mem, get_rss_mb
 )
 import logging
-from db_helper import get_db_connection
 
 logging.basicConfig(
     level=logging.INFO,

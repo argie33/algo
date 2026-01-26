@@ -14,7 +14,6 @@ from psycopg2.extras import execute_values
 from datetime import datetime, timedelta
 import yfinance as yf
 import pandas as pd
-from db_helper import get_db_connection
 from yfinance_helper import fetch_ticker_history
 
 # Setup logging

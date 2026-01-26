@@ -16,7 +16,6 @@ import requests
 from typing import Dict, List, Any
 import xml.etree.ElementTree as ET
 from io import StringIO
-from db_helper import get_db_connection
 
 # Script metadata & logging setup
 SCRIPT_NAME = "loadcommodities.py"

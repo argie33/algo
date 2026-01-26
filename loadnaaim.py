@@ -45,7 +45,6 @@ import boto3
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-from db_helper import get_db_connection
 
 # -------------------------------
 # Script metadata & logging setup 

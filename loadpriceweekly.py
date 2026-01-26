@@ -18,7 +18,6 @@ from datetime import datetime
 import boto3
 import pandas as pd
 import yfinance as yf
-from db_helper import get_db_connection
 
 # ─── Timeout handler to forcibly kill hung downloads ───────────────
 class TimeoutException(Exception):

@@ -19,7 +19,6 @@ from datetime import datetime
 import yfinance as yf
 import psycopg2
 from psycopg2.extras import execute_values
-from db_helper import get_db_connection
 
 # Configure logging
 logging.basicConfig(

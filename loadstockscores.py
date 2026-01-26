@@ -61,7 +61,6 @@ from datetime import datetime, timedelta
 import logging
 import boto3
 from scipy import stats
-from db_helper import get_db_connection
 
 # Database configuration
 DB_SECRET_ARN = os.getenv('DB_SECRET_ARN')
@@ -70,6 +69,33 @@ DB_PORT = os.getenv('DB_PORT', '5432')
 DB_USER = os.getenv('DB_USER', 'stocks')
 DB_PASSWORD = os.getenv('DB_PASSWORD', 'bed0elAn')
 DB_NAME = os.getenv('DB_NAME', 'stocks')
+
+# Simple database connection helper (no external dependency)
+def get_db_connection(script_name="loader"):
+    """Connect to database using environment variables or AWS Secrets Manager."""
+    try:
+        # Try AWS Secrets Manager first
+        if DB_SECRET_ARN:
+            sm = boto3.client("secretsmanager", region_name="us-east-1")
+            secret = json.loads(sm.get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"])
+            conn = psycopg2.connect(
+                host=secret["host"], port=int(secret.get("port", 5432)),
+                user=secret["username"], password=secret["password"],
+                database=secret["dbname"]
+            )
+            logging.info(f"✓ Connected via AWS Secrets Manager")
+            return conn
+    except Exception as e:
+        logging.warning(f"AWS Secrets failed: {e}, using env vars...")
+
+    # Fall back to environment variables
+    conn = psycopg2.connect(
+        host=DB_HOST, port=int(DB_PORT),
+        user=DB_USER, password=DB_PASSWORD,
+        database=DB_NAME
+    )
+    logging.info(f"✓ Connected via environment variables")
+    return conn
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

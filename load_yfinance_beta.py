@@ -9,7 +9,6 @@ import logging
 import yfinance as yf
 import time
 import random
-from db_helper import get_db_connection
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from psycopg2.extras import execute_values
 
