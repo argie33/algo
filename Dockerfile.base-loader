@@ -11,8 +11,9 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy shared helper and requirements
+# Copy shared helpers and requirements (used by all loaders)
 COPY db_helper.py /app/
+COPY yfinance_helper.py /app/
 COPY requirements-load.txt /app/
 
 # Install Python dependencies - with verbose output for debugging
