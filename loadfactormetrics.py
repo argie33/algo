@@ -1127,10 +1127,10 @@ def get_stability_metrics(cursor, symbol: str, benchmark_cache: Dict = None) -> 
         symbol: Stock symbol
         benchmark_cache: Cached benchmark (SPY) price data to avoid redundant queries
 
-    Beta Strategy (IMPROVED):
-    1. Try to get beta from yfinance table FIRST (via load_yfinance_beta.py) - PREFERRED
-    2. Fall back to SPY-based calculation only if yfinance beta unavailable
-    This improves coverage from 30-40% to 85%+
+    Beta Strategy (YFINANCE ONLY):
+    1. Get beta from yfinance table (via load_yfinance_beta.py)
+    2. NO fallback calculations - must come from yfinance
+    Requires robust yfinance loader to handle rate limiting
     """
     metrics = {
         "volatility_12m": None,
@@ -1214,71 +1214,10 @@ def get_stability_metrics(cursor, symbol: str, benchmark_cache: Dict = None) -> 
                         max_dd = dd
                 metrics["max_drawdown_52w"] = float(max_dd) if max_dd > 0 else None
 
-        # Beta calculation (vs SPY - market benchmark)
-        # Use cached benchmark data instead of querying every time
-        if benchmark_cache is None:
-            benchmark_cache = {}
-
-        # If benchmark data not in cache, fetch it once and cache for all remaining symbols
-        if 'SPY' not in benchmark_cache:
-            cursor.execute("""
-                SELECT date, adj_close
-                FROM price_daily
-                WHERE symbol = 'SPY'
-                ORDER BY date DESC
-                LIMIT 252
-            """)
-            spy_data = list(reversed(cursor.fetchall()))
-            benchmark_cache['SPY'] = spy_data
-            logging.debug(f"Loaded SPY benchmark cache with {len(spy_data)} records")
-        else:
-            spy_data = benchmark_cache['SPY']
-
-        # SKIP calculation if we already have yfinance beta
-        if metrics["beta"] is not None:
-            logging.debug(f"{symbol}: Skipping beta calculation - using yfinance beta ({metrics['beta']})")
-        else:
-            # FALLBACK: Calculate beta from SPY if yfinance not available
-            logging.debug(f"{symbol}: Beta calc (fallback) - {len(price_data)} stock prices, {len(spy_data)} SPY prices")
-
-        if len(spy_data) < 20:
-            logging.warning(f"{symbol}: Insufficient SPY data for beta calculation ({len(spy_data)} days)")
-        elif len(spy_data) >= 20 and metrics["beta"] is None:  # Only calculate if we don't have yfinance beta
-            spy_prices = [p[1] for p in spy_data]
-
-            # Calculate SPY returns (match the period with our stock)
-            spy_returns = []
-            for i in range(1, min(len(spy_prices), len(prices))):
-                if spy_prices[i-1] is not None and spy_prices[i] is not None and spy_prices[i-1] > 0:
-                    spy_ret = ((spy_prices[i] - spy_prices[i-1]) / spy_prices[i-1]) * 100
-                    spy_returns.append(spy_ret)
-
-            # Calculate covariance and market variance
-            if len(spy_returns) >= 20 and len(returns) >= 20:
-                # Use matching period
-                min_len = min(len(returns), len(spy_returns))
-                stock_ret = returns[-min_len:]
-                spy_ret = spy_returns[-min_len:]
-
-                covariance = np.cov(stock_ret, spy_ret)[0][1]
-                market_variance = np.var(spy_ret)
-
-                if market_variance <= 0:
-                    logging.warning(f"{symbol}: Beta calculation skipped - market variance is {market_variance}")
-                elif market_variance > 0:
-                    try:
-                        beta = covariance / market_variance
-                        # Handle complex numbers by taking the real part
-                        if isinstance(beta, complex):
-                            beta = beta.real
-                        beta_f = float(beta)
-                        if np.isnan(beta_f):
-                            logging.warning(f"{symbol}: Beta calculation resulted in NaN")
-                            metrics["beta"] = None
-                        else:
-                            metrics["beta"] = beta_f
-                    except (TypeError, ValueError) as e:
-                        logging.warning(f"{symbol}: Beta calculation error: {e}")
+        # Beta must come from yfinance - no SPY fallback
+        # If beta is None at this point, it means yfinance didn't have it
+        if metrics["beta"] is None:
+            logging.debug(f"{symbol}: Beta not available from yfinance (will be NULL in database)")
 
     except Exception as e:
         logging.error(f"Error calculating stability metrics for {symbol}: {e}")

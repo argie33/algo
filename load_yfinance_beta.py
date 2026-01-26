@@ -7,6 +7,8 @@ This is a quick loader to populate missing beta data (30-40% of stocks missing)
 import sys
 import logging
 import yfinance as yf
+import time
+import random
 from db_helper import get_db_connection
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from psycopg2.extras import execute_values
@@ -53,24 +55,31 @@ def main():
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         def fetch_beta(symbol):
-            import time
-            # Retry logic: try up to 3 times with exponential backoff for rate limiting
-            for attempt in range(3):
+            # Retry logic: try up to 5 times with exponential backoff + jitter for rate limiting
+            for attempt in range(5):
                 try:
                     yf_symbol = symbol.replace('.', '-').upper()
+                    # Create a fresh session for each symbol to avoid connection issues
                     ticker = yf.Ticker(yf_symbol)
                     beta = ticker.info.get('beta')
+                    if beta is not None:
+                        logger.debug(f"{symbol}: Got beta={beta}")
                     return (symbol, beta)
                 except Exception as e:
-                    if 'Too Many Requests' in str(e) or '429' in str(e):
-                        # Rate limited - wait and retry
-                        wait_time = 0.5 * (2 ** attempt)  # 0.5s, 1s, 2s
-                        logger.debug(f"{symbol}: Rate limited, retrying in {wait_time}s (attempt {attempt+1}/3)")
+                    error_str = str(e).lower()
+                    if 'too many' in error_str or '429' in error_str or 'rate' in error_str:
+                        # Rate limited - wait with exponential backoff + random jitter
+                        wait_time = (0.5 * (2 ** attempt)) + random.uniform(0, 1)  # 0.5-1.5s, 1-3s, 2-6s, etc
+                        logger.debug(f"{symbol}: Rate limited, retry {attempt+1}/5 in {wait_time:.1f}s")
                         time.sleep(wait_time)
-                    elif attempt == 2:
+                    elif attempt == 4:
                         # Last attempt failed
-                        logger.warning(f"Error loading {symbol}: {e}")
+                        logger.warning(f"Error loading {symbol} (final): {str(e)[:80]}")
                         return (symbol, None)
+                    else:
+                        # Other error, retry
+                        logger.debug(f"{symbol}: Error (attempt {attempt+1}/5): {str(e)[:50]}")
+                        time.sleep(0.5)
             return (symbol, None)
 
         loaded = 0
@@ -79,8 +88,7 @@ def main():
         betas = []
 
         # Sequential fetching (max_workers=1) to avoid yfinance rate limiting
-        # yfinance API gets rate-limited with parallel requests - better to be slower and reliable
-        import time
+        # Uses 5 retries with exponential backoff to handle rate limiting gracefully
         with ThreadPoolExecutor(max_workers=1) as executor:
             futures = [executor.submit(fetch_beta, symbol) for symbol in symbols]
 
