@@ -37,7 +37,6 @@ import psycopg2
 import psycopg2.extensions
 import numpy as np
 from psycopg2.extras import RealDictCursor, execute_values
-from db_helper import get_db_connection
 
 # Script metadata
 SCRIPT_NAME = "loadfactormetrics.py"

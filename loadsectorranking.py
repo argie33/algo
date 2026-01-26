@@ -7,7 +7,6 @@ Calculates sector performance metrics and rankings
 import sys
 import logging
 import os
-from db_helper import get_db_connection
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)

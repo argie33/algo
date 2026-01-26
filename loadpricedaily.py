@@ -23,7 +23,6 @@ from datetime import datetime
 import boto3
 import pandas as pd
 import yfinance as yf
-from db_helper import get_db_connection
 
 # -------------------------------
 # Script metadata & logging setup

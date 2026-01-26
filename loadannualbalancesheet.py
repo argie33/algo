@@ -15,7 +15,6 @@ from psycopg2.extras import RealDictCursor, execute_values
 import boto3
 import yfinance as yf
 import pandas as pd
-from db_helper import get_db_connection
 
 # Enhanced annual balance sheet data loader with optimized batch processing and monitoring
 SCRIPT_NAME = "loadannualbalancesheet.py"

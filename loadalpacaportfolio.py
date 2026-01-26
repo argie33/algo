@@ -19,7 +19,6 @@ from datetime import datetime, timedelta
 import json
 import requests
 from requests.auth import HTTPBasicAuth
-from db_helper import get_db_connection
 
 # Setup logging
 logging.basicConfig(

@@ -27,7 +27,6 @@ SCRIPT_NAME = "loadbuyselldaily.py"
 
 # Setup rotating log file handler to prevent disk exhaustion from excessive logging
 from logging.handlers import RotatingFileHandler
-from db_helper import get_db_connection
 log_handler = RotatingFileHandler(
     '/tmp/loadbuyselldaily.log',
     maxBytes=100*1024*1024,  # 100MB max per file
@@ -705,6 +704,13 @@ def fetch_symbol_from_db(symbol, timeframe):
     # CRITICAL: Skip symbols with insufficient data for SMA-50 calculation
     if len(rows) < 50:
         logging.warning(f"Skipping {symbol} {timeframe}: insufficient data ({len(rows)} bars, need 50+ for SMA-50)")
+        return pd.DataFrame()
+
+    # CRITICAL: Skip symbols with excessive zero-volume data (causes rolling window to hang)
+    zero_volume_count = sum(1 for r in rows if r.get('volume', 0) == 0)
+    zero_volume_pct = (zero_volume_count / len(rows)) * 100 if rows else 0
+    if zero_volume_pct > 50:
+        logging.warning(f"Skipping {symbol} {timeframe}: {zero_volume_pct:.1f}% zero-volume bars (causes calculation hang)")
         return pd.DataFrame()
 
     df = pd.DataFrame(rows)

@@ -15,7 +15,6 @@ from psycopg2.extras import RealDictCursor, execute_values
 import boto3
 import yfinance as yf
 import pandas as pd
-from db_helper import get_db_connection
 
 # Enhanced quarterly balance sheet data loader with improved error handling and performance monitoring
 SCRIPT_NAME = "loadquarterlybalancesheet.py"

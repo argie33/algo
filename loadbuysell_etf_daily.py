@@ -25,7 +25,6 @@ SCRIPT_NAME = "loadbuysell_etf_daily.py"
 
 # Setup rotating log file handler to prevent disk exhaustion from excessive logging
 from logging.handlers import RotatingFileHandler
-from db_helper import get_db_connection
 log_handler = RotatingFileHandler(
     '/tmp/loadbuysell_etf_daily.log',
     maxBytes=100*1024*1024,  # 100MB max per file

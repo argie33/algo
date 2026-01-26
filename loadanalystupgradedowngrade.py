@@ -20,7 +20,6 @@ from datetime import datetime
 
 import boto3
 import yfinance as yf
-from db_helper import get_db_connection
 
 SCRIPT_NAME = "loadanalystupgradedowngrade.py"
 logging.basicConfig(

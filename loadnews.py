@@ -21,7 +21,6 @@ import yfinance as yf
 import requests
 import feedparser
 from textblob import TextBlob
-from db_helper import get_db_connection, get_db_config
 
 # -------------------------------
 # Script metadata & logging setup 

@@ -16,7 +16,6 @@ from dotenv import load_dotenv
 
 import boto3
 import yfinance as yf
-from db_helper import get_db_connection
 
 # Load environment from .env.local
 load_dotenv('/home/stocks/algo/.env.local')

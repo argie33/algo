@@ -12,7 +12,6 @@ import sys
 import os
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List
-from db_helper import get_db_connection
 
 logging.basicConfig(
     level=logging.INFO,

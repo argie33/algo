@@ -11,7 +11,6 @@ from psycopg2.extras import execute_values
 from datetime import datetime, timedelta
 import pandas as pd
 from collections import defaultdict
-from db_helper import get_db_connection
 
 # Database connection
 def get_db_connection():

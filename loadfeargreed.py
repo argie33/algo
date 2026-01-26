@@ -44,7 +44,6 @@ from datetime import datetime
 import boto3
 import pandas as pd
 from pyppeteer import launch
-from db_helper import get_db_connection
 
 # -------------------------------
 # Script metadata & logging setup 
