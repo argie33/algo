@@ -4360,9 +4360,10 @@ def main():
     logger.info("🚀 Starting stock scores loader...")
 
     # Get database connection
-    conn = get_db_connection(SCRIPT_NAME)
-    if not conn:
-        logger.error("❌ Failed to connect to database")
+    try:
+        conn = get_db_connection(SCRIPT_NAME)
+    except RuntimeError as e:
+        logger.error(f"❌ Database connection failed: {e}")
         return False
 
     try:
