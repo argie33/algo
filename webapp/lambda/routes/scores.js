@@ -653,11 +653,6 @@ async function queryScores(options = {}) {
       stock.growth_inputs = cleanMetrics(metrics.growth_metrics);
       stock.stability_inputs = cleanMetrics(metrics.stability_metrics);
 
-      // Beta column removed from stock_scores table - set to null
-      if (stock.stability_inputs) {
-        stock.stability_inputs.beta = null;
-      }
-
       // Add volatility_risk_component to stability_inputs (derived from downside_volatility)
       if (stock.stability_inputs) {
         if (metrics.stability_metrics && metrics.stability_metrics.downside_volatility != null) {
