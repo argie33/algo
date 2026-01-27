@@ -8,7 +8,6 @@ on:
     paths:
       - 'load*.py'
       - 'Dockerfile.*'
-      - '!Dockerfile.base-loader'
     branches:
       - main
   workflow_dispatch:
@@ -663,39 +662,7 @@ jobs:
           # Enable GitHub Actions cache optimization
           export BUILDX_EXPERIMENTAL=1
 
-          # Build base loader image first (with all common dependencies)
-          echo "🏗️ Building base loader image with common dependencies..."
-          BASE_IMAGE_TAG="$REPO_NAME:base-loader-latest"
-          BASE_CACHE_FROM="type=gha,scope=base-loader"
-          BASE_CACHE_TO="type=gha,mode=max,scope=base-loader"
-
-          timeout 20m docker buildx build \
-            --platform linux/arm64 \
-            --cache-from "$BASE_CACHE_FROM" \
-            --cache-to "$BASE_CACHE_TO" \
-            --progress=plain \
-            -t "$BASE_IMAGE_TAG" \
-            -f Dockerfile.base-loader . --load
-
-          if [ $? -ne 0 ]; then
-            echo "❌ ERROR: Base image build failed!"
-            exit 1
-          fi
-          echo "✅ Base loader image built successfully"
-
-          # Tag and push base image to ECR
-          echo "⬆️ Pushing base loader image to ECR..."
-          BASE_IMAGE_URI="${REPOSITORY_URI}:base-loader-latest"
-          docker tag "$BASE_IMAGE_TAG" "$BASE_IMAGE_URI"
-
-          if ! docker push "$BASE_IMAGE_URI"; then
-            echo "❌ ERROR: Failed to push base image!"
-            exit 1
-          fi
-          echo "✅ Base image pushed to: $BASE_IMAGE_URI"
-
           # Build specific images for each loader type that will be executed
-          # Each loader will inherit from the base image
           echo "🔨 Building Docker images for detected loaders..."
 
           # Get the matrix to determine which loaders will run
