@@ -297,10 +297,16 @@ def load_prices(table_name, symbols, cur, conn):
                     continue
 
                 sql = f"INSERT INTO {table_name} ({COL_LIST}) VALUES %s ON CONFLICT (symbol, date) DO UPDATE SET open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low, close = EXCLUDED.close, adj_close = EXCLUDED.adj_close, volume = EXCLUDED.volume, dividends = EXCLUDED.dividends, stock_splits = EXCLUDED.stock_splits"
-                execute_values(cur, sql, rows)
-                conn.commit()
-                inserted += len(rows)
-                logging.info(f"{table_name} — {orig_sym}: batch-inserted {len(rows)} rows")
+                try:
+                    execute_values(cur, sql, rows)
+                    conn.commit()
+                    inserted += len(rows)
+                    logging.info(f"{table_name} — {orig_sym}: batch-inserted {len(rows)} rows")
+                except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+                    logging.error(f"{table_name} — {orig_sym}: database error during insert: {e}")
+                    conn.rollback()
+                    failed.append(orig_sym)
+                    continue
             if inserted == 0:
                 logging.warning(f"{table_name}: No rows inserted for batch {batch_idx+1}")
         finally:
@@ -341,12 +347,18 @@ def load_prices(table_name, symbols, cur, conn):
                             ])
                         if rows:
                             sql = f"INSERT INTO {table_name} ({COL_LIST}) VALUES %s ON CONFLICT (symbol, date) DO UPDATE SET open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low, close = EXCLUDED.close, adj_close = EXCLUDED.adj_close, volume = EXCLUDED.volume, dividends = EXCLUDED.dividends, stock_splits = EXCLUDED.stock_splits"
-                            execute_values(cur, sql, rows)
-                            conn.commit()
-                            inserted += len(rows)
-                            logging.info(f"{table_name} — {orig_sym} (RETRY): batch-inserted {len(rows)} rows")
-                            symbol_success = True
-                            break
+                            try:
+                                execute_values(cur, sql, rows)
+                                conn.commit()
+                                inserted += len(rows)
+                                logging.info(f"{table_name} — {orig_sym} (RETRY): batch-inserted {len(rows)} rows")
+                                symbol_success = True
+                                break
+                            except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+                                logging.error(f"{table_name} — {orig_sym} (RETRY): database error during insert: {e}")
+                                conn.rollback()
+                                # Will retry on next attempt or mark as failed
+                                continue
                     else:
                         logging.warning(f"{table_name} — {orig_sym}: still no data on retry (attempt {sym_attempt}/{MAX_SYMBOL_RETRIES})")
                         if sym_attempt < MAX_SYMBOL_RETRIES:
@@ -391,12 +403,14 @@ if __name__ == "__main__":
 
     log_mem("startup")
 
-    # Connect to DB
+    # Connect to DB with timeouts to prevent hanging
     cfg  = get_db_config()
     conn = psycopg2.connect(
         host=cfg["host"], port=cfg["port"],
         user=cfg["user"], password=cfg["password"],
-        dbname=cfg["dbname"]
+        dbname=cfg["dbname"],
+        connect_timeout=30,
+        options='-c statement_timeout=600000'
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
