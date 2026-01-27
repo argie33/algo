@@ -710,6 +710,8 @@ def create_sentiment_tables(cur, conn):
         sell_count INTEGER,
         strong_sell_count INTEGER,
         total_analysts INTEGER,
+        bull_percentage DECIMAL(8,4),
+        bear_percentage DECIMAL(8,4),
         upgrades_last_30d INTEGER,
         downgrades_last_30d INTEGER,
         initiations_last_30d INTEGER,

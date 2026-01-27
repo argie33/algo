@@ -258,7 +258,8 @@ def ensure_tables_exist(conn):
                 average_cost DOUBLE PRECISION,
                 current_price DOUBLE PRECISION,
                 market_value DOUBLE PRECISION,
-                unrealized_pnl DOUBLE PRECISION,
+                unrealized_pl DOUBLE PRECISION,
+                unrealized_pl_percent DOUBLE PRECISION,
                 cost_basis DOUBLE PRECISION,
                 broker VARCHAR(20) DEFAULT 'alpaca',
                 position_type VARCHAR(10) DEFAULT 'long',
@@ -340,19 +341,18 @@ def load_holdings(conn, positions):
 
             cur.execute("""
                 INSERT INTO portfolio_holdings
-                (user_id, symbol, quantity, current_price, average_cost, market_value, unrealized_gain, unrealized_gain_pct, sector)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (user_id, symbol) DO UPDATE SET
+                (user_id, symbol, quantity, current_price, average_cost, market_value, unrealized_pl, unrealized_pl_percent)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (user_id, symbol, broker) DO UPDATE SET
                     quantity = EXCLUDED.quantity,
                     current_price = EXCLUDED.current_price,
                     average_cost = EXCLUDED.average_cost,
                     market_value = EXCLUDED.market_value,
-                    unrealized_gain = EXCLUDED.unrealized_gain,
-                    unrealized_gain_pct = EXCLUDED.unrealized_gain_pct,
-                    sector = EXCLUDED.sector,
-                    updated_at = CURRENT_TIMESTAMP
+                    unrealized_pl = EXCLUDED.unrealized_pl,
+                    unrealized_pl_percent = EXCLUDED.unrealized_pl_percent,
+                    last_updated = CURRENT_TIMESTAMP
             """, (
-                user_id, symbol, qty, current_price, avg_cost, market_value, unrealized_gain, unrealized_gain_pct, sector
+                user_id, symbol, qty, current_price, avg_cost, market_value, unrealized_gain, unrealized_gain_pct
             ))
 
             loaded_count += 1

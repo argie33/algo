@@ -329,7 +329,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             'revenue_est': 0,
             'volatility': 0,
             'drawdown': 0,
-            'beta': None,
+            'beta': 0,
         }
 
         # NOTE: volatility and drawdown calculations moved to loadfactormetrics.py
@@ -926,6 +926,25 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
         except Exception as e:
             logging.debug(f"No earnings history available for {symbol}: {e}")
             stats['earnings_history'] = 0
+
+        # 8. Insert beta into beta_yfinance table (for loadfactormetrics consumption)
+        if info and info.get('beta') is not None:
+            try:
+                beta_value = safe_float(info.get('beta'), max_val=10, min_val=-5)
+                if beta_value is not None:
+                    cur.execute("""
+                        INSERT INTO beta_yfinance (symbol, beta, source, last_updated)
+                        VALUES (%s, %s, 'yfinance_ticker_info', CURRENT_TIMESTAMP)
+                        ON CONFLICT (symbol) DO UPDATE SET
+                            beta = EXCLUDED.beta,
+                            source = EXCLUDED.source,
+                            last_updated = EXCLUDED.last_updated
+                    """, (symbol, beta_value))
+                    stats['beta'] = 1
+                    logging.debug(f"{symbol}: Inserted beta = {beta_value}")
+            except Exception as e:
+                logging.debug(f"Could not insert beta for {symbol}: {e}")
+                stats['beta'] = 0
 
         # 9. Do NOT calculate liquidity metrics here - only in loadfactormetrics.py
         # This loader only loads raw yfinance data (beta, volatility, drawdown from price history)
