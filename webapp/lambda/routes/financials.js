@@ -319,7 +319,6 @@ router.get("/:symbol/key-metrics", async (req, res) => {
         title: 'Profitability Metrics',
         metrics: {
           'Return on Equity (ROE)': quality.return_on_equity_pct || row.return_on_equity_pct,
-          'ROE Stability Index': quality.roe_stability_index,
           'Return on Assets (ROA)': quality.return_on_assets_pct || row.return_on_assets_pct,
           'Return on Invested Capital (ROIC)': quality.return_on_invested_capital_pct,
           'Gross Margin %': quality.gross_margin_pct || row.gross_margin_pct,

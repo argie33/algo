@@ -237,7 +237,9 @@ if __name__ == "__main__":
     conn = psycopg2.connect(
         host=cfg["host"], port=cfg["port"],
         user=cfg["user"], password=cfg["password"],
-        dbname=cfg["dbname"]
+        dbname=cfg["dbname"],
+        connect_timeout=30,
+        options='-c statement_timeout=600000'
     )
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)

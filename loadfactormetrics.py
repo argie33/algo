@@ -215,91 +215,6 @@ def calculate_quality_metrics(ticker_data: Dict, ticker=None, symbol=None) -> Di
     return metrics
 
 
-def calculate_roe_stability_index(cursor, symbol: str, conn=None) -> Optional[float]:
-    """Calculate ROE Stability Index from 4 years of annual ROE data
-
-    Formula: ROE_Stability = (% of years with positive ROE) × (1 - ROE volatility)
-
-    This metric captures:
-    - roe_consistency: What % of years had positive ROE?
-    - roe_volatility: How stable was ROE across years?
-
-    Result: 0-100 score where higher = more stable positive ROE
-    """
-    try:
-        # Use separate cursor to avoid transaction conflicts
-        temp_cur = conn.cursor() if conn else cursor
-
-        # Get ROE from last 4 fiscal years (from key_metrics historical data)
-        # We calculate ROE from annual statements: Net Income / Shareholders Equity
-        # JOIN annual_income_statement (has net_income) with annual_balance_sheet (has total_assets, total_liabilities)
-        temp_cur.execute("""
-            SELECT ai.net_income, ab.total_assets, ab.total_liabilities
-            FROM annual_income_statement ai
-            JOIN annual_balance_sheet ab
-                ON ai.symbol = ab.symbol AND ai.date = ab.date
-            WHERE ai.symbol = %s
-            ORDER BY ai.date DESC
-            LIMIT 4
-        """, (symbol,))
-
-        annual_data = temp_cur.fetchall()
-
-        # Close temp cursor if it was a separate one
-        if conn and temp_cur != cursor:
-            temp_cur.close()
-
-        if not annual_data or len(annual_data) < 2:
-            return None
-
-        # Calculate ROE for each year: Net Income / Shareholders Equity
-        # Shareholders Equity = Total Assets - Total Liabilities
-        roe_values = []
-
-        for row in annual_data:
-            net_income = row[0]
-            total_assets = row[1]
-            total_liabilities = row[2]
-
-            if net_income is not None and total_assets is not None and total_liabilities is not None:
-                equity = total_assets - total_liabilities
-                if equity > 0:  # Only calculate if equity is positive
-                    roe = (net_income / equity) * 100
-                    roe_values.append(roe)
-
-        if not roe_values or len(roe_values) < 2:
-            return None
-
-        # Calculate % of years with positive ROE
-        positive_years = sum(1 for roe in roe_values if roe > 0)
-        pct_positive = positive_years / len(roe_values)
-
-        # Calculate ROE volatility (coefficient of variation)
-        roe_mean = sum(roe_values) / len(roe_values)
-        if roe_mean == 0:
-            return None
-
-        variance = sum((roe - roe_mean) ** 2 for roe in roe_values) / len(roe_values)
-        std_dev = variance ** 0.5
-
-        # Coefficient of variation (normalized volatility)
-        # Use absolute mean to handle negative averages
-        cv = std_dev / abs(roe_mean) if roe_mean != 0 else 0
-
-        # Cap CV at 2.0 to prevent extreme values (volatility > 200% = very unstable)
-        cv_capped = min(cv, 2.0)
-        volatility_factor = cv_capped / 2.0  # Normalize to 0-1 range
-
-        # ROE Stability Index = consistency × (1 - volatility)
-        roe_stability = pct_positive * (1 - volatility_factor) * 100
-
-        return max(0, min(100, roe_stability))  # Clamp to 0-100
-
-    except Exception as e:
-        logging.debug(f"Error calculating ROE stability for {symbol}: {e}")
-        return None
-
-
 def calculate_cagr(start_value: float, end_value: float, periods: int) -> Optional[float]:
     """Calculate Compound Annual Growth Rate"""
     if not start_value or start_value == 0 or not end_value or periods <= 0:
@@ -1553,10 +1468,6 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
             metrics["estimate_revision_direction"] = get_estimate_revision_direction(cursor, symbol)
             metrics["earnings_growth_4q_avg"] = get_earnings_growth_4q_avg(cursor, symbol)
 
-            # Calculate ROE Stability Index from 4 years of annual data
-            roe_stability = calculate_roe_stability_index(cursor, symbol, conn=conn)
-            metrics["roe_stability_index"] = roe_stability
-
             quality_rows.append([
                 ticker_dict["ticker"],
                 date.today(),
@@ -1574,7 +1485,6 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
                 metrics.get("earnings_surprise_avg"),
                 metrics.get("eps_growth_stability"),
                 metrics.get("payout_ratio"),
-                metrics.get("roe_stability_index"),
                 metrics.get("earnings_beat_rate"),
                 metrics.get("estimate_revision_direction"),
                 metrics.get("consecutive_positive_quarters"),
@@ -1690,10 +1600,6 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
                 metrics["estimate_revision_direction"] = get_estimate_revision_direction(cursor, symbol)
                 metrics["earnings_growth_4q_avg"] = get_earnings_growth_4q_avg(cursor, symbol)
 
-                # Calculate ROE Stability Index from 4 years of annual data
-                roe_stability = calculate_roe_stability_index(cursor, symbol, conn=conn)
-                metrics["roe_stability_index"] = roe_stability
-
                 quality_rows.append([
                     symbol,
                     date.today(),
@@ -1711,7 +1617,6 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
                     metrics.get("earnings_surprise_avg"),
                     metrics.get("eps_growth_stability"),
                     metrics.get("payout_ratio"),
-                    metrics.get("roe_stability_index"),
                     metrics.get("earnings_beat_rate"),
                     metrics.get("estimate_revision_direction"),
                     metrics.get("consecutive_positive_quarters"),
@@ -1734,7 +1639,7 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
                 return_on_invested_capital_pct, gross_margin_pct, operating_margin_pct,
                 profit_margin_pct, fcf_to_net_income, operating_cf_to_net_income,
                 debt_to_equity, current_ratio, quick_ratio, earnings_surprise_avg,
-                eps_growth_stability, payout_ratio, roe_stability_index,
+                eps_growth_stability, payout_ratio,
                 earnings_beat_rate, estimate_revision_direction, consecutive_positive_quarters,
                 surprise_consistency, earnings_growth_4q_avg
             ) VALUES %s
@@ -1753,7 +1658,6 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
                 earnings_surprise_avg = EXCLUDED.earnings_surprise_avg,
                 eps_growth_stability = EXCLUDED.eps_growth_stability,
                 payout_ratio = EXCLUDED.payout_ratio,
-                roe_stability_index = EXCLUDED.roe_stability_index,
                 earnings_beat_rate = EXCLUDED.earnings_beat_rate,
                 estimate_revision_direction = EXCLUDED.estimate_revision_direction,
                 consecutive_positive_quarters = EXCLUDED.consecutive_positive_quarters,
@@ -2374,7 +2278,6 @@ def create_factor_metrics_tables(cursor):
                 earnings_surprise_avg FLOAT,
                 eps_growth_stability FLOAT,
                 payout_ratio FLOAT,
-                roe_stability_index FLOAT,
                 fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 created_at TIMESTAMP DEFAULT NOW(),
                 PRIMARY KEY (symbol, date)
@@ -2389,10 +2292,6 @@ def create_factor_metrics_tables(cursor):
         cursor.execute("""
             ALTER TABLE quality_metrics
             ADD COLUMN IF NOT EXISTS return_on_invested_capital_pct FLOAT
-        """)
-        cursor.execute("""
-            ALTER TABLE quality_metrics
-            ADD COLUMN IF NOT EXISTS roe_stability_index FLOAT
         """)
 
         # Create growth_metrics table

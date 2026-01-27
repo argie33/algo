@@ -2242,7 +2242,6 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         stock_quick_ratio = None
         stock_payout_ratio = None
         stock_eps_growth_stability = None
-        stock_roe_stability_index = None
 
         try:
             # Fetch quality inputs from key_metrics table (yfinance data - best coverage)
@@ -2286,7 +2285,6 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
         # Initialize variables to None before query
         stock_fcf_to_ni = None
         stock_eps_growth_stability = None
-        stock_roe_stability_index = None
         stock_earnings_beat_rate = None
         stock_estimate_revision_direction = None
         stock_consecutive_positive_quarters = None
@@ -2299,7 +2297,6 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                     eps_growth_stability,
                     earnings_surprise_avg,
                     operating_cf_to_net_income,
-                    roe_stability_index,
                     earnings_beat_rate,
                     estimate_revision_direction,
                     consecutive_positive_quarters,
@@ -2313,11 +2310,10 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
 
             qm_row = cur.fetchone()
             if qm_row:
-                fcf_ni, eps_stab, earn_surp, ocf_ni, roe_stab, beat_rate, est_revision, consec_pos_q, surprise_cons, roic = qm_row
+                fcf_ni, eps_stab, earn_surp, ocf_ni, beat_rate, est_revision, consec_pos_q, surprise_cons, roic = qm_row
                 stock_fcf_to_ni = float(fcf_ni) if fcf_ni is not None else None
                 stock_eps_growth_stability = float(eps_stab) if eps_stab is not None else None
                 earnings_surprise_avg = float(earn_surp) if earn_surp is not None else None
-                stock_roe_stability_index = float(roe_stab) if roe_stab is not None else None
                 stock_earnings_beat_rate = float(beat_rate) if beat_rate is not None else None
                 stock_estimate_revision_direction = float(est_revision) if est_revision is not None else None
                 stock_consecutive_positive_quarters = int(consec_pos_q) if consec_pos_q is not None else None
@@ -3374,15 +3370,6 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 if eps_std_percentile is not None:
                     eps_stability_score = eps_std_percentile  # Already 0-100 scale from percentile rank
 
-            # Component 5: ROE Stability Index (10 points) - NEW: ROE trend and consistency
-            # Measures how stable and positive ROE has been over 4 years
-            # Formula: (% of years with positive ROE) × (1 - ROE volatility) × 100
-            roe_stability_score = None
-
-            if stock_roe_stability_index is not None:
-                # roe_stability_index is already 0-100 scale from database
-                roe_stability_score = stock_roe_stability_index
-                logger.debug(f"{symbol}: ROE Stability = {roe_stability_score:.2f}")
 
             # Component 6: Earnings Surprise Consistency (5 points) - Pre-calculated from quality_metrics
             earnings_surprise_score = None
@@ -3465,11 +3452,6 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 quality_components.append(eps_stability_score)
                 quality_weights.append(10)
                 quality_weight_names.append("EPSStability")
-
-            if roe_stability_score is not None:
-                quality_components.append(roe_stability_score)
-                quality_weights.append(10)
-                quality_weight_names.append("ROEStability")
 
             if earnings_surprise_score is not None:
                 quality_components.append(earnings_surprise_score)
