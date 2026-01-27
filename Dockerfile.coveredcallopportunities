@@ -1,4 +1,3 @@
-ARG ECR_REGISTRY
 FROM python:3.11-slim
 
 WORKDIR /app

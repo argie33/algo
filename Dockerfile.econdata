@@ -1,22 +1,28 @@
 FROM python:3.11-slim
 
-# Set environment variables to suppress pip warnings
-ENV PIP_ROOT_USER_ACTION=ignore \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
-
-
-# system deps for psycopg2
-RUN apt-get update \
- && apt-get install -y --no-install-recommends gcc libpq-dev \
- && rm -rf /var/lib/apt/lists/*
-
-# install Python deps
-RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary boto3 pandas fredapi psycopg2-binary
-
-# copy the loader script
-COPY loadecondata.py /app/index.py
-
 WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    postgresql-client \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir \
+        boto3 \
+        psycopg2-binary \
+        pandas \
+        numpy \
+        yfinance \
+        requests \
+        python-dateutil \
+    && python -c "import boto3; import psycopg2; print('✓ Dependencies installed')"
+
 ENV PYTHONUNBUFFERED=1
 ENV AWS_DEFAULT_REGION=us-east-1
-ENTRYPOINT ["python", "-u", "index.py"]
+
+COPY loadecondata.py .
+ENTRYPOINT ["python", "loadecondata.py"]
