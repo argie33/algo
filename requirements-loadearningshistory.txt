@@ -1,4 +1,0 @@
-boto3
-numpy
-psycopg2-binary
-yfinance
