@@ -8,7 +8,7 @@ on:
     paths:
       - 'load*.py'
       - 'Dockerfile.*'
-      - 'requirements-load*.txt'
+      - '!Dockerfile.base-loader'
     branches:
       - main
   workflow_dispatch:
