@@ -2,16 +2,27 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copy requirements and install dependencies
-COPY requirements-loadfactormetrics.txt .
-RUN pip install --no-cache-dir --prefer-binary -r requirements-loadfactormetrics.txt
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    postgresql-client \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy the loader script
-COPY loadfactormetrics.py .
+# Install Python dependencies
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir \
+        boto3 \
+        psycopg2-binary \
+        pandas \
+        numpy \
+        yfinance \
+        requests \
+        python-dateutil \
+    && python -c "import boto3; import psycopg2; print('✓ Dependencies installed')"
 
-# Run the loader
 ENV PYTHONUNBUFFERED=1
 ENV AWS_DEFAULT_REGION=us-east-1
-CMD ["python", "-u", "loadfactormetrics.py"]
-# Trigger: Force rebuild - Improved beta calculation and edge case handling
-# Updated Jan 7 2026 22:00 UTC - Force all loaders to build
+
+COPY loadfactormetrics.py .
+ENTRYPOINT ["python", "loadfactormetrics.py"]
