@@ -11,8 +11,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy shared helper and requirements
-COPY db_helper.py /app/
+# Copy requirements
 COPY requirements-load.txt /app/
 
 # Install Python dependencies - with verbose output for debugging
