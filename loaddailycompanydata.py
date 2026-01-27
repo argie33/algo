@@ -1104,7 +1104,7 @@ if __name__ == "__main__":
             pass  # Don't rollback - aborts entire transaction
 
         finally:
-            time.sleep(5.0)  # Rate limiting - ensure delay even on errors to prevent API throttling
+            time.sleep(0.5)  # Rate limiting - reduced from 5.0s to 0.5s (retry logic handles rate limits)
 
     logging.info("=" * 80)
     logging.info("REAL-TIME DATA LOADING COMPLETE")
