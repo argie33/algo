@@ -1,36 +1,28 @@
 FROM python:3.11-slim
 
-# Set environment variables to suppress pip warnings
-ENV PIP_ROOT_USER_ACTION=ignore \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
-
+WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
-    g++ \
-    libpq-dev \
+    postgresql-client \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
-WORKDIR /app
+# Install Python dependencies
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir \
+        boto3 \
+        psycopg2-binary \
+        pandas \
+        numpy \
+        yfinance \
+        requests \
+        python-dateutil \
+    && python -c "import boto3; import psycopg2; print('✓ Dependencies installed')"
 
-# Copy requirements
-COPY boto3.py ./
-
-
-# Install Python dependencies from requirements file
-COPY requirements-loadnews.txt ./
-RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadnews.txt
-
-# Copy the script
-COPY loadnews.py ./
-
-# Set environment variables
-ENV BATCH_SIZE=30
-ENV PAUSE=0.5
-
-# Run the script
 ENV PYTHONUNBUFFERED=1
 ENV AWS_DEFAULT_REGION=us-east-1
-CMD ["python", "-u", "loadnews.py"]
+
+COPY loadloadnews.py .
+ENTRYPOINT ["python", "loadloadnews.py"]

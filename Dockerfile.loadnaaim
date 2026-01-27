@@ -1,17 +1,28 @@
-ARG REGISTRY=python
-ARG TAG=3.11-slim
-FROM ${REGISTRY}:${TAG}
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copy requirements and script
-COPY requirements-loadnaaim.txt .
-COPY loadnaaim.py .
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    postgresql-client \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install the requirements
-RUN --mount=type=cache,target=/root/.cache/pip pip install --prefer-binary -r requirements-loadnaaim.txt
+# Install Python dependencies
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir \
+        boto3 \
+        psycopg2-binary \
+        pandas \
+        numpy \
+        yfinance \
+        requests \
+        python-dateutil \
+    && python -c "import boto3; import psycopg2; print('✓ Dependencies installed')"
 
-# Set the entrypoint
 ENV PYTHONUNBUFFERED=1
 ENV AWS_DEFAULT_REGION=us-east-1
-ENTRYPOINT ["python", "-u", "loadnaaim.py"]
+
+COPY loadloadnaaim.py .
+ENTRYPOINT ["python", "loadloadnaaim.py"]
