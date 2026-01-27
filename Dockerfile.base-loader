@@ -11,13 +11,17 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
-COPY requirements-load.txt /app/
-
 # Install Python dependencies - with verbose output for debugging
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r /app/requirements-load.txt && \
-    python -c "import boto3; import psycopg2; print('✓ All dependencies installed')"
+    pip install --no-cache-dir \
+        boto3 \
+        psycopg2-binary \
+        pandas \
+        numpy \
+        yfinance \
+        requests \
+        python-dateutil \
+        && python -c "import boto3; import psycopg2; print('✓ All dependencies installed')"
 
 # Set environment variables for AWS and database
 ENV PYTHONUNBUFFERED=1
