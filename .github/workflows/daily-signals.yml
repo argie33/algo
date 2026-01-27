@@ -6,7 +6,12 @@ on:
     - cron: '30 4 * * *'
 
   # Allow manual trigger from GitHub Actions UI
-  workflow_dispatch
+  workflow_dispatch:
+    inputs:
+      force_run:
+        description: 'Force run signals update'
+        required: false
+        default: 'true'
 
 # Trigger: Loading signals data - Jan 24 2026
 
