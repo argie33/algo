@@ -455,7 +455,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         safe_float(info.get("priceToSalesTrailing12Months"), max_val=9999.99),
                         safe_float(info.get("priceToBook"), max_val=9999.99),
                         safe_int(info.get("bookValue")),
-                        safe_float(info.get("trailingPegRatio"), max_val=9999.99),
+                        safe_float(info.get("trailingPegRatio"), max_val=100, min_val=0),  # Filter garbage PEG values
                         safe_int(info.get("enterpriseValue")),
                         safe_float(info.get("enterpriseToRevenue"), max_val=9999.99),
                         safe_float(info.get("enterpriseToEbitda"), max_val=9999.99),
