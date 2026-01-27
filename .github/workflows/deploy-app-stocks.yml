@@ -7,7 +7,6 @@ on:
   push:
     paths:
       - 'load*.py'
-      - 'db_helper.py'
       - 'Dockerfile.*'
       - 'requirements-load*.txt'
     branches:
