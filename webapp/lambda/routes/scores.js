@@ -576,7 +576,7 @@ async function queryScores(options = {}) {
   // Allow partial success - return available data with nulls for unavailable data
   // Prevent complete failure unless NO data was returned at all
   const hasAnyData = metricsMap.partialSuccess || Object.keys(metricsMap.data).length > 0 ||
-                     insiderMap.partialSuccess || Object.keys(insiderMap).length > 1 ||
+                     insiderMap.partialSuccess || Object.keys(insiderMap.data).length > 0 ||
                      rsiMacdMap.partialSuccess || Object.keys(rsiMacdMap.data).length > 0;
 
   if (!hasAnyData && symbolList.length > 0) {
@@ -748,7 +748,7 @@ async function queryScores(options = {}) {
     }
 
     // Calculate smart_money score from institutional positioning (hedge funds + mutual funds activity)
-    const insiderData = insiderMap[row.symbol.toUpperCase()];
+    const insiderData = insiderMap.data && insiderMap.data[row.symbol.toUpperCase()];
     if (insiderData && insiderData.institutional_positioning && insiderData.institutional_positioning.length > 0) {
       // Average the position change percent for recent filings (smart money flow)
       const recentChanges = insiderData.institutional_positioning
