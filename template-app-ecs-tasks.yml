@@ -195,6 +195,18 @@ Parameters:
   BuySellEtfDailyImageTag:
     Type: String
     Description: "Tag for buysell ETF daily loader image"
+  BuySellEtfWeeklyImageTag:
+    Type: String
+    Description: "Tag for buysell ETF weekly loader image"
+  BuySellEtfMonthlyImageTag:
+    Type: String
+    Description: "Tag for buysell ETF monthly loader image"
+  SentimentImageTag:
+    Type: String
+    Description: "Tag for sentiment loader image"
+  AnalystSentimentImageTag:
+    Type: String
+    Description: "Tag for analyst sentiment loader image"
   FactormetricsImageTag:
     Type: String
     Description: "Tag for factor metrics loader image"
@@ -2665,6 +2677,124 @@ Resources:
             - !ImportValue StocksApp-EcsTasksSecurityGroupId
           AssignPublicIp: ENABLED
 
+  ########################################
+  # BuySellEtf weekly loader            #
+  ########################################
+  BuySellEtfWeeklyTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: buysell_etf_weekly-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: buysell_etf_weekly-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref BuySellEtfWeeklyImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !Ref RDSUsername
+            - Name: DB_PASSWORD
+              Value: !Ref RDSPassword
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/buysell_etf_weekly-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  BuySellEtfWeeklyLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: buysell_etf_weekly-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref BuySellEtfWeeklyTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # BuySellEtf monthly loader           #
+  ########################################
+  BuySellEtfMonthlyTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: buysell_etf_monthly-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: buysell_etf_monthly-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref BuySellEtfMonthlyImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !Ref RDSUsername
+            - Name: DB_PASSWORD
+              Value: !Ref RDSPassword
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/buysell_etf_monthly-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  BuySellEtfMonthlyLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: buysell_etf_monthly-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref BuySellEtfMonthlyTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
   FactormetricsTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -2715,6 +2845,124 @@ Resources:
       LaunchType: FARGATE
       DesiredCount: 0
       TaskDefinition: !Ref FactormetricsTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # Sentiment Analysis Loader            #
+  ########################################
+  SentimentTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: sentiment-loader
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: sentiment-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref SentimentImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !Ref RDSUsername
+            - Name: DB_PASSWORD
+              Value: !Ref RDSPassword
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/sentiment-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  SentimentLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: sentiment-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref SentimentTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !ImportValue StocksCore-PublicSubnet1Id
+            - !ImportValue StocksCore-PublicSubnet2Id
+          SecurityGroups:
+            - !ImportValue StocksApp-EcsTasksSecurityGroupId
+          AssignPublicIp: ENABLED
+
+  ########################################
+  # Analyst Sentiment Loader             #
+  ########################################
+  AnalystSentimentTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: analystsentiment-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: analystsentiment-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref AnalystSentimentImageTag]]
+          Essential: true
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !Ref RDSUsername
+            - Name: DB_PASSWORD
+              Value: !Ref RDSPassword
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/analystsentiment-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  AnalystSentimentLoaderService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: analystsentiment-loader-service
+      Cluster: !ImportValue StocksApp-ClusterArn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      TaskDefinition: !Ref AnalystSentimentTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:
@@ -4085,11 +4333,35 @@ Outputs:
     Export:
       Name: BuySellEtfDailyTaskDefArn
 
+  BuySellEtfWeeklyTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for buysell ETF weekly loader
+    Value: !Ref BuySellEtfWeeklyTaskDefinition
+    Export:
+      Name: BuySellEtfWeeklyTaskDefArn
+
+  BuySellEtfMonthlyTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for buysell ETF monthly loader
+    Value: !Ref BuySellEtfMonthlyTaskDefinition
+    Export:
+      Name: BuySellEtfMonthlyTaskDefArn
+
   FactormetricsTaskDefArn:
     Description: ARN of the ECS TaskDefinition for factormetrics loader
     Value: !Ref FactormetricsTaskDefinition
     Export:
       Name: FactormetricsTaskDefArn
+
+  SentimentTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for sentiment loader
+    Value: !Ref SentimentTaskDefinition
+    Export:
+      Name: SentimentTaskDefArn
+
+  AnalystSentimentTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for analyst sentiment loader
+    Value: !Ref AnalystSentimentTaskDefinition
+    Export:
+      Name: AnalystSentimentTaskDefArn
 
   AaiiTaskDefArn:
     Description: ARN of the ECS TaskDefinition for AAII sentiment data loader
