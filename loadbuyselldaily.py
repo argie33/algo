@@ -147,6 +147,8 @@ def create_buy_sell_table(cur, conn, table_name="buy_sell_daily"):
         stoplevel    REAL,
         inposition   BOOLEAN,
         strength     REAL,
+        signal_strength REAL,
+        confirmed    BOOLEAN,
         -- O'Neill methodology columns
         signal_type  VARCHAR(50),
         pivot_price  REAL,
