@@ -517,8 +517,9 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 stats['info'] = 1
 
             except Exception as e:
-                logging.error(f"Error inserting info data for {symbol}: {e}")
-                pass  # Don't rollback - aborts entire transaction
+                logging.error(f"❌ CRITICAL: Failed to insert company info for {symbol}: {str(e)[:200]}")
+                stats['info_failed'] = 1  # Track failure
+                # Don't rollback - aborts entire transaction, but MARK the failure
 
         # 2. Insert institutional holders
         if institutional_holders is not None and not institutional_holders.empty:
@@ -581,8 +582,8 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     stats['institutional'] = len(inst_data)
 
             except Exception as e:
-                logging.error(f"Error inserting institutional holders for {symbol}: {e}")
-                pass  # Don't rollback - aborts entire transaction
+                logging.error(f"❌ CRITICAL: Failed to insert institutional holders for {symbol}: {str(e)[:200]}")
+                stats['institutional_failed'] = 1
 
         # 3. Insert mutual fund holders (NEW!)
         if mutualfund_holders is not None and not mutualfund_holders.empty:
@@ -637,8 +638,8 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     stats['mutualfund'] = len(mf_data)
 
             except Exception as e:
-                logging.error(f"Error inserting mutual fund holders for {symbol}: {e}")
-                pass  # Don't rollback - aborts entire transaction
+                logging.error(f"❌ CRITICAL: Failed to insert mutual fund holders for {symbol}: {str(e)[:200]}")
+                stats['mutualfund_failed'] = 1
 
         # 4. Insert insider transactions (NEW!)
         if insider_transactions is not None and not insider_transactions.empty:
@@ -673,8 +674,8 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     stats['insider_txns'] = len(insider_txn_data)
 
             except Exception as e:
-                logging.error(f"Error inserting insider transactions for {symbol}: {e}")
-                pass  # Don't rollback - aborts entire transaction
+                logging.error(f"❌ CRITICAL: Failed to insert insider transactions for {symbol}: {str(e)[:200]}")
+                stats['insider_txns_failed'] = 1
 
         # 5. Insert insider roster (NEW!)
         if insider_roster is not None and not insider_roster.empty:
@@ -804,8 +805,8 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             stats['positioning'] = 1
 
         except Exception as e:
-            logging.error(f"Error inserting positioning metrics for {symbol}: {e}")
-            pass  # Don't rollback - aborts entire transaction
+            logging.error(f"❌ CRITICAL: Failed to insert positioning metrics for {symbol}: {str(e)[:200]}")
+            stats['positioning_failed'] = 1
 
         # 7. Insert earnings estimates
         if earnings_estimate is not None and not earnings_estimate.empty:
@@ -845,8 +846,8 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     stats['earnings_est'] = len(earnings_data)
 
             except Exception as e:
-                logging.error(f"Error inserting earnings estimates for {symbol}: {e}")
-                pass  # Don't rollback - aborts entire transaction
+                logging.error(f"❌ CRITICAL: Failed to insert earnings estimates for {symbol}: {str(e)[:200]}")
+                stats['earnings_est_failed'] = 1
 
         # 8. Insert revenue estimates
         if revenue_estimate is not None and not revenue_estimate.empty:
@@ -886,8 +887,8 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     stats['revenue_est'] = len(revenue_data)
 
             except Exception as e:
-                logging.error(f"Error inserting revenue estimates for {symbol}: {e}")
-                pass  # Don't rollback - aborts entire transaction
+                logging.error(f"❌ CRITICAL: Failed to insert revenue estimates for {symbol}: {str(e)[:200]}")
+                stats['revenue_est_failed'] = 1
 
         # 8.5. Insert earnings history (actual reported earnings - consolidated from loadearningshistory.py)
         try:
@@ -955,8 +956,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
         return stats
 
     except Exception as e:
-        logging.error(f"Error loading realtime data for {symbol}: {e}")
-        pass  # Don't rollback - aborts entire transaction
+        logging.error(f"❌ CRITICAL: Complete failure loading realtime data for {symbol}: {str(e)[:200]}")
         return None
 
 
@@ -1073,8 +1073,8 @@ if __name__ == "__main__":
         conn.commit()
         logging.info("✅ Schema migrations complete")
     except Exception as e:
-        logging.error(f"Schema migration error: {e}")
-        pass  # Don't rollback - aborts entire transaction
+        logging.error(f"❌ CRITICAL: Schema migration failed - this blocks ALL data loading: {str(e)[:200]}")
+        # Don't rollback to allow partial schema fixes, but this is critical
 
     # Get symbols - load all non-ETF symbols (LIMIT removed to load all 5,476 stocks)
     cur.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y') ORDER BY symbol;")
@@ -1103,9 +1103,9 @@ if __name__ == "__main__":
                 failed.append(symbol)
 
         except Exception as e:
-            logging.error(f"Failed {symbol}: {e}")
+            logging.error(f"❌ CRITICAL: Complete failure for {symbol}: {str(e)[:200]}")
             failed.append(symbol)
-            pass  # Don't rollback - aborts entire transaction
+            # Don't rollback - aborts entire transaction, but error is logged
 
         finally:
             time.sleep(0.5)  # Rate limiting - reduced from 5.0s to 0.5s (retry logic handles rate limits)
@@ -1115,7 +1115,23 @@ if __name__ == "__main__":
     logging.info("=" * 80)
     logging.info(f"Processed: {processed}/{len(symbols)}")
     logging.info(f"Failed: {len(failed)}")
-    logging.info(f"Stats: {total_stats}")
+
+    # Count component failures
+    info_failures = len([s for s in total_stats if s.get('info_failed')])
+    positioning_failures = len([s for s in total_stats if s.get('positioning_failed')])
+    earnings_failures = len([s for s in total_stats if s.get('earnings_est_failed')])
+    revenue_failures = len([s for s in total_stats if s.get('revenue_est_failed')])
+    inst_failures = len([s for s in total_stats if s.get('institutional_failed')])
+
+    logging.info(f"❌ Component Failures Detected:")
+    logging.info(f"   - Company Info: {info_failures}")
+    logging.info(f"   - Positioning Metrics: {positioning_failures}")
+    logging.info(f"   - Earnings Estimates: {earnings_failures}")
+    logging.info(f"   - Revenue Estimates: {revenue_failures}")
+    logging.info(f"   - Institutional Holders: {inst_failures}")
+
+    if failed:
+        logging.warning(f"⚠️  FAILED SYMBOLS (no data loaded): {','.join(failed[:20])}{f' +{len(failed)-20} more' if len(failed) > 20 else ''}")
 
     cur.execute(
         """
