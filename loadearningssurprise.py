@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
-# Load earnings surprise data - tracks EPS beats and misses
+# Load earnings surprise data from existing database tables
+# Calculates surprise by comparing actual earnings history to estimates
 import sys
 import time
 import logging
-import functools
 import os
 import json
 import resource
-import threading
 
 import boto3
 import psycopg2
 from psycopg2.extras import DictCursor
-import yfinance as yf
 import pandas as pd
 
 SCRIPT_NAME = "loadearningssurprise.py"
@@ -52,28 +50,6 @@ def get_db_config():
         os.getenv("DB_NAME", "stocks")
     )
 
-def retry(max_attempts=2, initial_delay=3, backoff=3):
-    """Retry decorator with exponential backoff."""
-    def decorator(f):
-        @functools.wraps(f)
-        def wrapper(symbol, conn, *args, **kwargs):
-            attempts, delay = 0, initial_delay
-            last_error = None
-            while attempts < max_attempts:
-                try:
-                    return f(symbol, conn, *args, **kwargs)
-                except Exception as e:
-                    last_error = e
-                    attempts += 1
-                    if attempts < max_attempts:
-                        logger.debug(f"Retry {attempts}/{max_attempts-1} for {symbol}, waiting {delay}s")
-                        time.sleep(delay)
-                        delay *= backoff
-            logger.warning(f"{f.__name__} failed for {symbol}: {type(last_error).__name__}")
-            return None
-        return wrapper
-    return decorator
-
 def get_rss_mb():
     usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     if sys.platform.startswith("linux"):
@@ -91,10 +67,10 @@ def ensure_table(conn):
                 symbol VARCHAR(10) NOT NULL,
                 earnings_date DATE,
                 fiscal_quarter VARCHAR(20),
-                actual_eps NUMERIC(10, 4),
-                estimated_eps NUMERIC(10, 4),
-                eps_surprise NUMERIC(10, 4),
-                surprise_pct NUMERIC(8, 4),
+                actual_eps NUMERIC(15, 4),
+                estimated_eps NUMERIC(15, 4),
+                eps_surprise NUMERIC(15, 4),
+                surprise_pct NUMERIC(15, 4),
                 actual_revenue NUMERIC(18, 2),
                 estimated_revenue NUMERIC(18, 2),
                 revenue_surprise NUMERIC(18, 2),
@@ -107,116 +83,6 @@ def ensure_table(conn):
         cur.execute("CREATE INDEX idx_surprise_date ON earnings_surprises (earnings_date);")
     conn.commit()
     logger.info("Table created successfully")
-
-class SurpriseProcessor:
-    """Process earnings surprise data with thread-based timeout."""
-
-    def __init__(self, timeout_seconds=6):
-        self.timeout_seconds = timeout_seconds
-        self.result = None
-        self.exception = None
-
-    def fetch_data(self, symbol):
-        """Fetch data for symbol - runs in thread."""
-        try:
-            yf_symbol = symbol.upper().replace(".", "-")
-            ticker = yf.Ticker(yf_symbol)
-            self.result = ticker.info
-        except Exception as e:
-            self.exception = e
-
-    def get_info_with_timeout(self, symbol):
-        """Fetch with timeout using threading."""
-        self.result = None
-        self.exception = None
-
-        thread = threading.Thread(target=self.fetch_data, args=(symbol,), daemon=True)
-        thread.start()
-        thread.join(timeout=self.timeout_seconds)
-
-        if thread.is_alive():
-            logger.warning(f"Timeout fetching surprise data for {symbol} after {self.timeout_seconds}s")
-            return None
-
-        if self.exception:
-            raise self.exception
-
-        return self.result
-
-@retry(max_attempts=3, initial_delay=1, backoff=2)
-def process_symbol(symbol, conn, processor):
-    """Track earnings surprises for a symbol."""
-    try:
-        info = processor.get_info_with_timeout(symbol)
-        if not info:
-            return 0
-    except Exception as e:
-        logger.debug(f"Error fetching surprise data for {symbol}: {type(e).__name__}")
-        raise
-
-    surprise_records = []
-
-    # Track last earnings surprise
-    try:
-        actual_eps = info.get('trailingEps')
-        forward_eps = info.get('forwardEps')
-
-        if actual_eps and forward_eps:
-            surprise = actual_eps - forward_eps
-            surprise_pct = (surprise / forward_eps * 100) if forward_eps else 0
-
-            # Determine if beat or miss
-            direction = "beat" if surprise > 0 else "miss" if surprise < 0 else "inline"
-
-            last_earnings_date = info.get('mostRecentQuarter')
-            if last_earnings_date:
-                last_earnings_date = pd.to_datetime(last_earnings_date).date()
-            else:
-                last_earnings_date = pd.Timestamp.now().date()
-
-            surprise_records.append((
-                symbol,
-                last_earnings_date,
-                info.get('currentFiscalYearEnd', ''),
-                actual_eps,
-                forward_eps,
-                surprise,
-                surprise_pct,
-                None,
-                None,
-                None,
-                direction,
-                f"Actual EPS: {actual_eps}, Estimated EPS: {forward_eps}",
-            ))
-    except Exception as e:
-        logger.debug(f"Error processing earnings data for {symbol}: {e}")
-
-    if not surprise_records:
-        return 0
-
-    # Insert surprise records
-    with conn.cursor() as cur:
-        cur.executemany("""
-            INSERT INTO earnings_surprises
-            (symbol, earnings_date, fiscal_quarter, actual_eps, estimated_eps,
-             eps_surprise, surprise_pct, actual_revenue, estimated_revenue,
-             revenue_surprise, surprise_direction, details)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, surprise_records)
-    conn.commit()
-
-    return len(surprise_records)
-
-def update_last_run(conn):
-    """Record script execution timestamp."""
-    with conn.cursor() as cur:
-        cur.execute("""
-            INSERT INTO last_updated (script_name, last_run)
-            VALUES (%s, NOW())
-            ON CONFLICT (script_name) DO UPDATE
-            SET last_run = EXCLUDED.last_run;
-        """, (SCRIPT_NAME,))
-    conn.commit()
 
 def main():
     conn = None
@@ -234,41 +100,104 @@ def main():
         ensure_table(conn)
         logger.info(f"[MEM] startup: {get_rss_mb():.1f} MB RSS")
 
-        # Get all stock symbols
-        logger.info("Fetching symbols...")
+        # Get surprise data from existing earnings_history and earnings_estimates
+        logger.info("Fetching earnings surprise data from database tables...")
+
+        surprise_records = []
+
         with conn.cursor() as cur:
-            cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol;")
+            # Get all unique symbols with earnings data
+            cur.execute("""
+                SELECT DISTINCT symbol
+                FROM earnings_history
+                WHERE eps_actual IS NOT NULL
+                ORDER BY symbol;
+            """)
             symbols = [r["symbol"] for r in cur.fetchall()]
 
         total_symbols = len(symbols)
-        processed = 0
-        failed = 0
-        total_surprises = 0
+        logger.info(f"Processing {total_symbols} symbols with earnings data")
 
-        logger.info(f"Loading earnings surprises for {total_symbols} symbols")
-        processor = SurpriseProcessor(timeout_seconds=6)
+        for i, symbol in enumerate(symbols):
+            if (i + 1) % 100 == 0:
+                logger.info(f"Progress: {i + 1}/{total_symbols} - {get_rss_mb():.1f} MB RSS")
 
-        for i, sym in enumerate(symbols):
             try:
-                if (i + 1) % 100 == 0:
-                    logger.info(f"Progress: {i + 1}/{total_symbols} - {get_rss_mb():.1f} MB RSS")
+                with conn.cursor() as cur:
+                    # Get latest earnings report with comparison
+                    cur.execute("""
+                        SELECT
+                            symbol,
+                            quarter,
+                            eps_actual,
+                            eps_estimate,
+                            eps_difference,
+                            surprise_percent
+                        FROM earnings_history
+                        WHERE symbol = %s
+                        AND eps_actual IS NOT NULL
+                        ORDER BY quarter DESC
+                        LIMIT 1;
+                    """, (symbol,))
 
-                surp_count = process_symbol(sym, conn, processor)
-                if surp_count is not None:
-                    total_surprises += surp_count
-                    processed += 1
-                else:
-                    failed += 1
+                    result = cur.fetchone()
 
-                # Longer throttle to avoid rate limiting
-                time.sleep(0.5)
+                    if result:
+                        actual_eps = float(result['eps_actual']) if result['eps_actual'] else None
+                        estimated_eps = float(result['eps_estimate']) if result['eps_estimate'] else None
+                        eps_surprise = float(result['eps_difference']) if result['eps_difference'] else None
+                        surprise_pct = float(result['surprise_percent']) if result['surprise_percent'] else None
+
+                        if actual_eps is not None and estimated_eps is not None:
+                            if eps_surprise is None:
+                                eps_surprise = actual_eps - estimated_eps
+                            if surprise_pct is None:
+                                surprise_pct = (eps_surprise / estimated_eps * 100) if estimated_eps != 0 else 0
+
+                            direction = "beat" if eps_surprise > 0 else "miss" if eps_surprise < 0 else "inline"
+
+                            surprise_records.append((
+                                symbol,
+                                result['quarter'],
+                                None,  # fiscal_quarter
+                                actual_eps,
+                                estimated_eps,
+                                eps_surprise,
+                                float(surprise_pct),
+                                None,  # actual_revenue
+                                None,  # estimated_revenue
+                                None,  # revenue_surprise
+                                direction,
+                                f"EPS Actual: {actual_eps}, Estimated: {estimated_eps}"
+                            ))
             except Exception as e:
-                failed += 1
-                logger.debug(f"Exception in main loop for {sym}: {type(e).__name__}")
+                logger.debug(f"Error processing surprise for {symbol}: {e}")
 
-        update_last_run(conn)
+        # Insert surprise records
+        logger.info(f"Inserting {len(surprise_records)} earnings surprise records...")
+        if surprise_records:
+            with conn.cursor() as cur:
+                cur.executemany("""
+                    INSERT INTO earnings_surprises
+                    (symbol, earnings_date, fiscal_quarter, actual_eps, estimated_eps,
+                     eps_surprise, surprise_pct, actual_revenue, estimated_revenue,
+                     revenue_surprise, surprise_direction, details)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, surprise_records)
+            conn.commit()
+
+        # Update last_updated
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO last_updated (script_name, last_run)
+                VALUES (%s, NOW())
+                ON CONFLICT (script_name) DO UPDATE
+                SET last_run = EXCLUDED.last_run;
+            """, (SCRIPT_NAME,))
+        conn.commit()
+
         logger.info(f"[MEM] peak RSS: {get_rss_mb():.1f} MB")
-        logger.info(f"Earnings Surprises — total: {total_surprises}, processed: {processed}, failed: {failed}")
+        logger.info(f"Earnings Surprises — total: {len(surprise_records)}, processed: {total_symbols}")
         logger.info("Done.")
     except Exception:
         logger.exception("Fatal error in main()")

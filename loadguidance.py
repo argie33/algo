@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
-# Load earnings guidance data - tracks guidance raises and cuts
+# Load earnings guidance data from existing database tables
+# Calculates guidance changes by tracking estimate revisions over time
 import sys
 import time
 import logging
-import functools
 import os
 import json
 import resource
-import threading
 
 import boto3
 import psycopg2
 from psycopg2.extras import DictCursor
-import yfinance as yf
 import pandas as pd
 
 SCRIPT_NAME = "loadguidance.py"
@@ -52,28 +50,6 @@ def get_db_config():
         os.getenv("DB_NAME", "stocks")
     )
 
-def retry(max_attempts=2, initial_delay=3, backoff=3):
-    """Retry decorator with exponential backoff."""
-    def decorator(f):
-        @functools.wraps(f)
-        def wrapper(symbol, conn, *args, **kwargs):
-            attempts, delay = 0, initial_delay
-            last_error = None
-            while attempts < max_attempts:
-                try:
-                    return f(symbol, conn, *args, **kwargs)
-                except Exception as e:
-                    last_error = e
-                    attempts += 1
-                    if attempts < max_attempts:
-                        logger.debug(f"Retry {attempts}/{max_attempts-1} for {symbol}, waiting {delay}s")
-                        time.sleep(delay)
-                        delay *= backoff
-            logger.warning(f"{f.__name__} failed for {symbol}: {type(last_error).__name__}")
-            return None
-        return wrapper
-    return decorator
-
 def get_rss_mb():
     usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     if sys.platform.startswith("linux"):
@@ -90,10 +66,10 @@ def ensure_table(conn):
                 id SERIAL PRIMARY KEY,
                 symbol VARCHAR(10) NOT NULL,
                 guidance_date DATE,
-                prior_guidance NUMERIC(10, 2),
-                new_guidance NUMERIC(10, 2),
-                guidance_change NUMERIC(10, 2),
-                change_pct NUMERIC(8, 4),
+                prior_guidance NUMERIC(15, 4),
+                new_guidance NUMERIC(15, 4),
+                guidance_change NUMERIC(15, 4),
+                change_pct NUMERIC(15, 4),
                 guidance_type VARCHAR(50),
                 announcement_text TEXT,
                 source VARCHAR(100),
@@ -104,126 +80,6 @@ def ensure_table(conn):
         cur.execute("CREATE INDEX idx_guidance_date ON guidance_changes (guidance_date);")
     conn.commit()
     logger.info("Table created successfully")
-
-class GuidanceProcessor:
-    """Process guidance data with thread-based timeout."""
-
-    def __init__(self, timeout_seconds=6):
-        self.timeout_seconds = timeout_seconds
-        self.result = None
-        self.exception = None
-
-    def fetch_guidance(self, symbol):
-        """Fetch guidance for symbol - runs in thread."""
-        try:
-            yf_symbol = symbol.upper().replace(".", "-")
-            ticker = yf.Ticker(yf_symbol)
-            self.result = ticker.info
-        except Exception as e:
-            self.exception = e
-
-    def get_info_with_timeout(self, symbol):
-        """Fetch with timeout using threading."""
-        self.result = None
-        self.exception = None
-
-        thread = threading.Thread(target=self.fetch_guidance, args=(symbol,), daemon=True)
-        thread.start()
-        thread.join(timeout=self.timeout_seconds)
-
-        if thread.is_alive():
-            logger.warning(f"Timeout fetching guidance for {symbol} after {self.timeout_seconds}s")
-            return None
-
-        if self.exception:
-            raise self.exception
-
-        return self.result
-
-@retry(max_attempts=3, initial_delay=1, backoff=2)
-def process_symbol(symbol, conn, processor):
-    """Track guidance changes by monitoring estimate revisions."""
-    try:
-        info = processor.get_info_with_timeout(symbol)
-        if not info:
-            return 0
-    except Exception as e:
-        logger.debug(f"Error fetching guidance for {symbol}: {type(e).__name__}")
-        raise
-
-    guidance_records = []
-
-    # Track forward EPS guidance
-    try:
-        forward_eps = info.get('forwardEps')
-        trailing_eps = info.get('trailingEps')
-
-        if forward_eps and trailing_eps:
-            change = forward_eps - trailing_eps
-            change_pct = (change / trailing_eps * 100) if trailing_eps else 0
-
-            guidance_records.append((
-                symbol,
-                pd.Timestamp.now().date(),
-                trailing_eps,
-                forward_eps,
-                change,
-                change_pct,
-                'EPS',
-                f"Forward EPS: {forward_eps}, Trailing EPS: {trailing_eps}",
-                'yfinance'
-            ))
-    except Exception as e:
-        logger.debug(f"Error processing forward EPS for {symbol}: {e}")
-
-    # Track target price guidance
-    try:
-        target_mean = info.get('targetMeanPrice')
-        current_price = info.get('currentPrice')
-
-        if target_mean and current_price:
-            upside = target_mean - current_price
-            upside_pct = (upside / current_price * 100) if current_price else 0
-
-            guidance_records.append((
-                symbol,
-                pd.Timestamp.now().date(),
-                current_price,
-                target_mean,
-                upside,
-                upside_pct,
-                'TARGET_PRICE',
-                f"Target: {target_mean}, Current: {current_price}",
-                'yfinance'
-            ))
-    except Exception as e:
-        logger.debug(f"Error processing target price for {symbol}: {e}")
-
-    if not guidance_records:
-        return 0
-
-    # Insert guidance changes
-    with conn.cursor() as cur:
-        cur.executemany("""
-            INSERT INTO guidance_changes
-            (symbol, guidance_date, prior_guidance, new_guidance, guidance_change,
-             change_pct, guidance_type, announcement_text, source)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, guidance_records)
-    conn.commit()
-
-    return len(guidance_records)
-
-def update_last_run(conn):
-    """Record script execution timestamp."""
-    with conn.cursor() as cur:
-        cur.execute("""
-            INSERT INTO last_updated (script_name, last_run)
-            VALUES (%s, NOW())
-            ON CONFLICT (script_name) DO UPDATE
-            SET last_run = EXCLUDED.last_run;
-        """, (SCRIPT_NAME,))
-    conn.commit()
 
 def main():
     conn = None
@@ -241,41 +97,93 @@ def main():
         ensure_table(conn)
         logger.info(f"[MEM] startup: {get_rss_mb():.1f} MB RSS")
 
-        # Get all stock symbols
-        logger.info("Fetching symbols...")
+        # Get guidance data from existing earnings_estimate_trends and earnings_estimates
+        logger.info("Fetching guidance data from earnings_estimate_trends...")
+
+        guidance_records = []
+
         with conn.cursor() as cur:
-            cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol;")
+            # Get all unique symbols with estimate data
+            cur.execute("""
+                SELECT DISTINCT symbol FROM earnings_estimates
+                WHERE avg_estimate IS NOT NULL
+                ORDER BY symbol;
+            """)
             symbols = [r["symbol"] for r in cur.fetchall()]
 
         total_symbols = len(symbols)
-        processed = 0
-        failed = 0
-        total_guidance = 0
+        logger.info(f"Processing {total_symbols} symbols with estimate data")
 
-        logger.info(f"Loading guidance data for {total_symbols} symbols")
-        processor = GuidanceProcessor(timeout_seconds=6)
+        for i, symbol in enumerate(symbols):
+            if (i + 1) % 100 == 0:
+                logger.info(f"Progress: {i + 1}/{total_symbols} - {get_rss_mb():.1f} MB RSS")
 
-        for i, sym in enumerate(symbols):
             try:
-                if (i + 1) % 100 == 0:
-                    logger.info(f"Progress: {i + 1}/{total_symbols} - {get_rss_mb():.1f} MB RSS")
+                with conn.cursor() as cur:
+                    # Get latest and previous estimates for most recent period
+                    cur.execute("""
+                        SELECT
+                            symbol,
+                            avg_estimate,
+                            period,
+                            fetched_at
+                        FROM earnings_estimates
+                        WHERE symbol = %s AND avg_estimate IS NOT NULL
+                        ORDER BY fetched_at DESC
+                        LIMIT 2;
+                    """, (symbol,))
 
-                guid_count = process_symbol(sym, conn, processor)
-                if guid_count is not None:
-                    total_guidance += guid_count
-                    processed += 1
-                else:
-                    failed += 1
+                    estimates = cur.fetchall()
 
-                # Longer throttle to avoid rate limiting
-                time.sleep(0.5)
+                    if len(estimates) >= 1:
+                        latest = estimates[0]
+                        prior = estimates[1] if len(estimates) > 1 else None
+
+                        latest_eps = float(latest['avg_estimate']) if latest['avg_estimate'] else 0
+                        prior_eps = float(prior['avg_estimate']) if prior and prior['avg_estimate'] else 0
+
+                        if latest_eps != 0 or prior_eps != 0:
+                            change = latest_eps - prior_eps
+                            change_pct = (change / prior_eps * 100) if prior_eps != 0 else 0
+
+                            guidance_records.append((
+                                symbol,
+                                latest['fetched_at'].date() if latest['fetched_at'] else None,
+                                prior_eps,
+                                latest_eps,
+                                change,
+                                float(change_pct),
+                                'EPS_ESTIMATE',
+                                f"EPS Estimate: {latest_eps} (was {prior_eps})",
+                                'earnings_estimates'
+                            ))
             except Exception as e:
-                failed += 1
-                logger.debug(f"Exception in main loop for {sym}: {type(e).__name__}")
+                logger.debug(f"Error processing guidance for {symbol}: {e}")
 
-        update_last_run(conn)
+        # Insert guidance records
+        logger.info(f"Inserting {len(guidance_records)} guidance records...")
+        if guidance_records:
+            with conn.cursor() as cur:
+                cur.executemany("""
+                    INSERT INTO guidance_changes
+                    (symbol, guidance_date, prior_guidance, new_guidance, guidance_change,
+                     change_pct, guidance_type, announcement_text, source)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, guidance_records)
+            conn.commit()
+
+        # Update last_updated
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO last_updated (script_name, last_run)
+                VALUES (%s, NOW())
+                ON CONFLICT (script_name) DO UPDATE
+                SET last_run = EXCLUDED.last_run;
+            """, (SCRIPT_NAME,))
+        conn.commit()
+
         logger.info(f"[MEM] peak RSS: {get_rss_mb():.1f} MB")
-        logger.info(f"Guidance — total: {total_guidance}, processed: {processed}, failed: {failed}")
+        logger.info(f"Guidance — total: {len(guidance_records)}, processed: {total_symbols}")
         logger.info("Done.")
     except Exception:
         logger.exception("Fatal error in main()")
