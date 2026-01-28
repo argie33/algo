@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# AWS DEPLOYMENT: 2026-01-27_142000 - Production ECS execution
+# AWS DEPLOYMENT: 2026-01-28_020300 - CloudFormation task definitions ready
 """
-# Trigger: 2026-01-27_142000 - Deploy to AWS ECS with consolidated loaders
+# Trigger: 2026-01-28_020300 - Deploy to AWS ECS with all task definitions
 Daily Company Data Loader - Enhanced Positioning Analytics
 Consolidates daily-update loaders into single efficient loader
 

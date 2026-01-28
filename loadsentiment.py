@@ -7,7 +7,7 @@ This script loads comprehensive sentiment analysis data including:
 - Social sentiment (Reddit mentions, news sentiment)
 - Market sentiment indicators (put/call ratios, options flow)
 - Google Trends data for search interest
-Updated: 2026-01-27 - AWS ECS production deployment with consolidated loaders
+Updated: 2026-01-28 - CloudFormation task definitions deployed to AWS ECS
 
 Data Sources:
 - Primary: yfinance for analyst recommendations
