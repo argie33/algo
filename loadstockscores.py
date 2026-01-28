@@ -4125,7 +4125,6 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             # fcf_yield removed completely
             'stability_score': float(round(clamp_score(risk_stability_score), 2)) if risk_stability_score is not None else None,
             'stability_inputs': stability_inputs,
-            'beta': float(round(beta, 3)) if beta is not None else None,
             'rsi': float(rsi) if rsi is not None else None,
             'macd': float(macd) if macd is not None else None,
             'sma50': float(round(float(sma_50), 2)) if sma_50 is not None else None,
@@ -4318,7 +4317,7 @@ def save_stock_score(conn, score_data):
             pe_ratio, forward_pe, pb_ratio, ps_ratio, peg_ratio, ev_revenue,
             roe, roa, debt_ratio, fcf_ni_ratio, earnings_surprise,
             earnings_growth, revenue_growth, margin_trend,
-            volatility, downside_volatility, max_drawdown, beta,
+            volatility, downside_volatility, max_drawdown,
             institutional_ownership, insider_ownership, short_interest, accumulation_distribution, institution_count,
             analyst_rating, news_sentiment, aaii_sentiment,
             momentum_reason, growth_reason, value_reason, quality_reason, positioning_reason, stability_reason,
@@ -4331,7 +4330,7 @@ def save_stock_score(conn, score_data):
             %(pe_ratio)s, %(forward_pe)s, %(pb_ratio)s, %(ps_ratio)s, %(peg_ratio)s, %(ev_revenue)s,
             %(roe)s, %(roa)s, %(debt_ratio)s, %(fcf_ni_ratio)s, %(earnings_surprise)s,
             %(earnings_growth)s, %(revenue_growth)s, %(margin_trend)s,
-            %(volatility)s, %(downside_volatility)s, %(max_drawdown)s, %(beta)s,
+            %(volatility)s, %(downside_volatility)s, %(max_drawdown)s,
             %(institutional_ownership)s, %(insider_ownership)s, %(short_interest)s, %(accumulation_distribution)s, %(institution_count)s,
             %(analyst_rating)s, %(news_sentiment)s, %(aaii_sentiment)s,
             %(momentum_reason)s, %(growth_reason)s, %(value_reason)s, %(quality_reason)s, %(positioning_reason)s, %(stability_reason)s,
@@ -4372,7 +4371,6 @@ def save_stock_score(conn, score_data):
             volatility = EXCLUDED.volatility,
             downside_volatility = EXCLUDED.downside_volatility,
             max_drawdown = EXCLUDED.max_drawdown,
-            beta = EXCLUDED.beta,
             institutional_ownership = EXCLUDED.institutional_ownership,
             insider_ownership = EXCLUDED.insider_ownership,
             short_interest = EXCLUDED.short_interest,
@@ -4544,7 +4542,6 @@ def main():
                 cursor.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS volatility DECIMAL(10,2)")
                 cursor.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS downside_volatility DECIMAL(10,2)")
                 cursor.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS max_drawdown DECIMAL(10,2)")
-                cursor.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS beta DECIMAL(5,2)")
                 cursor.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS institutional_ownership DECIMAL(5,2)")
                 cursor.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS insider_ownership DECIMAL(5,2)")
                 cursor.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS short_interest DECIMAL(5,2)")
