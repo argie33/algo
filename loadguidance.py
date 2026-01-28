@@ -54,7 +54,7 @@ def ensure_table(conn):
         cur.execute("""
             CREATE TABLE guidance_changes (
                 id SERIAL PRIMARY KEY,
-                symbol VARCHAR(10) NOT NULL UNIQUE,
+                symbol VARCHAR(10) NOT NULL,
                 guidance_date DATE,
                 prior_guidance NUMERIC(15, 4),
                 new_guidance NUMERIC(15, 4),
@@ -63,7 +63,6 @@ def ensure_table(conn):
                 guidance_type VARCHAR(50),
                 announcement_text TEXT,
                 source VARCHAR(100),
-                data_available BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT NOW()
             );
         """)
@@ -96,8 +95,9 @@ def main():
         logger.info(f"Processing {total_symbols} symbols (ensuring complete coverage)")
 
         guidance_records = []
+        symbols_processed = 0
         symbols_with_data = 0
-        symbols_without_data = 0
+        symbols_skipped = 0
 
         for i, symbol in enumerate(all_symbols):
             if (i + 1) % 500 == 0:
@@ -105,7 +105,7 @@ def main():
 
             try:
                 with conn.cursor() as cur:
-                    # Try to get latest estimates
+                    # Fetch only REAL data from earnings_estimates
                     cur.execute("""
                         SELECT avg_estimate, period, fetched_at
                         FROM earnings_estimates
@@ -116,7 +116,7 @@ def main():
                     estimates = cur.fetchall()
 
                     if estimates and len(estimates) >= 1:
-                        # Has data
+                        # Has REAL data - insert it
                         latest = estimates[0]
                         prior = estimates[1] if len(estimates) > 1 else None
 
@@ -139,40 +139,26 @@ def main():
                             float(change_pct) if change_pct else None,
                             'EPS_ESTIMATE',
                             f"EPS Estimate: {latest_eps}" if latest_eps else None,
-                            'earnings_estimates',
-                            True  # data_available
+                            'earnings_estimates'
                         ))
                         symbols_with_data += 1
                     else:
-                        # No data - insert NULL record
-                        guidance_records.append((
-                            symbol,
-                            None, None, None, None, None,
-                            None, None, None,
-                            False  # data_available
-                        ))
-                        symbols_without_data += 1
+                        # No REAL data - SKIP this symbol (don't insert placeholder)
+                        symbols_skipped += 1
 
             except Exception as e:
-                logger.debug(f"Error processing {symbol}: {e}")
-                # Insert NULL record for error cases too
-                guidance_records.append((
-                    symbol,
-                    None, None, None, None, None,
-                    None, None, None,
-                    False  # data_available
-                ))
-                symbols_without_data += 1
+                logger.error(f"ERROR processing {symbol}: {e}")
+                symbols_skipped += 1
 
-        # Bulk insert ALL records
-        logger.info(f"Inserting {len(guidance_records)} records (with/without data)...")
+        # Insert ONLY real data records
+        logger.info(f"Inserting {len(guidance_records)} REAL DATA records (NO placeholders)...")
         if guidance_records:
             with conn.cursor() as cur:
                 cur.executemany("""
                     INSERT INTO guidance_changes
                     (symbol, guidance_date, prior_guidance, new_guidance, guidance_change,
-                     change_pct, guidance_type, announcement_text, source, data_available)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     change_pct, guidance_type, announcement_text, source)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, guidance_records)
             conn.commit()
 
@@ -186,7 +172,7 @@ def main():
         conn.commit()
 
         logger.info(f"[MEM] peak RSS: {get_rss_mb():.1f} MB")
-        logger.info(f"Guidance — total symbols: {total_symbols}, with data: {symbols_with_data}, without: {symbols_without_data}")
+        logger.info(f"Guidance — REAL DATA ONLY: {symbols_with_data} symbols with data, {symbols_skipped} skipped (no data)")
         logger.info("Done.")
     except Exception:
         logger.exception("Fatal error in main()")
