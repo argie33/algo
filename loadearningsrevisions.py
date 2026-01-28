@@ -131,7 +131,8 @@ def fetch_and_load_revisions():
             symbols = [row[0] for row in cur.fetchall()]
 
         logger.info(f"📊 Processing {len(symbols)} total symbols...")
-        logger.info(f"⏱️  Estimated time: {len(symbols) * 0.5 / 60:.1f} minutes (with rate limiting)")
+        logger.info(f"⏱️  Estimated time: {len(symbols) * 1 / 60:.1f} minutes (with aggressive rate limiting)")
+        logger.warning("⚠️  NOTE: yfinance eps_trend/eps_revisions are frequently rate-limited.")
 
         # Batch parameters
         batch_size = 50
@@ -217,60 +218,71 @@ def fetch_and_load_revisions():
         # Insert all collected data
         logger.info(f"\n💾 Inserting data into database...")
 
+        trends_inserted = 0
+        revisions_inserted = 0
+
         if all_trends_data:
-            with conn.cursor() as cur:
-                execute_values(
-                    cur,
-                    """
-                    INSERT INTO earnings_estimate_trends
-                        (symbol, period, snapshot_date, current_estimate,
-                         estimate_7d_ago, estimate_30d_ago, estimate_60d_ago, estimate_90d_ago)
-                    VALUES %s
-                    ON CONFLICT (symbol, period, snapshot_date)
-                    DO UPDATE SET
-                        current_estimate = EXCLUDED.current_estimate,
-                        estimate_7d_ago = EXCLUDED.estimate_7d_ago,
-                        estimate_30d_ago = EXCLUDED.estimate_30d_ago,
-                        estimate_60d_ago = EXCLUDED.estimate_60d_ago,
-                        estimate_90d_ago = EXCLUDED.estimate_90d_ago
-                    """,
-                    all_trends_data
-                )
-                conn.commit()
-                logger.info(f"✅ Loaded {len(all_trends_data)} estimate trend records")
+            try:
+                with conn.cursor() as cur:
+                    execute_values(
+                        cur,
+                        """
+                        INSERT INTO earnings_estimate_trends
+                            (symbol, period, snapshot_date, current_estimate,
+                             estimate_7d_ago, estimate_30d_ago, estimate_60d_ago, estimate_90d_ago)
+                        VALUES %s
+                        ON CONFLICT (symbol, period, snapshot_date)
+                        DO UPDATE SET
+                            current_estimate = EXCLUDED.current_estimate,
+                            estimate_7d_ago = EXCLUDED.estimate_7d_ago,
+                            estimate_30d_ago = EXCLUDED.estimate_30d_ago,
+                            estimate_60d_ago = EXCLUDED.estimate_60d_ago,
+                            estimate_90d_ago = EXCLUDED.estimate_90d_ago
+                        """,
+                        all_trends_data
+                    )
+                    conn.commit()
+                    trends_inserted = len(all_trends_data)
+                    logger.info(f"✅ Loaded {trends_inserted} estimate trend records")
+            except Exception as e:
+                logger.error(f"❌ ERROR inserting trends: {e}")
+                conn.rollback()
 
         if all_revisions_data:
-            with conn.cursor() as cur:
-                execute_values(
-                    cur,
-                    """
-                    INSERT INTO earnings_estimate_revisions
-                        (symbol, period, snapshot_date, up_last_7d, up_last_30d,
-                         down_last_7d, down_last_30d)
-                    VALUES %s
-                    ON CONFLICT (symbol, period, snapshot_date)
-                    DO UPDATE SET
-                        up_last_7d = EXCLUDED.up_last_7d,
-                        up_last_30d = EXCLUDED.up_last_30d,
-                        down_last_7d = EXCLUDED.down_last_7d,
-                        down_last_30d = EXCLUDED.down_last_30d
-                    """,
-                    all_revisions_data
-                )
-                conn.commit()
-                logger.info(f"✅ Loaded {len(all_revisions_data)} estimate revision records")
+            try:
+                with conn.cursor() as cur:
+                    execute_values(
+                        cur,
+                        """
+                        INSERT INTO earnings_estimate_revisions
+                            (symbol, period, snapshot_date, up_last_7d, up_last_30d,
+                             down_last_7d, down_last_30d)
+                        VALUES %s
+                        ON CONFLICT (symbol, period, snapshot_date)
+                        DO UPDATE SET
+                            up_last_7d = EXCLUDED.up_last_7d,
+                            up_last_30d = EXCLUDED.up_last_30d,
+                            down_last_7d = EXCLUDED.down_last_7d,
+                            down_last_30d = EXCLUDED.down_last_30d
+                        """,
+                        all_revisions_data
+                    )
+                    conn.commit()
+                    revisions_inserted = len(all_revisions_data)
+                    logger.info(f"✅ Loaded {revisions_inserted} estimate revision records")
+            except Exception as e:
+                logger.error(f"❌ ERROR inserting revisions: {e}")
+                conn.rollback()
 
         # Final summary
         logger.info(f"\n{'='*70}")
         logger.info(f"✅ EARNINGS REVISIONS LOADER COMPLETE")
         logger.info(f"{'='*70}")
         logger.info(f"Total symbols processed: {len(symbols)}")
-        logger.info(f"Symbols with data: {success_count}")
-        logger.info(f"Symbols with no data: {no_data_count}")
-        logger.info(f"Symbols with errors: {error_count}")
-        logger.info(f"Trend records loaded: {len(all_trends_data)}")
-        logger.info(f"Revision records loaded: {len(all_revisions_data)}")
-        logger.info(f"Success rate: {(success_count/len(symbols)*100):.1f}%")
+        logger.info(f"Symbols with data fetched: {global_success_count}")
+        logger.info(f"Trend records inserted: {trends_inserted}")
+        logger.info(f"Revision records inserted: {revisions_inserted}")
+        logger.info(f"Success rate: {(global_success_count/len(symbols)*100):.1f}%")
         logger.info(f"{'='*70}\n")
 
     finally:
