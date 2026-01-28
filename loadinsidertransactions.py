@@ -100,6 +100,7 @@ def ensure_table(conn):
                 ownership_type VARCHAR(20),
                 transaction_text TEXT,
                 url TEXT,
+                data_available BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT NOW()
             );
         """)
@@ -118,7 +119,7 @@ def process_symbol(symbol, conn):
     try:
         insider_data = ticker.insider_transactions
         if insider_data is None or insider_data.empty:
-            return 0
+            return False
     except Exception as e:
         raise e
 
@@ -143,26 +144,27 @@ def process_symbol(symbol, conn):
                 transaction_date.date(),
                 ownership_type,
                 str(row),
-                f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&symbol={yf_symbol}&type=4&dateb=&owner=exclude&count=100"
+                f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&symbol={yf_symbol}&type=4&dateb=&owner=exclude&count=100",
+                True  # data_available
             ))
         except Exception as e:
             logger.warning(f"Error parsing insider transaction for {symbol}: {e}")
             continue
 
     if not transactions:
-        return 0
+        return False
 
     # Batch insert transactions
     with conn.cursor() as cur:
         cur.executemany("""
             INSERT INTO insider_transactions
             (symbol, insider_name, position, transaction_type, shares, value,
-             transaction_date, ownership_type, transaction_text, url)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             transaction_date, ownership_type, transaction_text, url, data_available)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, transactions)
     conn.commit()
 
-    return len(transactions)
+    return True
 
 def update_last_run(conn):
     """Record script execution timestamp."""
@@ -201,35 +203,53 @@ def main():
             symbols = [r["symbol"] for r in cur.fetchall()]
 
         total_symbols = len(symbols)
-        processed = 0
-        failed = 0
+        symbols_with_data = 0
+        symbols_without_data = 0
         total_transactions = 0
 
-        logger.info(f"Loading insider transactions for {total_symbols} symbols")
+        logger.info(f"Loading insider transactions for {total_symbols} symbols (ensuring complete coverage)")
 
         for i, sym in enumerate(symbols):
-            try:
-                if (i + 1) % 100 == 0:
-                    logger.info(f"Progress: {i + 1}/{total_symbols} - {get_rss_mb():.1f} MB RSS")
+            if (i + 1) % 500 == 0:
+                logger.info(f"Progress: {i + 1}/{total_symbols} - {get_rss_mb():.1f} MB RSS")
 
-                trans_count = process_symbol(sym, conn)
-                if trans_count is not None:
-                    total_transactions += trans_count
-                    processed += 1
+            try:
+                has_data = process_symbol(sym, conn)
+                if has_data:
+                    symbols_with_data += 1
                 else:
-                    failed += 1
+                    # Insert placeholder row for symbol with no data
+                    with conn.cursor() as cur:
+                        cur.execute("""
+                            INSERT INTO insider_transactions
+                            (symbol, insider_name, position, transaction_type, shares, value,
+                             transaction_date, ownership_type, transaction_text, url, data_available)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (sym, None, None, None, None, None, None, None, None, None, False))
+                    conn.commit()
+                    symbols_without_data += 1
 
                 # Adaptive throttling
                 if get_rss_mb() > 1000:
                     time.sleep(0.3)
                 else:
                     time.sleep(0.05)
-            except Exception:
-                failed += 1
+            except Exception as e:
+                logger.warning(f"Error processing {sym}: {e}")
+                # Insert placeholder row for error cases too
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO insider_transactions
+                        (symbol, insider_name, position, transaction_type, shares, value,
+                         transaction_date, ownership_type, transaction_text, url, data_available)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (sym, None, None, None, None, None, None, None, None, None, False))
+                conn.commit()
+                symbols_without_data += 1
 
         update_last_run(conn)
         logger.info(f"[MEM] peak RSS: {get_rss_mb():.1f} MB")
-        logger.info(f"Insider Transactions — total: {total_transactions}, processed: {processed}, failed: {failed}")
+        logger.info(f"Insider Transactions — total symbols: {total_symbols}, with data: {symbols_with_data}, without: {symbols_without_data}")
         logger.info("Done.")
     except Exception:
         logger.exception("Fatal error in main()")
