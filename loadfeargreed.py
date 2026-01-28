@@ -25,7 +25,7 @@ OUTPUTS:
   • market page: Market sentiment indicators
 
 Version: v5.3
-Last Updated: 2025-10-27 - AWS TESTED
+Last Updated: 2026-01-28 - Data loss fix deployed
 """
 import sys
 import time
@@ -332,11 +332,10 @@ async def main():
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Recreate fear_greed_index table
-    logging.info("Recreating fear_greed_index table...")
-    cur.execute("DROP TABLE IF EXISTS fear_greed_index;")
+    # Ensure fear_greed_index table exists (never drop - avoid data loss)
+    logging.info("Ensuring fear_greed_index table...")
     cur.execute("""
-        CREATE TABLE fear_greed_index (
+        CREATE TABLE IF NOT EXISTS fear_greed_index (
             id          SERIAL PRIMARY KEY,
             date        DATE         NOT NULL UNIQUE,
             index_value DOUBLE PRECISION,
