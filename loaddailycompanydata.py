@@ -776,7 +776,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     institutional_holders_count, insider_ownership_pct,
                     short_ratio, short_interest_pct, short_percent_of_float, ad_rating
                 ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                ON CONFLICT (symbol) DO UPDATE SET
+                ON CONFLICT (symbol, date) DO UPDATE SET
                     date = EXCLUDED.date,
                     institutional_ownership_pct = EXCLUDED.institutional_ownership_pct,
                     top_10_institutions_pct = EXCLUDED.top_10_institutions_pct,
@@ -1019,6 +1019,8 @@ if __name__ == "__main__":
                 insider_ownership_pct DECIMAL(8,6),
                 short_ratio DECIMAL(8,2),
                 short_interest_pct DECIMAL(8,6),
+                short_percent_of_float DECIMAL(8,6),
+                ad_rating VARCHAR(1),
                 created_at TIMESTAMP DEFAULT NOW(),
                 updated_at TIMESTAMP DEFAULT NOW(),
                 UNIQUE(symbol, date)
@@ -1040,10 +1042,12 @@ if __name__ == "__main__":
             ADD COLUMN IF NOT EXISTS float_shares BIGINT;
         """)
 
-        # Ensure positioning_metrics has date column (in case table was created without it)
+        # Ensure positioning_metrics has all required columns (in case table was created without them)
         cur.execute("""
             ALTER TABLE positioning_metrics
-            ADD COLUMN IF NOT EXISTS date DATE;
+            ADD COLUMN IF NOT EXISTS date DATE,
+            ADD COLUMN IF NOT EXISTS short_percent_of_float DECIMAL(8,6),
+            ADD COLUMN IF NOT EXISTS ad_rating VARCHAR(1);
         """)
 
         # Create insider_transactions with correct schema (CREATE IF NOT EXISTS - avoids DROP hang)
