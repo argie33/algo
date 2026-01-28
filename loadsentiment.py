@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Sentiment Data Loader Script - Auth deployment trigger v4 - Empty database population
+Sentiment Data Loader Script - AWS ECS Production Deployment
 
 This script loads comprehensive sentiment analysis data including:
 - Analyst sentiment (recommendations, price targets, revisions)
 - Social sentiment (Reddit mentions, news sentiment)
 - Market sentiment indicators (put/call ratios, options flow)
 - Google Trends data for search interest
-Updated: 2025-07-15 - Trigger deployment for sentiment analysis data
+Updated: 2026-01-27 - AWS ECS production deployment with consolidated loaders
 
 Data Sources:
 - Primary: yfinance for analyst recommendations
