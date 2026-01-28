@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AWS DEPLOYMENT: 2026-01-27_142000 - Production ECS cluster execution
+# AWS DEPLOYMENT: 2026-01-27_150000 - Fixed CloudFormation task definition exports
 """
 Stock Scores Loader - Multi-Factor Stock Scoring System
 
@@ -7,6 +7,7 @@ STATUS: ✅ CURRENT - Updated 2026-01-27 (TODAY)
 - Composite scores calculated: 4,922 symbols
 - All factor metrics updated (momentum, value, growth, quality, stability, positioning, sentiment)
 - Ready for production use
+- FIXED: CloudFormation now has all required task definitions and exports
 
 DEPLOYMENT MODES:
   • AWS Production: Uses DB_SECRET_ARN (Lambda/ECS)
