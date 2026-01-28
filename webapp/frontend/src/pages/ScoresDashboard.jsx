@@ -1457,6 +1457,30 @@ const ScoresDashboard = () => {
                                             <TableCell align="right">{parseFloat(stock.quality_inputs.surprise_consistency).toFixed(2)}</TableCell>
                                           </TableRow>
                                         )}
+                                        {stock.quality_inputs.revision_activity_30d !== null && stock.quality_inputs.revision_activity_30d !== undefined && (
+                                          <TableRow>
+                                            <TableCell>Estimate Revision Activity (30d)</TableCell>
+                                            <TableCell align="right">{parseFloat(stock.quality_inputs.revision_activity_30d).toFixed(1)}</TableCell>
+                                          </TableRow>
+                                        )}
+                                        {stock.quality_inputs.estimate_momentum_60d !== null && stock.quality_inputs.estimate_momentum_60d !== undefined && (
+                                          <TableRow>
+                                            <TableCell>Estimate Momentum (60d) %</TableCell>
+                                            <TableCell align="right">{parseFloat(stock.quality_inputs.estimate_momentum_60d).toFixed(2)}%</TableCell>
+                                          </TableRow>
+                                        )}
+                                        {stock.quality_inputs.estimate_momentum_90d !== null && stock.quality_inputs.estimate_momentum_90d !== undefined && (
+                                          <TableRow>
+                                            <TableCell>Estimate Momentum (90d) %</TableCell>
+                                            <TableCell align="right">{parseFloat(stock.quality_inputs.estimate_momentum_90d).toFixed(2)}%</TableCell>
+                                          </TableRow>
+                                        )}
+                                        {stock.quality_inputs.revision_trend_score !== null && stock.quality_inputs.revision_trend_score !== undefined && (
+                                          <TableRow>
+                                            <TableCell>Revision Trend Score</TableCell>
+                                            <TableCell align="right">{parseFloat(stock.quality_inputs.revision_trend_score).toFixed(1)}</TableCell>
+                                          </TableRow>
+                                        )}
                                         {stock.quality_inputs.ebitda_margin_pct !== null && stock.quality_inputs.ebitda_margin_pct !== undefined && (
                                           <TableRow>
                                             <TableCell>EBITDA Margin %</TableCell>

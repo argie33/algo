@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # Load earnings guidance data - tracks guidance raises and cuts
-# Monitors when companies update their forward earnings guidance
 import sys
 import time
 import logging
@@ -8,6 +7,7 @@ import functools
 import os
 import json
 import resource
+import threading
 
 import boto3
 import psycopg2
@@ -52,23 +52,24 @@ def get_db_config():
         os.getenv("DB_NAME", "stocks")
     )
 
-def retry(max_attempts=3, initial_delay=2, backoff=2):
+def retry(max_attempts=2, initial_delay=3, backoff=3):
     """Retry decorator with exponential backoff."""
     def decorator(f):
         @functools.wraps(f)
         def wrapper(symbol, conn, *args, **kwargs):
             attempts, delay = 0, initial_delay
+            last_error = None
             while attempts < max_attempts:
                 try:
                     return f(symbol, conn, *args, **kwargs)
                 except Exception as e:
+                    last_error = e
                     attempts += 1
                     if attempts < max_attempts:
+                        logger.debug(f"Retry {attempts}/{max_attempts-1} for {symbol}, waiting {delay}s")
                         time.sleep(delay)
                         delay *= backoff
-                    else:
-                        logger.debug(f"{f.__name__} failed for {symbol}")
-                        return None
+            logger.warning(f"{f.__name__} failed for {symbol}: {type(last_error).__name__}")
             return None
         return wrapper
     return decorator
@@ -81,6 +82,7 @@ def get_rss_mb():
 
 def ensure_table(conn):
     """Ensure guidance_changes table exists."""
+    logger.info("Creating guidance_changes table...")
     with conn.cursor() as cur:
         cur.execute("DROP TABLE IF EXISTS guidance_changes;")
         cur.execute("""
@@ -101,20 +103,53 @@ def ensure_table(conn):
         cur.execute("CREATE INDEX idx_guidance_symbol ON guidance_changes (symbol);")
         cur.execute("CREATE INDEX idx_guidance_date ON guidance_changes (guidance_date);")
     conn.commit()
+    logger.info("Table created successfully")
 
-@retry(max_attempts=3, initial_delay=2, backoff=2)
-def process_symbol(symbol, conn):
+class GuidanceProcessor:
+    """Process guidance data with thread-based timeout."""
+
+    def __init__(self, timeout_seconds=6):
+        self.timeout_seconds = timeout_seconds
+        self.result = None
+        self.exception = None
+
+    def fetch_guidance(self, symbol):
+        """Fetch guidance for symbol - runs in thread."""
+        try:
+            yf_symbol = symbol.upper().replace(".", "-")
+            ticker = yf.Ticker(yf_symbol)
+            self.result = ticker.info
+        except Exception as e:
+            self.exception = e
+
+    def get_info_with_timeout(self, symbol):
+        """Fetch with timeout using threading."""
+        self.result = None
+        self.exception = None
+
+        thread = threading.Thread(target=self.fetch_guidance, args=(symbol,), daemon=True)
+        thread.start()
+        thread.join(timeout=self.timeout_seconds)
+
+        if thread.is_alive():
+            logger.warning(f"Timeout fetching guidance for {symbol} after {self.timeout_seconds}s")
+            return None
+
+        if self.exception:
+            raise self.exception
+
+        return self.result
+
+@retry(max_attempts=3, initial_delay=1, backoff=2)
+def process_symbol(symbol, conn, processor):
     """Track guidance changes by monitoring estimate revisions."""
-    yf_symbol = symbol.upper().replace(".", "-")
-    ticker = yf.Ticker(yf_symbol)
-
     try:
-        # Get current estimates and trends
-        info = ticker.info
+        info = processor.get_info_with_timeout(symbol)
         if not info:
             return 0
     except Exception as e:
-        raise e
+        logger.debug(f"Error fetching guidance for {symbol}: {type(e).__name__}")
+        raise
 
     guidance_records = []
 
@@ -196,14 +231,10 @@ def main():
         user, pwd, host, port, dbname = get_db_config()
         ssl_mode = "disable" if host == "localhost" else "require"
 
+        logger.info("Connecting to database...")
         conn = psycopg2.connect(
-            host=host,
-            port=port,
-            user=user,
-            password=pwd,
-            dbname=dbname,
-            sslmode=ssl_mode,
-            cursor_factory=DictCursor
+            host=host, port=port, user=user, password=pwd,
+            dbname=dbname, sslmode=ssl_mode, cursor_factory=DictCursor
         )
         conn.set_session(autocommit=False)
 
@@ -211,6 +242,7 @@ def main():
         logger.info(f"[MEM] startup: {get_rss_mb():.1f} MB RSS")
 
         # Get all stock symbols
+        logger.info("Fetching symbols...")
         with conn.cursor() as cur:
             cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol;")
             symbols = [r["symbol"] for r in cur.fetchall()]
@@ -221,25 +253,25 @@ def main():
         total_guidance = 0
 
         logger.info(f"Loading guidance data for {total_symbols} symbols")
+        processor = GuidanceProcessor(timeout_seconds=6)
 
         for i, sym in enumerate(symbols):
             try:
                 if (i + 1) % 100 == 0:
                     logger.info(f"Progress: {i + 1}/{total_symbols} - {get_rss_mb():.1f} MB RSS")
 
-                guid_count = process_symbol(sym, conn)
+                guid_count = process_symbol(sym, conn, processor)
                 if guid_count is not None:
                     total_guidance += guid_count
                     processed += 1
                 else:
                     failed += 1
 
-                if get_rss_mb() > 1000:
-                    time.sleep(0.3)
-                else:
-                    time.sleep(0.05)
-            except Exception:
+                # Longer throttle to avoid rate limiting
+                time.sleep(0.5)
+            except Exception as e:
                 failed += 1
+                logger.debug(f"Exception in main loop for {sym}: {type(e).__name__}")
 
         update_last_run(conn)
         logger.info(f"[MEM] peak RSS: {get_rss_mb():.1f} MB")
