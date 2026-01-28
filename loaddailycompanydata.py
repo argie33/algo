@@ -1020,7 +1020,7 @@ if __name__ == "__main__":
                 short_ratio DECIMAL(8,2),
                 short_interest_pct DECIMAL(8,6),
                 short_percent_of_float DECIMAL(8,6),
-                ad_rating VARCHAR(1),
+                ad_rating DECIMAL(5,2),
                 created_at TIMESTAMP DEFAULT NOW(),
                 updated_at TIMESTAMP DEFAULT NOW(),
                 UNIQUE(symbol, date)
@@ -1047,7 +1047,7 @@ if __name__ == "__main__":
             ALTER TABLE positioning_metrics
             ADD COLUMN IF NOT EXISTS date DATE,
             ADD COLUMN IF NOT EXISTS short_percent_of_float DECIMAL(8,6),
-            ADD COLUMN IF NOT EXISTS ad_rating VARCHAR(1);
+            ADD COLUMN IF NOT EXISTS ad_rating DECIMAL(5,2);
         """)
 
         # Create insider_transactions with correct schema (CREATE IF NOT EXISTS - avoids DROP hang)
