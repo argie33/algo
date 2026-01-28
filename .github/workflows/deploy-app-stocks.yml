@@ -8,6 +8,8 @@ on:
     paths:
       - 'load*.py'
       - 'Dockerfile.*'
+      - 'template-app-ecs-tasks.yml'
+      - '.github/workflows/deploy-app-stocks.yml'
     branches:
       - main
   workflow_dispatch:
