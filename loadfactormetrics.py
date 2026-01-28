@@ -78,6 +78,11 @@ def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
 
+def track_calc_failure(symbol: str, metric_name: str, error: Exception):
+    """Log calculation failures with full details instead of silent pass"""
+    logging.warning(f"⚠️  {symbol}: {metric_name} calculation FAILED - {type(error).__name__}: {str(error)[:100]}")
+
+
 def get_db_config():
     """Get database configuration - works in AWS and locally"""
     db_secret_arn = os.environ.get("DB_SECRET_ARN")
@@ -264,22 +269,22 @@ def get_quarterly_statement_growth(cursor, symbol: str) -> Dict:
                 if prior_rev and recent_rev and prior_rev != 0:
                     try:
                         metrics["revenue_growth_quarterly_yoy"] = ((recent_rev - prior_rev) / abs(prior_rev) * 100)
-                    except (TypeError, ValueError, ZeroDivisionError):
-                        pass
+                    except (TypeError, ValueError, ZeroDivisionError) as e:
+                        track_calc_failure(symbol, "revenue_growth_quarterly_yoy", e)
 
                 # Calculate YoY net income growth
                 if prior_ni and recent_ni and prior_ni != 0:
                     try:
                         metrics["net_income_growth_quarterly_yoy"] = ((recent_ni - prior_ni) / abs(prior_ni) * 100)
-                    except (TypeError, ValueError, ZeroDivisionError):
-                        pass
+                    except (TypeError, ValueError, ZeroDivisionError) as e:
+                        track_calc_failure(symbol, "net_income_growth_quarterly_yoy", e)
 
                 # Calculate YoY operating income growth
                 if prior_oi and recent_oi and prior_oi != 0:
                     try:
                         metrics["operating_income_growth_quarterly_yoy"] = ((recent_oi - prior_oi) / abs(prior_oi) * 100)
-                    except (TypeError, ValueError, ZeroDivisionError):
-                        pass
+                    except (TypeError, ValueError, ZeroDivisionError) as e:
+                        track_calc_failure(symbol, "operating_income_growth_quarterly_yoy", e)
 
     except Exception as e:
         logging.debug(f"Could not calculate quarterly statement growth for {symbol}: {e}")
@@ -327,8 +332,8 @@ def get_earnings_history_growth(cursor, symbol: str) -> Dict:
                     qoq_growth = ((recent_eps - prior_eps) / abs(prior_eps)) * 100
                     # Store as quarterly growth metric (not annualized)
                     metrics["eps_growth_1y"] = qoq_growth
-                except (TypeError, ValueError, ZeroDivisionError):
-                    pass
+                except (TypeError, ValueError, ZeroDivisionError) as e:
+                    track_calc_failure(symbol, "eps_growth_1y", e)
 
     except Exception as e:
         logging.debug(f"Could not calculate earnings history metrics for {symbol}: {e}")
@@ -376,9 +381,9 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
                     try:
                         metrics["revenue_growth_yoy"] = ((recent_revenue - prev_revenue) / abs(prev_revenue) * 100)
                         logging.debug(f"DEBUG {symbol} revenue_growth_yoy: {metrics['revenue_growth_yoy']}")
-                    except (TypeError, ValueError, ZeroDivisionError):
+                    except (TypeError, ValueError, ZeroDivisionError) as e:
                         logging.debug(f"DEBUG {symbol} revenue_growth_yoy exception: prev={prev_revenue}, recent={recent_revenue}")
-                        pass
+                        track_calc_failure(symbol, "revenue_growth_yoy", e)
             else:
                 logging.debug(f"DEBUG {symbol} skipped revenue_growth_yoy: prev={prev_revenue}, recent={recent_revenue}")
 
@@ -388,8 +393,8 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
                 if prev_oi != 0:
                     try:
                         metrics["operating_income_growth_yoy"] = ((recent_oi - prev_oi) / abs(prev_oi) * 100)
-                    except (TypeError, ValueError, ZeroDivisionError):
-                        pass
+                    except (TypeError, ValueError, ZeroDivisionError) as e:
+                        track_calc_failure(symbol, "operating_income_growth_yoy", e)
 
             # Net Income Growth: Allow any valid numeric comparison (including negative base)
             # Company going profitable shows real growth, even from loss position
@@ -397,8 +402,8 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
                 if prev_ni != 0:
                     try:
                         metrics["net_income_growth_yoy"] = ((recent_ni - prev_ni) / abs(prev_ni) * 100)
-                    except (TypeError, ValueError, ZeroDivisionError):
-                        pass
+                    except (TypeError, ValueError, ZeroDivisionError) as e:
+                        track_calc_failure(symbol, "net_income_growth_yoy", e)
 
             # Calculate 3-year CAGR if we have 4 years of data
             if len(income_data) >= 4:
@@ -440,8 +445,8 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
                     fcf_pct = ((recent_fcf - prev_fcf) / abs(prev_fcf) * 100)
                     # Cap at ±500% to avoid meaningless extreme values from calculation errors
                     metrics["fcf_growth_yoy"] = max(-500, min(500, fcf_pct))
-                except (TypeError, ValueError, ZeroDivisionError):
-                    pass
+                except (TypeError, ValueError, ZeroDivisionError) as e:
+                    track_calc_failure(symbol, "fcf_growth_yoy", e)
 
         # Get annual cashflow data for OCF growth
         # Note: annual_cash_flow has columns: symbol, date, operating_cash_flow, free_cash_flow, etc.
@@ -465,8 +470,8 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
                     ocf_pct = ((recent_ocf - prev_ocf) / abs(prev_ocf) * 100)
                     # Cap at ±500% to avoid meaningless extreme values
                     metrics["ocf_growth_yoy"] = max(-500, min(500, ocf_pct))
-                except (TypeError, ValueError, ZeroDivisionError):
-                    pass
+                except (TypeError, ValueError, ZeroDivisionError) as e:
+                    track_calc_failure(symbol, "ocf_growth_yoy", e)
 
         # Get annual balance sheet data for asset growth
         # Note: annual_balance_sheet has columns: symbol, date, total_assets, total_liabilities, total_equity
@@ -487,8 +492,8 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
                     if prev_assets > 0:
                         try:
                             metrics["asset_growth_yoy"] = ((recent_assets - prev_assets) / prev_assets * 100)
-                        except (TypeError, ValueError, ZeroDivisionError):
-                            pass
+                        except (TypeError, ValueError, ZeroDivisionError) as e:
+                            track_calc_failure(symbol, "asset_growth_yoy", e)
         except Exception as bs_error:
             # Balance sheet table might not exist or have data
             logging.debug(f"Could not get balance sheet data for {symbol}: {bs_error}")
@@ -537,8 +542,8 @@ def get_earnings_surprise_metrics(cursor, symbol: str) -> Dict:
                     try:
                         growth = ((eps_values[i] - eps_values[i+1]) / abs(eps_values[i+1])) * 100
                         growth_rates.append(growth)
-                    except (TypeError, ValueError):
-                        pass
+                    except (TypeError, ValueError) as e:
+                        track_calc_failure(symbol, "unknown_metric", e)
 
             if growth_rates and len(growth_rates) >= 2:
                 try:
@@ -549,8 +554,8 @@ def get_earnings_surprise_metrics(cursor, symbol: str) -> Dict:
                         metrics["eps_growth_stability"] = float(std_growth / abs(mean_growth))
                     else:
                         metrics["eps_growth_stability"] = float(std_growth)
-                except (TypeError, ValueError):
-                    pass
+                except (TypeError, ValueError) as e:
+                    track_calc_failure(symbol, "eps_growth_stability", e)
 
         # Calculate earnings surprise: (actual - estimate) / estimate
         # Using historical average as estimate baseline
@@ -564,14 +569,14 @@ def get_earnings_surprise_metrics(cursor, symbol: str) -> Dict:
                     try:
                         surprise = ((actual - estimate) / abs(estimate)) * 100
                         surprises.append(surprise)
-                    except (TypeError, ValueError):
-                        pass
+                    except (TypeError, ValueError) as e:
+                        track_calc_failure(symbol, "unknown_metric", e)
 
             if surprises:
                 try:
                     metrics["earnings_surprise_avg"] = float(np.mean(surprises))
-                except (TypeError, ValueError):
-                    pass
+                except (TypeError, ValueError) as e:
+                    track_calc_failure(symbol, "earnings_surprise_avg", e)
 
     except Exception as e:
         logging.debug(f"Could not calculate earnings surprise for {symbol}: {e}")
@@ -605,8 +610,8 @@ def get_earnings_beat_rate(cursor, symbol: str) -> Optional[float]:
                 estimate_val = float(estimate)
                 if estimate_val != 0 and actual_val >= estimate_val:
                     beat_count += 1
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as e:
+                track_calc_failure(symbol, "unknown_metric", e)
 
         if earnings_data:
             return (float(beat_count) / len(earnings_data)) * 100
@@ -917,8 +922,8 @@ def calculate_growth_metrics(ticker_data: Dict, financial_growth: Dict = None, q
                         try:
                             q_growth = ((float(curr_qi) - float(prior_qi)) / abs(float(prior_qi))) * 100
                             metrics["quarterly_growth_momentum"] = round(q_growth, 2)
-                        except (TypeError, ValueError, ZeroDivisionError):
-                            pass
+                        except (TypeError, ValueError, ZeroDivisionError) as e:
+                            track_calc_failure(symbol, "quarterly_growth_momentum", e)
     except Exception as e:
         logging.debug(f"Could not calculate quarterly growth momentum for {symbol}: {e}")
 
@@ -937,8 +942,8 @@ def calculate_growth_metrics(ticker_data: Dict, financial_growth: Dict = None, q
                 payout_decimal = payout_f / 100 if payout_f >= 1 else payout_f
                 # Calculate: ROE_decimal * (1 - Payout_decimal) * 100 for percentage result
                 metrics["sustainable_growth_rate"] = roe_decimal * (1 - payout_decimal) * 100
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError) as e:
+            track_calc_failure(symbol, "sustainable_growth_rate", e)
     # NO FALLBACK - If payout ratio missing, sustainable_growth_rate remains None
 
     # Calculate margin trends from annual income statement data
@@ -969,8 +974,8 @@ def calculate_growth_metrics(ticker_data: Dict, financial_growth: Dict = None, q
                             curr_gm = (float(curr_gp) / float(curr_rev)) * 100
                             prior_gm = (float(prior_gp) / float(prior_rev)) * 100
                             metrics["gross_margin_trend"] = round(curr_gm - prior_gm, 2)  # pp change
-                    except (TypeError, ValueError, ZeroDivisionError):
-                        pass
+                    except (TypeError, ValueError, ZeroDivisionError) as e:
+                        track_calc_failure(symbol, "gross_margin_trend", e)
 
         if "operating_margin_trend" not in metrics or metrics["operating_margin_trend"] is None:
             # Query operating income data
@@ -996,8 +1001,8 @@ def calculate_growth_metrics(ticker_data: Dict, financial_growth: Dict = None, q
                             curr_opm = (float(curr_oi) / float(curr_rev)) * 100
                             prior_opm = (float(prior_oi) / float(prior_rev)) * 100
                             metrics["operating_margin_trend"] = round(curr_opm - prior_opm, 2)  # pp change
-                    except (TypeError, ValueError, ZeroDivisionError):
-                        pass
+                    except (TypeError, ValueError, ZeroDivisionError) as e:
+                        track_calc_failure(symbol, "operating_margin_trend", e)
 
         if "net_margin_trend" not in metrics or metrics["net_margin_trend"] is None:
             # Query net income data
@@ -1023,8 +1028,8 @@ def calculate_growth_metrics(ticker_data: Dict, financial_growth: Dict = None, q
                             curr_npm = (float(curr_ni) / float(curr_rev)) * 100
                             prior_npm = (float(prior_ni) / float(prior_rev)) * 100
                             metrics["net_margin_trend"] = round(curr_npm - prior_npm, 2)  # pp change
-                    except (TypeError, ValueError, ZeroDivisionError):
-                        pass
+                    except (TypeError, ValueError, ZeroDivisionError) as e:
+                        track_calc_failure(symbol, "net_margin_trend", e)
     except Exception as e:
         logging.debug(f"Could not calculate margin trends for {symbol}: {e}")
 
@@ -1051,8 +1056,8 @@ def calculate_growth_metrics(ticker_data: Dict, financial_growth: Dict = None, q
                     try:
                         roe_trend = ((float(curr_ni) - float(prior_ni)) / abs(float(prior_ni))) * 100
                         metrics["roe_trend"] = round(roe_trend, 2)
-                    except (TypeError, ValueError, ZeroDivisionError):
-                        pass
+                    except (TypeError, ValueError, ZeroDivisionError) as e:
+                        track_calc_failure(symbol, "roe_trend", e)
     except Exception as e:
         logging.debug(f"Could not calculate ROE trend for {symbol}: {e}")
 
@@ -1122,8 +1127,8 @@ def get_volume_metrics(cursor, symbol: str) -> Dict:
                 volume_cv = (float(np.std(volumes)) / avg_volume) * 100
                 # Invert so higher score = better consistency (lower CV)
                 metrics["volume_consistency"] = max(0, 100 - volume_cv)
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError) as e:
+            track_calc_failure(symbol, "volume_consistency", e)
 
         # 2. TURNOVER VELOCITY: Average daily volume relative to 52-week average
         # Higher velocity = more active trading (capped at 999.99 for database precision)
@@ -1135,8 +1140,8 @@ def get_volume_metrics(cursor, symbol: str) -> Dict:
                 # Cap at 999.99 to fit numeric(5,2) precision in database
                 turnover_vel = min(999.99, max(0, turnover_vel))
                 metrics["turnover_velocity"] = float(turnover_vel)
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError) as e:
+            track_calc_failure(symbol, "volume_consistency", e)
 
         # 3. VOLATILITY/VOLUME RATIO: Price volatility normalized to volume volatility
         # Measures whether price swings correlate with volume (healthy = correlated)
@@ -1159,8 +1164,8 @@ def get_volume_metrics(cursor, symbol: str) -> Dict:
                     # Cap at 999.99 to fit database precision
                     vol_volume_ratio = min(999.99, max(0, vol_volume_ratio))
                     metrics["volatility_volume_ratio"] = float(vol_volume_ratio)
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError) as e:
+            track_calc_failure(symbol, "volatility_volume_ratio", e)
 
         # 4. DAILY SPREAD: Average bid-ask spread as % of price
         # Calculated as (high - low) / close as proxy for spread
@@ -1174,8 +1179,8 @@ def get_volume_metrics(cursor, symbol: str) -> Dict:
             if spreads:
                 avg_spread = float(np.mean(spreads))
                 metrics["daily_spread"] = avg_spread
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError) as e:
+            track_calc_failure(symbol, "daily_spread", e)
 
     except Exception as e:
         logging.debug(f"Could not calculate volume metrics for {symbol}: {e}")
@@ -1248,8 +1253,8 @@ def get_stability_metrics(cursor, symbol: str, benchmark_cache: Dict = None) -> 
                     volatility = volatility.real
                 volatility_f = float(volatility)
                 metrics["volatility_12m"] = volatility_f if not np.isnan(volatility_f) else None
-            except (TypeError, ValueError):
-                pass
+            except (TypeError, ValueError) as e:
+                track_calc_failure(symbol, "volatility_12m", e)
 
             # Downside volatility (only negative returns)
             downside_returns = [r for r in returns if r < 0]
@@ -1260,8 +1265,8 @@ def get_stability_metrics(cursor, symbol: str, benchmark_cache: Dict = None) -> 
                         downside_vol = downside_vol.real
                     downside_vol_f = float(downside_vol)
                     metrics["downside_volatility"] = downside_vol_f if not np.isnan(downside_vol_f) else None
-                except (TypeError, ValueError):
-                    pass
+                except (TypeError, ValueError) as e:
+                    track_calc_failure(symbol, "volatility_12m", e)
 
         # Max drawdown (52-week window)
         if len(prices) >= 52:
