@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AWS DEPLOYMENT: 2026-01-28_020300 - CloudFormation stack updated with new task definitions
+# AWS DEPLOYMENT: 2026-01-27_202200 - URGENT: Deploy stockscores loader with beta fixes NOW
 """
 Stock Scores Loader - Multi-Factor Stock Scoring System
 
