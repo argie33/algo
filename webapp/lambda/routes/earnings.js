@@ -383,6 +383,8 @@ router.get("/estimate-momentum", async (req, res) => {
         ON t.symbol = r.symbol AND t.period = r.period AND t.snapshot_date = r.snapshot_date
       LEFT JOIN company_profile cp ON t.symbol = cp.ticker
       WHERE t.estimate_60d_ago IS NOT NULL
+        AND t.estimate_60d_ago != 0
+        AND ABS(t.estimate_60d_ago) > 0.10
         AND t.current_estimate > t.estimate_60d_ago
         AND t.period = $1
       ORDER BY pct_change DESC
@@ -408,6 +410,8 @@ router.get("/estimate-momentum", async (req, res) => {
         ON t.symbol = r.symbol AND t.period = r.period AND t.snapshot_date = r.snapshot_date
       LEFT JOIN company_profile cp ON t.symbol = cp.ticker
       WHERE t.estimate_60d_ago IS NOT NULL
+        AND t.estimate_60d_ago != 0
+        AND ABS(t.estimate_60d_ago) > 0.10
         AND t.current_estimate < t.estimate_60d_ago
         AND t.period = $1
       ORDER BY pct_change ASC
@@ -451,6 +455,13 @@ router.get("/estimate-momentum", async (req, res) => {
       net_revisions: (row.up_last_30d || 0) - (row.down_last_30d || 0)
     }));
 
+    // Calculate averages, filtering out null values
+    const validRising = rising.filter(s => s.pct_change !== null);
+    const validFalling = falling.filter(s => s.pct_change !== null);
+
+    const avgRise = validRising.length > 0 ? (validRising.reduce((sum, s) => sum + s.pct_change, 0) / validRising.length).toFixed(2) : 0;
+    const avgFall = validFalling.length > 0 ? (validFalling.reduce((sum, s) => sum + s.pct_change, 0) / validFalling.length).toFixed(2) : 0;
+
     res.json({
       data: {
         rising,
@@ -458,8 +469,8 @@ router.get("/estimate-momentum", async (req, res) => {
         summary: {
           total_rising: rising.length,
           total_falling: falling.length,
-          avg_rise: rising.length > 0 ? (rising.reduce((sum, s) => sum + s.pct_change, 0) / rising.length).toFixed(2) : 0,
-          avg_fall: falling.length > 0 ? (falling.reduce((sum, s) => sum + s.pct_change, 0) / falling.length).toFixed(2) : 0
+          avg_rise: parseFloat(avgRise),
+          avg_fall: parseFloat(avgFall)
         }
       },
       success: true
