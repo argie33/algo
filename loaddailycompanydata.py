@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# AWS DEPLOYMENT: 2026-01-28_020300 - CloudFormation task definitions ready
+# AWS DEPLOYMENT: 2026-01-28_031500 - FORCE ECS TASKS TO RUN NOW
 """
-# Trigger: 2026-01-28_020300 - Deploy to AWS ECS with all task definitions
+# Trigger: 2026-01-28_031500 - Deploy to AWS ECS with all task definitions RUNNING TASKS
 Daily Company Data Loader - Enhanced Positioning Analytics
 Consolidates daily-update loaders into single efficient loader
 
