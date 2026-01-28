@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AWS DEPLOYMENT: 2026-01-28_031500 - TRIGGER ECS TASKS TO RUN NOW
 """
 Factor Metrics Loader - Consolidated Quality, Growth, Value, Momentum, Stability Metrics
 Populates derived metrics from key_metrics fundamental data.

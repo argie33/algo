@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# AWS DEPLOYMENT: 2026-01-28_031500 - TRIGGER ECS TASKS TO RUN NOW
 """
 Sentiment Data Loader Script - AWS ECS Production Deployment
 
@@ -7,7 +8,7 @@ This script loads comprehensive sentiment analysis data including:
 - Social sentiment (Reddit mentions, news sentiment)
 - Market sentiment indicators (put/call ratios, options flow)
 - Google Trends data for search interest
-Updated: 2026-01-28 - CloudFormation task definitions deployed to AWS ECS
+Updated: 2026-01-28 - CloudFormation task definitions deployed to AWS ECS - RUNNING ECS TASKS
 
 Data Sources:
 - Primary: yfinance for analyst recommendations
