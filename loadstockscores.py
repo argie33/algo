@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-# AWS DEPLOYMENT: 2026-01-27_150000 - Fixed CloudFormation task definition exports
+# AWS DEPLOYMENT: 2026-01-28_020300 - CloudFormation stack updated with new task definitions
 """
 Stock Scores Loader - Multi-Factor Stock Scoring System
 
-STATUS: ✅ CURRENT - Updated 2026-01-27 (TODAY)
+STATUS: ✅ CURRENT - Updated 2026-01-28 (TODAY)
 - Composite scores calculated: 4,922 symbols
 - All factor metrics updated (momentum, value, growth, quality, stability, positioning, sentiment)
 - Ready for production use
-- FIXED: CloudFormation now has all required task definitions and exports
+- FIXED: CloudFormation stack updated - new sentiment and buysell_etf task definitions deployed
 
 DEPLOYMENT MODES:
   • AWS Production: Uses DB_SECRET_ARN (Lambda/ECS)
@@ -4125,7 +4125,6 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
             'sentiment_score': float(round(clamp_score(sentiment_score), 2)) if sentiment_score is not None else None,
             # fcf_yield removed completely
             'stability_score': float(round(clamp_score(risk_stability_score), 2)) if risk_stability_score is not None else None,
-            'stability_inputs': stability_inputs,
             'rsi': float(rsi) if rsi is not None else None,
             'macd': float(macd) if macd is not None else None,
             'sma50': float(round(float(sma_50), 2)) if sma_50 is not None else None,
@@ -4240,6 +4239,7 @@ def get_stock_data_from_database(conn, symbol, quality_metrics=None, growth_metr
                 'stock_dividend_yield': float(round(dividend_yield_val * 100, 2)) if dividend_yield_val is not None else None,
                 # stock_fcf_yield removed completely
             }),
+            'stability_inputs': json.dumps(stability_inputs),
             # Data completeness and flagging (Option 1)
             'score_status': locals().get('score_status'),
             'available_metrics': locals().get('available_metrics'),
@@ -4322,6 +4322,7 @@ def save_stock_score(conn, score_data):
             institutional_ownership, insider_ownership, short_interest, accumulation_distribution, institution_count,
             analyst_rating, news_sentiment, aaii_sentiment,
             momentum_reason, growth_reason, value_reason, quality_reason, positioning_reason, stability_reason,
+            momentum_inputs, growth_inputs, quality_inputs, positioning_inputs, stability_inputs,
             score_date, last_updated
         ) VALUES (
             %(symbol)s, %(company_name)s, %(composite_score)s, %(momentum_score)s, %(value_score)s, %(quality_score)s,
@@ -4335,6 +4336,7 @@ def save_stock_score(conn, score_data):
             %(institutional_ownership)s, %(insider_ownership)s, %(short_interest)s, %(accumulation_distribution)s, %(institution_count)s,
             %(analyst_rating)s, %(news_sentiment)s, %(aaii_sentiment)s,
             %(momentum_reason)s, %(growth_reason)s, %(value_reason)s, %(quality_reason)s, %(positioning_reason)s, %(stability_reason)s,
+            %(momentum_inputs)s, %(growth_inputs)s, %(quality_inputs)s, %(positioning_inputs)s, %(stability_inputs)s,
             CURRENT_DATE, CURRENT_TIMESTAMP
         ) ON CONFLICT (symbol) DO UPDATE SET
             company_name = EXCLUDED.company_name,
@@ -4386,6 +4388,11 @@ def save_stock_score(conn, score_data):
             quality_reason = EXCLUDED.quality_reason,
             positioning_reason = EXCLUDED.positioning_reason,
             stability_reason = EXCLUDED.stability_reason,
+            momentum_inputs = EXCLUDED.momentum_inputs,
+            growth_inputs = EXCLUDED.growth_inputs,
+            quality_inputs = EXCLUDED.quality_inputs,
+            positioning_inputs = EXCLUDED.positioning_inputs,
+            stability_inputs = EXCLUDED.stability_inputs,
             score_date = CURRENT_DATE,
             last_updated = CURRENT_TIMESTAMP
         """
