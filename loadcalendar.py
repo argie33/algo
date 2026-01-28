@@ -97,12 +97,11 @@ def clean_value(value):
     return value
 
 def ensure_tables(conn):
-    """Drop & recreate calendar tables and ensure last_updated exists."""
+    """Ensure calendar tables exist (never drop - avoid data loss)."""
     with conn.cursor() as cur:
         # calendar events
-        cur.execute("DROP TABLE IF EXISTS calendar_events;")
         cur.execute("""
-            CREATE TABLE calendar_events (
+            CREATE TABLE IF NOT EXISTS calendar_events (
                 id          SERIAL PRIMARY KEY,
                 symbol     VARCHAR(10) NOT NULL,
                 event_type VARCHAR(50) NOT NULL,
@@ -112,11 +111,14 @@ def ensure_tables(conn):
                 fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
         """)
-        # Create index on symbol for faster lookups
-        cur.execute("""
-            CREATE INDEX idx_calendar_events_symbol
-            ON calendar_events (symbol);
-        """)
+        # Create index on symbol for faster lookups (idempotent)
+        try:
+            cur.execute("""
+                CREATE INDEX idx_calendar_events_symbol
+                ON calendar_events (symbol);
+            """)
+        except:
+            pass  # Index already exists
         # last_updated
         cur.execute("""
             CREATE TABLE IF NOT EXISTS last_updated (

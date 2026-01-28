@@ -57,12 +57,11 @@ def get_rss_mb():
     return usage / (1024 * 1024)
 
 def ensure_table(conn):
-    """Ensure earnings_surprises table exists."""
-    logger.info("Creating earnings_surprises table...")
+    """Ensure earnings_surprises table exists (never drop - avoid data loss)."""
+    logger.info("Ensuring earnings_surprises table...")
     with conn.cursor() as cur:
-        cur.execute("DROP TABLE IF EXISTS earnings_surprises;")
         cur.execute("""
-            CREATE TABLE earnings_surprises (
+            CREATE TABLE IF NOT EXISTS earnings_surprises (
                 id SERIAL PRIMARY KEY,
                 symbol VARCHAR(10) NOT NULL,
                 earnings_date DATE,
@@ -79,8 +78,14 @@ def ensure_table(conn):
                 created_at TIMESTAMP DEFAULT NOW()
             );
         """)
-        cur.execute("CREATE INDEX idx_surprise_symbol ON earnings_surprises (symbol);")
-        cur.execute("CREATE INDEX idx_surprise_date ON earnings_surprises (earnings_date);")
+        try:
+            cur.execute("CREATE INDEX idx_surprise_symbol ON earnings_surprises (symbol);")
+        except:
+            pass  # Index already exists
+        try:
+            cur.execute("CREATE INDEX idx_surprise_date ON earnings_surprises (earnings_date);")
+        except:
+            pass  # Index already exists
     conn.commit()
     logger.info("Table created successfully")
 

@@ -39,10 +39,9 @@ def log_mem(stage: str):
 
 
 def create_table(cur):
-    logging.info("Recreating analyst_upgrade_downgrade table…")
-    cur.execute("DROP TABLE IF EXISTS analyst_upgrade_downgrade;")
+    logging.info("Ensuring analyst_upgrade_downgrade table…")
     cur.execute("""
-        CREATE TABLE analyst_upgrade_downgrade (
+        CREATE TABLE IF NOT EXISTS analyst_upgrade_downgrade (
             id           SERIAL PRIMARY KEY,
             symbol       VARCHAR(20) NOT NULL,
             firm         VARCHAR(128),
