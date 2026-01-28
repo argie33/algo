@@ -85,10 +85,9 @@ def get_rss_mb():
 def ensure_table(conn):
     """Ensure insider_transactions table exists with proper schema."""
     with conn.cursor() as cur:
-        # Drop and recreate table to ensure fresh data
-        cur.execute("DROP TABLE IF EXISTS insider_transactions;")
+        # Create table if not exists (never drop - avoid data loss on crash)
         cur.execute("""
-            CREATE TABLE insider_transactions (
+            CREATE TABLE IF NOT EXISTS insider_transactions (
                 id SERIAL PRIMARY KEY,
                 symbol VARCHAR(10) NOT NULL,
                 insider_name VARCHAR(255),
@@ -103,10 +102,19 @@ def ensure_table(conn):
                 created_at TIMESTAMP DEFAULT NOW()
             );
         """)
-        # Create indexes for faster lookups
-        cur.execute("CREATE INDEX idx_insider_symbol ON insider_transactions (symbol);")
-        cur.execute("CREATE INDEX idx_insider_date ON insider_transactions (transaction_date);")
-        cur.execute("CREATE INDEX idx_insider_name ON insider_transactions (insider_name);")
+        # Create indexes for faster lookups (idempotent - won't fail if exists)
+        try:
+            cur.execute("CREATE INDEX idx_insider_symbol ON insider_transactions (symbol);")
+        except psycopg2.Error:
+            pass  # Index already exists
+        try:
+            cur.execute("CREATE INDEX idx_insider_date ON insider_transactions (transaction_date);")
+        except psycopg2.Error:
+            pass  # Index already exists
+        try:
+            cur.execute("CREATE INDEX idx_insider_name ON insider_transactions (insider_name);")
+        except psycopg2.Error:
+            pass  # Index already exists
     conn.commit()
 
 @retry(max_attempts=3, initial_delay=2, backoff=2)
