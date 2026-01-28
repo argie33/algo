@@ -464,6 +464,11 @@ const SCORE_COLUMNS = [
   'growth_score',
   'positioning_score',
   'stability_score',
+  'momentum_inputs',
+  'growth_inputs',
+  'quality_inputs',
+  'positioning_inputs',
+  'stability_inputs',
   'last_updated'
 ];
 
@@ -650,15 +655,21 @@ async function queryScores(options = {}) {
         // Relative performance metrics
         ...cleanMetrics(metrics.relative_performance_metrics)
       };
-      stock.growth_inputs = cleanMetrics(metrics.growth_metrics);
-      stock.stability_inputs = cleanMetrics(metrics.stability_metrics);
+      // Use JSON columns from stock_scores if available, fall back to metrics tables
+      // Note: stability_inputs already populated from stock_scores table with beta data
+      if (!stock.growth_inputs && metrics.growth_metrics) {
+        stock.growth_inputs = cleanMetrics(metrics.growth_metrics);
+      }
+      if (!stock.stability_inputs && metrics.stability_metrics) {
+        stock.stability_inputs = cleanMetrics(metrics.stability_metrics);
+      }
 
       // Add volatility_risk_component to stability_inputs (derived from downside_volatility)
       if (stock.stability_inputs) {
         if (metrics.stability_metrics && metrics.stability_metrics.downside_volatility != null) {
           // volatility_risk_component is the inverse: lower downside vol = higher risk component score
           stock.stability_inputs.volatility_risk_component = 100 - metrics.stability_metrics.downside_volatility;
-        } else {
+        } else if (!stock.stability_inputs.volatility_risk_component) {
           stock.stability_inputs.volatility_risk_component = null;
         }
       }
