@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# BATCH 1 FOUNDATION TRIGGER: Deploy all foundation loaders concurrently
+# AWS DEPLOYMENT: 2026-01-27_142000 - Production ECS execution
 """
-# Trigger: 20251228_180000 - Deploy to AWS ECS with fixed loaders
+# Trigger: 2026-01-27_142000 - Deploy to AWS ECS with consolidated loaders
 Daily Company Data Loader - Enhanced Positioning Analytics
 Consolidates daily-update loaders into single efficient loader
 

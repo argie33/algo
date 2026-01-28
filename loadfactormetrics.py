@@ -16,8 +16,9 @@ Data Loaded:
 - growth_metrics (revenue CAGR, EPS growth, margin trends, FCF growth, asset growth)
 - momentum_metrics (price momentum across 1m/3m/6m/12m timeframes)
 
-STATUS: WORKING - Processes successfully but has SQL transaction issues with symbols missing financial data
-- Issue: "current transaction is aborted" errors when financial data unavailable for a symbol
+STATUS: PRODUCTION - AWS ECS deployment 2026-01-27
+- Trigger: Production deployment to AWS with consolidated loaders
+- Deploy: All factor metrics calculations to AWS RDS database
 - Impact: ~50-100 symbols skip growth metrics due to missing earnings data (acceptable)
 - Performance: ~30-40 seconds for 5000 symbols
 - Last run: 2026-01-26 (TODAY - CURRENT)

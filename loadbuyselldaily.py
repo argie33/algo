@@ -1,8 +1,8 @@
-# TEST BATCH 1: 20260101_111748 - Run 3 loaders to test AWS deployment
+# AWS DEPLOYMENT: 2026-01-27_142000 - ECS cluster production deployment
 #!/usr/bin/env python3
 # CRITICAL: Buy/Sell signals table missing from database. Must run to enable trading signal pages
-# Trigger: 20251228_180000 - Deploy to AWS ECS with fixed loaders
-# Trigger: 20251227-160000-AWS-ECS - Stock signals full reload to AWS RDS via ECS
+# Trigger: 2026-01-27_142000 - Deploy to AWS ECS with consolidated Docker images
+# Trigger: 2026-01-27 - Production AWS RDS with schema fixes and consolidated loaders
 #
 # PERFORMANCE NOTE: This loader takes 3-4 hours for full 5009 symbols due to:
 # - Heavy computation for technical indicators (RSI, MACD, momentum, etc.)
