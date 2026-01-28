@@ -48,11 +48,10 @@ def get_rss_mb():
     return usage / (1024 * 1024)
 
 def ensure_table(conn):
-    logger.info("Creating guidance_changes table...")
+    logger.info("Ensuring guidance_changes table...")
     with conn.cursor() as cur:
-        cur.execute("DROP TABLE IF EXISTS guidance_changes;")
         cur.execute("""
-            CREATE TABLE guidance_changes (
+            CREATE TABLE IF NOT EXISTS guidance_changes (
                 id SERIAL PRIMARY KEY,
                 symbol VARCHAR(10) NOT NULL,
                 guidance_date DATE,
@@ -66,7 +65,10 @@ def ensure_table(conn):
                 created_at TIMESTAMP DEFAULT NOW()
             );
         """)
-        cur.execute("CREATE INDEX idx_guidance_symbol ON guidance_changes (symbol);")
+        try:
+            cur.execute("CREATE INDEX idx_guidance_symbol ON guidance_changes (symbol);")
+        except:
+            pass  # Index already exists
     conn.commit()
     logger.info("Table created successfully")
 

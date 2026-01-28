@@ -322,14 +322,13 @@ def parse_other_etf(text: str):
 
 # ─── DB Utilities ─────────────────────────────────────────────────────────────
 def init_db(conn):
-    logger.info("Dropping and recreating tables")
+    logger.info("Ensuring tables exist (never drop - avoid data loss)")
     with conn.cursor() as cur:
         # stock_symbols
-        cur.execute("DROP TABLE IF EXISTS stock_symbols;")
         cur.execute(
             """
-            CREATE TABLE stock_symbols (
-                symbol            VARCHAR(50),
+            CREATE TABLE IF NOT EXISTS stock_symbols (
+                symbol            VARCHAR(50) PRIMARY KEY,
                 exchange          VARCHAR(100),
                 security_name     TEXT,
                 cqs_symbol        VARCHAR(50),
@@ -343,11 +342,10 @@ def init_db(conn):
         """
         )
         # etf_symbols
-        cur.execute("DROP TABLE IF EXISTS etf_symbols;")
         cur.execute(
             """
-            CREATE TABLE etf_symbols (
-                symbol            VARCHAR(50),
+            CREATE TABLE IF NOT EXISTS etf_symbols (
+                symbol            VARCHAR(50) PRIMARY KEY,
                 exchange          VARCHAR(100),
                 security_name     TEXT,
                 cqs_symbol        VARCHAR(50),
@@ -361,10 +359,9 @@ def init_db(conn):
         """
         )
         # last_updated
-        cur.execute("DROP TABLE IF EXISTS last_updated;")
         cur.execute(
             """
-            CREATE TABLE last_updated (
+            CREATE TABLE IF NOT EXISTS last_updated (
                 script_name   VARCHAR(255) PRIMARY KEY,
                 last_run      TIMESTAMP WITH TIME ZONE
             );

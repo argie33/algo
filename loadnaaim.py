@@ -341,11 +341,10 @@ def main():
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    # Recreate naaim table
-    logging.info("Recreating naaim table...")
-    cur.execute("DROP TABLE IF EXISTS naaim;")
+    # Ensure naaim table exists (never drop - avoid data loss)
+    logging.info("Ensuring naaim table...")
     cur.execute("""
-        CREATE TABLE naaim (
+        CREATE TABLE IF NOT EXISTS naaim (
             id                  SERIAL PRIMARY KEY,
             date                DATE         NOT NULL UNIQUE,
             naaim_number_mean   DOUBLE PRECISION,
