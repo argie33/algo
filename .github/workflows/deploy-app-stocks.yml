@@ -1006,6 +1006,12 @@ jobs:
             "factormetrics")
               TASK_DEF_NAME="FactormetricsTaskDefArn"
               ;;
+            "sentiment")
+              TASK_DEF_NAME="SentimentTaskDefArn"
+              ;;
+            "analystsentiment")
+              TASK_DEF_NAME="AnalystSentimentTaskDefArn"
+              ;;
             *)
 
               # Default case: convert to proper case (first letter uppercase, rest lowercase)
