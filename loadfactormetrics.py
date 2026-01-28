@@ -692,6 +692,145 @@ def get_estimate_revision_direction(cursor, symbol: str) -> Optional[float]:
     return None
 
 
+def get_revision_activity_30d(cursor, symbol: str) -> Optional[float]:
+    """Calculate recent revision activity score (7d vs 30d)
+
+    Returns score 0-100 where:
+    - >50 = upward momentum (more recent ups)
+    - 50 = balanced
+    - <50 = downward momentum (more recent downs)
+    """
+    try:
+        cursor.execute("""
+            SELECT up_last_7d, down_last_7d, up_last_30d, down_last_30d
+            FROM earnings_estimate_revisions
+            WHERE symbol = %s AND snapshot_date = (
+                SELECT MAX(snapshot_date) FROM earnings_estimate_revisions WHERE symbol = %s
+            )
+        """, (symbol, symbol))
+
+        row = cursor.fetchone()
+        if row:
+            up_7d = float(row[0]) if row[0] else 0
+            down_7d = float(row[1]) if row[1] else 0
+            up_30d = float(row[2]) if row[2] else 0
+            down_30d = float(row[3]) if row[3] else 0
+
+            total_7d = up_7d + down_7d
+            total_30d = up_30d + down_30d
+
+            if total_30d > 0:
+                # Score recent activity vs historical
+                recent_ratio = ((up_7d - down_7d) / max(total_7d, 1)) if total_7d > 0 else 0
+                overall_ratio = ((up_30d - down_30d) / total_30d) if total_30d > 0 else 0
+
+                # 0-100 scale: high if recent is more positive than overall
+                score = 50 + (recent_ratio - overall_ratio) * 50
+                return max(0, min(100, score))
+    except Exception as e:
+        logging.debug(f"Could not calculate revision activity for {symbol}: {e}")
+
+    return None
+
+
+def get_estimate_momentum_60d(cursor, symbol: str) -> Optional[float]:
+    """Calculate estimate momentum: change from 60 days ago
+
+    Returns percentage change where:
+    - Positive = estimates rising
+    - Negative = estimates falling
+    """
+    try:
+        cursor.execute("""
+            SELECT current_estimate, estimate_60d_ago
+            FROM earnings_estimate_trends
+            WHERE symbol = %s AND snapshot_date = (
+                SELECT MAX(snapshot_date) FROM earnings_estimate_trends WHERE symbol = %s
+            )
+        """, (symbol, symbol))
+
+        row = cursor.fetchone()
+        if row and row[0] is not None and row[1] is not None:
+            current = float(row[0])
+            past = float(row[1])
+
+            if past != 0:
+                return ((current - past) / abs(past)) * 100
+    except Exception as e:
+        logging.debug(f"Could not calculate estimate momentum for {symbol}: {e}")
+
+    return None
+
+
+def get_estimate_momentum_90d(cursor, symbol: str) -> Optional[float]:
+    """Calculate estimate momentum: change from 90 days ago
+
+    Returns percentage change where:
+    - Positive = estimates rising
+    - Negative = estimates falling
+    """
+    try:
+        cursor.execute("""
+            SELECT current_estimate, estimate_90d_ago
+            FROM earnings_estimate_trends
+            WHERE symbol = %s AND snapshot_date = (
+                SELECT MAX(snapshot_date) FROM earnings_estimate_trends WHERE symbol = %s
+            )
+        """, (symbol, symbol))
+
+        row = cursor.fetchone()
+        if row and row[0] is not None and row[1] is not None:
+            current = float(row[0])
+            past = float(row[1])
+
+            if past != 0:
+                return ((current - past) / abs(past)) * 100
+    except Exception as e:
+        logging.debug(f"Could not calculate 90d estimate momentum for {symbol}: {e}")
+
+    return None
+
+
+def get_revision_trend_score(cursor, symbol: str) -> Optional[float]:
+    """Calculate overall revision trend quality (0-100)
+
+    Combines:
+    - Estimate momentum (60d and 90d trends)
+    - Revision activity (recent vs historical)
+    - Net revision direction
+
+    Returns 0-100 where higher = more positive estimate environment
+    """
+    try:
+        momentum_60d = get_estimate_momentum_60d(cursor, symbol)
+        momentum_90d = get_estimate_momentum_90d(cursor, symbol)
+        activity = get_revision_activity_30d(cursor, symbol)
+        direction = get_estimate_revision_direction(cursor, symbol)
+
+        scores = []
+
+        # Momentum component: normalize to 0-100 (capped at ±50% change)
+        if momentum_60d is not None:
+            scores.append(50 + min(max(momentum_60d, -50), 50))
+        if momentum_90d is not None:
+            scores.append(50 + min(max(momentum_90d, -50), 50))
+
+        # Activity component: already 0-100
+        if activity is not None:
+            scores.append(activity)
+
+        # Direction component: scale from -100,100 to 0,100
+        if direction is not None:
+            scores.append(50 + (direction / 2))
+
+        if scores:
+            return float(np.mean(scores))
+    except Exception as e:
+        logging.debug(f"Could not calculate revision trend score for {symbol}: {e}")
+
+    return None
+
+
 def get_earnings_growth_4q_avg(cursor, symbol: str) -> Optional[float]:
     """Calculate 4-quarter average earnings growth"""
     try:
@@ -1469,6 +1608,12 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
             metrics["estimate_revision_direction"] = get_estimate_revision_direction(cursor, symbol)
             metrics["earnings_growth_4q_avg"] = get_earnings_growth_4q_avg(cursor, symbol)
 
+            # Get estimate trends and revision activity
+            metrics["revision_activity_30d"] = get_revision_activity_30d(cursor, symbol)
+            metrics["estimate_momentum_60d"] = get_estimate_momentum_60d(cursor, symbol)
+            metrics["estimate_momentum_90d"] = get_estimate_momentum_90d(cursor, symbol)
+            metrics["revision_trend_score"] = get_revision_trend_score(cursor, symbol)
+
             quality_rows.append([
                 ticker_dict["ticker"],
                 date.today(),
@@ -1491,6 +1636,10 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
                 metrics.get("consecutive_positive_quarters"),
                 metrics.get("surprise_consistency"),
                 metrics.get("earnings_growth_4q_avg"),
+                metrics.get("revision_activity_30d"),
+                metrics.get("estimate_momentum_60d"),
+                metrics.get("estimate_momentum_90d"),
+                metrics.get("revision_trend_score"),
             ])
         except Exception as e:
             logging.warning(f"Error processing quality metrics for {symbol}: {e}")
@@ -1601,6 +1750,12 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
                 metrics["estimate_revision_direction"] = get_estimate_revision_direction(cursor, symbol)
                 metrics["earnings_growth_4q_avg"] = get_earnings_growth_4q_avg(cursor, symbol)
 
+                # Get estimate trends and revision activity
+                metrics["revision_activity_30d"] = get_revision_activity_30d(cursor, symbol)
+                metrics["estimate_momentum_60d"] = get_estimate_momentum_60d(cursor, symbol)
+                metrics["estimate_momentum_90d"] = get_estimate_momentum_90d(cursor, symbol)
+                metrics["revision_trend_score"] = get_revision_trend_score(cursor, symbol)
+
                 quality_rows.append([
                     symbol,
                     date.today(),
@@ -1623,6 +1778,10 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
                     metrics.get("consecutive_positive_quarters"),
                     metrics.get("surprise_consistency"),
                     metrics.get("earnings_growth_4q_avg"),
+                    metrics.get("revision_activity_30d"),
+                    metrics.get("estimate_momentum_60d"),
+                    metrics.get("estimate_momentum_90d"),
+                    metrics.get("revision_trend_score"),
                 ])
             except Exception as e:
                 logging.warning(f"Error processing fallback quality metrics for {symbol}: {e}")
@@ -1642,7 +1801,8 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
                 debt_to_equity, current_ratio, quick_ratio, earnings_surprise_avg,
                 eps_growth_stability, payout_ratio,
                 earnings_beat_rate, estimate_revision_direction, consecutive_positive_quarters,
-                surprise_consistency, earnings_growth_4q_avg
+                surprise_consistency, earnings_growth_4q_avg, revision_activity_30d,
+                estimate_momentum_60d, estimate_momentum_90d, revision_trend_score
             ) VALUES %s
             ON CONFLICT (symbol, date) DO UPDATE SET
                 return_on_equity_pct = EXCLUDED.return_on_equity_pct,
@@ -1663,7 +1823,11 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
                 estimate_revision_direction = EXCLUDED.estimate_revision_direction,
                 consecutive_positive_quarters = EXCLUDED.consecutive_positive_quarters,
                 surprise_consistency = EXCLUDED.surprise_consistency,
-                earnings_growth_4q_avg = EXCLUDED.earnings_growth_4q_avg
+                earnings_growth_4q_avg = EXCLUDED.earnings_growth_4q_avg,
+                revision_activity_30d = EXCLUDED.revision_activity_30d,
+                estimate_momentum_60d = EXCLUDED.estimate_momentum_60d,
+                estimate_momentum_90d = EXCLUDED.estimate_momentum_90d,
+                revision_trend_score = EXCLUDED.revision_trend_score
         """
         try:
             # First, try to recover from any transaction abort from previous steps
@@ -2279,6 +2443,15 @@ def create_factor_metrics_tables(cursor):
                 earnings_surprise_avg FLOAT,
                 eps_growth_stability FLOAT,
                 payout_ratio FLOAT,
+                earnings_beat_rate FLOAT,
+                estimate_revision_direction FLOAT,
+                consecutive_positive_quarters INT,
+                surprise_consistency FLOAT,
+                earnings_growth_4q_avg FLOAT,
+                revision_activity_30d FLOAT,
+                estimate_momentum_60d FLOAT,
+                estimate_momentum_90d FLOAT,
+                revision_trend_score FLOAT,
                 fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 created_at TIMESTAMP DEFAULT NOW(),
                 PRIMARY KEY (symbol, date)
@@ -2293,6 +2466,42 @@ def create_factor_metrics_tables(cursor):
         cursor.execute("""
             ALTER TABLE quality_metrics
             ADD COLUMN IF NOT EXISTS return_on_invested_capital_pct FLOAT
+        """)
+        cursor.execute("""
+            ALTER TABLE quality_metrics
+            ADD COLUMN IF NOT EXISTS earnings_beat_rate FLOAT
+        """)
+        cursor.execute("""
+            ALTER TABLE quality_metrics
+            ADD COLUMN IF NOT EXISTS estimate_revision_direction FLOAT
+        """)
+        cursor.execute("""
+            ALTER TABLE quality_metrics
+            ADD COLUMN IF NOT EXISTS consecutive_positive_quarters INT
+        """)
+        cursor.execute("""
+            ALTER TABLE quality_metrics
+            ADD COLUMN IF NOT EXISTS surprise_consistency FLOAT
+        """)
+        cursor.execute("""
+            ALTER TABLE quality_metrics
+            ADD COLUMN IF NOT EXISTS earnings_growth_4q_avg FLOAT
+        """)
+        cursor.execute("""
+            ALTER TABLE quality_metrics
+            ADD COLUMN IF NOT EXISTS revision_activity_30d FLOAT
+        """)
+        cursor.execute("""
+            ALTER TABLE quality_metrics
+            ADD COLUMN IF NOT EXISTS estimate_momentum_60d FLOAT
+        """)
+        cursor.execute("""
+            ALTER TABLE quality_metrics
+            ADD COLUMN IF NOT EXISTS estimate_momentum_90d FLOAT
+        """)
+        cursor.execute("""
+            ALTER TABLE quality_metrics
+            ADD COLUMN IF NOT EXISTS revision_trend_score FLOAT
         """)
 
         # Create growth_metrics table

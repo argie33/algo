@@ -174,15 +174,17 @@ async function getFactorMetricsInBatch(symbols) {
               return_on_invested_capital_pct, gross_margin_pct, operating_margin_pct,
               profit_margin_pct, fcf_to_net_income, operating_cf_to_net_income,
               debt_to_equity, current_ratio, quick_ratio, earnings_surprise_avg,
-              eps_growth_stability, payout_ratio, roe_stability_index,
+              eps_growth_stability, payout_ratio,
               earnings_beat_rate, estimate_revision_direction, consecutive_positive_quarters,
-              surprise_consistency, date
+              surprise_consistency, earnings_growth_4q_avg,
+              revision_activity_30d, estimate_momentum_60d, estimate_momentum_90d, revision_trend_score, date
             FROM ${table}
             WHERE symbol IN (${placeholders})
               AND (return_on_equity_pct IS NOT NULL OR return_on_assets_pct IS NOT NULL
                    OR debt_to_equity IS NOT NULL OR current_ratio IS NOT NULL
                    OR fcf_to_net_income IS NOT NULL OR operating_margin_pct IS NOT NULL
-                   OR earnings_beat_rate IS NOT NULL OR estimate_revision_direction IS NOT NULL)
+                   OR earnings_beat_rate IS NOT NULL OR estimate_revision_direction IS NOT NULL
+                   OR revision_activity_30d IS NOT NULL OR revision_trend_score IS NOT NULL)
             ORDER BY symbol, date DESC
           `;
         } else if (table === 'growth_metrics') {
