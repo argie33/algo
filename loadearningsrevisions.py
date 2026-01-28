@@ -134,8 +134,8 @@ def fetch_and_load_revisions():
         logger.warning("⚠️  NOTE: yfinance eps_trend/eps_revisions endpoints are frequently rate-limited by yfinance.")
         logger.info(f"⏱️  Estimated time: {len(symbols) * 1 / 60:.1f} minutes (with aggressive rate limiting)")
 
-        # Batch parameters - tuned for yfinance rate limiting
-        batch_size = 30
+        # Batch parameters - MUCH MORE AGGRESSIVE rate limiting after discovery of batch 10-26 failure
+        batch_size = 20  # REDUCED from 30 (smaller batches = finer control)
         total_batches = (len(symbols) + batch_size - 1) // batch_size
 
         all_trends_data = []
@@ -214,16 +214,16 @@ def fetch_and_load_revisions():
                     global_errors += 1
                     logger.debug(f"  ✗ {symbol}: {str(e)[:50]}")
 
-                # Rate limiting: delay between requests
-                time.sleep(0.3)
+                # Rate limiting: MUCH longer delay per request (prevent hard block)
+                time.sleep(0.5)
 
             # Log batch progress
             logger.info(f"  Batch complete: {batch_success} with data, {batch_no_data} no data, {batch_errors} errors")
 
-            # Delay between batches
+            # Delay between batches - INCREASED to prevent rate limit
             if batch_num < total_batches - 1:
-                logger.info(f"  Waiting 3 seconds before next batch...")
-                time.sleep(3)
+                logger.info(f"  Waiting 5 seconds before next batch...")
+                time.sleep(5)
 
         # Insert all collected data
         logger.info(f"\n💾 Inserting data into database...")
