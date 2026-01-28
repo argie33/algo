@@ -176,15 +176,13 @@ async function getFactorMetricsInBatch(symbols) {
               debt_to_equity, current_ratio, quick_ratio, earnings_surprise_avg,
               eps_growth_stability, payout_ratio,
               earnings_beat_rate, estimate_revision_direction, consecutive_positive_quarters,
-              surprise_consistency, earnings_growth_4q_avg,
-              revision_activity_30d, estimate_momentum_60d, estimate_momentum_90d, revision_trend_score, date
+              surprise_consistency, earnings_growth_4q_avg, date
             FROM ${table}
             WHERE symbol IN (${placeholders})
               AND (return_on_equity_pct IS NOT NULL OR return_on_assets_pct IS NOT NULL
                    OR debt_to_equity IS NOT NULL OR current_ratio IS NOT NULL
                    OR fcf_to_net_income IS NOT NULL OR operating_margin_pct IS NOT NULL
-                   OR earnings_beat_rate IS NOT NULL OR estimate_revision_direction IS NOT NULL
-                   OR revision_activity_30d IS NOT NULL OR revision_trend_score IS NOT NULL)
+                   OR earnings_beat_rate IS NOT NULL OR estimate_revision_direction IS NOT NULL)
             ORDER BY symbol, date DESC
           `;
         } else if (table === 'growth_metrics') {
@@ -210,7 +208,7 @@ async function getFactorMetricsInBatch(symbols) {
             SELECT DISTINCT ON (symbol)
               symbol, * FROM ${table}
             WHERE symbol IN (${placeholders})
-            ORDER BY symbol, beta IS NULL, date DESC
+            ORDER BY symbol, beta IS NOT NULL DESC, date DESC
           `;
         } else {
           // Default for momentum_metrics and other tables
