@@ -109,12 +109,13 @@ def ensure_tables(conn):
                 start_date TIMESTAMPTZ,
                 end_date   TIMESTAMPTZ,
                 title      TEXT,
+                data_available BOOLEAN DEFAULT FALSE,
                 fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
         """)
         # Create index on symbol for faster lookups
         cur.execute("""
-            CREATE INDEX idx_calendar_events_symbol 
+            CREATE INDEX idx_calendar_events_symbol
             ON calendar_events (symbol);
         """)
         # last_updated
@@ -135,7 +136,6 @@ def get_rss_mb():
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
-@retry(max_attempts=3, initial_delay=2, backoff=2)
 def process_symbol(symbol, conn):
     """Fetch calendar events via yfinance and insert into PostgreSQL - production optimized."""
     yf_symbol = symbol.upper().replace(".", "-")
@@ -146,13 +146,13 @@ def process_symbol(symbol, conn):
         calendar_data = ticker.calendar
         if calendar_data is None or not isinstance(calendar_data, dict):
             logger.warning(f"No calendar data for {symbol}")
-            return
+            return False
     except Exception as e:
-        logger.error(f"Error fetching calendar data for {symbol}: {e}")
-        raise
+        logger.warning(f"Error fetching calendar data for {symbol}: {e}")
+        return False
 
     events_to_insert = []
-    
+
     # Process earnings events
     if 'Earnings Date' in calendar_data:
         earnings_date = calendar_data.get('Earnings Date')
@@ -170,7 +170,8 @@ def process_symbol(symbol, conn):
             'earnings',
             start_date,
             end_date,
-            earnings_title
+            earnings_title,
+            True  # data_available
         ))
 
     # Process dividend events
@@ -184,7 +185,8 @@ def process_symbol(symbol, conn):
                 'dividend',
                 div_date,
                 div_date,
-                f"Dividend Payment ${div_amount:.4f}"
+                f"Dividend Payment ${div_amount:.4f}",
+                True  # data_available
             ))
         if ex_date is not None:
             events_to_insert.append((
@@ -192,7 +194,8 @@ def process_symbol(symbol, conn):
                 'dividend',
                 ex_date,
                 ex_date,
-                f"Ex-Dividend ${div_amount:.4f}"
+                f"Ex-Dividend ${div_amount:.4f}",
+                True  # data_available
             ))
 
     # Add any splits using splits property
@@ -205,28 +208,30 @@ def process_symbol(symbol, conn):
                     'split',
                     pd.to_datetime(date),
                     pd.to_datetime(date),
-                    f"{ratio}:1 Stock Split"
+                    f"{ratio}:1 Stock Split",
+                    True  # data_available
                 ))
     except Exception as e:
         logger.warning(f"Failed to fetch splits for {symbol}: {e}")
-    
+
     if not events_to_insert:
-        logger.info(f"No calendar events found for {symbol}")
-        return
-        
+        logger.debug(f"No calendar events found for {symbol}")
+        return False
+
     # Batch insert all events
     with conn.cursor() as cur:
         cur.executemany(
             """
-            INSERT INTO calendar_events 
-            (symbol, event_type, start_date, end_date, title)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO calendar_events
+            (symbol, event_type, start_date, end_date, title, data_available)
+            VALUES (%s, %s, %s, %s, %s, %s)
             """,
             events_to_insert
         )
     conn.commit()
 
     logger.info(f"Successfully processed {len(events_to_insert)} calendar events for {symbol}")
+    return True
 
 def update_last_run(conn):
     """Stamp the last run time in last_updated."""
@@ -256,10 +261,10 @@ def main():
             sslmode=ssl_mode,
             cursor_factory=DictCursor
         )
-        
+
         # Set a larger cursor size for better performance
         conn.set_session(autocommit=False)
-        
+
         ensure_tables(conn)
 
         log_mem("Before fetching symbols")
@@ -274,28 +279,47 @@ def main():
         log_mem("After fetching symbols")
 
         total_symbols = len(symbols)
-        processed = 0
-        failed = 0
+        processed_with_data = 0
+        processed_without_data = 0
 
-        for sym in symbols:
+        for i, sym in enumerate(symbols):
+            if (i + 1) % 500 == 0:
+                logger.info(f"Progress: {i + 1}/{total_symbols} - {get_rss_mb():.1f} MB RSS")
+
             try:
-                log_mem(f"Processing {sym} ({processed + 1}/{total_symbols})")
-                process_symbol(sym, conn)
-                processed += 1
+                success = process_symbol(sym, conn)
+                if success:
+                    processed_with_data += 1
+                else:
+                    # Insert placeholder row for symbol with no data
+                    with conn.cursor() as cur:
+                        cur.execute("""
+                            INSERT INTO calendar_events
+                            (symbol, event_type, start_date, end_date, title, data_available)
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                        """, (sym, 'none', None, None, 'No calendar data', False))
+                    conn.commit()
+                    processed_without_data += 1
+
                 # Adaptive sleep based on memory usage
                 if get_rss_mb() > 1000:  # If using more than 1GB
                     time.sleep(0.5)
                 else:
                     time.sleep(0.1)
-            except Exception:
-                logger.exception(f"Failed to process {sym}")
-                failed += 1
-                if failed > total_symbols * 0.2:  # If more than 20% failed
-                    logger.error("Too many failures, stopping process")
-                    break
+            except Exception as e:
+                logger.warning(f"Failed to process {sym}: {e}")
+                # Insert placeholder row for error cases too
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO calendar_events
+                        (symbol, event_type, start_date, end_date, title, data_available)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    """, (sym, 'none', None, None, 'No calendar data', False))
+                conn.commit()
+                processed_without_data += 1
 
         update_last_run(conn)
-        logger.info(f"Completed processing {processed}/{total_symbols} symbols with {failed} failures")
+        logger.info(f"Calendar — total symbols: {total_symbols}, with data: {processed_with_data}, without: {processed_without_data}")
     except Exception:
         logger.exception("Fatal error in main()")
         raise

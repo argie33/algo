@@ -64,7 +64,7 @@ def ensure_table(conn):
         cur.execute("""
             CREATE TABLE earnings_surprises (
                 id SERIAL PRIMARY KEY,
-                symbol VARCHAR(10) NOT NULL,
+                symbol VARCHAR(10) NOT NULL UNIQUE,
                 earnings_date DATE,
                 fiscal_quarter VARCHAR(20),
                 actual_eps NUMERIC(15, 4),
@@ -76,6 +76,7 @@ def ensure_table(conn):
                 revenue_surprise NUMERIC(18, 2),
                 surprise_direction VARCHAR(20),
                 details TEXT,
+                data_available BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT NOW()
             );
         """)
@@ -100,26 +101,20 @@ def main():
         ensure_table(conn)
         logger.info(f"[MEM] startup: {get_rss_mb():.1f} MB RSS")
 
-        # Get surprise data from existing earnings_history and earnings_estimates
-        logger.info("Fetching earnings surprise data from database tables...")
+        # Get ALL symbols from stock_symbols for complete coverage
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol;")
+            all_symbols = [r["symbol"] for r in cur.fetchall()]
+
+        total_symbols = len(all_symbols)
+        logger.info(f"Processing {total_symbols} symbols (ensuring complete coverage)")
 
         surprise_records = []
+        symbols_with_data = 0
+        symbols_without_data = 0
 
-        with conn.cursor() as cur:
-            # Get all unique symbols with earnings data
-            cur.execute("""
-                SELECT DISTINCT symbol
-                FROM earnings_history
-                WHERE eps_actual IS NOT NULL
-                ORDER BY symbol;
-            """)
-            symbols = [r["symbol"] for r in cur.fetchall()]
-
-        total_symbols = len(symbols)
-        logger.info(f"Processing {total_symbols} symbols with earnings data")
-
-        for i, symbol in enumerate(symbols):
-            if (i + 1) % 100 == 0:
+        for i, symbol in enumerate(all_symbols):
+            if (i + 1) % 500 == 0:
                 logger.info(f"Progress: {i + 1}/{total_symbols} - {get_rss_mb():.1f} MB RSS")
 
             try:
@@ -168,21 +163,50 @@ def main():
                                 None,  # estimated_revenue
                                 None,  # revenue_surprise
                                 direction,
-                                f"EPS Actual: {actual_eps}, Estimated: {estimated_eps}"
+                                f"EPS Actual: {actual_eps}, Estimated: {estimated_eps}",
+                                True  # data_available
                             ))
+                            symbols_with_data += 1
+                        else:
+                            # No complete data - insert NULL record
+                            surprise_records.append((
+                                symbol,
+                                None, None, None, None, None, None,
+                                None, None, None, None, None,
+                                False  # data_available
+                            ))
+                            symbols_without_data += 1
+                    else:
+                        # No earnings history - insert NULL record
+                        surprise_records.append((
+                            symbol,
+                            None, None, None, None, None, None,
+                            None, None, None, None, None,
+                            False  # data_available
+                        ))
+                        symbols_without_data += 1
+
             except Exception as e:
                 logger.debug(f"Error processing surprise for {symbol}: {e}")
+                # Insert NULL record for error cases too
+                surprise_records.append((
+                    symbol,
+                    None, None, None, None, None, None,
+                    None, None, None, None, None,
+                    False  # data_available
+                ))
+                symbols_without_data += 1
 
-        # Insert surprise records
-        logger.info(f"Inserting {len(surprise_records)} earnings surprise records...")
+        # Insert ALL records
+        logger.info(f"Inserting {len(surprise_records)} records (with/without data)...")
         if surprise_records:
             with conn.cursor() as cur:
                 cur.executemany("""
                     INSERT INTO earnings_surprises
                     (symbol, earnings_date, fiscal_quarter, actual_eps, estimated_eps,
                      eps_surprise, surprise_pct, actual_revenue, estimated_revenue,
-                     revenue_surprise, surprise_direction, details)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     revenue_surprise, surprise_direction, details, data_available)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, surprise_records)
             conn.commit()
 
@@ -197,7 +221,7 @@ def main():
         conn.commit()
 
         logger.info(f"[MEM] peak RSS: {get_rss_mb():.1f} MB")
-        logger.info(f"Earnings Surprises — total: {len(surprise_records)}, processed: {total_symbols}")
+        logger.info(f"Earnings Surprises — total symbols: {total_symbols}, with data: {symbols_with_data}, without: {symbols_without_data}")
         logger.info("Done.")
     except Exception:
         logger.exception("Fatal error in main()")
