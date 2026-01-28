@@ -1,11 +1,11 @@
-# URGENT REBUILD: 2026-01-27 14:20 UTC - AWS ECS Deployment Trigger
+# URGENT REBUILD: 2026-01-28 02:03 UTC - AWS ECS Deployment Trigger
 # ============================================================================
 #!/usr/bin/env python3
 # Daily price data loader - fetches OHLCV data for all symbols
 # CRITICAL: Populates price_daily table with OHLCV data for all 5000+ symbols
 # Required by: volatility calculations, technical indicators, momentum metrics
-# Trigger: 2026-01-27 14:20 - Deploy to AWS ECS with consolidated Docker images
-# Updated: 2026-01-27 - AWS production deployment with schema fixes
+# Trigger: 2026-01-28 02:03 - Deploy to AWS ECS with all task definitions
+# Updated: 2026-01-28 - CloudFormation stack updated with new task definitions
 import sys
 import time
 import logging

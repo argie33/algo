@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Trigger: 2026-01-28-020300 - ETF weekly signals to AWS with task definitions
 import os
 import sys
 import json
