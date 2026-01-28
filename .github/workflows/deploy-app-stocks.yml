@@ -980,7 +980,7 @@ jobs:
               TASK_DEF_NAME="FundamentalmetricsTaskDefArn"
               ;;
             "dailycompanydata")
-              TASK_DEF_NAME="DailycompanydataTaskDefArn"
+              TASK_DEF_NAME="LoadDailyCompanyDataTaskDefArn"
               ;;
             "buysell_etf_daily")
               TASK_DEF_NAME="BuySellEtfDailyTaskDefArn"
