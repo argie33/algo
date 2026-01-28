@@ -276,11 +276,10 @@ if __name__ == "__main__":
         conn.autocommit = False
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Recreate aaii_sentiment table
-        logging.info("Recreating aaii_sentiment table...")
-        cur.execute("DROP TABLE IF EXISTS aaii_sentiment;")
+        # Ensure aaii_sentiment table exists (never drop - avoid data loss)
+        logging.info("Ensuring aaii_sentiment table...")
         cur.execute("""
-            CREATE TABLE aaii_sentiment (
+            CREATE TABLE IF NOT EXISTS aaii_sentiment (
                 id          SERIAL PRIMARY KEY,
                 date        DATE         NOT NULL UNIQUE,
                 bullish     DOUBLE PRECISION,
