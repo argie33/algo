@@ -138,11 +138,11 @@ def fetch_and_load_revisions():
         batch_size = 20  # REDUCED from 30 (smaller batches = finer control)
         total_batches = (len(symbols) + batch_size - 1) // batch_size
 
-        all_trends_data = []
-        all_revisions_data = []
         global_success_count = 0
         global_no_data = 0
         global_errors = 0
+        total_trends_inserted = 0
+        total_revisions_inserted = 0
 
         # Process in batches
         for batch_num in range(total_batches):
@@ -155,6 +155,8 @@ def fetch_and_load_revisions():
             batch_success = 0
             batch_errors = 0
             batch_no_data = 0
+            batch_trends_data = []  # Fresh list for this batch
+            batch_revisions_data = []  # Fresh list for this batch
 
             for symbol in batch_symbols:
                 try:
@@ -168,7 +170,7 @@ def fetch_and_load_revisions():
                             has_data = True
                             for period in eps_trend.index:
                                 row = eps_trend.loc[period]
-                                all_trends_data.append((
+                                batch_trends_data.append((
                                     symbol,
                                     str(period),
                                     today,
@@ -188,7 +190,7 @@ def fetch_and_load_revisions():
                             has_data = True
                             for period in eps_revisions.index:
                                 row = eps_revisions.loc[period]
-                                all_revisions_data.append((
+                                batch_revisions_data.append((
                                     symbol,
                                     str(period),
                                     today,
@@ -220,69 +222,64 @@ def fetch_and_load_revisions():
             # Log batch progress
             logger.info(f"  Batch complete: {batch_success} with data, {batch_no_data} no data, {batch_errors} errors")
 
+            # INSERT THIS BATCH'S DATA IMMEDIATELY (not at the end!)
+            if batch_trends_data:
+                try:
+                    with conn.cursor() as cur:
+                        execute_values(
+                            cur,
+                            """
+                            INSERT INTO earnings_estimate_trends
+                                (symbol, period, snapshot_date, current_estimate,
+                                 estimate_7d_ago, estimate_30d_ago, estimate_60d_ago, estimate_90d_ago)
+                            VALUES %s
+                            ON CONFLICT (symbol, period, snapshot_date)
+                            DO UPDATE SET
+                                current_estimate = EXCLUDED.current_estimate,
+                                estimate_7d_ago = EXCLUDED.estimate_7d_ago,
+                                estimate_30d_ago = EXCLUDED.estimate_30d_ago,
+                                estimate_60d_ago = EXCLUDED.estimate_60d_ago,
+                                estimate_90d_ago = EXCLUDED.estimate_90d_ago
+                            """,
+                            batch_trends_data
+                        )
+                        conn.commit()
+                        total_trends_inserted += len(batch_trends_data)
+                        logger.debug(f"  ✅ Inserted {len(batch_trends_data)} trend records")
+                except Exception as e:
+                    logger.error(f"  ❌ ERROR inserting trends: {e}")
+                    conn.rollback()
+
+            if batch_revisions_data:
+                try:
+                    with conn.cursor() as cur:
+                        execute_values(
+                            cur,
+                            """
+                            INSERT INTO earnings_estimate_revisions
+                                (symbol, period, snapshot_date, up_last_7d, up_last_30d,
+                                 down_last_7d, down_last_30d)
+                            VALUES %s
+                            ON CONFLICT (symbol, period, snapshot_date)
+                            DO UPDATE SET
+                                up_last_7d = EXCLUDED.up_last_7d,
+                                up_last_30d = EXCLUDED.up_last_30d,
+                                down_last_7d = EXCLUDED.down_last_7d,
+                                down_last_30d = EXCLUDED.down_last_30d
+                            """,
+                            batch_revisions_data
+                        )
+                        conn.commit()
+                        total_revisions_inserted += len(batch_revisions_data)
+                        logger.debug(f"  ✅ Inserted {len(batch_revisions_data)} revision records")
+                except Exception as e:
+                    logger.error(f"  ❌ ERROR inserting revisions: {e}")
+                    conn.rollback()
+
             # Delay between batches - INCREASED to prevent rate limit
             if batch_num < total_batches - 1:
                 logger.info(f"  Waiting 5 seconds before next batch...")
                 time.sleep(5)
-
-        # Insert all collected data
-        logger.info(f"\n💾 Inserting data into database...")
-
-        trends_inserted = 0
-        revisions_inserted = 0
-
-        if all_trends_data:
-            try:
-                with conn.cursor() as cur:
-                    execute_values(
-                        cur,
-                        """
-                        INSERT INTO earnings_estimate_trends
-                            (symbol, period, snapshot_date, current_estimate,
-                             estimate_7d_ago, estimate_30d_ago, estimate_60d_ago, estimate_90d_ago)
-                        VALUES %s
-                        ON CONFLICT (symbol, period, snapshot_date)
-                        DO UPDATE SET
-                            current_estimate = EXCLUDED.current_estimate,
-                            estimate_7d_ago = EXCLUDED.estimate_7d_ago,
-                            estimate_30d_ago = EXCLUDED.estimate_30d_ago,
-                            estimate_60d_ago = EXCLUDED.estimate_60d_ago,
-                            estimate_90d_ago = EXCLUDED.estimate_90d_ago
-                        """,
-                        all_trends_data
-                    )
-                    conn.commit()
-                    trends_inserted = len(all_trends_data)
-                    logger.info(f"✅ Loaded {trends_inserted} estimate trend records")
-            except Exception as e:
-                logger.error(f"❌ ERROR inserting trends: {e}")
-                conn.rollback()
-
-        if all_revisions_data:
-            try:
-                with conn.cursor() as cur:
-                    execute_values(
-                        cur,
-                        """
-                        INSERT INTO earnings_estimate_revisions
-                            (symbol, period, snapshot_date, up_last_7d, up_last_30d,
-                             down_last_7d, down_last_30d)
-                        VALUES %s
-                        ON CONFLICT (symbol, period, snapshot_date)
-                        DO UPDATE SET
-                            up_last_7d = EXCLUDED.up_last_7d,
-                            up_last_30d = EXCLUDED.up_last_30d,
-                            down_last_7d = EXCLUDED.down_last_7d,
-                            down_last_30d = EXCLUDED.down_last_30d
-                        """,
-                        all_revisions_data
-                    )
-                    conn.commit()
-                    revisions_inserted = len(all_revisions_data)
-                    logger.info(f"✅ Loaded {revisions_inserted} estimate revision records")
-            except Exception as e:
-                logger.error(f"❌ ERROR inserting revisions: {e}")
-                conn.rollback()
 
         # Final summary
         logger.info(f"\n{'='*70}")
@@ -292,10 +289,11 @@ def fetch_and_load_revisions():
         logger.info(f"Symbols with data fetched: {global_success_count}")
         logger.info(f"Symbols with no data: {global_no_data}")
         logger.info(f"Symbols with errors: {global_errors}")
-        logger.info(f"Trend records inserted: {trends_inserted}")
-        logger.info(f"Revision records inserted: {revisions_inserted}")
+        logger.info(f"Trend records inserted: {total_trends_inserted}")
+        logger.info(f"Revision records inserted: {total_revisions_inserted}")
         logger.info(f"Success rate: {(global_success_count/len(symbols)*100):.1f}%")
         logger.info(f"{'='*70}\n")
+        logger.info(f"✅ Data is now available on the earnings page!")
 
     finally:
         conn.close()
