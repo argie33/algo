@@ -21,7 +21,7 @@ DEPLOYMENT MODES:
 VERSION INFO:
 VERIFIED: 2025-10-26 Fresh reload completed successfully - 5,315/5,315 rows (100%) ✅
 BATCH 1: 20260101_220000 - Force GitHub Actions workflow execution for all BATCH 1 FOUNDATION loaders
-Trigger: 20260127_091400 - Deploy consolidated loaders to AWS ECS with schema fixes
+Trigger: 20260127_142500 - Deploy consolidated loaders to AWS ECS with FIXED CloudFormation exports
 Trigger: 20260101_150000 - Run loaders to generate error logs for debugging
 Trigger: 20260101_101500 - Deploy ALL loaders to AWS ECS - Load complete dataset to RDS
 Trigger: 20251228_180000 - Deploy stock scores with fixed loaders to AWS ECS
