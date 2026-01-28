@@ -407,6 +407,10 @@ jobs:
                   ParameterKey=BuySellWeeklyImageTag,ParameterValue=latest \
                   ParameterKey=BuySellMonthlyImageTag,ParameterValue=latest \
                   ParameterKey=BuySellEtfDailyImageTag,ParameterValue=latest \
+                  ParameterKey=BuySellEtfWeeklyImageTag,ParameterValue=latest \
+                  ParameterKey=BuySellEtfMonthlyImageTag,ParameterValue=latest \
+                  ParameterKey=SentimentImageTag,ParameterValue=latest \
+                  ParameterKey=AnalystSentimentImageTag,ParameterValue=latest \
                   ParameterKey=FactormetricsImageTag,ParameterValue=latest \
                   ParameterKey=SwingTraderImageTag,ParameterValue=latest \
                   ParameterKey=CalendarImageTag,ParameterValue=latest \
@@ -510,6 +514,10 @@ jobs:
                 ParameterKey=BuySellWeeklyImageTag,ParameterValue=latest \
                 ParameterKey=BuySellMonthlyImageTag,ParameterValue=latest \
                 ParameterKey=BuySellEtfDailyImageTag,ParameterValue=latest \
+                ParameterKey=BuySellEtfWeeklyImageTag,ParameterValue=latest \
+                ParameterKey=BuySellEtfMonthlyImageTag,ParameterValue=latest \
+                ParameterKey=SentimentImageTag,ParameterValue=latest \
+                ParameterKey=AnalystSentimentImageTag,ParameterValue=latest \
                 ParameterKey=FactormetricsImageTag,ParameterValue=latest \
                 ParameterKey=SwingTraderImageTag,ParameterValue=latest \
                 ParameterKey=CalendarImageTag,ParameterValue=latest \
