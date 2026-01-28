@@ -466,7 +466,6 @@ const SCORE_COLUMNS = [
   'growth_score',
   'positioning_score',
   'stability_score',
-  'beta',
   'last_updated'
 ];
 
@@ -655,11 +654,6 @@ async function queryScores(options = {}) {
       };
       stock.growth_inputs = cleanMetrics(metrics.growth_metrics);
       stock.stability_inputs = cleanMetrics(metrics.stability_metrics);
-
-      // Add beta from stock_scores table (primary source)
-      if (row.beta != null) {
-        stock.stability_inputs.beta = parseFloat(row.beta);
-      }
 
       // Add volatility_risk_component to stability_inputs (derived from downside_volatility)
       if (stock.stability_inputs) {
