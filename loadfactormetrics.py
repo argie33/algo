@@ -1427,14 +1427,17 @@ def calculate_accumulation_distribution_rating(cursor, symbol: str) -> Optional[
     and low-liquidity securities. 20 days = 4 weeks of trading = meaningful A/D signal.
     """
     try:
-        # Get last 60+ trading days of price/volume data (12 weeks)
-        # Try to get 60 days first (ideal), fallback to 30 days minimum for coverage
+        # Get last 100+ trading days of price/volume data (20 weeks)
+        # Fetch more data to handle symbols with sparse recent data
+        # Expanded from LIMIT 60 to LIMIT 100 to improve coverage of symbols with gaps
         cursor.execute("""
             SELECT date, close, volume
             FROM price_daily
             WHERE symbol = %s
+            AND close IS NOT NULL
+            AND volume IS NOT NULL
             ORDER BY date DESC
-            LIMIT 60
+            LIMIT 100
         """, (symbol,))
 
         rows = cursor.fetchall()
@@ -1505,24 +1508,31 @@ def load_ad_ratings(conn, cursor, symbols: List[str]):
     logging.info("Loading A/D ratings...")
 
     ad_rows = []
+    failed_symbols = []
 
     for idx, symbol in enumerate(symbols, 1):
         try:
             ad_rating = calculate_accumulation_distribution_rating(cursor, symbol)
 
-            if ad_rating is not None:
-                ad_rows.append((ad_rating, symbol))
+            # ALWAYS append result (even if None) so UPDATE runs for all symbols
+            ad_rows.append((ad_rating, symbol))
 
-                # Print progress every 100 symbols
-                if idx % 100 == 0:
-                    logging.info(f"  ✓ A/D ratings: {idx}/{len(symbols)}")
+            if ad_rating is None:
+                failed_symbols.append(symbol)
+
+            # Print progress every 100 symbols
+            if idx % 100 == 0:
+                logging.info(f"  ✓ A/D ratings: {idx}/{len(symbols)}")
 
         except Exception as e:
             logging.warning(f"Failed to calculate A/D for {symbol}: {e}")
+            ad_rows.append((None, symbol))  # Still update with None so we track it
+            failed_symbols.append(symbol)
 
-    # Update positioning_metrics with A/D ratings
+    # Update positioning_metrics with A/D ratings (including None values)
     if ad_rows:
         logging.info(f"Updating {len(ad_rows)} A/D ratings in positioning_metrics...")
+        logging.info(f"  ⚠️  {len(failed_symbols)} symbols with NULL A/D (insufficient price data or calculation failed)")
 
         updated_count = 0
         for ad_rating, symbol in ad_rows:
@@ -1540,7 +1550,7 @@ def load_ad_ratings(conn, cursor, symbols: List[str]):
 
         try:
             conn.commit()
-            logging.info(f"✅ Updated {updated_count} A/D ratings")
+            logging.info(f"✅ Updated {updated_count} A/D ratings ({len(ad_rows) - len(failed_symbols)} with values, {len(failed_symbols)} NULL)")
         except Exception as e:
             logging.error(f"Failed to commit A/D updates: {e}")
             conn.rollback()
