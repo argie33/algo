@@ -1540,10 +1540,12 @@ def load_ad_ratings(conn, cursor, symbols: List[str]):
         for ad_rating, symbol in ad_rows:
             try:
                 cursor.execute("""
-                    UPDATE positioning_metrics
-                    SET ad_rating = %s, updated_at = NOW()
-                    WHERE symbol = %s
-                """, (ad_rating, symbol))
+                    INSERT INTO positioning_metrics (symbol, ad_rating, created_at, updated_at)
+                    VALUES (%s, %s, NOW(), NOW())
+                    ON CONFLICT (symbol) DO UPDATE SET
+                        ad_rating = EXCLUDED.ad_rating,
+                        updated_at = NOW()
+                """, (symbol, ad_rating))
                 updated_count += 1
             except Exception as e:
                 logging.warning(f"Failed to update A/D for {symbol}: {e}")
