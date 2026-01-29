@@ -91,9 +91,19 @@ FEAR_GREED_URL = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata
 # -------------------------------
 def get_db_config():
     """Get database configuration from AWS Secrets Manager or local environment."""
+    # Try environment variables first (ECS task definition)
+    if os.environ.get("DB_HOST"):
+        return {
+            "host":   os.environ.get("DB_HOST", "localhost"),
+            "port":   int(os.environ.get("DB_PORT", 5432)),
+            "user":   os.environ.get("DB_USER", "stocks"),
+            "password": os.environ.get("DB_PASSWORD", "bed0elAn"),
+            "dbname": os.environ.get("DB_NAME", "stocks")
+        }
+
     db_secret_arn = os.environ.get("DB_SECRET_ARN")
 
-    # Try AWS Secrets Manager first (for production/Lambda)
+    # Try AWS Secrets Manager as fallback (for production/Lambda)
     if db_secret_arn:
         try:
             secret_str = boto3.client("secretsmanager") \
@@ -107,7 +117,7 @@ def get_db_config():
                 "dbname": sec["dbname"]
             }
         except Exception as e:
-            logging.warning(f"Failed to fetch from AWS Secrets Manager: {e}, falling back to environment variables")
+            logging.warning(f"Failed to fetch from AWS Secrets Manager: {e}, using env vars")
 
     # Fall back to environment variables (for local development)
     return {
