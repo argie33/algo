@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+# TRIGGER: 2026-01-28 - CRITICAL DATA LOSS FIX - Earnings surprise data now crash-safe
 # Load earnings surprise data from existing database tables
-# Calculates surprise by comparing actual earnings history to estimates
+# FIXED: Removed DROP TABLE vulnerability - historical earnings surprises preserved
 import sys
 import time
 import logging

@@ -25,7 +25,8 @@ OUTPUTS:
   • market page: Market sentiment indicators
 
 Version: v5.3
-Last Updated: 2026-01-28 - Data loss fix deployed
+Last Updated: 2026-01-28 - Data loss fix deployed and ready for ECS execution
+FIXED: Removed DROP TABLE vulnerability - data now safely preserved on crash
 """
 import sys
 import time

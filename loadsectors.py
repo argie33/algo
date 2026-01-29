@@ -7,7 +7,8 @@ Consolidates ALL sector and industry loading into one unified module:
 - Sector/Industry Performance (1D%, 5D%, 20D%)
 - Technical Indicators (20-day, 50-day, 200-day moving averages, RSI)
 Uses market-cap filtering for accurate weighted calculations
-Trigger: 2025-10-26 AWS deployment - sectors and industry analytics
+FIXED: 2026-01-28 - Removed 6 DROP TABLE statements - data loss vulnerability patched
+Trigger: 2026-01-28 AWS ECS - Critical data safety fix ready for execution
 """
 
 import logging

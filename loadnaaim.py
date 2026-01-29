@@ -26,7 +26,8 @@ OUTPUTS:
   • market page: NAAIM fund manager sentiment indicators
 
 Version: v1.0
-Last Updated: 2025-10-27 - AWS TESTED
+Last Updated: 2026-01-28 - Data loss fix deployed - ready for ECS execution
+FIXED: DROP TABLE vulnerability removed - data safely preserved
 """
 import sys
 import time

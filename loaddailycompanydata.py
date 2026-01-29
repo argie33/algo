@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# AWS DEPLOYMENT: 2026-01-28_031500 - FORCE ECS TASKS TO RUN NOW
+# TRIGGER: 2026-01-28 - CRITICAL DATA LOSS FIX DEPLOYED - Rerun required immediately
 """
-# Trigger: 2026-01-28_031500 - Deploy to AWS ECS with all task definitions RUNNING TASKS
+# CRITICAL: 2026-01-28 - DROP TABLE vulnerability patched - data now safely preserved
 Daily Company Data Loader - Enhanced Positioning Analytics
 Consolidates daily-update loaders into single efficient loader
 
