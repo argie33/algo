@@ -123,9 +123,39 @@ def log_mem(stage: str):
 
 
 def get_db_config():
-    """Get database configuration - works in AWS, locally via socket, or with env vars"""
-    db_secret_arn = os.environ.get("DB_SECRET_ARN")
+    """Get database configuration - prioritizes environment vars (ECS) over Secrets Manager"""
+    # Try environment variables first (ECS task definition)
+    db_host = os.environ.get("DB_HOST", "").strip()
+    if db_host and db_host != "localhost":
+        logging.info(f"Using environment variables for database configuration (host: {db_host})")
+        password = os.environ.get("DB_PASSWORD")
+        return {
+            "host": db_host,
+            "port": int(os.environ.get("DB_PORT", "5432")),
+            "user": os.environ.get("DB_USER", "stocks"),
+            "password": password if password else "bed0elAn",
+            "dbname": os.environ.get("DB_NAME", "stocks"),
+        }
 
+    # Try local socket connection (peer authentication) - for local development
+    try:
+        test_conn = psycopg2.connect(
+            dbname=os.environ.get("DB_NAME", "stocks"),
+            user="stocks"
+        )
+        test_conn.close()
+        logging.info("Using local socket connection to database")
+        return {
+            "host": None,  # Use socket
+            "user": "stocks",
+            "password": None,
+            "dbname": os.environ.get("DB_NAME", "stocks"),
+        }
+    except Exception as e:
+        logging.debug(f"Socket connection failed: {e}")
+
+    # Fall back to Secrets Manager if available
+    db_secret_arn = os.environ.get("DB_SECRET_ARN")
     if db_secret_arn:
         try:
             secret_str = boto3.client("secretsmanager").get_secret_value(
@@ -142,34 +172,14 @@ def get_db_config():
             }
         except Exception as e:
             logging.warning(f"Failed to get AWS Secrets Manager credentials: {e}")
-            logging.info("Falling back to local database configuration")
 
-    # Try local socket connection first (peer authentication) - for local development
-    try:
-        # Test socket connection without storing config
-        test_conn = psycopg2.connect(
-            dbname=os.environ.get("DB_NAME", "stocks"),
-            user="stocks"
-        )
-        test_conn.close()
-        # Socket connection works, use it
-        logging.info("Using local socket connection to database")
-        return {
-            "host": None,  # Use socket
-            "user": "stocks",
-            "password": None,
-            "dbname": os.environ.get("DB_NAME", "stocks"),
-        }
-    except Exception as e:
-        logging.debug(f"Socket connection failed: {e}, trying environment variables")
-
-    # Fall back to environment variables
-    logging.info("Using environment variables for database configuration")
+    # Final fallback to environment variables
+    logging.info("Using default environment variables for database configuration")
     return {
         "host": os.environ.get("DB_HOST", "localhost"),
         "port": int(os.environ.get("DB_PORT", "5432")),
         "user": os.environ.get("DB_USER", "stocks"),
-        "password": os.environ.get("DB_PASSWORD", "bed0elAn"),
+        "password": os.environ.get("DB_PASSWORD") or "bed0elAn",
         "dbname": os.environ.get("DB_NAME", "stocks"),
     }
 
