@@ -92,6 +92,24 @@ function EarningsCalendar() {
     staleTime: 1000 * 60 * 60, // 1 hour
   });
 
+  // Fetch sector earnings trend
+  const {
+    data: sectorTrendData,
+    isLoading: sectorTrendLoading,
+    error: sectorTrendError,
+  } = useQuery({
+    queryKey: ["sectorEarningsTrend"],
+    queryFn: async () => {
+      const response = await fetch(
+        `${API_BASE}/api/earnings/sector-trend?period=0q&timeRange=90d&topSectors=8`
+      );
+      if (!response.ok) throw new Error("Failed to fetch sector earnings trend");
+      const json = await response.json();
+      return json.data;
+    },
+    staleTime: 1000 * 60 * 60, // 1 hour cache
+  });
+
   // Fetch weekly calendar events (upcoming earnings)
   const {
     data: weeklyCalendarData,
@@ -731,6 +749,154 @@ function EarningsCalendar() {
             <Alert severity="info">
               No estimate momentum data available yet.
             </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Sector Earnings Trend */}
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Box display="flex" alignItems="center" gap={1} mb={2}>
+            <ShowChart color="primary" />
+            <Typography variant="h6">Sector Earnings Trend (60-Day Change)</Typography>
+          </Box>
+
+          {sectorTrendError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              Failed to load sector earnings trend data.
+            </Alert>
+          )}
+
+          {sectorTrendLoading ? (
+            <Box display="flex" justifyContent="center" py={4}>
+              <CircularProgress />
+            </Box>
+          ) : sectorTrendData && sectorTrendData.timeSeries?.length > 0 ? (
+            <>
+              {/* Summary Metrics */}
+              <Grid container spacing={2} mb={3}>
+                <Grid item xs={12} sm={6}>
+                  <Box textAlign="center" p={2} bgcolor="success.light" borderRadius={1}>
+                    <Typography variant="h5" fontWeight="bold" color="success.dark">
+                      {sectorTrendData.summary.bestSector.name}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Best Performing Sector
+                    </Typography>
+                    <Typography variant="h6" color="success.dark" sx={{ mt: 1 }}>
+                      +{sectorTrendData.summary.bestSector.avgChange.toFixed(2)}%
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {sectorTrendData.summary.bestSector.stockCount} stocks
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Box textAlign="center" p={2} bgcolor="error.light" borderRadius={1}>
+                    <Typography variant="h5" fontWeight="bold" color="error.dark">
+                      {sectorTrendData.summary.worstSector.name}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Worst Performing Sector
+                    </Typography>
+                    <Typography variant="h6" color="error.dark" sx={{ mt: 1 }}>
+                      {sectorTrendData.summary.worstSector.avgChange.toFixed(2)}%
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {sectorTrendData.summary.worstSector.stockCount} stocks
+                    </Typography>
+                  </Box>
+                </Grid>
+              </Grid>
+
+              {/* Line Chart */}
+              <Box sx={{ width: '100%', height: 450, mt: 3 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={sectorTrendData.timeSeries}
+                    margin={{ top: 5, right: 30, left: 20, bottom: 80 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="date"
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                      tick={{ fontSize: 12 }}
+                      tickFormatter={(date) => {
+                        const d = new Date(date);
+                        return d.toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                        });
+                      }}
+                    />
+                    <YAxis
+                      label={{
+                        value: 'Estimate Change (%)',
+                        angle: -90,
+                        position: 'insideLeft',
+                      }}
+                      tick={{ fontSize: 12 }}
+                    />
+                    <Tooltip
+                      formatter={(value) => [`${value?.toFixed(2)}%`, '']}
+                      labelFormatter={(label) =>
+                        `Date: ${new Date(label).toLocaleDateString()}`
+                      }
+                    />
+                    <Legend />
+
+                    {/* Dynamic Lines for each sector */}
+                    {Object.keys(sectorTrendData.timeSeries[0] || {})
+                      .filter((key) => key !== 'date')
+                      .map((sector, index) => {
+                        const sectorColors = {
+                          Technology: '#2196F3',
+                          Healthcare: '#4CAF50',
+                          Financials: '#FF9800',
+                          'Consumer Discretionary': '#9C27B0',
+                          'Consumer Staples': '#795548',
+                          Energy: '#FF5722',
+                          Industrials: '#607D8B',
+                          Materials: '#8BC34A',
+                          'Real Estate': '#E91E63',
+                        };
+
+                        return (
+                          <Line
+                            key={sector}
+                            type="monotone"
+                            dataKey={sector}
+                            stroke={
+                              sectorColors[sector] ||
+                              `hsl(${index * 45}, 70%, 50%)`
+                            }
+                            strokeWidth={2}
+                            dot={{ r: 3 }}
+                            activeDot={{ r: 5 }}
+                            name={sector}
+                            connectNulls
+                          />
+                        );
+                      })}
+                  </LineChart>
+                </ResponsiveContainer>
+              </Box>
+
+              {/* Info Alert */}
+              <Alert severity="info" sx={{ mt: 3 }}>
+                <Typography variant="body2">
+                  📊 <strong>Interpretation:</strong> This chart shows the average 60-day
+                  estimate change by sector. Positive values indicate analysts are raising
+                  earnings estimates (bullish), while negative values show estimate cuts
+                  (bearish). Data includes only sectors with at least 5 stocks with estimate
+                  data.
+                </Typography>
+              </Alert>
+            </>
+          ) : (
+            <Alert severity="info">No sector earnings trend data available yet.</Alert>
           )}
         </CardContent>
       </Card>

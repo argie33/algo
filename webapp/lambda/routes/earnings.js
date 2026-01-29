@@ -484,4 +484,169 @@ router.get("/estimate-momentum", async (req, res) => {
   }
 });
 
+// GET /api/earnings/sector-trend - Average estimate change by sector over time
+router.get("/sector-trend", async (req, res) => {
+  try {
+    const {
+      period = '0q',
+      timeRange = '90d',
+      topSectors = 8,
+      minStocks = 5
+    } = req.query;
+
+    // Convert timeRange to SQL interval (must be injected directly, not parameterized)
+    const intervalMap = {
+      '30d': '30 days',
+      '60d': '60 days',
+      '90d': '90 days',
+      '180d': '180 days',
+      '1y': '1 year'
+    };
+    const sqlInterval = intervalMap[timeRange] || '90 days';
+
+    // Build query with interval injected (INTERVAL cannot be parameterized in PostgreSQL)
+    const sectorTrendQuery = `
+      WITH sector_estimates AS (
+        -- Join earnings estimates with company sectors, calculate % change per stock
+        SELECT
+          t.snapshot_date,
+          cp.sector,
+          t.symbol,
+          CASE
+            WHEN t.estimate_60d_ago IS NOT NULL
+              AND t.estimate_60d_ago != 0
+              AND ABS(t.estimate_60d_ago) > 0.10
+            THEN (t.current_estimate - t.estimate_60d_ago) / NULLIF(t.estimate_60d_ago, 0) * 100
+            ELSE NULL
+          END as pct_change
+        FROM earnings_estimate_trends t
+        INNER JOIN company_profile cp ON t.symbol = cp.ticker
+        WHERE t.period = $1
+          AND t.snapshot_date >= CURRENT_DATE - INTERVAL '${sqlInterval}'
+          AND cp.sector IS NOT NULL
+          AND t.estimate_60d_ago IS NOT NULL
+          AND ABS(t.estimate_60d_ago) > 0.10
+      ),
+      sector_daily_avg AS (
+        -- Average by sector and date, filter outliers
+        SELECT
+          snapshot_date,
+          sector,
+          COUNT(DISTINCT symbol) as stock_count,
+          AVG(pct_change) as avg_change
+        FROM sector_estimates
+        WHERE pct_change IS NOT NULL
+          AND ABS(pct_change) <= 200
+        GROUP BY snapshot_date, sector
+        HAVING COUNT(DISTINCT symbol) >= $2
+      ),
+      top_sectors AS (
+        -- Get sectors with most data coverage
+        SELECT sector
+        FROM sector_daily_avg
+        GROUP BY sector
+        ORDER BY COUNT(*) DESC, AVG(stock_count) DESC
+        LIMIT $3
+      )
+      SELECT
+        sda.snapshot_date::TEXT as date,
+        sda.sector,
+        ROUND(sda.avg_change::numeric, 2) as avg_change,
+        sda.stock_count
+      FROM sector_daily_avg sda
+      INNER JOIN top_sectors ts ON sda.sector = ts.sector
+      ORDER BY sda.snapshot_date ASC, sda.sector ASC
+    `;
+
+    const result = await query(sectorTrendQuery, [
+      period,
+      parseInt(minStocks),
+      parseInt(topSectors)
+    ]);
+
+    // Transform rows into time series format (pivot by date)
+    const timeSeriesMap = new Map();
+    const sectorStats = new Map();
+    const dateRange = { start: null, end: null };
+
+    result.rows.forEach(row => {
+      const dateKey = row.date;
+
+      if (!timeSeriesMap.has(dateKey)) {
+        timeSeriesMap.set(dateKey, { date: dateKey });
+      }
+
+      timeSeriesMap.get(dateKey)[row.sector] = parseFloat(row.avg_change);
+
+      // Track stats for summary and date range
+      if (!sectorStats.has(row.sector)) {
+        sectorStats.set(row.sector, {
+          totalChange: 0,
+          count: 0,
+          totalStockCount: 0
+        });
+      }
+
+      const stats = sectorStats.get(row.sector);
+      stats.totalChange += parseFloat(row.avg_change);
+      stats.count += 1;
+      stats.totalStockCount += row.stock_count;
+
+      // Update date range
+      if (!dateRange.start || dateKey < dateRange.start) {
+        dateRange.start = dateKey;
+      }
+      if (!dateRange.end || dateKey > dateRange.end) {
+        dateRange.end = dateKey;
+      }
+    });
+
+    // Convert map to array and sort by date
+    const timeSeries = Array.from(timeSeriesMap.entries())
+      .sort((a, b) => new Date(a[0]) - new Date(b[0]))
+      .map(([, data]) => data);
+
+    // Calculate sector statistics for summary
+    const sectorAverages = Array.from(sectorStats.entries()).map(([name, stats]) => ({
+      name,
+      avgChange: parseFloat((stats.totalChange / stats.count).toFixed(2)),
+      stockCount: Math.round(stats.totalStockCount / stats.count)
+    }));
+
+    // Find best and worst sectors
+    const bestSector = sectorAverages.length > 0
+      ? sectorAverages.reduce((max, s) => s.avgChange > max.avgChange ? s : max)
+      : { name: 'N/A', avgChange: 0, stockCount: 0 };
+
+    const worstSector = sectorAverages.length > 0
+      ? sectorAverages.reduce((min, s) => s.avgChange < min.avgChange ? s : min)
+      : { name: 'N/A', avgChange: 0, stockCount: 0 };
+
+    res.json({
+      data: {
+        timeSeries,
+        summary: {
+          bestSector,
+          worstSector,
+          totalSectors: sectorStats.size,
+          dateRange
+        },
+        metadata: {
+          period,
+          timeRange,
+          minStocks,
+          topSectors: Math.min(parseInt(topSectors), sectorStats.size)
+        }
+      },
+      success: true
+    });
+  } catch (error) {
+    console.error("Error fetching sector trend:", error);
+    res.status(500).json({
+      error: "Failed to fetch sector trend",
+      success: false
+    });
+  }
+});
+
 module.exports = router;
