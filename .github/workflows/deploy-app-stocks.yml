@@ -914,8 +914,14 @@ jobs:
             "feargreed")
               TASK_DEF_NAME="FearGreedTaskDefArn"
               ;;
+            "loadfeargreed")
+              TASK_DEF_NAME="FearGreedDataTaskDefArn"
+              ;;
             "naaim")
               TASK_DEF_NAME="NaaimTaskDefArn"
+              ;;
+            "loadnaaim")
+              TASK_DEF_NAME="NaaaimDataTaskDefArn"
               ;;
             "swingtrader")
               TASK_DEF_NAME="SwingTraderTaskDefArn"
