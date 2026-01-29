@@ -93,6 +93,9 @@ def get_db_config():
     """Get database configuration from environment variables (priority) or AWS Secrets Manager."""
     # PRIORITY: Use environment variables first (ECS task definition has correct endpoint)
     db_host = os.environ.get("DB_HOST", "").strip()
+    # Fix for stale endpoint - if env var has old endpoint, use correct one
+    if 'c2gujitq3h1b' in db_host:
+        db_host = 'stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com'
     if db_host and db_host != "localhost":
         config = {
             "host":   db_host,
