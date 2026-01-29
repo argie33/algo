@@ -2831,7 +2831,16 @@ def main():
             log_mem("After quality metrics")
         except Exception as e:
             logging.error(f"Quality metrics loading failed: {e}")
-            conn.rollback()
+            try:
+                conn.rollback()
+            except Exception as rollback_err:
+                logging.warning(f"Rollback failed, attempting disconnect/reconnect: {rollback_err}")
+                try:
+                    cursor.close()
+                    conn.close()
+                except:
+                    pass
+                conn = psycopg2.connect(**db_config)
             cursor.close()
             cursor = conn.cursor()  # Create new cursor after rollback
 
@@ -2858,7 +2867,16 @@ def main():
             log_mem("After momentum metrics")
         except Exception as e:
             logging.error(f"Momentum metrics loading failed: {e}")
-            conn.rollback()
+            try:
+                conn.rollback()
+            except Exception as rollback_err:
+                logging.warning(f"Rollback failed, attempting disconnect/reconnect: {rollback_err}")
+                try:
+                    cursor.close()
+                    conn.close()
+                except:
+                    pass
+                conn = psycopg2.connect(**db_config)
             cursor.close()
             cursor = conn.cursor()  # Create new cursor after rollback
 
@@ -2867,7 +2885,16 @@ def main():
             log_mem("After stability metrics")
         except Exception as e:
             logging.error(f"Stability metrics loading failed: {e}")
-            conn.rollback()
+            try:
+                conn.rollback()
+            except Exception as rollback_err:
+                logging.warning(f"Rollback failed, attempting disconnect/reconnect: {rollback_err}")
+                try:
+                    cursor.close()
+                    conn.close()
+                except:
+                    pass
+                conn = psycopg2.connect(**db_config)
             cursor.close()
             cursor = conn.cursor()  # Create new cursor after rollback
 
@@ -2876,7 +2903,16 @@ def main():
             log_mem("After value metrics")
         except Exception as e:
             logging.error(f"Value metrics loading failed: {e}")
-            conn.rollback()
+            try:
+                conn.rollback()
+            except Exception as rollback_err:
+                logging.warning(f"Rollback failed, attempting disconnect/reconnect: {rollback_err}")
+                try:
+                    cursor.close()
+                    conn.close()
+                except:
+                    pass
+                conn = psycopg2.connect(**db_config)
             cursor.close()
             cursor = conn.cursor()  # Create new cursor after rollback
 
@@ -2885,7 +2921,16 @@ def main():
             log_mem("After A/D ratings")
         except Exception as e:
             logging.error(f"A/D ratings loading failed: {e}")
-            conn.rollback()
+            try:
+                conn.rollback()
+            except Exception as rollback_err:
+                logging.warning(f"Rollback failed, attempting disconnect/reconnect: {rollback_err}")
+                try:
+                    cursor.close()
+                    conn.close()
+                except:
+                    pass
+                conn = psycopg2.connect(**db_config)
             cursor.close()
             cursor = conn.cursor()  # Create new cursor after rollback
 
