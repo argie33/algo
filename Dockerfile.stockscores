@@ -29,3 +29,5 @@ ENV AWS_DEFAULT_REGION=us-east-1
 
 COPY loadstockscores.py .
 ENTRYPOINT ["python", "loadstockscores.py"]
+
+# Trigger: 2026-01-29 - Force rebuild with fixed RDS endpoint handling
