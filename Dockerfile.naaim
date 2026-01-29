@@ -19,7 +19,8 @@ RUN pip install --upgrade pip && \
         yfinance \
         requests \
         python-dateutil \
-    && python -c "import boto3; import psycopg2; print('✓ Dependencies installed')"
+        beautifulsoup4 \
+    && python -c "import boto3; import psycopg2; import beautifulsoup4; print('✓ Dependencies installed')"
 
 ENV PYTHONUNBUFFERED=1
 ENV AWS_DEFAULT_REGION=us-east-1

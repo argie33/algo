@@ -19,7 +19,9 @@ RUN pip install --upgrade pip && \
         yfinance \
         requests \
         python-dateutil \
-    && python -c "import boto3; import psycopg2; print('✓ Dependencies installed')"
+        openpyxl \
+        xlrd \
+    && python -c "import boto3; import psycopg2; import openpyxl; print('✓ Dependencies installed')"
 
 ENV PYTHONUNBUFFERED=1
 ENV AWS_DEFAULT_REGION=us-east-1
