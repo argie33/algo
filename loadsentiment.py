@@ -91,8 +91,12 @@ def get_db_config():
         }
     except Exception as e:
         logging.debug(f"AWS Secrets Manager not available, using local config: {e}")
+        db_host = os.environ.get("DB_HOST", "localhost").strip()
+        # Fix for stale endpoint - if env var has old endpoint, use correct one
+        if 'c2gujitq3h1b' in db_host:
+            db_host = 'stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com'
         return {
-            "host": os.environ.get("DB_HOST", "localhost"),
+            "host": db_host,
             "port": int(os.environ.get("DB_PORT", 5432)),
             "user": os.environ.get("DB_USER", "stocks"),
             "password": os.environ.get("DB_PASSWORD", ""),

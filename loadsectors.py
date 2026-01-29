@@ -33,6 +33,9 @@ logger = logging.getLogger(__name__)
 
 # Database configuration from environment - handle empty strings as missing values
 DB_HOST = os.getenv('DB_HOST', '').strip() or 'localhost'
+# Fix for stale endpoint - if env var has old endpoint, use correct one
+if 'c2gujitq3h1b' in DB_HOST:
+    DB_HOST = 'stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com'
 DB_PORT = os.getenv('DB_PORT', '').strip() or '5432'
 DB_USER = os.getenv('DB_USER', '').strip() or 'stocks'
 DB_PASSWORD = os.getenv('DB_PASSWORD', '').strip() or 'bed0elAn'

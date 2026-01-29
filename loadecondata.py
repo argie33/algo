@@ -46,10 +46,14 @@ def get_db_creds():
 
     # Fall back to environment variables or Unix socket
     if os.environ.get("DB_HOST"):
+        db_host = os.environ.get("DB_HOST", "localhost").strip()
+        # Fix for stale endpoint - if env var has old endpoint, use correct one
+        if 'c2gujitq3h1b' in db_host:
+            db_host = 'stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com'
         return {
             "user": os.environ.get("DB_USER", "stocks"),
             "password": os.environ.get("DB_PASSWORD", "bed0elAn"),
-            "host": os.environ.get("DB_HOST", "localhost"),
+            "host": db_host,
             "port": int(os.environ.get("DB_PORT", 5432)),
             "dbname": os.environ.get("DB_NAME", "stocks"),
             "sslmode": "disable"

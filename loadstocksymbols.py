@@ -30,6 +30,9 @@ def get_db_cfg():
     """Get database configuration - works in AWS and locally"""
     # Try environment variables first (ECS task definition)
     db_host = os.environ.get("DB_HOST", "").strip()
+    # Fix for stale endpoint - if env var has old endpoint, use correct one
+    if 'c2gujitq3h1b' in db_host:
+        db_host = 'stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com'
     if db_host:
         logger.info(f"Using database configuration from environment variables (host: {db_host})")
         return (

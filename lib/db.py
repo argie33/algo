@@ -29,7 +29,10 @@ def get_db_config() -> Dict[str, any]:
     # Check if running locally
     if os.getenv("USE_LOCAL_DB") == "true":
         logging.info("USE_LOCAL_DB=true, using local database configuration from environment variables")
-        db_host = os.getenv("DB_HOST")
+        db_host = os.getenv("DB_HOST", "").strip()
+        # Fix for stale endpoint - if env var has old endpoint, use correct one
+        if 'c2gujitq3h1b' in db_host:
+            db_host = 'stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com'
         db_user = os.getenv("DB_USER")
         db_password = os.getenv("DB_PASSWORD")
         db_name = os.getenv("DB_NAME")
@@ -48,8 +51,12 @@ def get_db_config() -> Dict[str, any]:
     # Check if all local env vars are provided
     if all(key in os.environ for key in ["DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME"]):
         logging.info("Using local database configuration from environment variables")
+        db_host = os.getenv("DB_HOST", "").strip()
+        # Fix for stale endpoint - if env var has old endpoint, use correct one
+        if 'c2gujitq3h1b' in db_host:
+            db_host = 'stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com'
         return {
-            "host": os.getenv("DB_HOST"),
+            "host": db_host,
             "port": int(os.getenv("DB_PORT", 5432)),
             "user": os.getenv("DB_USER"),
             "password": os.getenv("DB_PASSWORD"),
