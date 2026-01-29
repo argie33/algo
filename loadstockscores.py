@@ -79,9 +79,24 @@ DB_NAME = os.getenv('DB_NAME', 'stocks')
 
 # Simple database connection helper (no external dependency)
 def get_db_connection(script_name="loader"):
-    """Connect to database using environment variables or AWS Secrets Manager."""
+    """Connect to database using environment variables (priority) or AWS Secrets Manager."""
+    # PRIORITY: Use environment variables first (set by ECS task definition)
+    if DB_HOST and DB_HOST != 'localhost':
+        try:
+            conn = psycopg2.connect(
+                host=DB_HOST, port=int(DB_PORT),
+                user=DB_USER, password=DB_PASSWORD,
+                database=DB_NAME,
+                connect_timeout=30,
+                options='-c statement_timeout=600000'
+            )
+            logging.info(f"✓ Connected via environment variables to {DB_HOST}")
+            return conn
+        except Exception as e:
+            logging.warning(f"Env var connection failed: {e}, trying Secrets Manager...")
+
+    # Fallback: Try AWS Secrets Manager
     try:
-        # Try AWS Secrets Manager first
         if DB_SECRET_ARN:
             sm = boto3.client("secretsmanager", region_name="us-east-1")
             secret = json.loads(sm.get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"])
@@ -95,18 +110,9 @@ def get_db_connection(script_name="loader"):
             logging.info(f"✓ Connected via AWS Secrets Manager")
             return conn
     except Exception as e:
-        logging.warning(f"AWS Secrets failed: {e}, using env vars...")
+        logging.warning(f"AWS Secrets failed: {e}")
 
-    # Fall back to environment variables
-    conn = psycopg2.connect(
-        host=DB_HOST, port=int(DB_PORT),
-        user=DB_USER, password=DB_PASSWORD,
-        database=DB_NAME,
-        connect_timeout=30,
-        options='-c statement_timeout=600000'
-    )
-    logging.info(f"✓ Connected via environment variables")
-    return conn
+    raise Exception("Could not connect to database - no valid credentials found")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

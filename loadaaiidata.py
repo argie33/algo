@@ -90,25 +90,28 @@ AAII_EXCEL_URL = "https://www.aaii.com/files/surveys/sentiment.xls"
 # DB config loader
 # -------------------------------
 def get_db_config():
-    """Get database configuration from AWS Secrets Manager or local environment."""
-    # Try environment variables first (ECS task definition)
-    if os.environ.get("DB_HOST"):
-        return {
-            "host":   os.environ.get("DB_HOST", "localhost"),
+    """Get database configuration from environment variables (priority) or AWS Secrets Manager."""
+    # PRIORITY: Use environment variables first (ECS task definition has correct endpoint)
+    db_host = os.environ.get("DB_HOST", "").strip()
+    if db_host and db_host != "localhost":
+        config = {
+            "host":   db_host,
             "port":   int(os.environ.get("DB_PORT", 5432)),
             "user":   os.environ.get("DB_USER", "stocks"),
             "password": os.environ.get("DB_PASSWORD", "bed0elAn"),
             "dbname": os.environ.get("DB_NAME", "stocks")
         }
+        logging.info(f"Using env var DB_HOST: {config['host']}")
+        return config
 
+    # Fallback: Try AWS Secrets Manager (for production/Lambda)
     db_secret_arn = os.environ.get("DB_SECRET_ARN")
-
-    # Try AWS Secrets Manager as fallback (for production/Lambda)
     if db_secret_arn:
         try:
             secret_str = boto3.client("secretsmanager") \
                              .get_secret_value(SecretId=db_secret_arn)["SecretString"]
             sec = json.loads(secret_str)
+            logging.info(f"Using AWS Secrets Manager DB_HOST: {sec['host']}")
             return {
                 "host":   sec["host"],
                 "port":   int(sec.get("port", 5432)),
@@ -117,9 +120,10 @@ def get_db_config():
                 "dbname": sec["dbname"]
             }
         except Exception as e:
-            logging.warning(f"Failed to fetch from AWS Secrets Manager: {e}, using env vars")
+            logging.warning(f"Failed to fetch from AWS Secrets Manager: {e}, using default env vars")
 
-    # Fall back to environment variables (for local development)
+    # Final fallback: default environment variables (for local development)
+    logging.info("Using default environment variables for DB connection")
     return {
         "host":   os.environ.get("DB_HOST", "localhost"),
         "port":   int(os.environ.get("DB_PORT", 5432)),
