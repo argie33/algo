@@ -1877,32 +1877,42 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
     growth_rows = []
 
     # Get all key_metrics data in one query - include margin and financial data for trend calculations
-    cursor.execute(
-        """
-        SELECT ticker,
-               revenue_growth_pct,
-               earnings_growth_pct,
-               earnings_q_growth_pct,
-               return_on_equity_pct,
-               payout_ratio,
-               gross_margin_pct,
-               operating_margin_pct,
-               profit_margin_pct,
-               ebitda_margin_pct,
-               free_cashflow,
-               net_income,
-               operating_cashflow,
-               total_revenue,
-               eps_trailing,
-               eps_forward
-        FROM key_metrics
-        WHERE ticker = ANY(%s)
-        """,
-        (symbols,)
-    )
+    try:
+        cursor.execute(
+            """
+            SELECT ticker,
+                   revenue_growth_pct,
+                   earnings_growth_pct,
+                   earnings_q_growth_pct,
+                   return_on_equity_pct,
+                   payout_ratio,
+                   gross_margin_pct,
+                   operating_margin_pct,
+                   profit_margin_pct,
+                   ebitda_margin_pct,
+                   free_cashflow,
+                   net_income,
+                   operating_cashflow,
+                   total_revenue,
+                   eps_trailing,
+                   eps_forward
+            FROM key_metrics
+            WHERE ticker = ANY(%s)
+            """,
+            (symbols,)
+        )
 
-    # Materialize results to avoid cursor state issues with nested queries
-    key_metrics_rows = cursor.fetchall()
+        # Materialize results to avoid cursor state issues with nested queries
+        key_metrics_rows = cursor.fetchall()
+    except Exception as e:
+        logging.warning(f"Failed to fetch key_metrics: {e}. Attempting to recover...")
+        try:
+            conn.rollback()
+        except:
+            pass
+        cursor.close()
+        cursor = conn.cursor()
+        key_metrics_rows = []
 
     for row in key_metrics_rows:
         try:
@@ -1935,18 +1945,39 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                 financial_growth = get_financial_statement_growth(cursor, ticker)
             except Exception as fge:
                 logging.debug(f"Could not get financial growth for {ticker}: {fge}")
+                # Recover from transaction abort
+                try:
+                    conn.rollback()
+                    cursor.close()
+                    cursor = conn.cursor()
+                except:
+                    pass
                 financial_growth = None
 
             try:
                 quarterly_growth = get_quarterly_statement_growth(cursor, ticker)
             except Exception as qge:
                 logging.debug(f"Could not get quarterly growth for {ticker}: {qge}")
+                # Recover from transaction abort
+                try:
+                    conn.rollback()
+                    cursor.close()
+                    cursor = conn.cursor()
+                except:
+                    pass
                 quarterly_growth = None
 
             try:
                 earnings_history_growth = get_earnings_history_growth(cursor, ticker)
             except Exception as ege:
                 logging.debug(f"Could not get earnings history growth for {ticker}: {ege}")
+                # Recover from transaction abort
+                try:
+                    conn.rollback()
+                    cursor.close()
+                    cursor = conn.cursor()
+                except:
+                    pass
                 earnings_history_growth = None
 
             # Calculate metrics combining all available data sources
