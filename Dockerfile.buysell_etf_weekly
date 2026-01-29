@@ -25,5 +25,6 @@ RUN pip install --upgrade pip && \
 ENV PYTHONUNBUFFERED=1
 ENV AWS_DEFAULT_REGION=us-east-1
 
+COPY lib lib
 COPY loadbuysell_etf_weekly.py .
 ENTRYPOINT ["python", "loadbuysell_etf_weekly.py"]
