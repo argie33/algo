@@ -484,158 +484,156 @@ router.get("/estimate-momentum", async (req, res) => {
   }
 });
 
-// GET /api/earnings/sector-trend - Average estimate change by sector over time
+// GET /api/earnings/sector-trend - Sector earnings growth and estimate outlook
 router.get("/sector-trend", async (req, res) => {
   try {
-    const {
-      period = '0q',
-      timeRange = '90d',
-      topSectors = 8,
-      minStocks = 5
-    } = req.query;
-
-    // Convert timeRange to SQL interval (must be injected directly, not parameterized)
-    const intervalMap = {
-      '30d': '30 days',
-      '60d': '60 days',
-      '90d': '90 days',
-      '180d': '180 days',
-      '1y': '1 year'
-    };
-    const sqlInterval = intervalMap[timeRange] || '90 days';
-
-    // Build query with interval injected (INTERVAL cannot be parameterized in PostgreSQL)
-    const sectorTrendQuery = `
-      WITH sector_estimates AS (
-        -- Join earnings estimates with company sectors, calculate % change per stock
+    // Query 1: Earnings Growth (Historical Quarterly EPS by Sector)
+    const earningsGrowthQuery = `
+      WITH quarterly_sector_eps AS (
         SELECT
-          t.snapshot_date,
+          DATE_TRUNC('quarter', eh.quarter) as quarter_date,
+          TO_CHAR(eh.quarter, 'YYYY-"Q"Q') as quarter_label,
           cp.sector,
-          t.symbol,
-          CASE
-            WHEN t.estimate_60d_ago IS NOT NULL
-              AND t.estimate_60d_ago != 0
-              AND ABS(t.estimate_60d_ago) > 0.10
-            THEN (t.current_estimate - t.estimate_60d_ago) / NULLIF(t.estimate_60d_ago, 0) * 100
-            ELSE NULL
-          END as pct_change
-        FROM earnings_estimate_trends t
-        INNER JOIN company_profile cp ON t.symbol = cp.ticker
-        WHERE t.period = $1
-          AND t.snapshot_date >= CURRENT_DATE - INTERVAL '${sqlInterval}'
+          COUNT(DISTINCT eh.symbol) as stock_count,
+          AVG(eh.eps_actual) as avg_eps
+        FROM earnings_history eh
+        INNER JOIN company_profile cp ON eh.symbol = cp.ticker
+        WHERE eh.quarter >= '2020-01-01'
           AND cp.sector IS NOT NULL
-          AND t.estimate_60d_ago IS NOT NULL
-          AND ABS(t.estimate_60d_ago) > 0.10
-      ),
-      sector_daily_avg AS (
-        -- Average by sector and date, filter outliers
-        SELECT
-          snapshot_date,
-          sector,
-          COUNT(DISTINCT symbol) as stock_count,
-          AVG(pct_change) as avg_change
-        FROM sector_estimates
-        WHERE pct_change IS NOT NULL
-          AND ABS(pct_change) <= 200
-        GROUP BY snapshot_date, sector
-        HAVING COUNT(DISTINCT symbol) >= $2
-      ),
-      top_sectors AS (
-        -- Get sectors with most data coverage
-        SELECT sector
-        FROM sector_daily_avg
-        GROUP BY sector
-        ORDER BY COUNT(*) DESC, AVG(stock_count) DESC
-        LIMIT $3
+          AND eh.eps_actual IS NOT NULL
+        GROUP BY DATE_TRUNC('quarter', eh.quarter), TO_CHAR(eh.quarter, 'YYYY-"Q"Q'), cp.sector
+        HAVING COUNT(DISTINCT eh.symbol) >= 5
       )
       SELECT
-        sda.snapshot_date::TEXT as date,
-        sda.sector,
-        ROUND(sda.avg_change::numeric, 2) as avg_change,
-        sda.stock_count
-      FROM sector_daily_avg sda
-      INNER JOIN top_sectors ts ON sda.sector = ts.sector
-      ORDER BY sda.snapshot_date ASC, sda.sector ASC
+        qse.quarter_label,
+        qse.sector,
+        ROUND(qse.avg_eps::numeric, 2) as avg_eps,
+        qse.stock_count
+      FROM quarterly_sector_eps qse
+      ORDER BY qse.quarter_date ASC, qse.sector
     `;
 
-    const result = await query(sectorTrendQuery, [
-      period,
-      parseInt(minStocks),
-      parseInt(topSectors)
+    // Query 2: Estimate Outlook (Forward-Looking Estimates by Sector)
+    const estimateOutlookQuery = `
+      WITH estimate_by_period AS (
+        SELECT
+          cp.sector,
+          ee.period,
+          COUNT(DISTINCT ee.symbol) as stock_count,
+          AVG(ee.avg_estimate) as avg_estimate
+        FROM earnings_estimates ee
+        INNER JOIN company_profile cp ON ee.symbol = cp.ticker
+        WHERE cp.sector IS NOT NULL
+          AND ee.avg_estimate IS NOT NULL
+        GROUP BY cp.sector, ee.period
+        HAVING COUNT(DISTINCT ee.symbol) >= 5
+      )
+      SELECT
+        sector,
+        MAX(CASE WHEN period = '0q' THEN avg_estimate END) as current_quarter,
+        MAX(CASE WHEN period = '+1q' THEN avg_estimate END) as next_quarter,
+        MAX(CASE WHEN period = '0y' THEN avg_estimate END) as current_year,
+        MAX(CASE WHEN period = '+1y' THEN avg_estimate END) as next_year,
+        MAX(CASE WHEN period = '0q' THEN stock_count END) as stock_count,
+        CASE
+          WHEN MAX(CASE WHEN period = '0q' THEN avg_estimate END) IS NOT NULL
+            AND MAX(CASE WHEN period = '+1q' THEN avg_estimate END) IS NOT NULL
+          THEN ((MAX(CASE WHEN period = '+1q' THEN avg_estimate END) -
+                 MAX(CASE WHEN period = '0q' THEN avg_estimate END)) /
+                 NULLIF(MAX(CASE WHEN period = '0q' THEN avg_estimate END), 0) * 100)
+          ELSE NULL
+        END as qoq_change_pct,
+        CASE
+          WHEN MAX(CASE WHEN period = '0y' THEN avg_estimate END) IS NOT NULL
+            AND MAX(CASE WHEN period = '+1y' THEN avg_estimate END) IS NOT NULL
+          THEN ((MAX(CASE WHEN period = '+1y' THEN avg_estimate END) -
+                 MAX(CASE WHEN period = '0y' THEN avg_estimate END)) /
+                 NULLIF(MAX(CASE WHEN period = '0y' THEN avg_estimate END), 0) * 100)
+          ELSE NULL
+        END as yoy_change_pct
+      FROM estimate_by_period
+      GROUP BY sector
+      ORDER BY sector
+    `;
+
+    const [growthResult, outlookResult] = await Promise.all([
+      query(earningsGrowthQuery),
+      query(estimateOutlookQuery)
     ]);
 
-    // Transform rows into time series format (pivot by date)
+    // Transform earnings growth to time series format
     const timeSeriesMap = new Map();
-    const sectorStats = new Map();
-    const dateRange = { start: null, end: null };
-
-    result.rows.forEach(row => {
-      const dateKey = row.date;
-
-      if (!timeSeriesMap.has(dateKey)) {
-        timeSeriesMap.set(dateKey, { date: dateKey });
+    growthResult.rows.forEach(row => {
+      if (!timeSeriesMap.has(row.quarter_label)) {
+        timeSeriesMap.set(row.quarter_label, { quarter: row.quarter_label });
       }
-
-      timeSeriesMap.get(dateKey)[row.sector] = parseFloat(row.avg_change);
-
-      // Track stats for summary and date range
-      if (!sectorStats.has(row.sector)) {
-        sectorStats.set(row.sector, {
-          totalChange: 0,
-          count: 0,
-          totalStockCount: 0
-        });
-      }
-
-      const stats = sectorStats.get(row.sector);
-      stats.totalChange += parseFloat(row.avg_change);
-      stats.count += 1;
-      stats.totalStockCount += row.stock_count;
-
-      // Update date range
-      if (!dateRange.start || dateKey < dateRange.start) {
-        dateRange.start = dateKey;
-      }
-      if (!dateRange.end || dateKey > dateRange.end) {
-        dateRange.end = dateKey;
-      }
+      timeSeriesMap.get(row.quarter_label)[row.sector] = parseFloat(row.avg_eps);
     });
 
-    // Convert map to array and sort by date
-    const timeSeries = Array.from(timeSeriesMap.entries())
-      .sort((a, b) => new Date(a[0]) - new Date(b[0]))
-      .map(([, data]) => data);
+    const earningsGrowthTimeSeries = Array.from(timeSeriesMap.values());
 
-    // Calculate sector statistics for summary
-    const sectorAverages = Array.from(sectorStats.entries()).map(([name, stats]) => ({
+    // Calculate growth summary (best/worst growth)
+    const sectorGrowthStats = new Map();
+    growthResult.rows.forEach(row => {
+      if (!sectorGrowthStats.has(row.sector)) {
+        sectorGrowthStats.set(row.sector, { totalEps: 0, count: 0, stockCount: 0 });
+      }
+      const stats = sectorGrowthStats.get(row.sector);
+      stats.totalEps += parseFloat(row.avg_eps);
+      stats.count += 1;
+      stats.stockCount = row.stock_count;
+    });
+
+    const sectorGrowthValues = Array.from(sectorGrowthStats.entries()).map(([name, stats]) => ({
       name,
-      avgChange: parseFloat((stats.totalChange / stats.count).toFixed(2)),
-      stockCount: Math.round(stats.totalStockCount / stats.count)
+      growth: ((stats.totalEps / stats.count) / (stats.totalEps / stats.count - 0.5)) * 100 || 0,
+      stockCount: stats.stockCount
     }));
 
-    // Find best and worst sectors
-    const bestSector = sectorAverages.length > 0
-      ? sectorAverages.reduce((max, s) => s.avgChange > max.avgChange ? s : max)
-      : { name: 'N/A', avgChange: 0, stockCount: 0 };
+    const bestGrowth = sectorGrowthValues.length > 0
+      ? sectorGrowthValues.reduce((a, b) => a.growth > b.growth ? a : b)
+      : { name: 'N/A', growth: 0, stockCount: 0 };
 
-    const worstSector = sectorAverages.length > 0
-      ? sectorAverages.reduce((min, s) => s.avgChange < min.avgChange ? s : min)
-      : { name: 'N/A', avgChange: 0, stockCount: 0 };
+    const worstGrowth = sectorGrowthValues.length > 0
+      ? sectorGrowthValues.reduce((a, b) => a.growth < b.growth ? a : b)
+      : { name: 'N/A', growth: 0, stockCount: 0 };
+
+    // Transform estimate outlook
+    const estimateOutlookSectors = outlookResult.rows.map(row => ({
+      name: row.sector,
+      stockCount: row.stock_count || 0,
+      currentQuarter: row.current_quarter ? parseFloat(row.current_quarter) : 0,
+      nextQuarter: row.next_quarter ? parseFloat(row.next_quarter) : 0,
+      currentYear: row.current_year ? parseFloat(row.current_year) : 0,
+      nextYear: row.next_year ? parseFloat(row.next_year) : 0,
+      qoqChange: row.qoq_change_pct ? parseFloat(row.qoq_change_pct) : 0,
+      yoyChange: row.yoy_change_pct ? parseFloat(row.yoy_change_pct) : 0
+    }));
+
+    // Find most/least optimistic
+    const mostOptimistic = estimateOutlookSectors.length > 0
+      ? estimateOutlookSectors.reduce((a, b) => a.qoqChange > b.qoqChange ? a : b)
+      : { name: 'N/A', change: 0 };
+
+    const leastOptimistic = estimateOutlookSectors.length > 0
+      ? estimateOutlookSectors.reduce((a, b) => a.qoqChange < b.qoqChange ? a : b)
+      : { name: 'N/A', change: 0 };
 
     res.json({
       data: {
-        timeSeries,
-        summary: {
-          bestSector,
-          worstSector,
-          totalSectors: sectorStats.size,
-          dateRange
+        earningsGrowth: {
+          timeSeries: earningsGrowthTimeSeries,
+          summary: {
+            bestGrowth,
+            worstGrowth
+          }
         },
-        metadata: {
-          period,
-          timeRange,
-          minStocks,
-          topSectors: Math.min(parseInt(topSectors), sectorStats.size)
+        estimateOutlook: {
+          sectors: estimateOutlookSectors,
+          summary: {
+            mostOptimistic: { name: mostOptimistic.name, change: mostOptimistic.qoqChange },
+            leastOptimistic: { name: leastOptimistic.name, change: leastOptimistic.qoqChange }
+          }
         }
       },
       success: true

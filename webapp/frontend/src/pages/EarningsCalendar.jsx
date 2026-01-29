@@ -41,6 +41,8 @@ import { formatCurrency, formatPercentage } from "../utils/formatters";
 import {
   LineChart,
   Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -753,17 +755,17 @@ function EarningsCalendar() {
         </CardContent>
       </Card>
 
-      {/* Sector Earnings Trend */}
+      {/* Sector Earnings Growth (Historical Quarterly EPS) */}
       <Card sx={{ mb: 4 }}>
         <CardContent>
           <Box display="flex" alignItems="center" gap={1} mb={2}>
-            <ShowChart color="primary" />
-            <Typography variant="h6">Sector Earnings Trend (60-Day Change)</Typography>
+            <TrendingUp color="primary" />
+            <Typography variant="h6">Sector Earnings Growth (Quarterly EPS)</Typography>
           </Box>
 
           {sectorTrendError && (
             <Alert severity="error" sx={{ mb: 2 }}>
-              Failed to load sector earnings trend data.
+              Failed to load sector earnings growth data.
             </Alert>
           )}
 
@@ -771,86 +773,68 @@ function EarningsCalendar() {
             <Box display="flex" justifyContent="center" py={4}>
               <CircularProgress />
             </Box>
-          ) : sectorTrendData && sectorTrendData.timeSeries?.length > 0 ? (
+          ) : sectorTrendData && sectorTrendData.earningsGrowth?.timeSeries?.length > 0 ? (
             <>
               {/* Summary Metrics */}
               <Grid container spacing={2} mb={3}>
                 <Grid item xs={12} sm={6}>
                   <Box textAlign="center" p={2} bgcolor="success.light" borderRadius={1}>
                     <Typography variant="h5" fontWeight="bold" color="success.dark">
-                      {sectorTrendData.summary.bestSector.name}
+                      {sectorTrendData.earningsGrowth.summary.bestGrowth.name}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Best Performing Sector
+                      Highest Growth
                     </Typography>
                     <Typography variant="h6" color="success.dark" sx={{ mt: 1 }}>
-                      +{sectorTrendData.summary.bestSector.avgChange.toFixed(2)}%
+                      {sectorTrendData.earningsGrowth.summary.bestGrowth.growth.toFixed(1)}%
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {sectorTrendData.summary.bestSector.stockCount} stocks
+                      {sectorTrendData.earningsGrowth.summary.bestGrowth.stockCount} stocks
                     </Typography>
                   </Box>
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <Box textAlign="center" p={2} bgcolor="error.light" borderRadius={1}>
                     <Typography variant="h5" fontWeight="bold" color="error.dark">
-                      {sectorTrendData.summary.worstSector.name}
+                      {sectorTrendData.earningsGrowth.summary.worstGrowth.name}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Worst Performing Sector
+                      Lowest Growth
                     </Typography>
                     <Typography variant="h6" color="error.dark" sx={{ mt: 1 }}>
-                      {sectorTrendData.summary.worstSector.avgChange.toFixed(2)}%
+                      {sectorTrendData.earningsGrowth.summary.worstGrowth.growth.toFixed(1)}%
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {sectorTrendData.summary.worstSector.stockCount} stocks
+                      {sectorTrendData.earningsGrowth.summary.worstGrowth.stockCount} stocks
                     </Typography>
                   </Box>
                 </Grid>
               </Grid>
 
-              {/* Line Chart */}
+              {/* Line Chart showing quarterly EPS by sector */}
               <Box sx={{ width: '100%', height: 450, mt: 3 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart
-                    data={sectorTrendData.timeSeries}
+                    data={sectorTrendData.earningsGrowth.timeSeries}
                     margin={{ top: 5, right: 30, left: 20, bottom: 80 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis
-                      dataKey="date"
+                      dataKey="quarter"
                       angle={-45}
                       textAnchor="end"
                       height={80}
                       tick={{ fontSize: 12 }}
-                      tickFormatter={(date) => {
-                        const d = new Date(date);
-                        return d.toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                        });
-                      }}
                     />
                     <YAxis
-                      label={{
-                        value: 'Estimate Change (%)',
-                        angle: -90,
-                        position: 'insideLeft',
-                      }}
+                      label={{ value: 'Avg EPS ($)', angle: -90, position: 'insideLeft' }}
                       tick={{ fontSize: 12 }}
                     />
-                    <Tooltip
-                      formatter={(value) => [`${value?.toFixed(2)}%`, '']}
-                      labelFormatter={(label) =>
-                        `Date: ${new Date(label).toLocaleDateString()}`
-                      }
-                    />
+                    <Tooltip formatter={(value) => [`$${value?.toFixed(2)}`, '']} />
                     <Legend />
-
-                    {/* Dynamic Lines for each sector */}
-                    {Object.keys(sectorTrendData.timeSeries[0] || {})
-                      .filter((key) => key !== 'date')
-                      .map((sector, index) => {
+                    {Object.keys(sectorTrendData.earningsGrowth.timeSeries[0] || {})
+                      .filter((k) => k !== 'quarter')
+                      .map((sector, i) => {
                         const sectorColors = {
                           Technology: '#2196F3',
                           Healthcare: '#4CAF50',
@@ -862,21 +846,15 @@ function EarningsCalendar() {
                           Materials: '#8BC34A',
                           'Real Estate': '#E91E63',
                         };
-
                         return (
                           <Line
                             key={sector}
                             type="monotone"
                             dataKey={sector}
-                            stroke={
-                              sectorColors[sector] ||
-                              `hsl(${index * 45}, 70%, 50%)`
-                            }
+                            stroke={sectorColors[sector] || `hsl(${i * 40}, 70%, 50%)`}
                             strokeWidth={2}
-                            dot={{ r: 3 }}
-                            activeDot={{ r: 5 }}
+                            dot={{ r: 2 }}
                             name={sector}
-                            connectNulls
                           />
                         );
                       })}
@@ -884,19 +862,103 @@ function EarningsCalendar() {
                 </ResponsiveContainer>
               </Box>
 
-              {/* Info Alert */}
-              <Alert severity="info" sx={{ mt: 3 }}>
+              <Alert severity="info" sx={{ mt: 2 }}>
                 <Typography variant="body2">
-                  📊 <strong>Interpretation:</strong> This chart shows the average 60-day
-                  estimate change by sector. Positive values indicate analysts are raising
-                  earnings estimates (bullish), while negative values show estimate cuts
-                  (bearish). Data includes only sectors with at least 5 stocks with estimate
-                  data.
+                  Historical quarterly earnings (EPS) by sector from 2020-2025. Shows actual reported earnings trends.
                 </Typography>
               </Alert>
             </>
           ) : (
-            <Alert severity="info">No sector earnings trend data available yet.</Alert>
+            <Alert severity="info">No sector earnings growth data available yet.</Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Sector Estimate Outlook (Forward-Looking Estimates) */}
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Box display="flex" alignItems="center" gap={1} mb={2}>
+            <ShowChart color="primary" />
+            <Typography variant="h6">Sector Estimate Outlook</Typography>
+          </Box>
+
+          {sectorTrendError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              Failed to load sector estimate outlook data.
+            </Alert>
+          )}
+
+          {sectorTrendLoading ? (
+            <Box display="flex" justifyContent="center" py={4}>
+              <CircularProgress />
+            </Box>
+          ) : sectorTrendData && sectorTrendData.estimateOutlook?.sectors?.length > 0 ? (
+            <>
+              {/* Summary Metrics */}
+              <Grid container spacing={2} mb={3}>
+                <Grid item xs={12} sm={6}>
+                  <Box textAlign="center" p={2} bgcolor="success.light" borderRadius={1}>
+                    <Typography variant="h5" fontWeight="bold" color="success.dark">
+                      {sectorTrendData.estimateOutlook.summary.mostOptimistic.name}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Most Optimistic
+                    </Typography>
+                    <Typography variant="h6" color="success.dark" sx={{ mt: 1 }}>
+                      +{sectorTrendData.estimateOutlook.summary.mostOptimistic.change.toFixed(1)}%
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Box textAlign="center" p={2} bgcolor="error.light" borderRadius={1}>
+                    <Typography variant="h5" fontWeight="bold" color="error.dark">
+                      {sectorTrendData.estimateOutlook.summary.leastOptimistic.name}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Least Optimistic
+                    </Typography>
+                    <Typography variant="h6" color="error.dark" sx={{ mt: 1 }}>
+                      {sectorTrendData.estimateOutlook.summary.leastOptimistic.change.toFixed(1)}%
+                    </Typography>
+                  </Box>
+                </Grid>
+              </Grid>
+
+              {/* Bar chart showing QoQ and YoY estimate changes */}
+              <Box sx={{ width: '100%', height: 400, mt: 3 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={sectorTrendData.estimateOutlook.sectors}
+                    margin={{ top: 5, right: 30, left: 20, bottom: 80 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="name"
+                      angle={-45}
+                      textAnchor="end"
+                      height={100}
+                      tick={{ fontSize: 12 }}
+                    />
+                    <YAxis
+                      label={{ value: 'Change (%)', angle: -90, position: 'insideLeft' }}
+                      tick={{ fontSize: 12 }}
+                    />
+                    <Tooltip formatter={(value) => [`${value?.toFixed(1)}%`, '']} />
+                    <Legend />
+                    <Bar dataKey="qoqChange" fill="#2196F3" name="Q-over-Q Change" />
+                    <Bar dataKey="yoyChange" fill="#4CAF50" name="Y-over-Y Change" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </Box>
+
+              <Alert severity="info" sx={{ mt: 2 }}>
+                <Typography variant="body2">
+                  Shows how analyst estimates change from current quarter to next quarter (Q-over-Q) and current year to next year (Y-over-Y). Positive values indicate optimistic outlook.
+                </Typography>
+              </Alert>
+            </>
+          ) : (
+            <Alert severity="info">No sector estimate outlook data available yet.</Alert>
           )}
         </CardContent>
       </Card>
