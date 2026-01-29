@@ -14,6 +14,7 @@ from psycopg2.extras import RealDictCursor, execute_values
 import boto3
 import yfinance as yf
 import pandas as pd
+from lib.db import get_connection, get_db_config
 
 SCRIPT_NAME = "loadttmincomestatement.py"
 logging.basicConfig(
@@ -27,6 +28,16 @@ def get_rss_mb():
     if sys.platform.startswith("linux"):
         return usage / 1024
     return usage / (1024 * 1024)
+
+def get_db_connection(script_name):
+    """Get database connection using lib.db utilities"""
+    try:
+        cfg = get_db_config()
+        conn = get_connection(cfg)
+        return conn
+    except Exception as e:
+        logging.error(f"Failed to connect to database: {e}")
+        return None
 
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")

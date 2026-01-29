@@ -7,11 +7,22 @@ Calculates industry performance metrics and rankings
 import sys
 import logging
 import os
+from lib.db import get_connection, get_db_config
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 SCRIPT_NAME = "loadindustryranking.py"
+
+def get_db_connection(script_name):
+    """Get database connection using lib.db utilities"""
+    try:
+        cfg = get_db_config()
+        conn = get_connection(cfg)
+        return conn
+    except Exception as e:
+        logger.error(f"Failed to connect to database: {e}")
+        return None
 
 def main():
     """Main execution"""

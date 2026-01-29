@@ -19,6 +19,7 @@ from datetime import datetime
 
 import boto3
 import yfinance as yf
+from lib.db import get_connection, get_db_config
 
 SCRIPT_NAME = "loadanalystupgradedowngrade.py"
 logging.basicConfig(
@@ -35,6 +36,17 @@ def get_rss_mb():
 
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
+
+
+def get_db_connection(script_name):
+    """Get database connection using lib.db utilities"""
+    try:
+        cfg = get_db_config()
+        conn = get_connection(cfg)
+        return conn
+    except Exception as e:
+        logging.error(f"Failed to connect to database: {e}")
+        return None
 
 
 def create_table(cur):
