@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+# TRIGGER: 2026-01-28 - CRITICAL DATA SAFETY FIX - DROP TABLE removed
 # Load insider transaction data from SEC Form 4 filings via yfinance
-# Tracks insider buying/selling activity as a leading indicator of company health
+# Tracks insider buying/selling activity - NOW CRASH-SAFE with data preservation
 import sys
 import time
 import logging

@@ -26,7 +26,7 @@ OUTPUTS:
   • market page: AAII investor sentiment indicators
 
 Version: v1.0
-Last Updated: 2025-10-27 - AWS TESTED
+Last Updated: 2026-01-28 - CRITICAL DATA LOSS FIX DEPLOYED - Crash-safe execution ready
 """
 import sys
 import time

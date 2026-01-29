@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Load earnings guidance data - COMPLETE COVERAGE with all symbols
+# TRIGGER: 2026-01-28 - Data loss fix deployed - DROP TABLE vulnerability patched
+# Load earnings guidance data - COMPLETE COVERAGE with all symbols - NOW CRASH-SAFE
 import sys
 import logging
 import os

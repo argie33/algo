@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-# Load calendar data - trigger v2.6 - production ready calendar loader
-# Updated 2025-07-15: Enhanced calendar data processing with improved error handling
-# TRIGGER DEPLOY: loadcalendar update with production-ready pipeline
+# TRIGGER: 2026-01-28_193000 - CRITICAL DATA LOSS FIX - Calendar data now crash-safe
+# Load calendar data - trigger v2.7 - production ready with data preservation
+# FIXED: 2026-01-28 - Removed DROP TABLE vulnerability - historical calendar events preserved
+# TRIGGER DEPLOY: loadcalendar with data loss fix applied
 import sys
 import time
 import logging

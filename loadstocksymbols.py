@@ -1,7 +1,7 @@
-# TEST BATCH 1: 20260101_111748 - Run 3 loaders to test AWS deployment
+# TRIGGER: 20260128_193000 - Critical data loss fix deployed - rerun required
 #!/usr/bin/env python3
-# Updated: 2025-10-04 16:55 - Trigger symbols loader - populate Agilent, Alcoa, and all stocks
-# Trigger: 20251228_180000 - Deploy to AWS ECS with fixed loaders
+# Updated: 2026-01-28 15:30 - CRITICAL FIX: Removed DROP TABLE vulnerability
+# Trigger: 20260128_193000 - Deploy to AWS ECS with crash-safe loader
 import csv
 import json
 import logging
