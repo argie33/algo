@@ -81,11 +81,13 @@ def ensure_table(conn):
         """)
         try:
             cur.execute("CREATE INDEX idx_surprise_symbol ON earnings_surprises (symbol);")
-        except:
+        except Exception as e:
+            logging.debug(f"Index idx_surprise_symbol already exists or could not be created: {e}")
             pass  # Index already exists
         try:
             cur.execute("CREATE INDEX idx_surprise_date ON earnings_surprises (earnings_date);")
-        except:
+        except Exception as e:
+            logging.debug(f"Index idx_surprise_date already exists or could not be created: {e}")
             pass  # Index already exists
     conn.commit()
     logger.info("Table created successfully")
@@ -206,15 +208,15 @@ def main():
         logger.info(f"[MEM] peak RSS: {get_rss_mb():.1f} MB")
         logger.info(f"Earnings Surprises — REAL DATA ONLY: {symbols_with_data} symbols with data, {symbols_skipped} skipped (no data)")
         logger.info("Done.")
-    except Exception:
-        logger.exception("Fatal error in main()")
+    except Exception as e:
+        logger.exception(f"Fatal error in main(): {e}")
         raise
     finally:
         if conn:
             try:
                 conn.close()
-            except Exception:
-                logger.exception("Error closing connection")
+            except Exception as e:
+                logger.exception(f"Error closing connection: {e}")
 
 if __name__ == "__main__":
     main()

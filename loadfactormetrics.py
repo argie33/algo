@@ -1567,7 +1567,8 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
     # Recover from any previous transaction abort
     try:
         conn.rollback()
-    except:
+    except Exception as e:
+        logging.debug(f"Rollback during quality metrics setup: {e}")
         pass
 
     # Helper function to cap extreme ratio values that exceed database NUMERIC(8,4) precision
@@ -1666,7 +1667,8 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
             # Recover from transaction abort to continue processing other symbols
             try:
                 conn.rollback()
-            except:
+            except Exception as rollback_e:
+                logging.debug(f"Rollback failed after quality metrics error for {symbol}: {rollback_e}")
                 pass
 
     # FALLBACK: Process stocks missing from key_metrics but with financial statement data
@@ -1679,7 +1681,8 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
                 # Recover transaction state before processing each symbol
                 try:
                     conn.rollback()
-                except:
+                except Exception as rollback_e:
+                    logging.debug(f"Rollback failed before processing {symbol}: {rollback_e}")
                     pass
 
                 # Calculate quality metrics from balance sheet and income statement
@@ -1808,7 +1811,8 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
                 # Recover from transaction abort to continue processing other symbols
                 try:
                     conn.rollback()
-                except:
+                except Exception as rollback_e:
+                    logging.debug(f"Rollback failed after fallback quality metrics error for {symbol}: {rollback_e}")
                     pass
 
     # Upsert quality_metrics
@@ -1853,7 +1857,8 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
             # First, try to recover from any transaction abort from previous steps
             try:
                 conn.rollback()
-            except:
+            except Exception as rollback_e:
+                logging.debug(f"Rollback before quality metrics upsert: {rollback_e}")
                 pass
 
             execute_values(cursor, upsert_sql, quality_rows)
@@ -1863,7 +1868,8 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
             logging.error(f"Failed to insert quality metrics: {e}")
             try:
                 conn.rollback()
-            except:
+            except Exception as rollback_e:
+                logging.debug(f"Rollback after quality metrics insert failure: {rollback_e}")
                 pass
             # Re-raise so main() can handle and recreate cursor
             raise
@@ -1908,7 +1914,8 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
         logging.warning(f"Failed to fetch key_metrics: {e}. Attempting to recover...")
         try:
             conn.rollback()
-        except:
+        except Exception as rollback_e:
+            logging.debug(f"Rollback failed during key_metrics recovery: {rollback_e}")
             pass
         cursor.close()
         cursor = conn.cursor()
@@ -1950,7 +1957,8 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                     conn.rollback()
                     cursor.close()
                     cursor = conn.cursor()
-                except:
+                except Exception as recovery_e:
+                    logging.debug(f"Recovery failed after financial growth error for {ticker}: {recovery_e}")
                     pass
                 financial_growth = None
 
@@ -1963,7 +1971,8 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                     conn.rollback()
                     cursor.close()
                     cursor = conn.cursor()
-                except:
+                except Exception as recovery_e:
+                    logging.debug(f"Recovery failed after quarterly growth error for {ticker}: {recovery_e}")
                     pass
                 quarterly_growth = None
 
@@ -1976,7 +1985,8 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                     conn.rollback()
                     cursor.close()
                     cursor = conn.cursor()
-                except:
+                except Exception as recovery_e:
+                    logging.debug(f"Recovery failed after earnings history growth error for {ticker}: {recovery_e}")
                     pass
                 earnings_history_growth = None
 
@@ -2119,7 +2129,8 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
             # First, try to recover from any transaction abort from previous steps
             try:
                 conn.rollback()
-            except:
+            except Exception as rollback_e:
+                logging.debug(f"Rollback before growth metrics upsert: {rollback_e}")
                 pass
 
             logging.info(f"DEBUG: About to execute_values with {len(growth_rows)} rows")
@@ -2132,7 +2143,8 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
             logging.error(f"Failed to insert growth metrics: {e}")
             try:
                 conn.rollback()
-            except:
+            except Exception as rollback_e:
+                logging.debug(f"Rollback after growth metrics insert failure: {rollback_e}")
                 pass
             # Don't raise - continue to next step so data isn't completely lost
 
@@ -2836,7 +2848,8 @@ def main():
                 try:
                     cursor.close()
                     conn.close()
-                except:
+                except Exception as close_e:
+                    logging.debug(f"Error closing connection during quality metrics recovery: {close_e}")
                     pass
                 conn = psycopg2.connect(**db_config)
             cursor.close()
@@ -2854,7 +2867,8 @@ def main():
                 try:
                     cursor.close()
                     conn.close()
-                except:
+                except Exception as close_e:
+                    logging.debug(f"Error closing connection during growth metrics recovery: {close_e}")
                     pass
                 conn = psycopg2.connect(**db_config)
             cursor.close()
@@ -2872,7 +2886,8 @@ def main():
                 try:
                     cursor.close()
                     conn.close()
-                except:
+                except Exception as close_e:
+                    logging.debug(f"Error closing connection during momentum metrics recovery: {close_e}")
                     pass
                 conn = psycopg2.connect(**db_config)
             cursor.close()
@@ -2890,7 +2905,8 @@ def main():
                 try:
                     cursor.close()
                     conn.close()
-                except:
+                except Exception as close_e:
+                    logging.debug(f"Error closing connection during stability metrics recovery: {close_e}")
                     pass
                 conn = psycopg2.connect(**db_config)
             cursor.close()
@@ -2908,7 +2924,8 @@ def main():
                 try:
                     cursor.close()
                     conn.close()
-                except:
+                except Exception as close_e:
+                    logging.debug(f"Error closing connection during value metrics recovery: {close_e}")
                     pass
                 conn = psycopg2.connect(**db_config)
             cursor.close()
@@ -2926,7 +2943,8 @@ def main():
                 try:
                     cursor.close()
                     conn.close()
-                except:
+                except Exception as close_e:
+                    logging.debug(f"Error closing connection during A/D ratings recovery: {close_e}")
                     pass
                 conn = psycopg2.connect(**db_config)
             cursor.close()

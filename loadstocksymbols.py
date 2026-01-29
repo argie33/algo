@@ -501,6 +501,6 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except Exception:
-        logger.exception("Fatal error")
+    except Exception as e:
+        logger.exception(f"Fatal error: {e}")
         sys.exit(1)

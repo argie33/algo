@@ -118,7 +118,8 @@ def ensure_tables(conn):
                 CREATE INDEX idx_calendar_events_symbol
                 ON calendar_events (symbol);
             """)
-        except:
+        except Exception as e:
+            logging.debug(f"Index idx_calendar_events_symbol already exists or could not be created: {e}")
             pass  # Index already exists
         # last_updated
         cur.execute("""
@@ -303,15 +304,15 @@ def main():
 
         update_last_run(conn)
         logger.info(f"Calendar — REAL DATA ONLY: {processed_with_data} symbols with data, {symbols_skipped} skipped (no data)")
-    except Exception:
-        logger.exception("Fatal error in main()")
+    except Exception as e:
+        logger.exception(f"Fatal error in main(): {e}")
         raise
     finally:
         if conn:
             try:
                 conn.close()
-            except Exception:
-                logger.exception("Error closing database connection")
+            except Exception as e:
+                logger.exception(f"Error closing database connection: {e}")
         log_mem("End of script")
         logger.info("loadcalendar complete.")
 

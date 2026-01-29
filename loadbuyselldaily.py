@@ -1892,8 +1892,8 @@ def main():
     try:
         cur.execute("SELECT symbol FROM stock_symbols WHERE etf='Y' AND country IS NOT NULL;")
         country_symbols = [r[0] for r in cur.fetchall()]
-    except:
-        logging.warning("Could not load country ETF symbols from stock_symbols")
+    except Exception as e:
+        logging.warning(f"Could not load country ETF symbols from stock_symbols: {e}")
         country_symbols = []
     finally:
         cur.close()

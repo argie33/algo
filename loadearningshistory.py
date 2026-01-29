@@ -86,7 +86,8 @@ def get_db_config():
             "password": None,
             "dbname": os.environ.get("DB_NAME", "stocks"),
         }
-    except:
+    except Exception as e:
+        logging.debug(f"Socket connection not available, falling back to env vars: {e}")
         pass
 
     # Fall back to environment variables

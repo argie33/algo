@@ -200,7 +200,8 @@ class MarketDataCollector:
                             covariance = np.cov(asset_returns.tail(252), market_returns.tail(252))[0][1]
                             market_variance = np.var(market_returns.tail(252))
                             beta = covariance / market_variance if market_variance > 0 else None
-                except Exception:
+                except Exception as e:
+                    logging.debug(f"Failed to calculate beta for {self.symbol}: {e}")
                     pass
             
             result = {
