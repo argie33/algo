@@ -777,7 +777,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     institutional_holders_count, insider_ownership_pct,
                     short_ratio, short_interest_pct, short_percent_of_float, ad_rating
                 ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                ON CONFLICT (symbol, date) DO UPDATE SET
+                ON CONFLICT (symbol) DO UPDATE SET
                     date = EXCLUDED.date,
                     institutional_ownership_pct = EXCLUDED.institutional_ownership_pct,
                     top_10_institutions_pct = EXCLUDED.top_10_institutions_pct,
