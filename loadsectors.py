@@ -16,9 +16,13 @@ import os
 import sys
 from datetime import datetime
 
-# Load environment variables from .env.local
-from dotenv import load_dotenv
-load_dotenv('.env.local')
+# AWS ECS compatibility: remove dotenv dependency (not available in container)
+# Environment variables are passed directly in ECS task definition
+try:
+    from dotenv import load_dotenv
+    load_dotenv('.env.local')
+except ImportError:
+    pass  # dotenv not available in AWS ECS container - use env vars directly
 
 import psycopg2
 import numpy as np

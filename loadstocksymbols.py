@@ -28,21 +28,9 @@ DB_SECRET_ARN = os.environ.get("DB_SECRET_ARN")
 
 def get_db_cfg():
     """Get database configuration - works in AWS and locally"""
-    if DB_SECRET_ARN:
-        # AWS mode - use Secrets Manager
-        logger.info("Using AWS Secrets Manager for database configuration")
-        client = boto3.client("secretsmanager")
-        secret = json.loads(client.get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"])
-        return (
-            secret["host"],
-            secret.get("port", "5432"),
-            secret["username"],
-            secret["password"],
-            secret["dbname"],
-        )
-    else:
-        # Local mode - use environment variables or defaults
-        logger.info("Using local database configuration from environment variables")
+    # Try environment variables first (ECS task definition)
+    if os.environ.get("DB_HOST"):
+        logger.info("Using database configuration from environment variables")
         return (
             os.environ.get("DB_HOST", "localhost"),
             os.environ.get("DB_PORT", "5432"),
@@ -50,6 +38,39 @@ def get_db_cfg():
             os.environ.get("DB_PASSWORD", "bed0elAn"),
             os.environ.get("DB_NAME", "stocks"),
         )
+
+    # Fall back to Secrets Manager if available
+    if DB_SECRET_ARN:
+        try:
+            logger.info("Using AWS Secrets Manager for database configuration")
+            client = boto3.client("secretsmanager")
+            secret = json.loads(client.get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"])
+            return (
+                secret["host"],
+                secret.get("port", "5432"),
+                secret["username"],
+                secret["password"],
+                secret["dbname"],
+            )
+        except Exception as e:
+            logger.warning(f"Secrets Manager failed ({e}), trying environment variables")
+            return (
+                os.environ.get("DB_HOST", "localhost"),
+                os.environ.get("DB_PORT", "5432"),
+                os.environ.get("DB_USER", "stocks"),
+                os.environ.get("DB_PASSWORD", "bed0elAn"),
+                os.environ.get("DB_NAME", "stocks"),
+            )
+
+    # Local development defaults
+    logger.info("Using default local database configuration")
+    return (
+        "localhost",
+        "5432",
+        "stocks",
+        "bed0elAn",
+        "stocks",
+    )
 
 
 PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DB = get_db_cfg()
