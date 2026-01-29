@@ -4524,3 +4524,4 @@ Outputs:
     Value: !Ref FundamentalMetricsTaskDefinition
     Export:
       Name: FundamentalmetricsTaskDefArn
+# Trigger: 2026-01-29 - Force ECS stack update to use correct RDS endpoint
