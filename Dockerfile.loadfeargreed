@@ -2,14 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies (including chromium for pyppeteer)
+# Install system dependencies
+# Note: pyppeteer will download Chromium automatically - no need for system package
 RUN apt-get update && apt-get install -y \
     gcc \
     postgresql-client \
     curl \
-    chromium-browser \
-    libnss3 \
-    libgconf-2-4 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
