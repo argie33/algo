@@ -46,7 +46,10 @@ if not FRED_API_KEY:
 # Support both local environment variables and AWS Secrets Manager
 if os.environ.get("DB_HOST"):
     logging.info("Using local environment DB configuration")
-    DB_HOST     = os.environ.get("DB_HOST", "localhost")
+    DB_HOST     = os.environ.get("DB_HOST", "localhost").strip()
+    # Fix for stale endpoint - if env var has old endpoint, use correct one
+    if 'c2gujitq3h1b' in DB_HOST:
+        DB_HOST = 'stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com'
     DB_USER     = os.environ.get("DB_USER", "stocks")
     DB_PASSWORD = os.environ.get("DB_PASSWORD", "bed0elAn")
     DB_PORT     = int(os.environ.get("DB_PORT", 5432))
