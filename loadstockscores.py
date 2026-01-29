@@ -71,7 +71,11 @@ from scipy import stats
 
 # Database configuration
 DB_SECRET_ARN = os.getenv('DB_SECRET_ARN')
-DB_HOST = os.getenv('DB_HOST', 'localhost')
+# Fix for stale environment variables - use correct RDS endpoint
+DB_HOST = os.getenv('DB_HOST', 'stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com')
+# If env var has the OLD stale endpoint, replace it with the correct one
+if 'c2gujitq3h1b' in DB_HOST:
+    DB_HOST = 'stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com'
 DB_PORT = os.getenv('DB_PORT', '5432')
 DB_USER = os.getenv('DB_USER', 'stocks')
 DB_PASSWORD = os.getenv('DB_PASSWORD', 'bed0elAn')

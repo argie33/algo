@@ -70,9 +70,13 @@ COL_LIST     = ", ".join(["symbol"] + PRICE_COLUMNS)
 # -------------------------------
 def get_db_config():
     # Try local environment first
-    if os.environ.get("DB_HOST"):
+    db_host = os.environ.get("DB_HOST", "")
+    # Fix for stale endpoint - if env var has old endpoint, use correct one
+    if 'c2gujitq3h1b' in db_host:
+        db_host = 'stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com'
+    if db_host:
         return {
-            "host":   os.environ.get("DB_HOST", "localhost"),
+            "host":   db_host,
             "port":   int(os.environ.get("DB_PORT", 5432)),
             "user":   os.environ.get("DB_USER", "stocks"),
             "password": os.environ.get("DB_PASSWORD", "bed0elAn"),
