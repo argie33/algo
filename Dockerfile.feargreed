@@ -2,11 +2,14 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies (including chromium for pyppeteer)
 RUN apt-get update && apt-get install -y \
     gcc \
     postgresql-client \
     curl \
+    chromium-browser \
+    libnss3 \
+    libgconf-2-4 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
@@ -19,7 +22,8 @@ RUN pip install --upgrade pip && \
         yfinance \
         requests \
         python-dateutil \
-    && python -c "import boto3; import psycopg2; print('✓ Dependencies installed')"
+        pyppeteer \
+    && python -c "import boto3; import psycopg2; import pyppeteer; print('✓ Dependencies installed')"
 
 ENV PYTHONUNBUFFERED=1
 ENV AWS_DEFAULT_REGION=us-east-1
