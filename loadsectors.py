@@ -31,12 +31,14 @@ import numpy as np
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Database configuration from environment
-DB_HOST = os.getenv('DB_HOST', 'localhost')
-DB_PORT = os.getenv('DB_PORT', '5432')
-DB_USER = os.getenv('DB_USER', 'stocks')
-DB_PASSWORD = os.getenv('DB_PASSWORD', 'bed0elAn')
-DB_NAME = os.getenv('DB_NAME', 'stocks')
+# Database configuration from environment - handle empty strings as missing values
+DB_HOST = os.getenv('DB_HOST', '').strip() or 'localhost'
+DB_PORT = os.getenv('DB_PORT', '').strip() or '5432'
+DB_USER = os.getenv('DB_USER', '').strip() or 'stocks'
+DB_PASSWORD = os.getenv('DB_PASSWORD', '').strip() or 'bed0elAn'
+DB_NAME = os.getenv('DB_NAME', '').strip() or 'stocks'
+
+logger.info(f"Database config: host={DB_HOST}, port={DB_PORT}, user={DB_USER}, dbname={DB_NAME}")
 
 
 def get_db_connection():

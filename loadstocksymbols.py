@@ -29,13 +29,14 @@ DB_SECRET_ARN = os.environ.get("DB_SECRET_ARN")
 def get_db_cfg():
     """Get database configuration - works in AWS and locally"""
     # Try environment variables first (ECS task definition)
-    if os.environ.get("DB_HOST"):
-        logger.info("Using database configuration from environment variables")
+    db_host = os.environ.get("DB_HOST", "").strip()
+    if db_host:
+        logger.info(f"Using database configuration from environment variables (host: {db_host})")
         return (
-            os.environ.get("DB_HOST", "localhost"),
+            db_host,
             os.environ.get("DB_PORT", "5432"),
             os.environ.get("DB_USER", "stocks"),
-            os.environ.get("DB_PASSWORD", "bed0elAn"),
+            os.environ.get("DB_PASSWORD") or "bed0elAn",
             os.environ.get("DB_NAME", "stocks"),
         )
 
@@ -55,11 +56,11 @@ def get_db_cfg():
         except Exception as e:
             logger.warning(f"Secrets Manager failed ({e}), trying environment variables")
             return (
-                os.environ.get("DB_HOST", "localhost"),
-                os.environ.get("DB_PORT", "5432"),
-                os.environ.get("DB_USER", "stocks"),
-                os.environ.get("DB_PASSWORD", "bed0elAn"),
-                os.environ.get("DB_NAME", "stocks"),
+                os.environ.get("DB_HOST") or "localhost",
+                os.environ.get("DB_PORT") or "5432",
+                os.environ.get("DB_USER") or "stocks",
+                os.environ.get("DB_PASSWORD") or "bed0elAn",
+                os.environ.get("DB_NAME") or "stocks",
             )
 
     # Local development defaults
