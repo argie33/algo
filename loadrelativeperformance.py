@@ -39,7 +39,8 @@ def get_db_config():
             "password": sec["password"],
             "dbname": sec["dbname"]
         }
-    except Exception:
+    except Exception as e:
+        logging.debug(f"AWS Secrets Manager not available, using local config: {e}")
         return {
             "host": os.environ.get("DB_HOST", "localhost"),
             "port": int(os.environ.get("DB_PORT", 5432)),

@@ -1832,8 +1832,8 @@ def main():
         country_symbols = [r[0] for r in cur_temp.fetchall()]
         cur_temp.close()
         conn_temp.close()
-    except:
-        logging.warning("Could not load country ETF symbols from stock_symbols")
+    except Exception as e:
+        logging.warning(f"Could not load country ETF symbols from stock_symbols: {e}")
 
     conn = get_db_connection()
     cur  = conn.cursor()

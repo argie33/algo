@@ -127,10 +127,11 @@ class NewsCollector:
             if published:
                 try:
                     published_dt = datetime.strptime(published, '%a, %d %b %Y %H:%M:%S %z')
-                except:
+                except ValueError as e1:
                     try:
                         published_dt = datetime.strptime(published, '%a, %d %b %Y %H:%M:%S %Z')
-                    except:
+                    except ValueError as e2:
+                        logging.debug(f"Could not parse date '{published}': {e1}, {e2}")
                         published_dt = datetime.now()
             else:
                 published_dt = datetime.now()

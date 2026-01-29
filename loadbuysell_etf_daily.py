@@ -318,6 +318,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
             # Clamp to 0-10 range
             return max(0, min(10, int(round(sata))))
         except Exception as e:
+            logging.debug(f"Error calculating SATA score: {e}")
             return None
 
     df['sata_score'] = df.apply(calculate_sata, axis=1)
@@ -1920,8 +1921,8 @@ def main():
     try:
         cur.execute("SELECT symbol FROM etf_symbols WHERE etf='Y' AND country IS NOT NULL AND symbol NOT IN (SELECT DISTINCT symbol FROM buy_sell_daily_etf);")
         country_symbols = [r[0] for r in cur.fetchall()]
-    except:
-        logging.warning("Could not load country ETF symbols from etf_symbols")
+    except Exception as e:
+        logging.warning(f"Could not load country ETF symbols from etf_symbols: {e}")
         country_symbols = []
     finally:
         cur.close()

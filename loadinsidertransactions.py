@@ -240,15 +240,15 @@ def main():
         logger.info(f"[MEM] peak RSS: {get_rss_mb():.1f} MB")
         logger.info(f"Insider Transactions — REAL DATA ONLY: {symbols_with_data} symbols with data, {symbols_skipped} skipped (no data)")
         logger.info("Done.")
-    except Exception:
-        logger.exception("Fatal error in main()")
+    except Exception as e:
+        logger.exception(f"Fatal error in main(): {e}")
         raise
     finally:
         if conn:
             try:
                 conn.close()
-            except Exception:
-                logger.exception("Error closing connection")
+            except Exception as e:
+                logger.exception(f"Error closing connection: {e}")
 
 if __name__ == "__main__":
     main()

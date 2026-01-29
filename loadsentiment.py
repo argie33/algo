@@ -89,7 +89,8 @@ def get_db_config():
             "password": sec["password"],
             "dbname": sec["dbname"]
         }
-    except Exception:
+    except Exception as e:
+        logging.debug(f"AWS Secrets Manager not available, using local config: {e}")
         return {
             "host": os.environ.get("DB_HOST", "localhost"),
             "port": int(os.environ.get("DB_PORT", 5432)),
@@ -174,7 +175,8 @@ def calculate_sentiment_score(text: str) -> float:
         blob = TextBlob(text)
         # TextBlob polarity ranges from -1 (negative) to 1 (positive)
         return blob.sentiment.polarity
-    except Exception:
+    except Exception as e:
+        logging.debug(f"Error calculating sentiment: {e}")
         return None  # Error - return None instead of fake 0.0
 
 class AnalystSentimentCollector:
@@ -493,7 +495,8 @@ class SocialSentimentCollector:
                         article_time = datetime.fromtimestamp(article.get('providerPublishTime', 0))
                         if article_time >= recent_date:
                             recent_news.append(article)
-                    except Exception:
+                    except Exception as e:
+                        logging.debug(f"Error processing news article timestamp: {e}")
                         continue
                 
                 data['news_article_count'] = len(recent_news)
