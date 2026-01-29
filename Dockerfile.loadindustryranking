@@ -19,12 +19,10 @@ RUN pip install --upgrade pip && \
         yfinance \
         requests \
         python-dateutil \
-        feedparser \
-        textblob \
     && python -c "import boto3; import psycopg2; print('✓ Dependencies installed')"
 
 ENV PYTHONUNBUFFERED=1
 ENV AWS_DEFAULT_REGION=us-east-1
 
-COPY loadnews.py .
-ENTRYPOINT ["python", "loadnews.py"]
+COPY loadindustryranking.py .
+ENTRYPOINT ["python", "loadindustryranking.py"]
