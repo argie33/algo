@@ -1499,7 +1499,9 @@ def calculate_accumulation_distribution_rating(cursor, symbol: str) -> Optional[
         return round(rating_score, 2)
 
     except Exception as e:
-        logging.warning(f"Failed to calculate A/D rating for {symbol}: {e}")
+        logging.warning(f"❌ Failed to calculate A/D rating for {symbol}: {type(e).__name__}: {str(e)[:200]}")
+        import traceback
+        logging.debug(f"A/D calculation traceback: {traceback.format_exc()}")
         return None
 
 
