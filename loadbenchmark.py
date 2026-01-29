@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 import yfinance as yf
 import pandas as pd
 from yfinance_helper import fetch_ticker_history
+from lib.db import get_connection, get_db_config
 
 # Setup logging
 logging.basicConfig(
@@ -25,6 +26,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 SCRIPT_NAME = "loadbenchmark.py"
+
+def get_db_connection(script_name):
+    """Get database connection using lib.db utilities"""
+    try:
+        cfg = get_db_config()
+        conn = get_connection(cfg)
+        return conn
+    except Exception as e:
+        logging.error(f"Failed to connect to database: {e}")
+        return None
 
 # Benchmark symbols to load
 BENCHMARK_SYMBOLS = ['SPY', 'QQQ', 'IWM', 'DIA', 'VTI']

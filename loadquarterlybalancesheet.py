@@ -15,6 +15,7 @@ from psycopg2.extras import RealDictCursor, execute_values
 import boto3
 import yfinance as yf
 import pandas as pd
+from lib.db import get_connection, get_db_config
 
 # Enhanced quarterly balance sheet data loader with improved error handling and performance monitoring
 SCRIPT_NAME = "loadquarterlybalancesheet.py"
@@ -33,6 +34,16 @@ def get_rss_mb():
 
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
+
+def get_db_connection(script_name):
+    """Get database connection using lib.db utilities"""
+    try:
+        cfg = get_db_config()
+        conn = get_connection(cfg)
+        return conn
+    except Exception as e:
+        logging.error(f"Failed to connect to database: {e}")
+        return None
 
 MAX_BATCH_RETRIES = 3
 RETRY_DELAY = 1.0
