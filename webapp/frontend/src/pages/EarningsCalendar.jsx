@@ -49,6 +49,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  ReferenceLine,
 } from "recharts";
 
 const logger = createComponentLogger("EarningsCalendar");
@@ -343,6 +344,15 @@ function EarningsCalendar() {
     page * rowsPerPage,
     page * rowsPerPage + rowsPerPage
   );
+
+  // Filter sector earnings growth to show only quarters with multiple sectors (after 2024-Q3)
+  const filteredSectorTimeSeries = useMemo(() => {
+    if (!sectorTrendData?.earningsGrowth?.timeSeries) return [];
+    return sectorTrendData.earningsGrowth.timeSeries.filter(quarter => {
+      const sectorCount = Object.keys(quarter).length - 1; // -1 for 'quarter' key
+      return sectorCount >= 5; // Only show quarters with 5+ sectors
+    });
+  }, [sectorTrendData]);
 
   if (weeklyLoading && !weeklyCalendarData) {
     return (
@@ -755,213 +765,162 @@ function EarningsCalendar() {
         </CardContent>
       </Card>
 
-      {/* Sector Earnings Growth (Historical Quarterly EPS) */}
-      <Card sx={{ mb: 4 }}>
-        <CardContent>
-          <Box display="flex" alignItems="center" gap={1} mb={2}>
-            <TrendingUp color="primary" />
-            <Typography variant="h6">Sector Earnings Growth (Quarterly EPS)</Typography>
-          </Box>
-
-          {sectorTrendError && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              Failed to load sector earnings growth data.
-            </Alert>
-          )}
-
-          {sectorTrendLoading ? (
-            <Box display="flex" justifyContent="center" py={4}>
-              <CircularProgress />
+      {/* Detailed Sector Breakdown */}
+      {sectorTrendData && sectorTrendData.estimateOutlook?.sectors?.length > 0 && (
+        <Card sx={{ mb: 4 }}>
+          <CardContent>
+            <Box display="flex" alignItems="center" gap={1} mb={3}>
+              <ShowChart color="primary" />
+              <Typography variant="h6">Sector Details - All Sectors</Typography>
             </Box>
-          ) : sectorTrendData && sectorTrendData.earningsGrowth?.timeSeries?.length > 0 ? (
-            <>
-              {/* Summary Metrics */}
-              <Grid container spacing={2} mb={3}>
-                <Grid item xs={12} sm={6}>
-                  <Box textAlign="center" p={2} bgcolor="success.light" borderRadius={1}>
-                    <Typography variant="h5" fontWeight="bold" color="success.dark">
-                      {sectorTrendData.earningsGrowth.summary.bestGrowth.name}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Highest Growth
-                    </Typography>
-                    <Typography variant="h6" color="success.dark" sx={{ mt: 1 }}>
-                      {sectorTrendData.earningsGrowth.summary.bestGrowth.growth.toFixed(1)}%
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {sectorTrendData.earningsGrowth.summary.bestGrowth.stockCount} stocks
-                    </Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Box textAlign="center" p={2} bgcolor="error.light" borderRadius={1}>
-                    <Typography variant="h5" fontWeight="bold" color="error.dark">
-                      {sectorTrendData.earningsGrowth.summary.worstGrowth.name}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Lowest Growth
-                    </Typography>
-                    <Typography variant="h6" color="error.dark" sx={{ mt: 1 }}>
-                      {sectorTrendData.earningsGrowth.summary.worstGrowth.growth.toFixed(1)}%
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {sectorTrendData.earningsGrowth.summary.worstGrowth.stockCount} stocks
-                    </Typography>
-                  </Box>
-                </Grid>
-              </Grid>
 
-              {/* Line Chart showing quarterly EPS by sector */}
-              <Box sx={{ width: '100%', height: 450, mt: 3 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={sectorTrendData.earningsGrowth.timeSeries}
-                    margin={{ top: 5, right: 30, left: 20, bottom: 80 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="quarter"
-                      angle={-45}
-                      textAnchor="end"
-                      height={80}
-                      tick={{ fontSize: 12 }}
-                    />
-                    <YAxis
-                      label={{ value: 'Avg EPS ($)', angle: -90, position: 'insideLeft' }}
-                      tick={{ fontSize: 12 }}
-                    />
-                    <Tooltip formatter={(value) => [`$${value?.toFixed(2)}`, '']} />
-                    <Legend />
-                    {Object.keys(sectorTrendData.earningsGrowth.timeSeries[0] || {})
-                      .filter((k) => k !== 'quarter')
-                      .map((sector, i) => {
-                        const sectorColors = {
-                          Technology: '#2196F3',
-                          Healthcare: '#4CAF50',
-                          Financials: '#FF9800',
-                          'Consumer Discretionary': '#9C27B0',
-                          'Consumer Staples': '#795548',
-                          Energy: '#FF5722',
-                          Industrials: '#607D8B',
-                          Materials: '#8BC34A',
-                          'Real Estate': '#E91E63',
-                        };
-                        return (
-                          <Line
-                            key={sector}
-                            type="monotone"
-                            dataKey={sector}
-                            stroke={sectorColors[sector] || `hsl(${i * 40}, 70%, 50%)`}
-                            strokeWidth={2}
-                            dot={{ r: 2 }}
-                            name={sector}
-                          />
-                        );
-                      })}
-                  </LineChart>
-                </ResponsiveContainer>
-              </Box>
+            <Grid container spacing={3}>
+              {sectorTrendData.estimateOutlook.sectors
+                .filter(sector => sector.name !== 'Other') // Remove "Other" - not a real sector
+                .map((sector) => {
+                const qoqColor = sector.qoqChange > 0 ? 'success.main' : sector.qoqChange < 0 ? 'error.main' : 'grey.500';
+                const yoyColor = sector.yoyChange > 0 ? 'success.main' : sector.yoyChange < 0 ? 'error.main' : 'grey.500';
 
-              <Alert severity="info" sx={{ mt: 2 }}>
-                <Typography variant="body2">
-                  Historical quarterly earnings (EPS) by sector from 2020-2025. Shows actual reported earnings trends.
-                </Typography>
-              </Alert>
-            </>
-          ) : (
-            <Alert severity="info">No sector earnings growth data available yet.</Alert>
-          )}
-        </CardContent>
-      </Card>
+                // Get sector-specific time series data
+                const sectorData = filteredSectorTimeSeries
+                  .map(quarter => ({
+                    quarter: quarter.quarter,
+                    eps: quarter[sector.name]
+                  }))
+                  .filter(d => d.eps !== undefined);
 
-      {/* Sector Estimate Outlook (Forward-Looking Estimates) */}
-      <Card sx={{ mb: 4 }}>
-        <CardContent>
-          <Box display="flex" alignItems="center" gap={1} mb={2}>
-            <ShowChart color="primary" />
-            <Typography variant="h6">Sector Estimate Outlook</Typography>
-          </Box>
+                const sectorColors = {
+                  Technology: '#2196F3',
+                  Healthcare: '#4CAF50',
+                  Financials: '#FF9800',
+                  'Consumer Discretionary': '#9C27B0',
+                  'Consumer Staples': '#795548',
+                  Energy: '#FF5722',
+                  Industrials: '#607D8B',
+                  Materials: '#8BC34A',
+                  'Real Estate': '#E91E63',
+                  'Communication Services': '#00BCD4',
+                  Utilities: '#CDDC39',
+                  Other: '#9E9E9E',
+                };
 
-          {sectorTrendError && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              Failed to load sector estimate outlook data.
-            </Alert>
-          )}
+                return (
+                  <Grid item xs={12} sm={6} md={6} lg={4} key={sector.name}>
+                    <Card variant="outlined" sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                      <CardContent sx={{ flex: 1, pb: 0 }}>
+                        <Typography variant="h6" gutterBottom color="primary" fontWeight="bold">
+                          {sector.name}
+                        </Typography>
 
-          {sectorTrendLoading ? (
-            <Box display="flex" justifyContent="center" py={4}>
-              <CircularProgress />
-            </Box>
-          ) : sectorTrendData && sectorTrendData.estimateOutlook?.sectors?.length > 0 ? (
-            <>
-              {/* Summary Metrics */}
-              <Grid container spacing={2} mb={3}>
-                <Grid item xs={12} sm={6}>
-                  <Box textAlign="center" p={2} bgcolor="success.light" borderRadius={1}>
-                    <Typography variant="h5" fontWeight="bold" color="success.dark">
-                      {sectorTrendData.estimateOutlook.summary.mostOptimistic.name}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Most Optimistic
-                    </Typography>
-                    <Typography variant="h6" color="success.dark" sx={{ mt: 1 }}>
-                      +{sectorTrendData.estimateOutlook.summary.mostOptimistic.change.toFixed(1)}%
-                    </Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Box textAlign="center" p={2} bgcolor="error.light" borderRadius={1}>
-                    <Typography variant="h5" fontWeight="bold" color="error.dark">
-                      {sectorTrendData.estimateOutlook.summary.leastOptimistic.name}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Least Optimistic
-                    </Typography>
-                    <Typography variant="h6" color="error.dark" sx={{ mt: 1 }}>
-                      {sectorTrendData.estimateOutlook.summary.leastOptimistic.change.toFixed(1)}%
-                    </Typography>
-                  </Box>
-                </Grid>
-              </Grid>
+                        <Divider sx={{ my: 1.5 }} />
 
-              {/* Bar chart showing QoQ and YoY estimate changes */}
-              <Box sx={{ width: '100%', height: 400, mt: 3 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={sectorTrendData.estimateOutlook.sectors}
-                    margin={{ top: 5, right: 30, left: 20, bottom: 80 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="name"
-                      angle={-45}
-                      textAnchor="end"
-                      height={100}
-                      tick={{ fontSize: 12 }}
-                    />
-                    <YAxis
-                      label={{ value: 'Change (%)', angle: -90, position: 'insideLeft' }}
-                      tick={{ fontSize: 12 }}
-                    />
-                    <Tooltip formatter={(value) => [`${value?.toFixed(1)}%`, '']} />
-                    <Legend />
-                    <Bar dataKey="qoqChange" fill="#2196F3" name="Q-over-Q Change" />
-                    <Bar dataKey="yoyChange" fill="#4CAF50" name="Y-over-Y Change" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </Box>
+                        {/* Mini Chart */}
+                        {sectorData.length > 0 && (
+                          <Box sx={{ width: '100%', height: 200, mt: 2, mb: 2 }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                              <LineChart data={sectorData} margin={{ top: 5, right: 10, left: -20, bottom: 30 }}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis
+                                  dataKey="quarter"
+                                  angle={-45}
+                                  textAnchor="end"
+                                  height={60}
+                                  tick={{ fontSize: 10 }}
+                                />
+                                <YAxis tick={{ fontSize: 10 }} />
+                                <Tooltip formatter={(value) => [`$${value?.toFixed(2)}`, 'EPS']} />
+                                <ReferenceLine
+                                  x="2024-Q4"
+                                  stroke="#999"
+                                  strokeDasharray="5 5"
+                                  label={{ value: 'Forecast →', position: 'right', fill: '#666', fontSize: 9 }}
+                                />
+                                <Line
+                                  type="monotone"
+                                  dataKey="eps"
+                                  stroke={sectorColors[sector.name] || '#666'}
+                                  strokeWidth={2}
+                                  dot={{ r: 3 }}
+                                  name={sector.name}
+                                />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </Box>
+                        )}
 
-              <Alert severity="info" sx={{ mt: 2 }}>
-                <Typography variant="body2">
-                  Shows how analyst estimates change from current quarter to next quarter (Q-over-Q) and current year to next year (Y-over-Y). Positive values indicate optimistic outlook.
-                </Typography>
-              </Alert>
-            </>
-          ) : (
-            <Alert severity="info">No sector estimate outlook data available yet.</Alert>
-          )}
-        </CardContent>
-      </Card>
+                        <Box sx={{ mb: 2 }}>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            Stocks in Sector
+                          </Typography>
+                          <Typography variant="h5" color="primary">
+                            {sector.stockCount}
+                          </Typography>
+                        </Box>
+
+                        <Box sx={{ mb: 2 }}>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            Current Quarter Estimate
+                          </Typography>
+                          <Typography variant="body2" fontWeight="bold">
+                            ${sector.currentQuarter.toFixed(2)}
+                          </Typography>
+                        </Box>
+
+                        <Box sx={{ mb: 2 }}>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            Next Quarter Estimate
+                          </Typography>
+                          <Typography variant="body2" fontWeight="bold">
+                            ${sector.nextQuarter.toFixed(2)}
+                          </Typography>
+                        </Box>
+
+                        <Divider sx={{ my: 1.5 }} />
+
+                        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+                          <Box>
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              Q-over-Q Change
+                            </Typography>
+                            <Typography
+                              variant="body2"
+                              fontWeight="bold"
+                              color={qoqColor}
+                            >
+                              {sector.qoqChange > 0 ? '+' : ''}{sector.qoqChange.toFixed(1)}%
+                            </Typography>
+                          </Box>
+                          <Box>
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              Y-over-Y Change
+                            </Typography>
+                            <Typography
+                              variant="body2"
+                              fontWeight="bold"
+                              color={yoyColor}
+                            >
+                              {sector.yoyChange > 0 ? '+' : ''}{sector.yoyChange.toFixed(1)}%
+                            </Typography>
+                          </Box>
+                        </Box>
+
+                        <Box sx={{ mt: 2, p: 1, bgcolor: 'background.default', borderRadius: 1 }}>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            Current Year → Next Year
+                          </Typography>
+                          <Typography variant="body2">
+                            ${sector.currentYear.toFixed(2)} → ${sector.nextYear.toFixed(2)}
+                          </Typography>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                );
+              })}
+            </Grid>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Weekly Earnings Calendar */}
       <Card sx={{ mb: 4 }}>
