@@ -1028,6 +1028,9 @@ jobs:
             "analystsentiment")
               TASK_DEF_NAME="AnalystSentimentTaskDefArn"
               ;;
+            "stock-scores"|"stockscores")
+              TASK_DEF_NAME="StockscoresTaskDefArn"
+              ;;
             *)
 
               # Default case: convert to proper case (first letter uppercase, rest lowercase)
