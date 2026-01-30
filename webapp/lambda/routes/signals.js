@@ -446,6 +446,12 @@ router.get("/etf", async (req, res) => {
       bsd.entry_price
     `;
 
+    // Add limit and offset parameters
+    queryParams.push(limit);
+    queryParams.push(offset);
+    const limitParamIndex = paramIndex;
+    const offsetParamIndex = paramIndex + 1;
+
     const signalsQuery = `
       SELECT
         ${actualColumns},
@@ -454,14 +460,23 @@ router.get("/etf", async (req, res) => {
       LEFT JOIN etf_symbols es ON bsd.symbol = es.symbol
       ${whereClause}
       ORDER BY bsd.date DESC, bsd.id DESC
-      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+      LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}
     `;
 
     let signalsResult;
     try {
-      signalsResult = await query(signalsQuery, [...queryParams, limit, offset]);
+      console.log(`[ETF_SIGNALS_DEBUG] Executing query for ${timeframe}:`, {
+        tableName,
+        paramCount: queryParams.length,
+        params: queryParams,
+        queryPreview: signalsQuery.substring(0, 150)
+      });
+      signalsResult = await query(signalsQuery, queryParams);
+      console.log(`[ETF_SIGNALS_DEBUG] Query successful, returned ${signalsResult?.rows?.length || 0} rows`);
     } catch (queryError) {
       console.error(`[ERROR] Query failed for ${timeframe} ETF signals:`, queryError.message);
+      console.error(`[ERROR_DEBUG] Query was:`, signalsQuery.substring(0, 200));
+      console.error(`[ERROR_DEBUG] Params were:`, queryParams);
       return res.status(500).json({ error: "Failed to fetch signals data", success: false });
     }
 
