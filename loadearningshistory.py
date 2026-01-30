@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# FORCE RUN NOW: 2026-01-30 - All rate limiting fixes deployed - loading earnings history
-# Trigger deployment for earnings history data - Database population v3
+# FORCE RUN NOW: 2026-01-30_090000 - All task definitions ready - executing earnings history loader NOW
+# Database population with full earnings history records
 import sys
 import time
 import logging
