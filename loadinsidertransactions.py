@@ -200,7 +200,8 @@ def main():
             password=pwd,
             dbname=dbname,
             sslmode=ssl_mode,
-            cursor_factory=DictCursor
+            cursor_factory=DictCursor,
+            connect_timeout=30
         )
         conn.set_session(autocommit=False)
 
@@ -215,12 +216,14 @@ def main():
         total_symbols = len(symbols)
         symbols_with_data = 0
         symbols_skipped = 0
+        api_errors = 0
+        parse_errors = 0
 
         logger.info(f"Loading insider transactions for {total_symbols} symbols (REAL DATA ONLY)")
 
         for i, sym in enumerate(symbols):
             if (i + 1) % 500 == 0:
-                logger.info(f"Progress: {i + 1}/{total_symbols} - {get_rss_mb():.1f} MB RSS")
+                logger.info(f"Progress: {i + 1}/{total_symbols} | Data: {symbols_with_data} | Skipped: {symbols_skipped} | API errors: {api_errors} | {get_rss_mb():.1f} MB RSS")
 
             try:
                 has_data = process_symbol(sym, conn)
@@ -230,13 +233,20 @@ def main():
                     # No data - SKIP (don't insert placeholder)
                     symbols_skipped += 1
 
-                # Adaptive throttling
+                # Adaptive throttling - rate limit to ~10 req/sec max (100ms minimum)
                 if get_rss_mb() > 1000:
-                    time.sleep(0.3)
+                    time.sleep(0.2)
                 else:
-                    time.sleep(0.05)
+                    time.sleep(0.1)
             except Exception as e:
-                logger.error(f"ERROR processing {sym}: {e}")
+                error_msg = str(e)[:150]
+                if "429" in error_msg or "rate" in error_msg.lower():
+                    api_errors += 1
+                    logger.warning(f"[RATE LIMIT] {sym}: {error_msg}")
+                    time.sleep(2)  # Backoff on rate limit
+                else:
+                    parse_errors += 1
+                    logger.debug(f"[SKIP] {sym}: {error_msg}")
                 symbols_skipped += 1
 
         update_last_run(conn)

@@ -46,6 +46,8 @@ def log_mem(stage: str):
 MAX_BATCH_RETRIES = 5
 INITIAL_RETRY_DELAY = 2.0  # seconds, will use exponential backoff - increased to avoid rate limiting
 BATCH_PAUSE = 8.0  # pause between symbols in a batch - yfinance free tier MAX ~20 req/min, increased to avoid rate limiting with concurrent loaders
+# Total expected processing time: ~5070 symbols * 20 symbols/batch * 8s pause = ~2000s = 33 minutes baseline
+# With retries and concurrent loaders, could extend to 60+ minutes
 
 # -------------------------------
 # DB config loader
