@@ -623,6 +623,30 @@ const ScoresDashboard = () => {
     return bySector;
   };
 
+  // Get bottom performers for each category - ONLY real data (worst performers)
+  const getBottomPerformers = (scoreField, count = 10, sector = null) => {
+    const filteredScores = sector && sector !== "all"
+      ? scores.filter((stock) => stock.sector === sector)
+      : scores;
+
+    return [...filteredScores]
+      .filter((stock) => stock[scoreField] !== null && stock[scoreField] !== undefined)
+      .sort((a, b) => a[scoreField] - b[scoreField]) // Ascending = lowest first
+      .slice(0, count);
+  };
+
+  // Get bottom performers by sector - ONLY real data
+  const getBottomPerformersBySector = (count = 5) => {
+    const bySector = {};
+    sectors.forEach((sector) => {
+      bySector[sector] = [...scores]
+        .filter((stock) => stock.sector === sector && stock.composite_score !== null && stock.composite_score !== undefined)
+        .sort((a, b) => a.composite_score - b.composite_score) // Ascending = lowest first
+        .slice(0, count);
+    });
+    return bySector;
+  };
+
   const topQuality = getTopPerformers("quality_score", 10, null);
   const topMomentum = getTopPerformers("momentum_score", 10, null);
   const topValue = getTopPerformers("value_score", 10, null);
@@ -630,6 +654,14 @@ const ScoresDashboard = () => {
   const topPositioning = getTopPerformers("positioning_score", 10, null);
   const topStability = getTopPerformers("stability_score", 10, null);
   const topBySector = getTopPerformersBySector(5);
+
+  const bottomQuality = getBottomPerformers("quality_score", 10, null);
+  const bottomMomentum = getBottomPerformers("momentum_score", 10, null);
+  const bottomValue = getBottomPerformers("value_score", 10, null);
+  const bottomGrowth = getBottomPerformers("growth_score", 10, null);
+  const bottomPositioning = getBottomPerformers("positioning_score", 10, null);
+  const bottomStability = getBottomPerformers("stability_score", 10, null);
+  const bottomBySector = getBottomPerformersBySector(5);
 
   // Get category leaders within each sector - ONLY real data, no fake defaults
   const getCategoryLeadersBySector = (sector) => {

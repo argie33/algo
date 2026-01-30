@@ -50,9 +50,41 @@ import {
   ResponsiveContainer,
   Legend,
   ReferenceLine,
+  ComposedChart,
 } from "recharts";
 
 const logger = createComponentLogger("EarningsCalendar");
+
+// Custom shape component for line that changes from solid to dotted
+const CustomLineShape = ({ points, sectorColor }) => {
+  if (!points || points.length < 2) return null;
+
+  const pathSegments = [];
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const p1 = points[i];
+    const p2 = points[i + 1];
+
+    if (p1 && p2 && p1.x !== undefined && p1.y !== undefined && p2.x !== undefined && p2.y !== undefined) {
+      const strokeDash = p2.payload?.isForecast ? '5,5' : 'none';
+      pathSegments.push(
+        <line
+          key={i}
+          x1={p1.x}
+          y1={p1.y}
+          x2={p2.x}
+          y2={p2.y}
+          stroke={sectorColor}
+          strokeWidth={2.5}
+          strokeDasharray={strokeDash}
+          fill="none"
+        />
+      );
+    }
+  }
+
+  return <g>{pathSegments}</g>;
+};
 
 function EarningsCalendar() {
   const [page, setPage] = useState(0);
@@ -345,13 +377,10 @@ function EarningsCalendar() {
     page * rowsPerPage + rowsPerPage
   );
 
-  // Filter sector earnings growth to show only quarters with multiple sectors (after 2024-Q3)
+  // Use all available sector earnings growth data
   const filteredSectorTimeSeries = useMemo(() => {
     if (!sectorTrendData?.earningsGrowth?.timeSeries) return [];
-    return sectorTrendData.earningsGrowth.timeSeries.filter(quarter => {
-      const sectorCount = Object.keys(quarter).length - 1; // -1 for 'quarter' key
-      return sectorCount >= 5; // Only show quarters with 5+ sectors
-    });
+    return sectorTrendData.earningsGrowth.timeSeries; // Show ALL quarters available
   }, [sectorTrendData]);
 
   if (weeklyLoading && !weeklyCalendarData) {
@@ -781,13 +810,23 @@ function EarningsCalendar() {
                 const qoqColor = sector.qoqChange > 0 ? 'success.main' : sector.qoqChange < 0 ? 'error.main' : 'grey.500';
                 const yoyColor = sector.yoyChange > 0 ? 'success.main' : sector.yoyChange < 0 ? 'error.main' : 'grey.500';
 
-                // Get sector-specific time series data
+                // Get sector-specific time series data with forecast marker
                 const sectorData = filteredSectorTimeSeries
                   .map(quarter => ({
                     quarter: quarter.quarter,
-                    eps: quarter[sector.name]
+                    eps: quarter[sector.name],
+                    isForecast: quarter.quarter >= '2025-Q1'
                   }))
                   .filter(d => d.eps !== undefined);
+
+                // Split into actual and forecast for proper line rendering
+                const actualEarnings = sectorData.filter(d => !d.isForecast);
+                const forecastEarnings = sectorData.filter(d => d.isForecast);
+
+                // Include last actual point in forecast data so line connects
+                const forecastWithConnection = actualEarnings.length > 0 && forecastEarnings.length > 0
+                  ? [actualEarnings[actualEarnings.length - 1], ...forecastEarnings]
+                  : forecastEarnings;
 
                 const sectorColors = {
                   Technology: '#2196F3',
@@ -818,30 +857,19 @@ function EarningsCalendar() {
                         {sectorData.length > 0 && (
                           <Box sx={{ width: '100%', height: 200, mt: 2, mb: 2 }}>
                             <ResponsiveContainer width="100%" height="100%">
-                              <LineChart data={sectorData} margin={{ top: 5, right: 10, left: -20, bottom: 30 }}>
+                              <LineChart data={sectorData} margin={{ top: 5, right: 10, left: 0, bottom: 40 }}>
                                 <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis
-                                  dataKey="quarter"
-                                  angle={-45}
-                                  textAnchor="end"
-                                  height={60}
-                                  tick={{ fontSize: 10 }}
-                                />
-                                <YAxis tick={{ fontSize: 10 }} />
+                                <XAxis dataKey="quarter" angle={-45} textAnchor="end" height={60} tick={{ fontSize: 9 }} />
+                                <YAxis tick={{ fontSize: 10 }} width={40} />
                                 <Tooltip formatter={(value) => [`$${value?.toFixed(2)}`, 'EPS']} />
-                                <ReferenceLine
-                                  x="2024-Q4"
-                                  stroke="#999"
-                                  strokeDasharray="5 5"
-                                  label={{ value: 'Forecast →', position: 'right', fill: '#666', fontSize: 9 }}
-                                />
                                 <Line
                                   type="monotone"
                                   dataKey="eps"
                                   stroke={sectorColors[sector.name] || '#666'}
-                                  strokeWidth={2}
+                                  strokeWidth={2.5}
                                   dot={{ r: 3 }}
-                                  name={sector.name}
+                                  isAnimationActive={false}
+                                  shape={<CustomLineShape sectorColor={sectorColors[sector.name] || '#666'} />}
                                 />
                               </LineChart>
                             </ResponsiveContainer>
