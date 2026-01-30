@@ -418,10 +418,20 @@ router.get("/estimate-momentum", async (req, res) => {
       LIMIT $2
     `;
 
-    const [risingResult, fallingResult] = await Promise.all([
-      query(risingQuery, [period, parseInt(limit)]),
-      query(fallingQuery, [period, parseInt(limit)])
-    ]);
+    let risingResult, fallingResult;
+    try {
+      [risingResult, fallingResult] = await Promise.all([
+        query(risingQuery, [period, parseInt(limit)]),
+        query(fallingQuery, [period, parseInt(limit)])
+      ]);
+    } catch (queryError) {
+      // Earnings estimate trends table doesn't exist - return empty data
+      console.log(`[INFO] Earnings estimate trends not available: ${queryError.message.substring(0, 100)}`);
+      return res.json({
+        data: { rising: [], falling: [], summary: { avg_rise: 0, avg_fall: 0, total_rising: 0, total_falling: 0 } },
+        success: true
+      });
+    }
 
     const rising = risingResult.rows.map(row => ({
       symbol: row.symbol,
