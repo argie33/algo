@@ -464,11 +464,6 @@ const SCORE_COLUMNS = [
   'growth_score',
   'positioning_score',
   'stability_score',
-  'momentum_inputs',
-  'growth_inputs',
-  'quality_inputs',
-  'positioning_inputs',
-  'stability_inputs',
   'last_updated'
 ];
 
