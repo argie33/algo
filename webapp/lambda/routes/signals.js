@@ -162,9 +162,9 @@ router.get("/stocks", async (req, res) => {
       NULL as passes_minervini_template
     `;
 
-    const tddJoin = ``;
-
-    const signalsQuery = `
+    // Build query with conditional JOINs - skip JOINs for weekly/monthly to improve performance
+    // Daily queries can afford JOINs (54M rows), but weekly (4.6M) and monthly (1M) are slower
+    const signalsQuery = tableName === 'buy_sell_daily' ? `
       SELECT
         ${actualColumns},
         COALESCE(cp.short_name, ss.security_name) as company_name,
@@ -172,7 +172,6 @@ router.get("/stocks", async (req, res) => {
         eh.quarter as next_earnings_date,
         (eh.quarter - CURRENT_DATE)::INTEGER as days_to_earnings
       FROM ${tableName} bsd
-      ${tddJoin}
       LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
       LEFT JOIN stock_symbols ss ON bsd.symbol = ss.symbol
       LEFT JOIN stock_scores ss_scores ON bsd.symbol = ss_scores.symbol
@@ -182,6 +181,17 @@ router.get("/stocks", async (req, res) => {
         WHERE quarter >= CURRENT_DATE
         ORDER BY symbol, quarter ASC
       ) eh ON bsd.symbol = eh.symbol
+      ${whereClause}
+      ORDER BY bsd.date DESC, bsd.id DESC
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    ` : `
+      SELECT
+        ${actualColumns},
+        NULL as company_name,
+        NULL as stability_score,
+        NULL as next_earnings_date,
+        NULL as days_to_earnings
+      FROM ${tableName} bsd
       ${whereClause}
       ORDER BY bsd.date DESC, bsd.id DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
