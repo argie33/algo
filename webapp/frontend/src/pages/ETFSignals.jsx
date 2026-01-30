@@ -368,7 +368,7 @@ function ETFSignals() {
     }
 
     logger.info("filteredSignals", "Data filtered", {
-      originalCount: (signalsData?.signals || signalsData?.data)?.length || 0,
+      originalCount: signalsData?.items?.length || 0,
       filteredCount: filtered?.length || 0,
       filters: {
         showActiveOnly,

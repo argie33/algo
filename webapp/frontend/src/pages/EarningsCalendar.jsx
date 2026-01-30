@@ -811,13 +811,30 @@ function EarningsCalendar() {
                 const yoyColor = sector.yoyChange > 0 ? 'success.main' : sector.yoyChange < 0 ? 'error.main' : 'grey.500';
 
                 // Get sector-specific time series data with forecast marker
-                const sectorData = filteredSectorTimeSeries
+                let sectorData = filteredSectorTimeSeries
                   .map(quarter => ({
                     quarter: quarter.quarter,
                     eps: quarter[sector.name],
                     isForecast: quarter.quarter >= '2025-Q1'
                   }))
                   .filter(d => d.eps !== undefined);
+
+                // Add next quarter estimate as a forecast point
+                const nextQuarterData = sectorTrendData.estimateOutlook.sectors.find(s => s.name === sector.name);
+                if (nextQuarterData && nextQuarterData.nextQuarter) {
+                  // Find the last actual quarter and add next estimate after it
+                  const lastActual = sectorData[sectorData.length - 1];
+                  if (lastActual) {
+                    sectorData = [
+                      ...sectorData,
+                      {
+                        quarter: 'Est. Next Q',
+                        eps: parseFloat(nextQuarterData.nextQuarter),
+                        isForecast: true
+                      }
+                    ];
+                  }
+                }
 
                 // Split into actual and forecast for proper line rendering
                 const actualEarnings = sectorData.filter(d => !d.isForecast);
