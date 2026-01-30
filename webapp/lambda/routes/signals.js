@@ -259,7 +259,7 @@ router.get("/stocks", async (req, res) => {
       // Entry/Exit levels
       buylevel: row.buylevel !== null && row.buylevel !== undefined ? parseFloat(row.buylevel) : null,
       stoplevel: row.stoplevel !== null && row.stoplevel !== undefined ? parseFloat(row.stoplevel) : null,
-      sell_level: row.selllevel !== null && row.selllevel !== undefined ? parseFloat(row.selllevel) : null,
+      sell_level: row.selllevel !== null && row.selllevel !== undefined ? parseFloat(row.selllevel) : (row.sell_level !== null && row.sell_level !== undefined ? parseFloat(row.sell_level) : null),
       inposition: row.inposition || false,
 
       // Price targets

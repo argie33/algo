@@ -610,10 +610,12 @@ const handleTabChange = (event, newValue) => {
   naaimHistory.forEach((item) => {
     const date = item.date || item.timestamp;
     if (!dateMap[date]) dateMap[date] = { date };
-    // NAAIM from new endpoint uses: bullish_exposure, bearish_exposure
-    dateMap[date].bullish_exposure = item.bullish_exposure || item.mean || null;
-    dateMap[date].bearish_exposure = item.bearish_exposure || null;
-    dateMap[date].naaim = item.mean || item.average;
+    // NAAIM from new endpoint uses: mean (bullish exposure %)
+    // Calculate bearish as complement to 100%
+    const mean = typeof item.mean === 'number' ? item.mean : (typeof item.mean === 'string' ? parseFloat(item.mean) : null);
+    dateMap[date].bullish_exposure = item.bullish_exposure || mean || null;
+    dateMap[date].bearish_exposure = item.bearish_exposure || (mean !== null ? 100 - mean : null);
+    dateMap[date].naaim = mean;
     dateMap[date].has_naaim = true;
   });
   aaiiHistory.forEach((item) => {
