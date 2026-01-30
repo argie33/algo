@@ -165,10 +165,29 @@ router.get("/stocks", async (req, res) => {
 
     let signalsResult;
     try {
+      console.log(`[${timeframe.toUpperCase()}] Executing signals query with params:`, {
+        limit,
+        offset,
+        timeframe,
+        tableName,
+        paramCount: [...queryParams, limit, offset].length
+      });
       signalsResult = await query(signalsQuery, [...queryParams, limit, offset]);
+      console.log(`[${timeframe.toUpperCase()}] Query succeeded, rows returned:`, signalsResult.rows?.length || 0);
     } catch (queryError) {
-      console.error(`[ERROR] Query failed for ${timeframe} signals:`, queryError.message);
-      return res.status(500).json({ error: "Failed to fetch signals data", success: false });
+      console.error(`[ERROR] Query failed for ${timeframe} signals:`, {
+        message: queryError.message,
+        code: queryError.code,
+        detail: queryError.detail,
+        hint: queryError.hint,
+        table: tableName,
+        query: signalsQuery.substring(0, 200) + '...'
+      });
+      return res.status(500).json({
+        error: "Failed to fetch signals data",
+        debug: !process.env.NODE_ENV || process.env.NODE_ENV === 'development' ? queryError.message : undefined,
+        success: false
+      });
     }
 
     if (!signalsResult || !signalsResult.rows || signalsResult.rows.length === 0) {
@@ -273,10 +292,16 @@ router.get("/stocks", async (req, res) => {
     try {
       // Pass ONLY the WHERE clause parameters (not limit/offset which are at the end)
       const countParams = queryParams.slice(0, paramIndex - 1);
+      console.log(`[${timeframe.toUpperCase()}] Executing count query with ${countParams.length} params`);
       const countResult = await query(countQuery, countParams);
       totalCount = parseInt(countResult.rows[0]?.total || 0);
+      console.log(`[${timeframe.toUpperCase()}] Count query result:`, totalCount);
     } catch (e) {
-      console.warn("Failed to get signals total count:", e.message);
+      console.error(`[ERROR] Count query failed for ${timeframe}:`, {
+        message: e.message,
+        code: e.code,
+        table: tableName
+      });
       totalCount = page * limit + formattedData.length;
     }
 
