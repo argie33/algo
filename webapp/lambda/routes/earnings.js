@@ -362,16 +362,6 @@ router.get("/sp500-trend", async (req, res) => {
 // GET /api/earnings/estimate-momentum - Top stocks with rising/falling estimates
 router.get("/estimate-momentum", async (req, res) => {
   try {
-    // Earnings estimate trends data not yet loaded
-    return res.status(503).json({
-      error: "Earnings estimate momentum data not yet loaded",
-      message: "Estimate revision data is currently being loaded from external sources",
-      status: "in_progress",
-      data: { rising: [], falling: [] },
-      success: false
-    });
-
-    /* FUTURE: When earnings_estimate_trends table is populated:
     const { limit = 20, period = '0q' } = req.query;
 
     // Get stocks with biggest estimate increases

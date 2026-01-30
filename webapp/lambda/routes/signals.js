@@ -361,17 +361,6 @@ router.get("/stocks", async (req, res) => {
 // Get trading signals for ETFs - SAME STRUCTURE AS STOCKS
 router.get("/etf", async (req, res) => {
   try {
-    // ETF-specific signals tables don't exist yet
-    // Return placeholder response with helpful message
-    return res.status(503).json({
-      error: "ETF signals data not yet loaded",
-      message: "ETF trading signal data is currently being loaded from external sources",
-      status: "in_progress",
-      data: [],
-      success: false
-    });
-
-    /* FUTURE: When ETF tables are populated, use this logic:
     const timeframe = req.query.timeframe || "daily";
     const limit = Math.min(parseInt(req.query.limit) || 100, 500);
     const page = Math.max(1, parseInt(req.query.page) || 1);
@@ -390,7 +379,6 @@ router.get("/etf", async (req, res) => {
     if (!tableName) {
       return res.status(400).json({ error: "Invalid timeframe. Must be daily, weekly, or monthly", success: false });
     }
-    */
 
     // Build WHERE clause based on filters
     let whereClause = '';
