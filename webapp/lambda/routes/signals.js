@@ -114,29 +114,26 @@ router.get("/stocks", async (req, res) => {
       paramIndex++;
     }
 
-    // Build actual columns based on REAL database schema - INCLUDE ALL O'NEILL SIGNAL COLUMNS
+    // Build actual columns based on REAL database schema (buy_sell_daily table)
     const actualColumns = `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
       bsd.signal_triggered_date,
       bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
-      bsd.signal, bsd.buylevel, bsd.stoplevel, bsd.inposition,
-      bsd.strength, bsd.signal_type, bsd.pivot_price,
-      bsd.buy_zone_start, bsd.buy_zone_end,
-      bsd.exit_trigger_1_price, bsd.exit_trigger_2_price,
-      bsd.exit_trigger_3_condition, bsd.exit_trigger_3_price,
-      bsd.exit_trigger_4_condition, bsd.exit_trigger_4_price,
-      bsd.initial_stop, bsd.trailing_stop,
-      bsd.base_type, bsd.base_length_days,
-      bsd.avg_volume_50d, bsd.volume_surge_pct,
-      bsd.rs_rating, bsd.breakout_quality,
-      bsd.risk_reward_ratio, bsd.current_gain_pct, bsd.days_in_position,
+      bsd.signal, bsd.buylevel, bsd.stoplevel, bsd.selllevel, bsd.inposition,
+      bsd.target_price, bsd.current_price,
       bsd.market_stage, bsd.stage_number, bsd.stage_confidence, bsd.substage,
-      bsd.entry_quality_score, bsd.risk_pct,
-      bsd.position_size_recommendation, bsd.profit_target_8pct,
-      bsd.profit_target_20pct, bsd.profit_target_25pct, bsd.sell_level,
+      bsd.risk_reward_ratio, bsd.current_gain_loss_pct, bsd.risk_pct,
+      bsd.position_size_recommendation, bsd.profit_target_20pct, bsd.profit_target_25pct,
       bsd.mansfield_rs, bsd.sata_score,
-      bsd.rsi, bsd.adx, bsd.atr, bsd.sma_50, bsd.sma_200,
-      bsd.ema_21, bsd.pct_from_ema21, bsd.pct_from_sma50, bsd.entry_price
+      bsd.rsi, bsd.adx, bsd.atr,
+      bsd.pct_from_ema_21, bsd.pct_from_sma_50, bsd.pct_from_sma_200,
+      bsd.entry_quality_score, bsd.daily_range_pct,
+      bsd.volatility_profile, bsd.volume_analysis, bsd.volume_ratio,
+      bsd.base_pivot_price, bsd.base_support_price, bsd.base_pattern,
+      bsd.base_depth_pct, bsd.base_duration_days, bsd.base_tightness_score,
+      bsd.is_base_on_base, bsd.base_quality_score,
+      bsd.ma_filter_value, bsd.ma_filter_type, bsd.ma_filter_period,
+      bsd.passes_minervini_template
     `;
 
     const tddJoin = ``;
@@ -183,7 +180,7 @@ router.get("/stocks", async (req, res) => {
     // Summary statistics are calculated on frontend from items array per RULES.md
     const signalData = signalsResult.rows;
 
-    // Format the response data - INCLUDE ALL O'NEILL SIGNAL COLUMNS FOR STOCKS
+    // Format the response data - USE ACTUAL COLUMNS FROM buy_sell_daily TABLE
     const formattedData = signalsResult.rows.map(row => ({
       // Basic signal info
       id: row.id,
@@ -199,72 +196,67 @@ router.get("/stocks", async (req, res) => {
       low: row.low !== null && row.low !== undefined ? parseFloat(row.low) : null,
       close: row.close !== null && row.close !== undefined ? parseFloat(row.close) : null,
       volume: row.volume !== null && row.volume !== undefined ? row.volume : null,
-      daily_range_pct: (row.high && row.low) ? parseFloat(((row.high - row.low) / row.low * 100).toFixed(2)) : null,
+      daily_range_pct: row.daily_range_pct !== null ? parseFloat(row.daily_range_pct) : null,
 
       // Entry/Exit levels
       buylevel: row.buylevel !== null && row.buylevel !== undefined ? parseFloat(row.buylevel) : null,
       stoplevel: row.stoplevel !== null && row.stoplevel !== undefined ? parseFloat(row.stoplevel) : null,
+      sell_level: row.selllevel !== null && row.selllevel !== undefined ? parseFloat(row.selllevel) : null,
       inposition: row.inposition || false,
 
-      // O'Neill signal columns
-      strength: row.strength || null,
-      signal_type: row.signal_type || null,
-      pivot_price: row.pivot_price !== null ? parseFloat(row.pivot_price) : null,
-      buy_zone_start: row.buy_zone_start !== null ? parseFloat(row.buy_zone_start) : null,
-      buy_zone_end: row.buy_zone_end !== null ? parseFloat(row.buy_zone_end) : null,
-      exit_trigger_1_price: row.exit_trigger_1_price !== null ? parseFloat(row.exit_trigger_1_price) : null,
-      exit_trigger_2_price: row.exit_trigger_2_price !== null ? parseFloat(row.exit_trigger_2_price) : null,
-      exit_trigger_3_condition: row.exit_trigger_3_condition || null,
-      exit_trigger_3_price: row.exit_trigger_3_price !== null ? parseFloat(row.exit_trigger_3_price) : null,
-      exit_trigger_4_condition: row.exit_trigger_4_condition || null,
-      exit_trigger_4_price: row.exit_trigger_4_price !== null ? parseFloat(row.exit_trigger_4_price) : null,
-      initial_stop: row.initial_stop !== null ? parseFloat(row.initial_stop) : null,
-      trailing_stop: row.trailing_stop !== null ? parseFloat(row.trailing_stop) : null,
+      // Price targets
+      target_price: row.target_price !== null ? parseFloat(row.target_price) : null,
+      current_price: row.current_price !== null ? parseFloat(row.current_price) : null,
 
-      // Base and volume
-      base_type: row.base_type || null,
-      base_length_days: row.base_length_days || null,
-      avg_volume_50d: row.avg_volume_50d || null,
-      volume_surge_pct: row.volume_surge_pct !== null ? parseFloat(row.volume_surge_pct) : null,
-
-      // Ratings and quality
-      rs_rating: row.rs_rating || null,
-      breakout_quality: row.breakout_quality || null,
-      risk_reward_ratio: row.risk_reward_ratio !== null ? parseFloat(row.risk_reward_ratio) : null,
-      current_gain_pct: row.current_gain_pct !== null ? parseFloat(row.current_gain_pct) : null,
-      days_in_position: row.days_in_position || null,
-
-      // Market stage
+      // Market stage and structure
       market_stage: row.market_stage || null,
       stage_number: row.stage_number || null,
-      stage_confidence: row.stage_confidence !== null ? parseFloat(row.stage_confidence) : null,
+      stage_confidence: row.stage_confidence || null,
       substage: row.substage || null,
+      volatility_profile: row.volatility_profile || null,
+      passes_minervini_template: row.passes_minervini_template || false,
 
-      // Entry quality and positioning
-      entry_quality_score: row.entry_quality_score !== null ? parseFloat(row.entry_quality_score) : null,
+      // Risk/reward
+      risk_reward_ratio: row.risk_reward_ratio !== null ? parseFloat(row.risk_reward_ratio) : null,
+      current_gain_loss_pct: row.current_gain_loss_pct !== null ? parseFloat(row.current_gain_loss_pct) : null,
       risk_pct: row.risk_pct !== null ? parseFloat(row.risk_pct) : null,
-      position_size_recommendation: row.position_size_recommendation || null,
+      position_size_recommendation: row.position_size_recommendation !== null ? parseFloat(row.position_size_recommendation) : null,
 
       // Profit targets
-      profit_target_8pct: row.profit_target_8pct !== null ? parseFloat(row.profit_target_8pct) : null,
       profit_target_20pct: row.profit_target_20pct !== null ? parseFloat(row.profit_target_20pct) : null,
       profit_target_25pct: row.profit_target_25pct !== null ? parseFloat(row.profit_target_25pct) : null,
-      sell_level: row.sell_level !== null ? parseFloat(row.sell_level) : null,
 
-      // Scores
+      // Scores and ratings
       mansfield_rs: row.mansfield_rs !== null ? parseFloat(row.mansfield_rs) : null,
       sata_score: row.sata_score || null,
+      entry_quality_score: row.entry_quality_score || null,
+      base_quality_score: row.base_quality_score || null,
+      base_tightness_score: row.base_tightness_score || null,
 
       // Technical indicators
       rsi: row.rsi !== null ? parseFloat(row.rsi) : null,
       adx: row.adx !== null ? parseFloat(row.adx) : null,
       atr: row.atr !== null ? parseFloat(row.atr) : null,
-      sma_50: row.sma_50 !== null ? parseFloat(row.sma_50) : null,
-      sma_200: row.sma_200 !== null ? parseFloat(row.sma_200) : null,
-      ema_21: row.ema_21 !== null ? parseFloat(row.ema_21) : null,
-      pct_from_ema21: row.pct_from_ema21 !== null ? parseFloat(row.pct_from_ema21) : null,
-      pct_from_sma50: row.pct_from_sma50 !== null ? parseFloat(row.pct_from_sma50) : null,
-      entry_price: row.entry_price !== null ? parseFloat(row.entry_price) : null,
+      pct_from_ema_21: row.pct_from_ema_21 !== null ? parseFloat(row.pct_from_ema_21) : null,
+      pct_from_sma_50: row.pct_from_sma_50 !== null ? parseFloat(row.pct_from_sma_50) : null,
+      pct_from_sma_200: row.pct_from_sma_200 !== null ? parseFloat(row.pct_from_sma_200) : null,
+
+      // Volume analysis
+      volume_ratio: row.volume_ratio !== null ? parseFloat(row.volume_ratio) : null,
+      volume_analysis: row.volume_analysis || null,
+
+      // Base pattern analysis
+      base_pivot_price: row.base_pivot_price !== null ? parseFloat(row.base_pivot_price) : null,
+      base_support_price: row.base_support_price !== null ? parseFloat(row.base_support_price) : null,
+      base_pattern: row.base_pattern || null,
+      base_depth_pct: row.base_depth_pct !== null ? parseFloat(row.base_depth_pct) : null,
+      base_duration_days: row.base_duration_days || null,
+      is_base_on_base: row.is_base_on_base || false,
+
+      // Moving average filters
+      ma_filter_value: row.ma_filter_value !== null ? parseFloat(row.ma_filter_value) : null,
+      ma_filter_type: row.ma_filter_type || null,
+      ma_filter_period: row.ma_filter_period || null,
 
       // Company and earnings information (from joined tables)
       company_name: row.company_name || null,
