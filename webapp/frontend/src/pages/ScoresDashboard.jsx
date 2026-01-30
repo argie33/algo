@@ -2548,6 +2548,241 @@ const ScoresDashboard = () => {
         </Grid>
       </Grid>
 
+      {/* Bottom Performers by Category */}
+      <Typography variant="h4" gutterBottom sx={{ mt: 6, mb: 3 }}>
+        Bottom Performers by Category
+      </Typography>
+
+      <Grid container spacing={3}>
+        {/* Quality Laggards */}
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 3, backgroundColor: alpha(theme.palette.error.main, 0.05) }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+              <Stars sx={{ color: theme.palette.error.main, fontSize: 32 }} />
+              <Typography variant="h6">Quality Laggards</Typography>
+            </Box>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Rank</TableCell>
+                    <TableCell>Symbol</TableCell>
+                    <TableCell align="right">Score</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {bottomQuality.slice(0, 10).map((stock, index) => (
+                    <TableRow key={`bottomQuality-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
+                      <TableCell>{index + 1}</TableCell>
+                      <TableCell>
+                        <Typography fontWeight={600}>{stock.symbol}</Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Chip
+                          label={stock.quality_score != null ? parseFloat(stock.quality_score).toFixed(1) : ""}
+                          size="small"
+                          color={stock.quality_score != null && parseFloat(stock.quality_score) <= 40 ? "error" : "warning"}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+        </Grid>
+
+        {/* Momentum Laggards */}
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 3, backgroundColor: alpha(theme.palette.error.main, 0.05) }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+              <Speed sx={{ color: theme.palette.error.main, fontSize: 32 }} />
+              <Typography variant="h6">Momentum Laggards</Typography>
+            </Box>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Rank</TableCell>
+                    <TableCell>Symbol</TableCell>
+                    <TableCell align="right">Score</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {bottomMomentum.slice(0, 10).map((stock, index) => (
+                    <TableRow key={`bottomMomentum-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
+                      <TableCell>{index + 1}</TableCell>
+                      <TableCell>
+                        <Typography fontWeight={600}>{stock.symbol}</Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Chip
+                          label={stock.momentum_score != null ? parseFloat(stock.momentum_score).toFixed(1) : ""}
+                          size="small"
+                          color={stock.momentum_score != null && parseFloat(stock.momentum_score) <= 40 ? "error" : "warning"}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+        </Grid>
+
+        {/* Value Laggards */}
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 3, backgroundColor: alpha(theme.palette.error.main, 0.05) }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+              <AccountBalance sx={{ color: theme.palette.error.main, fontSize: 32 }} />
+              <Typography variant="h6">Value Laggards</Typography>
+            </Box>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Rank</TableCell>
+                    <TableCell>Symbol</TableCell>
+                    <TableCell align="right">Score</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {bottomValue.slice(0, 10).map((stock, index) => (
+                    <TableRow key={`bottomValue-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
+                      <TableCell>{index + 1}</TableCell>
+                      <TableCell>
+                        <Typography fontWeight={600}>{stock.symbol}</Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Chip
+                          label={stock.value_score != null ? parseFloat(stock.value_score).toFixed(1) : ""}
+                          size="small"
+                          color={stock.value_score != null && parseFloat(stock.value_score) <= 40 ? "error" : "warning"}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+        </Grid>
+
+        {/* Growth Laggards */}
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 3, backgroundColor: alpha(theme.palette.error.main, 0.05) }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+              <TrendingDown sx={{ color: theme.palette.error.main, fontSize: 32 }} />
+              <Typography variant="h6">Growth Laggards</Typography>
+            </Box>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Rank</TableCell>
+                    <TableCell>Symbol</TableCell>
+                    <TableCell align="right">Score</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {bottomGrowth.slice(0, 10).map((stock, index) => (
+                    <TableRow key={`bottomGrowth-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
+                      <TableCell>{index + 1}</TableCell>
+                      <TableCell>
+                        <Typography fontWeight={600}>{stock.symbol}</Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Chip
+                          label={stock.growth_score != null ? parseFloat(stock.growth_score).toFixed(1) : ""}
+                          size="small"
+                          color={stock.growth_score != null && parseFloat(stock.growth_score) <= 40 ? "error" : "warning"}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+        </Grid>
+
+        {/* Positioning Laggards */}
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 3, backgroundColor: alpha(theme.palette.error.main, 0.05) }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+              <Group sx={{ color: theme.palette.error.main, fontSize: 32 }} />
+              <Typography variant="h6">Positioning Laggards</Typography>
+            </Box>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Rank</TableCell>
+                    <TableCell>Symbol</TableCell>
+                    <TableCell align="right">Score</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {bottomPositioning.slice(0, 10).map((stock, index) => (
+                    <TableRow key={`bottomPositioning-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
+                      <TableCell>{index + 1}</TableCell>
+                      <TableCell>
+                        <Typography fontWeight={600}>{stock.symbol}</Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Chip
+                          label={stock.positioning_score != null ? parseFloat(stock.positioning_score).toFixed(1) : ""}
+                          size="small"
+                          color={stock.positioning_score != null && parseFloat(stock.positioning_score) <= 40 ? "error" : "warning"}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+        </Grid>
+
+        {/* Stability Laggards */}
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 3, backgroundColor: alpha(theme.palette.error.main, 0.05) }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+              <Security sx={{ color: theme.palette.error.main, fontSize: 32 }} />
+              <Typography variant="h6">Stability Laggards</Typography>
+            </Box>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Rank</TableCell>
+                    <TableCell>Symbol</TableCell>
+                    <TableCell align="right">Score</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {bottomStability.slice(0, 10).map((stock, index) => (
+                    <TableRow key={`bottomStability-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
+                      <TableCell>{index + 1}</TableCell>
+                      <TableCell>
+                        <Typography fontWeight={600}>{stock.symbol}</Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Chip
+                          label={stock.stability_score != null ? parseFloat(stock.stability_score).toFixed(1) : ""}
+                          size="small"
+                          color={stock.stability_score != null && parseFloat(stock.stability_score) <= 40 ? "error" : "warning"}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+        </Grid>
+      </Grid>
+
       {/* Top Performers by Sector */}
       <Typography variant="h4" gutterBottom sx={{ mt: 6, mb: 3 }}>
         Top Performers by Sector
