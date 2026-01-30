@@ -138,9 +138,12 @@ def process_symbol(symbol, conn):
             insider_name = row.get('Owner Name', '')
             shares = int(row.get('Shares', 0)) if pd.notna(row.get('Shares')) else 0
             value = float(row.get('Value', 0)) if pd.notna(row.get('Value')) else 0.0
-            transaction_date = pd.to_datetime(idx.date()) if hasattr(idx, 'date') else pd.to_datetime(idx)
+            transaction_date = pd.to_datetime(row.get('Start Date')) if row.get('Start Date') else None
             transaction_type = row.get('Transaction', '')
             ownership_type = row.get('Ownership', '')
+
+            if not transaction_date:
+                continue  # Skip if no date
 
             transactions.append((
                 symbol,
