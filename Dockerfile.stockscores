@@ -1,6 +1,6 @@
 ARG ECR_REGISTRY
 FROM python:3.11-slim
-# 2026-01-28 BUILD TRIGGER: Force ECS task execution NOW
+# 2026-01-30 BUILD TRIGGER: Force ECS task execution NOW - infrastructure confirmed ready
 
 WORKDIR /app
 
