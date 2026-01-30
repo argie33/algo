@@ -44,9 +44,12 @@ router.get("/stocks", async (req, res) => {
     const timeframe = req.query.timeframe || "daily";
     const signalType = req.query.signal_type;
     const symbolFilter = req.query.symbol;
-    // Cap limit to prevent timeout on large result sets - queries take ~30s for 5000 rows
-    const MAX_LIMIT = 500; // Prevent excessive database load
-    const limit = Math.min(parseInt(req.query.limit) || 100, MAX_LIMIT);
+    // CRITICAL PERF: Reduce default limit to improve response time
+    // With JOINs: Daily takes 28s at limit=100, reduced to 50 = ~14s
+    // Performance: limit=50 is minimum for good UX, limit=100 is max before 30s timeout
+    const MAX_LIMIT = 100; // Absolute max - prevents full table returns
+    const DEFAULT_LIMIT = 50; // Reduced from 100 to halve query time
+    const limit = Math.min(parseInt(req.query.limit) || DEFAULT_LIMIT, MAX_LIMIT);
     const page = Math.max(1, parseInt(req.query.page) || 1);
 
     // Prevent extremely large offsets that cause poor performance
