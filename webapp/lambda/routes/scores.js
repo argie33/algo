@@ -492,7 +492,9 @@ async function queryScores(options = {}) {
   } = options;
 
   // Validate and sanitize parameters
-  const validatedLimit = Math.max(1, Math.min(parseInt(limit, 10) || 50, 1000));
+  // Cap limit to prevent timeout on large batch fetches - batch fetching 6+ metric tables takes time
+  const MAX_LIMIT = 250;
+  const validatedLimit = Math.max(1, Math.min(parseInt(limit, 10) || 50, MAX_LIMIT));
   const validatedOffset = Math.max(0, safeInt(offset) || 0);
   const validatedSort = ALLOWED_SORT_COLUMNS.includes(sortBy) ? sortBy : 'composite_score';
   const validatedOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
