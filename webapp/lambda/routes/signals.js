@@ -325,25 +325,11 @@ router.get("/stocks", async (req, res) => {
 router.get("/etf", async (req, res) => {
   try {
     const timeframe = req.query.timeframe || "daily";
-    const limit = parseInt(req.query.limit) || 100;
+    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
     const page = Math.max(1, parseInt(req.query.page) || 1);
-
-    // ETF signals tables not yet created in database
-    // Return empty array with message for frontend
-    console.log("[INFO] ETF signals endpoint called - tables not yet created");
-    return res.json({
-      items: [],
-      pagination: {
-        page,
-        limit,
-        total: 0,
-        totalPages: 0,
-        hasNext: false,
-        hasPrev: false,
-        message: "ETF signals data not yet loaded. Please check back later."
-      },
-      success: true
-    });
+    const signalType = req.query.signal_type;
+    const symbolFilter = req.query.symbol;
+    const offset = (page - 1) * limit;
 
     // Safely map timeframes to table names to prevent SQL injection
     const timeframeMap = {
