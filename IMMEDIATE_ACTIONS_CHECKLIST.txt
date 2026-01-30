@@ -1,0 +1,360 @@
+================================================================================
+                    IMMEDIATE ACTIONS CHECKLIST
+                        2026-01-29
+================================================================================
+
+COMPREHENSIVE LOADER DIAGNOSTIC - ACTION ITEMS
+All issues identified and ranked by priority
+Estimated fix time: 1.5 - 2 hours total
+
+================================================================================
+                    PRIORITY 1: FIX DATABASE ENDPOINTS
+                        Estimated: 10 minutes
+                    Fixes: 5 loaders (econdata, pricedaily, aaiidata, etc.)
+================================================================================
+
+TASK: Update RDS endpoint in ECS Task Definitions
+
+Action 1: Update aaiidata-loader task definition
+  [ ] Log into AWS Console -> ECS -> Task Definitions
+  [ ] Select: aaiidata-loader
+  [ ] Create new revision
+  [ ] Find: DB_HOST environment variable
+  [ ] Change FROM: rds-stocks.c2gujitq3b.us-east-1.rds.amazonaws.com
+  [ ] Change TO: stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com
+  [ ] Save new revision
+  [ ] Update service/tasks with new definition
+
+Action 2: Update annualbalancesheet-loader task definition
+  [ ] Select: annualbalancesheet-loader
+  [ ] Create new revision
+  [ ] Update DB_HOST from old to new endpoint
+  [ ] Save new revision
+
+Action 3: Update annualcashflow-loader task definition
+  [ ] Select: annualcashflow-loader
+  [ ] Create new revision
+  [ ] Update DB_HOST from old to new endpoint
+  [ ] Save new revision
+
+Action 4: Update pricedaily-loader task definition
+  [ ] Select: pricedaily-loader
+  [ ] Create new revision
+  [ ] Update DB_HOST from old to new endpoint
+  [ ] Save new revision
+
+Action 5: Update econdata-loader task definition
+  [ ] Select: econdata-loader
+  [ ] Create new revision
+  [ ] Update DB_HOST from old to new endpoint
+  [ ] Also add: FRED_API_KEY (see Priority 4)
+  [ ] Save new revision
+
+Verification Step 1:
+  [ ] Wait 2-3 minutes for tasks to restart
+  [ ] Check CloudWatch Logs:
+      - /ecs/econdata-loader (should NOT have DNS error)
+      - /ecs/pricedaily-loader (should NOT have DNS error)
+  [ ] Confirm: "could not translate host name" errors are GONE
+
+Reference Info:
+  OLD endpoint: rds-stocks.c2gujitq3b.us-east-1.rds.amazonaws.com
+  NEW endpoint: stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com
+  Port: 5432
+  Database: stocks
+
+================================================================================
+                    PRIORITY 2: FIX MISSING DOCKER FILES
+                        Estimated: 5 min + 30 min build
+                    Fixes: 3 loaders (feargreed, buysell_etf, ttmincomestatement)
+================================================================================
+
+TASK: Add "COPY lib lib" to Dockerfiles
+
+Action 1: Edit Dockerfile.ttmincomestatement
+  [ ] Open: /home/stocks/algo/Dockerfile.ttmincomestatement
+  [ ] Find: "COPY loadttmincomestatement.py ."
+  [ ] Add BEFORE that line: COPY lib lib
+  [ ] File should now have:
+      COPY lib lib
+      COPY loadttmincomestatement.py .
+  [ ] Save file
+
+Action 2: Edit Dockerfile.buysell_etf_weekly
+  [ ] Open: /home/stocks/algo/Dockerfile.buysell_etf_weekly
+  [ ] Find: "COPY loadbuysell_etf_weekly.py ."
+  [ ] Add BEFORE that line: COPY lib lib
+  [ ] File should now have:
+      COPY lib lib
+      COPY loadbuysell_etf_weekly.py .
+  [ ] Save file
+
+Action 3: Edit Dockerfile.buysell_etf_monthly
+  [ ] Open: /home/stocks/algo/Dockerfile.buysell_etf_monthly
+  [ ] Find: "COPY loadbuysell_etf_monthly.py ."
+  [ ] Add BEFORE that line: COPY lib lib
+  [ ] File should now have:
+      COPY lib lib
+      COPY loadbuysell_etf_monthly.py .
+  [ ] Save file
+
+Action 4: Rebuild and push Docker images
+  [ ] Build ttmincomestatement image
+  [ ] Build buysell_etf_weekly image
+  [ ] Build buysell_etf_monthly image
+  [ ] Push all three images to ECR
+
+Action 5: Update ECS task definitions with new images
+  [ ] Update ttmincomestatement-loader task definition
+  [ ] Update buysell_etf_weekly-loader task definition
+  [ ] Update buysell_etf_monthly-loader task definition
+  [ ] Point to new image tags
+
+Verification Step 2:
+  [ ] Wait 2-3 minutes for tasks to restart
+  [ ] Check CloudWatch Logs:
+      - /ecs/ttmincomestatement-loader (should NOT have ModuleNotFoundError)
+      - /ecs/buysell_etf_weekly-loader (should NOT have ModuleNotFoundError)
+      - /ecs/buysell_etf_monthly-loader (should NOT have ModuleNotFoundError)
+  [ ] Confirm: "No module named" errors are GONE
+
+Note: Estimated Docker build time: 30 minutes for all 3 images
+
+================================================================================
+                    PRIORITY 3: ADD IAM PERMISSIONS
+                        Estimated: 5 minutes
+                    Affects: All loaders (security improvement)
+================================================================================
+
+TASK: Add secretsmanager:GetSecretValue policy to ECS execution role
+
+Action 1: Navigate to IAM
+  [ ] AWS Console -> IAM -> Roles
+  [ ] Search for: stocks-ecs-tasks-stack-ECSExecutionRole-UGhDyOJzoKpz
+  [ ] Click on role
+
+Action 2: Add inline policy
+  [ ] Click: "Add inline policy"
+  [ ] Select: JSON editor
+  [ ] Paste the following policy:
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Action": "secretsmanager:GetSecretValue",
+            "Resource": [
+              "arn:aws:secretsmanager:us-east-1:626216981288:secret:rds-stocks-secret",
+              "arn:aws:secretsmanager:us-east-1:626216981288:secret:stocks-db-secrets-stocks-app-stack-us-east-1-001*"
+            ]
+          }
+        ]
+      }
+  [ ] Click: "Review policy"
+  [ ] Name: SecretsManagerAccess
+  [ ] Click: "Create policy"
+
+Verification Step 3:
+  [ ] Check task logs (all loaders)
+  [ ] Confirm: No "AccessDeniedException" errors
+  [ ] Confirm: Secrets Manager access now succeeds
+
+================================================================================
+                    PRIORITY 4: ADD MISSING API KEYS
+                        Estimated: 2 minutes
+                    Affects: 1 loader (econdata-loader)
+================================================================================
+
+TASK: Add FRED_API_KEY environment variable
+
+Action 1: Get FRED API Key (if needed)
+  [ ] Visit: https://fred.stlouisfed.org/docs/api/
+  [ ] Create account if needed
+  [ ] Generate API key
+  [ ] Copy key value
+
+Action 2: Update econdata-loader task definition
+  [ ] AWS Console -> ECS -> Task Definitions
+  [ ] Select: econdata-loader
+  [ ] Create new revision (if not already done in Priority 1)
+  [ ] Find: Environment variables section
+  [ ] Add new environment variable:
+      Name: FRED_API_KEY
+      Value: <your-fred-api-key>
+  [ ] Save new revision
+
+Verification Step 4:
+  [ ] Check CloudWatch Logs: /ecs/econdata-loader
+  [ ] Confirm: No "FRED_API_KEY not set" warning
+  [ ] Confirm: No "FRED_API_KEY not set" in logs
+
+================================================================================
+                    FINAL VERIFICATION CHECKLIST
+                        Estimated: 15 minutes
+================================================================================
+
+After all fixes are applied:
+
+CloudWatch Log Verification:
+  [ ] /ecs/econdata-loader
+      - No DNS errors? YES
+      - No IAM errors? YES
+      - No API key warning? YES
+  [ ] /ecs/pricedaily-loader
+      - No DNS errors? YES
+  [ ] /ecs/aaiidata-loader
+      - No DNS errors? YES
+  [ ] /ecs/annualbalancesheet-loader
+      - No DNS errors? YES
+  [ ] /ecs/annualcashflow-loader
+      - No DNS errors? YES
+  [ ] /ecs/ttmincomestatement-loader
+      - No ModuleNotFoundError? YES
+  [ ] /ecs/buysell_etf_weekly-loader
+      - No ModuleNotFoundError? YES
+  [ ] /ecs/buysell_etf_monthly-loader
+      - No ModuleNotFoundError? YES
+
+Database Connectivity Test:
+  [ ] All loaders connecting to database? YES
+  [ ] Data loading into database? YES
+  [ ] No connection timeouts? YES
+
+Application Functionality:
+  [ ] Economic data loading? YES
+  [ ] Price data loading? YES
+  [ ] Buy/sell signals generating? YES
+  [ ] TTM statements loading? YES
+  [ ] All critical loaders working? YES
+
+Performance Check:
+  [ ] Tasks running without restarts? YES
+  [ ] CPU/Memory usage normal? YES
+  [ ] No repeated errors in logs? YES
+
+================================================================================
+                    ROLLBACK PLAN (If needed)
+================================================================================
+
+If any issues occur:
+
+Option 1: Revert task definitions
+  [ ] Go back to previous task definition version
+  [ ] Update service to use previous version
+  [ ] Verify logs for errors
+
+Option 2: Revert Docker images
+  [ ] Push previous Docker images from ECR
+  [ ] Update task definitions to use previous image tags
+  [ ] Verify containers restart properly
+
+Option 3: Contact Support
+  [ ] Check CloudWatch for error details
+  [ ] Review diagnostic reports for issue specifics
+  [ ] Escalate with log excerpts
+
+================================================================================
+                    TIME TRACKING
+================================================================================
+
+START TIME: _____________________
+
+PRIORITY 1 (Update RDS endpoints):
+  Started: ______
+  Completed: ______
+  Time taken: ______
+
+PRIORITY 2 (Fix Dockerfiles):
+  Started: ______
+  Completed: ______
+  Time taken: ______ (includes build time)
+
+PRIORITY 3 (Add IAM permissions):
+  Started: ______
+  Completed: ______
+  Time taken: ______
+
+PRIORITY 4 (Add API keys):
+  Started: ______
+  Completed: ______
+  Time taken: ______
+
+VERIFICATION:
+  Started: ______
+  Completed: ______
+  Time taken: ______
+
+TOTAL TIME: ______
+
+Notes: _________________________________________________________________________
+________________________________________________________________________
+________________________________________________________________________
+
+================================================================================
+                    SUCCESS CRITERIA
+================================================================================
+
+All fixes are successful when:
+
+1. Database Connectivity:
+   [ ] econdata-loader connects to RDS database
+   [ ] pricedaily-loader connects to RDS database
+   [ ] All other loaders connect without DNS errors
+
+2. Python Dependencies:
+   [ ] No ModuleNotFoundError in any loader logs
+   [ ] lib directory imports successfully
+
+3. IAM Permissions:
+   [ ] No AccessDeniedException in logs
+   [ ] Secrets Manager access succeeds
+
+4. API Configuration:
+   [ ] No warnings about missing FRED_API_KEY
+
+5. Data Loading:
+   [ ] Data appears in database tables
+   [ ] No failed task exits
+   [ ] All loaders running continuously
+
+================================================================================
+                    SUPPORT REFERENCES
+================================================================================
+
+Diagnostic Documents:
+  - /home/stocks/algo/DIAGNOSTIC_REPORT.md (Full analysis)
+  - /home/stocks/algo/DIAGNOSTIC_SUMMARY.txt (Quick reference)
+  - /home/stocks/algo/DETAILED_ERRORS.txt (Technical details)
+  - /home/stocks/algo/README_DIAGNOSTICS.txt (Navigation)
+
+CloudWatch Log Groups:
+  - /ecs/econdata-loader
+  - /ecs/pricedaily-loader
+  - /ecs/aaiidata-loader
+  - /ecs/annualbalancesheet-loader
+  - /ecs/annualcashflow-loader
+  - /ecs/ttmincomestatement-loader
+  - /ecs/buysell_etf_weekly-loader
+  - /ecs/buysell_etf_monthly-loader
+
+AWS Services:
+  - AWS Console: https://console.aws.amazon.com
+  - ECS Cluster: stocks-cluster
+  - RDS Instance: stocks
+  - Execution Role: stocks-ecs-tasks-stack-ECSExecutionRole-UGhDyOJzoKpz
+
+Database:
+  - Endpoint: stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com
+  - Port: 5432
+  - Database: stocks
+
+================================================================================
+
+This checklist is designed to be completed sequentially.
+Each priority builds on the previous ones.
+
+Expected total time: 1.5 - 2 hours (including 30-minute Docker build)
+
+START WITH PRIORITY 1 - THIS WILL FIX 5 LOADERS IMMEDIATELY.
+
+================================================================================
