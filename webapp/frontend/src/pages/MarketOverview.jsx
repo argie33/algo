@@ -610,16 +610,18 @@ const handleTabChange = (event, newValue) => {
   naaimHistory.forEach((item) => {
     const date = item.date || item.timestamp;
     if (!dateMap[date]) dateMap[date] = { date };
-    // NAAIM from new endpoint uses: mean
-    dateMap[date].naaim = item.mean || item.average || item.bullish_exposure;
+    // NAAIM from new endpoint uses: bullish_exposure, bearish_exposure
+    dateMap[date].bullish_exposure = item.bullish_exposure || item.mean || null;
+    dateMap[date].bearish_exposure = item.bearish_exposure || null;
+    dateMap[date].naaim = item.mean || item.average;
     dateMap[date].has_naaim = true;
   });
   aaiiHistory.forEach((item) => {
     const date = item.date || item.timestamp;
     if (!dateMap[date]) dateMap[date] = { date };
-    dateMap[date].aaii_bullish = item.bullish;
-    dateMap[date].aaii_bearish = item.bearish;
-    dateMap[date].aaii_neutral = item.neutral;
+    dateMap[date].bullish = item.bullish;
+    dateMap[date].bearish = item.bearish;
+    dateMap[date].neutral = item.neutral;
     dateMap[date].has_aaii = true;
   });
 
@@ -686,7 +688,7 @@ const handleTabChange = (event, newValue) => {
                 <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: 400 }}>
                   <CircularProgress />
                 </Box>
-              ) : aaiiHistory && aaiiHistory.length > 0 ? (
+              ) : aaiiHistory && aaiiHistory.length > 0 && sentimentChartData.length > 0 ? (
                 <Box sx={{ height: 400, width: "100%", minWidth: 0, minHeight: 0 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
@@ -807,7 +809,7 @@ const handleTabChange = (event, newValue) => {
                 <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: 400 }}>
                   <CircularProgress />
                 </Box>
-              ) : fearGreedHistory && fearGreedHistory.length > 0 ? (
+              ) : fearGreedHistory && fearGreedHistory.length > 0 && sentimentChartData.length > 0 ? (
                 <Box sx={{ height: 400, width: "100%", minWidth: 0, minHeight: 0 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
@@ -908,7 +910,7 @@ const handleTabChange = (event, newValue) => {
                 <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: 400 }}>
                   <CircularProgress />
                 </Box>
-              ) : naaimHistory && naaimHistory.length > 0 ? (
+              ) : naaimHistory && naaimHistory.length > 0 && sentimentChartData.length > 0 ? (
                 <Box sx={{ height: 400, width: "100%", minWidth: 0, minHeight: 0 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
