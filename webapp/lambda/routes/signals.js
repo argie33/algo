@@ -44,7 +44,9 @@ router.get("/stocks", async (req, res) => {
     const timeframe = req.query.timeframe || "daily";
     const signalType = req.query.signal_type;
     const symbolFilter = req.query.symbol;
-    const limit = parseInt(req.query.limit) || 100;
+    // Cap limit to prevent timeout on large result sets - queries take ~30s for 5000 rows
+    const MAX_LIMIT = 500; // Prevent excessive database load
+    const limit = Math.min(parseInt(req.query.limit) || 100, MAX_LIMIT);
     const page = Math.max(1, parseInt(req.query.page) || 1);
 
     // Prevent extremely large offsets that cause poor performance
