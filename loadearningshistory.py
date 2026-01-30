@@ -1,6 +1,6 @@
-#!/usr/bin/env python3 
-# Updated for deployment verification test
-# Updated: 2025-07-15 - Trigger deployment for earnings history data - Database population v2
+#!/usr/bin/env python3
+# FORCE RUN NOW: 2026-01-30 - All rate limiting fixes deployed - loading earnings history
+# Trigger deployment for earnings history data - Database population v3
 import sys
 import time
 import logging
