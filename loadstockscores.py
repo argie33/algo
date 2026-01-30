@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AWS DEPLOYMENT: 2026-01-28_031500 - URGENT: Deploy stockscores loader with ECS tasks RUNNING NOW
+# AWS DEPLOYMENT: 2026-01-30_075500 - FORCE RUN NOW: All fixes deployed - triggering stock scores loader
 """
 Stock Scores Loader - Multi-Factor Stock Scoring System
 
