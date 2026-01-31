@@ -1,50 +1,28 @@
 #!/usr/bin/env python3
 """
-Sector Ranking Loader
-Calculates sector performance metrics and rankings
+DEPRECATED: Use loadsectors.py instead
+This script is maintained for backward compatibility only.
+All sector and industry ranking logic has been consolidated into loadsectors.py
 """
 
 import sys
+import subprocess
 import logging
-import os
-from lib.db import get_connection, get_db_config
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-SCRIPT_NAME = "loadsectorranking.py"
-
-def get_db_connection(script_name):
-    """Get database connection using lib.db utilities"""
-    try:
-        cfg = get_db_config()
-        conn = get_connection(cfg)
-        return conn
-    except Exception as e:
-        logger.error(f"Failed to connect to database: {e}")
-        return None
-
 def main():
-    """Main execution"""
-    logger.info(f"🚀 Starting {SCRIPT_NAME}")
+    """Delegate to loadsectors.py which handles both sector and industry loading"""
+    logger.info("🔄 loadsectorranking.py delegating to loadsectors.py...")
+    logger.info("⚠️  DEPRECATED: loadsectorranking.py is for backward compatibility only")
+    logger.info("   All sector and industry ranking logic is in loadsectors.py")
 
-    # Get database connection
-    conn = get_db_connection(SCRIPT_NAME)
-    if not conn:
-        logger.error("❌ Failed to connect to database")
-        sys.exit(1)
-
-    try:
-        # Placeholder: Sector ranking loading
-        logger.info("📊 Sector ranking loader (placeholder)")
-        logger.info("✅ Loader completed successfully")
-        sys.exit(0)
-    except Exception as e:
-        logger.error(f"❌ Error: {e}")
-        sys.exit(1)
-    finally:
-        if conn:
-            conn.close()
+    # Call the main sector loader which includes sector ranking
+    result = subprocess.run([sys.executable, '/home/stocks/algo/loadsectors.py'],
+                          capture_output=False)
+    return result.returncode
 
 if __name__ == "__main__":
-    main()
+    exit_code = main()
+    sys.exit(exit_code)
