@@ -158,7 +158,7 @@ const WealthManagement = () => {
         title="Manage Wealth with Confidence"
         subtitle="Use AI-powered insights to optimize your portfolio and protect your wealth"
         primaryCTA={{ label: 'Launch Platform', href: '/app/market' }}
-        secondaryCTA={{ label: 'Schedule Consultation', href: '/become-client' }}
+        secondaryCTA={{ label: 'Schedule Consultation', href: '/contact' }}
       />
 
       <Box sx={{ mx: { xs: 2, md: 4 }, mb: 6 }}>
@@ -166,7 +166,7 @@ const WealthManagement = () => {
           variant="primary"
           title="Transform Your Wealth Management"
           subtitle="Access institutional-grade portfolio management tools designed for serious investors."
-          primaryCTA={{ label: 'Become a Client', link: '/become-client' }}
+          primaryCTA={{ label: 'Become a Client', link: '/contact' }}
           secondaryCTA={{ label: 'View Services', link: '/services' }}
         />
       </Box>

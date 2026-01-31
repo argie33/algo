@@ -145,12 +145,108 @@ const ResearchInsights = () => {
         </Grid>
       </Container>
 
+      {/* How Our Research Works Section */}
+      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.paper }}>
+        <Container maxWidth="lg">
+          <Typography
+            variant="h3"
+            sx={{
+              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
+              fontWeight: 800,
+              mb: 2,
+              textAlign: 'center',
+              color: theme.palette.text.primary,
+            }}
+          >
+            How Bullseye's Research Process Works
+          </Typography>
+          <Typography
+            sx={{
+              fontSize: '1.05rem',
+              color: theme.palette.text.secondary,
+              textAlign: 'center',
+              mb: 6,
+              maxWidth: '700px',
+              mx: 'auto',
+            }}
+          >
+            Our research engine processes comprehensive data through proprietary AI models to deliver actionable intelligence
+          </Typography>
+          <Grid container spacing={4}>
+            {[
+              {
+                step: '1',
+                title: 'Data Integration',
+                description: 'We aggregate and normalize data across 6+ dimensions: market data, economic indicators, financial fundamentals, technical patterns, sector dynamics, and sentiment signals.',
+              },
+              {
+                step: '2',
+                title: 'AI Analysis',
+                description: 'Our machine learning models analyze patterns, correlations, and anomalies across all dimensions simultaneously. Models adapt to changing market conditions in real-time.',
+              },
+              {
+                step: '3',
+                title: 'Research Synthesis',
+                description: 'Complex AI outputs are synthesized into clear, actionable research insights. We explain the reasoning behind every recommendation.',
+              },
+              {
+                step: '4',
+                title: 'Platform Access',
+                description: 'All research is available through our platform interface. Institutional clients can access data via API, while advisors and traders use the web platform for analysis and screening.',
+              },
+            ].map((item, idx) => (
+              <Grid item xs={12} sm={6} md={3} key={idx}>
+                <Box sx={{ textAlign: 'center' }}>
+                  <Box
+                    sx={{
+                      width: 60,
+                      height: 60,
+                      borderRadius: '0px',
+                      backgroundColor: theme.palette.primary.main,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#fff',
+                      fontSize: '1.5rem',
+                      fontWeight: 'bold',
+                      mb: 2,
+                      mx: 'auto',
+                    }}
+                  >
+                    {item.step}
+                  </Box>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontWeight: 700,
+                      mb: 1.5,
+                      color: theme.palette.text.primary,
+                    }}
+                  >
+                    {item.title}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: theme.palette.text.secondary,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {item.description}
+                  </Typography>
+                </Box>
+              </Grid>
+            ))}
+          </Grid>
+        </Container>
+      </Box>
+
       <PromoBanner
         icon={<InsightsIcon sx={{ color: theme.palette.primary.main }} />}
         title="Ready for Professional-Grade Insights?"
         subtitle="Start leveraging AI-powered research to improve your investment decisions"
         primaryCTA={{ label: 'Launch Platform', href: '/app/market' }}
-        secondaryCTA={{ label: 'Schedule Demo', href: '/become-client' }}
+        secondaryCTA={{ label: 'Schedule Demo', href: '/contact' }}
       />
 
       <Box sx={{ mx: { xs: 2, md: 4 }, mb: 6 }}>
@@ -158,7 +254,7 @@ const ResearchInsights = () => {
           variant="primary"
           title="Unlock Market Intelligence"
           subtitle="Access comprehensive research and insights to stay ahead of the market."
-          primaryCTA={{ label: 'Get Started', link: '/become-client' }}
+          primaryCTA={{ label: 'Get Started', link: '/contact' }}
           secondaryCTA={{ label: 'Learn More', link: '/services' }}
         />
       </Box>

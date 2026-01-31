@@ -18,18 +18,30 @@ const HeroSection = () => {
   return (
     <Box
       sx={{
-        background: `linear-gradient(180deg, #ffffff 0%, #f5f7fa 100%)`,
-        py: { xs: 8, sm: 10, md: 14 },
         position: 'relative',
         overflow: 'hidden',
+        py: { xs: 8, sm: 10, md: 14 },
         borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+        backgroundImage: `url('https://images.unsplash.com/photo-1518391846015-55a9cc003b25?w=1200&h=700&fit=crop&auto=format&q=80')`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: `linear-gradient(90deg, ${alpha(theme.palette.background.default, 0.95)} 0%, ${alpha(theme.palette.background.default, 0.85)} 40%, ${alpha(theme.palette.background.default, 0.6)} 70%, transparent 100%)`,
+          zIndex: 1,
+        },
       }}
     >
-      <Container maxWidth="xl">
-        <Grid container spacing={{ xs: 4, md: 6 }} alignItems="stretch">
-          {/* Left Content */}
-          <Grid item xs={12} md={5}>
-            <Box sx={{ position: 'relative', zIndex: 1 }}>
+      <Container maxWidth="xl" sx={{ position: 'relative', zIndex: 2 }}>
+        <Grid container spacing={{ xs: 4, md: 6 }} alignItems="center">
+          {/* Left Content - Overlaid on Image */}
+          <Grid item xs={12} md={6}>
+            <Box>
               <Typography
                 variant="h1"
                 component="h1"
@@ -141,15 +153,6 @@ const HeroSection = () => {
                 ))}
               </Box>
             </Box>
-          </Grid>
-
-          {/* Right Visual - Hero Image */}
-          <Grid item xs={12} md={7}>
-            <ImagePlaceholder
-              src="/images/hero.png"
-              alt="Institutional Research Hero"
-              height={{ xs: '300px', sm: '400px', md: '500px' }}
-            />
           </Grid>
         </Grid>
       </Container>

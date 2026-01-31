@@ -319,7 +319,7 @@ const MarketingNav = () => {
               <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
                 <Button
                   variant="outlined"
-                  onClick={() => navigate('/become-client')}
+                  onClick={() => navigate('/contact')}
                   sx={{
                     borderRadius: 1,
                     textTransform: 'none',
