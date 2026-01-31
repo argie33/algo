@@ -84,31 +84,38 @@ def track_calc_failure(symbol: str, metric_name: str, error: Exception):
 
 
 def get_db_config():
-    """Get database configuration - works in AWS and locally"""
+    """Get database configuration - works in AWS and locally.
+
+    Priority:
+    1. AWS Secrets Manager (if DB_SECRET_ARN is set)
+    2. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
+    """
     db_secret_arn = os.environ.get("DB_SECRET_ARN")
 
     if db_secret_arn:
-        secret_str = boto3.client("secretsmanager").get_secret_value(
-            SecretId=db_secret_arn
-        )["SecretString"]
-        sec = json.loads(secret_str)
-        return {
-            "host": sec["host"],
-            "port": sec["port"],
-            "user": sec["username"],
-            "password": sec["password"],
-            "database": sec["dbname"],
-        }
+        try:
+            secret_str = boto3.client("secretsmanager").get_secret_value(
+                SecretId=db_secret_arn
+            )["SecretString"]
+            sec = json.loads(secret_str)
+            logging.info("Using AWS Secrets Manager for database config")
+            return {
+                "host": sec["host"],
+                "port": int(sec.get("port", 5432)),
+                "user": sec["username"],
+                "password": sec["password"],
+                "database": sec["dbname"],
+            }
+        except Exception as e:
+            logging.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
 
-    db_host = os.environ.get("DB_HOST", "localhost").strip()
-    # Fix for stale endpoint - if env var has old endpoint, use correct one
-    if 'c2gujitq3h1b' in db_host:
-        db_host = 'stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com'
+    # Fall back to environment variables
+    logging.info("Using environment variables for database config")
     return {
-        "host": db_host,
-        "port": os.environ.get("DB_PORT", 5432),
+        "host": os.environ.get("DB_HOST", "localhost"),
+        "port": int(os.environ.get("DB_PORT", 5432)),
         "user": os.environ.get("DB_USER", "stocks"),
-        "password": os.environ.get("DB_PASSWORD", "bed0elAn"),
+        "password": os.environ.get("DB_PASSWORD", ""),
         "database": os.environ.get("DB_NAME", "stocks"),
     }
 

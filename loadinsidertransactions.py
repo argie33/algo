@@ -31,12 +31,20 @@ logger = logging.getLogger(__name__)
 DB_SECRET_ARN = os.getenv("DB_SECRET_ARN")
 
 def get_db_config():
-    """Fetch database config from Secrets Manager or environment."""
+    """Get database configuration from AWS Secrets Manager or environment variables.
+
+    Priority:
+    1. AWS Secrets Manager (if DB_SECRET_ARN is set)
+    2. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
+
+    Returns tuple: (username, password, host, port, dbname)
+    """
     if DB_SECRET_ARN:
         try:
             client = boto3.client("secretsmanager")
             resp = client.get_secret_value(SecretId=DB_SECRET_ARN)
             sec = json.loads(resp["SecretString"])
+            logger.info("Using AWS Secrets Manager for database config")
             return (
                 sec["username"],
                 sec["password"],
@@ -45,11 +53,13 @@ def get_db_config():
                 sec["dbname"]
             )
         except Exception as e:
-            logger.warning(f"Failed to fetch from Secrets Manager: {e}, using environment variables")
+            logger.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
 
+    # Fall back to environment variables
+    logger.info("Using environment variables for database config")
     return (
         os.getenv("DB_USER", "stocks"),
-        os.getenv("DB_PASSWORD", "bed0elAn"),
+        os.getenv("DB_PASSWORD", ""),
         os.getenv("DB_HOST", "localhost"),
         int(os.getenv("DB_PORT", 5432)),
         os.getenv("DB_NAME", "stocks")
