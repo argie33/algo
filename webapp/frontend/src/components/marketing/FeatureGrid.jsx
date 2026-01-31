@@ -176,26 +176,6 @@ const FeatureGrid = ({ title, subtitle, features, columns = { xs: 1, sm: 2, md: 
                         </Box>
                       )}
 
-                      {/* Tags (Optional) */}
-                      {feature.tags && (
-                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 2, justifyContent: 'center' }}>
-                          {feature.tags.map((tag, tidx) => (
-                            <Chip
-                              key={tidx}
-                              label={tag}
-                              size="small"
-                              variant="outlined"
-                              sx={{
-                                borderColor: alpha(theme.palette.primary.main, 0.3),
-                                color: theme.palette.text.secondary,
-                                fontWeight: 500,
-                                fontSize: '0.75rem',
-                                backgroundColor: 'transparent',
-                              }}
-                            />
-                          ))}
-                        </Box>
-                      )}
                     </CardContent>
                   </Card>
                 </CardActionArea>

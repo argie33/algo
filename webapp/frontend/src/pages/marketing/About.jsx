@@ -18,17 +18,6 @@ const About = () => {
         subtitle="Our story and commitment to AI-powered market intelligence"
       />
 
-      {/* Hero Image Section */}
-      <Box sx={{ py: { xs: 4, md: 6 }, backgroundColor: alpha(theme.palette.primary.main, 0.02) }}>
-        <Container maxWidth="lg">
-          <ImagePlaceholder
-            src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=1200&h=500&fit=crop&auto=format&q=80"
-            alt="Bullseye Financial Team"
-            height={{ xs: '300px', md: '400px' }}
-          />
-        </Container>
-      </Box>
-
       {/* Who We Are Section */}
       <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: alpha(theme.palette.primary.main, 0.02) }}>
         <Container maxWidth="lg">
@@ -90,50 +79,6 @@ const About = () => {
               />
             </Grid>
           </Grid>
-        </Container>
-      </Box>
-
-      {/* Mission Statement Section */}
-      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: alpha(theme.palette.primary.main, 0.02) }}>
-        <Container maxWidth="lg">
-          <Typography
-            variant="h3"
-            sx={{
-              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
-              fontWeight: 800,
-              mb: 4,
-              textAlign: 'center',
-              color: theme.palette.text.primary,
-            }}
-          >
-            Our Mission
-          </Typography>
-          <Typography
-            sx={{
-              fontSize: '1.1rem',
-              color: theme.palette.text.secondary,
-              mb: 3,
-              lineHeight: 1.8,
-              maxWidth: '900px',
-              mx: 'auto',
-              textAlign: 'center',
-            }}
-          >
-            To democratize institutional-grade equity research by combining rigorous quantitative analysis, fundamental insights, and technical expertise into a comprehensive research platform accessible to professional and individual investors.
-          </Typography>
-          <Typography
-            sx={{
-              fontSize: '1rem',
-              color: theme.palette.text.secondary,
-              lineHeight: 1.8,
-              maxWidth: '900px',
-              mx: 'auto',
-              textAlign: 'center',
-              fontStyle: 'italic',
-            }}
-          >
-            We believe independent research drives better investment decisions. By removing conflicts of interest and publishing transparent, evidence-based analysis across 5,300+ equities, we empower investors to make informed decisions based on data, not Wall Street relationships.
-          </Typography>
         </Container>
       </Box>
 
@@ -206,7 +151,7 @@ const About = () => {
           title="Ready to Get Started?"
           subtitle="Join investors using Bullseye Financial for evidence-based market analysis."
           primaryCTA={{ label: 'Launch Platform', link: '/app/market' }}
-          secondaryCTA={{ label: 'Become a Client', link: '/become-client' }}
+          secondaryCTA={{ label: 'Become a Client', link: '/contact' }}
         />
       </Box>
     </MarketingLayout>

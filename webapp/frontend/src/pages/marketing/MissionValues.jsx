@@ -177,7 +177,7 @@ const MissionValues = () => {
           variant="primary"
           title="Join Our Mission"
           subtitle="Be part of a team revolutionizing how investors access market intelligence."
-          primaryCTA={{ label: 'Become a Client', link: '/become-client' }}
+          primaryCTA={{ label: 'Become a Client', link: '/contact' }}
           secondaryCTA={{ label: 'Contact Us', link: '/contact' }}
         />
       </Box>

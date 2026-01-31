@@ -820,7 +820,7 @@ const Firm = () => {
         icon={<HandshakeIcon sx={{ color: theme.palette.primary.main }} />}
         title="Partner With a Research-Driven Firm"
         subtitle="Access institutional-grade market intelligence and research-backed advisory solutions."
-        primaryCTA={{ label: 'Get Started', href: '/become-client' }}
+        primaryCTA={{ label: 'Get Started', href: '/contact' }}
         secondaryCTA={{ label: 'View Services', href: '/services' }}
       />
 

@@ -154,7 +154,6 @@ const OurTeam = () => {
         icon={<PeopleIcon sx={{ color: theme.palette.primary.main }} />}
         title="Interested in Joining Our Team?"
         subtitle="We're always looking for talented people passionate about AI and finance"
-        primaryCTA={{ label: 'View Careers', href: '#' }}
         secondaryCTA={{ label: 'Contact Us', href: '/contact' }}
       />
 

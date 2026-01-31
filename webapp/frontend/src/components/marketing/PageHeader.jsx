@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Container, Typography, useTheme } from '@mui/material';
+import { Box, Container, Typography, useTheme, alpha } from '@mui/material';
 
 /**
  * PageHeader Component
@@ -12,23 +12,24 @@ const PageHeader = ({ title, subtitle }) => {
   return (
     <Box sx={{
       py: { xs: 6, md: 8 },
-      background: `linear-gradient(135deg, ${theme.palette.primary.main}15 0%, ${theme.palette.primary.main}05 100%)`,
-      borderBottom: `3px solid ${theme.palette.primary.main}`,
       position: 'relative',
       overflow: 'hidden',
+      borderBottom: `3px solid ${theme.palette.primary.main}`,
+      backgroundImage: `url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&h=700&fit=crop&auto=format&q=80')`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
       '&::before': {
         content: '""',
         position: 'absolute',
         top: 0,
-        right: '-100px',
-        width: '300px',
-        height: '300px',
-        background: `radial-gradient(circle, ${theme.palette.primary.main}20 0%, transparent 70%)`,
-        borderRadius: '50%',
-        pointerEvents: 'none',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: `linear-gradient(90deg, ${alpha(theme.palette.background.default, 0.75)} 0%, ${alpha(theme.palette.background.default, 0.65)} 40%, ${alpha(theme.palette.background.default, 0.4)} 70%, transparent 100%)`,
+        zIndex: 1,
       }
     }}>
-      <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1 }}>
+      <Container maxWidth="lg" sx={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
         <Typography
           variant="h2"
           component="h1"
@@ -54,6 +55,7 @@ const PageHeader = ({ title, subtitle }) => {
               color: theme.palette.text.secondary,
               fontWeight: 500,
               maxWidth: '700px',
+              mx: 'auto',
               lineHeight: 1.6,
             }}
           >

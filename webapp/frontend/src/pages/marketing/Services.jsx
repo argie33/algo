@@ -1069,7 +1069,7 @@ const Services = () => {
           title="Experience Institutional-Grade Research"
           subtitle="Access comprehensive equity research combining quantitative analysis, fundamental insights, and technical research across 5,300+ stocks."
           primaryCTA={{ label: 'Explore Platform', link: '/app/market' }}
-          secondaryCTA={{ label: 'View Pricing', link: '/become-client' }}
+          secondaryCTA={{ label: 'View Pricing', link: '/contact' }}
         />
       </Box>
     </MarketingLayout>

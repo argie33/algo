@@ -158,7 +158,7 @@ const InvestmentTools = () => {
         title="Built for Active Investors"
         subtitle="Get real-time analysis and AI-powered signals for informed trading decisions"
         primaryCTA={{ label: 'Launch Platform', href: '/app/market' }}
-        secondaryCTA={{ label: 'View Pricing', href: '/become-client' }}
+        secondaryCTA={{ label: 'View Pricing', href: '/contact' }}
       />
 
       <Box sx={{ mx: { xs: 2, md: 4 }, mb: 6 }}>
@@ -166,7 +166,7 @@ const InvestmentTools = () => {
           variant="primary"
           title="Start Using Professional Tools Today"
           subtitle="Access all investment tools immediately and start analyzing like a pro."
-          primaryCTA={{ label: 'Get Started', link: '/become-client' }}
+          primaryCTA={{ label: 'Get Started', link: '/contact' }}
           secondaryCTA={{ label: 'Learn More', link: '/services' }}
         />
       </Box>

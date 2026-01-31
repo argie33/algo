@@ -32,24 +32,12 @@ const Home = () => {
     { label: 'Quantitative Models', detail: 'Factor analysis, pattern recognition, historical backtesting' },
   ];
 
-  const stats = [
-    { number: '5,300+', label: 'Stocks Covered', description: 'Full US equity market coverage' },
-    { number: '10+ Years', label: 'Historical Data', description: 'Backtested research methodology' },
-    { number: 'Multi-Factor', label: 'Research Model', description: 'Fundamental, technical, and quantitative analysis' },
-    { number: 'Independent', label: 'Research', description: 'No investment banking conflicts' },
-  ];
-
   const keyFeatures = [
     {
       icon: <AnalyticsIcon fontSize="large" />,
       title: 'Quantitative Stock Analysis',
       description:
         'Multi-factor research models evaluate stocks across valuation, quality, momentum, and technical metrics. Comparative rankings updated during market hours.',
-      bullets: [
-        'Multi-factor quantitative models',
-        'Updated during market hours',
-        'Comparative rankings across universe',
-      ],
       tags: ['Quantitative', 'Equity Research', 'Analytics'],
       link: '/app/scores',
     },
@@ -58,11 +46,6 @@ const Home = () => {
       title: 'Earnings Research',
       description:
         'Comprehensive earnings analysis including historical patterns, estimate revisions, and surprise trends. 10+ years of earnings data for pattern recognition.',
-      bullets: [
-        'Earnings calendar and estimates',
-        '10+ years historical analysis',
-        'Estimate revision tracking',
-      ],
       tags: ['Earnings', 'Fundamentals', 'Research'],
       link: '/app/earnings',
     },
@@ -71,11 +54,6 @@ const Home = () => {
       title: 'Market Sentiment Research',
       description:
         'Track analyst ratings, institutional positioning, and market sentiment indicators. Identify extremes that historically precede reversals.',
-      bullets: [
-        'Analyst rating analysis',
-        'Positioning metrics',
-        'Sentiment extremes',
-      ],
       tags: ['Sentiment', 'Contrarian', 'Research'],
       link: '/app/sentiment',
     },
@@ -84,11 +62,6 @@ const Home = () => {
       title: 'Sector & Macro Research',
       description:
         'Sector rotation analysis, economic research, and macro trend monitoring. Understand how Fed policy and economic data impact markets.',
-      bullets: [
-        'Sector rotation signals',
-        'Economic indicator tracking',
-        'Fed policy analysis',
-      ],
       tags: ['Sectors', 'Economics', 'Macro'],
       link: '/app/market',
     },
@@ -222,6 +195,160 @@ const Home = () => {
         </Container>
       </Box>
 
+      {/* Compact Visual Section */}
+      <Box sx={{ py: { xs: 4, md: 6 }, backgroundColor: theme.palette.background.default }}>
+        <Container maxWidth="lg">
+          <ImagePlaceholder
+            src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=1200&h=400&fit=crop&auto=format&q=80"
+            alt="Team collaborating on financial research"
+            height={{ xs: '250px', md: '350px' }}
+          />
+        </Container>
+      </Box>
+
+      {/* Our Services Section */}
+      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.default }}>
+        <Container maxWidth="lg">
+          <Typography
+            variant="h3"
+            sx={{
+              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
+              fontWeight: 800,
+              mb: 2,
+              textAlign: 'center',
+              color: theme.palette.text.primary,
+            }}
+          >
+            Our Services
+          </Typography>
+          <Typography
+            sx={{
+              fontSize: '1.05rem',
+              color: theme.palette.text.secondary,
+              textAlign: 'center',
+              mb: 6,
+              maxWidth: '700px',
+              mx: 'auto',
+            }}
+          >
+            We offer a comprehensive library of tools and reports designed to help our clients position themselves ahead of consensus.
+          </Typography>
+
+          <Grid container spacing={4}>
+            {[
+              {
+                title: 'Research',
+                description: 'Tailored to the needs of institutions, RIAs, and individual investors, our research drives informed decision-making and optimal strategy alignment in a dynamic market landscape.',
+              },
+              {
+                title: 'Market Updates',
+                description: 'We provide intraday market commentary, offering real-time insights into unfolding market events and evolving trends.',
+              },
+              {
+                title: 'Media & Insights',
+                description: 'From daily videos delving into macro and technical perspectives, to webinars featuring industry leaders and forward-looking forecasts.',
+              },
+              {
+                title: 'Client Access',
+                description: 'Direct access to our analysts via client calls, consultations, and face-to-face meetings for portfolio assessments and strategic guidance.',
+              },
+              {
+                title: 'Sector Analysis',
+                description: 'Leveraging macro strategies, ETF themes, and technical analysis, our proprietary sector models anticipate rotations and shifts.',
+              },
+              {
+                title: 'Actionable Ideas',
+                description: 'Drawing on real-time market events and prevailing themes, we provide curated stock lists and insights to generate alpha.',
+              },
+            ].map((service, idx) => (
+              <Grid item xs={12} sm={6} md={4} key={idx}>
+                <Box
+                  sx={{
+                    p: 3,
+                    backgroundColor: theme.palette.background.paper,
+                    border: `1px solid ${theme.palette.divider}`,
+                    borderRadius: '0px',
+                    transition: 'all 0.3s ease',
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    '&:hover': {
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                      transform: 'translateY(-2px)',
+                      borderColor: theme.palette.primary.main,
+                    },
+                  }}
+                >
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontWeight: 700,
+                      mb: 2,
+                      color: theme.palette.primary.main,
+                      fontSize: '1.1rem',
+                    }}
+                  >
+                    {service.title}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: theme.palette.text.secondary,
+                      lineHeight: 1.6,
+                      mb: 3,
+                      flex: 1,
+                    }}
+                  >
+                    {service.description}
+                  </Typography>
+                  <Box sx={{ textAlign: 'right' }}>
+                    <Typography
+                      component="a"
+                      href="/services"
+                      sx={{
+                        color: theme.palette.primary.main,
+                        textDecoration: 'none',
+                        fontWeight: 600,
+                        fontSize: '0.95rem',
+                        '&:hover': {
+                          textDecoration: 'underline',
+                        },
+                      }}
+                    >
+                      Read more →
+                    </Typography>
+                  </Box>
+                </Box>
+              </Grid>
+            ))}
+          </Grid>
+
+          <Box sx={{ textAlign: 'center', mt: 6 }}>
+            <Box
+              component="a"
+              href="/services"
+              sx={{
+                display: 'inline-block',
+                px: 4,
+                py: 1.75,
+                backgroundColor: theme.palette.primary.main,
+                color: '#fff',
+                textDecoration: 'none',
+                fontWeight: 600,
+                borderRadius: '6px',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  boxShadow: `0 6px 20px ${alpha(theme.palette.primary.main, 0.4)}`,
+                  transform: 'translateY(-2px)',
+                },
+              }}
+            >
+              View More Services
+            </Box>
+          </Box>
+        </Container>
+      </Box>
+
       {/* What Sets Us Apart Section */}
       <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: alpha(theme.palette.primary.main, 0.04) }}>
         <Container maxWidth="lg">
@@ -255,25 +382,25 @@ const Home = () => {
                 number: '1',
                 title: 'Multi-Dimensional Analysis',
                 description: 'We combine fundamental analysis, technical research, and quantitative models to provide comprehensive stock coverage. Our approach integrates earnings data, valuation metrics, price action, and sector trends.',
-                image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=600&fit=crop&auto=format&q=80',
+                image: 'https://images.unsplash.com/photo-1526628652108-aa545b6c60f0?w=800&h=600&fit=crop&auto=format&q=80',
               },
               {
                 number: '2',
                 title: 'Evidence-Based Methodology',
                 description: 'Every signal is backtested against 10+ years of market data. We validate our models against real market outcomes and continuously refine our research process based on performance.',
-                image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=600&fit=crop&auto=format&q=80',
+                image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=600&fit=crop&auto=format&q=80',
               },
               {
                 number: '3',
                 title: 'Institutional-Grade Tools',
                 description: 'Access the same caliber of research tools used by professional investors. Our platform provides detailed analytics, stock screening, and portfolio monitoring for serious investors.',
-                image: 'https://images.unsplash.com/photo-1526628652108-aa545b6c60f0?w=800&h=600&fit=crop&auto=format&q=80',
+                image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=800&h=600&fit=crop&auto=format&q=80',
               },
               {
                 number: '4',
                 title: 'Independent & Transparent',
                 description: 'We publish independent research without investment banking conflicts. Our methodology is transparent, and we explain the factors driving our analysis and recommendations.',
-                image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=800&h=600&fit=crop&auto=format&q=80',
+                image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=600&fit=crop&auto=format&q=80',
               },
             ].map((item, idx) => (
               <Grid item xs={12} sm={6} md={3} key={idx}>
@@ -339,69 +466,6 @@ const Home = () => {
         </Container>
       </Box>
 
-      {/* Comprehensive Data Stats */}
-      <Box
-        sx={{
-          py: { xs: 6, md: 8 },
-          backgroundColor: theme.palette.background.paper,
-          borderTop: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
-          borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
-        }}
-      >
-        <Container maxWidth="lg">
-          <Typography
-            variant="h3"
-            sx={{
-              fontSize: { xs: '1.8rem', sm: '2rem', md: '2.2rem' },
-              fontWeight: 800,
-              mb: 6,
-              textAlign: 'center',
-              color: theme.palette.text.primary,
-            }}
-          >
-            Comprehensive Data &amp; Research Infrastructure
-          </Typography>
-          <Grid container spacing={{ xs: 3, md: 4 }}>
-            {stats.map((stat, idx) => (
-              <Grid item xs={6} sm={6} md={3} key={idx}>
-                <Box sx={{ textAlign: 'center', py: 2 }}>
-                  <Typography
-                    sx={{
-                      fontSize: { xs: '2rem', sm: '2.5rem', md: '2.8rem' },
-                      fontWeight: 700,
-                      color: theme.palette.primary.main,
-                      mb: 0.5,
-                      letterSpacing: '-0.5px',
-                    }}
-                  >
-                    {stat.number}
-                  </Typography>
-                  <Typography
-                    sx={{
-                      fontSize: { xs: '0.95rem', sm: '1rem', md: '1.05rem' },
-                      fontWeight: 600,
-                      color: theme.palette.text.primary,
-                      mb: 0.75,
-                    }}
-                  >
-                    {stat.label}
-                  </Typography>
-                  <Typography
-                    sx={{
-                      fontSize: '0.85rem',
-                      color: theme.palette.text.secondary,
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    {stat.description}
-                  </Typography>
-                </Box>
-              </Grid>
-            ))}
-          </Grid>
-        </Container>
-      </Box>
-
       {/* Core Research Capabilities */}
       <FeatureGrid
         title="Core Research Capabilities"
@@ -409,104 +473,6 @@ const Home = () => {
         features={keyFeatures}
         columns={{ xs: 1, sm: 2, md: 2, lg: 2 }}
       />
-
-      {/* Our Research Approach Section */}
-      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.paper }}>
-        <Container maxWidth="lg">
-          <Typography
-            variant="h3"
-            sx={{
-              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
-              fontWeight: 800,
-              mb: 2,
-              textAlign: 'center',
-              color: theme.palette.text.primary,
-            }}
-          >
-            Our Research Approach
-          </Typography>
-          <Typography
-            sx={{
-              fontSize: '1.05rem',
-              color: theme.palette.text.secondary,
-              textAlign: 'center',
-              mb: 6,
-              maxWidth: '800px',
-              mx: 'auto',
-              lineHeight: 1.8,
-            }}
-          >
-            Bullseye combines fundamental analysis, quantitative research, and technical insights to deliver comprehensive equity coverage. Our methodology integrates multiple data sources and is validated through rigorous backtesting.
-          </Typography>
-
-          <Grid container spacing={4}>
-            {[
-              {
-                title: 'Fundamental Research',
-                description: 'Comprehensive analysis of financial statements, valuation metrics, earnings quality, and competitive positioning. We evaluate companies using traditional metrics alongside proprietary screening models.',
-              },
-              {
-                title: 'Quantitative Analysis',
-                description: 'Multi-factor models evaluate stocks across value, quality, momentum, and technical factors. All models are backtested against 10+ years of data and validated for statistical significance.',
-              },
-              {
-                title: 'Technical Research',
-                description: 'Price action analysis, support/resistance identification, and momentum indicators. We track technical patterns that have historically preceded significant moves.',
-              },
-              {
-                title: 'Earnings Intelligence',
-                description: 'Historical earnings analysis, estimate revision tracking, and surprise pattern recognition. We identify stocks with improving fundamentals before consensus catches on.',
-              },
-              {
-                title: 'Economic & Sector Analysis',
-                description: 'Macro research covering Fed policy, economic indicators, and sector rotation. We analyze how changing economic conditions impact different industries and investment styles.',
-              },
-              {
-                title: 'Independent Research',
-                description: 'We maintain independence from investment banking and operate without conflicts of interest. Our research is based on data and analysis, not Wall Street relationships.',
-              },
-            ].map((item, idx) => (
-              <Grid item xs={12} md={6} key={idx}>
-                <Card
-                  sx={{
-                    height: '100%',
-                    border: `1px solid ${theme.palette.divider}`,
-                    backgroundColor: theme.palette.background.default,
-                    borderRadius: '0px',
-                    transition: 'all 0.3s ease',
-                    '&:hover': {
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                      transform: 'translateY(-2px)',
-                    },
-                  }}
-                >
-                  <CardContent>
-                    <Typography
-                      variant="h6"
-                      sx={{
-                        fontWeight: 700,
-                        mb: 1.5,
-                        color: theme.palette.primary.main,
-                      }}
-                    >
-                      {item.title}
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: theme.palette.text.secondary,
-                        lineHeight: 1.7,
-                      }}
-                    >
-                      {item.description}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
-        </Container>
-      </Box>
 
       {/* Client Segmentation Section */}
       <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.default }}>
@@ -606,102 +572,6 @@ const Home = () => {
                     </Box>
                   </CardContent>
                 </Card>
-              </Grid>
-            ))}
-          </Grid>
-        </Container>
-      </Box>
-
-      {/* How Our Research Works Section */}
-      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.paper }}>
-        <Container maxWidth="lg">
-          <Typography
-            variant="h3"
-            sx={{
-              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
-              fontWeight: 800,
-              mb: 2,
-              textAlign: 'center',
-              color: theme.palette.text.primary,
-            }}
-          >
-            How Bullseye's Research Process Works
-          </Typography>
-          <Typography
-            sx={{
-              fontSize: '1.05rem',
-              color: theme.palette.text.secondary,
-              textAlign: 'center',
-              mb: 6,
-              maxWidth: '700px',
-              mx: 'auto',
-            }}
-          >
-            Our research engine processes comprehensive data through proprietary AI models to deliver actionable intelligence
-          </Typography>
-          <Grid container spacing={4}>
-            {[
-              {
-                step: '1',
-                title: 'Data Integration',
-                description: 'We aggregate and normalize data across 6+ dimensions: market data, economic indicators, financial fundamentals, technical patterns, sector dynamics, and sentiment signals.',
-              },
-              {
-                step: '2',
-                title: 'AI Analysis',
-                description: 'Our machine learning models analyze patterns, correlations, and anomalies across all dimensions simultaneously. Models adapt to changing market conditions in real-time.',
-              },
-              {
-                step: '3',
-                title: 'Research Synthesis',
-                description: 'Complex AI outputs are synthesized into clear, actionable research insights. We explain the reasoning behind every recommendation.',
-              },
-              {
-                step: '4',
-                title: 'Platform Access',
-                description: 'All research is available through our platform interface. Institutional clients can access data via API, while advisors and traders use the web platform for analysis and screening.',
-              },
-            ].map((item, idx) => (
-              <Grid item xs={12} sm={6} md={3} key={idx}>
-                <Box sx={{ textAlign: 'center' }}>
-                  <Box
-                    sx={{
-                      width: 60,
-                      height: 60,
-                      borderRadius: '0px',
-                      backgroundColor: theme.palette.primary.main,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#fff',
-                      fontSize: '1.5rem',
-                      fontWeight: 'bold',
-                      mb: 2,
-                      mx: 'auto',
-                    }}
-                  >
-                    {item.step}
-                  </Box>
-                  <Typography
-                    variant="h6"
-                    sx={{
-                      fontWeight: 700,
-                      mb: 1.5,
-                      color: theme.palette.text.primary,
-                    }}
-                  >
-                    {item.title}
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: theme.palette.text.secondary,
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {item.description}
-                  </Typography>
-                </Box>
               </Grid>
             ))}
           </Grid>
