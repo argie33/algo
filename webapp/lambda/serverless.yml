@@ -16,6 +16,10 @@ provider:
     DB_PASSWORD: ${env:DB_PASSWORD, 'bed0elAn'}
     DB_NAME: ${env:DB_NAME, 'stocks'}
     NODE_ENV: production
+    # Email Configuration
+    CONTACT_NOTIFICATION_EMAIL: ${env:CONTACT_NOTIFICATION_EMAIL, 'edgebrookecapital@gmail.com'}
+    EMAIL_FROM: ${env:EMAIL_FROM, 'noreply@bullseyefinancial.com'}
+    AWS_REGION: ${self:provider.region}
   iam:
     role:
       statements:
@@ -35,6 +39,11 @@ provider:
           Action:
             - secretsmanager:GetSecretValue
           Resource: 'arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:*'
+        - Effect: Allow
+          Action:
+            - ses:SendEmail
+            - ses:SendRawEmail
+          Resource: '*'
 
 functions:
   api:
