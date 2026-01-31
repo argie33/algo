@@ -32,7 +32,9 @@ const ImagePlaceholder = ({
     <Box
       sx={{
         height,
-        background: `linear-gradient(135deg, ${theme.palette.primary.main}15 0%, ${theme.palette.primary.main}05 100%)`,
+        background: imageLoaded
+          ? 'transparent'
+          : `linear-gradient(135deg, ${theme.palette.primary.main}25 0%, ${theme.palette.secondary.main}15 100%)`,
         border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
         borderRadius: '0px',
         display: 'flex',

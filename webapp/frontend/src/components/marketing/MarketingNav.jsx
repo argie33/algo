@@ -223,8 +223,8 @@ const MarketingNav = () => {
                   ml: 4,
                 }}
               >
-                {navItems.map((item) => (
-                  <Box key={item.path} sx={{ position: 'relative' }}>
+                {navItems.map((item, idx) => (
+                  <Box key={item.label || idx} sx={{ position: 'relative' }}>
                     <Button
                       color={isActive(item.path) ? 'primary' : 'inherit'}
                       onClick={
