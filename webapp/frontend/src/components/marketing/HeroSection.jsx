@@ -146,7 +146,7 @@ const HeroSection = () => {
           {/* Right Visual - Hero Image */}
           <Grid item xs={12} md={7}>
             <ImagePlaceholder
-              src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='500'%3E%3CdefinitionssystemIdefs%3E%3ClinearGradient id='heroGrad'%3E%3Cstop offset='0%25' style='stop-color:%23007ff3;stop-opacity:1' /%3E%3Cstop offset='50%25' style='stop-color:%2300509c;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23002b5c;stop-opacity:1' /%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='600' height='500' fill='url(%23heroGrad)'/%3E%3Ctext x='50%25' y='50%25' font-size='32' font-weight='bold' fill='white' text-anchor='middle' dy='.3em'%3EInstitutional Research%3C/text%3E%3C/svg%3E"
+              src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='500'><rect width='600' height='500' fill='%23007ff3'/><text x='300' y='250' font-size='32' font-weight='bold' fill='white' text-anchor='middle' dominant-baseline='central'>Institutional Research</text></svg>"
               alt="Institutional Research Hero"
               height={{ xs: '300px', sm: '400px', md: '500px' }}
             />
