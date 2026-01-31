@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AWS DEPLOYMENT: 2026-01-28_031500 - TRIGGER ECS TASKS TO RUN NOW
+# FORCE RUN: 2026-01-30_092000 - EXECUTE FACTOR METRICS LOADER NOW - AWS needs complete data for scores
 """
 Factor Metrics Loader - Consolidated Quality, Growth, Value, Momentum, Stability Metrics
 Populates derived metrics from key_metrics fundamental data.
