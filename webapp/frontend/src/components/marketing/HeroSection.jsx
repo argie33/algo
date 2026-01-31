@@ -146,7 +146,7 @@ const HeroSection = () => {
           {/* Right Visual - Hero Image */}
           <Grid item xs={12} md={7}>
             <ImagePlaceholder
-              src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='500'><rect width='600' height='500' fill='%23007ff3'/><text x='300' y='250' font-size='32' font-weight='bold' fill='white' text-anchor='middle' dominant-baseline='central'>Institutional Research</text></svg>"
+              src="/images/hero.png"
               alt="Institutional Research Hero"
               height={{ xs: '300px', sm: '400px', md: '500px' }}
             />

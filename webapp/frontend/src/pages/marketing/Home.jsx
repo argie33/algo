@@ -255,25 +255,25 @@ const Home = () => {
                 number: '1',
                 title: 'Multi-Dimensional Analysis',
                 description: 'We combine fundamental analysis, technical research, and quantitative models to provide comprehensive stock coverage. Our approach integrates earnings data, valuation metrics, price action, and sector trends.',
-                image: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400"><rect width="600" height="400" fill="%23007ff3"/><text x="300" y="200" font-size="28" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="central">Multi-Factor Analysis</text></svg>',
+                image: '/images/image1.png',
               },
               {
                 number: '2',
                 title: 'Evidence-Based Methodology',
                 description: 'Every signal is backtested against 10+ years of market data. We validate our models against real market outcomes and continuously refine our research process based on performance.',
-                image: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400"><rect width="600" height="400" fill="%2300a6ff"/><text x="300" y="200" font-size="28" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="central">Backtested Strategies</text></svg>',
+                image: '/images/image2.png',
               },
               {
                 number: '3',
                 title: 'Institutional-Grade Tools',
                 description: 'Access the same caliber of research tools used by professional investors. Our platform provides detailed analytics, stock screening, and portfolio monitoring for serious investors.',
-                image: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400"><rect width="600" height="400" fill="%2301c0db"/><text x="300" y="200" font-size="28" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="central">Professional Tools</text></svg>',
+                image: '/images/image3.png',
               },
               {
                 number: '4',
                 title: 'Independent & Transparent',
                 description: 'We publish independent research without investment banking conflicts. Our methodology is transparent, and we explain the factors driving our analysis and recommendations.',
-                image: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400"><rect width="600" height="400" fill="%2300e5ff"/><text x="300" y="200" font-size="28" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="central">Transparent Research</text></svg>',
+                image: '/images/image4.png',
               },
             ].map((item, idx) => (
               <Grid item xs={12} sm={6} md={3} key={idx}>
