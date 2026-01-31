@@ -123,6 +123,50 @@ const Firm = () => {
         </Container>
       </Box>
 
+      {/* Mission Statement Section */}
+      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.paper }}>
+        <Container maxWidth="lg">
+          <Typography
+            variant="h3"
+            sx={{
+              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
+              fontWeight: 800,
+              mb: 4,
+              textAlign: 'center',
+              color: theme.palette.text.primary,
+            }}
+          >
+            Our Mission
+          </Typography>
+          <Typography
+            sx={{
+              fontSize: '1.1rem',
+              color: theme.palette.text.secondary,
+              mb: 3,
+              lineHeight: 1.8,
+              maxWidth: '900px',
+              mx: 'auto',
+              textAlign: 'center',
+            }}
+          >
+            To democratize institutional-grade equity research by combining rigorous quantitative analysis, fundamental insights, and technical expertise into a comprehensive research platform accessible to professional and individual investors.
+          </Typography>
+          <Typography
+            sx={{
+              fontSize: '1rem',
+              color: theme.palette.text.secondary,
+              lineHeight: 1.8,
+              maxWidth: '900px',
+              mx: 'auto',
+              textAlign: 'center',
+              fontStyle: 'italic',
+            }}
+          >
+            We believe independent research drives better investment decisions. By removing conflicts of interest and publishing transparent, evidence-based analysis across 5,300+ equities, we empower investors to make informed decisions based on data, not Wall Street relationships.
+          </Typography>
+        </Container>
+      </Box>
+
       {/* Our Expertise Section */}
       <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.paper }}>
         <Container maxWidth="lg">
