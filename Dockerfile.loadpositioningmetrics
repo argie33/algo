@@ -23,6 +23,11 @@ RUN pip install --upgrade pip && \
 
 ENV PYTHONUNBUFFERED=1
 ENV AWS_DEFAULT_REGION=us-east-1
+ENV DB_HOST=stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com
+ENV DB_USER=stocks
+ENV DB_PASSWORD=bed0elAn
+ENV DB_PORT=5432
+ENV DB_NAME=stocks
 
 COPY loadpositioningmetrics.py .
 ENTRYPOINT ["python", "loadpositioningmetrics.py"]
