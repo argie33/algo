@@ -6,6 +6,15 @@
 const os = require('os');
 const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
 
+// Load environment variables from .env.local in development
+if (process.env.NODE_ENV !== 'production' && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  try {
+    require('dotenv').config({ path: '/home/stocks/algo/.env.local' });
+  } catch (e) {
+    // dotenv not available or .env.local not found - that's ok
+  }
+}
+
 // Optional dependency - nodemailer for SMTP support
 let nodemailer;
 try {
