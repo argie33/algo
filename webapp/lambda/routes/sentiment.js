@@ -111,8 +111,8 @@ router.get("/analyst", async (req, res) => {
 
     let countQueryStr = `SELECT COUNT(*) as total FROM analyst_sentiment_analysis`;
     let queryStr = `
-      SELECT symbol, date, analyst_count, bull_count as bullish_count, bear_count as bearish_count, hold_count as neutral_count FROM analyst_sentiment_analysis
-      ORDER BY date DESC
+      SELECT symbol, date_recorded as date, total_analysts as analyst_count, bullish_count, bearish_count, neutral_count FROM analyst_sentiment_analysis
+      ORDER BY date_recorded DESC
       LIMIT $1 OFFSET $2
     `;
     let countParams = [];
@@ -122,9 +122,9 @@ router.get("/analyst", async (req, res) => {
       countQueryStr = `SELECT COUNT(*) as total FROM analyst_sentiment_analysis WHERE symbol = $1`;
       countParams = [symbol.toUpperCase()];
       queryStr = `
-        SELECT symbol, date, analyst_count, bull_count as bullish_count, bear_count as bearish_count, hold_count as neutral_count FROM analyst_sentiment_analysis
+        SELECT symbol, date_recorded as date, total_analysts as analyst_count, bullish_count, bearish_count, neutral_count FROM analyst_sentiment_analysis
         WHERE symbol = $1
-        ORDER BY date DESC
+        ORDER BY date_recorded DESC
         LIMIT $2 OFFSET $3
       `;
       params = [symbol.toUpperCase(), limitNum, offset];
@@ -162,13 +162,13 @@ router.get("/history", async (req, res) => {
     // Try to fetch analyst sentiment history
     let queryStr = `
       SELECT
-        date,
-        analyst_count,
-        bull_count as bullish_count,
-        bear_count as bearish_count,
-        hold_count as neutral_count
+        date_recorded as date,
+        total_analysts as analyst_count,
+        bullish_count,
+        bearish_count,
+        neutral_count
       FROM analyst_sentiment_analysis
-      ORDER BY date DESC
+      ORDER BY date_recorded DESC
       LIMIT $1
     `;
 
