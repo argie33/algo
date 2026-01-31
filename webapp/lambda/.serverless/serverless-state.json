@@ -15,7 +15,10 @@
         "DB_USER": "stocks",
         "DB_PASSWORD": "bed0elAn",
         "DB_NAME": "stocks",
-        "NODE_ENV": "production"
+        "NODE_ENV": "production",
+        "CONTACT_NOTIFICATION_EMAIL": "edgebrookecapital@gmail.com",
+        "EMAIL_FROM": "noreply@bullseyefinancial.com",
+        "AWS_REGION": "us-east-1"
       },
       "iam": {
         "role": {
@@ -44,6 +47,14 @@
                 "secretsmanager:GetSecretValue"
               ],
               "Resource": "arn:aws:secretsmanager:us-east-1:626216981288:secret:*"
+            },
+            {
+              "Effect": "Allow",
+              "Action": [
+                "ses:SendEmail",
+                "ses:SendRawEmail"
+              ],
+              "Resource": "*"
             }
           ]
         }
@@ -126,7 +137,7 @@
           "ApiLogGroup": {
             "Type": "AWS::Logs::LogGroup",
             "Properties": {
-              "LogGroupName": "/aws/lambda/stocks-algo-api-dev-api"
+              "LogGroupName": "/aws/lambda/stocks-algo-api-prod-api"
             }
           },
           "IamRoleLambdaExecution": {
@@ -155,7 +166,7 @@
                       "-",
                       [
                         "stocks-algo-api",
-                        "dev",
+                        "prod",
                         "lambda"
                       ]
                     ]
@@ -172,7 +183,7 @@
                         ],
                         "Resource": [
                           {
-                            "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/stocks-algo-api-dev*:*"
+                            "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/stocks-algo-api-prod*:*"
                           }
                         ]
                       },
@@ -183,7 +194,7 @@
                         ],
                         "Resource": [
                           {
-                            "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/stocks-algo-api-dev*:*:*"
+                            "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/stocks-algo-api-prod*:*:*"
                           }
                         ]
                       },
@@ -195,6 +206,9 @@
                       },
                       {
                         "$ref": "$[\"service\"][\"provider\"][\"iam\"][\"role\"][\"statements\"][2]"
+                      },
+                      {
+                        "$ref": "$[\"service\"][\"provider\"][\"iam\"][\"role\"][\"statements\"][3]"
                       }
                     ]
                   }
@@ -206,7 +220,7 @@
                   "-",
                   [
                     "stocks-algo-api",
-                    "dev",
+                    "prod",
                     {
                       "Ref": "AWS::Region"
                     },
@@ -237,11 +251,11 @@
                 "S3Bucket": {
                   "Ref": "ServerlessDeploymentBucket"
                 },
-                "S3Key": "serverless/stocks-algo-api/dev/1766756801903-2025-12-26T13:46:41.903Z/stocks-algo-api.zip"
+                "S3Key": "serverless/stocks-algo-api/prod/1769867941951-2026-01-31T13:59:01.951Z/stocks-algo-api.zip"
               },
               "Handler": "index.handler",
               "Runtime": "nodejs18.x",
-              "FunctionName": "stocks-algo-api-dev-api",
+              "FunctionName": "stocks-algo-api-prod-api",
               "MemorySize": 512,
               "Timeout": 30,
               "Description": "Stock Analysis API",
@@ -253,7 +267,10 @@
                   "DB_USER": "stocks",
                   "DB_PASSWORD": "bed0elAn",
                   "DB_NAME": "stocks",
-                  "NODE_ENV": "production"
+                  "NODE_ENV": "production",
+                  "CONTACT_NOTIFICATION_EMAIL": "edgebrookecapital@gmail.com",
+                  "EMAIL_FROM": "noreply@bullseyefinancial.com",
+                  "AWS_REGION": "us-east-1"
                 }
               },
               "Role": {
@@ -276,14 +293,14 @@
               "ApiLogGroup"
             ]
           },
-          "ApiLambdaVersion9VYjBLmUAQwF1EcCVO61ncoJW6CQnMY4gmIrEXv4": {
+          "ApiLambdaVersion6AUyB2dRTFsaEEZv033sH6JmUe5PlW6x5gktH0GTE": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "ApiLambdaFunction"
               },
-              "CodeSha256": "q9PtJRAlu5Y2L7V+xFccBTAYzJrmzs0a0x0dcMNi6Dc=",
+              "CodeSha256": "SfXjhNKDWClZ1uAg5uFSX1PHbWe1A8rGsPt0p2V+sOc=",
               "Description": "Stock Analysis API"
             }
           },
@@ -418,16 +435,16 @@
               "Ref": "ServerlessDeploymentBucket"
             },
             "Export": {
-              "Name": "sls-stocks-algo-api-dev-ServerlessDeploymentBucketName"
+              "Name": "sls-stocks-algo-api-prod-ServerlessDeploymentBucketName"
             }
           },
           "ApiLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "ApiLambdaVersion9VYjBLmUAQwF1EcCVO61ncoJW6CQnMY4gmIrEXv4"
+              "Ref": "ApiLambdaVersion6AUyB2dRTFsaEEZv033sH6JmUe5PlW6x5gktH0GTE"
             },
             "Export": {
-              "Name": "sls-stocks-algo-api-dev-ApiLambdaFunctionQualifiedArn"
+              "Name": "sls-stocks-algo-api-prod-ApiLambdaFunctionQualifiedArn"
             }
           },
           "HttpApiId": {
@@ -436,7 +453,7 @@
               "Ref": "HttpApi"
             },
             "Export": {
-              "Name": "sls-stocks-algo-api-dev-HttpApiId"
+              "Name": "sls-stocks-algo-api-prod-HttpApiId"
             }
           },
           "HttpApiUrl": {
@@ -461,7 +478,7 @@
               ]
             },
             "Export": {
-              "Name": "sls-stocks-algo-api-dev-HttpApiUrl"
+              "Name": "sls-stocks-algo-api-prod-HttpApiUrl"
             }
           }
         }
@@ -553,7 +570,7 @@
     "custom": {
       "serverless-offline": {
         "httpPort": 3001,
-        "stage": "dev"
+        "stage": "prod"
       }
     },
     "plugins": [],
@@ -590,11 +607,11 @@
             "$ref": "$[\"service\"][\"provider\"][\"compiledCloudFormationTemplate\"][\"Resources\"][\"ApiLambdaFunction\"][\"Properties\"][\"VpcConfig\"][\"SubnetIds\"]"
           }
         },
-        "name": "stocks-algo-api-dev-api",
+        "name": "stocks-algo-api-prod-api",
         "package": {},
         "memory": 512,
         "runtime": "nodejs18.x",
-        "versionLogicalId": "ApiLambdaVersion9VYjBLmUAQwF1EcCVO61ncoJW6CQnMY4gmIrEXv4"
+        "versionLogicalId": "ApiLambdaVersion6AUyB2dRTFsaEEZv033sH6JmUe5PlW6x5gktH0GTE"
       }
     },
     "resources": {
@@ -657,9 +674,9 @@
           "!.vscode/**",
           "!.idea/**"
         ],
-        "artifactsS3KeyDirname": "serverless/stocks-algo-api/dev/code-artifacts",
+        "artifactsS3KeyDirname": "serverless/stocks-algo-api/prod/code-artifacts",
         "artifact": "/home/stocks/algo/webapp/lambda/.serverless/stocks-algo-api.zip",
-        "artifactDirectoryName": "serverless/stocks-algo-api/dev/1766756801903-2025-12-26T13:46:41.903Z"
+        "artifactDirectoryName": "serverless/stocks-algo-api/prod/1769867941951-2026-01-31T13:59:01.951Z"
       },
       "outputs": {
         "ApiEndpoint": {
@@ -678,7 +695,7 @@
     "artifact": "/home/stocks/algo/webapp/lambda/.serverless/stocks-algo-api.zip"
   },
   "package": {
-    "artifactDirectoryName": "serverless/stocks-algo-api/dev/1766756801903-2025-12-26T13:46:41.903Z",
+    "artifactDirectoryName": "serverless/stocks-algo-api/prod/1769867941951-2026-01-31T13:59:01.951Z",
     "artifact": "stocks-algo-api.zip"
   }
 }
