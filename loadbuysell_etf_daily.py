@@ -47,43 +47,37 @@ FRED_API_KEY = os.environ.get('FRED_API_KEY', '')
 if not FRED_API_KEY:
     logging.warning('FRED_API_KEY environment variable is not set. Risk-free rate will be set to 0.')
 
-# Try AWS Secrets Manager first, then local environment
-try:
-    if os.environ.get("DB_SECRET_ARN"):
-        SECRET_ARN   = os.environ.get("DB_SECRET_ARN")
-        sm_client   = boto3.client("secretsmanager")
-        secret_resp = sm_client.get_secret_value(SecretId=SECRET_ARN)
-        creds       = json.loads(secret_resp["SecretString"])
+# Database configuration - Priority: AWS Secrets Manager, then environment variables
+DB_SECRET_ARN = os.environ.get("DB_SECRET_ARN")
+DB_HOST = None
+DB_PORT = None
+DB_USER = None
+DB_PASSWORD = None
+DB_NAME = None
 
-        DB_USER     = creds["username"]
+if DB_SECRET_ARN:
+    try:
+        sm_client = boto3.client("secretsmanager")
+        secret_resp = sm_client.get_secret_value(SecretId=DB_SECRET_ARN)
+        creds = json.loads(secret_resp["SecretString"])
+        DB_USER = creds["username"]
         DB_PASSWORD = creds["password"]
-        DB_HOST     = creds["host"]
-        DB_PORT     = int(creds.get("port", 5432))
-        DB_NAME     = creds["dbname"]
-        logging.info("Using AWS Secrets Manager DB configuration")
-    else:
-        # Fall back to local environment variables with defaults
-        DB_HOST     = os.environ.get("DB_HOST", "localhost").strip()
-        # Fix for stale endpoint - if env var has old endpoint, use correct one
-        if 'c2gujitq3h1b' in DB_HOST:
-            DB_HOST = 'stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com'
-        DB_USER     = os.environ.get("DB_USER", "stocks")
-        DB_PASSWORD = os.environ.get("DB_PASSWORD", "bed0elAn")
-        DB_PORT     = int(os.environ.get("DB_PORT", 5432))
-        DB_NAME     = os.environ.get("DB_NAME", "stocks")
-        logging.info("Using local environment DB configuration")
-except Exception as e:
-    logging.error(f"Failed to get database configuration: {e}")
-    # One more fallback - use environment defaults
-    DB_HOST     = os.environ.get("DB_HOST", "localhost").strip()
-    # Fix for stale endpoint - if env var has old endpoint, use correct one
-    if 'c2gujitq3h1b' in DB_HOST:
-        DB_HOST = 'stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com'
-    DB_USER     = os.environ.get("DB_USER", "stocks")
-    DB_PASSWORD = os.environ.get("DB_PASSWORD", "bed0elAn")
-    DB_PORT     = int(os.environ.get("DB_PORT", 5432))
-    DB_NAME     = os.environ.get("DB_NAME", "stocks")
-    logging.info("Using local environment DB configuration (after error)")
+        DB_HOST = creds["host"]
+        DB_PORT = int(creds.get("port", 5432))
+        DB_NAME = creds["dbname"]
+        logging.info("Using AWS Secrets Manager for database config")
+    except Exception as e:
+        logging.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
+        DB_SECRET_ARN = None  # Mark as failed to trigger fallback
+
+if not DB_SECRET_ARN or DB_HOST is None:
+    # Fall back to local environment variables
+    DB_HOST = os.environ.get("DB_HOST", "localhost")
+    DB_USER = os.environ.get("DB_USER", "stocks")
+    DB_PASSWORD = os.environ.get("DB_PASSWORD", "")
+    DB_PORT = int(os.environ.get("DB_PORT", 5432))
+    DB_NAME = os.environ.get("DB_NAME", "stocks")
+    logging.info("Using environment variables for database config")
 
 def get_db_connection():
     # Set statement timeout to 300 seconds (300000 ms) to allow for large queries

@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { query } = require("../utils/database");
+const { sendEmail } = require("../utils/email");
 
 // POST /api/contact - Submit contact form
 router.post("/", async (req, res) => {
@@ -32,14 +33,46 @@ router.post("/", async (req, res) => {
       [name, email, subject || null, message]
     );
 
-    console.log(`✅ Contact form received from ${email} (${name})`);
+    const submissionId = result.rows[0].id;
+    console.log(`✅ Contact form received from ${email} (${name}) - ID: ${submissionId}`);
+
+    // Send email notification to admin
+    try {
+      const adminEmails = process.env.CONTACT_NOTIFICATION_EMAIL
+        ? process.env.CONTACT_NOTIFICATION_EMAIL.split(',').map(e => e.trim())
+        : ['edgebrookecapital@gmail.com'];
+
+      const emailSubject = `New Contact Form Submission: ${subject || 'No Subject'}`;
+      const emailBody = `
+        <h2>New Contact Form Submission</h2>
+        <p><strong>Name:</strong> ${name}</p>
+        <p><strong>Email:</strong> ${email}</p>
+        <p><strong>Subject:</strong> ${subject || 'No subject provided'}</p>
+        <p><strong>Message:</strong></p>
+        <p>${message.replace(/\n/g, '<br>')}</p>
+        <hr>
+        <p><small>Submission ID: ${submissionId}</small></p>
+        <p><small>Submitted at: ${new Date().toISOString()}</small></p>
+      `;
+
+      await sendEmail({
+        to: adminEmails,
+        subject: emailSubject,
+        html: emailBody
+      });
+
+      console.log(`✅ Email notification sent to ${adminEmails.join(', ')}`);
+    } catch (emailError) {
+      console.error("⚠️  Failed to send email notification:", emailError.message);
+      // Don't fail the form submission if email fails - still save to DB
+    }
 
     // Return success with submission ID
     return res.status(201).json({
       success: true,
       message: "Thank you for your message! We'll get back to you soon.",
       data: {
-        submission_id: result.rows[0].id,
+        submission_id: submissionId,
         submitted_at: result.rows[0].created_at
       }
     });

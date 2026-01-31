@@ -90,31 +90,20 @@ AAII_EXCEL_URL = "https://www.aaii.com/files/surveys/sentiment.xls"
 # DB config loader
 # -------------------------------
 def get_db_config():
-    """Get database configuration from environment variables (priority) or AWS Secrets Manager."""
-    # PRIORITY: Use environment variables first (ECS task definition has correct endpoint)
-    db_host = os.environ.get("DB_HOST", "").strip()
-    # Fix for stale endpoint - if env var has old endpoint, use correct one
-    if 'c2gujitq3h1b' in db_host:
-        db_host = 'stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com'
-    if db_host and db_host != "localhost":
-        config = {
-            "host":   db_host,
-            "port":   int(os.environ.get("DB_PORT", 5432)),
-            "user":   os.environ.get("DB_USER", "stocks"),
-            "password": os.environ.get("DB_PASSWORD", "bed0elAn"),
-            "dbname": os.environ.get("DB_NAME", "stocks")
-        }
-        logging.info(f"Using env var DB_HOST: {config['host']}")
-        return config
+    """Get database configuration from AWS Secrets Manager or environment variables.
 
-    # Fallback: Try AWS Secrets Manager (for production/Lambda)
+    Priority:
+    1. AWS Secrets Manager (if DB_SECRET_ARN is set)
+    2. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
+    """
     db_secret_arn = os.environ.get("DB_SECRET_ARN")
+
     if db_secret_arn:
         try:
             secret_str = boto3.client("secretsmanager") \
                              .get_secret_value(SecretId=db_secret_arn)["SecretString"]
             sec = json.loads(secret_str)
-            logging.info(f"Using AWS Secrets Manager DB_HOST: {sec['host']}")
+            logging.info("Using AWS Secrets Manager for database config")
             return {
                 "host":   sec["host"],
                 "port":   int(sec.get("port", 5432)),
@@ -123,15 +112,15 @@ def get_db_config():
                 "dbname": sec["dbname"]
             }
         except Exception as e:
-            logging.warning(f"Failed to fetch from AWS Secrets Manager: {e}, using default env vars")
+            logging.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
 
-    # Final fallback: default environment variables (for local development)
-    logging.info("Using default environment variables for DB connection")
+    # Fall back to environment variables
+    logging.info("Using environment variables for database config")
     return {
         "host":   os.environ.get("DB_HOST", "localhost"),
         "port":   int(os.environ.get("DB_PORT", 5432)),
         "user":   os.environ.get("DB_USER", "stocks"),
-        "password": os.environ.get("DB_PASSWORD", "bed0elAn"),
+        "password": os.environ.get("DB_PASSWORD", ""),
         "dbname": os.environ.get("DB_NAME", "stocks")
     }
 

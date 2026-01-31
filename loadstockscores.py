@@ -71,37 +71,17 @@ from scipy import stats
 
 # Database configuration
 DB_SECRET_ARN = os.getenv('DB_SECRET_ARN')
-# Fix for stale environment variables - use correct RDS endpoint
-DB_HOST = os.getenv('DB_HOST', 'stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com')
-# If env var has the OLD stale endpoint, replace it with the correct one
-if 'c2gujitq3h1b' in DB_HOST:
-    DB_HOST = 'stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com'
-DB_PORT = os.getenv('DB_PORT', '5432')
-DB_USER = os.getenv('DB_USER', 'stocks')
-DB_PASSWORD = os.getenv('DB_PASSWORD', 'bed0elAn')
-DB_NAME = os.getenv('DB_NAME', 'stocks')
 
-# Simple database connection helper (no external dependency)
 def get_db_connection(script_name="loader"):
-    """Connect to database using environment variables (priority) or AWS Secrets Manager."""
-    # PRIORITY: Use environment variables first (set by ECS task definition)
-    if DB_HOST and DB_HOST != 'localhost':
-        try:
-            conn = psycopg2.connect(
-                host=DB_HOST, port=int(DB_PORT),
-                user=DB_USER, password=DB_PASSWORD,
-                database=DB_NAME,
-                connect_timeout=30,
-                options='-c statement_timeout=600000'
-            )
-            logging.info(f"✓ Connected via environment variables to {DB_HOST}")
-            return conn
-        except Exception as e:
-            logging.warning(f"Env var connection failed: {e}, trying Secrets Manager...")
+    """Connect to database using AWS Secrets Manager (priority) or environment variables.
 
-    # Fallback: Try AWS Secrets Manager
-    try:
-        if DB_SECRET_ARN:
+    Priority:
+    1. AWS Secrets Manager (if DB_SECRET_ARN is set)
+    2. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
+    """
+    # Try AWS Secrets Manager first
+    if DB_SECRET_ARN:
+        try:
             sm = boto3.client("secretsmanager", region_name="us-east-1")
             secret = json.loads(sm.get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"])
             conn = psycopg2.connect(
@@ -111,12 +91,31 @@ def get_db_connection(script_name="loader"):
                 connect_timeout=30,
                 options='-c statement_timeout=600000'
             )
-            logging.info(f"✓ Connected via AWS Secrets Manager")
+            logging.info("Using AWS Secrets Manager for database config")
             return conn
-    except Exception as e:
-        logging.warning(f"AWS Secrets failed: {e}")
+        except Exception as e:
+            logging.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
 
-    raise Exception("Could not connect to database - no valid credentials found")
+    # Fallback: Use environment variables
+    db_host = os.getenv('DB_HOST', 'localhost')
+    db_port = os.getenv('DB_PORT', '5432')
+    db_user = os.getenv('DB_USER', 'stocks')
+    db_password = os.getenv('DB_PASSWORD', '')
+    db_name = os.getenv('DB_NAME', 'stocks')
+
+    try:
+        conn = psycopg2.connect(
+            host=db_host, port=int(db_port),
+            user=db_user, password=db_password,
+            database=db_name,
+            connect_timeout=30,
+            options='-c statement_timeout=600000'
+        )
+        logging.info("Using environment variables for database config")
+        return conn
+    except Exception as e:
+        logging.error(f"Database connection failed: {e}")
+        raise Exception("Could not connect to database - no valid credentials found")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

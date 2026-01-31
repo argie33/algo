@@ -66,29 +66,23 @@ PRICE_COLUMNS = [
 COL_LIST     = ", ".join(["symbol"] + PRICE_COLUMNS)
 
 # -------------------------------
-# DB config loader - supports both AWS and local environment
+# DB config loader
 # -------------------------------
 def get_db_config():
-    # Try local environment first
-    db_host = os.environ.get("DB_HOST", "")
-    # Fix for stale endpoint - if env var has old endpoint, use correct one
-    if 'c2gujitq3h1b' in db_host:
-        db_host = 'stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com'
-    if db_host:
-        return {
-            "host":   db_host,
-            "port":   int(os.environ.get("DB_PORT", 5432)),
-            "user":   os.environ.get("DB_USER", "stocks"),
-            "password": os.environ.get("DB_PASSWORD", "bed0elAn"),
-            "dbname": os.environ.get("DB_NAME", "stocks")
-        }
+    """Get database configuration from AWS Secrets Manager or environment variables.
 
-    # Fall back to AWS Secrets Manager if available
-    if os.environ.get("DB_SECRET_ARN"):
+    Priority:
+    1. AWS Secrets Manager (if DB_SECRET_ARN is set)
+    2. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
+    """
+    db_secret_arn = os.environ.get("DB_SECRET_ARN")
+
+    if db_secret_arn:
         try:
             secret_str = boto3.client("secretsmanager") \
-                             .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
+                             .get_secret_value(SecretId=db_secret_arn)["SecretString"]
             sec = json.loads(secret_str)
+            logging.info("Using AWS Secrets Manager for database config")
             return {
                 "host":   sec["host"],
                 "port":   int(sec.get("port", 5432)),
@@ -97,15 +91,16 @@ def get_db_config():
                 "dbname": sec["dbname"]
             }
         except Exception as e:
-            logging.warning(f"Failed to fetch from AWS Secrets Manager: {e}, falling back to environment variables")
+            logging.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
 
-    # Final fallback to localhost defaults
+    # Fall back to environment variables
+    logging.info("Using environment variables for database config")
     return {
-        "host":   "localhost",
-        "port":   5432,
-        "user":   "stocks",
-        "password": "bed0elAn",
-        "dbname": "stocks"
+        "host":   os.environ.get("DB_HOST", "localhost"),
+        "port":   int(os.environ.get("DB_PORT", 5432)),
+        "user":   os.environ.get("DB_USER", "stocks"),
+        "password": os.environ.get("DB_PASSWORD", ""),
+        "dbname": os.environ.get("DB_NAME", "stocks")
     }
 
 # -------------------------------

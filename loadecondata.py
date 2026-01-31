@@ -26,13 +26,19 @@ DB_SECRET_ARN = os.environ.get("DB_SECRET_ARN")
 FRED_API_KEY  = os.environ.get("FRED_API_KEY")
 
 def get_db_creds():
-    """Fetch DB creds from Secrets Manager or environment variables."""
-    # First, try to use AWS Secrets Manager (for production/Lambda)
+    """Get database configuration from AWS Secrets Manager or environment variables.
+
+    Priority:
+    1. AWS Secrets Manager (if DB_SECRET_ARN is set)
+    2. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
+    """
+    # Try AWS Secrets Manager first
     if DB_SECRET_ARN:
         try:
             sm = boto3.client("secretsmanager")
             resp = sm.get_secret_value(SecretId=DB_SECRET_ARN)
             sec = json.loads(resp["SecretString"])
+            logger.info("Using AWS Secrets Manager for database config")
             return {
                 "user": sec["username"],
                 "password": sec["password"],
@@ -42,28 +48,18 @@ def get_db_creds():
                 "sslmode": "require"
             }
         except Exception as e:
-            logger.warning(f"Failed to fetch from Secrets Manager: {e}, falling back to environment variables")
+            logger.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
 
-    # Fall back to environment variables or Unix socket
-    if os.environ.get("DB_HOST"):
-        db_host = os.environ.get("DB_HOST", "localhost").strip()
-        # Fix for stale endpoint - if env var has old endpoint, use correct one
-        if 'c2gujitq3h1b' in db_host:
-            db_host = 'stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com'
-        return {
-            "user": os.environ.get("DB_USER", "stocks"),
-            "password": os.environ.get("DB_PASSWORD", "bed0elAn"),
-            "host": db_host,
-            "port": int(os.environ.get("DB_PORT", 5432)),
-            "dbname": os.environ.get("DB_NAME", "stocks"),
-            "sslmode": "disable"
-        }
-    else:
-        # Use Unix socket connection (works locally without password)
-        logger.info("Using Unix socket connection")
-        return {
-            "dbname": os.environ.get("DB_NAME", "stocks")
-        }
+    # Fall back to environment variables
+    logger.info("Using environment variables for database config")
+    return {
+        "user": os.environ.get("DB_USER", "stocks"),
+        "password": os.environ.get("DB_PASSWORD", ""),
+        "host": os.environ.get("DB_HOST", "localhost"),
+        "port": int(os.environ.get("DB_PORT", 5432)),
+        "dbname": os.environ.get("DB_NAME", "stocks"),
+        "sslmode": "disable"
+    }
 
 def get_economic_calendar_data():
     """Fetch economic calendar events - tries FRED API first, falls back to scheduled events."""

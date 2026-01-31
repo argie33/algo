@@ -32,11 +32,9 @@ logger = logging.getLogger(__name__)
 logging.getLogger('urllib3').setLevel(logging.WARNING)
 
 # Database configuration
-DB_HOST = os.getenv('DB_HOST', 'localhost')
-DB_PORT = os.getenv('DB_PORT', '5432')
-DB_USER = os.getenv('DB_USER', 'stocks')
-DB_PASSWORD = os.getenv('DB_PASSWORD', 'bed0elAn')
-DB_NAME = os.getenv('DB_NAME', 'stocks')
+import boto3
+import json as json_lib  # renamed to avoid conflict with existing json import
+DB_SECRET_ARN = os.getenv('DB_SECRET_ARN')
 
 # Alpaca configuration
 ALPACA_API_KEY = os.getenv('ALPACA_API_KEY', '')
@@ -57,20 +55,48 @@ if not PORTFOLIO_USER_ID:
     logger.error("Please set PORTFOLIO_USER_ID to the real user account ID")
     sys.exit(1)
 
+def get_db_config():
+    """Get database configuration from AWS Secrets Manager or environment variables.
+
+    Priority:
+    1. AWS Secrets Manager (if DB_SECRET_ARN is set)
+    2. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
+    """
+    if DB_SECRET_ARN:
+        try:
+            client = boto3.client("secretsmanager")
+            secret = json_lib.loads(client.get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"])
+            logger.info("Using AWS Secrets Manager for database config")
+            return {
+                "host": secret["host"],
+                "port": int(secret.get("port", 5432)),
+                "user": secret["username"],
+                "password": secret["password"],
+                "database": secret["dbname"]
+            }
+        except Exception as e:
+            logger.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
+
+    # Fall back to environment variables
+    logger.info("Using environment variables for database config")
+    return {
+        "host": os.getenv('DB_HOST', 'localhost'),
+        "port": int(os.getenv('DB_PORT', 5432)),
+        "user": os.getenv('DB_USER', 'stocks'),
+        "password": os.getenv('DB_PASSWORD', ''),
+        "database": os.getenv('DB_NAME', 'stocks')
+    }
+
+
 def get_db_connection():
     """Create PostgreSQL database connection"""
     try:
-        conn = psycopg2.connect(
-            host=DB_HOST,
-            port=DB_PORT,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            database=DB_NAME
-        )
-        logger.info(f"✅ Connected to database: {DB_NAME}")
+        config = get_db_config()
+        conn = psycopg2.connect(**config)
+        logger.info(f"Connected to database: {config['database']}")
         return conn
     except psycopg2.Error as e:
-        logger.error(f"❌ Database connection failed: {e}")
+        logger.error(f"Database connection failed: {e}")
         sys.exit(1)
 
 def get_alpaca_headers():
