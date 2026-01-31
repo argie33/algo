@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { query } = require("../utils/database");
-const { sendEmail } = require("../utils/email");
+const { sendEmail, getEmailConfig } = require("../utils/email");
 
 // POST /api/contact - Submit contact form
 router.post("/", async (req, res) => {
@@ -38,8 +38,9 @@ router.post("/", async (req, res) => {
 
     // Send email notification to admin
     try {
-      const adminEmails = process.env.CONTACT_NOTIFICATION_EMAIL
-        ? process.env.CONTACT_NOTIFICATION_EMAIL.split(',').map(e => e.trim())
+      const emailConfig = await getEmailConfig();
+      const adminEmails = emailConfig.contactEmail
+        ? emailConfig.contactEmail.split(',').map(e => e.trim())
         : ['edgebrookecapital@gmail.com'];
 
       const emailSubject = `New Contact Form Submission: ${subject || 'No Subject'}`;

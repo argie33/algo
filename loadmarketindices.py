@@ -38,12 +38,30 @@ MARKET_INDICES = {
 }
 
 def get_db_config() -> Dict:
-    """Get database configuration"""
+    """Get database configuration from AWS Secrets Manager.
+
+    REQUIRES AWS_REGION and DB_SECRET_ARN environment variables to be set.
+    No fallbacks - fails loudly if AWS is not configured.
+    """
+    import boto3
+    aws_region = os.environ.get("AWS_REGION")
+    db_secret_arn = os.environ.get("DB_SECRET_ARN")
+
+    if not aws_region:
+        raise EnvironmentError(
+            "FATAL: AWS_REGION not set. Real data requires AWS configuration."
+        )
+    if not db_secret_arn:
+        raise EnvironmentError(
+            "FATAL: DB_SECRET_ARN not set. Real data requires AWS Secrets Manager configuration."
+        )
+
     try:
-        import boto3
-        secret_str = boto3.client("secretsmanager") \
-                         .get_secret_value(SecretId=os.environ["DB_SECRET_ARN"])["SecretString"]
+        secret_str = boto3.client("secretsmanager", region_name=aws_region).get_secret_value(
+            SecretId=db_secret_arn
+        )["SecretString"]
         sec = json.loads(secret_str)
+        logging.info(f"Loaded real database credentials from AWS Secrets Manager: {db_secret_arn}")
         return {
             "host": sec["host"],
             "port": int(sec.get("port", 5432)),
@@ -52,14 +70,12 @@ def get_db_config() -> Dict:
             "dbname": sec["dbname"]
         }
     except Exception as e:
-        logging.debug(f"AWS Secrets Manager not available, using local config: {e}")
-        return {
-            "host": os.environ.get("DB_HOST", "localhost"),
-            "port": int(os.environ.get("DB_PORT", 5432)),
-            "user": os.environ.get("DB_USER", "stocks"),
-            "password": os.environ.get("DB_PASSWORD", ""),
-            "dbname": os.environ.get("DB_NAME", "stocks")
-        }
+        raise EnvironmentError(
+            f"FATAL: Cannot load database credentials from AWS Secrets Manager ({db_secret_arn}). "
+            f"Error: {e.__class__.__name__}: {str(e)[:200]}\n"
+            f"Ensure AWS credentials are configured and Secrets Manager is accessible.\n"
+            f"Real data requires proper AWS setup - no fallbacks allowed."
+        )
 
 def safe_float(value, default=None):
     """Convert to float safely"""

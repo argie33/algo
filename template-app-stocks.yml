@@ -85,6 +85,18 @@ Resources:
           "port": "${StocksDBInstance.Endpoint.Port}",
           "dbname": "stocks"
         }
+
+  ### 4.1) Secrets Manager: Email Configuration ###
+  EmailConfigSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub stocks-email-config-${AWS::StackName}-${AWS::Region}
+      Description: Email notification configuration
+      SecretString: !Sub |
+        {
+          "contact_notification_email": "edgebrookecapital@gmail.com",
+          "email_from": "noreply@bullseyefinancial.com"
+        }
   ### 5) ECS Cluster ###
   StocksEcsCluster:
     Type: AWS::ECS::Cluster
@@ -123,7 +135,18 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: secretsmanager:GetSecretValue
-                Resource: !Ref DBCredentialsSecret
+                Resource:
+                  - !Ref DBCredentialsSecret
+                  - !Ref EmailConfigSecret
+        - PolicyName: AllowSESEmail
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource: '*'
 
 Outputs:
   DBEndpoint:
@@ -147,6 +170,17 @@ Outputs:
   DBUsername:
     Description: Master username
     Value: !Ref RDSUsername
+    Export:
+
+  EmailConfigSecretArn:
+    Description: ARN of email configuration secret
+    Value: !Ref EmailConfigSecret
+    Export:
+      Name: StocksApp-EmailConfigSecretArn
+
+  EmailNotificationEmail:
+    Description: Email address for contact form notifications
+    Value: edgebrookecapital@gmail.com
     Export:
       Name: StocksApp-DBUsername
 
