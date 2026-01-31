@@ -69,6 +69,46 @@ function initializeEmailService() {
 }
 
 /**
+ * Get email config from AWS Secrets Manager or environment
+ */
+async function getEmailConfig() {
+  if (process.env.CONTACT_NOTIFICATION_EMAIL && process.env.EMAIL_FROM) {
+    return {
+      contactEmail: process.env.CONTACT_NOTIFICATION_EMAIL,
+      emailFrom: process.env.EMAIL_FROM
+    };
+  }
+
+  // Try to get from AWS Secrets Manager (Lambda/ECS)
+  if (process.env.EMAIL_CONFIG_SECRET_NAME) {
+    try {
+      const SecretsManager = require('@aws-sdk/client-secrets-manager');
+      const client = new SecretsManager.SecretsManagerClient({
+        region: process.env.AWS_REGION || 'us-east-1'
+      });
+
+      const result = await client.send(new SecretsManager.GetSecretValueCommand({
+        SecretId: process.env.EMAIL_CONFIG_SECRET_NAME
+      }));
+
+      const secret = JSON.parse(result.SecretString || '{}');
+      return {
+        contactEmail: secret.contact_notification_email || 'edgebrookecapital@gmail.com',
+        emailFrom: secret.email_from || 'noreply@bullseyefinancial.com'
+      };
+    } catch (error) {
+      console.warn('⚠️  Could not fetch email config from Secrets Manager:', error.message);
+    }
+  }
+
+  // Default values
+  return {
+    contactEmail: 'edgebrookecapital@gmail.com',
+    emailFrom: 'noreply@bullseyefinancial.com'
+  };
+}
+
+/**
  * Send email using configured service
  * @param {Object} options - Email options
  * @param {Array|String} options.to - Recipient email(s)
@@ -95,7 +135,8 @@ async function sendEmail(options) {
     return { success: true, service: 'console' };
   }
 
-  const from = options.from || process.env.EMAIL_FROM || 'noreply@bullseyefinancial.com';
+  const emailConfig = await getEmailConfig();
+  const from = options.from || emailConfig.emailFrom;
 
   try {
     if (emailService === 'aws-ses') {
@@ -223,5 +264,6 @@ initializeEmailService();
 module.exports = {
   sendEmail,
   sendConfirmationEmail,
+  getEmailConfig,
   getEmailService: () => emailService
 };

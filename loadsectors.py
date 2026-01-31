@@ -38,36 +38,43 @@ DB_SECRET_ARN = os.getenv('DB_SECRET_ARN')
 
 
 def get_db_config():
-    """Get database configuration from AWS Secrets Manager or environment variables.
+    """Get database configuration from AWS Secrets Manager.
 
-    Priority:
-    1. AWS Secrets Manager (if DB_SECRET_ARN is set)
-    2. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
+    REQUIRES AWS_REGION and DB_SECRET_ARN environment variables to be set.
+    No fallbacks - fails loudly if AWS is not configured.
     """
-    if DB_SECRET_ARN:
-        try:
-            client = boto3.client("secretsmanager")
-            secret = json.loads(client.get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"])
-            logger.info("Using AWS Secrets Manager for database config")
-            return {
-                "host": secret["host"],
-                "port": int(secret.get("port", 5432)),
-                "user": secret["username"],
-                "password": secret["password"],
-                "database": secret["dbname"]
-            }
-        except Exception as e:
-            logger.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
+    aws_region = os.environ.get("AWS_REGION")
+    db_secret_arn = os.environ.get("DB_SECRET_ARN")
 
-    # Fall back to environment variables
-    logger.info("Using environment variables for database config")
-    return {
-        "host": os.getenv('DB_HOST', 'localhost'),
-        "port": int(os.getenv('DB_PORT', 5432)),
-        "user": os.getenv('DB_USER', 'stocks'),
-        "password": os.getenv('DB_PASSWORD', ''),
-        "database": os.getenv('DB_NAME', 'stocks')
-    }
+    if not aws_region:
+        raise EnvironmentError(
+            "FATAL: AWS_REGION not set. Real data requires AWS configuration."
+        )
+    if not db_secret_arn:
+        raise EnvironmentError(
+            "FATAL: DB_SECRET_ARN not set. Real data requires AWS Secrets Manager configuration."
+        )
+
+    try:
+        secret_str = boto3.client("secretsmanager", region_name=aws_region).get_secret_value(
+            SecretId=db_secret_arn
+        )["SecretString"]
+        sec = json.loads(secret_str)
+        logger.info(f"Loaded real database credentials from AWS Secrets Manager: {db_secret_arn}")
+        return {
+            "host": sec["host"],
+            "port": int(sec.get("port", 5432)),
+            "user": sec["username"],
+            "password": sec["password"],
+            "database": sec["dbname"]
+        }
+    except Exception as e:
+        raise EnvironmentError(
+            f"FATAL: Cannot load database credentials from AWS Secrets Manager ({db_secret_arn}). "
+            f"Error: {e.__class__.__name__}: {str(e)[:200]}\n"
+            f"Ensure AWS credentials are configured and Secrets Manager is accessible.\n"
+            f"Real data requires proper AWS setup - no fallbacks allowed."
+        )
 
 
 def get_db_connection():
