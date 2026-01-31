@@ -1229,7 +1229,8 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
 
     # === BUY/SELL CONDITIONS (Pine Script logic) ===
     df['buySignal'] = (df['high'] > df['buyLevel'].fillna(0)) & df['buyLevel'].notna()
-    df['sellSignal'] = (df['low'] < df['stopLevel'].fillna(float('inf'))) & df['stopLevel'].notna()
+    # Use 99999 instead of inf for database compatibility (high value ensures no false sell signals)
+    df['sellSignal'] = (df['low'] < df['stopLevel'].fillna(99999)) & df['stopLevel'].notna()
 
     # === MA FILTER (Pine Script: buyLevel > maFilterCheck) ===
     # Only allow buy if buyLevel is ABOVE the MA filter
@@ -1740,7 +1741,8 @@ def compute_metrics_fixed_capital(rets, durs, annual_rfr=0.0):
       'num_trades':     n,
       'win_rate':       len(wins)/n,
       'avg_return':     avg,
-      'profit_factor':  sum(wins)/abs(sum(losses)) if losses else float('inf'),
+      # Cap at 9999 for database compatibility (represents 10000:1 profit ratio, effectively perfect)
+      'profit_factor':  min(9999, sum(wins)/abs(sum(losses))) if losses else 9999,
       'sharpe_ratio':   ((avg-annual_rfr)/std*np.sqrt(n)) if std>0 else 0.0
     }
 

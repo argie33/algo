@@ -1873,7 +1873,8 @@ def compute_metrics_fixed_capital(rets, durs, annual_rfr=0.0):
       'num_trades':     n,
       'win_rate':       len(wins)/n,
       'avg_return':     avg,
-      'profit_factor':  sum(wins)/abs(sum(losses)) if losses else float('inf'),
+      # Cap at 9999 for database compatibility (represents 10000:1 profit ratio, effectively perfect)
+      'profit_factor':  min(9999, sum(wins)/abs(sum(losses))) if losses else 9999,
       'sharpe_ratio':   ((avg-annual_rfr)/std*np.sqrt(n)) if std>0 else 0.0
     }
 
