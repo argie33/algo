@@ -21,10 +21,12 @@ describe('Email Service', () => {
     delete process.env.EMAIL_FROM;
   });
 
-  test('should export sendEmail and sendConfirmationEmail functions', () => {
+  test('should export sendEmail and confirmation functions', () => {
     emailService = require('../../utils/email');
     expect(typeof emailService.sendEmail).toBe('function');
-    expect(typeof emailService.sendConfirmationEmail).toBe('function');
+    expect(typeof emailService.sendContactConfirmationEmail).toBe('function');
+    expect(typeof emailService.sendCommunityWelcomeEmail).toBe('function');
+    expect(typeof emailService.sendNewsletter).toBe('function');
   });
 
   test('should initialize with a valid email service', () => {
@@ -80,13 +82,25 @@ describe('Email Service', () => {
     expect(result.success).toBe(true);
   });
 
-  test('should send confirmation email to user', async () => {
+  test('should send contact confirmation email to user', async () => {
     emailService = require('../../utils/email');
 
-    await emailService.sendConfirmationEmail(
+    await emailService.sendContactConfirmationEmail(
       'user@example.com',
       'John Doe',
       '12345'
+    );
+
+    // Should not throw error
+    expect(true).toBe(true);
+  });
+
+  test('should send community welcome email to subscriber', async () => {
+    emailService = require('../../utils/email');
+
+    await emailService.sendCommunityWelcomeEmail(
+      'subscriber@example.com',
+      'John'
     );
 
     // Should not throw error
