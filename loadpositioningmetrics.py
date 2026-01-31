@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# FORCE RUN: 2026-01-30_092000 - EXECUTE POSITIONING METRICS LOADER NOW - AWS data incomplete (31% coverage)
+# FORCE RUN: 2026-01-30_093000 - EXECUTE POSITIONING METRICS LOADER NOW - DB credentials fixed, loading 3,668 missing symbols
 """
 Positioning Metrics Loader
 Loads institutional positioning, insider ownership, and smart money flow data

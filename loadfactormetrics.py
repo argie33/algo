@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# FORCE RUN: 2026-01-30_092000 - EXECUTE FACTOR METRICS LOADER NOW - AWS needs complete data for scores
+# FORCE RUN: 2026-01-30_093000 - EXECUTE FACTOR METRICS LOADER NOW - DB credentials fixed, loading factor data
 """
 Factor Metrics Loader - Consolidated Quality, Growth, Value, Momentum, Stability Metrics
 Populates derived metrics from key_metrics fundamental data.

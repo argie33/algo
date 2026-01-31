@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# FORCE RUN: 2026-01-30_092000 - EXECUTE FUNDAMENTAL METRICS LOADER NOW - AWS data incomplete (65% coverage)
+# FORCE RUN: 2026-01-30_093000 - EXECUTE FUNDAMENTAL METRICS LOADER NOW - DB credentials fixed, loading 1,844 missing symbols
 """
 Fundamental Metrics Loader
 Loads fundamental company metrics and valuation ratios
