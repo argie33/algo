@@ -221,9 +221,9 @@ async function sendViaSMTP(from, options) {
 }
 
 /**
- * Send transactional email (form confirmation to user)
+ * Send contact form confirmation email (to user)
  */
-async function sendConfirmationEmail(userEmail, userName, submissionId) {
+async function sendContactConfirmationEmail(userEmail, userName, submissionId) {
   const subject = 'We received your message - Bullseye Financial';
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -251,10 +251,118 @@ async function sendConfirmationEmail(userEmail, userName, submissionId) {
       subject,
       html
     });
-    console.log(`✅ Confirmation email sent to ${userEmail}`);
+    console.log(`✅ Contact confirmation email sent to ${userEmail}`);
   } catch (error) {
-    console.error(`⚠️  Failed to send confirmation email to ${userEmail}:`, error.message);
+    console.error(`⚠️  Failed to send contact confirmation email to ${userEmail}:`, error.message);
     // Don't throw - this is optional
+  }
+}
+
+/**
+ * Send community welcome email (to newsletter subscriber)
+ */
+async function sendCommunityWelcomeEmail(subscriberEmail, firstName = 'Investor') {
+  const subject = 'Welcome to Bullseye Financial Community';
+
+  const unsubscribeLink = `${process.env.WEBSITE_URL || 'http://localhost:3001'}/api/community/unsubscribe?email=${encodeURIComponent(subscriberEmail)}`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { padding: 30px; border: 1px solid #e0e0e0; border-radius: 0 0 8px 8px; }
+        .cta { display: inline-block; background: #1976d2; color: white; padding: 12px 30px; text-decoration: none; border-radius: 4px; margin: 20px 0; }
+        .footer { font-size: 0.9rem; color: #999; margin-top: 20px; text-align: center; }
+        .unsubscribe { font-size: 0.85rem; color: #999; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Welcome to Bullseye Financial Community, ${firstName}!</h1>
+        </div>
+
+        <div class="content">
+          <p>Thank you for joining our community of professional investors and traders.</p>
+
+          <p>You'll now receive:</p>
+          <ul>
+            <li>📊 Weekly market insights and analysis</li>
+            <li>🎯 AI-powered stock opportunities</li>
+            <li>📅 Invitations to events and webinars</li>
+            <li>🔍 Exclusive research updates</li>
+          </ul>
+
+          <p><a href="https://bullseyefinancial.com/app/market" class="cta">Explore the Platform</a></p>
+
+          <p>Questions? Check out our <a href="https://bullseyefinancial.com/contact">contact page</a> or reply to this email.</p>
+
+          <p>Best regards,<br/>The Bullseye Financial Team</p>
+        </div>
+
+        <div class="footer">
+          <p class="unsubscribe">You're receiving this email because you subscribed to our community. <a href="${unsubscribeLink}">Unsubscribe</a></p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const text = `Welcome to Bullseye Financial Community, ${firstName}!
+
+Thank you for joining our community. You'll now receive weekly market insights, AI-powered opportunities, and exclusive updates.
+
+Explore the platform: https://bullseyefinancial.com/app/market
+
+Unsubscribe: ${unsubscribeLink}`;
+
+  try {
+    await sendEmail({
+      to: subscriberEmail,
+      subject,
+      html,
+      text
+    });
+    console.log(`✅ Community welcome email sent to ${subscriberEmail}`);
+  } catch (error) {
+    console.error(`⚠️  Failed to send community welcome email to ${subscriberEmail}:`, error.message);
+    // Don't throw - this is optional
+  }
+}
+
+/**
+ * Send newsletter to multiple recipients
+ */
+async function sendNewsletter(emails, newsletterData) {
+  const {
+    subject = 'Weekly Market Insights from Bullseye Financial',
+    html,
+    text,
+  } = newsletterData;
+
+  if (!Array.isArray(emails) || emails.length === 0) {
+    throw new Error('At least one recipient email is required');
+  }
+
+  try {
+    await sendEmail({
+      to: emails,
+      subject,
+      html,
+      text
+    });
+    console.log(`✅ Newsletter sent to ${emails.length} recipients`);
+    return {
+      success: true,
+      recipientCount: emails.length
+    };
+  } catch (error) {
+    console.error(`❌ Failed to send newsletter:`, error.message);
+    throw error;
   }
 }
 
@@ -263,7 +371,9 @@ initializeEmailService();
 
 module.exports = {
   sendEmail,
-  sendConfirmationEmail,
+  sendContactConfirmationEmail,
+  sendCommunityWelcomeEmail,
+  sendNewsletter,
   getEmailConfig,
   getEmailService: () => emailService
 };

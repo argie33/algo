@@ -18,7 +18,126 @@ const About = () => {
         subtitle="Our story and commitment to AI-powered market intelligence"
       />
 
-      {/* Hero Section with Image */}
+      {/* Hero Image Section */}
+      <Box sx={{ py: { xs: 4, md: 6 }, backgroundColor: alpha(theme.palette.primary.main, 0.02) }}>
+        <Container maxWidth="lg">
+          <ImagePlaceholder
+            src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=1200&h=500&fit=crop&auto=format&q=80"
+            alt="Bullseye Financial Team"
+            height={{ xs: '300px', md: '400px' }}
+          />
+        </Container>
+      </Box>
+
+      {/* Who We Are Section */}
+      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: alpha(theme.palette.primary.main, 0.02) }}>
+        <Container maxWidth="lg">
+          <Grid container spacing={6} alignItems="center">
+            {/* Left Content */}
+            <Grid item xs={12} md={6}>
+              <Typography
+                variant="h3"
+                sx={{
+                  fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
+                  fontWeight: 800,
+                  mb: 3,
+                  color: theme.palette.text.primary,
+                }}
+              >
+                Who We Are
+              </Typography>
+              <Typography
+                variant="body1"
+                sx={{
+                  fontSize: '1.05rem',
+                  color: theme.palette.text.secondary,
+                  mb: 3,
+                  lineHeight: 1.8,
+                }}
+              >
+                Bullseye Financial is built by finance and technology experts who got tired of watching the same information available to Wall Street get hidden from everyone else. We didn't just build another charting tool or sentiment aggregator. We built a research platform that does what professional investors actually need: connects the dots between fundamentals, technicals, sentiment, earnings, economic trends, and positioning.
+              </Typography>
+              <Typography
+                variant="body1"
+                sx={{
+                  fontSize: '1.05rem',
+                  color: theme.palette.text.secondary,
+                  mb: 3,
+                  lineHeight: 1.8,
+                }}
+              >
+                Our platform analyzes 5,300+ stocks across 6 research dimensions in real-time. We integrate 10+ years of historical market data with live feeds from earnings, economic indicators, sentiment sources, and technical analysis. Our AI models learn which patterns actually predict future moves. No black boxes. No fluff. Just institutional-grade analysis accessible to every investor.
+              </Typography>
+              <Typography
+                variant="body1"
+                sx={{
+                  fontSize: '1.05rem',
+                  color: theme.palette.text.secondary,
+                  mb: 3,
+                  lineHeight: 1.8,
+                }}
+              >
+                Today, thousands of professional investors, traders, and advisors use Bullseye to find better opportunities, manage risk more intelligently, and make faster decisions. We're committed to staying focused on what matters: helping you make better investment decisions faster than the crowd.
+              </Typography>
+            </Grid>
+
+            {/* Right Image */}
+            <Grid item xs={12} md={6}>
+              <ImagePlaceholder
+                src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=600&fit=crop&auto=format&q=80"
+                alt="Professional team collaborating on market research"
+                height={{ xs: '300px', md: '450px' }}
+              />
+            </Grid>
+          </Grid>
+        </Container>
+      </Box>
+
+      {/* Mission Statement Section */}
+      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: alpha(theme.palette.primary.main, 0.02) }}>
+        <Container maxWidth="lg">
+          <Typography
+            variant="h3"
+            sx={{
+              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
+              fontWeight: 800,
+              mb: 4,
+              textAlign: 'center',
+              color: theme.palette.text.primary,
+            }}
+          >
+            Our Mission
+          </Typography>
+          <Typography
+            sx={{
+              fontSize: '1.1rem',
+              color: theme.palette.text.secondary,
+              mb: 3,
+              lineHeight: 1.8,
+              maxWidth: '900px',
+              mx: 'auto',
+              textAlign: 'center',
+            }}
+          >
+            To democratize institutional-grade equity research by combining rigorous quantitative analysis, fundamental insights, and technical expertise into a comprehensive research platform accessible to professional and individual investors.
+          </Typography>
+          <Typography
+            sx={{
+              fontSize: '1rem',
+              color: theme.palette.text.secondary,
+              lineHeight: 1.8,
+              maxWidth: '900px',
+              mx: 'auto',
+              textAlign: 'center',
+              fontStyle: 'italic',
+            }}
+          >
+            We believe independent research drives better investment decisions. By removing conflicts of interest and publishing transparent, evidence-based analysis across 5,300+ equities, we empower investors to make informed decisions based on data, not Wall Street relationships.
+          </Typography>
+        </Container>
+      </Box>
+
+      {/* Our Journey Section */}
       <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: alpha(theme.palette.primary.main, 0.02) }}>
         <Container maxWidth="lg">
           <Grid container spacing={6} alignItems="center">
@@ -69,54 +188,6 @@ const About = () => {
           </Grid>
         </Container>
       </Box>
-
-      {/* Who We Are Section */}
-      <Container maxWidth="lg" sx={{ py: { xs: 6, md: 8 } }}>
-        <Typography
-          variant="h3"
-          sx={{
-            fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
-            fontWeight: 800,
-            mb: 4,
-            color: theme.palette.text.primary,
-          }}
-        >
-          Who We Are
-        </Typography>
-        <Typography
-          variant="body1"
-          sx={{
-            fontSize: '1.05rem',
-            color: theme.palette.text.secondary,
-            mb: 3,
-            lineHeight: 1.8,
-          }}
-        >
-          Bullseye Financial is built by finance and technology experts who got tired of watching the same information available to Wall Street get hidden from everyone else. We didn't just build another charting tool or sentiment aggregator. We built a research platform that does what professional investors actually need: connects the dots between fundamentals, technicals, sentiment, earnings, economic trends, and positioning.
-        </Typography>
-        <Typography
-          variant="body1"
-          sx={{
-            fontSize: '1.05rem',
-            color: theme.palette.text.secondary,
-            mb: 3,
-            lineHeight: 1.8,
-          }}
-        >
-          Our platform analyzes 5,300+ stocks across 6 research dimensions in real-time. We integrate 10+ years of historical market data with live feeds from earnings, economic indicators, sentiment sources, and technical analysis. Our AI models learn which patterns actually predict future moves. No black boxes. No fluff. Just institutional-grade analysis accessible to every investor.
-        </Typography>
-        <Typography
-          variant="body1"
-          sx={{
-            fontSize: '1.05rem',
-            color: theme.palette.text.secondary,
-            mb: 3,
-            lineHeight: 1.8,
-          }}
-        >
-          Today, thousands of professional investors, traders, and advisors use Bullseye to find better opportunities, manage risk more intelligently, and make faster decisions. We're committed to staying focused on what matters: helping you make better investment decisions faster than the crowd.
-        </Typography>
-      </Container>
 
       <PromoBanner
         icon={<InfoIcon sx={{ color: theme.palette.primary.main }} />}

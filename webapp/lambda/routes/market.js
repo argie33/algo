@@ -2617,13 +2617,64 @@ router.get("/technicals", async (req, res) => {
 
       // 3. Distribution Days (from /data endpoint logic)
       (async () => {
-        const result = await query(`
-          SELECT EXISTS (
-            SELECT FROM information_schema.tables
-            WHERE table_schema = 'public' AND table_name = 'distribution_days'
-          )
-        `);
-        return { available: result.rows[0].exists };
+        try {
+          const result = await query(`
+            SELECT
+              symbol,
+              MAX(running_count) as count,
+              json_agg(
+                json_build_object(
+                  'date', date,
+                  'close_price', close_price,
+                  'change_pct', change_pct,
+                  'volume', volume,
+                  'volume_ratio', volume_ratio,
+                  'days_ago', days_ago,
+                  'running_count', running_count
+                )
+              ) as days
+            FROM distribution_days
+            WHERE symbol IN ('^GSPC', '^IXIC', '^DJI')
+            GROUP BY symbol
+            ORDER BY symbol
+          `);
+
+          if (!result || !result.rows || result.rows.length === 0) {
+            return {};
+          }
+
+          // Format response with index names
+          const indexNames = {
+            "^GSPC": "S&P 500",
+            "^IXIC": "NASDAQ Composite",
+            "^DJI": "Dow Jones Industrial Average",
+          };
+
+          // Determine signal based on running count of distribution days
+          const getSignalFromCount = (count) => {
+            if (count <= 2) return "NORMAL";
+            if (count <= 4) return "WATCH";
+            if (count <= 7) return "CAUTION";
+            if (count <= 10) return "WARNING";
+            return "URGENT";
+          };
+
+          const distributionData = {};
+          result.rows.forEach((row) => {
+            const count = parseInt(row.count);
+            distributionData[row.symbol] = {
+              name: indexNames[row.symbol] || row.symbol,
+              count: count,
+              signal: getSignalFromCount(count),
+              days: Array.isArray(row.days) ? row.days : [],
+            };
+          });
+
+          return distributionData;
+        } catch (error) {
+          console.error("Error fetching distribution days:", error);
+          return {};
+        }
       })(),
 
       // 4. Volatility (from /data endpoint logic)

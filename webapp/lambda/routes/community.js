@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { query } = require("../utils/database");
-const { sendConfirmationEmail } = require("../utils/emailService");
+const { sendCommunityWelcomeEmail } = require("../utils/email");
 
 // POST /api/community/signup - Submit email to join community
 router.post("/signup", async (req, res) => {
@@ -52,14 +52,12 @@ router.post("/signup", async (req, res) => {
 
     console.log(`✅ Community signup received from ${email}`);
 
-    // Send confirmation email (if email service is configured)
+    // Send welcome email (if email service is configured)
     try {
-      await sendConfirmationEmail(email, {
-        firstName: email.split('@')[0], // Extract first name from email
-        unsubscribeLink: `${process.env.WEBSITE_URL || 'http://localhost:3001'}/api/community/unsubscribe?email=${encodeURIComponent(email)}`,
-      });
+      const firstName = email.split('@')[0]; // Extract first name from email
+      await sendCommunityWelcomeEmail(email, firstName);
     } catch (emailError) {
-      console.warn(`⚠️ Failed to send confirmation email to ${email}:`, emailError.message);
+      console.warn(`⚠️ Failed to send welcome email to ${email}:`, emailError.message);
       // Don't fail the signup if email fails - just log the warning
     }
 
