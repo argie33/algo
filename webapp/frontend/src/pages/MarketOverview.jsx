@@ -420,9 +420,8 @@ const handleTabChange = (event, newValue) => {
   // Extract technicals data
   const breadth = techData?.breadth || {};
   const mcclellanRawData = techData?.mcclellan_oscillator || [];
-  // Handle distribution_days - API returns {available: true}, but we need symbol-keyed data for MarketExposure
-  const rawDistributionDays = techData?.distribution_days || {};
-  const distributionDays = rawDistributionDays.available === true ? {} : rawDistributionDays;
+  // API now returns actual distribution_days data keyed by symbol (^GSPC, ^IXIC, ^DJI)
+  const distributionDays = techData?.distribution_days || {};
   const volatility = techData?.volatility || {};
   const internals = techData?.internals || {};
   const seasonality = seasonData || {};

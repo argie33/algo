@@ -255,25 +255,25 @@ const Home = () => {
                 number: '1',
                 title: 'Multi-Dimensional Analysis',
                 description: 'We combine fundamental analysis, technical research, and quantitative models to provide comprehensive stock coverage. Our approach integrates earnings data, valuation metrics, price action, and sector trends.',
-                image: '/images/image1.png',
+                image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=600&fit=crop&auto=format&q=80',
               },
               {
                 number: '2',
                 title: 'Evidence-Based Methodology',
                 description: 'Every signal is backtested against 10+ years of market data. We validate our models against real market outcomes and continuously refine our research process based on performance.',
-                image: '/images/image2.png',
+                image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=600&fit=crop&auto=format&q=80',
               },
               {
                 number: '3',
                 title: 'Institutional-Grade Tools',
                 description: 'Access the same caliber of research tools used by professional investors. Our platform provides detailed analytics, stock screening, and portfolio monitoring for serious investors.',
-                image: '/images/image3.png',
+                image: 'https://images.unsplash.com/photo-1526628652108-aa545b6c60f0?w=800&h=600&fit=crop&auto=format&q=80',
               },
               {
                 number: '4',
                 title: 'Independent & Transparent',
                 description: 'We publish independent research without investment banking conflicts. Our methodology is transparent, and we explain the factors driving our analysis and recommendations.',
-                image: '/images/image4.png',
+                image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=800&h=600&fit=crop&auto=format&q=80',
               },
             ].map((item, idx) => (
               <Grid item xs={12} sm={6} md={3} key={idx}>

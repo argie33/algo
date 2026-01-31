@@ -13,7 +13,7 @@ const OurTeam = () => {
     {
       name: 'Erik A.',
       role: 'CEO & Co-Founder',
-      bio: 'Visionary leader combining deep expertise in finance and information technology. With 15+ years in capital markets and software development, Erik leverages AI and cutting-edge machine learning to transform how investors analyze market data. Passionate about democratizing institutional-grade intelligence through innovative technology.',
+      bio: 'Visionary leader combining deep expertise in finance and information technology. With 15+ years in finance and software development, Erik leverages AI and cutting-edge machine learning to transform how investors analyze market data. Passionate about democratizing institutional-grade intelligence through innovative technology.',
       image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=500&fit=crop',
     },
     {
@@ -79,7 +79,7 @@ const OurTeam = () => {
             mx: 'auto',
           }}
         >
-          Our team combines finance expertise and technology innovation to bring institutional-grade market intelligence to every investor. With 20+ years of combined experience, we're dedicated to making sophisticated analysis accessible to all.
+          Our team combines finance expertise and technology innovation to bring institutional-grade market intelligence to every investor. We're dedicated to making sophisticated analysis accessible to all.
         </Typography>
 
         <Grid container spacing={4}>
