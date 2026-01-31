@@ -25,29 +25,41 @@ TRADING_DAYS = 252  # 1 year of trading data
 RISK_FREE_RATE = 0.045  # 4.5% annual risk-free rate
 
 def get_db_config():
-    """Get database configuration from environment or AWS Secrets Manager"""
-    try:
-        import boto3
-        secret_str = boto3.client("secretsmanager").get_secret_value(
-            SecretId=os.environ["DB_SECRET_ARN"]
-        )["SecretString"]
-        sec = json.loads(secret_str)
-        return {
-            "host": sec["host"],
-            "port": int(sec.get("port", 5432)),
-            "user": sec["username"],
-            "password": sec["password"],
-            "dbname": sec["dbname"]
-        }
-    except Exception as e:
-        logging.debug(f"AWS Secrets Manager not available, using local config: {e}")
-        return {
-            "host": os.environ.get("DB_HOST", "localhost"),
-            "port": int(os.environ.get("DB_PORT", 5432)),
-            "user": os.environ.get("DB_USER", "stocks"),
-            "password": os.environ.get("DB_PASSWORD", "bed0elAn"),
-            "dbname": os.environ.get("DB_NAME", "stocks")
-        }
+    """Get database configuration from AWS Secrets Manager or environment variables.
+
+    Priority:
+    1. AWS Secrets Manager (if DB_SECRET_ARN is set)
+    2. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
+    """
+    db_secret_arn = os.environ.get("DB_SECRET_ARN")
+
+    if db_secret_arn:
+        try:
+            import boto3
+            secret_str = boto3.client("secretsmanager").get_secret_value(
+                SecretId=db_secret_arn
+            )["SecretString"]
+            sec = json.loads(secret_str)
+            logging.info("Using AWS Secrets Manager for database config")
+            return {
+                "host": sec["host"],
+                "port": int(sec.get("port", 5432)),
+                "user": sec["username"],
+                "password": sec["password"],
+                "dbname": sec["dbname"]
+            }
+        except Exception as e:
+            logging.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
+
+    # Fall back to environment variables
+    logging.info("Using environment variables for database config")
+    return {
+        "host": os.environ.get("DB_HOST", "localhost"),
+        "port": int(os.environ.get("DB_PORT", 5432)),
+        "user": os.environ.get("DB_USER", "stocks"),
+        "password": os.environ.get("DB_PASSWORD", ""),
+        "dbname": os.environ.get("DB_NAME", "stocks")
+    }
 
 def calculate_relative_metrics(stock_prices, spy_prices):
     """

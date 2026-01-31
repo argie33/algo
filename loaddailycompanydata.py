@@ -123,46 +123,21 @@ def log_mem(stage: str):
 
 
 def get_db_config():
-    """Get database configuration - prioritizes environment vars (ECS) over Secrets Manager"""
-    # Try environment variables first (ECS task definition)
-    db_host = os.environ.get("DB_HOST", "").strip()
-    if db_host and db_host != "localhost":
-        logging.info(f"Using environment variables for database configuration (host: {db_host})")
-        password = os.environ.get("DB_PASSWORD")
-        return {
-            "host": db_host,
-            "port": int(os.environ.get("DB_PORT", "5432")),
-            "user": os.environ.get("DB_USER", "stocks"),
-            "password": password if password else "bed0elAn",
-            "dbname": os.environ.get("DB_NAME", "stocks"),
-        }
+    """Get database configuration from AWS Secrets Manager or environment variables.
 
-    # Try local socket connection (peer authentication) - for local development
-    try:
-        test_conn = psycopg2.connect(
-            dbname=os.environ.get("DB_NAME", "stocks"),
-            user="stocks"
-        )
-        test_conn.close()
-        logging.info("Using local socket connection to database")
-        return {
-            "host": None,  # Use socket
-            "user": "stocks",
-            "password": None,
-            "dbname": os.environ.get("DB_NAME", "stocks"),
-        }
-    except Exception as e:
-        logging.debug(f"Socket connection failed: {e}")
-
-    # Fall back to Secrets Manager if available
+    Priority:
+    1. AWS Secrets Manager (if DB_SECRET_ARN is set)
+    2. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
+    """
     db_secret_arn = os.environ.get("DB_SECRET_ARN")
+
     if db_secret_arn:
         try:
             secret_str = boto3.client("secretsmanager").get_secret_value(
                 SecretId=db_secret_arn
             )["SecretString"]
             sec = json.loads(secret_str)
-            logging.info(f"Using AWS Secrets Manager for database credentials")
+            logging.info("Using AWS Secrets Manager for database config")
             return {
                 "host": sec["host"],
                 "port": int(sec.get("port", 5432)),
@@ -171,15 +146,15 @@ def get_db_config():
                 "dbname": sec["dbname"],
             }
         except Exception as e:
-            logging.warning(f"Failed to get AWS Secrets Manager credentials: {e}")
+            logging.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
 
-    # Final fallback to environment variables
-    logging.info("Using default environment variables for database configuration")
+    # Fall back to environment variables
+    logging.info("Using environment variables for database config")
     return {
         "host": os.environ.get("DB_HOST", "localhost"),
-        "port": int(os.environ.get("DB_PORT", "5432")),
+        "port": int(os.environ.get("DB_PORT", 5432)),
         "user": os.environ.get("DB_USER", "stocks"),
-        "password": os.environ.get("DB_PASSWORD") or "bed0elAn",
+        "password": os.environ.get("DB_PASSWORD", ""),
         "dbname": os.environ.get("DB_NAME", "stocks"),
     }
 

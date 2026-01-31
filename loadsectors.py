@@ -31,29 +31,50 @@ import numpy as np
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Database configuration from environment - handle empty strings as missing values
-DB_HOST = os.getenv('DB_HOST', '').strip() or 'localhost'
-# Fix for stale endpoint - if env var has old endpoint, use correct one
-if 'c2gujitq3h1b' in DB_HOST:
-    DB_HOST = 'stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com'
-DB_PORT = os.getenv('DB_PORT', '').strip() or '5432'
-DB_USER = os.getenv('DB_USER', '').strip() or 'stocks'
-DB_PASSWORD = os.getenv('DB_PASSWORD', '').strip() or 'bed0elAn'
-DB_NAME = os.getenv('DB_NAME', '').strip() or 'stocks'
+# Database configuration
+import boto3
+import json
+DB_SECRET_ARN = os.getenv('DB_SECRET_ARN')
 
-logger.info(f"Database config: host={DB_HOST}, port={DB_PORT}, user={DB_USER}, dbname={DB_NAME}")
+
+def get_db_config():
+    """Get database configuration from AWS Secrets Manager or environment variables.
+
+    Priority:
+    1. AWS Secrets Manager (if DB_SECRET_ARN is set)
+    2. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
+    """
+    if DB_SECRET_ARN:
+        try:
+            client = boto3.client("secretsmanager")
+            secret = json.loads(client.get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"])
+            logger.info("Using AWS Secrets Manager for database config")
+            return {
+                "host": secret["host"],
+                "port": int(secret.get("port", 5432)),
+                "user": secret["username"],
+                "password": secret["password"],
+                "database": secret["dbname"]
+            }
+        except Exception as e:
+            logger.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
+
+    # Fall back to environment variables
+    logger.info("Using environment variables for database config")
+    return {
+        "host": os.getenv('DB_HOST', 'localhost'),
+        "port": int(os.getenv('DB_PORT', 5432)),
+        "user": os.getenv('DB_USER', 'stocks'),
+        "password": os.getenv('DB_PASSWORD', ''),
+        "database": os.getenv('DB_NAME', 'stocks')
+    }
 
 
 def get_db_connection():
     """Establish database connection"""
     try:
-        conn = psycopg2.connect(
-            host=DB_HOST,
-            port=DB_PORT,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            database=DB_NAME
-        )
+        config = get_db_config()
+        conn = psycopg2.connect(**config)
         return conn
     except Exception as e:
         logger.error(f"Failed to connect to database: {e}")

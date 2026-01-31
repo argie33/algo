@@ -27,28 +27,20 @@ DB_SECRET_ARN = os.environ.get("DB_SECRET_ARN")
 
 
 def get_db_cfg():
-    """Get database configuration - works in AWS and locally"""
-    # Try environment variables first (ECS task definition)
-    db_host = os.environ.get("DB_HOST", "").strip()
-    # Fix for stale endpoint - if env var has old endpoint, use correct one
-    if 'c2gujitq3h1b' in db_host:
-        db_host = 'stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com'
-    if db_host:
-        logger.info(f"Using database configuration from environment variables (host: {db_host})")
-        return (
-            db_host,
-            os.environ.get("DB_PORT", "5432"),
-            os.environ.get("DB_USER", "stocks"),
-            os.environ.get("DB_PASSWORD") or "bed0elAn",
-            os.environ.get("DB_NAME", "stocks"),
-        )
+    """Get database configuration from AWS Secrets Manager or environment variables.
 
-    # Fall back to Secrets Manager if available
+    Priority:
+    1. AWS Secrets Manager (if DB_SECRET_ARN is set)
+    2. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
+
+    Returns tuple: (host, port, user, password, dbname)
+    """
+    # Try AWS Secrets Manager first
     if DB_SECRET_ARN:
         try:
-            logger.info("Using AWS Secrets Manager for database configuration")
             client = boto3.client("secretsmanager")
             secret = json.loads(client.get_secret_value(SecretId=DB_SECRET_ARN)["SecretString"])
+            logger.info("Using AWS Secrets Manager for database config")
             return (
                 secret["host"],
                 secret.get("port", "5432"),
@@ -57,23 +49,16 @@ def get_db_cfg():
                 secret["dbname"],
             )
         except Exception as e:
-            logger.warning(f"Secrets Manager failed ({e}), trying environment variables")
-            return (
-                os.environ.get("DB_HOST") or "localhost",
-                os.environ.get("DB_PORT") or "5432",
-                os.environ.get("DB_USER") or "stocks",
-                os.environ.get("DB_PASSWORD") or "bed0elAn",
-                os.environ.get("DB_NAME") or "stocks",
-            )
+            logger.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
 
-    # Local development defaults
-    logger.info("Using default local database configuration")
+    # Fall back to environment variables
+    logger.info("Using environment variables for database config")
     return (
-        "localhost",
-        "5432",
-        "stocks",
-        "bed0elAn",
-        "stocks",
+        os.environ.get("DB_HOST", "localhost"),
+        os.environ.get("DB_PORT", "5432"),
+        os.environ.get("DB_USER", "stocks"),
+        os.environ.get("DB_PASSWORD", ""),
+        os.environ.get("DB_NAME", "stocks"),
     )
 
 

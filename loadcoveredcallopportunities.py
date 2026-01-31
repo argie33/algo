@@ -39,43 +39,38 @@ logger = logging.getLogger("loadcoveredcallopportunities")
 # Database Configuration
 # ===========================
 def get_db_config():
-    """Get database configuration."""
-    # Check for environment variables first
-    if os.environ.get("DB_HOST"):
-        return {
-            "host": os.environ.get("DB_HOST", "localhost"),
-            "port": int(os.environ.get("DB_PORT", "5432")),
-            "user": os.environ.get("DB_USER", "stocks"),
-            "password": os.environ.get("DB_PASSWORD", "bed0elAn"),
-            "dbname": os.environ.get("DB_NAME", "stocks")
-        }
+    """Get database configuration from AWS Secrets Manager or environment variables.
 
-    # Check for AWS Secrets Manager
-    secret_arn = os.environ.get("DB_SECRET_ARN")
-    if secret_arn:
+    Priority:
+    1. AWS Secrets Manager (if DB_SECRET_ARN is set)
+    2. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
+    """
+    db_secret_arn = os.environ.get("DB_SECRET_ARN")
+
+    if db_secret_arn:
         try:
             client = boto3.client("secretsmanager")
-            secret_str = client.get_secret_value(SecretId=secret_arn)["SecretString"]
+            secret_str = client.get_secret_value(SecretId=db_secret_arn)["SecretString"]
             secret = json.loads(secret_str)
-
+            logger.info("Using AWS Secrets Manager for database config")
             return {
                 "host": secret["host"],
-                "port": int(secret.get("port", "5432")),
+                "port": int(secret.get("port", 5432)),
                 "user": secret["username"],
                 "password": secret["password"],
                 "dbname": secret["dbname"]
             }
         except Exception as e:
-            logger.error(f"Error getting DB config from Secrets Manager: {e}")
-            raise
+            logger.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
 
-    # Default local configuration
+    # Fall back to environment variables
+    logger.info("Using environment variables for database config")
     return {
-        "host": "localhost",
-        "port": 5432,
-        "user": "stocks",
-        "password": "bed0elAn",
-        "dbname": "stocks"
+        "host": os.environ.get("DB_HOST", "localhost"),
+        "port": int(os.environ.get("DB_PORT", 5432)),
+        "user": os.environ.get("DB_USER", "stocks"),
+        "password": os.environ.get("DB_PASSWORD", ""),
+        "dbname": os.environ.get("DB_NAME", "stocks")
     }
 
 # ===========================
