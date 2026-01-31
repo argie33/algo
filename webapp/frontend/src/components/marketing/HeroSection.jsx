@@ -146,7 +146,7 @@ const HeroSection = () => {
           {/* Right Visual - Hero Image */}
           <Grid item xs={12} md={7}>
             <ImagePlaceholder
-              src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAwIiBoZWlnaHQ9IjUwMCIgdmlld0JveD0iMCAwIDYwMCA1MDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJoZXJvR3JhZCIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzAwNzBmMztzdG9wLW9wYWNpdHk6MSIgLz48c3RvcCBvZmZzZXQ9IjUwJSIgc3R5bGU9InN0b3AtY29sb3I6IzAwNGQ5YztzdG9wLW9wYWNpdHk6MSIgLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0eWxlPSJzdG9wLWNvbG9yOiMwMDJiNWM7c3RvcC1vcGFjaXR5OjEiIC8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHJlY3Qgd2lkdGg9IjYwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9InVybCNoZXJvR3JhZCkiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZm9udC1zaXplPSIzMiIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iIGZvbnQtd2VpZ2h0PSJib2xkIj5JbnN0aXR1dGlvbmFsLUdyYWRlIFJlc2VhcmNoPC90ZXh0Pjwvc3ZnPg=="
+              src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='500'%3E%3CdefinitionssystemIdefs%3E%3ClinearGradient id='heroGrad'%3E%3Cstop offset='0%25' style='stop-color:%23007ff3;stop-opacity:1' /%3E%3Cstop offset='50%25' style='stop-color:%2300509c;stop-opacity:1' /%3E%3Cstop offset='100%25' style='stop-color:%23002b5c;stop-opacity:1' /%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='600' height='500' fill='url(%23heroGrad)'/%3E%3Ctext x='50%25' y='50%25' font-size='32' font-weight='bold' fill='white' text-anchor='middle' dy='.3em'%3EInstitutional Research%3C/text%3E%3C/svg%3E"
               alt="Institutional Research Hero"
               height={{ xs: '300px', sm: '400px', md: '500px' }}
             />
