@@ -62,7 +62,7 @@ const Contact = () => {
     <MarketingLayout>
       {/* Header */}
       <PageHeader
-        title="Contact Our Research Team"
+        title="Contact Our Team"
         subtitle="Questions about our research platform, methodology, or pricing? Get in touch with our team."
       />
 
@@ -307,13 +307,13 @@ const Contact = () => {
                   ))}
                 </Grid>
 
-                {/* FAQ Section */}
+                {/* FAQ Link Section */}
                 <Box sx={{ backgroundColor: alpha(theme.palette.primary.main, 0.05), p: 3, borderRadius: '0px' }}>
                   <Typography
                     variant="h6"
                     sx={{
                       fontWeight: 700,
-                      mb: 3,
+                      mb: 2,
                       color: theme.palette.text.primary,
                     }}
                   >
@@ -324,35 +324,24 @@ const Contact = () => {
                     sx={{
                       color: theme.palette.text.secondary,
                       lineHeight: 1.8,
-                      mb: 3,
                     }}
                   >
-                    <strong>What research dimensions does your platform cover?</strong>
-                    <br />
-                    We provide 6+ research dimensions: AI-powered stock scoring, earnings intelligence, sentiment & positioning analysis, technical analysis, sector research, economic & macro intelligence, market overview, and hedge helper tools.
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: theme.palette.text.secondary,
-                      lineHeight: 1.8,
-                      mb: 3,
-                    }}
-                  >
-                    <strong>Do you offer institutional data access?</strong>
-                    <br />
-                    Yes. Institutional clients can access our research data via API for integration with internal systems. Contact our sales team to discuss enterprise access options.
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: theme.palette.text.secondary,
-                      lineHeight: 1.8,
-                    }}
-                  >
-                    <strong>What data sources do you use?</strong>
-                    <br />
-                    We integrate 10+ years of historical market data, real-time pricing, earnings data, sentiment indicators, economic calendars, and proprietary positioning metrics. All data is continuously updated and validated.
+                    Have questions about our research methodology, platform features, or data access? Check out our{' '}
+                    <Typography
+                      component="a"
+                      href="/faq"
+                      sx={{
+                        color: theme.palette.primary.main,
+                        textDecoration: 'none',
+                        fontWeight: 600,
+                        '&:hover': {
+                          textDecoration: 'underline',
+                        },
+                      }}
+                    >
+                      comprehensive FAQs page
+                    </Typography>
+                    {' '}for detailed answers.
                   </Typography>
                 </Box>
               </Box>

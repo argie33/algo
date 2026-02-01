@@ -564,24 +564,24 @@ const Firm = () => {
           <Grid container spacing={4}>
             {[
               {
-                title: 'Research Quality',
+                title: 'Research Integrity',
                 description:
-                  'We prioritize research quality over volume. Every model is rigorously tested, every signal is validated, and every recommendation is backed by thorough analysis and historical evidence.',
+                  'Unbiased, fact-based analysis free from conflicts of interest. No investment banking relationships. No pressure to maintain ratings. Our research reflects only the data and our analytical views.',
               },
               {
-                title: 'Client Focus',
+                title: 'Institutional Quality',
                 description:
-                  'Our research serves institutional investors, RIAs, and active traders. We design our platform and analysis to meet the specific needs of professional investors who demand high-quality research.',
+                  'Professional-grade research comparable to Wall Street firms. Rigorous factor analysis, multi-dimensional modeling, and institutional-caliber coverage across 5,300+ equities.',
               },
               {
-                title: 'Analytical Independence',
+                title: 'Evidence-Based Validation',
                 description:
-                  'We maintain complete analytical independence. No investment banking relationships, no underwriting conflicts, no pressure to maintain buy ratings. Our research reflects only our analytical views.',
+                  'Every model backtested against 10+ years of data. Every signal validated for statistical significance. Real performance tracking ensures our research delivers measurable results.',
               },
               {
-                title: 'Continuous Improvement',
+                title: 'Market Excellence',
                 description:
-                  'We continuously refine our research models based on performance and changing market conditions. Our methodology evolves as we learn from outcomes and incorporate new data sources.',
+                  'Deep expertise in equity research, portfolio strategy, and market dynamics. Continuous innovation in analytical methods and incorporation of AI-powered insights for competitive advantage.',
               },
             ].map((value, idx) => (
               <Grid item xs={12} sm={6} key={idx}>
