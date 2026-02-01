@@ -42,13 +42,12 @@ const Contact = () => {
       icon: <LocationOnIcon />,
       title: 'Headquarters',
       content: 'Chicago, Illinois',
-      subtitle: 'US-based research firm',
+      subtitle: 'United States',
     },
     {
       icon: <PhoneIcon />,
       title: 'Main Line',
       content: '+1 (555) 123-4567',
-      subtitle: 'Main switchboard - Route to appropriate department',
     },
     {
       icon: <EmailIcon />,

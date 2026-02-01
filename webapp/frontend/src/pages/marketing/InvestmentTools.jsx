@@ -73,7 +73,7 @@ const InvestmentTools = () => {
             </Grid>
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=500&fit=crop&auto=format&q=80"
+                src="https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&h=500&fit=crop"
                 alt="Professional Trading Platform"
                 height={{ xs: '300px', md: '450px' }}
               />

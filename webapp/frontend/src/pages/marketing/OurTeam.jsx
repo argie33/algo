@@ -12,39 +12,15 @@ const OurTeam = () => {
   const teamMembers = [
     {
       name: 'Erik A.',
-      role: 'CEO & Co-Founder',
+      role: 'Co-CEO, CIO & CTO',
       bio: 'Visionary leader combining deep expertise in finance and information technology. With 15+ years in finance and software development, Erik leverages AI and cutting-edge machine learning to transform how investors analyze market data. Passionate about democratizing institutional-grade intelligence through innovative technology.',
-      image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=500&fit=crop',
+      image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=500&fit=crop',
     },
     {
-      name: 'Sarah Chen',
-      role: 'VP Engineering & Technology',
-      bio: 'CTO and technical leader driving Bullseye\'s AI-powered analytics engine. With expertise in distributed systems, machine learning, and financial technology, Sarah builds scalable infrastructure that processes and analyzes millions of data points in real-time to deliver actionable market insights.',
-      image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&h=500&fit=crop',
-    },
-    {
-      name: 'Michael Torres',
-      role: 'VP Research & Analytics',
-      bio: 'Quantitative researcher and data science leader specializing in market pattern recognition and predictive modeling. Michael develops proprietary algorithms that identify trading opportunities and market trends, combining academic rigor with practical market experience.',
-      image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=800&h=500&fit=crop',
-    },
-    {
-      name: 'Jessica Liu',
-      role: 'VP Product & Customer Success',
-      bio: 'Product strategist focused on creating intuitive, powerful tools for serious investors. Jessica bridges the gap between sophisticated financial analysis and user-friendly design, ensuring Bullseye delivers institutional capabilities with consumer-grade simplicity.',
-      image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=800&h=500&fit=crop',
-    },
-    {
-      name: 'David Rodriguez',
-      role: 'Head of Market Research',
-      bio: 'Senior market analyst with 12+ years of equity research experience. David leads the fundamental research team, conducting deep dives into market dynamics, sector rotations, and macroeconomic trends to inform Bullseye\'s intelligence platform.',
-      image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=800&h=500&fit=crop',
-    },
-    {
-      name: 'Amanda Foster',
-      role: 'Head of Operations & Business Development',
-      bio: 'Strategic operations leader focused on scaling Bullseye and expanding market reach. Amanda oversees business development, partnerships, and operational excellence, ensuring the platform meets the needs of individual investors and institutional clients alike.',
-      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
+      name: 'Amanda',
+      role: 'Co-CEO, COO and CFO',
+      bio: 'Strategic operations and investor relations leader in finance strategy with 20 years of experience in the industry. Dedicated to scaling Bullseye and expanding market reach, Amanda oversees business development, partnerships, and operational excellence while building strong relationships with institutional investors and stakeholders. Her focus is ensuring the platform meets the evolving needs of both individual and institutional investors.',
+      image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&h=500&fit=crop',
     },
   ];
 
@@ -82,7 +58,7 @@ const OurTeam = () => {
           Our team combines finance expertise and technology innovation to bring institutional-grade market intelligence to every investor. We're dedicated to making sophisticated analysis accessible to all.
         </Typography>
 
-        <Grid container spacing={4}>
+        <Grid container spacing={4} justifyContent="center">
           {teamMembers.map((member, idx) => (
             <Grid item xs={12} sm={6} md={4} key={idx}>
               <Card
