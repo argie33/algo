@@ -1,0 +1,98 @@
+# Stock Algorithm Loaders - Off-Peak Schedule (2-7 AM UTC)
+# All loaders run with AWS RDS database credentials for consistency
+
+# 2:00 AM - Load daily company data
+0 2 * * * DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loaddailycompanydata.py >> /home/stocks/algo/logs/loaddailycompanydata.log 2>&1
+
+# 2:02 AM - Annual cash flow data (for FCF/OCF growth metrics)
+2 2 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadannualcashflow.py >> /home/stocks/algo/logs/loadannualcashflow.log 2>&1
+
+# 2:03 AM - Quarterly cash flow data (for FCF/OCF growth metrics)
+3 2 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadquarterlycashflow.py >> /home/stocks/algo/logs/loadquarterlycashflow.log 2>&1
+
+# 2:04 AM - TTM cash flow data (for FCF/OCF growth metrics)
+4 2 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadttmcashflow.py >> /home/stocks/algo/logs/loadttmcashflow.log 2>&1
+
+# 2:10 AM - Stock scores (composite ratings)
+10 2 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadstockscores.py >> /home/stocks/algo/logs/loadstockscores.log 2>&1
+
+# 2:20 AM - Daily price data
+20 2 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadpricedaily.py >> /home/stocks/algo/logs/loadpricedaily.log 2>&1
+
+# 2:30 AM - Earnings history
+30 2 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadearningshistory.py >> /home/stocks/algo/logs/loadearningshistory.log 2>&1
+
+# 2:40 AM - Analyst sentiment data
+40 2 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadanalystsentiment.py >> /home/stocks/algo/logs/loadanalystsentiment.log 2>&1
+
+# 2:50 AM - Analyst upgrade/downgrade events
+50 2 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadanalystupgradedowngrade.py >> /home/stocks/algo/logs/loadanalystupgradedowngrade.log 2>&1
+
+# 3:00 AM - Technical analysis (daily timeframe)
+0 3 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadtechnicalsdaily.py >> /home/stocks/algo/logs/loadtechnicalsdaily.log 2>&1
+
+# 3:10 AM - AAII investor sentiment
+10 3 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadaaiidata.py >> /home/stocks/algo/logs/loadaaiidata.log 2>&1
+
+# 3:20 AM - Fear & Greed Index
+20 3 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadfeargreed.py >> /home/stocks/algo/logs/loadfeargreed.log 2>&1
+
+# 3:30 AM - NAAIM Fund Manager Exposure Index
+30 3 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadnaaim.py >> /home/stocks/algo/logs/loadnaaim.log 2>&1
+
+# 3:30 AM - Sector rankings (from loadsectors)
+30 3 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadsectorranking.py >> /home/stocks/algo/logs/loadsectorranking.log 2>&1
+
+# 3:40 AM - Industry rankings
+40 3 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadindustryranking.py >> /home/stocks/algo/logs/loadindustryranking.log 2>&1
+
+# 3:50 AM - Fundamental metrics
+50 3 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadfundamentalmetrics.py >> /home/stocks/algo/logs/loadfundamentalmetrics.log 2>&1
+
+# 4:00 AM - Buy/Sell signals (daily)
+0 4 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadbuyselldaily.py >> /home/stocks/algo/logs/loadbuyselldaily.log 2>&1
+
+# 5:00 AM - Factor metrics (stability metrics including beta)
+0 5 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadfactormetrics.py >> /home/stocks/algo/logs/loadfactormetrics.log 2>&1
+
+# 5:30 AM - Weekly price data (for technical analysis and longer-term trends)
+30 5 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadpriceweekly.py >> /home/stocks/algo/logs/loadpriceweekly.log 2>&1
+
+# 5:40 AM - Monthly price data (for longer-term trend analysis)
+40 5 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadpricemonthly.py >> /home/stocks/algo/logs/loadpricemonthly.log 2>&1
+
+# 5:50 AM - Annual balance sheet (for financial metrics)
+50 5 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadannualbalancesheet.py >> /home/stocks/algo/logs/loadannualbalancesheet.log 2>&1
+
+# 6:00 AM - Annual income statement (for profitability metrics)
+0 6 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadannualincomestatement.py >> /home/stocks/algo/logs/loadannualincomestatement.log 2>&1
+
+# 6:10 AM - Quarterly balance sheet
+10 6 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadquarterlybalancesheet.py >> /home/stocks/algo/logs/loadquarterlybalancesheet.log 2>&1
+
+# 6:20 AM - Quarterly income statement (for earnings and growth)
+20 6 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadquarterlyincomestatement.py >> /home/stocks/algo/logs/loadquarterlyincomestatement.log 2>&1
+
+# 6:30 AM - TTM income statement
+30 6 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadttmincomestatement.py >> /home/stocks/algo/logs/loadttmincomestatement.log 2>&1
+
+# 6:40 AM - Positioning metrics (institutional ownership, insider ownership)
+40 6 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadpositioningmetrics.py >> /home/stocks/algo/logs/loadpositioningmetrics.log 2>&1
+
+# 6:50 AM - Seasonality data
+50 6 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadseasonality.py >> /home/stocks/algo/logs/loadseasonality.log 2>&1
+
+# 7:00 AM - Market indices for benchmark comparisons
+0 7 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadmarket.py >> /home/stocks/algo/logs/loadmarket.log 2>&1
+
+# 7:10 AM - Economic data for macro context
+10 7 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadecondata.py >> /home/stocks/algo/logs/loadecondata.log 2>&1
+
+# 7:20 AM - Benchmark comparisons
+20 7 * * * cd /home/stocks/algo && DB_HOST='stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com' DB_PORT=5432 DB_USER='stocks' DB_PASSWORD='bed0elAn' DB_NAME='stocks' /usr/bin/python3 loadbenchmark.py >> /home/stocks/algo/logs/loadbenchmark.log 2>&1
+
+# Monitoring - Data freshness check (hourly)
+0 * * * * /home/stocks/algo/data_freshness_monitor.sh >> /home/stocks/algo/logs/freshness_monitor.log 2>&1
+
+# Continuous monitoring
+15 * * * * /home/stocks/algo/continuous_monitoring_runner.sh >> /tmp/continuous_monitoring.log 2>&1
