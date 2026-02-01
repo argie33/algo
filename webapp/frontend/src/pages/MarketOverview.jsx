@@ -1125,7 +1125,7 @@ const handleTabChange = (event, newValue) => {
                 (pePercentile > 75 ? "error" :
                  pePercentile > 50 ? "warning" :
                  pePercentile < 25 ? "success" : "info")
-                : "default";
+                : "grey";
 
               return (
                 <Grid item xs={12} sm={6} md={4} key={index.symbol}>
@@ -1160,7 +1160,7 @@ const handleTabChange = (event, newValue) => {
                             <Chip
                               label={`${index.pe.percentile}th`}
                               size="small"
-                              color={peColor}
+                              color={peColor === "grey" ? "default" : peColor}
                               variant="filled"
                             />
                           </Box>
