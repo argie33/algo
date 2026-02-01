@@ -54,9 +54,9 @@ const HeroSection = () => {
                   letterSpacing: '-0.5px',
                 }}
               >
-                Institutional-Grade Research
+                Research That Finds Better Opportunities
                 <br />
-                <span style={{ color: theme.palette.primary.main }}>Powered by AI. Accessible to All.</span>
+                <span style={{ color: theme.palette.primary.main }}>AI-Powered Intelligence. Professional Results.</span>
               </Typography>
 
               <Typography
@@ -70,7 +70,7 @@ const HeroSection = () => {
                   maxWidth: '95%',
                 }}
               >
-                Stop relying on gut instinct and outdated analysis. Bullseye combines 10+ years of market data, advanced AI algorithms, and 6+ research dimensions to reveal the opportunities traditional analysis misses. Get institutional-grade intelligence in real-time.
+                Stop guessing on stock picks. Bullseye analyzes 5,300+ companies across multiple dimensions in real-time, identifying patterns and opportunities that human analysis consistently misses. Get the edge institutional investors rely on.
               </Typography>
 
               {/* CTA Buttons */}
@@ -115,42 +115,6 @@ const HeroSection = () => {
                 >
                   View Capabilities
                 </Button>
-              </Box>
-
-              {/* Stats */}
-              <Box
-                sx={{
-                  display: 'grid',
-                  gridTemplateColumns: { xs: '1fr 1fr', md: '1fr 1fr 1fr' },
-                  gap: 3,
-                  pt: 3,
-                  borderTop: `1px solid ${theme.palette.divider}`,
-                }}
-              >
-                {[
-                  { label: '10+ Analysis Dimensions', value: '10+' },
-                  { label: 'Real-Time Market Data', value: '24/7' },
-                  { label: 'Institutional-Grade Tools', value: 'Enterprise' },
-                ].map((stat, idx) => (
-                  <Box key={idx}>
-                    <Typography
-                      sx={{
-                        fontSize: '1.8rem',
-                        fontWeight: 700,
-                        color: theme.palette.primary.main,
-                        mb: 0.5,
-                      }}
-                    >
-                      {stat.value}
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{ color: theme.palette.text.secondary, fontWeight: 500 }}
-                    >
-                      {stat.label}
-                    </Typography>
-                  </Box>
-                ))}
               </Box>
             </Box>
           </Grid>

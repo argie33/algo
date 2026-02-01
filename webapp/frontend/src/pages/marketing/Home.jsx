@@ -137,21 +137,6 @@ const Home = () => {
           >
             Bullseye Financial delivers evidence-based equity research combining quantitative analysis, fundamental research, and technical insights. Our multi-dimensional approach helps institutional investors, RIAs, and active traders make better-informed decisions.
           </Typography>
-          <Typography
-            sx={{
-              fontSize: '0.95rem',
-              color: theme.palette.text.secondary,
-              textAlign: 'center',
-              mb: 6,
-              maxWidth: '800px',
-              mx: 'auto',
-              lineHeight: 1.7,
-              fontStyle: 'italic',
-            }}
-          >
-            5,300+ stocks covered • 10+ years historical data • Analysis updated during market hours
-          </Typography>
-
           {/* Data Breadth Grid */}
           <Grid container spacing={3}>
             {dataCapabilities.map((item, idx) => (
@@ -382,7 +367,7 @@ const Home = () => {
                 number: '1',
                 title: 'Multi-Dimensional Analysis',
                 description: 'We combine fundamental analysis, technical research, and quantitative models to provide comprehensive stock coverage. Our approach integrates earnings data, valuation metrics, price action, and sector trends.',
-                image: 'https://images.unsplash.com/photo-1526628652108-aa545b6c60f0?w=800&h=600&fit=crop&auto=format&q=80',
+                image: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=800&h=600&fit=crop&auto=format&q=80',
               },
               {
                 number: '2',
@@ -724,6 +709,9 @@ const Home = () => {
         </Container>
       </Box>
 
+      {/* Community Signup Section */}
+      <CommunitySignup />
+
       {/* Testimonials Section */}
       <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.default }}>
         <Container maxWidth="lg">
@@ -825,9 +813,6 @@ const Home = () => {
           </Grid>
         </Container>
       </Box>
-
-      {/* Community Signup Section */}
-      <CommunitySignup />
 
       {/* CTA Section */}
       <CTASection

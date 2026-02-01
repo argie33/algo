@@ -2746,8 +2746,19 @@ router.get("/sentiment", async (req, res) => {
   const startTime = Date.now();
   const range = req.query.range || "30d";
 
+  // Convert range parameter to days
+  let days = 30;
+  let orderDirection = "ASC"; // Default to ascending (oldest first) for charts
+  switch(range) {
+    case "90d": days = 90; break;
+    case "6m": days = 180; break;
+    case "1y": days = 365; break;
+    case "all": days = 10000; break;
+    default: days = 30;
+  }
+
   try {
-    console.log(`😊 [Market API] Fetching sentiment (range: ${range})...`);
+    console.log(`😊 [Market API] Fetching sentiment (range: ${range}, days: ${days})...`);
 
     const [aaiiData, fearGreedData, naaimData] = await Promise.allSettled([
       // 1. AAII
@@ -2757,14 +2768,12 @@ router.get("/sentiment", async (req, res) => {
             bullish,
             bearish,
             neutral,
-            ROUND(CAST(bullish AS decimal) / CAST((bullish + bearish + neutral) AS decimal) * 100, 2) as pct_bullish,
-            ROUND(CAST(bearish AS decimal) / CAST((bullish + bearish + neutral) AS decimal) * 100, 2) as pct_bearish,
             date,
             fetched_at as timestamp
           FROM aaii_sentiment
-          ORDER BY date DESC
-          LIMIT 252
-        `);
+          WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
+          ORDER BY date ${orderDirection}
+        `, [days]);
         return result.rows || [];
       })(),
 
@@ -2774,13 +2783,12 @@ router.get("/sentiment", async (req, res) => {
           SELECT
             index_value as value,
             rating,
-            '' as description,
             date,
             fetched_at as timestamp
           FROM fear_greed_index
-          ORDER BY date DESC
-          LIMIT 252
-        `);
+          WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
+          ORDER BY date ${orderDirection}
+        `, [days]);
         return result.rows || [];
       })(),
 
@@ -2795,9 +2803,9 @@ router.get("/sentiment", async (req, res) => {
             date,
             fetched_at as timestamp
           FROM naaim
-          ORDER BY date DESC
-          LIMIT 252
-        `);
+          WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
+          ORDER BY date ${orderDirection}
+        `, [days]);
         return result.rows || [];
       })()
     ]);
