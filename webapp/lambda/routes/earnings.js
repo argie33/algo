@@ -286,52 +286,14 @@ router.get("/sp500-trend", async (req, res) => {
     const earningsQuery = `
       SELECT
         date,
-        value as earnings_per_share,
-        series_id
+        value as earnings_per_share
       FROM economic_data
       WHERE series_id = 'SP500_EPS'
         AND date >= CURRENT_DATE - INTERVAL '${parseInt(years)} years'
       ORDER BY date ASC
     `;
 
-    // Fetch S&P 500 price for P/E calculation
-    const priceQuery = `
-      SELECT
-        date,
-        value as price
-      FROM economic_data
-      WHERE series_id = 'SP500'
-        AND date >= CURRENT_DATE - INTERVAL '${parseInt(years)} years'
-      ORDER BY date ASC
-    `;
-
-    // Fetch forward earnings estimates (use annual to match historical 12-month data)
-    const estimatesQuery = `
-      SELECT
-        CASE
-          WHEN period = '0y' THEN 'Current Year (Est.)'
-          WHEN period = '+1y' THEN 'Next Year (Est.)'
-          ELSE period
-        END as period_label,
-        period,
-        ROUND(AVG(avg_estimate)::numeric, 2) as avg_estimate,
-        COUNT(DISTINCT symbol) as stock_count
-      FROM earnings_estimates
-      WHERE period IN ('0y', '+1y')
-        AND avg_estimate IS NOT NULL
-      GROUP BY period, period_label
-      ORDER BY
-        CASE
-          WHEN period = '0y' THEN 1
-          WHEN period = '+1y' THEN 2
-        END
-    `;
-
-    const [earningsResult, priceResult, estimatesResult] = await Promise.all([
-      query(earningsQuery),
-      query(priceQuery),
-      query(estimatesQuery)
-    ]);
+    const earningsResult = await query(earningsQuery);
 
     // Calculate trend metrics
     const earnings = earningsResult.rows;
@@ -344,7 +306,7 @@ router.get("/sp500-trend", async (req, res) => {
         const date = new Date(row.date);
         const oneYearAgo = new Date();
         oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-        return Math.abs(date - oneYearAgo) < 90 * 24 * 60 * 60 * 1000; // Within 90 days
+        return Math.abs(date - oneYearAgo) < 90 * 24 * 60 * 60 * 1000;
       });
 
       if (yearAgo) {
@@ -354,40 +316,22 @@ router.get("/sp500-trend", async (req, res) => {
       }
     }
 
-    // Combine historical and forward estimates for timeSeries
-    const historicalTimeSeries = earnings.map(row => ({
+    // Format as timeSeries for chart
+    const timeSeries = earnings.map(row => ({
       quarter: new Date(row.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short' }),
       value: parseFloat(row.earnings_per_share),
       isForecast: false,
       stockCount: null
     }));
 
-    const forecastTimeSeries = estimatesResult.rows.map(row => ({
-      quarter: row.period_label,
-      value: parseFloat(row.avg_estimate) * 4, // Annualize quarterly estimates to match historical 12-month data
-      isForecast: true,
-      stockCount: row.stock_count
-    }));
-
-    const timeSeries = [...historicalTimeSeries, ...forecastTimeSeries];
-
     res.json({
       data: {
         timeSeries,
-        earnings: earnings.map(row => ({
-          date: row.date,
-          value: parseFloat(row.earnings_per_share)
-        })),
-        price: priceResult.rows.map(row => ({
-          date: row.date,
-          value: parseFloat(row.price)
-        })),
         summary: {
           trend,
           changePercent: changePercent.toFixed(2),
           latestEarnings: earnings.length > 0 ? parseFloat(earnings[earnings.length - 1].earnings_per_share) : null,
-          latestDate: earnings.length > 0 ? earnings[earnings.length - 1].date : null,
-          forecastPeriods: estimatesResult.rows.length
+          latestDate: earnings.length > 0 ? earnings[earnings.length - 1].date : null
         }
       },
       success: true
@@ -554,7 +498,7 @@ router.get("/sector-trend", async (req, res) => {
           AND cp.sector IS NOT NULL
           AND eh.eps_actual IS NOT NULL
         GROUP BY DATE_TRUNC('quarter', eh.quarter), TO_CHAR(eh.quarter, 'YYYY-"Q"Q'), cp.sector
-        HAVING COUNT(DISTINCT eh.symbol) >= 5
+        HAVING COUNT(DISTINCT eh.symbol) >= 2
       )
       SELECT
         qse.quarter_label,
@@ -578,7 +522,7 @@ router.get("/sector-trend", async (req, res) => {
         WHERE cp.sector IS NOT NULL
           AND ee.avg_estimate IS NOT NULL
         GROUP BY cp.sector, ee.period
-        HAVING COUNT(DISTINCT ee.symbol) >= 5
+        HAVING COUNT(DISTINCT ee.symbol) >= 2
       )
       SELECT
         sector,
