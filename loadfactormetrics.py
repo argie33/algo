@@ -1887,8 +1887,7 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
 
 
 def load_growth_metrics(conn, cursor, symbols: List[str]):
-    """Load growth metrics for all symbols"""
-    # Enhanced error handling to recover from transaction abort states
+    """Load growth metrics for all symbols with proper transaction isolation"""
     logging.info(f"Loading growth metrics for {len(symbols)} symbols...")
 
     growth_rows = []
@@ -1932,7 +1931,7 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
         cursor = conn.cursor()
         key_metrics_rows = []
 
-    for row in key_metrics_rows:
+    for idx, row in enumerate(key_metrics_rows):
         try:
             ticker = row[0]
             ticker_dict = {
@@ -1963,42 +1962,18 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                 financial_growth = get_financial_statement_growth(cursor, ticker)
             except Exception as fge:
                 logging.debug(f"Could not get financial growth for {ticker}: {fge}")
-                # Recover from transaction abort
-                try:
-                    conn.rollback()
-                    cursor.close()
-                    cursor = conn.cursor()
-                except Exception as recovery_e:
-                    logging.debug(f"Recovery failed after financial growth error for {ticker}: {recovery_e}")
-                    pass
                 financial_growth = None
 
             try:
                 quarterly_growth = get_quarterly_statement_growth(cursor, ticker)
             except Exception as qge:
                 logging.debug(f"Could not get quarterly growth for {ticker}: {qge}")
-                # Recover from transaction abort
-                try:
-                    conn.rollback()
-                    cursor.close()
-                    cursor = conn.cursor()
-                except Exception as recovery_e:
-                    logging.debug(f"Recovery failed after quarterly growth error for {ticker}: {recovery_e}")
-                    pass
                 quarterly_growth = None
 
             try:
                 earnings_history_growth = get_earnings_history_growth(cursor, ticker)
             except Exception as ege:
                 logging.debug(f"Could not get earnings history growth for {ticker}: {ege}")
-                # Recover from transaction abort
-                try:
-                    conn.rollback()
-                    cursor.close()
-                    cursor = conn.cursor()
-                except Exception as recovery_e:
-                    logging.debug(f"Recovery failed after earnings history growth error for {ticker}: {recovery_e}")
-                    pass
                 earnings_history_growth = None
 
             # Calculate metrics combining all available data sources
@@ -2007,6 +1982,7 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
             except Exception as mce:
                 logging.debug(f"Error calculating growth metrics for {ticker}: {mce}")
                 metrics = {}  # Return empty metrics instead of failing
+
             growth_rows.append([
                 ticker,
                 date.today(),
@@ -2025,6 +2001,19 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                 metrics.get("asset_growth_yoy"),
                 metrics.get("revenue_growth_yoy"),
             ])
+
+            # Commit every 100 symbols to prevent transaction bloat
+            if (idx + 1) % 100 == 0:
+                try:
+                    conn.commit()
+                    logging.debug(f"Committed growth metrics for {idx + 1} symbols")
+                except Exception as commit_e:
+                    logging.warning(f"Commit failed at symbol {idx + 1}: {commit_e}")
+                    try:
+                        conn.rollback()
+                    except:
+                        pass
+                    cursor = conn.cursor()
         except Exception as e:
             logging.warning(f"Error processing growth metrics for {row[0] if row else 'unknown'}: {e}")
 
