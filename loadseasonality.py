@@ -12,16 +12,62 @@ from datetime import datetime, timedelta
 import pandas as pd
 from collections import defaultdict
 
+import boto3
+import json
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+def get_db_config():
+    """Get database configuration - works in AWS and locally.
+    
+    Priority:
+    1. AWS Secrets Manager (if DB_SECRET_ARN is set)
+    2. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
+    """
+    aws_region = os.environ.get("AWS_REGION")
+    db_secret_arn = os.environ.get("DB_SECRET_ARN")
+    
+    # Try AWS Secrets Manager first
+    if db_secret_arn and aws_region:
+        try:
+            secret_str = boto3.client("secretsmanager", region_name=aws_region).get_secret_value(
+                SecretId=db_secret_arn
+            )["SecretString"]
+            sec = json.loads(secret_str)
+            logger.info(f"Using AWS Secrets Manager for database config")
+            return {
+                "host": sec["host"],
+                "port": int(sec.get("port", 5432)),
+                "user": sec["username"],
+                "password": sec["password"],
+                "database": sec["dbname"]
+            }
+        except Exception as e:
+            logger.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
+    
+    # Fall back to environment variables
+    logger.info("Using environment variables for database config")
+    return {
+        "host": os.environ.get("DB_HOST", "localhost"),
+        "port": int(os.environ.get("DB_PORT", 5432)),
+        "user": os.environ.get("DB_USER", "stocks"),
+        "password": os.environ.get("DB_PASSWORD", ""),
+        "database": os.environ.get("DB_NAME", "stocks")
+    }
+
 # Database connection
 def get_db_connection():
-    """Create database connection from environment variables"""
+    """Create database connection from environment variables or AWS Secrets Manager"""
     try:
+        cfg = get_db_config()
         conn = psycopg2.connect(
-            host=os.environ.get("DB_HOST", "localhost"),
-            port=os.environ.get("DB_PORT", "5432"),
-            database=os.environ.get("DB_NAME", "stocks"),
-            user=os.environ.get("DB_USER", "stocks"),
-            password=os.environ.get("DB_PASSWORD", "")
+            host=cfg["host"],
+            port=cfg["port"],
+            database=cfg["database"],
+            user=cfg["user"],
+            password=cfg["password"]
         )
         return conn
     except Exception as e:
