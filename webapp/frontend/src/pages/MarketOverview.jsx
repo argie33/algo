@@ -49,6 +49,7 @@ import {
   getMarketSentimentData,
   getMarketSeasonalityData,
   getMarketCorrelation,
+  getMarketIndices,
 } from "../services/api";
 import MarketExposure from "../components/MarketExposure";
 import {
@@ -395,8 +396,19 @@ function MarketOverview() {
     staleTime: 0, // Always fresh
   });
 
+  const {
+    data: indicesData,
+    isLoading: indicesLoading,
+  } = useQuery({
+    queryKey: ["market-indices"],
+    queryFn: getMarketIndices,
+    refetchInterval: 60000,
+    retry: 2,
+    staleTime: 0, // Always fresh
+  });
+
   // Combined loading and error states
-  const marketLoading = technicalsLoading || sentimentLoading || seasonalityLoading;
+  const marketLoading = technicalsLoading || sentimentLoading || seasonalityLoading || indicesLoading;
   const marketError = technicalsError || sentimentError || seasonalityError;
 
   const { data: correlationData, isLoading: correlationLoading } = useQuery({
@@ -1091,7 +1103,7 @@ const handleTabChange = (event, newValue) => {
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} md={6}>
           <MarketExposure
-            marketData={{ data: { indices: [] } }}
+            marketData={{ data: { indices: indicesData?.data || [] } }}
             breadthData={{ data: breadth }}
             distributionDaysData={distributionDays}
           />
