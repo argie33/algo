@@ -305,32 +305,25 @@ router.get("/sp500-trend", async (req, res) => {
       ORDER BY date ASC
     `;
 
-    // Fetch forward earnings estimates
+    // Fetch forward earnings estimates (use annual to match historical 12-month data)
     const estimatesQuery = `
       SELECT
         CASE
-          WHEN period = '0q' THEN 'Current Quarter'
-          WHEN period = '+1q' THEN 'Next Quarter'
-          WHEN period = '+2q' THEN 'Q+2'
-          WHEN period = '+3q' THEN 'Q+3'
-          WHEN period = '0y' THEN 'Current Year'
-          WHEN period = '+1y' THEN 'Next Year'
+          WHEN period = '0y' THEN 'Current Year (Est.)'
+          WHEN period = '+1y' THEN 'Next Year (Est.)'
           ELSE period
         END as period_label,
         period,
         ROUND(AVG(avg_estimate)::numeric, 2) as avg_estimate,
         COUNT(DISTINCT symbol) as stock_count
       FROM earnings_estimates
-      WHERE avg_estimate IS NOT NULL
+      WHERE period IN ('0y', '+1y')
+        AND avg_estimate IS NOT NULL
       GROUP BY period, period_label
       ORDER BY
         CASE
-          WHEN period = '0q' THEN 1
-          WHEN period = '+1q' THEN 2
-          WHEN period = '+2q' THEN 3
-          WHEN period = '+3q' THEN 4
-          WHEN period = '0y' THEN 5
-          WHEN period = '+1y' THEN 6
+          WHEN period = '0y' THEN 1
+          WHEN period = '+1y' THEN 2
         END
     `;
 
@@ -371,7 +364,7 @@ router.get("/sp500-trend", async (req, res) => {
 
     const forecastTimeSeries = estimatesResult.rows.map(row => ({
       quarter: row.period_label,
-      value: parseFloat(row.avg_estimate),
+      value: parseFloat(row.avg_estimate) * 4, // Annualize quarterly estimates to match historical 12-month data
       isForecast: true,
       stockCount: row.stock_count
     }));

@@ -119,7 +119,7 @@ function EarningsCalendar() {
   } = useQuery({
     queryKey: ["estimateMomentum"],
     queryFn: async () => {
-      const response = await fetch(`${API_BASE}/api/earnings/estimate-momentum?limit=10&period=0q`);
+      const response = await fetch(`${API_BASE}/api/earnings/estimate-momentum?limit=500&period=0q`);
       if (!response.ok) throw new Error("Failed to fetch estimate momentum");
       const json = await response.json();
       return json.data;
