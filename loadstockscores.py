@@ -99,7 +99,7 @@ def load_comprehensive_metrics(conn):
             earnings_surprise_avg, eps_growth_stability, payout_ratio,
             earnings_beat_rate, consecutive_positive_quarters, surprise_consistency
         FROM quality_metrics
-        ORDER BY date DESC LIMIT 5100
+        WHERE date = (SELECT MAX(date) FROM quality_metrics)
     """)
     quality_data = cur.fetchall()
     if quality_data:
@@ -108,7 +108,7 @@ def load_comprehensive_metrics(conn):
             'fcf_to_ni', 'ocf_to_ni', 'debt_to_equity', 'current_ratio', 'quick_ratio',
             'earnings_surprise', 'eps_stability', 'payout_ratio', 'beat_rate',
             'pos_quarters', 'surprise_consistency'
-        ]).drop_duplicates(subset=['symbol']).set_index('symbol')
+        ]).set_index('symbol')
         df = df.join(quality_df, how='left')
         logger.info(f"  Loaded quality metrics for {quality_df.shape[0]} stocks")
 
@@ -120,7 +120,7 @@ def load_comprehensive_metrics(conn):
             roe_trend, sustainable_growth_rate, fcf_growth_yoy, ocf_growth_yoy,
             net_income_growth_yoy, revenue_growth_yoy
         FROM growth_metrics
-        ORDER BY date DESC LIMIT 5100
+        WHERE date = (SELECT MAX(date) FROM growth_metrics)
     """)
     growth_data = cur.fetchall()
     if growth_data:
@@ -128,7 +128,7 @@ def load_comprehensive_metrics(conn):
             'symbol', 'rev_3y_cagr', 'eps_3y_cagr', 'op_income_yoy',
             'roe_trend_g', 'sustainable_growth', 'fcf_growth', 'ocf_growth',
             'ni_growth', 'rev_growth'
-        ]).drop_duplicates(subset=['symbol']).set_index('symbol')
+        ]).set_index('symbol')
         df = df.join(growth_df, how='left')
         logger.info(f"  Loaded growth metrics for {growth_df.shape[0]} stocks")
 
@@ -138,14 +138,14 @@ def load_comprehensive_metrics(conn):
         SELECT symbol, volatility_12m, downside_volatility, max_drawdown_52w,
                beta, volume_consistency, turnover_velocity, volatility_volume_ratio, daily_spread
         FROM stability_metrics
-        ORDER BY date DESC LIMIT 5100
+        WHERE date = (SELECT MAX(date) FROM stability_metrics)
     """)
     stability_data = cur.fetchall()
     if stability_data:
         stability_df = pd.DataFrame(stability_data, columns=[
             'symbol', 'volatility', 'downside_vol', 'max_drawdown', 'beta',
             'vol_consistency', 'turnover', 'vol_vol_ratio', 'spread'
-        ]).drop_duplicates(subset=['symbol']).set_index('symbol')
+        ]).set_index('symbol')
         df = df.join(stability_df, how='left')
         logger.info(f"  Loaded stability metrics for {stability_df.shape[0]} stocks")
 
@@ -155,14 +155,14 @@ def load_comprehensive_metrics(conn):
         SELECT symbol, current_price, momentum_3m, momentum_6m, momentum_12m,
                price_vs_sma_50, price_vs_sma_200, price_vs_52w_high
         FROM momentum_metrics
-        ORDER BY date DESC LIMIT 5100
+        WHERE date = (SELECT MAX(date) FROM momentum_metrics)
     """)
     momentum_data = cur.fetchall()
     if momentum_data:
         momentum_df = pd.DataFrame(momentum_data, columns=[
             'symbol', 'price', 'momentum_3m', 'momentum_6m', 'momentum_12m',
             'sma_50', 'sma_200', 'high_52w'
-        ]).drop_duplicates(subset=['symbol']).set_index('symbol')
+        ]).set_index('symbol')
         df = df.join(momentum_df, how='left')
         logger.info(f"  Loaded momentum metrics for {momentum_df.shape[0]} stocks")
 
@@ -172,14 +172,14 @@ def load_comprehensive_metrics(conn):
         SELECT symbol, trailing_pe, forward_pe, price_to_book, price_to_sales_ttm,
                peg_ratio, ev_to_revenue, ev_to_ebitda, dividend_yield, payout_ratio
         FROM value_metrics
-        ORDER BY date DESC LIMIT 5100
+        WHERE date = (SELECT MAX(date) FROM value_metrics)
     """)
     value_data = cur.fetchall()
     if value_data:
         value_df = pd.DataFrame(value_data, columns=[
             'symbol', 'trailing_pe', 'forward_pe', 'pb', 'ps', 'peg', 'ev_rev',
             'ev_ebitda', 'div_yield', 'payout_v'
-        ]).drop_duplicates(subset=['symbol']).set_index('symbol')
+        ]).set_index('symbol')
         df = df.join(value_df, how='left')
         logger.info(f"  Loaded value metrics for {value_df.shape[0]} stocks")
 
@@ -189,14 +189,14 @@ def load_comprehensive_metrics(conn):
         SELECT symbol, institutional_ownership_pct, insider_ownership_pct,
                short_ratio, short_interest_pct, short_percent_of_float
         FROM positioning_metrics
-        ORDER BY date DESC LIMIT 5100
+        WHERE date = (SELECT MAX(date) FROM positioning_metrics)
     """)
     positioning_data = cur.fetchall()
     if positioning_data:
         positioning_df = pd.DataFrame(positioning_data, columns=[
             'symbol', 'inst_own', 'insider_own', 'short_ratio', 'short_int',
             'short_float'
-        ]).drop_duplicates(subset=['symbol']).set_index('symbol')
+        ]).set_index('symbol')
         df = df.join(positioning_df, how='left')
         logger.info(f"  Loaded positioning metrics for {positioning_df.shape[0]} stocks")
 

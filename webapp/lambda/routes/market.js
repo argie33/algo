@@ -1795,13 +1795,13 @@ router.get("/correlation", async (req, res) => {
 // Market indices endpoint
 router.get("/indices", async (req, res) => {
   try {
-    console.log(`📊 Market indices requested`);
+    console.log(`📊 Market indices requested with P/E data`);
 
-    // First, try to get the latest date with price data
+    // Get latest price data
     const latestDateQuery = `
       SELECT MAX(date) as latest_date
       FROM price_daily
-      WHERE symbol IN ('^GSPC', '^IXIC', '^DJI', '^RUT', '^VIX')
+      WHERE symbol IN ('^GSPC', '^IXIC', '^DJI')
         AND close IS NOT NULL
     `;
 
@@ -1809,14 +1809,15 @@ router.get("/indices", async (req, res) => {
     const latestDate = dateResult?.rows?.[0]?.latest_date;
 
     if (!latestDate) {
-      console.warn("⚠️ No index data found in price_daily table for ^GSPC, ^IXIC, ^DJI, ^RUT, ^VIX");
+      console.warn("⚠️ No index price data found");
       return res.json({
         data: [],
-        info: "No market index data available. Ensure loaders are configured to fetch index data.",
+        info: "No market index data available",
         success: true
       });
     }
 
+    // Get price data for indices
     const indicesQuery = `
       SELECT
         symbol,
@@ -1826,17 +1827,45 @@ router.get("/indices", async (req, res) => {
         volume,
         date
       FROM price_daily
-      WHERE symbol IN ('^GSPC', '^IXIC', '^DJI', '^RUT', '^VIX')
+      WHERE symbol IN ('^GSPC', '^IXIC', '^DJI')
         AND date = $1
         AND close IS NOT NULL
         AND open IS NOT NULL
       ORDER BY symbol
     `;
 
-    const result = await query(indicesQuery, [latestDate]);
+    // Get S&P 500 P/E data (average from constituent companies)
+    const spPEQuery = `
+      WITH sp500_stocks AS (
+        SELECT cp.ticker
+        FROM company_profile cp
+        WHERE cp.index_sp500 = true
+      ),
+      latest_pe AS (
+        SELECT
+          AVG(trailing_pe) as avg_trailing_pe,
+          AVG(forward_pe) as avg_forward_pe,
+          PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY trailing_pe) as pe_25th,
+          PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY trailing_pe) as pe_50th,
+          PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY trailing_pe) as pe_75th,
+          PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY trailing_pe) as pe_90th,
+          MIN(trailing_pe) as pe_min,
+          MAX(trailing_pe) as pe_max
+        FROM key_metrics km
+        WHERE km.symbol IN (SELECT ticker FROM sp500_stocks)
+          AND km.trailing_pe > 0
+          AND km.trailing_pe < 200
+      )
+      SELECT * FROM latest_pe
+    `;
 
-    if (!result?.rows || result.rows.length === 0) {
-      console.warn(`⚠️ No index data found for date ${latestDate}`);
+    const [priceResult, peResult] = await Promise.all([
+      query(indicesQuery, [latestDate]),
+      query(spPEQuery)
+    ]);
+
+    if (!priceResult?.rows || priceResult.rows.length === 0) {
+      console.warn(`⚠️ No index price data found for ${latestDate}`);
       return res.json({
         data: [],
         info: "No index data available for latest trading date",
@@ -1847,24 +1876,49 @@ router.get("/indices", async (req, res) => {
     const indexNames = {
       '^GSPC': 'S&P 500',
       '^IXIC': 'NASDAQ Composite',
-      '^DJI': 'Dow Jones',
-      '^RUT': 'Russell 2000',
-      '^VIX': 'VIX'
+      '^DJI': 'Dow Jones Industrial Average'
     };
 
-    const indices = result.rows.map((row) => ({
-      symbol: row.symbol,
-      name: indexNames[row.symbol] || row.symbol,
-      price: safeFixed(row.price, 2),
-      change: safeFixed(row.change, 2),
-      changePercent: safeFixed(row.changePercent, 2),
-      volume: safeInt(row.volume),
-      date: row.date
-    }));
+    const peData = peResult?.rows?.[0] || {};
+
+    const indices = priceResult.rows.map((row) => {
+      const baseData = {
+        symbol: row.symbol,
+        name: indexNames[row.symbol] || row.symbol,
+        price: safeFixed(row.price, 2),
+        change: safeFixed(row.change, 2),
+        changePercent: safeFixed(row.changePercent, 2),
+        volume: safeInt(row.volume),
+        date: row.date
+      };
+
+      // Add P/E data for S&P 500
+      if (row.symbol === '^GSPC' && peData.avg_trailing_pe) {
+        baseData.pe = {
+          trailing: safeFixed(peData.avg_trailing_pe, 2),
+          forward: safeFixed(peData.avg_forward_pe, 2),
+          historical: {
+            min: safeFixed(peData.pe_min, 2),
+            p25: safeFixed(peData.pe_25th, 2),
+            median: safeFixed(peData.pe_50th, 2),
+            p75: safeFixed(peData.pe_75th, 2),
+            p90: safeFixed(peData.pe_90th, 2),
+            max: safeFixed(peData.pe_max, 2)
+          },
+          percentile: peData.avg_trailing_pe && peData.pe_90th
+            ? Math.round((peData.avg_trailing_pe - peData.pe_min) / (peData.pe_max - peData.pe_min) * 100)
+            : null
+        };
+      }
+
+      return baseData;
+    });
 
     res.json({
       data: indices,
       count: indices.length,
+      peAvailable: !!peData.avg_trailing_pe,
+      message: "P/E data available for S&P 500. Other indices P/E coming soon.",
       success: true
     });
   } catch (error) {
