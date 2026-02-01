@@ -2243,7 +2243,78 @@ const ScoresDashboard = () => {
                         </CardContent>
                       </Card>
                     </Grid>
-</Grid>
+
+                    {/* Seasonality */}
+                    <Grid item xs={12}>
+                      <Card sx={{ height: "100%" }}>
+                        <CardContent>
+                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+                            <Typography variant="h6">Seasonality</Typography>
+                            <Chip
+                              label={stock.seasonality_score != null ? parseFloat(stock.seasonality_score).toFixed(1) : ""}
+                              color={stock.seasonality_score !== null && stock.seasonality_score !== undefined && parseFloat(stock.seasonality_score) >= 60 ? "success" : "default"}
+                              size="small"
+                            />
+                          </Box>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                            Seasonal patterns and monthly performance trends for trading and positioning decisions
+                          </Typography>
+
+                          <Divider sx={{ my: 2 }} />
+
+                          {/* Seasonality Metrics Table */}
+                          <TableContainer sx={{ mt: 2 }}>
+                            <Table size="small">
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell>Seasonality Metric</TableCell>
+                                  <TableCell align="right">Value</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                <TableRow>
+                                  <TableCell>Best Performing Month</TableCell>
+                                  <TableCell align="right">
+                                    {stock.seasonality_inputs?.best_month != null ? stock.seasonality_inputs.best_month : ""}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>Worst Performing Month</TableCell>
+                                  <TableCell align="right">
+                                    {stock.seasonality_inputs?.worst_month != null ? stock.seasonality_inputs.worst_month : ""}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>Monthly Avg Return</TableCell>
+                                  <TableCell align="right">
+                                    {stock.seasonality_inputs?.monthly_avg_return != null ? `${parseFloat(stock.seasonality_inputs.monthly_avg_return).toFixed(2)}%` : ""}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>Winning Months %</TableCell>
+                                  <TableCell align="right">
+                                    {stock.seasonality_inputs?.winning_months_pct != null ? `${parseFloat(stock.seasonality_inputs.winning_months_pct).toFixed(1)}%` : ""}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>Best Performing Quarter</TableCell>
+                                  <TableCell align="right">
+                                    {stock.seasonality_inputs?.best_quarter != null ? `Q${stock.seasonality_inputs.best_quarter}` : ""}
+                                  </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                  <TableCell>Best Day of Week</TableCell>
+                                  <TableCell align="right">
+                                    {stock.seasonality_inputs?.best_day_of_week != null ? stock.seasonality_inputs.best_day_of_week : ""}
+                                  </TableCell>
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                          </TableContainer>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                </Grid>
 
                   <Divider sx={{ my: 3 }} />
 
