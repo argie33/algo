@@ -1110,6 +1110,91 @@ const handleTabChange = (event, newValue) => {
         </Grid>
       </Grid>
 
+      {/* Market Indices P/E Valuation */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
+          Market Indices Valuation
+        </Typography>
+        {indicesLoading ? (
+          <LinearProgress />
+        ) : (indicesData?.data || []).length > 0 ? (
+          <Grid container spacing={2}>
+            {(indicesData.data).map((index) => {
+              const pePercentile = index.pe?.percentile;
+              const peColor = pePercentile ?
+                (pePercentile > 75 ? "error" :
+                 pePercentile > 50 ? "warning" :
+                 pePercentile < 25 ? "success" : "info")
+                : "default";
+
+              return (
+                <Grid item xs={12} sm={6} md={4} key={index.symbol}>
+                  <Card sx={{
+                    border: `2px solid ${theme.palette[peColor].main}`,
+                    backgroundColor: alpha(theme.palette[peColor].main, 0.05)
+                  }}>
+                    <CardContent>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+                        {index.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>
+                        {index.symbol}
+                      </Typography>
+
+                      {index.pe ? (
+                        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                          <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                            <Typography variant="body2" color="text.secondary">Trailing P/E:</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {index.pe.trailing ? index.pe.trailing.toFixed(2) : "—"}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                            <Typography variant="body2" color="text.secondary">Forward P/E:</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {index.pe.forward ? index.pe.forward.toFixed(2) : "—"}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ display: "flex", justifyContent: "space-between", pt: 1, borderTop: "1px solid", borderColor: "divider" }}>
+                            <Typography variant="body2" color="text.secondary">Percentile:</Typography>
+                            <Chip
+                              label={`${index.pe.percentile}th`}
+                              size="small"
+                              color={peColor}
+                              variant="filled"
+                            />
+                          </Box>
+                          <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", gap: 1, mt: 1 }}>
+                            <Box sx={{ flex: 1 }}>
+                              <Typography variant="caption" color="text.secondary" display="block">Min</Typography>
+                              <Typography variant="caption">{index.pe.historical?.min?.toFixed(2)}</Typography>
+                            </Box>
+                            <Box sx={{ flex: 1 }}>
+                              <Typography variant="caption" color="text.secondary" display="block">Median</Typography>
+                              <Typography variant="caption">{index.pe.historical?.median?.toFixed(2)}</Typography>
+                            </Box>
+                            <Box sx={{ flex: 1 }}>
+                              <Typography variant="caption" color="text.secondary" display="block">Max</Typography>
+                              <Typography variant="caption">{index.pe.historical?.max?.toFixed(2)}</Typography>
+                            </Box>
+                          </Box>
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          P/E data not available
+                        </Typography>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+              );
+            })}
+          </Grid>
+        ) : (
+          <Alert severity="info">No indices data available</Alert>
+        )}
+      </Box>
+
       {/* Top Movers Section - Not available in current API structure */}
       {/* To enable: Need to implement /api/market/top-movers or /api/stocks/gainers endpoint */}
 
