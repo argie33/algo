@@ -357,13 +357,13 @@ const MarketInternals = ({ data, isLoading, error }) => {
                     ].map((row) => (
                       <TableRow key={row.name} hover>
                         <TableCell>{row.name}</TableCell>
-                        <TableCell align="right">{row.data.count}</TableCell>
-                        <TableCell align="right">{row.data.total}</TableCell>
+                        <TableCell align="right">{row.data.count || 0}</TableCell>
+                        <TableCell align="right">{row.data.total || 0}</TableCell>
                         <TableCell align="right">
-                          {row.data.percent}%
+                          {row.data.percent !== null && row.data.percent !== undefined ? `${row.data.percent}%` : "—"}
                         </TableCell>
                         <TableCell align="right">
-                          {row.data.avg_distance_pct}%
+                          {row.data.avg_distance_pct !== null && row.data.avg_distance_pct !== undefined ? `${row.data.avg_distance_pct}%` : "—"}
                         </TableCell>
                       </TableRow>
                     ))}
