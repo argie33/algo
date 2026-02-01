@@ -277,51 +277,122 @@ router.get("/info", async (req, res) => {
   }
 });
 
-// GET /api/earnings/sp500-trend - S&P 500 earnings trend over time
+// GET /api/earnings/sp500-trend - S&P 500 earnings trend with historical and estimates
 router.get("/sp500-trend", async (req, res) => {
   try {
     const { years = 10 } = req.query;
 
-    // Fetch S&P 500 EPS data (SP500_EPS - 12-month trailing earnings)
-    const earningsQuery = `
+    // Query 1: Historical quarterly earnings from S&P 500 companies
+    const historicalQuery = `
+      WITH quarterly_sp500_eps AS (
+        SELECT
+          DATE_TRUNC('quarter', eh.quarter) as quarter_date,
+          TO_CHAR(eh.quarter, 'YYYY-"Q"Q') as quarter_label,
+          AVG(eh.eps_actual) as avg_eps,
+          COUNT(DISTINCT eh.symbol) as stock_count
+        FROM earnings_history eh
+        INNER JOIN company_profile cp ON eh.symbol = cp.ticker
+        WHERE eh.quarter >= CURRENT_DATE - INTERVAL '${parseInt(years)} years'
+          AND eh.eps_actual IS NOT NULL
+          AND cp.market_cap > 0
+        GROUP BY DATE_TRUNC('quarter', eh.quarter), TO_CHAR(eh.quarter, 'YYYY-"Q"Q')
+        HAVING COUNT(DISTINCT eh.symbol) >= 100
+      )
+      SELECT
+        quarter_label,
+        ROUND(avg_eps::numeric, 2) as value,
+        stock_count,
+        false as is_forecast
+      FROM quarterly_sp500_eps
+      ORDER BY quarter_date ASC
+    `;
+
+    // Query 2: Forward earnings estimates from major S&P 500 components
+    const estimatesQuery = `
+      WITH sp500_estimates AS (
+        SELECT
+          ee.period,
+          CASE
+            WHEN ee.period = '0q' THEN 'Current Quarter'
+            WHEN ee.period = '+1q' THEN 'Next Quarter'
+            WHEN ee.period = '+2q' THEN 'Q+2'
+            WHEN ee.period = '+3q' THEN 'Q+3'
+            WHEN ee.period = '0y' THEN 'Current Year'
+            WHEN ee.period = '+1y' THEN 'Next Year'
+            ELSE ee.period
+          END as period_label,
+          ROUND(AVG(ee.avg_estimate)::numeric, 2) as avg_estimate,
+          COUNT(DISTINCT ee.symbol) as stock_count
+        FROM earnings_estimates ee
+        INNER JOIN company_profile cp ON ee.symbol = cp.ticker
+        WHERE cp.market_cap > 0
+          AND ee.avg_estimate IS NOT NULL
+        GROUP BY ee.period, period_label
+      )
+      SELECT
+        period_label as quarter_label,
+        avg_estimate as value,
+        stock_count,
+        true as is_forecast
+      FROM sp500_estimates
+      WHERE period IN ('0q', '+1q', '+2q', '+3q', '0y', '+1y')
+      ORDER BY
+        CASE
+          WHEN period = '0q' THEN 1
+          WHEN period = '+1q' THEN 2
+          WHEN period = '+2q' THEN 3
+          WHEN period = '+3q' THEN 4
+          WHEN period = '0y' THEN 5
+          WHEN period = '+1y' THEN 6
+        END
+    `;
+
+    // Query 3: FRED data for additional context
+    const fredQuery = `
       SELECT
         date,
-        value as earnings_per_share,
-        series_id
+        value as earnings_per_share
       FROM economic_data
       WHERE series_id = 'SP500_EPS'
         AND date >= CURRENT_DATE - INTERVAL '${parseInt(years)} years'
       ORDER BY date ASC
     `;
 
-    // Fetch S&P 500 price for P/E calculation
-    const priceQuery = `
-      SELECT
-        date,
-        value as price
-      FROM economic_data
-      WHERE series_id = 'SP500'
-        AND date >= CURRENT_DATE - INTERVAL '${parseInt(years)} years'
-      ORDER BY date ASC
-    `;
-
-    const [earningsResult, priceResult] = await Promise.all([
-      query(earningsQuery),
-      query(priceQuery)
+    const [historicalResult, estimatesResult, fredResult] = await Promise.all([
+      query(historicalQuery),
+      query(estimatesQuery),
+      query(fredQuery)
     ]);
 
-    // Calculate trend metrics
-    const earnings = earningsResult.rows;
+    // Combine historical and forecast data
+    const chartData = [
+      ...historicalResult.rows.map(row => ({
+        quarter: row.quarter_label,
+        value: parseFloat(row.value),
+        isForecast: row.is_forecast,
+        stockCount: row.stock_count
+      })),
+      ...estimatesResult.rows.map(row => ({
+        quarter: row.quarter_label,
+        value: parseFloat(row.value),
+        isForecast: row.is_forecast,
+        stockCount: row.stock_count
+      }))
+    ];
+
+    // Calculate trend metrics from latest actual data
+    const latestHistorical = historicalResult.rows[historicalResult.rows.length - 1];
+    const fredData = fredResult.rows;
     let trend = "neutral";
     let changePercent = 0;
 
-    if (earnings.length >= 2) {
-      const latest = parseFloat(earnings[earnings.length - 1].earnings_per_share);
-      const yearAgo = earnings.find(row => {
+    if (fredData.length >= 2) {
+      const latest = parseFloat(fredData[fredData.length - 1].earnings_per_share);
+      const yearAgo = fredData.find(row => {
         const date = new Date(row.date);
         const oneYearAgo = new Date();
         oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-        return Math.abs(date - oneYearAgo) < 90 * 24 * 60 * 60 * 1000; // Within 90 days
+        return Math.abs(date - oneYearAgo) < 90 * 24 * 60 * 60 * 1000;
       });
 
       if (yearAgo) {
@@ -333,19 +404,14 @@ router.get("/sp500-trend", async (req, res) => {
 
     res.json({
       data: {
-        earnings: earnings.map(row => ({
-          date: row.date,
-          value: parseFloat(row.earnings_per_share)
-        })),
-        price: priceResult.rows.map(row => ({
-          date: row.date,
-          value: parseFloat(row.price)
-        })),
+        timeSeries: chartData,
         summary: {
           trend,
           changePercent: changePercent.toFixed(2),
-          latestEarnings: earnings.length > 0 ? parseFloat(earnings[earnings.length - 1].earnings_per_share) : null,
-          latestDate: earnings.length > 0 ? earnings[earnings.length - 1].date : null
+          latestEarnings: latestHistorical ? parseFloat(latestHistorical.value) : null,
+          latestQuarter: latestHistorical ? latestHistorical.quarter_label : null,
+          latestStockCount: latestHistorical ? latestHistorical.stock_count : null,
+          forecastPeriods: estimatesResult.rows.length
         }
       },
       success: true

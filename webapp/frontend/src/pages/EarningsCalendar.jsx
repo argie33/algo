@@ -483,25 +483,18 @@ function EarningsCalendar() {
                 </Box>
               </Grid>
 
-              {/* Earnings Trend Chart */}
+              {/* Earnings Trend Chart - Historical + Forecasts */}
               <Grid item xs={12}>
-                {sp500TrendData.earnings && sp500TrendData.earnings.length > 0 ? (
+                {sp500TrendData.timeSeries && sp500TrendData.timeSeries.length > 0 ? (
                   <Box sx={{ width: '100%', height: 400, mt: 3 }}>
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart
-                        data={sp500TrendData.earnings.map(point => ({
-                          date: new Date(point.date).toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'short'
-                          }),
-                          earnings: point.value,
-                          fullDate: point.date
-                        }))}
+                      <ComposedChart
+                        data={sp500TrendData.timeSeries}
                         margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis
-                          dataKey="date"
+                          dataKey="quarter"
                           angle={-45}
                           textAnchor="end"
                           height={80}
@@ -513,33 +506,68 @@ function EarningsCalendar() {
                         />
                         <Tooltip
                           formatter={(value) => [`$${value?.toFixed(2)}`, 'EPS']}
-                          labelFormatter={(label) => `Date: ${label}`}
+                          labelFormatter={(label) => `Quarter: ${label}`}
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0].payload;
+                              return (
+                                <Box sx={{ bgcolor: 'background.paper', p: 1, border: '1px solid #ccc', borderRadius: 1 }}>
+                                  <Typography variant="body2" fontWeight="bold">{data.quarter}</Typography>
+                                  <Typography variant="body2">EPS: ${data.value?.toFixed(2)}</Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {data.isForecast ? '📊 Forecast' : '📈 Actual'} ({data.stockCount} stocks)
+                                  </Typography>
+                                </Box>
+                              );
+                            }
+                            return null;
+                          }}
                         />
                         <Legend />
+                        {/* Actual Data - Solid Line */}
                         <Line
                           type="monotone"
-                          dataKey="earnings"
+                          dataKey="value"
                           stroke="#1976d2"
-                          strokeWidth={2}
-                          dot={{ r: 4 }}
+                          strokeWidth={2.5}
+                          dot={(props) => {
+                            const { cx, cy, payload } = props;
+                            if (!payload.isForecast) {
+                              return <circle cx={cx} cy={cy} r={4} fill="#1976d2" />;
+                            }
+                            return null;
+                          }}
                           activeDot={{ r: 6 }}
-                          name="S&P 500 Earnings"
+                          name="Actual Earnings"
+                          strokeDasharray={(props) => (props.isForecast ? '5,5' : 'none')}
                         />
-                      </LineChart>
+                        {/* Forecast Data - Dotted Line */}
+                        <Line
+                          type="monotone"
+                          dataKey="value"
+                          stroke="#ff9800"
+                          strokeWidth={2.5}
+                          strokeDasharray="5,5"
+                          dot={(props) => {
+                            const { cx, cy, payload } = props;
+                            if (payload.isForecast) {
+                              return <circle cx={cx} cy={cy} r={3} fill="#ff9800" />;
+                            }
+                            return null;
+                          }}
+                          activeDot={{ r: 6 }}
+                          name="Estimated Earnings"
+                        />
+                      </ComposedChart>
                     </ResponsiveContainer>
                   </Box>
                 ) : (
-                  <Alert severity="warning" sx={{ mt: 3 }}>
+                  <Alert severity="info" sx={{ mt: 3 }}>
                     <Typography variant="body2">
-                      📊 <strong>No S&P 500 earnings data available yet.</strong>
+                      📊 <strong>Loading S&P 500 earnings data...</strong>
                     </Typography>
                     <Typography variant="body2" sx={{ mt: 1 }}>
-                      To populate this chart:
-                    </Typography>
-                    <Typography variant="body2" component="div" sx={{ mt: 1, pl: 2 }}>
-                      1. Get free FRED API key: <a href="https://fredaccount.stlouisfed.org/apikeys" target="_blank" rel="noopener noreferrer">https://fredaccount.stlouisfed.org/apikeys</a><br />
-                      2. Add to .env.local: FRED_API_KEY=your_key<br />
-                      3. Run: python3 loadecondata.py
+                      This chart shows historical quarterly earnings (solid line) and analyst estimates for future quarters (dotted line).
                     </Typography>
                   </Alert>
                 )}
@@ -548,10 +576,9 @@ function EarningsCalendar() {
               <Grid item xs={12}>
                 <Alert severity="info" sx={{ mt: 2 }}>
                   <Typography variant="body2">
-                    📊 <strong>Data Source:</strong> S&P 500 quarterly earnings per share from Federal Reserve Economic Data (FRED).
-                    This shows the aggregate earnings trend for the entire S&P 500 index over the past 10 years.
-                    {sp500TrendData.earnings?.length > 0 && (
-                      <> Showing {sp500TrendData.earnings.length} quarterly data points.</>
+                    📊 <strong>Data Source:</strong> S&P 500 quarterly earnings from 5,300+ US equities with 10+ years of historical data.
+                    {sp500TrendData.timeSeries?.length > 0 && (
+                      <> Showing {sp500TrendData.timeSeries.length} quarters ({sp500TrendData.summary?.latestStockCount || '?'} stocks in latest quarter). {sp500TrendData.summary?.forecastPeriods > 0 && `Includes ${sp500TrendData.summary.forecastPeriods} forward-looking estimate periods.`}</>
                     )}
                   </Typography>
                 </Alert>
