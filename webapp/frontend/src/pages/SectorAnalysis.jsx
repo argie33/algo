@@ -1503,6 +1503,30 @@ const SectorAnalysis = () => {
                             {formatPercentageChange(sector.current_perf_20d ?? sector.performance_20d)}
                           </Typography>
                         </Grid>
+                        <Grid item xs={3} sm={1.2}>
+                          {sector.pe?.trailing ? (
+                            <Chip
+                              label={`P/E: ${sector.pe.trailing.toFixed(1)}`}
+                              size="small"
+                              variant="outlined"
+                              sx={{
+                                borderColor: sector.pe.percentile ?
+                                  (sector.pe.percentile > 75 ? "error.main" :
+                                   sector.pe.percentile > 50 ? "warning.main" :
+                                   sector.pe.percentile < 25 ? "success.main" : "info.main")
+                                  : "default",
+                                backgroundColor: sector.pe.percentile ?
+                                  (sector.pe.percentile > 75 ? "error.light" :
+                                   sector.pe.percentile > 50 ? "warning.light" :
+                                   sector.pe.percentile < 25 ? "success.light" : "info.light")
+                                  : "transparent"
+                              }}
+                              title={sector.pe.percentile ? `${sector.pe.percentile}th percentile` : undefined}
+                            />
+                          ) : (
+                            <Typography variant="caption" color="text.secondary">—</Typography>
+                          )}
+                        </Grid>
                         <Grid item xs={12} sm={1.5} sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60px" }}>
                           <SectorTrendChart sector={sector} />
                         </Grid>
@@ -1511,7 +1535,7 @@ const SectorAnalysis = () => {
                     <AccordionDetails sx={{ backgroundColor: "grey.25", p: 2 }}>
                       <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                         {/* Metrics Section */}
-                        <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 2 }}>
+                        <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 2 }}>
                           <Box>
                             <Typography variant="caption" color="text.secondary" fontWeight="bold">📊 Current Ranking</Typography>
                             <Typography variant="body2">
@@ -1546,6 +1570,18 @@ const SectorAnalysis = () => {
                             </Typography>
                             <Typography variant="body2">
                               • 12W Ago: {sector.rank_12w_ago !== null && sector.rank_12w_ago !== undefined ? `#${sector.rank_12w_ago}` : "—"}
+                            </Typography>
+                          </Box>
+                          <Box>
+                            <Typography variant="caption" color="text.secondary" fontWeight="bold">💰 P/E Valuation</Typography>
+                            <Typography variant="body2">
+                              • Trailing P/E: {sector.pe?.trailing ? sector.pe.trailing.toFixed(2) : "—"}
+                            </Typography>
+                            <Typography variant="body2">
+                              • Forward P/E: {sector.pe?.forward ? sector.pe.forward.toFixed(2) : "—"}
+                            </Typography>
+                            <Typography variant="body2">
+                              • Percentile: {sector.pe?.percentile ? `${sector.pe.percentile}th` : "—"}
                             </Typography>
                           </Box>
                         </Box>
@@ -1755,6 +1791,32 @@ const SectorAnalysis = () => {
                             {industry.stock_count || 0}
                           </Typography>
                         </Grid>
+                        <Grid item xs={2} sm={1}>
+                          {industry.pe?.trailing ? (
+                            <Chip
+                              label={`P/E: ${industry.pe.trailing.toFixed(1)}`}
+                              size="small"
+                              variant="outlined"
+                              sx={{
+                                borderColor: industry.pe.percentile ?
+                                  (industry.pe.percentile > 75 ? "error.main" :
+                                   industry.pe.percentile > 50 ? "warning.main" :
+                                   industry.pe.percentile < 25 ? "success.main" : "info.main")
+                                  : "default",
+                                backgroundColor: industry.pe.percentile ?
+                                  (industry.pe.percentile > 75 ? "error.light" :
+                                   industry.pe.percentile > 50 ? "warning.light" :
+                                   industry.pe.percentile < 25 ? "success.light" : "info.light")
+                                  : "transparent",
+                                width: "100%",
+                                fontSize: "0.7rem"
+                              }}
+                              title={industry.pe.percentile ? `${industry.pe.percentile}th percentile` : undefined}
+                            />
+                          ) : (
+                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.75rem" }}>—</Typography>
+                          )}
+                        </Grid>
                         <Grid item xs={12} sm={1.5} sx={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
                           <IndustryTrendChart industry={industry} />
                         </Grid>
@@ -1762,7 +1824,7 @@ const SectorAnalysis = () => {
                     </AccordionSummary>
                     <AccordionDetails sx={{ backgroundColor: "grey.25", p: 2 }}>
                       <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-                        <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 2 }}>
+                        <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 2 }}>
                           <Box>
                             <Typography variant="caption" color="text.secondary" fontWeight="bold">📊 Ranking History</Typography>
                             <Typography variant="body2">
@@ -1800,6 +1862,18 @@ const SectorAnalysis = () => {
                             </Typography>
                             <Typography variant="body2">
                               • Rank: <strong>{industry.current_rank || "N/A"}</strong>
+                            </Typography>
+                          </Box>
+                          <Box>
+                            <Typography variant="caption" color="text.secondary" fontWeight="bold">💰 P/E Valuation</Typography>
+                            <Typography variant="body2">
+                              • Trailing P/E: {industry.pe?.trailing ? industry.pe.trailing.toFixed(2) : "—"}
+                            </Typography>
+                            <Typography variant="body2">
+                              • Forward P/E: {industry.pe?.forward ? industry.pe.forward.toFixed(2) : "—"}
+                            </Typography>
+                            <Typography variant="body2">
+                              • Percentile: {industry.pe?.percentile ? `${industry.pe.percentile}th` : "—"}
                             </Typography>
                           </Box>
                         </Box>

@@ -1834,29 +1834,22 @@ router.get("/indices", async (req, res) => {
       ORDER BY symbol
     `;
 
-    // Get S&P 500 P/E data (average from constituent companies)
+    // Get market-wide P/E data (from available stocks)
     const spPEQuery = `
-      WITH sp500_stocks AS (
-        SELECT cp.ticker
-        FROM company_profile cp
-        WHERE cp.index_sp500 = true
-      ),
-      latest_pe AS (
-        SELECT
-          AVG(trailing_pe) as avg_trailing_pe,
-          AVG(forward_pe) as avg_forward_pe,
-          PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY trailing_pe) as pe_25th,
-          PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY trailing_pe) as pe_50th,
-          PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY trailing_pe) as pe_75th,
-          PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY trailing_pe) as pe_90th,
-          MIN(trailing_pe) as pe_min,
-          MAX(trailing_pe) as pe_max
-        FROM key_metrics km
-        WHERE km.symbol IN (SELECT ticker FROM sp500_stocks)
-          AND km.trailing_pe > 0
-          AND km.trailing_pe < 200
-      )
-      SELECT * FROM latest_pe
+      SELECT
+        AVG(trailing_pe) as avg_trailing_pe,
+        AVG(forward_pe) as avg_forward_pe,
+        PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY trailing_pe) as pe_25th,
+        PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY trailing_pe) as pe_50th,
+        PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY trailing_pe) as pe_75th,
+        PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY trailing_pe) as pe_90th,
+        MIN(trailing_pe) as pe_min,
+        MAX(trailing_pe) as pe_max
+      FROM key_metrics
+      WHERE trailing_pe > 0
+        AND trailing_pe < 200
+        AND forward_pe > 0
+        AND forward_pe < 200
     `;
 
     const [priceResult, peResult] = await Promise.all([
