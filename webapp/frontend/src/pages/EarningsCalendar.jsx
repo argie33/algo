@@ -37,7 +37,7 @@ import {
   Search,
   Clear,
 } from "@mui/icons-material";
-import { formatCurrency, formatPercentage } from "../utils/formatters";
+import { formatCurrency, formatPercentage, formatDecimalAsPercent } from "../utils/formatters";
 import {
   LineChart,
   Line,
@@ -1224,9 +1224,9 @@ function EarningsCalendar() {
                                                     <TableCell align="right">
                                                       {e.growth_percent != null ? (
                                                         <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5}>
-                                                          {getSurpriseIcon(e.growth_percent)}
-                                                          <Typography variant="body2" sx={{ color: getSurpriseColor(e.growth_percent) }}>
-                                                            {formatPercentage(e.growth_percent / 100)}
+                                                          {getSurpriseIcon(e.growth_percent * 100)}
+                                                          <Typography variant="body2" sx={{ color: getSurpriseColor(e.growth_percent * 100) }}>
+                                                            {formatDecimalAsPercent(e.growth_percent)}
                                                           </Typography>
                                                         </Box>
                                                       ) : (
@@ -1277,7 +1277,7 @@ function EarningsCalendar() {
                                                     <TableCell align="right">{formatCurrency(h.eps_estimate)}</TableCell>
                                                     <TableCell align="right">
                                                       <Chip
-                                                        label={formatPercentage(h.surprise_percent * 100)}
+                                                        label={formatDecimalAsPercent(h.surprise_percent)}
                                                         size="small"
                                                         color={h.surprise_percent > 0 ? "success" : h.surprise_percent < 0 ? "error" : "default"}
                                                       />
@@ -1369,7 +1369,7 @@ function EarningsCalendar() {
                                                     <TableCell align="right">{formatCurrency(s.earnings?.estimate)}</TableCell>
                                                     <TableCell align="right">
                                                       <Chip
-                                                        label={s.earnings?.surprise_percent != null ? formatPercentage(s.earnings.surprise_percent / 100) : "-"}
+                                                        label={s.earnings?.surprise_percent != null ? formatDecimalAsPercent(s.earnings.surprise_percent) : "-"}
                                                         size="small"
                                                         color={s.earnings?.surprise_percent > 0 ? "success" : s.earnings?.surprise_percent < 0 ? "error" : "default"}
                                                       />
