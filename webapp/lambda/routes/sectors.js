@@ -122,7 +122,7 @@ router.get("/sectors", async (req, res) => {
     const { limit = 20, sortBy = "current_rank" } = req.query;
     console.log(`📊 Fetching sectors with history (limit: ${limit})`);
 
-    // Get latest sector rankings from sector_ranking table
+    // Get latest sector rankings from sector_ranking table with P/E metrics
     // Data integrity: Return NULL for performance data when not available (not fake 0 values)
     const sectorsQuery = `
       SELECT
@@ -143,7 +143,15 @@ router.get("/sectors", async (req, res) => {
         sp.performance_1d as performance_1d,
         sp.performance_5d as performance_5d,
         sp.performance_20d as performance_20d,
-        COALESCE(sp.date, sr.date_recorded) as last_updated
+        COALESCE(sp.date, sr.date_recorded) as last_updated,
+        pe.trailing_pe,
+        pe.forward_pe,
+        pe.pe_min,
+        pe.pe_p25,
+        pe.pe_median,
+        pe.pe_p75,
+        pe.pe_p90,
+        pe.pe_max
       FROM (
         SELECT DISTINCT ON (sector_name)
           sector_name, current_rank, rank_1w_ago, rank_4w_ago, rank_12w_ago,
@@ -168,6 +176,25 @@ router.get("/sectors", async (req, res) => {
         WHERE sector IS NOT NULL
         ORDER BY sector, date DESC
       ) sp ON sr.sector_name = sp.sector
+      LEFT JOIN (
+        SELECT
+          CASE
+            WHEN cp.sector = 'Financials' THEN 'Financial Services'
+            ELSE cp.sector
+          END as sector,
+          ROUND(AVG(CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END)::numeric, 2) as trailing_pe,
+          ROUND(AVG(CASE WHEN km.forward_pe > 0 AND km.forward_pe < 200 THEN km.forward_pe END)::numeric, 2) as forward_pe,
+          MIN(CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_min,
+          PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_p25,
+          PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_median,
+          PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_p75,
+          PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_p90,
+          MAX(CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_max
+        FROM company_profile cp
+        LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+        WHERE cp.sector IS NOT NULL AND TRIM(cp.sector) != ''
+        GROUP BY cp.sector
+      ) pe ON sr.sector_name = pe.sector
       LIMIT $1
     `;
 
@@ -187,7 +214,20 @@ router.get("/sectors", async (req, res) => {
       current_perf_1d: row.performance_1d !== null ? parseFloat(row.performance_1d) : null,
       current_perf_5d: row.performance_5d !== null ? parseFloat(row.performance_5d) : null,
       current_perf_20d: row.performance_20d !== null ? parseFloat(row.performance_20d) : null,
-      last_updated: row.last_updated
+      last_updated: row.last_updated,
+      pe: row.trailing_pe || row.forward_pe ? {
+        trailing: row.trailing_pe !== null ? parseFloat(row.trailing_pe) : null,
+        forward: row.forward_pe !== null ? parseFloat(row.forward_pe) : null,
+        historical: {
+          min: row.pe_min !== null ? parseFloat(row.pe_min) : null,
+          p25: row.pe_p25 !== null ? parseFloat(row.pe_p25) : null,
+          median: row.pe_median !== null ? parseFloat(row.pe_median) : null,
+          p75: row.pe_p75 !== null ? parseFloat(row.pe_p75) : null,
+          p90: row.pe_p90 !== null ? parseFloat(row.pe_p90) : null,
+          max: row.pe_max !== null ? parseFloat(row.pe_max) : null
+        },
+        percentile: row.trailing_pe && row.pe_max && row.pe_min ? Math.round(((row.trailing_pe - row.pe_min) / (row.pe_max - row.pe_min)) * 100) : null
+      } : null
     }));
 
     // Return sectors data - standardized format per RULES.md

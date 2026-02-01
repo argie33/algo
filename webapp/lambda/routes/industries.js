@@ -66,7 +66,7 @@ router.get("/industries", async (req, res) => {
 
     // Get latest industry rankings with real performance data from industry_performance table
     // Data integrity: Return actual performance values from database, not NULL fallbacks
-    // Join with company_profile to get sector information for each industry
+    // Join with company_profile to get sector information for each industry and P/E metrics
     const industriesQuery = `
       SELECT
         ir.industry,
@@ -87,7 +87,15 @@ router.get("/industries", async (req, res) => {
         ip.performance_1d as performance_1d,
         ip.performance_5d as performance_5d,
         ip.performance_20d as performance_20d,
-        COALESCE(ip.date, ir.date_recorded) as last_updated
+        COALESCE(ip.date, ir.date_recorded) as last_updated,
+        pe.trailing_pe,
+        pe.forward_pe,
+        pe.pe_min,
+        pe.pe_p25,
+        pe.pe_median,
+        pe.pe_p75,
+        pe.pe_p90,
+        pe.pe_max
       FROM (
         SELECT DISTINCT ON (industry)
           industry, current_rank, rank_1w_ago, rank_4w_ago, rank_12w_ago,
@@ -117,6 +125,22 @@ router.get("/industries", async (req, res) => {
         WHERE industry IS NOT NULL
         ORDER BY industry, date DESC
       ) ip ON ir.industry = ip.industry
+      LEFT JOIN (
+        SELECT
+          cp.industry,
+          ROUND(AVG(CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END)::numeric, 2) as trailing_pe,
+          ROUND(AVG(CASE WHEN km.forward_pe > 0 AND km.forward_pe < 200 THEN km.forward_pe END)::numeric, 2) as forward_pe,
+          MIN(CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_min,
+          PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_p25,
+          PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_median,
+          PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_p75,
+          PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_p90,
+          MAX(CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_max
+        FROM company_profile cp
+        LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+        WHERE cp.industry IS NOT NULL AND TRIM(cp.industry) != ''
+        GROUP BY cp.industry
+      ) pe ON ir.industry = pe.industry
       LIMIT $1
     `;
 
@@ -144,7 +168,20 @@ router.get("/industries", async (req, res) => {
         performance_1d: row.performance_1d !== null ? parseFloat(row.performance_1d) : null,
         performance_5d: row.performance_5d !== null ? parseFloat(row.performance_5d) : null,
         performance_20d: row.performance_20d !== null ? parseFloat(row.performance_20d) : null,
-        last_updated: row.last_updated
+        last_updated: row.last_updated,
+        pe: row.trailing_pe || row.forward_pe ? {
+          trailing: row.trailing_pe !== null ? parseFloat(row.trailing_pe) : null,
+          forward: row.forward_pe !== null ? parseFloat(row.forward_pe) : null,
+          historical: {
+            min: row.pe_min !== null ? parseFloat(row.pe_min) : null,
+            p25: row.pe_p25 !== null ? parseFloat(row.pe_p25) : null,
+            median: row.pe_median !== null ? parseFloat(row.pe_median) : null,
+            p75: row.pe_p75 !== null ? parseFloat(row.pe_p75) : null,
+            p90: row.pe_p90 !== null ? parseFloat(row.pe_p90) : null,
+            max: row.pe_max !== null ? parseFloat(row.pe_max) : null
+          },
+          percentile: row.trailing_pe && row.pe_max && row.pe_min ? Math.round(((row.trailing_pe - row.pe_min) / (row.pe_max - row.pe_min)) * 100) : null
+        } : null
       }));
 
     // Return industries data - standardized format per RULES.md
