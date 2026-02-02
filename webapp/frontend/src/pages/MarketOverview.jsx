@@ -1119,7 +1119,7 @@ const handleTabChange = (event, newValue) => {
           <LinearProgress />
         ) : (indicesData?.data || []).length > 0 ? (
           <Grid container spacing={2}>
-            {(indicesData.data).map((index) => {
+            {(indicesData?.data || []).map((index) => {
               const pePercentile = index.pe?.percentile;
               const peColor = pePercentile ?
                 (pePercentile > 75 ? "error" :
