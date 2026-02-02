@@ -1503,30 +1503,6 @@ const SectorAnalysis = () => {
                             {formatPercentageChange(sector.current_perf_20d ?? sector.performance_20d)}
                           </Typography>
                         </Grid>
-                        <Grid item xs={3} sm={1.2}>
-                          {sector.pe?.trailing ? (
-                            <Chip
-                              label={`P/E: ${sector.pe.trailing.toFixed(1)}`}
-                              size="small"
-                              variant="outlined"
-                              sx={{
-                                borderColor: sector.pe.percentile ?
-                                  (sector.pe.percentile > 75 ? "error.main" :
-                                   sector.pe.percentile > 50 ? "warning.main" :
-                                   sector.pe.percentile < 25 ? "success.main" : "info.main")
-                                  : "default",
-                                backgroundColor: sector.pe.percentile ?
-                                  (sector.pe.percentile > 75 ? "error.light" :
-                                   sector.pe.percentile > 50 ? "warning.light" :
-                                   sector.pe.percentile < 25 ? "success.light" : "info.light")
-                                  : "transparent"
-                              }}
-                              title={sector.pe.percentile ? `${sector.pe.percentile}th percentile` : undefined}
-                            />
-                          ) : (
-                            <Typography variant="caption" color="text.secondary">—</Typography>
-                          )}
-                        </Grid>
                         <Grid item xs={12} sm={1.5} sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60px" }}>
                           <SectorTrendChart sector={sector} />
                         </Grid>
@@ -1790,32 +1766,6 @@ const SectorAnalysis = () => {
                           <Typography variant="caption" fontWeight="bold" align="right" sx={{ fontSize: "0.75rem" }}>
                             {industry.stock_count || 0}
                           </Typography>
-                        </Grid>
-                        <Grid item xs={2} sm={1}>
-                          {industry.pe?.trailing ? (
-                            <Chip
-                              label={`P/E: ${industry.pe.trailing.toFixed(1)}`}
-                              size="small"
-                              variant="outlined"
-                              sx={{
-                                borderColor: industry.pe.percentile ?
-                                  (industry.pe.percentile > 75 ? "error.main" :
-                                   industry.pe.percentile > 50 ? "warning.main" :
-                                   industry.pe.percentile < 25 ? "success.main" : "info.main")
-                                  : "default",
-                                backgroundColor: industry.pe.percentile ?
-                                  (industry.pe.percentile > 75 ? "error.light" :
-                                   industry.pe.percentile > 50 ? "warning.light" :
-                                   industry.pe.percentile < 25 ? "success.light" : "info.light")
-                                  : "transparent",
-                                width: "100%",
-                                fontSize: "0.7rem"
-                              }}
-                              title={industry.pe.percentile ? `${industry.pe.percentile}th percentile` : undefined}
-                            />
-                          ) : (
-                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.75rem" }}>—</Typography>
-                          )}
                         </Grid>
                         <Grid item xs={12} sm={1.5} sx={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
                           <IndustryTrendChart industry={industry} />
