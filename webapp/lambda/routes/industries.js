@@ -116,6 +116,8 @@ router.get("/industries", async (req, res) => {
           industry, sector
         FROM company_profile
         WHERE industry IS NOT NULL
+          AND quote_type = 'EQUITY'
+          AND ticker NOT LIKE '%$%'
         ORDER BY industry
       ) cp ON ir.industry = cp.industry
       LEFT JOIN (
@@ -138,7 +140,10 @@ router.get("/industries", async (req, res) => {
           MAX(CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_max
         FROM company_profile cp
         LEFT JOIN key_metrics km ON cp.ticker = km.ticker
-        WHERE cp.industry IS NOT NULL AND TRIM(cp.industry) != ''
+        WHERE cp.industry IS NOT NULL
+          AND TRIM(cp.industry) != ''
+          AND cp.quote_type = 'EQUITY'
+          AND cp.ticker NOT LIKE '%$%'
         GROUP BY cp.industry
       ) pe ON ir.industry = pe.industry
       LIMIT $1
