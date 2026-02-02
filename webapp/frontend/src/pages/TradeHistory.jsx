@@ -351,26 +351,26 @@ const TradeHistory = () => {
                     </TableCell>
                     <TableCell align="center">
                       <Chip
-                        label={trade.type.toUpperCase()}
-                        color={trade.type === 'buy' ? 'success' : 'error'}
+                        label={trade.type?.toUpperCase() || '—'}
+                        color={trade.type?.toLowerCase() === 'buy' ? 'success' : 'error'}
                         size="small"
                         variant="outlined"
                       />
                     </TableCell>
                     <TableCell align="right">
-                      {parseFloat(trade.quantity).toFixed(2)}
+                      {trade.quantity ? parseFloat(trade.quantity).toFixed(2) : '—'}
                     </TableCell>
                     <TableCell align="right">
-                      {formatCurrency(trade.price)}
+                      {trade.price ? formatCurrency(trade.price) : '—'}
                     </TableCell>
                     <TableCell align="right">
-                      {formatCurrency(trade.orderValue)}
+                      {trade.orderValue ? formatCurrency(trade.orderValue) : '—'}
                     </TableCell>
                     <TableCell align="right">
-                      {formatCurrency(trade.commission)}
+                      {trade.commission ? formatCurrency(trade.commission) : '—'}
                     </TableCell>
                     <TableCell sx={{ fontSize: '0.85rem' }}>
-                      {formatDate(trade.executionDate)}
+                      {trade.executionDate ? formatDate(trade.executionDate) : '—'}
                     </TableCell>
                     <TableCell
                       align="right"
@@ -379,7 +379,7 @@ const TradeHistory = () => {
                         fontWeight: 'bold'
                       }}
                     >
-                      {formatCurrency(trade.pnlAmount)}
+                      {trade.pnlAmount ? formatCurrency(trade.pnlAmount) : '—'}
                     </TableCell>
                     <TableCell
                       align="right"
