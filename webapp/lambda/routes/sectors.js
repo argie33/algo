@@ -178,10 +178,7 @@ router.get("/sectors", async (req, res) => {
       ) sp ON sr.sector_name = sp.sector
       LEFT JOIN (
         SELECT
-          CASE
-            WHEN cp.sector = 'Financials' THEN 'Financial Services'
-            ELSE cp.sector
-          END as sector,
+          cp.sector,
           ROUND(AVG(CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END)::numeric, 2) as trailing_pe,
           ROUND(AVG(CASE WHEN km.forward_pe > 0 AND km.forward_pe < 200 THEN km.forward_pe END)::numeric, 2) as forward_pe,
           MIN(CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_min,
@@ -192,7 +189,10 @@ router.get("/sectors", async (req, res) => {
           MAX(CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_max
         FROM company_profile cp
         LEFT JOIN key_metrics km ON cp.ticker = km.ticker
-        WHERE cp.sector IS NOT NULL AND TRIM(cp.sector) != ''
+        WHERE cp.sector IS NOT NULL
+          AND TRIM(cp.sector) != ''
+          AND cp.quote_type = 'EQUITY'
+          AND cp.ticker NOT LIKE '%$%'
         GROUP BY cp.sector
       ) pe ON sr.sector_name = pe.sector
       LIMIT $1
@@ -505,6 +505,8 @@ router.get("/analysis", async (req, res) => {
         JOIN price_daily pd ON cp.ticker = pd.symbol
         LEFT JOIN key_metrics km ON cp.ticker = km.ticker
         WHERE cp.industry IS NOT NULL AND cp.industry != ''
+          AND cp.quote_type = 'EQUITY'
+          AND cp.ticker NOT LIKE '%$%'
           AND pd.date = (SELECT MAX(date) FROM price_daily)
         GROUP BY cp.industry
       ),
@@ -533,7 +535,9 @@ router.get("/analysis", async (req, res) => {
           FROM company_profile cp
           JOIN price_daily pd ON cp.ticker = pd.symbol
           LEFT JOIN key_metrics km ON cp.ticker = km.ticker
-          WHERE pd.date = (SELECT MAX(date) FROM price_daily) - INTERVAL '1 day'
+          WHERE cp.quote_type = 'EQUITY'
+            AND cp.ticker NOT LIKE '%$%'
+            AND pd.date = (SELECT MAX(date) FROM price_daily) - INTERVAL '1 day'
           GROUP BY cp.industry
         ) pd_1d ON ip.industry = pd_1d.industry
         LEFT JOIN (
@@ -541,7 +545,9 @@ router.get("/analysis", async (req, res) => {
           FROM company_profile cp
           JOIN price_daily pd ON cp.ticker = pd.symbol
           LEFT JOIN key_metrics km ON cp.ticker = km.ticker
-          WHERE pd.date = (SELECT MAX(date) FROM price_daily) - INTERVAL '5 days'
+          WHERE cp.quote_type = 'EQUITY'
+            AND cp.ticker NOT LIKE '%$%'
+            AND pd.date = (SELECT MAX(date) FROM price_daily) - INTERVAL '5 days'
           GROUP BY cp.industry
         ) pd_5d ON ip.industry = pd_5d.industry
         LEFT JOIN (
@@ -549,7 +555,9 @@ router.get("/analysis", async (req, res) => {
           FROM company_profile cp
           JOIN price_daily pd ON cp.ticker = pd.symbol
           LEFT JOIN key_metrics km ON cp.ticker = km.ticker
-          WHERE pd.date = (SELECT MAX(date) FROM price_daily) - INTERVAL '20 days'
+          WHERE cp.quote_type = 'EQUITY'
+            AND cp.ticker NOT LIKE '%$%'
+            AND pd.date = (SELECT MAX(date) FROM price_daily) - INTERVAL '20 days'
           GROUP BY cp.industry
         ) pd_20d ON ip.industry = pd_20d.industry
       )
@@ -571,6 +579,8 @@ router.get("/analysis", async (req, res) => {
       LEFT JOIN (
         SELECT DISTINCT sector, industry FROM company_profile
         WHERE industry IS NOT NULL
+          AND quote_type = 'EQUITY'
+          AND ticker NOT LIKE '%$%'
       ) cp ON LOWER(ir.industry) = LOWER(cp.industry)
       LEFT JOIN (
         SELECT DISTINCT ON (industry)
