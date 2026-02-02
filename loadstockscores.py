@@ -111,15 +111,30 @@ def load_comprehensive_metrics(conn):
     logger.info("Loading comprehensive metric data...")
     cur = conn.cursor()
 
-    # Get all symbols
+    # Get all symbols with strict filtering to exclude SPACs, ETFs, penny stocks, and junk securities
     cur.execute("""
-        SELECT DISTINCT s.symbol FROM stock_symbols s
+        SELECT DISTINCT s.symbol
+        FROM stock_symbols s
+        LEFT JOIN company_profile cp ON s.symbol = cp.ticker
+        LEFT JOIN key_metrics km ON s.symbol = km.ticker
         WHERE s.exchange IN ('NASDAQ', 'New York Stock Exchange', 'American Stock Exchange', 'NYSE Arca', 'BATS Global Markets')
         AND (s.etf = 'N' OR s.etf IS NULL)
         AND s.symbol NOT ILIKE '%$%'
+        AND s.symbol NOT ILIKE '%W%'  -- Exclude warrants
+        AND s.symbol NOT ILIKE '%RT%' -- Exclude rights
+        AND s.test_issue != 'Y'
+        -- Company profile filters
+        AND cp.quote_type = 'EQUITY'  -- Only real stocks, no ETFs or other types
+        -- Financial data filters (exclude micro-caps, SPACs with no revenue, etc)
+        AND km.total_revenue > 10000000  -- At least $10M in annual revenue
+        AND km.enterprise_value > 50000000  -- At least $50M market cap equivalent
+        AND km.enterprise_value > 0  -- Exclude negative/invalid values
+        AND km.trailing_pe IS NOT NULL  -- Must have valid pricing data
+        AND km.trailing_pe > 0  -- Exclude stocks with invalid PE
+        AND km.trailing_pe < 500  -- Exclude extremely high PE (loss-making micro-caps)
     """)
     symbols = [row[0] for row in cur.fetchall()]
-    logger.info(f"Found {len(symbols)} stocks to score")
+    logger.info(f"✅ Found {len(symbols)} QUALITY stocks to score (after filtering SPACs, ETFs, penny stocks, and micro-caps)")
 
     df = pd.DataFrame(index=symbols)
     df.index.name = 'symbol'
@@ -289,6 +304,7 @@ def main():
     stability_for_calc['volatility'] = -stability_for_calc['volatility']
     stability_for_calc['downside_vol'] = -stability_for_calc['downside_vol']
     stability_for_calc['max_drawdown'] = -stability_for_calc['max_drawdown']
+    stability_for_calc['beta'] = -stability_for_calc['beta']  # High beta = less stable = negative impact
     df['stability_z'] = calculate_weighted_score(stability_for_calc, stability_metrics, stability_weights)
     df['stability_score'] = df['stability_z'].apply(zscore_to_percentile)
 
@@ -339,6 +355,10 @@ def main():
     # ===== SAVE TO DATABASE =====
     logger.info("Saving scores to database...")
     cur = conn.cursor()
+
+    # Clear old scores first to ensure only filtered stocks remain
+    cur.execute("TRUNCATE TABLE stock_scores")
+    logger.info("Cleared old scores from database")
 
     saved = 0
     for idx, symbol in enumerate(df.index):
