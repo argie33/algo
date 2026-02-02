@@ -256,12 +256,9 @@ def get_quarterly_statement_growth(cursor, symbol: str) -> Dict:
     try:
         # Get recent 8 quarters of revenue and earnings
         cursor.execute("""
-            SELECT date,
-                   revenue,
-                   net_income,
-                   operating_income
+            SELECT date, revenue, net_income, operating_income
             FROM quarterly_income_statement
-            WHERE symbol = %s
+            WHERE symbol = %s AND date IS NOT NULL
             ORDER BY date DESC
             LIMIT 8
         """, (symbol,))
@@ -367,11 +364,10 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
 
     try:
         # Get annual income statement data (most recent 4 years)
-        # Note: annual_income_statement has columns: symbol, date, revenue, operating_income, pretax_income, net_income
         cursor.execute("""
             SELECT date, revenue, operating_income, net_income
             FROM annual_income_statement
-            WHERE symbol = %s AND revenue IS NOT NULL
+            WHERE symbol = %s AND date IS NOT NULL
             ORDER BY date DESC
             LIMIT 4
         """, (symbol,))
@@ -425,21 +421,29 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
                 if oldest_revenue and oldest_revenue > 0 and recent_revenue and recent_revenue > 0:
                     metrics["revenue_growth_3y_cagr"] = calculate_cagr(oldest_revenue, recent_revenue, 3)
 
-                # EPS CAGR: Calculate when recent is profitable (positive), regardless of historical path
-                # Company that became profitable after losses is a real growth case
-                if recent_ni is not None and recent_ni > 0 and oldest_ni is not None and oldest_ni > 0:
-                    metrics["eps_growth_3y_cagr"] = calculate_cagr(oldest_ni, recent_ni, 3)
+                # EPS CAGR: Calculate when BOTH years have valid earnings (positive or negative consistently)
+                # Real data scenarios:
+                # - Profitable 3Y ago and profitable now: calculate normal CAGR
+                # - Unprofitable 3Y ago and unprofitable now: calculate from negative values (shows improvement)
+                # - Both non-null allows recovery analysis (profitable to unprofitable or vice versa)
+                if recent_ni is not None and oldest_ni is not None and recent_ni != 0 and oldest_ni != 0:
+                    try:
+                        # Calculate CAGR from actual values (may be negative)
+                        # This captures real business transitions
+                        metrics["eps_growth_3y_cagr"] = calculate_cagr(oldest_ni, recent_ni, 3)
+                    except (ValueError, ZeroDivisionError):
+                        # CAGR calculation failed (e.g., sign change), leave as None
+                        pass
 
             # REAL DATA ONLY - If 4-year CAGR not available, leave eps_growth_3y_cagr as None
             # Do not use 2-year growth as fallback proxy
             # Use YoY calculation if available (already calculated above in YoY section)
 
         # Get annual cashflow data for FCF growth (4 years available, use first 2)
-        # Note: annual_cash_flow has columns: symbol, date, operating_cash_flow, free_cash_flow, etc.
         cursor.execute("""
             SELECT date, free_cash_flow
             FROM annual_cash_flow
-            WHERE symbol = %s AND free_cash_flow IS NOT NULL
+            WHERE symbol = %s AND date IS NOT NULL
             ORDER BY date DESC
             LIMIT 4
         """, (symbol,))
@@ -460,11 +464,10 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
                     track_calc_failure(symbol, "fcf_growth_yoy", e)
 
         # Get annual cashflow data for OCF growth
-        # Note: annual_cash_flow has columns: symbol, date, operating_cash_flow, free_cash_flow, etc.
         cursor.execute("""
             SELECT date, operating_cash_flow
             FROM annual_cash_flow
-            WHERE symbol = %s AND operating_cash_flow IS NOT NULL
+            WHERE symbol = %s AND date IS NOT NULL
             ORDER BY date DESC
             LIMIT 4
         """, (symbol,))
@@ -485,12 +488,11 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
                     track_calc_failure(symbol, "ocf_growth_yoy", e)
 
         # Get annual balance sheet data for asset growth
-        # Note: annual_balance_sheet has columns: symbol, date, total_assets, total_liabilities, total_equity
         try:
             cursor.execute("""
                 SELECT date, total_assets
                 FROM annual_balance_sheet
-                WHERE symbol = %s AND total_assets IS NOT NULL
+                WHERE symbol = %s AND date IS NOT NULL
                 ORDER BY date DESC
                 LIMIT 2
             """, (symbol,))
@@ -1520,6 +1522,12 @@ def load_ad_ratings(conn, cursor, symbols: List[str]):
     """Load Accumulation/Distribution ratings for all symbols"""
     logging.info("Loading A/D ratings...")
 
+    # Ensure clean transaction state
+    try:
+        conn.rollback()
+    except:
+        pass
+
     ad_rows = []
     failed_symbols = []
 
@@ -1890,6 +1898,17 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
     """Load growth metrics for all symbols with proper transaction isolation"""
     logging.info(f"Loading growth metrics for {len(symbols)} symbols...")
 
+    # Ensure clean transaction state and enable autocommit to avoid transaction abort issues
+    try:
+        conn.rollback()
+    except:
+        pass
+
+    try:
+        conn.autocommit = True
+    except:
+        pass
+
     growth_rows = []
 
     # Get all key_metrics data in one query - include margin and financial data for trend calculations
@@ -1962,18 +1981,33 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                 financial_growth = get_financial_statement_growth(cursor, ticker)
             except Exception as fge:
                 logging.debug(f"Could not get financial growth for {ticker}: {fge}")
+                try:
+                    conn.rollback()
+                except:
+                    pass
+                cursor = conn.cursor()
                 financial_growth = None
 
             try:
                 quarterly_growth = get_quarterly_statement_growth(cursor, ticker)
             except Exception as qge:
                 logging.debug(f"Could not get quarterly growth for {ticker}: {qge}")
+                try:
+                    conn.rollback()
+                except:
+                    pass
+                cursor = conn.cursor()
                 quarterly_growth = None
 
             try:
                 earnings_history_growth = get_earnings_history_growth(cursor, ticker)
             except Exception as ege:
                 logging.debug(f"Could not get earnings history growth for {ticker}: {ege}")
+                try:
+                    conn.rollback()
+                except:
+                    pass
+                cursor = conn.cursor()
                 earnings_history_growth = None
 
             # Calculate metrics combining all available data sources
@@ -2042,18 +2076,33 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                 financial_growth = get_financial_statement_growth(cursor, symbol)
             except Exception as fge:
                 logging.debug(f"Could not get financial growth for {symbol}: {fge}")
+                try:
+                    conn.rollback()
+                except:
+                    pass
+                cursor = conn.cursor()
                 financial_growth = None
 
             try:
                 quarterly_growth = get_quarterly_statement_growth(cursor, symbol)
             except Exception as qge:
                 logging.debug(f"Could not get quarterly growth for {symbol}: {qge}")
+                try:
+                    conn.rollback()
+                except:
+                    pass
+                cursor = conn.cursor()
                 quarterly_growth = None
 
             try:
                 earnings_history_growth = get_earnings_history_growth(cursor, symbol)
             except Exception as ege:
                 logging.debug(f"Could not get earnings history growth for {symbol}: {ege}")
+                try:
+                    conn.rollback()
+                except:
+                    pass
+                cursor = conn.cursor()
                 earnings_history_growth = None
 
             # Create minimal metrics dict (no key_metrics available)
@@ -2152,6 +2201,12 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
 def load_momentum_metrics(conn, cursor, symbols: List[str]):
     """Load momentum metrics from price_daily database - skip yfinance, use local data only"""
     logging.info("Loading momentum metrics from price_daily table...")
+
+    # Ensure clean transaction state
+    try:
+        conn.rollback()
+    except:
+        pass
 
     momentum_rows = []
 
@@ -2284,6 +2339,13 @@ def load_momentum_metrics(conn, cursor, symbols: List[str]):
 def load_stability_metrics(conn, cursor, symbols: List[str]):
     """Load stability metrics (volatility, drawdown, beta, volume metrics) from price data"""
     logging.info("Loading stability metrics...")
+
+    # Ensure clean transaction state
+    try:
+        conn.rollback()
+    except:
+        pass
+
     stability_rows = []
     today = date.today()
 
@@ -2390,6 +2452,13 @@ def load_stability_metrics(conn, cursor, symbols: List[str]):
 def load_value_metrics(conn, cursor, symbols: List[str]):
     """Load value metrics (PE, P/B, P/S, EV/EBITDA, etc.) from key_metrics"""
     logging.info("Loading value metrics...")
+
+    # Ensure clean transaction state
+    try:
+        conn.rollback()
+    except:
+        pass
+
     value_rows = []
     today = date.today()
 
@@ -2855,6 +2924,15 @@ def main():
             cursor.close()
             cursor = conn.cursor()  # Create new cursor after rollback
 
+        # Force connection refresh before growth metrics to ensure clean state
+        try:
+            cursor.close()
+            conn.close()
+        except:
+            pass
+        conn = psycopg2.connect(**db_config)
+        cursor = conn.cursor()
+
         try:
             load_growth_metrics(conn, cursor, symbols)
             log_mem("After growth metrics")
@@ -2873,6 +2951,15 @@ def main():
                 conn = psycopg2.connect(**db_config)
             cursor.close()
             cursor = conn.cursor()  # Create new cursor after rollback
+
+        # Force connection refresh before momentum metrics
+        try:
+            cursor.close()
+            conn.close()
+        except:
+            pass
+        conn = psycopg2.connect(**db_config)
+        cursor = conn.cursor()
 
         try:
             load_momentum_metrics(conn, cursor, symbols)
@@ -2893,6 +2980,15 @@ def main():
             cursor.close()
             cursor = conn.cursor()  # Create new cursor after rollback
 
+        # Force connection refresh before stability metrics
+        try:
+            cursor.close()
+            conn.close()
+        except:
+            pass
+        conn = psycopg2.connect(**db_config)
+        cursor = conn.cursor()
+
         try:
             load_stability_metrics(conn, cursor, symbols)
             log_mem("After stability metrics")
@@ -2911,6 +3007,15 @@ def main():
                 conn = psycopg2.connect(**db_config)
             cursor.close()
             cursor = conn.cursor()  # Create new cursor after rollback
+
+        # Force connection refresh before value metrics
+        try:
+            cursor.close()
+            conn.close()
+        except:
+            pass
+        conn = psycopg2.connect(**db_config)
+        cursor = conn.cursor()
 
         try:
             load_value_metrics(conn, cursor, symbols)
@@ -2931,6 +3036,15 @@ def main():
             cursor.close()
             cursor = conn.cursor()  # Create new cursor after rollback
 
+        # Force connection refresh before A/D ratings
+        try:
+            cursor.close()
+            conn.close()
+        except:
+            pass
+        conn = psycopg2.connect(**db_config)
+        cursor = conn.cursor()
+
         try:
             load_ad_ratings(conn, cursor, symbols)
             log_mem("After A/D ratings")
@@ -2949,6 +3063,15 @@ def main():
                 conn = psycopg2.connect(**db_config)
             cursor.close()
             cursor = conn.cursor()  # Create new cursor after rollback
+
+        # Force connection refresh before fill_metric_gaps
+        try:
+            cursor.close()
+            conn.close()
+        except:
+            pass
+        conn = psycopg2.connect(**db_config)
+        cursor = conn.cursor()
 
         # Fill metric gaps from available data
         try:
