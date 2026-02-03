@@ -31,6 +31,12 @@ window.addEventListener(
       timestamp: new Date().toISOString(),
     };
 
+    // Log detailed error for .type access issues
+    if (e.message && e.message.includes("Cannot read properties of undefined (reading 'type')")) {
+      console.error("🔴 CRITICAL: .type access on undefined detected!");
+      console.error("Stack:", e.error?.stack);
+    }
+
     logger.error("WindowError", e.error || new Error(e.message), errorContext);
 
     // Let all errors through for debugging
