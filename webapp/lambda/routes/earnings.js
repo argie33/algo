@@ -324,6 +324,9 @@ router.get("/sp500-trend", async (req, res) => {
       stockCount: null
     }));
 
+    const latestDate = earnings.length > 0 ? new Date(earnings[earnings.length - 1].date) : null;
+    const isStale = latestDate && (new Date() - latestDate) > 90 * 24 * 60 * 60 * 1000; // Over 90 days old
+
     res.json({
       data: {
         timeSeries,
@@ -331,7 +334,9 @@ router.get("/sp500-trend", async (req, res) => {
           trend,
           changePercent: changePercent.toFixed(2),
           latestEarnings: earnings.length > 0 ? parseFloat(earnings[earnings.length - 1].earnings_per_share) : null,
-          latestDate: earnings.length > 0 ? earnings[earnings.length - 1].date : null
+          latestDate: earnings.length > 0 ? earnings[earnings.length - 1].date : null,
+          isStale: isStale,
+          dataWarning: isStale ? "⚠️ Data is older than 90 days - please refresh economic data" : null
         }
       },
       success: true

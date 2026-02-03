@@ -419,6 +419,12 @@ function EarningsCalendar() {
             </Alert>
           )}
 
+          {sp500TrendData?.summary?.isStale && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              ⚠️ S&P 500 earnings data is outdated (last updated: {sp500TrendData?.summary?.latestDate ? new Date(sp500TrendData.summary.latestDate).toLocaleDateString() : 'unknown'}). Please refresh economic data for current information.
+            </Alert>
+          )}
+
           {sp500Loading ? (
             <Box display="flex" justifyContent="center" py={3}>
               <CircularProgress />
