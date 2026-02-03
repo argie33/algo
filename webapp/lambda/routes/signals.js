@@ -120,30 +120,26 @@ router.get("/stocks", async (req, res) => {
     }
 
     // Build actual columns based on table schema
-    // NOTE: buy_sell_daily has 54 cols, buy_sell_weekly/monthly have 58 cols but different columns
-    // Only daily has: selllevel, target_price, current_price, pct_from_ema_21, pct_from_sma_50,
-    //                 pct_from_sma_200, daily_range_pct, volatility_profile, volume_analysis, volume_ratio,
-    //                 base_* columns, ma_filter_* columns, passes_minervini_template
-    // Only weekly/monthly have: sell_level instead of selllevel
+    // buy_sell_daily has these actual columns (not target_price, current_price, etc.)
     const actualColumns = tableName === 'buy_sell_daily' ? `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
       bsd.signal_triggered_date,
       bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
       bsd.signal, bsd.buylevel, bsd.stoplevel, NULL as selllevel, bsd.inposition,
-      bsd.target_price, bsd.current_price,
+      NULL as target_price, NULL as current_price,
       bsd.market_stage, bsd.stage_number, bsd.stage_confidence, bsd.substage,
-      bsd.risk_reward_ratio, bsd.current_gain_loss_pct, bsd.risk_pct,
+      bsd.risk_reward_ratio, bsd.current_gain_pct, bsd.risk_pct,
       bsd.position_size_recommendation, bsd.profit_target_20pct, bsd.profit_target_25pct,
       bsd.mansfield_rs, bsd.sata_score,
       bsd.rsi, bsd.adx, bsd.atr,
-      bsd.pct_from_ema_21, bsd.pct_from_sma_50, bsd.pct_from_sma_200,
-      bsd.entry_quality_score, bsd.daily_range_pct,
-      bsd.volatility_profile, bsd.volume_analysis, bsd.volume_ratio,
-      bsd.base_pivot_price, bsd.base_support_price, bsd.base_pattern,
-      bsd.base_depth_pct, bsd.base_duration_days, bsd.base_tightness_score,
-      bsd.is_base_on_base, bsd.base_quality_score,
-      bsd.ma_filter_value, bsd.ma_filter_type, bsd.ma_filter_period,
-      bsd.passes_minervini_template
+      bsd.pct_from_ema21, bsd.pct_from_sma50, NULL as pct_from_sma_200,
+      bsd.entry_quality_score, NULL as daily_range_pct,
+      NULL as volatility_profile, NULL as volume_analysis, NULL as volume_ratio,
+      bsd.pivot_price as base_pivot_price, NULL as base_support_price, bsd.base_type as base_pattern,
+      NULL as base_depth_pct, bsd.base_length_days as base_duration_days, NULL as base_tightness_score,
+      NULL as is_base_on_base, NULL as base_quality_score,
+      NULL as ma_filter_value, NULL as ma_filter_type, NULL as ma_filter_period,
+      NULL as passes_minervini_template
     ` : `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
       bsd.signal_triggered_date,
@@ -151,11 +147,11 @@ router.get("/stocks", async (req, res) => {
       bsd.signal, bsd.buylevel, bsd.stoplevel, NULL as sell_level, bsd.inposition,
       NULL as target_price, NULL as current_price,
       bsd.market_stage, bsd.stage_number, bsd.stage_confidence, bsd.substage,
-      bsd.risk_reward_ratio, NULL as current_gain_loss_pct, bsd.risk_pct,
+      bsd.risk_reward_ratio, NULL as current_gain_pct, bsd.risk_pct,
       bsd.position_size_recommendation, bsd.profit_target_20pct, bsd.profit_target_25pct,
       bsd.mansfield_rs, bsd.sata_score,
       bsd.rsi, bsd.adx, bsd.atr,
-      NULL as pct_from_ema_21, NULL as pct_from_sma_50, NULL as pct_from_sma_200,
+      NULL as pct_from_ema21, NULL as pct_from_sma50, NULL as pct_from_sma_200,
       bsd.entry_quality_score, NULL as daily_range_pct,
       NULL as volatility_profile, NULL as volume_analysis, NULL as volume_ratio,
       NULL as base_pivot_price, NULL as base_support_price, NULL as base_pattern,
@@ -276,7 +272,7 @@ router.get("/stocks", async (req, res) => {
 
       // Risk/reward
       risk_reward_ratio: row.risk_reward_ratio !== null ? parseFloat(row.risk_reward_ratio) : null,
-      current_gain_loss_pct: row.current_gain_loss_pct !== null ? parseFloat(row.current_gain_loss_pct) : null,
+      current_gain_loss_pct: row.current_gain_pct !== null ? parseFloat(row.current_gain_pct) : null,
       risk_pct: row.risk_pct !== null ? parseFloat(row.risk_pct) : null,
       position_size_recommendation: row.position_size_recommendation !== null ? parseFloat(row.position_size_recommendation) : null,
 
@@ -295,8 +291,8 @@ router.get("/stocks", async (req, res) => {
       rsi: row.rsi !== null ? parseFloat(row.rsi) : null,
       adx: row.adx !== null ? parseFloat(row.adx) : null,
       atr: row.atr !== null ? parseFloat(row.atr) : null,
-      pct_from_ema_21: row.pct_from_ema_21 !== null ? parseFloat(row.pct_from_ema_21) : null,
-      pct_from_sma_50: row.pct_from_sma_50 !== null ? parseFloat(row.pct_from_sma_50) : null,
+      pct_from_ema_21: row.pct_from_ema21 !== null ? parseFloat(row.pct_from_ema21) : null,
+      pct_from_sma_50: row.pct_from_sma50 !== null ? parseFloat(row.pct_from_sma50) : null,
       pct_from_sma_200: row.pct_from_sma_200 !== null ? parseFloat(row.pct_from_sma_200) : null,
 
       // Volume analysis
