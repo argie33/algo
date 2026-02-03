@@ -31,6 +31,7 @@ const { initializeAlpacaSync } = require("./utils/alpacaSyncScheduler");
 const analystsRoutes = require("./routes/analysts");
 const authRoutes = require("./routes/auth");
 const communityRoutes = require("./routes/community");
+const commoditiesRoutes = require("./routes/commodities");
 const contactRoutes = require("./routes/contact");
 const earningsRoutes = require("./routes/earnings");
 const economicRoutes = require("./routes/economic");
@@ -434,6 +435,7 @@ app.use(async (req, res, next) => {
 // Canonical API Routes - all under /api prefix
 app.use("/api/analysts", analystsRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/commodities", commoditiesRoutes);
 app.use("/api/community", communityRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/earnings", earningsRoutes);
@@ -466,6 +468,7 @@ app.get("/api", (req, res) => {
       status: "operational",
       endpoints: {
         auth: "/api/auth",
+        commodities: "/api/commodities",
         earnings: "/api/earnings",
         economic: "/api/economic",
         financials: "/api/financials",
