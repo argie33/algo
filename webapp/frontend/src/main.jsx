@@ -26,9 +26,11 @@ window.addEventListener(
       filename: e.filename,
       lineno: e.lineno,
       colno: e.colno,
+      message: e.message,
       userAgent: navigator.userAgent,
       url: window.location.href,
       timestamp: new Date().toISOString(),
+      stack: e.error?.stack,
     };
 
     // Log detailed error for .type access issues
