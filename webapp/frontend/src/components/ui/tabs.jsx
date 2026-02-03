@@ -72,7 +72,7 @@ export const Tabs = React.forwardRef(
           {...muiTabsProps}
         >
           {React.Children.map(children, (child) => {
-            if (child?.type?.displayName === "TabsList") {
+            if (child && React.isValidElement(child) && child.type?.displayName === "TabsList") {
               return React.cloneElement(child, {
                 value: activeTab,
                 onChange: handleChange,
@@ -82,7 +82,7 @@ export const Tabs = React.forwardRef(
           })}
         </MuiTabs>
         {React.Children.map(children, (child) => {
-          if (child?.type?.displayName === "TabsContent") {
+          if (child && React.isValidElement(child) && child.type?.displayName === "TabsContent") {
             return React.cloneElement(child, {
               value: child.props.value,
               active: activeTab === child.props.value,
