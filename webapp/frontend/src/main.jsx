@@ -35,8 +35,12 @@ window.addEventListener(
 
     // Log detailed error for .type access issues
     if (e.message && e.message.includes("Cannot read properties of undefined (reading 'type')")) {
-      console.error("🔴 CRITICAL: .type access on undefined detected!");
-      console.error("Stack:", e.error?.stack);
+      console.group("🔴 CRITICAL: .type access on undefined detected!");
+      console.error("Message:", e.message);
+      console.error("Location:", `${e.filename}:${e.lineno}:${e.colno}`);
+      console.error("Stack trace:", e.error?.stack);
+      console.error("Full error:", e.error);
+      console.groupEnd();
     }
 
     logger.error("WindowError", e.error || new Error(e.message), errorContext);
@@ -60,6 +64,7 @@ window.addEventListener("unhandledrejection", function (e) {
   // Let all errors through for debugging
   return false;
 });
+
 
 // Application initialization
 
