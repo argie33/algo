@@ -44,7 +44,13 @@ import pandas as pd
 import psycopg2
 import psycopg2.extensions
 import numpy as np
+import yfinance as yf
 from psycopg2.extras import RealDictCursor, execute_values
+
+# Rate limiting for yfinance
+YFINANCE_RATE_LIMIT_DELAY = 0.1  # 100ms between requests
+YFINANCE_MAX_RETRIES = 3
+YFINANCE_RETRY_DELAY = 1.0  # Start with 1 second, exponential backoff
 
 # Script metadata
 SCRIPT_NAME = "loadfactormetrics.py"
@@ -124,6 +130,29 @@ def get_all_symbols(cursor) -> List[str]:
     """Get list of all stock symbols from stock_symbols table to ensure full coverage"""
     cursor.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
     return [row[0] for row in cursor.fetchall()]
+
+
+def get_yfinance_data_with_retry(symbol: str, max_retries: int = YFINANCE_MAX_RETRIES) -> Optional[Dict]:
+    """Fetch yfinance data with retry logic and rate limiting"""
+    last_exception = None
+    for attempt in range(max_retries):
+        try:
+            time.sleep(YFINANCE_RATE_LIMIT_DELAY)  # Rate limiting
+            ticker = yf.Ticker(symbol)
+            # Try to get info - this will fail fast if symbol is invalid
+            info = ticker.info
+            if info and isinstance(info, dict) and len(info) > 0:
+                return info
+            return None
+        except Exception as e:
+            last_exception = e
+            if attempt < max_retries - 1:
+                delay = YFINANCE_RETRY_DELAY * (2 ** attempt)  # Exponential backoff
+                logging.debug(f"{symbol}: Retry {attempt + 1}/{max_retries} after {delay}s (error: {type(e).__name__})")
+                time.sleep(delay)
+            else:
+                logging.debug(f"{symbol}: Failed after {max_retries} retries")
+    return None
 
 
 def get_price_history(cursor, symbol: str, days: int = 252*2) -> pd.DataFrame:
@@ -234,14 +263,44 @@ def calculate_quality_metrics(ticker_data: Dict, ticker=None, symbol=None) -> Di
 
 
 def calculate_cagr(start_value: float, end_value: float, periods: int) -> Optional[float]:
-    """Calculate Compound Annual Growth Rate"""
-    if not start_value or start_value == 0 or not end_value or periods <= 0:
+    """Calculate Compound Annual Growth Rate - handles recovery and loss scenarios"""
+    if start_value is None or end_value is None or periods <= 0:
         return None
+
+    # If starting value is 0 or very close to 0
+    if start_value == 0 or abs(start_value) < 0.0001:
+        # Can't use standard CAGR formula (division by zero)
+        # For recovery (0 -> positive) or deterioration (0 -> negative),
+        # return a large positive or negative value to capture improvement/decline
+        if end_value > 0:
+            # Recovery from zero - strong positive signal (cap at 999%)
+            return 999.0
+        elif end_value < 0:
+            # Deterioration from zero - strong negative signal (cap at -999%)
+            return -999.0
+        else:
+            # Both zero - no change
+            return 0.0
+
     try:
-        # CAGR = (Ending Value / Beginning Value)^(1/Number of Years) - 1
-        cagr = (end_value / start_value) ** (1 / periods) - 1
-        return float(cagr * 100)  # Return as percentage
-    except (ValueError, ZeroDivisionError):
+        ratio = end_value / start_value
+
+        # Handle sign changes that would produce complex numbers
+        # When going from positive to negative or vice versa, use simple average growth
+        if (start_value > 0 and end_value < 0) or (start_value < 0 and end_value > 0):
+            # Sign change - use linear approximation instead of geometric
+            # This shows deterioration (positive to negative) or recovery (negative to positive)
+            avg_change_per_year = (end_value - start_value) / periods
+            return float((avg_change_per_year / abs(start_value)) * 100)
+
+        # Standard CAGR formula (same sign)
+        cagr = ratio ** (1 / periods) - 1
+        result = float(cagr * 100)
+
+        # Cap at ±500% to avoid extreme values
+        return max(-500, min(500, result))
+
+    except (ValueError, ZeroDivisionError, TypeError):
         return None
 
 
@@ -416,23 +475,26 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
             if len(income_data) >= 4:
                 oldest_date, oldest_revenue, oldest_oi, oldest_ni = income_data[3]
 
-                # Revenue CAGR: Only calculate when both oldest and recent are positive
-                # CAGR requires starting from a positive base value
-                if oldest_revenue and oldest_revenue > 0 and recent_revenue and recent_revenue > 0:
-                    metrics["revenue_growth_3y_cagr"] = calculate_cagr(oldest_revenue, recent_revenue, 3)
+                # Revenue CAGR: Calculate when both years have valid revenue data (including recovery scenarios)
+                if oldest_revenue is not None and recent_revenue is not None:
+                    result = calculate_cagr(oldest_revenue, recent_revenue, 3)
+                    if result is not None:
+                        metrics["revenue_growth_3y_cagr"] = result
 
-                # EPS CAGR: Calculate when BOTH years have valid earnings (positive or negative consistently)
+                # EPS CAGR: Calculate when BOTH years have valid earnings data
                 # Real data scenarios:
                 # - Profitable 3Y ago and profitable now: calculate normal CAGR
                 # - Unprofitable 3Y ago and unprofitable now: calculate from negative values (shows improvement)
-                # - Both non-null allows recovery analysis (profitable to unprofitable or vice versa)
-                if recent_ni is not None and oldest_ni is not None and recent_ni != 0 and oldest_ni != 0:
+                # - Both non-null allows recovery analysis (0->positive or negative->better)
+                if recent_ni is not None and oldest_ni is not None:
                     try:
-                        # Calculate CAGR from actual values (may be negative)
-                        # This captures real business transitions
-                        metrics["eps_growth_3y_cagr"] = calculate_cagr(oldest_ni, recent_ni, 3)
+                        # Calculate CAGR from actual values (may be negative, zero, or recovering from zero)
+                        # This captures real business transitions including turnarounds
+                        result = calculate_cagr(oldest_ni, recent_ni, 3)
+                        if result is not None:
+                            metrics["eps_growth_3y_cagr"] = result
                     except (ValueError, ZeroDivisionError):
-                        # CAGR calculation failed (e.g., sign change), leave as None
+                        # CAGR calculation failed, leave as None
                         pass
 
             # REAL DATA ONLY - If 4-year CAGR not available, leave eps_growth_3y_cagr as None
@@ -1221,15 +1283,17 @@ def get_stability_metrics(cursor, symbol: str, benchmark_cache: Dict = None) -> 
         "beta": None,
     }
 
-    # FIRST TRY: Get beta from yfinance via beta_yfinance table
+    # Get beta directly from yfinance with retry logic and rate limiting
     try:
-        cursor.execute("SELECT beta FROM beta_yfinance WHERE symbol = %s", (symbol,))
-        row = cursor.fetchone()
-        if row and row[0] is not None:
-            metrics["beta"] = float(row[0])
-            logging.debug(f"{symbol}: Using yfinance beta = {metrics['beta']}")
-            # Return early if we have yfinance beta for remaining metrics
-            # Continue with volatility/drawdown calculation below
+        info = get_yfinance_data_with_retry(symbol)
+        if info:
+            beta = info.get('beta')
+            if beta is not None:
+                try:
+                    metrics["beta"] = float(beta)
+                    logging.debug(f"{symbol}: Using yfinance beta = {metrics['beta']}")
+                except (ValueError, TypeError):
+                    logging.debug(f"{symbol}: Beta value invalid: {beta}")
     except Exception as e:
         logging.debug(f"{symbol}: Could not retrieve yfinance beta: {e}")
 
@@ -2218,6 +2282,7 @@ def load_momentum_metrics(conn, cursor, symbols: List[str]):
 
         metrics = {
             "current_price": None,
+            "momentum_1m": None,
             "momentum_3m": None,
             "momentum_6m": None,
             "momentum_12m": None,
@@ -2246,6 +2311,7 @@ def load_momentum_metrics(conn, cursor, symbols: List[str]):
                 # Calculate momentum from price data
                 if current_price and len(prices) >= 20:
                     # Calculate raw momentum values
+                    m1m = ((prices[-1] - prices[-20]) / prices[-20] * 100) if len(prices) >= 20 else None
                     m3m = ((prices[-1] - prices[-60]) / prices[-60] * 100) if len(prices) >= 60 else None
                     m6m = ((prices[-1] - prices[-120]) / prices[-120] * 100) if len(prices) >= 120 else None
                     m12m = ((prices[-1] - prices[-252]) / prices[-252] * 100) if len(prices) >= 252 else None
@@ -2283,6 +2349,7 @@ def load_momentum_metrics(conn, cursor, symbols: List[str]):
 
                     metrics = {
                         "current_price": current_price,
+                        "momentum_1m": cap_momentum(m1m),
                         "momentum_3m": cap_momentum(m3m),
                         "momentum_6m": cap_momentum(m6m),
                         "momentum_12m": cap_momentum(m12m),

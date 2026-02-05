@@ -418,9 +418,18 @@ function MarketOverview() {
     refetchInterval: 120000,
   });
 
-const handleTabChange = (event, newValue) => {
+  const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
   };
+
+  // Return loading state early if data not ready
+  if (marketLoading) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "400px" }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   // Extract data from 3 SEPARATE market endpoints (BEFORE early returns per React hooks rules)
   const techData = technicalsData?.data || {};
