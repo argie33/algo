@@ -44,7 +44,7 @@ def get_db_config():
     1. AWS Secrets Manager (if DB_SECRET_ARN is set)
     2. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
     """
-    aws_region = os.environ.get("AWS_REGION")
+    aws_region = os.environ.get("AWS_REGION", "us-east-1")
     db_secret_arn = os.environ.get("DB_SECRET_ARN")
 
     # Try AWS Secrets Manager first

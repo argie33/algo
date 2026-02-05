@@ -111,30 +111,66 @@ def load_comprehensive_metrics(conn):
     logger.info("Loading comprehensive metric data...")
     cur = conn.cursor()
 
-    # Get all symbols with strict filtering to exclude SPACs, ETFs, penny stocks, and junk securities
+    # Get symbols with metrics data, excluding SPACs, ETFs, shell companies, and junk securities
+    # Filter by name patterns and quote type to remove problematic companies
     cur.execute("""
-        SELECT DISTINCT s.symbol
-        FROM stock_symbols s
-        LEFT JOIN company_profile cp ON s.symbol = cp.ticker
-        LEFT JOIN key_metrics km ON s.symbol = km.ticker
-        WHERE s.exchange IN ('NASDAQ', 'New York Stock Exchange', 'American Stock Exchange', 'NYSE Arca', 'BATS Global Markets')
-        AND (s.etf = 'N' OR s.etf IS NULL)
-        AND s.symbol NOT ILIKE '%$%'
-        AND s.symbol NOT ILIKE '%W%'  -- Exclude warrants
-        AND s.symbol NOT ILIKE '%RT%' -- Exclude rights
-        AND s.test_issue != 'Y'
-        -- Company profile filters
-        AND cp.quote_type = 'EQUITY'  -- Only real stocks, no ETFs or other types
-        -- Financial data filters (exclude micro-caps, SPACs with no revenue, etc)
-        AND km.total_revenue > 10000000  -- At least $10M in annual revenue
-        AND km.enterprise_value > 50000000  -- At least $50M market cap equivalent
-        AND km.enterprise_value > 0  -- Exclude negative/invalid values
-        AND km.trailing_pe IS NOT NULL  -- Must have valid pricing data
-        AND km.trailing_pe > 0  -- Exclude stocks with invalid PE
-        AND km.trailing_pe < 500  -- Exclude extremely high PE (loss-making micro-caps)
+        WITH metrics_symbols AS (
+            SELECT DISTINCT symbol FROM growth_metrics
+            UNION
+            SELECT DISTINCT symbol FROM quality_metrics
+            UNION
+            SELECT DISTINCT symbol FROM stability_metrics
+            UNION
+            SELECT DISTINCT symbol FROM momentum_metrics
+            UNION
+            SELECT DISTINCT symbol FROM value_metrics
+            UNION
+            SELECT DISTINCT symbol FROM positioning_metrics
+        )
+        SELECT DISTINCT ms.symbol
+        FROM metrics_symbols ms
+        LEFT JOIN company_profile cp ON ms.symbol = cp.ticker
+        WHERE
+            -- Exclude ETFs and other non-equity securities
+            (cp.quote_type IS NULL OR cp.quote_type = 'EQUITY')
+            -- Exclude SPACs by name patterns
+            AND cp.short_name NOT ILIKE '%SPAC%'
+            AND cp.short_name NOT ILIKE '%Blank Check%'
+            AND cp.short_name NOT ILIKE '%Capital Corp%'
+            AND cp.short_name NOT ILIKE '%Acquisition%'
+            AND cp.short_name NOT ILIKE '%Merger%'
+            AND cp.short_name NOT ILIKE '%GigCapital%'
+            AND cp.short_name NOT ILIKE '%Gig Capital%'
+            AND cp.short_name NOT ILIKE '%Apollo Strategic%'
+            AND cp.short_name NOT ILIKE '%Churchill Capital%'
+            AND cp.short_name NOT ILIKE '%Apex Treasury%'
+            AND cp.short_name NOT ILIKE '%Treasury%'
+            AND cp.short_name NOT ILIKE '%Platinum Analytics%'
+            AND cp.short_name NOT ILIKE '%Graf Global%'
+            -- Exclude shell/holding companies
+            AND cp.short_name NOT ILIKE '%Holdings%'
+            AND cp.short_name NOT ILIKE '%Holding Corp%'
+            AND cp.short_name NOT ILIKE '%Investment Corp%'
+            AND cp.short_name NOT ILIKE '%Investment Co%'
+            AND cp.short_name NOT ILIKE '%Capital Investment%'
+            AND cp.short_name NOT ILIKE '%Development Corp%'
+            AND cp.short_name NOT ILIKE '%Equity Partners%'
+            -- Exclude ETNs and leveraged products by name
+            AND cp.short_name NOT ILIKE '%ETN%'
+            AND cp.short_name NOT ILIKE '%Double Long%'
+            AND cp.short_name NOT ILIKE '%Double Short%'
+            AND cp.short_name NOT ILIKE '%iPath%'
+            AND cp.short_name NOT ILIKE '%ETRACS%'
+            -- Exclude very small/illiquid by name pattern
+            AND cp.short_name NOT ILIKE '%Cayman%'
+            AND cp.short_name NOT ILIKE '%Offshore%'
+            -- Exclude test/placeholder symbols
+            AND cp.short_name NOT ILIKE '%TEST%'
+            AND cp.short_name NOT ILIKE '%TEST ONLY%'
+        ORDER BY ms.symbol
     """)
     symbols = [row[0] for row in cur.fetchall()]
-    logger.info(f"✅ Found {len(symbols)} QUALITY stocks to score (after filtering SPACs, ETFs, penny stocks, and micro-caps)")
+    logger.info(f"✅ Found {len(symbols)} quality stocks with metrics (SPACs, ETFs, shell companies excluded)")
 
     df = pd.DataFrame(index=symbols)
     df.index.name = 'symbol'
@@ -149,8 +185,8 @@ def load_comprehensive_metrics(conn):
             debt_to_equity, current_ratio, quick_ratio,
             earnings_surprise_avg, eps_growth_stability, payout_ratio,
             earnings_beat_rate, consecutive_positive_quarters, surprise_consistency
-        FROM quality_metrics
-        WHERE date = (SELECT MAX(date) FROM quality_metrics)
+        FROM quality_metrics qm
+        WHERE date = (SELECT MAX(date) FROM quality_metrics WHERE symbol = qm.symbol)
     """)
     quality_data = cur.fetchall()
     if quality_data:
@@ -170,8 +206,8 @@ def load_comprehensive_metrics(conn):
             revenue_growth_3y_cagr, eps_growth_3y_cagr, operating_income_growth_yoy,
             roe_trend, sustainable_growth_rate, fcf_growth_yoy, ocf_growth_yoy,
             net_income_growth_yoy, revenue_growth_yoy
-        FROM growth_metrics
-        WHERE date = (SELECT MAX(date) FROM growth_metrics)
+        FROM growth_metrics gm
+        WHERE date = (SELECT MAX(date) FROM growth_metrics WHERE symbol = gm.symbol)
     """)
     growth_data = cur.fetchall()
     if growth_data:
@@ -188,8 +224,8 @@ def load_comprehensive_metrics(conn):
     cur.execute("""
         SELECT symbol, volatility_12m, downside_volatility, max_drawdown_52w,
                beta, volume_consistency, turnover_velocity, volatility_volume_ratio, daily_spread
-        FROM stability_metrics
-        WHERE date = (SELECT MAX(date) FROM stability_metrics)
+        FROM stability_metrics sm
+        WHERE date = (SELECT MAX(date) FROM stability_metrics WHERE symbol = sm.symbol)
     """)
     stability_data = cur.fetchall()
     if stability_data:
@@ -205,8 +241,8 @@ def load_comprehensive_metrics(conn):
     cur.execute("""
         SELECT symbol, current_price, momentum_3m, momentum_6m, momentum_12m,
                price_vs_sma_50, price_vs_sma_200, price_vs_52w_high
-        FROM momentum_metrics
-        WHERE date = (SELECT MAX(date) FROM momentum_metrics)
+        FROM momentum_metrics mm
+        WHERE date = (SELECT MAX(date) FROM momentum_metrics WHERE symbol = mm.symbol)
     """)
     momentum_data = cur.fetchall()
     if momentum_data:
@@ -222,8 +258,8 @@ def load_comprehensive_metrics(conn):
     cur.execute("""
         SELECT symbol, trailing_pe, forward_pe, price_to_book, price_to_sales_ttm,
                peg_ratio, ev_to_revenue, ev_to_ebitda, dividend_yield, payout_ratio
-        FROM value_metrics
-        WHERE date = (SELECT MAX(date) FROM value_metrics)
+        FROM value_metrics vm
+        WHERE date = (SELECT MAX(date) FROM value_metrics WHERE symbol = vm.symbol)
     """)
     value_data = cur.fetchall()
     if value_data:
@@ -239,8 +275,8 @@ def load_comprehensive_metrics(conn):
     cur.execute("""
         SELECT symbol, institutional_ownership_pct, insider_ownership_pct,
                short_ratio, short_interest_pct, short_percent_of_float
-        FROM positioning_metrics
-        WHERE date = (SELECT MAX(date) FROM positioning_metrics)
+        FROM positioning_metrics pm
+        WHERE date = (SELECT MAX(date) FROM positioning_metrics WHERE symbol = pm.symbol)
     """)
     positioning_data = cur.fetchall()
     if positioning_data:
