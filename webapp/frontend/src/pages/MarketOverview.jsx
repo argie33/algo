@@ -423,9 +423,9 @@ function MarketOverview() {
   };
 
   // Extract data from 3 SEPARATE market endpoints (BEFORE early returns per React hooks rules)
-  const techData = technicalsData?.data || {};
-  const sentData = sentimentData?.data || {};
-  const seasonData = seasonalityData?.data || {};
+  const techData = (technicalsData && typeof technicalsData === 'object' && technicalsData.data) ? technicalsData.data : {};
+  const sentData = (sentimentData && typeof sentimentData === 'object' && sentimentData.data) ? sentimentData.data : {};
+  const seasonData = (seasonalityData && typeof seasonalityData === 'object' && seasonalityData.data) ? seasonalityData.data : {};
 
   console.log("📊 Market data structure:", { techData, sentData, seasonData });
 
@@ -1111,7 +1111,7 @@ function MarketOverview() {
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} md={6}>
           <MarketExposure
-            marketData={{ data: { indices: indicesData?.data || [] } }}
+            marketData={{ data: { indices: Array.isArray(indicesData?.data) ? indicesData.data : [] } }}
             breadthData={{ data: breadth }}
             distributionDaysData={distributionDays}
           />
@@ -1125,9 +1125,9 @@ function MarketOverview() {
         </Typography>
         {indicesLoading ? (
           <LinearProgress />
-        ) : (indicesData?.data || []).length > 0 ? (
+        ) : (Array.isArray(indicesData?.data) ? indicesData.data : []).length > 0 ? (
           <Grid container spacing={2}>
-            {(indicesData?.data || []).map((index) => {
+            {(Array.isArray(indicesData?.data) ? indicesData.data : []).map((index) => {
               const pePercentile = index.pe?.percentile;
               const peColor = pePercentile ?
                 (pePercentile > 75 ? "error" :
@@ -1806,7 +1806,7 @@ function MarketOverview() {
                         <Box sx={{ height: 300, width: '100%' }}>
                           <ResponsiveContainer width="100%" height="100%">
                             <BarChart
-                              data={seasonality?.data?.presidentialCycle?.data || []}
+                              data={Array.isArray(seasonality?.data?.presidentialCycle?.data) ? seasonality.data.presidentialCycle.data : []}
                             >
                               <CartesianGrid strokeDasharray="3 3" />
                               <XAxis
@@ -1935,7 +1935,7 @@ function MarketOverview() {
                                 opacity={0.75}
                                 radius={[4, 4, 0, 0]}
                               >
-                                {(seasonality?.data?.monthlySeasonality || []).map((entry, index) => (
+                                {(Array.isArray(seasonality?.data?.monthlySeasonality) ? seasonality.data.monthlySeasonality : []).map((entry, index) => (
                                   <Cell
                                     key={`cell-${index}`}
                                     fill={(entry.avgReturn || 0) >= 0 ? "#22c55e" : "#ef4444"}
@@ -1959,7 +1959,7 @@ function MarketOverview() {
                         >
                           Day of Week Effects
                         </Typography>
-                        {(seasonality?.data?.dayOfWeekEffects || []).map(
+                        {(Array.isArray(seasonality?.data?.dayOfWeekEffects) ? seasonality.data.dayOfWeekEffects : []).map(
                           (day) => (
                             <Box
                               key={day.day}
@@ -2007,7 +2007,7 @@ function MarketOverview() {
                           Seasonal Anomalies & Effects
                         </Typography>
                         <Grid container spacing={2}>
-                          {(seasonality?.data?.seasonalAnomalies || []).map(
+                          {(Array.isArray(seasonality?.data?.seasonalAnomalies) ? seasonality.data.seasonalAnomalies : []).map(
                             (anomaly, index) => (
                               <Grid item xs={12} sm={6} md={3} key={index}>
                                 <Box
@@ -2078,7 +2078,7 @@ function MarketOverview() {
                               </TableRow>
                             </TableHead>
                             <TableBody>
-                              {(seasonality?.data?.holidayEffects || []).map(
+                              {(Array.isArray(seasonality?.data?.holidayEffects) ? seasonality.data.holidayEffects : []).map(
                                 (holiday, index) => {
                                   const effectValue = holiday.effect ? parseFloat(holiday.effect.replace("%", "")) : 0;
                                   return (
