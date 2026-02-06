@@ -10,14 +10,12 @@ import {
   Grid,
   LinearProgress,
   Paper,
-  Tab,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Tabs,
   Typography,
   Zoom,
   alpha,
@@ -250,17 +248,6 @@ const _MetricCard = ({
   );
 };
 
-const TabPanel = ({ children, value, index, ...other }) => (
-  <div
-    role="tabpanel"
-    hidden={value !== index}
-    id={`market-tabpanel-${index}`}
-    aria-labelledby={`market-tab-${index}`}
-    {...other}
-  >
-    {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
-  </div>
-);
 
 const _DataTable = ({ title, columns, data }) => (
   <Card>
@@ -338,7 +325,6 @@ const fetchMarketSeasonality = async () => {
 };
 
 function MarketOverview() {
-  const [tabValue, setTabValue] = useState(0);
   const [tabsReady, setTabsReady] = useState(false);
   const [_viewMode, _setViewMode] = useState("cards");
   const [_selectedSector, _setSelectedSector] = useState("all");
@@ -418,10 +404,6 @@ function MarketOverview() {
     refetchInterval: 120000,
   });
 
-  const handleTabChange = (event, newValue) => {
-    setTabValue(newValue);
-  };
-
   // Extract data from 3 SEPARATE market endpoints (BEFORE early returns per React hooks rules)
   const techData = (technicalsData && typeof technicalsData === 'object' && technicalsData.data) ? technicalsData.data : {};
   const sentData = (sentimentData && typeof sentimentData === 'object' && sentimentData.data) ? sentimentData.data : {};
@@ -429,14 +411,14 @@ function MarketOverview() {
 
   console.log("📊 Market data structure:", { techData, sentData, seasonData });
 
-  // Extract technicals data
-  const breadth = techData?.breadth || {};
-  const mcclellanRawData = techData?.mcclellan_oscillator || [];
+  // Extract technicals data with defensive checks
+  const breadth = (typeof techData?.breadth === 'object' && techData.breadth !== null) ? techData.breadth : {};
+  const mcclellanRawData = Array.isArray(techData?.mcclellan_oscillator) ? techData.mcclellan_oscillator : [];
   // API now returns actual distribution_days data keyed by symbol (^GSPC, ^IXIC, ^DJI)
-  const distributionDays = techData?.distribution_days || {};
-  const volatility = techData?.volatility || {};
-  const internals = techData?.internals || {};
-  const seasonality = seasonData || {};
+  const distributionDays = (typeof techData?.distribution_days === 'object' && techData.distribution_days !== null) ? techData.distribution_days : {};
+  const volatility = (typeof techData?.volatility === 'object' && techData.volatility !== null) ? techData.volatility : {};
+  const internals = (typeof techData?.internals === 'object' && techData.internals !== null) ? techData.internals : {};
+  const seasonality = (typeof seasonData === 'object' && seasonData !== null) ? seasonData : {};
 
   // Transform McClellan data to component format
   const mcclellanOscillator = useMemo(() => {
@@ -597,10 +579,10 @@ function MarketOverview() {
   const marketBreadth = breadth || {};
   // Note: Market cap not available in current API endpoints
 
-  // Sentiment history from 3 separate fields
-  const fearGreedHistory = sentData?.fear_greed || [];
-  const naaimHistory = sentData?.naaim || [];
-  const aaiiHistory = sentData?.aaii || [];
+  // Sentiment history from 3 separate fields with defensive checks
+  const fearGreedHistory = Array.isArray(sentData?.fear_greed) ? sentData.fear_greed : [];
+  const naaimHistory = Array.isArray(sentData?.naaim) ? sentData.naaim : [];
+  const aaiiHistory = Array.isArray(sentData?.aaii) ? sentData.aaii : [];
 
   console.log("✅ Data extraction:", {
     hasBreadth: !!breadth,
@@ -1517,58 +1499,21 @@ function MarketOverview() {
         )}
       </Box>
 
-      {/* Enhanced Tabs Section */}
-      <Box>
-        <Box
-          sx={{
-            borderBottom: 1,
-            borderColor: "divider",
-            bgcolor: "background.paper",
-          }}
-        >
-          <Tabs
-              value={tabValue}
-              onChange={handleTabChange}
-              aria-label="market data tabs"
-              variant="scrollable"
-              scrollButtons="auto"
-              sx={{
-                "& .MuiTab-root": {
-                  minHeight: 56,
-                  fontWeight: 600,
-                  fontSize: "0.875rem",
-                  textTransform: "none",
-                  "&.Mui-selected": {
-                    color: theme.palette.primary.main,
-                  },
-                },
-                "& .MuiTabs-indicator": {
-                  height: 3,
-                  borderRadius: "3px 3px 0 0",
-                  background: `linear-gradient(90deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                },
-              }}
-            >
-              <Tab
-                value={0}
-                label="Sentiment History"
-                icon={<Timeline />}
-                iconPosition="start"
-              />
-            </Tabs>
-        </Box>
-
-        {tabsReady && (
-          <>
-        <TabPanel value={tabValue} index={0}>
+      {/* Sentiment History Section */}
+      {tabsReady && (
+        <>
+        <Box sx={{ mb: 6 }}>
+          <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
+            Sentiment History
+          </Typography>
           {marketLoading ? (
             <LinearProgress />
           ) : (
             <SentimentHistoryPanel />
           )}
-        </TabPanel>
+        </Box>
 
-        {/* Seasonality Section - Moved from tab to main page */}
+        {/* Seasonality Section */}
         <Box sx={{ mt: 6 }}>
           <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
             Market Seasonality
@@ -2119,10 +2064,8 @@ function MarketOverview() {
             </Grid>
           )}
         </Box>
-
-          </>
-        )}
-      </Box>
+        </>
+      )}
     </Box>
   );
 }
