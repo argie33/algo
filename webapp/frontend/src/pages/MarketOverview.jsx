@@ -366,7 +366,7 @@ function MarketOverview() {
     error: technicalsError,
   } = useQuery({
     queryKey: ["market-technicals"],
-    queryFn: fetchMarketTechnicals,
+    queryFn: getMarketTechnicals,
     refetchInterval: 60000,
     retry: 2,
     staleTime: 0, // Always fresh
@@ -378,7 +378,7 @@ function MarketOverview() {
     error: sentimentError,
   } = useQuery({
     queryKey: ["market-sentiment-30d"],
-    queryFn: () => fetchMarketSentiment("30d"),
+    queryFn: () => getMarketSentimentData("30d"),
     refetchInterval: 60000,
     retry: 2,
     staleTime: 0, // Always fresh
@@ -390,7 +390,7 @@ function MarketOverview() {
     error: seasonalityError,
   } = useQuery({
     queryKey: ["market-seasonality"],
-    queryFn: fetchMarketSeasonality,
+    queryFn: getMarketSeasonalityData,
     refetchInterval: 60000,
     retry: 2,
     staleTime: 0, // Always fresh
@@ -421,15 +421,6 @@ function MarketOverview() {
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue);
   };
-
-  // Return loading state early if data not ready
-  if (marketLoading) {
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "400px" }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
 
   // Extract data from 3 SEPARATE market endpoints (BEFORE early returns per React hooks rules)
   const techData = technicalsData?.data || {};
@@ -557,6 +548,14 @@ function MarketOverview() {
   }, [breadth, internals]);
 
   // NOW we can do early returns (after all hooks have been called)
+  if (marketLoading) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "400px" }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   if (marketError) {
     return (
       <Box>
