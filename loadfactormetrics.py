@@ -61,9 +61,12 @@ logging.basicConfig(
 )
 
 # Suppress noisy logging from yfinance and urllib3 HTTP errors
-logging.getLogger("yfinance").setLevel(logging.WARNING)
-logging.getLogger("urllib3").setLevel(logging.WARNING)
-logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
+# These libraries log HTTP errors at ERROR level without context, making logs harder to read
+# Set to CRITICAL so only critical errors are shown (suppresses ERROR level logs)
+logging.getLogger("yfinance").setLevel(logging.CRITICAL)
+logging.getLogger("urllib3").setLevel(logging.CRITICAL)
+logging.getLogger("urllib3.connectionpool").setLevel(logging.CRITICAL)
+logging.getLogger("requests").setLevel(logging.CRITICAL)
 
 # Register numpy type adapters
 def adapt_numpy_int64(numpy_int64):
