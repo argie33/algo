@@ -207,7 +207,27 @@ def load_comprehensive_metrics(conn):
             roe_trend, sustainable_growth_rate, fcf_growth_yoy, ocf_growth_yoy,
             net_income_growth_yoy, revenue_growth_yoy
         FROM growth_metrics gm
-        WHERE date = (SELECT MAX(date) FROM growth_metrics WHERE symbol = gm.symbol)
+        WHERE (symbol, date) IN (
+            SELECT symbol, date FROM (
+                SELECT symbol, date,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY symbol
+                        ORDER BY
+                            (CASE WHEN revenue_growth_3y_cagr IS NOT NULL THEN 1 ELSE 0 END) +
+                            (CASE WHEN eps_growth_3y_cagr IS NOT NULL THEN 1 ELSE 0 END) +
+                            (CASE WHEN operating_income_growth_yoy IS NOT NULL THEN 1 ELSE 0 END) +
+                            (CASE WHEN roe_trend IS NOT NULL THEN 1 ELSE 0 END) +
+                            (CASE WHEN sustainable_growth_rate IS NOT NULL THEN 1 ELSE 0 END) +
+                            (CASE WHEN fcf_growth_yoy IS NOT NULL THEN 1 ELSE 0 END) +
+                            (CASE WHEN ocf_growth_yoy IS NOT NULL THEN 1 ELSE 0 END) +
+                            (CASE WHEN net_income_growth_yoy IS NOT NULL THEN 1 ELSE 0 END) +
+                            (CASE WHEN revenue_growth_yoy IS NOT NULL THEN 1 ELSE 0 END) DESC,
+                            date DESC
+                    ) as best_date_rank
+                FROM growth_metrics
+            ) ranked
+            WHERE best_date_rank = 1
+        )
     """)
     growth_data = cur.fetchall()
     if growth_data:

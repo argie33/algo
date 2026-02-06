@@ -185,7 +185,24 @@ router.get("/industries", async (req, res) => {
             p90: row.pe_p90 !== null ? parseFloat(row.pe_p90) : null,
             max: row.pe_max !== null ? parseFloat(row.pe_max) : null
           },
-          percentile: row.trailing_pe && row.pe_max && row.pe_min ? Math.round(((row.trailing_pe - row.pe_min) / (row.pe_max - row.pe_min)) * 100) : null
+          percentile: row.trailing_pe && row.pe_min !== null && row.pe_max ? (() => {
+            // Calculate actual percentile by comparing to historical distribution
+            const pe = parseFloat(row.trailing_pe);
+            const min = parseFloat(row.pe_min);
+            const p25 = parseFloat(row.pe_p25) || min;
+            const median = parseFloat(row.pe_median) || (p25 + parseFloat(row.pe_p75)) / 2;
+            const p75 = parseFloat(row.pe_p75) || median;
+            const p90 = parseFloat(row.pe_p90) || p75;
+            const max = parseFloat(row.pe_max);
+
+            if (pe <= min) return 0;
+            if (pe >= max) return 100;
+            if (pe <= p25) return Math.round((pe - min) / (p25 - min) * 25);
+            if (pe <= median) return Math.round(25 + (pe - p25) / (median - p25) * 25);
+            if (pe <= p75) return Math.round(50 + (pe - median) / (p75 - median) * 25);
+            if (pe <= p90) return Math.round(75 + (pe - p75) / (p90 - p75) * 15);
+            return Math.round(90 + (pe - p90) / (max - p90) * 10);
+          })() : null
         } : null
       }));
 
