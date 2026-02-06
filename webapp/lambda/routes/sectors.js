@@ -226,23 +226,38 @@ router.get("/sectors", async (req, res) => {
           p90: row.pe_p90 !== null ? parseFloat(row.pe_p90) : null,
           max: row.pe_max !== null ? parseFloat(row.pe_max) : null
         },
-        percentile: row.trailing_pe && row.pe_min !== null && row.pe_max ? (() => {
-          // Calculate actual percentile by comparing to historical distribution
+        percentile: row.trailing_pe !== null && row.pe_min !== null && row.pe_max !== null ? (() => {
           const pe = parseFloat(row.trailing_pe);
           const min = parseFloat(row.pe_min);
-          const p25 = parseFloat(row.pe_p25) || min;
-          const median = parseFloat(row.pe_median) || (p25 + parseFloat(row.pe_p75)) / 2;
-          const p75 = parseFloat(row.pe_p75) || median;
-          const p90 = parseFloat(row.pe_p90) || p75;
+          const p25 = parseFloat(row.pe_p25);
+          const median = parseFloat(row.pe_median);
+          const p75 = parseFloat(row.pe_p75);
+          const p90 = parseFloat(row.pe_p90);
           const max = parseFloat(row.pe_max);
+
+          // Validate all inputs are valid numbers
+          if (isNaN(pe) || isNaN(min) || isNaN(p25) || isNaN(median) || isNaN(p75) || isNaN(p90) || isNaN(max)) return null;
 
           if (pe <= min) return 0;
           if (pe >= max) return 100;
-          if (pe <= p25) return Math.round((pe - min) / (p25 - min) * 25);
-          if (pe <= median) return Math.round(25 + (pe - p25) / (median - p25) * 25);
-          if (pe <= p75) return Math.round(50 + (pe - median) / (p75 - median) * 25);
-          if (pe <= p90) return Math.round(75 + (pe - p75) / (p90 - p75) * 15);
-          return Math.round(90 + (pe - p90) / (max - p90) * 10);
+
+          // Calculate percentile: determine which range pe falls into and interpolate
+          if (p25 > min && pe <= p25) {
+            return Math.round((pe - min) / (p25 - min) * 25);
+          }
+          if (median > p25 && pe <= median) {
+            return Math.round(25 + (pe - p25) / (median - p25) * 25);
+          }
+          if (p75 > median && pe <= p75) {
+            return Math.round(50 + (pe - median) / (p75 - median) * 25);
+          }
+          if (p90 > p75 && pe <= p90) {
+            return Math.round(75 + (pe - p75) / (p90 - p75) * 15);
+          }
+          if (max > p90 && pe > p90) {
+            return Math.round(90 + (pe - p90) / (max - p90) * 10);
+          }
+          return null;
         })() : null
       } : null
     }));
