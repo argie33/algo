@@ -60,6 +60,11 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 
+# Suppress noisy logging from yfinance and urllib3 HTTP errors
+logging.getLogger("yfinance").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
+
 # Register numpy type adapters
 def adapt_numpy_int64(numpy_int64):
     return psycopg2.extensions.AsIs(int(numpy_int64))
@@ -146,9 +151,22 @@ def get_yfinance_data_with_retry(symbol: str, max_retries: int = YFINANCE_MAX_RE
             return None
         except Exception as e:
             last_exception = e
+            error_type = type(e).__name__
+            error_msg = str(e)
+
+            # Identify specific error types for better logging
+            if "404" in error_msg or "404" in str(e):
+                logging.warning(f"{symbol}: HTTP 404 Not Found (symbol may not exist or be delisted)")
+            elif "429" in error_msg or "Rate limit" in error_msg:
+                logging.warning(f"{symbol}: HTTP 429 Rate Limit (yfinance API throttled)")
+            elif "Connection" in error_type or "Timeout" in error_type:
+                logging.debug(f"{symbol}: Connection error ({error_type})")
+            else:
+                logging.debug(f"{symbol}: {error_type}: {error_msg[:80]}")
+
             if attempt < max_retries - 1:
                 delay = YFINANCE_RETRY_DELAY * (2 ** attempt)  # Exponential backoff
-                logging.debug(f"{symbol}: Retry {attempt + 1}/{max_retries} after {delay}s (error: {type(e).__name__})")
+                logging.debug(f"{symbol}: Retry {attempt + 1}/{max_retries} after {delay}s")
                 time.sleep(delay)
             else:
                 logging.debug(f"{symbol}: Failed after {max_retries} retries")
