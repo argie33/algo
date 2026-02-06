@@ -412,6 +412,10 @@ def main():
     logger.info("Saving scores to database...")
     cur = conn.cursor()
 
+    # Save company names before clearing
+    cur.execute("SELECT symbol, company_name FROM stock_scores")
+    company_names = {row[0]: row[1] for row in cur.fetchall()}
+
     # Clear old scores first to ensure only filtered stocks remain
     cur.execute("TRUNCATE TABLE stock_scores")
     logger.info("Cleared old scores from database")
@@ -461,6 +465,15 @@ def main():
             conn.rollback()
 
     conn.commit()
+
+    # Restore company names that were saved
+    if company_names:
+        for symbol, name in company_names.items():
+            cur.execute("UPDATE stock_scores SET company_name = %s WHERE symbol = %s",
+                       (name, symbol))
+        conn.commit()
+        logger.info(f"Restored {len(company_names)} company names")
+
     cur.close()
     conn.close()
 
