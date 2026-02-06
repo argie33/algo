@@ -3172,6 +3172,19 @@ def main():
         cursor.close()
         conn.close()
 
+        # Calculate missing beta values from price_daily data
+        logging.info("Calculating missing beta values...")
+        try:
+            import subprocess
+            result = subprocess.run(['python3', 'calculate_missing_beta.py'],
+                                    capture_output=True, text=True, timeout=1800)
+            if result.returncode == 0:
+                logging.info("✅ Beta calculation completed")
+            else:
+                logging.warning(f"Beta calculation warning: {result.stderr[:200]}")
+        except Exception as beta_err:
+            logging.warning(f"Could not run beta calculation: {beta_err}")
+
         logging.info(f"{SCRIPT_NAME} completed successfully")
 
     except Exception as e:
