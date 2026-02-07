@@ -73,7 +73,7 @@ const About = () => {
             {/* Right Image */}
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=600&fit=crop&auto=format&q=80"
+                src="gradient"
                 alt="Professional team collaborating on market research"
                 height={{ xs: '300px', md: '450px' }}
               />
@@ -85,38 +85,52 @@ const About = () => {
       {/* Our Journey Section */}
       <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: alpha(theme.palette.primary.main, 0.02) }}>
         <Container maxWidth="lg">
-          <Typography
-            variant="h3"
-            sx={{
-              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
-              fontWeight: 800,
-              mb: 3,
-              color: theme.palette.text.primary,
-            }}
-          >
-            Our Journey
-          </Typography>
-          <Typography
-            variant="body1"
-            sx={{
-              fontSize: '1.05rem',
-              color: theme.palette.text.secondary,
-              mb: 3,
-              lineHeight: 1.8,
-            }}
-          >
-            Bullseye Financial was founded by a team of finance and technology experts who saw an opportunity to improve how market research and analysis is delivered. Our founders combined expertise in financial markets and technology development to create a better platform for investor research.
-          </Typography>
-          <Typography
-            variant="body1"
-            sx={{
-              fontSize: '1.05rem',
-              color: theme.palette.text.secondary,
-              lineHeight: 1.8,
-            }}
-          >
-            We built Bullseye to provide accessible market research. 10+ years of historical market data. 6 research dimensions. Multiple analytical factors. All processed through AI algorithms. Professional-grade research accessible to different investor types.
-          </Typography>
+          <Grid container spacing={6} alignItems="center">
+            {/* Left Content */}
+            <Grid item xs={12} md={6}>
+              <Typography
+                variant="h3"
+                sx={{
+                  fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
+                  fontWeight: 800,
+                  mb: 3,
+                  color: theme.palette.text.primary,
+                }}
+              >
+                Our Journey
+              </Typography>
+              <Typography
+                variant="body1"
+                sx={{
+                  fontSize: '1.05rem',
+                  color: theme.palette.text.secondary,
+                  mb: 3,
+                  lineHeight: 1.8,
+                }}
+              >
+                Bullseye Financial was founded by a team of finance and technology experts who saw an opportunity to improve how market research and analysis is delivered. Our founders combined expertise in financial markets and technology development to create a better platform for investor research.
+              </Typography>
+              <Typography
+                variant="body1"
+                sx={{
+                  fontSize: '1.05rem',
+                  color: theme.palette.text.secondary,
+                  lineHeight: 1.8,
+                }}
+              >
+                We built Bullseye to provide accessible market research. 10+ years of historical market data. 6 research dimensions. Multiple analytical factors. All processed through AI algorithms. Professional-grade research accessible to different investor types.
+              </Typography>
+            </Grid>
+
+            {/* Right Image */}
+            <Grid item xs={12} md={6}>
+              <ImagePlaceholder
+                src="gradient"
+                alt="Analytics dashboard with market data and performance metrics"
+                height={{ xs: '300px', md: '450px' }}
+              />
+            </Grid>
+          </Grid>
         </Container>
       </Box>
 

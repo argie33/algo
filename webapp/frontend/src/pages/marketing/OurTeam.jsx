@@ -14,13 +14,13 @@ const OurTeam = () => {
       name: 'Erik A.',
       role: 'Co-CEO, CIO & CTO',
       bio: 'Visionary leader combining deep expertise in finance and information technology. With 15+ years in finance and software development, Erik leverages AI and cutting-edge machine learning to transform how investors analyze market data. Passionate about democratizing institutional-grade intelligence through innovative technology.',
-      image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=500&fit=crop',
+      image: 'placeholder',
     },
     {
       name: 'Amanda',
       role: 'Co-CEO, COO and CFO',
       bio: 'Strategic operations and investor relations leader in finance strategy with 20 years of experience in the industry. Dedicated to scaling Bullseye and expanding market reach, Amanda oversees business development, partnerships, and operational excellence while building strong relationships with institutional investors and stakeholders. Her focus is ensuring the platform meets the evolving needs of both individual and institutional investors.',
-      image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&h=500&fit=crop',
+      image: 'placeholder',
     },
   ];
 

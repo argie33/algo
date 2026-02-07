@@ -48,28 +48,28 @@ const Firm = () => {
       name: 'Sarah Chen',
       role: 'Founder & CEO',
       bio: 'Financial market specialist with deep experience in equity analysis, market trends, and investment strategy. Combines traditional financial knowledge with innovative analytical approaches.',
-      image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop',
+      image: 'placeholder',
       expertise: 'Market Analysis, Investment Strategy, Financial Research',
     },
     {
       name: 'Michael Rodriguez',
       role: 'Chief Research Officer',
       bio: 'Technology expert specializing in data analysis and system architecture. Focuses on translating market insights into actionable intelligence through advanced analytics and AI.',
-      image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop',
+      image: 'placeholder',
       expertise: 'Data Science, AI Development, Technical Architecture',
     },
     {
       name: 'Dr. James Park',
       role: 'VP of AI & Engineering',
       bio: 'Software engineer and systems architect dedicated to building intuitive, robust platforms that deliver market intelligence to investors. Expert in financial technology development.',
-      image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=400&fit=crop',
+      image: 'placeholder',
       expertise: 'Software Engineering, Platform Development, Technology',
     },
     {
       name: 'Emily Thompson',
       role: 'Chief Operations Officer',
       bio: 'Business operations specialist focused on scaling the platform and ensuring clients get maximum value from our research and analytics tools.',
-      image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop',
+      image: 'placeholder',
       expertise: 'Operations, Client Success, Business Strategy',
     },
   ];
@@ -332,7 +332,7 @@ const Firm = () => {
           {/* Left: Image */}
           <Box
             sx={{
-              backgroundImage: 'url(https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=500&fit=crop)',
+              backgroundImage: 'none',
               backgroundSize: 'cover',
               backgroundPosition: 'center',
               minHeight: { xs: '300px', md: '500px' },
@@ -821,7 +821,7 @@ const Firm = () => {
         title="Partner With a Research-Driven Firm"
         subtitle="Access institutional-grade market intelligence and research-backed advisory solutions."
         primaryCTA={{ label: 'Get Started', href: '/contact' }}
-        secondaryCTA={{ label: 'View Services', href: '/services' }}
+        
       />
 
       {/* CTA */}

@@ -9,14 +9,10 @@ import CTAButtonGroup from '../../components/marketing/CTAButtonGroup';
 import CTASection from '../../components/marketing/CTASection';
 import CommunitySignup from '../../components/marketing/CommunitySignup';
 import {
-  TrendingUp as TrendingUpIcon,
   Event as EventIcon,
   Psychology as PsychologyIcon,
   Business as BusinessIcon,
-  Storage as StorageIcon,
   Analytics as AnalyticsIcon,
-  School as SchoolIcon,
-  Groups as GroupsIcon,
 } from '@mui/icons-material';
 
 const Home = () => {
@@ -67,41 +63,6 @@ const Home = () => {
     },
   ];
 
-  const clientSegments = [
-    {
-      segment: 'Institutional Investors',
-      description: 'Asset managers, hedge funds, and institutional advisors',
-      offerings: [
-        'Full research platform access',
-        'Quantitative stock scoring',
-        'Earnings analysis and calendar',
-        'API access for integration',
-      ],
-      icon: <GroupsIcon fontSize="large" />,
-    },
-    {
-      segment: 'Financial Advisors',
-      description: 'RIAs, wealth managers, and financial advisors',
-      offerings: [
-        'Research platform access',
-        'Stock screening and analysis',
-        'Portfolio monitoring tools',
-        'Market and sector research',
-      ],
-      icon: <SchoolIcon fontSize="large" />,
-    },
-    {
-      segment: 'Active Traders',
-      description: 'Individual investors and active traders',
-      offerings: [
-        'Stock analysis and scoring',
-        'Technical research tools',
-        'Earnings calendar and data',
-        'Sector rotation signals',
-      ],
-      icon: <TrendingUpIcon fontSize="large" />,
-    },
-  ];
 
   return (
     <MarketingLayout>
@@ -183,11 +144,28 @@ const Home = () => {
       {/* Compact Visual Section */}
       <Box sx={{ py: { xs: 4, md: 6 }, backgroundColor: theme.palette.background.default }}>
         <Container maxWidth="lg">
-          <ImagePlaceholder
-            src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=1200&h=400&fit=crop&auto=format&q=80"
-            alt="Team collaborating on financial research"
-            height={{ xs: '250px', md: '350px' }}
-          />
+          <Box
+            sx={{
+              height: { xs: '250px', md: '350px' },
+              background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.secondary.main, 0.08)} 100%)`,
+              border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+              borderRadius: '0px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+              position: 'relative',
+            }}
+          >
+            <Box sx={{
+              textAlign: 'center',
+              color: theme.palette.text.secondary,
+              fontSize: '1.1rem',
+              fontWeight: 500,
+            }}>
+              Team collaborating on financial research
+            </Box>
+          </Box>
         </Container>
       </Box>
 
@@ -308,148 +286,9 @@ const Home = () => {
             ))}
           </Grid>
 
-          <Box sx={{ textAlign: 'center', mt: 6 }}>
-            <Box
-              component="a"
-              href="/services"
-              sx={{
-                display: 'inline-block',
-                px: 4,
-                py: 1.75,
-                backgroundColor: theme.palette.primary.main,
-                color: '#fff',
-                textDecoration: 'none',
-                fontWeight: 600,
-                borderRadius: '6px',
-                transition: 'all 0.3s ease',
-                '&:hover': {
-                  boxShadow: `0 6px 20px ${alpha(theme.palette.primary.main, 0.4)}`,
-                  transform: 'translateY(-2px)',
-                },
-              }}
-            >
-              View More Services
-            </Box>
-          </Box>
         </Container>
       </Box>
 
-      {/* What Sets Us Apart Section */}
-      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: alpha(theme.palette.primary.main, 0.04) }}>
-        <Container maxWidth="lg">
-          <Typography
-            variant="h3"
-            sx={{
-              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
-              fontWeight: 800,
-              mb: 2,
-              textAlign: 'center',
-              color: theme.palette.text.primary,
-            }}
-          >
-            What Sets Our Research Apart
-          </Typography>
-          <Typography
-            sx={{
-              fontSize: '1.05rem',
-              color: theme.palette.text.secondary,
-              textAlign: 'center',
-              mb: 6,
-              maxWidth: '700px',
-              mx: 'auto',
-            }}
-          >
-            Independent research built on rigorous quantitative analysis and fundamental insights
-          </Typography>
-          <Grid container spacing={4}>
-            {[
-              {
-                number: '1',
-                title: 'Multi-Dimensional Analysis',
-                description: 'We combine fundamental analysis, technical research, and quantitative models to provide comprehensive stock coverage. Our approach integrates earnings data, valuation metrics, price action, and sector trends.',
-                image: 'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=800&h=600&fit=crop&auto=format&q=80',
-              },
-              {
-                number: '2',
-                title: 'Evidence-Based Methodology',
-                description: 'Every signal is backtested against 10+ years of market data. We validate our models against real market outcomes and continuously refine our research process based on performance.',
-                image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=600&fit=crop&auto=format&q=80',
-              },
-              {
-                number: '3',
-                title: 'Institutional-Grade Tools',
-                description: 'Access the same caliber of research tools used by professional investors. Our platform provides detailed analytics, stock screening, and portfolio monitoring for serious investors.',
-                image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=800&h=600&fit=crop&auto=format&q=80',
-              },
-              {
-                number: '4',
-                title: 'Independent & Transparent',
-                description: 'We publish independent research without investment banking conflicts. Our methodology is transparent, and we explain the factors driving our analysis and recommendations.',
-                image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=600&fit=crop&auto=format&q=80',
-              },
-            ].map((item, idx) => (
-              <Grid item xs={12} sm={6} md={3} key={idx}>
-                <Box
-                  sx={{
-                    backgroundColor: theme.palette.background.paper,
-                    border: `1px solid ${theme.palette.divider}`,
-                    borderRadius: '0px',
-                    transition: 'all 0.3s ease',
-                    overflow: 'hidden',
-                    height: '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    '&:hover': {
-                      borderColor: theme.palette.primary.main,
-                      boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
-                      transform: 'translateY(-4px)',
-                    },
-                  }}
-                >
-                  <ImagePlaceholder
-                    src={item.image}
-                    alt={item.title}
-                    height={{ xs: '200px', md: '200px' }}
-                  />
-                  <Box sx={{ p: 3, flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <Typography
-                      sx={{
-                        fontSize: '1.8rem',
-                        fontWeight: 800,
-                        color: theme.palette.primary.main,
-                        mb: 1,
-                      }}
-                    >
-                      {item.number}
-                    </Typography>
-                    <Typography
-                      variant="h6"
-                      sx={{
-                        fontWeight: 700,
-                        mb: 1.5,
-                        color: theme.palette.text.primary,
-                        fontSize: '1.15rem',
-                      }}
-                    >
-                      {item.title}
-                    </Typography>
-                    <Typography
-                      sx={{
-                        color: theme.palette.text.secondary,
-                        lineHeight: 1.6,
-                        fontSize: '0.95rem',
-                        flex: 1,
-                      }}
-                    >
-                      {item.description}
-                    </Typography>
-                  </Box>
-                </Box>
-              </Grid>
-            ))}
-          </Grid>
-        </Container>
-      </Box>
 
       {/* Core Research Capabilities */}
       <FeatureGrid
@@ -458,110 +297,6 @@ const Home = () => {
         features={keyFeatures}
         columns={{ xs: 1, sm: 2, md: 2, lg: 2 }}
       />
-
-      {/* Client Segmentation Section */}
-      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.default }}>
-        <Container maxWidth="lg">
-          <Typography
-            variant="h3"
-            sx={{
-              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
-              fontWeight: 800,
-              mb: 2,
-              textAlign: 'center',
-              color: theme.palette.text.primary,
-            }}
-          >
-            Research &amp; Advisory Solutions for Every Investor Type
-          </Typography>
-          <Typography
-            sx={{
-              fontSize: '1.05rem',
-              color: theme.palette.text.secondary,
-              textAlign: 'center',
-              mb: 6,
-              maxWidth: '800px',
-              mx: 'auto',
-            }}
-          >
-            Our research platform serves institutions, advisors, and individual investors with comprehensive equity analysis
-          </Typography>
-
-          <Grid container spacing={4}>
-            {clientSegments.map((client, idx) => (
-              <Grid item xs={12} md={4} key={idx}>
-                <Card
-                  sx={{
-                    height: '100%',
-                    border: `1px solid ${theme.palette.divider}`,
-                    backgroundColor: theme.palette.background.paper,
-                    borderRadius: '0px',
-                    transition: 'all 0.3s ease',
-                    '&:hover': {
-                      boxShadow: '0 6px 16px rgba(0,0,0,0.1)',
-                      transform: 'translateY(-4px)',
-                    },
-                  }}
-                >
-                  <CardContent sx={{ p: 4 }}>
-                    <Box sx={{ mb: 2, color: theme.palette.primary.main }}>
-                      {client.icon}
-                    </Box>
-                    <Typography
-                      variant="h6"
-                      sx={{
-                        fontWeight: 700,
-                        mb: 0.5,
-                        color: theme.palette.text.primary,
-                        fontSize: '1.25rem',
-                      }}
-                    >
-                      {client.segment}
-                    </Typography>
-                    <Typography
-                      sx={{
-                        color: theme.palette.text.secondary,
-                        mb: 2.5,
-                        fontSize: '0.95rem',
-                      }}
-                    >
-                      {client.description}
-                    </Typography>
-                    <Typography
-                      sx={{
-                        fontWeight: 600,
-                        color: theme.palette.text.primary,
-                        mb: 1.5,
-                        fontSize: '0.9rem',
-                        textTransform: 'uppercase',
-                        letterSpacing: 0.5,
-                      }}
-                    >
-                      Platform Access:
-                    </Typography>
-                    <Box component="ul" sx={{ pl: 2, m: 0 }}>
-                      {client.offerings.map((offering, oidx) => (
-                        <Typography
-                          component="li"
-                          key={oidx}
-                          sx={{
-                            color: theme.palette.text.secondary,
-                            fontSize: '0.9rem',
-                            mb: 1,
-                            lineHeight: 1.5,
-                          }}
-                        >
-                          {offering}
-                        </Typography>
-                      ))}
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
-        </Container>
-      </Box>
 
       {/* Latest Market Insights Section */}
       <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.paper }}>
@@ -818,9 +553,8 @@ const Home = () => {
       <CTASection
         variant="dark"
         title="Ready to Access Professional Research?"
-        subtitle="Get institutional-grade market research and advisory insights. Choose the solution that fits your needs."
+        subtitle="Get institutional-grade market research and advisory insights."
         primaryCTA={{ label: 'Launch Platform', link: '/app/market' }}
-        secondaryCTA={{ label: 'View Services', link: '/services' }}
       />
     </MarketingLayout>
   );

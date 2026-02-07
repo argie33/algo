@@ -14,7 +14,9 @@ const ImagePlaceholder = ({
   onError = null,
 }) => {
   const theme = useTheme();
-  const [imageLoaded, setImageLoaded] = useState(true);
+  // Use gradient for placeholder src or if src is empty
+  const isPlaceholder = !src || src === 'gradient';
+  const [imageLoaded, setImageLoaded] = useState(!isPlaceholder);
 
   const handleImageError = (e) => {
     console.warn(`⚠️ Image failed to load: ${src}`);
@@ -44,20 +46,22 @@ const ImagePlaceholder = ({
         position: 'relative',
       }}
     >
-      <Box
-        component="img"
-        src={src}
-        alt={alt}
-        onError={handleImageError}
-        onLoad={handleImageLoad}
-        sx={{
-          width: '100%',
-          height: '100%',
-          objectFit: 'cover',
-          objectPosition: 'center',
-          display: imageLoaded ? 'block' : 'none',
-        }}
-      />
+      {!isPlaceholder && (
+        <Box
+          component="img"
+          src={src}
+          alt={alt}
+          onError={handleImageError}
+          onLoad={handleImageLoad}
+          sx={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            objectPosition: 'center',
+            display: imageLoaded ? 'block' : 'none',
+          }}
+        />
+      )}
     </Box>
   );
 };
