@@ -137,8 +137,7 @@ router.get("/stocks", async (req, res) => {
       bsd.avg_volume_50d, bsd.volume_surge_pct,
       bsd.pivot_price, bsd.base_type,
       bsd.base_length_days,
-      bsd.breakout_quality, bsd.initial_stop, bsd.trailing_stop,
-      bsd.signal_type, bsd.signal_strength, bsd.bull_percentage, bsd.close_price
+      bsd.signal_type, bsd.close
     ` : `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
       bsd.signal_triggered_date,
@@ -146,8 +145,8 @@ router.get("/stocks", async (req, res) => {
       bsd.signal, bsd.buylevel, bsd.stoplevel, bsd.sell_level, bsd.inposition,
       NULL as target_price, NULL as current_price,
       bsd.market_stage, bsd.stage_number, bsd.stage_confidence, bsd.substage,
-      bsd.risk_reward_ratio, bsd.current_gain_pct, bsd.risk_pct,
-      bsd.position_size_recommendation, bsd.profit_target_8pct, bsd.profit_target_20pct, bsd.profit_target_25pct,
+      bsd.risk_reward_ratio, bsd.risk_pct,
+      bsd.position_size_recommendation, bsd.profit_target_20pct, bsd.profit_target_25pct,
       bsd.mansfield_rs, bsd.sata_score,
       bsd.rsi, bsd.adx, bsd.atr,
       bsd.sma_50, bsd.sma_200, bsd.ema_21,
@@ -272,12 +271,10 @@ router.get("/stocks", async (req, res) => {
 
       // Risk/reward
       risk_reward_ratio: row.risk_reward_ratio !== null ? parseFloat(row.risk_reward_ratio) : null,
-      current_gain_loss_pct: row.current_gain_pct !== null ? parseFloat(row.current_gain_pct) : null,
       risk_pct: row.risk_pct !== null ? parseFloat(row.risk_pct) : null,
       position_size_recommendation: row.position_size_recommendation !== null ? parseFloat(row.position_size_recommendation) : null,
 
       // Profit targets
-      profit_target_8pct: row.profit_target_8pct !== null ? parseFloat(row.profit_target_8pct) : null,
       profit_target_20pct: row.profit_target_20pct !== null ? parseFloat(row.profit_target_20pct) : null,
       profit_target_25pct: row.profit_target_25pct !== null ? parseFloat(row.profit_target_25pct) : null,
 
