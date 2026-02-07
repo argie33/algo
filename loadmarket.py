@@ -41,6 +41,7 @@ import pandas as pd
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from yfinance_helper import retry_with_backoff
+from lib.db import get_db_config, get_connection
 
 # Script configuration
 SCRIPT_NAME = "loadmarket.py"

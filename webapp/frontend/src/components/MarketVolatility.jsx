@@ -137,54 +137,6 @@ const MarketVolatility = ({ data, isLoading, error }) => {
           </Card>
         </Grid>
 
-        {/* Volatility Interpretation */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                What This Means
-              </Typography>
-
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <Box sx={{ p: 2, bgcolor: "grey.50", borderRadius: 1 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                    📊 Market Volatility
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Measures the rate of price changes across all stocks. Higher volatility indicates
-                    larger price swings and increased uncertainty.
-                  </Typography>
-                </Box>
-
-                <Box sx={{ p: 2, bgcolor: "grey.50", borderRadius: 1 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                    📈 Average Daily Change
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Average magnitude of daily price changes. Shows typical daily movement range
-                    across the market.
-                  </Typography>
-                </Box>
-
-                <Box sx={{ p: 2, bgcolor: "grey.50", borderRadius: 1 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                    ⚠️ Volatility Levels
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    • <strong>Low:</strong> &lt;8% - Calm market, low risk
-                    <br />
-                    • <strong>Normal:</strong> 8-15% - Typical conditions
-                    <br />
-                    • <strong>Elevated:</strong> 15-20% - Increased uncertainty
-                    <br />
-                    • <strong>High:</strong> &gt;20% - Significant volatility
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
         {/* Volatility Chart */}
         {chartData.length > 0 && (
           <Grid item xs={12}>

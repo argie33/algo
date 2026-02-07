@@ -18,7 +18,6 @@ import {
   TrendingUp,
   TrendingDown,
   ExpandMore,
-  ShowChart,
   BarChart,
 } from "@mui/icons-material";
 import {
@@ -28,11 +27,9 @@ import {
   YAxis,
   CartesianGrid,
   ResponsiveContainer,
-  PieChart,
-  Pie,
   Cell,
-  Legend,
   Tooltip,
+  Legend,
   LineChart,
   ComposedChart,
   Line,
@@ -46,6 +43,7 @@ import {
   getChangeColor,
 } from "../utils/formatters";
 import { formatXAxisDate } from "../utils/dateFormatters";
+import PETrendChart from "../components/PETrendChart";
 
 // Helper component for sector momentum chart
 // Displays Daily Strength chart with Moving Averages
@@ -252,6 +250,7 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
 
 const SectorAnalysis = () => {
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [performanceTimeframe, setPerformanceTimeframe] = useState("1d"); // 1d, 5d, 20d, ytd
 
   // Vibrant color palette for sectors & industries (no gray defaults - only 1 gray for unknowns)
   const vibrantColors = [
@@ -1171,48 +1170,48 @@ const SectorAnalysis = () => {
     return `${hours}h ago`;
   };
 
+  // Helper function to get performance value based on timeframe
+  const getPerformanceValue = (sector, timeframe) => {
+    switch(timeframe) {
+      case "1d":
+        return sector.current_perf_1d ?? sector.performance_1d;
+      case "5d":
+        return sector.current_perf_5d ?? sector.performance_5d;
+      case "20d":
+        return sector.current_perf_20d ?? sector.performance_20d;
+      case "ytd":
+        return sector.current_perf_ytd ?? sector.performance_ytd ?? sector.current_perf_1d ?? sector.performance_1d;
+      default:
+        return sector.current_perf_1d ?? sector.performance_1d;
+    }
+  };
+
   // Prepare chart data from rotation data with vibrant colors
   const chartData = (rotationData || [])
     .filter((s) => {
       const hasName = !!(s.sector_name || s.sector);
-      const hasPerf = (s.current_perf_1d ?? s.performance_1d) != null;
-      const perfIsNum = !isNaN(s.current_perf_1d ?? s.performance_1d);
+      const perfValue = getPerformanceValue(s, performanceTimeframe);
+      const hasPerf = perfValue != null;
+      const perfIsNum = !isNaN(perfValue);
       const passes = hasName && hasPerf && perfIsNum;
       if (!passes) {
-        console.log(`[CHART FILTER] Filtered out:`, { name: s.sector_name, perf: s.current_perf_1d, hasName, hasPerf, perfIsNum });
+        console.log(`[CHART FILTER] Filtered out:`, { name: s.sector_name, perf: perfValue, hasName, hasPerf, perfIsNum });
       }
       return passes;
     })
     .map((s, index) => {
       const sectorName = s.sector_name || s.sector;
+      const perfValue = getPerformanceValue(s, performanceTimeframe);
       return {
         name: sectorName.length > 15 ? sectorName.substring(0, 15) + "..." : sectorName,
         fullName: sectorName,
-        performance: parseFloat((s.current_perf_1d ?? s.performance_1d ?? 0).toFixed(2)),
+        performance: parseFloat((perfValue ?? 0).toFixed(2)),
         color: sectorColors[sectorName] || getVibrantColor(index),
       };
     })
     .sort((a, b) => b.performance - a.performance);
 
   console.log(`[CHART DATA] Final chart data points: ${chartData.length}`, chartData);
-
-  // Pie chart data - showing 1-day performance distribution (not market cap)
-  // Only sectors with actual performance data are included
-  const pieData = (rotationData || [])
-    .filter((s) => {
-      const sectorName = s.sector_name || s.sector;
-      const perf = s.current_perf_1d ?? s.performance_1d;
-      return sectorName && perf != null && !isNaN(perf);
-    })
-    .map((s, index) => {
-      const sectorName = s.sector_name || s.sector;
-      const perf = parseFloat((s.current_perf_1d ?? s.performance_1d).toFixed(2));
-      return {
-        name: sectorName,
-        value: perf, // Actual 1-day performance
-        color: sectorColors[sectorName] || getVibrantColor(index),
-      };
-    });
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -1243,94 +1242,75 @@ const SectorAnalysis = () => {
 
 
       {/* Performance Overview */}
-      <Grid container spacing={3} mb={4}>
-        <Grid item xs={12} md={8}>
-          <Card>
-            <CardContent>
-              <Typography
-                variant="h6"
-                gutterBottom
-                display="flex"
-                alignItems="center"
-                gap={1}
-              >
-                <BarChart color="primary" />
-                Sector Performance Today
-              </Typography>
-              <Box width="100%" height={400} sx={{ overflow: "hidden", position: "relative", display: "block" }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <RechartsBarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="name"
-                      angle={-45}
-                      textAnchor="end"
-                      height={80}
-                      interval={0}
-                    />
-                    <YAxis />
-                    <Tooltip
-                      formatter={(value) => [`${value}%`, "Performance"]}
-                    />
-                    <Bar
-                      dataKey="performance"
-                      fill={(entry) => entry.color}
-                      radius={[4, 4, 0, 0]}
-                    >
-                      {(chartData || []).map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Bar>
-                  </RechartsBarChart>
-                </ResponsiveContainer>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography
-                variant="h6"
-                gutterBottom
-                display="flex"
-                alignItems="center"
-                gap={1}
-              >
-                <ShowChart color="primary" />
-                Sector Performance Distribution (1D%)
-              </Typography>
-              <Box width="100%" height={400} sx={{ overflow: "hidden", position: "relative", display: "block" }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={120}
-                      paddingAngle={2}
-                      dataKey="value"
-                    >
-                      {(pieData || []).map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value) => [
-                        `${(value || 0).toFixed(2)}%`,
-                        "1-Day Return",
-                      ]}
-                    />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+      <Card sx={{ mb: 4 }}>
+        <CardContent>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+            <Typography
+              variant="h6"
+              display="flex"
+              alignItems="center"
+              gap={1}
+            >
+              <BarChart color="primary" />
+              Sector Performance
+            </Typography>
+            <Box display="flex" gap={1}>
+              {[
+                { value: "1d", label: "Daily" },
+                { value: "5d", label: "5D" },
+                { value: "20d", label: "Monthly" },
+              ].map((option) => (
+                <Box
+                  key={option.value}
+                  onClick={() => setPerformanceTimeframe(option.value)}
+                  sx={{
+                    px: 2,
+                    py: 0.5,
+                    cursor: "pointer",
+                    borderRadius: 1,
+                    backgroundColor: performanceTimeframe === option.value ? "primary.main" : "action.hover",
+                    color: performanceTimeframe === option.value ? "white" : "text.primary",
+                    fontWeight: performanceTimeframe === option.value ? 600 : 400,
+                    transition: "all 0.2s",
+                    "&:hover": {
+                      backgroundColor: performanceTimeframe === option.value ? "primary.dark" : "action.selected",
+                    },
+                  }}
+                >
+                  <Typography variant="caption">{option.label}</Typography>
+                </Box>
+              ))}
+            </Box>
+          </Box>
+          <Box width="100%" height={400} sx={{ overflow: "hidden", position: "relative", display: "block" }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <RechartsBarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="name"
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
+                  interval={0}
+                />
+                <YAxis />
+                <Tooltip
+                  formatter={(value) => [`${value}%`, "Performance"]}
+                />
+                <Bar
+                  dataKey="performance"
+                  fill={(entry) => entry.color}
+                  radius={[4, 4, 0, 0]}
+                >
+                  {(chartData || []).map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Bar>
+              </RechartsBarChart>
+            </ResponsiveContainer>
+          </Box>
+        </CardContent>
+      </Card>
 
       {/* Sector Rankings */}
       <Card sx={{ mb: 4 }}>
@@ -1561,6 +1541,9 @@ const SectorAnalysis = () => {
                             </Typography>
                           </Box>
                         </Box>
+
+                        {/* P/E Trend Chart */}
+                        <PETrendChart sectorName={sector.sector_name} />
 
                         {/* Ranking Trend Section */}
                         <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2 }}>

@@ -100,49 +100,6 @@ const MarketInternals = ({ data, isLoading, error }) => {
 
   return (
     <Box>
-      {/* Overextension Alert */}
-      <Grid item xs={12} sx={{ mb: 3 }}>
-        <Card
-          sx={{
-            background: `linear-gradient(135deg, ${getSignalColor(overextension_indicator.level)}22 0%, ${getSignalColor(overextension_indicator.level)}11 100%)`,
-            borderLeft: `4px solid ${getSignalColor(overextension_indicator.level)}`,
-          }}
-        >
-          <CardContent>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-              {getSignalIcon(overextension_indicator.level)}
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5 }}>
-                  {overextension_indicator.level} Market Condition
-                </Typography>
-                {overextension_indicator.signal && (
-                  <Typography variant="body2" color="text.secondary">
-                    {overextension_indicator.signal}
-                  </Typography>
-                )}
-                <Box sx={{ display: "flex", gap: 2, mt: 1 }}>
-                  <Chip
-                    label={`Breadth: ${overextension_indicator.breadth_score}%`}
-                    size="small"
-                    variant="outlined"
-                  />
-                  <Chip
-                    label={`MA200: ${overextension_indicator.ma200_score}%`}
-                    size="small"
-                    variant="outlined"
-                  />
-                  <Chip
-                    label={`Composite: ${overextension_indicator.composite_score}%`}
-                    size="small"
-                    color="primary"
-                  />
-                </Box>
-              </Box>
-            </Box>
-          </CardContent>
-        </Card>
-      </Grid>
-
       <Grid container spacing={3}>
         {/* Market Breadth Section */}
         <Grid item xs={12} md={6}>
@@ -476,63 +433,6 @@ const MarketInternals = ({ data, isLoading, error }) => {
           </Card>
         </Grid>
 
-        {/* Strong Moves */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                Strong Moves (5%+ moves)
-              </Typography>
-
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <Box
-                    sx={{
-                      p: 2,
-                      bgcolor: "success.light",
-                      borderRadius: 1,
-                      textAlign: "center",
-                    }}
-                  >
-                    <TrendingUp sx={{ color: "success.main", mb: 1 }} />
-                    <Typography variant="body2" color="success.contrastText">
-                      Strong Up
-                    </Typography>
-                    <Typography
-                      variant="h5"
-                      color="success.contrastText"
-                      sx={{ fontWeight: 600 }}
-                    >
-                      {market_breadth.strong_up}
-                    </Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={6}>
-                  <Box
-                    sx={{
-                      p: 2,
-                      bgcolor: "error.light",
-                      borderRadius: 1,
-                      textAlign: "center",
-                    }}
-                  >
-                    <TrendingDown sx={{ color: "error.main", mb: 1 }} />
-                    <Typography variant="body2" color="error.contrastText">
-                      Strong Down
-                    </Typography>
-                    <Typography
-                      variant="h5"
-                      color="error.contrastText"
-                      sx={{ fontWeight: 600 }}
-                    >
-                      {market_breadth.strong_down}
-                    </Typography>
-                  </Box>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-        </Grid>
       </Grid>
     </Box>
   );

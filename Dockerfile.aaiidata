@@ -21,6 +21,7 @@ RUN pip install --upgrade pip && \
         python-dateutil \
         openpyxl \
         xlrd \
+        python-dotenv \
     && python -c "import boto3; import psycopg2; import openpyxl; print('✓ Dependencies installed')"
 
 ENV PYTHONUNBUFFERED=1

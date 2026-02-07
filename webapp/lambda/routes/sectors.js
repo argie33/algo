@@ -226,7 +226,7 @@ router.get("/sectors", async (req, res) => {
           p90: row.pe_p90 !== null ? parseFloat(row.pe_p90) : null,
           max: row.pe_max !== null ? parseFloat(row.pe_max) : null
         },
-        percentile: row.trailing_pe !== null && row.pe_min !== null && row.pe_max !== null ? (() => {
+        percentile: row.trailing_pe && row.pe_min !== null && row.pe_max !== null && row.pe_p25 && row.pe_median && row.pe_p75 && row.pe_p90 ? (() => {
           const pe = parseFloat(row.trailing_pe);
           const min = parseFloat(row.pe_min);
           const p25 = parseFloat(row.pe_p25);
@@ -235,29 +235,17 @@ router.get("/sectors", async (req, res) => {
           const p90 = parseFloat(row.pe_p90);
           const max = parseFloat(row.pe_max);
 
-          // Validate all inputs are valid numbers
+          // Validate all are actual numbers
           if (isNaN(pe) || isNaN(min) || isNaN(p25) || isNaN(median) || isNaN(p75) || isNaN(p90) || isNaN(max)) return null;
 
+          // Calculate actual percentile by interpolating within the distribution
           if (pe <= min) return 0;
           if (pe >= max) return 100;
-
-          // Calculate percentile: determine which range pe falls into and interpolate
-          if (p25 > min && pe <= p25) {
-            return Math.round((pe - min) / (p25 - min) * 25);
-          }
-          if (median > p25 && pe <= median) {
-            return Math.round(25 + (pe - p25) / (median - p25) * 25);
-          }
-          if (p75 > median && pe <= p75) {
-            return Math.round(50 + (pe - median) / (p75 - median) * 25);
-          }
-          if (p90 > p75 && pe <= p90) {
-            return Math.round(75 + (pe - p75) / (p90 - p75) * 15);
-          }
-          if (max > p90 && pe > p90) {
-            return Math.round(90 + (pe - p90) / (max - p90) * 10);
-          }
-          return null;
+          if (pe <= p25) return Math.round((pe - min) / (p25 - min) * 25);
+          if (pe <= median) return Math.round(25 + (pe - p25) / (median - p25) * 25);
+          if (pe <= p75) return Math.round(50 + (pe - median) / (p75 - median) * 25);
+          if (pe <= p90) return Math.round(75 + (pe - p75) / (p90 - p75) * 15);
+          return Math.round(90 + (pe - p90) / (max - p90) * 10);
         })() : null
       } : null
     }));
@@ -287,6 +275,110 @@ router.get("/sectors", async (req, res) => {
     console.error('❌ Error in /api/sectors/sectors:', error.message);
     return res.status(500).json({
       error: "Request failed",
+      success: false
+    });
+  }
+});
+
+/**
+ * GET /sectors/trend/:sector
+ * Get sector ranking trend (momentum/valuation changes) over time
+ */
+router.get("/trend/:sectorName", async (req, res) => {
+  try {
+    const dbError = checkDatabaseAvailable(res);
+    if (dbError) return dbError;
+
+    const { sectorName } = req.params;
+    const { days = 90 } = req.query;
+    const daysNum = Math.min(parseInt(days), 365);
+
+    // Get historical ranking and momentum for the sector
+    const trendQuery = `
+      SELECT
+        DATE(date_recorded) as date,
+        current_rank as rank,
+        momentum_score as momentum,
+        trailing_pe,
+        pe_min,
+        pe_p25,
+        pe_median,
+        pe_p75,
+        pe_p90,
+        pe_max,
+        CASE
+          WHEN momentum_score > 20 THEN 'Strong Uptrend'
+          WHEN momentum_score > 10 THEN 'Uptrend'
+          WHEN momentum_score > -5 THEN 'Neutral'
+          WHEN momentum_score > -10 THEN 'Downtrend'
+          ELSE 'Strong Downtrend'
+        END as trend
+      FROM sector_ranking
+      WHERE LOWER(sector_name) = LOWER($1)
+        AND date_recorded >= CURRENT_DATE - INTERVAL '${daysNum} days'
+      ORDER BY date_recorded DESC
+      LIMIT 365
+    `;
+
+    const result = await query(trendQuery, [sectorName]);
+
+    if (!result?.rows || result.rows.length === 0) {
+      return res.status(404).json({
+        error: `No trend data found for sector: ${sectorName}`,
+        success: false
+      });
+    }
+
+    // Helper function to calculate PE percentile
+    const calculatePEPercentile = (pe, min, p25, median, p75, p90, max) => {
+      if (!pe || !min || !max || p25 === null || median === null || p75 === null || p90 === null) return null;
+
+      const peVal = parseFloat(pe);
+      const minVal = parseFloat(min);
+      const p25Val = parseFloat(p25);
+      const medianVal = parseFloat(median);
+      const p75Val = parseFloat(p75);
+      const p90Val = parseFloat(p90);
+      const maxVal = parseFloat(max);
+
+      if (isNaN(peVal) || isNaN(minVal) || isNaN(maxVal)) return null;
+
+      if (peVal <= minVal) return 0;
+      if (peVal >= maxVal) return 100;
+      if (peVal <= p25Val) return Math.round((peVal - minVal) / (p25Val - minVal) * 25);
+      if (peVal <= medianVal) return Math.round(25 + (peVal - p25Val) / (medianVal - p25Val) * 25);
+      if (peVal <= p75Val) return Math.round(50 + (peVal - medianVal) / (p75Val - medianVal) * 25);
+      if (peVal <= p90Val) return Math.round(75 + (peVal - p75Val) / (p90Val - p75Val) * 15);
+      return Math.round(90 + (peVal - p90Val) / (maxVal - p90Val) * 10);
+    };
+
+    const trendData = result.rows.reverse().map(row => ({
+      date: row.date,
+      rank: safeInt(row.rank),
+      momentum: safeFloat(row.momentum),
+      trend: row.trend,
+      trailing_pe: safeFloat(row.trailing_pe),
+      pe_percentile: calculatePEPercentile(
+        row.trailing_pe,
+        row.pe_min,
+        row.pe_p25,
+        row.pe_median,
+        row.pe_p75,
+        row.pe_p90,
+        row.pe_max
+      )
+    }));
+
+    return res.json({
+      sector: sectorName,
+      current: trendData[trendData.length - 1],
+      history: trendData,
+      success: true
+    });
+  } catch (error) {
+    console.error('❌ Error in /api/sectors/trend:', error.message);
+    return res.status(500).json({
+      error: "Failed to fetch trend data",
       success: false
     });
   }

@@ -112,7 +112,7 @@ def get_db_config():
                 "port": int(sec.get("port", 5432)),
                 "user": sec["username"],
                 "password": sec["password"],
-                "database": sec["dbname"]
+                "dbname": sec["dbname"]
             }
         except Exception as e:
             logging.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
@@ -124,7 +124,7 @@ def get_db_config():
         "port": int(os.environ.get("DB_PORT", 5432)),
         "user": os.environ.get("DB_USER", "stocks"),
         "password": os.environ.get("DB_PASSWORD", ""),
-        "database": os.environ.get("DB_NAME", "stocks")
+        "dbname": os.environ.get("DB_NAME", "stocks")
     }
 
 

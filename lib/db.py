@@ -12,49 +12,58 @@ from typing import Dict, Optional
 
 
 def get_db_config() -> Dict[str, any]:
-    """Get database configuration from AWS Secrets Manager.
+    """Get database configuration from AWS Secrets Manager or local environment.
 
-    REQUIRES AWS_REGION and DB_SECRET_ARN environment variables to be set.
-    No fallbacks - fails loudly if AWS is not configured.
+    Tries AWS first, then falls back to local environment variables for development.
 
     Returns:
         dict: Database connection config {host, port, user, password, dbname}
 
     Raises:
-        EnvironmentError: If AWS_REGION or DB_SECRET_ARN not set, or if Secrets Manager fails
+        EnvironmentError: If no configuration source is available
     """
     aws_region = os.environ.get("AWS_REGION")
     db_secret_arn = os.environ.get("DB_SECRET_ARN")
 
-    if not aws_region:
-        raise EnvironmentError(
-            "FATAL: AWS_REGION not set. Real data requires AWS configuration."
-        )
-    if not db_secret_arn:
-        raise EnvironmentError(
-            "FATAL: DB_SECRET_ARN not set. Real data requires AWS Secrets Manager configuration."
-        )
+    # Try AWS first if configured
+    if aws_region and db_secret_arn:
+        try:
+            secret_str = boto3.client("secretsmanager", region_name=aws_region).get_secret_value(
+                SecretId=db_secret_arn
+            )["SecretString"]
+            sec = json.loads(secret_str)
+            logging.info(f"✅ Loaded database credentials from AWS Secrets Manager: {db_secret_arn}")
+            return {
+                "host": sec["host"],
+                "port": int(sec.get("port", 5432)),
+                "user": sec["username"],
+                "password": sec["password"],
+                "dbname": sec["dbname"]
+            }
+        except Exception as e:
+            logging.error(f"AWS Secrets Manager failed: {e}")
 
-    try:
-        secret_str = boto3.client("secretsmanager", region_name=aws_region).get_secret_value(
-            SecretId=db_secret_arn
-        )["SecretString"]
-        sec = json.loads(secret_str)
-        logging.info(f"Loaded real database credentials from AWS Secrets Manager: {db_secret_arn}")
+    # Fallback to local environment variables for development
+    db_host = os.environ.get("DB_HOST") or os.environ.get("PGHOST") or "localhost"
+    db_port = os.environ.get("DB_PORT") or os.environ.get("PGPORT") or "5432"
+    db_user = os.environ.get("DB_USER") or os.environ.get("PGUSER") or "stocks"
+    db_password = os.environ.get("DB_PASSWORD") or os.environ.get("PGPASSWORD") or "stocks"
+    db_name = os.environ.get("DB_NAME") or os.environ.get("PGDATABASE") or "stocks"
+
+    if db_host and db_user and db_name:
+        logging.info(f"✅ Using local database: {db_user}@{db_host}/{db_name}")
         return {
-            "host": sec["host"],
-            "port": int(sec.get("port", 5432)),
-            "user": sec["username"],
-            "password": sec["password"],
-            "dbname": sec["dbname"]
+            "host": db_host,
+            "port": int(db_port),
+            "user": db_user,
+            "password": db_password,
+            "dbname": db_name
         }
-    except Exception as e:
-        raise EnvironmentError(
-            f"FATAL: Cannot load database credentials from AWS Secrets Manager ({db_secret_arn}). "
-            f"Error: {e.__class__.__name__}: {str(e)[:200]}\n"
-            f"Ensure AWS credentials are configured and Secrets Manager is accessible.\n"
-            f"Real data requires proper AWS setup - no fallbacks allowed."
-        )
+
+    raise EnvironmentError(
+        "No database configuration found. Set AWS_REGION + DB_SECRET_ARN for AWS, "
+        "or DB_HOST, DB_USER, DB_PASSWORD, DB_NAME for local development."
+    )
 
 
 def get_connection(cfg: Optional[Dict] = None):

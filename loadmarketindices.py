@@ -6,6 +6,7 @@ Loads historical and current price data for major US market indices:
 - S&P 500 (^GSPC)
 - NASDAQ Composite (^IXIC)
 - Dow Jones Industrial Average (^DJI)
+- Russell 2000 (^RUT)
 
 Data Source: yfinance
 """
@@ -34,7 +35,8 @@ logging.basicConfig(
 MARKET_INDICES = {
     '^GSPC': 'S&P 500',
     '^IXIC': 'NASDAQ Composite',
-    '^DJI': 'Dow Jones Industrial Average'
+    '^DJI': 'Dow Jones Industrial Average',
+    '^RUT': 'Russell 2000'
 }
 
 def get_db_config() -> Dict:

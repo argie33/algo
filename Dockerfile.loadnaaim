@@ -20,6 +20,7 @@ RUN pip install --upgrade pip && \
         requests \
         python-dateutil \
         beautifulsoup4 \
+        python-dotenv \
     && python -c "import boto3; import psycopg2; import beautifulsoup4; print('✓ Dependencies installed')"
 
 ENV PYTHONUNBUFFERED=1

@@ -246,12 +246,19 @@ def populate_sector_ranking(conn):
         # Single efficient query to calculate all sector rankings for all recent dates
         # Calculate momentum as weighted percentage return: sum(return% * market_cap) / sum(market_cap)
         insert_query = """
-        INSERT INTO sector_ranking (sector_name, date_recorded, current_rank, momentum_score)
+        INSERT INTO sector_ranking (sector_name, date_recorded, current_rank, momentum_score, trailing_pe, pe_min, pe_p25, pe_median, pe_p75, pe_p90, pe_max)
         SELECT
             t.sector,
             t.date,
             ROW_NUMBER() OVER (PARTITION BY t.date ORDER BY t.momentum DESC) as current_rank,
-            t.momentum
+            t.momentum,
+            t.trailing_pe,
+            t.pe_min,
+            t.pe_p25,
+            t.pe_median,
+            t.pe_p75,
+            t.pe_p90,
+            t.pe_max
         FROM (
             SELECT
                 pd.date,
@@ -259,16 +266,31 @@ def populate_sector_ranking(conn):
                 AVG(CASE
                     WHEN pd.open > 0 AND pd.close IS NOT NULL THEN ((pd.close - pd.open) / pd.open) * 100
                     ELSE NULL
-                END) as momentum
+                END) as momentum,
+                ROUND(AVG(CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END)::numeric, 2) as trailing_pe,
+                MIN(CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_min,
+                PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_p25,
+                PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_median,
+                PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_p75,
+                PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_p90,
+                MAX(CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_max
             FROM company_profile cp
             LEFT JOIN price_daily pd ON cp.ticker = pd.symbol AND pd.date >= NOW() - INTERVAL '3 years'
+            LEFT JOIN key_metrics km ON cp.ticker = km.ticker
             WHERE cp.sector IS NOT NULL AND pd.date IS NOT NULL AND pd.open > 0 AND pd.close IS NOT NULL
             GROUP BY pd.date, cp.sector
         ) t
         WHERE t.momentum IS NOT NULL
         ON CONFLICT(sector_name, date_recorded) DO UPDATE SET
             current_rank = EXCLUDED.current_rank,
-            momentum_score = EXCLUDED.momentum_score
+            momentum_score = EXCLUDED.momentum_score,
+            trailing_pe = EXCLUDED.trailing_pe,
+            pe_min = EXCLUDED.pe_min,
+            pe_p25 = EXCLUDED.pe_p25,
+            pe_median = EXCLUDED.pe_median,
+            pe_p75 = EXCLUDED.pe_p75,
+            pe_p90 = EXCLUDED.pe_p90,
+            pe_max = EXCLUDED.pe_max
         """
 
         cursor.execute(insert_query)

@@ -1801,7 +1801,7 @@ router.get("/indices", async (req, res) => {
     const latestDateQuery = `
       SELECT MAX(date) as latest_date
       FROM price_daily
-      WHERE symbol IN ('^GSPC', '^IXIC', '^DJI')
+      WHERE symbol IN ('^GSPC', '^IXIC', '^DJI', '^RUT')
         AND close IS NOT NULL
     `;
 
@@ -1827,35 +1827,51 @@ router.get("/indices", async (req, res) => {
         volume,
         date
       FROM price_daily
-      WHERE symbol IN ('^GSPC', '^IXIC', '^DJI')
+      WHERE symbol IN ('^GSPC', '^IXIC', '^DJI', '^RUT')
         AND date = $1
         AND close IS NOT NULL
         AND open IS NOT NULL
       ORDER BY symbol
     `;
 
-    // Get market-wide P/E data (from available stocks)
-    const spPEQuery = `
-      SELECT
-        AVG(trailing_pe) as avg_trailing_pe,
-        AVG(forward_pe) as avg_forward_pe,
-        PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY trailing_pe) as pe_25th,
-        PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY trailing_pe) as pe_50th,
-        PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY trailing_pe) as pe_75th,
-        PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY trailing_pe) as pe_90th,
-        MIN(trailing_pe) as pe_min,
-        MAX(trailing_pe) as pe_max
-      FROM key_metrics
-      WHERE trailing_pe > 0
-        AND trailing_pe < 200
-        AND forward_pe > 0
-        AND forward_pe < 200
-    `;
+    // Get price data first
+    const priceResult = await query(indicesQuery, [latestDate]);
 
-    const [priceResult, peResult] = await Promise.all([
-      query(indicesQuery, [latestDate]),
-      query(spPEQuery)
-    ]);
+    // Try to get P/E data if available
+    let peResult = null;
+    try {
+      // Check if index_metrics table exists first
+      const tableCheckQuery = `
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables
+          WHERE table_schema = 'public'
+          AND table_name = 'index_metrics'
+        );
+      `;
+      const tableCheckResult = await query(tableCheckQuery);
+
+      if (tableCheckResult?.rows?.[0]?.exists) {
+        const indexPEQuery = `
+          SELECT
+            symbol,
+            trailing_pe,
+            forward_pe,
+            price_to_book,
+            price_to_sales,
+            peg_ratio,
+            earnings_yield,
+            dividend_yield,
+            pe_percentile
+          FROM index_metrics
+          WHERE symbol IN ('^GSPC', '^IXIC', '^DJI', '^RUT')
+          ORDER BY symbol
+        `;
+        peResult = await query(indexPEQuery);
+      }
+    } catch (peError) {
+      console.warn("⚠️ Could not fetch P/E data:", peError.message);
+      // Continue without P/E data
+    }
 
     if (!priceResult?.rows || priceResult.rows.length === 0) {
       console.warn(`⚠️ No index price data found for ${latestDate}`);
@@ -1869,10 +1885,17 @@ router.get("/indices", async (req, res) => {
     const indexNames = {
       '^GSPC': 'S&P 500',
       '^IXIC': 'NASDAQ Composite',
-      '^DJI': 'Dow Jones Industrial Average'
+      '^DJI': 'Dow Jones Industrial Average',
+      '^RUT': 'Russell 2000'
     };
 
-    const peData = peResult?.rows?.[0] || {};
+    // Create a map of index P/E data for quick lookup
+    const peDataMap = {};
+    if (peResult?.rows) {
+      peResult.rows.forEach(row => {
+        peDataMap[row.symbol] = row;
+      });
+    }
 
     const indices = priceResult.rows.map((row) => {
       const baseData = {
@@ -1885,33 +1908,30 @@ router.get("/indices", async (req, res) => {
         date: row.date
       };
 
-      // Add P/E data for S&P 500
-      if (row.symbol === '^GSPC' && peData.avg_trailing_pe) {
+      // Add P/E data for all indices if available
+      const indexPE = peDataMap[row.symbol];
+      if (indexPE && indexPE.trailing_pe) {
         baseData.pe = {
-          trailing: safeFixed(peData.avg_trailing_pe, 2),
-          forward: safeFixed(peData.avg_forward_pe, 2),
-          historical: {
-            min: safeFixed(peData.pe_min, 2),
-            p25: safeFixed(peData.pe_25th, 2),
-            median: safeFixed(peData.pe_50th, 2),
-            p75: safeFixed(peData.pe_75th, 2),
-            p90: safeFixed(peData.pe_90th, 2),
-            max: safeFixed(peData.pe_max, 2)
-          },
-          percentile: peData.avg_trailing_pe && peData.pe_90th
-            ? Math.round((peData.avg_trailing_pe - peData.pe_min) / (peData.pe_max - peData.pe_min) * 100)
-            : null
+          trailing: safeFixed(indexPE.trailing_pe, 2),
+          forward: safeFixed(indexPE.forward_pe, 2),
+          priceToBook: safeFixed(indexPE.price_to_book, 2),
+          priceToSales: safeFixed(indexPE.price_to_sales, 2),
+          pegRatio: safeFixed(indexPE.peg_ratio, 2),
+          earningsYield: safeFixed(indexPE.earnings_yield, 4),
+          dividendYield: safeFixed(indexPE.dividend_yield, 4),
+          percentile: indexPE.pe_percentile ? safeFixed(indexPE.pe_percentile, 2) : null
         };
       }
 
       return baseData;
     });
 
+    const hasAnyPE = Object.keys(peDataMap).length > 0;
     res.json({
       data: indices,
       count: indices.length,
-      peAvailable: !!peData.avg_trailing_pe,
-      message: "P/E data available for S&P 500. Other indices P/E coming soon.",
+      peAvailable: hasAnyPE,
+      message: hasAnyPE ? "P/E valuation data available for major indices" : "Index valuation data not yet available",
       success: true
     });
   } catch (error) {
@@ -2918,6 +2938,50 @@ router.get("/seasonality", async (req, res) => {
     console.error("❌ [Market API] Seasonality error:", error);
     return res.status(500).json({
       error: "Failed to fetch seasonality",
+      details: error.message,
+      success: false
+    });
+  }
+});
+
+// Fresh Market Data Endpoint - Direct from yfinance
+// Returns latest market data when database is unavailable
+router.get("/fresh-data", async (req, res) => {
+  try {
+    const fs = require("fs");
+    const path = require("path");
+
+    // Try to read latest fresh data from JSON file
+    const freshDataPath = "/tmp/latest_market_data.json";
+
+    if (fs.existsSync(freshDataPath)) {
+      const freshData = JSON.parse(fs.readFileSync(freshDataPath, "utf-8"));
+
+      // Format for frontend consumption
+      const formattedData = {
+        indices: Object.values(freshData.indices || {}),
+        sectors: Object.values(freshData.sectors || {}),
+        vix: freshData.vix,
+        sp500Metrics: freshData.sp500_metrics,
+        timestamp: freshData.timestamp,
+        source: "fresh-data",
+        message: "Real-time data from yfinance - generated just now",
+        success: true
+      };
+
+      return res.json(formattedData);
+    }
+
+    // If fresh data file doesn't exist, return message
+    return res.status(404).json({
+      error: "Fresh data not available",
+      message: "Run get_latest_market_data.py to generate fresh data",
+      success: false
+    });
+  } catch (error) {
+    console.error("Fresh data endpoint error:", error.message);
+    return res.status(500).json({
+      error: "Failed to fetch fresh data",
       details: error.message,
       success: false
     });

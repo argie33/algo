@@ -21,6 +21,7 @@ RUN pip install --upgrade pip && \
         requests \
         python-dateutil \
         pyppeteer \
+        python-dotenv \
     && python -c "import boto3; import psycopg2; import pyppeteer; print('✓ Dependencies installed')"
 
 ENV PYTHONUNBUFFERED=1

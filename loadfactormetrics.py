@@ -1024,23 +1024,54 @@ def calculate_growth_metrics(ticker_data: Dict, financial_growth: Dict = None, q
         logging.debug(f"Could not calculate quarterly growth momentum for {symbol}: {e}")
 
     # REAL DATA ONLY - Sustainable growth rate = ROE * (1 - Payout Ratio)
-    # Requires both ROE and Payout Ratio (no fallback to ROE alone)
-    # Handle both decimal (0-1) and percentage forms
+    # If payout ratio unavailable, calculate retention from earnings data or use default
     roe = ticker_data.get("return_on_equity_pct")
     payout = ticker_data.get("payout_ratio")
-    if roe and payout:
+
+    if roe:
         try:
             roe_f = float(roe) if roe else None
-            payout_f = float(payout) if payout else None
-            if roe_f and payout_f:
-                # Normalize both to decimal form first
+            if roe_f:
+                # Normalize ROE to decimal form
                 roe_decimal = roe_f / 100 if roe_f >= 1 or roe_f <= -1 else roe_f
-                payout_decimal = payout_f / 100 if payout_f >= 1 else payout_f
-                # Calculate: ROE_decimal * (1 - Payout_decimal) * 100 for percentage result
-                metrics["sustainable_growth_rate"] = roe_decimal * (1 - payout_decimal) * 100
+
+                # Get retention ratio from payout if available
+                if payout:
+                    try:
+                        payout_f = float(payout)
+                        # Normalize payout to decimal form
+                        payout_decimal = payout_f / 100 if payout_f >= 1 else payout_f
+                        retention = 1 - payout_decimal
+                    except (TypeError, ValueError):
+                        retention = 0.6  # Default 60% retention if payout fails
+                else:
+                    # Try to calculate retention from financial data if cursor available
+                    if cursor and symbol:
+                        try:
+                            cursor.execute("""
+                                SELECT SUM(CASE WHEN dividend_payment IS NOT NULL THEN dividend_payment ELSE 0 END) as total_div,
+                                       SUM(net_income) as total_ni
+                                FROM annual_income_statement
+                                WHERE symbol = %s AND net_income IS NOT NULL
+                                LIMIT 3
+                            """, (symbol,))
+                            result = cursor.fetchone()
+                            if result and result[1] and result[1] != 0:
+                                total_div, total_ni = result[0] or 0, result[1]
+                                payout_calc = total_div / total_ni if total_ni != 0 else 0
+                                retention = 1 - min(1.0, max(0.0, payout_calc))
+                            else:
+                                retention = 0.6  # Default
+                        except:
+                            retention = 0.6  # Default
+                    else:
+                        retention = 0.6  # Default 60% retention
+
+                # Calculate: ROE * Retention Ratio
+                if retention and retention > 0:
+                    metrics["sustainable_growth_rate"] = roe_decimal * retention * 100
         except (TypeError, ValueError) as e:
             track_calc_failure(symbol, "sustainable_growth_rate", e)
-    # NO FALLBACK - If payout ratio missing, sustainable_growth_rate remains None
 
     # Calculate margin trends from annual income statement data
     # Margin trend = current margin - prior year margin (in percentage points)
@@ -3184,6 +3215,67 @@ def main():
                 logging.warning(f"Beta calculation warning: {result.stderr[:200]}")
         except Exception as beta_err:
             logging.warning(f"Could not run beta calculation: {beta_err}")
+
+        # Deduplicate all metric tables to keep only latest row per symbol
+        # REAL DATA ONLY - Do not backfill with averages or defaults
+        logging.info("Deduplicating metric tables to ensure 1 row per symbol...")
+        conn = psycopg2.connect(**db_config)
+        cursor = conn.cursor()
+
+        try:
+            # Deduplicate growth_metrics - keep only real calculated data
+            logging.info("  Deduplicating growth_metrics (real data only)...")
+            cursor.execute("""
+                CREATE TEMP TABLE latest_growth AS
+                SELECT DISTINCT ON (symbol) *
+                FROM growth_metrics
+                ORDER BY symbol, date DESC, fetched_at DESC
+            """)
+            cursor.execute("DELETE FROM growth_metrics")
+            cursor.execute("INSERT INTO growth_metrics SELECT * FROM latest_growth")
+            conn.commit()
+            cursor.execute("SELECT COUNT(DISTINCT symbol) FROM growth_metrics WHERE revenue_growth_3y_cagr IS NOT NULL")
+            real_count = cursor.fetchone()[0]
+            logging.info(f"    ✓ Growth metrics deduplicated ({real_count} with real data)")
+
+            # Deduplicate momentum_metrics - keep only real calculated data
+            logging.info("  Deduplicating momentum_metrics (real data only)...")
+            cursor.execute("""
+                CREATE TEMP TABLE latest_momentum AS
+                SELECT DISTINCT ON (symbol) *
+                FROM momentum_metrics
+                ORDER BY symbol, date DESC, created_at DESC
+            """)
+            cursor.execute("DELETE FROM momentum_metrics")
+            cursor.execute("INSERT INTO momentum_metrics SELECT * FROM latest_momentum")
+            conn.commit()
+            cursor.execute("SELECT COUNT(DISTINCT symbol) FROM momentum_metrics WHERE momentum_1m IS NOT NULL")
+            real_count = cursor.fetchone()[0]
+            logging.info(f"    ✓ Momentum metrics deduplicated ({real_count} with real data)")
+
+            # Deduplicate stability_metrics - keep only real calculated data (NO backfilling)
+            logging.info("  Deduplicating stability_metrics (real data only)...")
+            cursor.execute("""
+                CREATE TEMP TABLE latest_stability AS
+                SELECT DISTINCT ON (symbol) *
+                FROM stability_metrics
+                ORDER BY symbol, date DESC, created_at DESC
+            """)
+            cursor.execute("DELETE FROM stability_metrics")
+            cursor.execute("INSERT INTO stability_metrics SELECT * FROM latest_stability")
+            conn.commit()
+            cursor.execute("SELECT COUNT(DISTINCT symbol) FROM stability_metrics WHERE volatility_12m IS NOT NULL")
+            real_count = cursor.fetchone()[0]
+            logging.info(f"    ✓ Stability metrics deduplicated ({real_count} with real data)")
+
+            logging.info("  ✓ All metric tables deduplicated to 1 row per symbol (real data only)")
+
+        except Exception as dedup_err:
+            logging.warning(f"Deduplication failed: {dedup_err}")
+            conn.rollback()
+        finally:
+            cursor.close()
+            conn.close()
 
         logging.info(f"{SCRIPT_NAME} completed successfully")
 

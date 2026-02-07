@@ -42,7 +42,6 @@ import HedgeHelper from "./pages/HedgeHelper";
 // Marketing pages - Only keep main pages and their dropdown pages
 import Home from "./pages/marketing/Home";
 import Firm from "./pages/marketing/Firm";
-import Services from "./pages/marketing/Services";
 import Contact from "./pages/marketing/Contact";
 import About from "./pages/marketing/About";
 import OurTeam from "./pages/marketing/OurTeam";
@@ -360,7 +359,6 @@ function App() {
           {/* Main Marketing Pages */}
           <Route path="/" element={<Home />} />
           <Route path="/firm" element={<Firm />} />
-          <Route path="/services" element={<Services />} />
           <Route path="/contact" element={<Contact />} />
 
           {/* Firm Dropdown Pages */}
