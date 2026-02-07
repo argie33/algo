@@ -10,12 +10,14 @@ import {
   Grid,
   LinearProgress,
   Paper,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
+  Tabs,
   Typography,
   Zoom,
   alpha,
@@ -248,6 +250,17 @@ const _MetricCard = ({
   );
 };
 
+const TabPanel = ({ children, value, index, ...other }) => (
+  <div
+    role="tabpanel"
+    hidden={value !== index}
+    id={`market-tabpanel-${index}`}
+    aria-labelledby={`market-tab-${index}`}
+    {...other}
+  >
+    {value === index && <Box sx={{ pt: 3 }}>{children}</Box>}
+  </div>
+);
 
 const _DataTable = ({ title, columns, data }) => (
   <Card>
@@ -325,6 +338,7 @@ const fetchMarketSeasonality = async () => {
 };
 
 function MarketOverview() {
+  const [tabValue, setTabValue] = useState(0);
   const [tabsReady, setTabsReady] = useState(false);
   const [_viewMode, _setViewMode] = useState("cards");
   const [_selectedSector, _setSelectedSector] = useState("all");
@@ -352,7 +366,7 @@ function MarketOverview() {
     error: technicalsError,
   } = useQuery({
     queryKey: ["market-technicals"],
-    queryFn: getMarketTechnicals,
+    queryFn: fetchMarketTechnicals,
     refetchInterval: 60000,
     retry: 2,
     staleTime: 0, // Always fresh
@@ -364,7 +378,7 @@ function MarketOverview() {
     error: sentimentError,
   } = useQuery({
     queryKey: ["market-sentiment-30d"],
-    queryFn: () => getMarketSentimentData("30d"),
+    queryFn: () => fetchMarketSentiment("30d"),
     refetchInterval: 60000,
     retry: 2,
     staleTime: 0, // Always fresh
@@ -376,7 +390,7 @@ function MarketOverview() {
     error: seasonalityError,
   } = useQuery({
     queryKey: ["market-seasonality"],
-    queryFn: getMarketSeasonalityData,
+    queryFn: fetchMarketSeasonality,
     refetchInterval: 60000,
     retry: 2,
     staleTime: 0, // Always fresh
@@ -404,21 +418,25 @@ function MarketOverview() {
     refetchInterval: 120000,
   });
 
+const handleTabChange = (event, newValue) => {
+    setTabValue(newValue);
+  };
+
   // Extract data from 3 SEPARATE market endpoints (BEFORE early returns per React hooks rules)
-  const techData = (technicalsData && typeof technicalsData === 'object' && technicalsData.data) ? technicalsData.data : {};
-  const sentData = (sentimentData && typeof sentimentData === 'object' && sentimentData.data) ? sentimentData.data : {};
-  const seasonData = (seasonalityData && typeof seasonalityData === 'object' && seasonalityData.data) ? seasonalityData.data : {};
+  const techData = technicalsData?.data || {};
+  const sentData = sentimentData?.data || {};
+  const seasonData = seasonalityData?.data || {};
 
   console.log("📊 Market data structure:", { techData, sentData, seasonData });
 
-  // Extract technicals data with defensive checks
-  const breadth = (typeof techData?.breadth === 'object' && techData.breadth !== null) ? techData.breadth : {};
-  const mcclellanRawData = Array.isArray(techData?.mcclellan_oscillator) ? techData.mcclellan_oscillator : [];
+  // Extract technicals data
+  const breadth = techData?.breadth || {};
+  const mcclellanRawData = techData?.mcclellan_oscillator || [];
   // API now returns actual distribution_days data keyed by symbol (^GSPC, ^IXIC, ^DJI)
-  const distributionDays = (typeof techData?.distribution_days === 'object' && techData.distribution_days !== null) ? techData.distribution_days : {};
-  const volatility = (typeof techData?.volatility === 'object' && techData.volatility !== null) ? techData.volatility : {};
-  const internals = (typeof techData?.internals === 'object' && techData.internals !== null) ? techData.internals : {};
-  const seasonality = (typeof seasonData === 'object' && seasonData !== null) ? seasonData : {};
+  const distributionDays = techData?.distribution_days || {};
+  const volatility = techData?.volatility || {};
+  const internals = techData?.internals || {};
+  const seasonality = seasonData || {};
 
   // Transform McClellan data to component format
   const mcclellanOscillator = useMemo(() => {
@@ -530,14 +548,6 @@ function MarketOverview() {
   }, [breadth, internals]);
 
   // NOW we can do early returns (after all hooks have been called)
-  if (marketLoading) {
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "400px" }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
   if (marketError) {
     return (
       <Box>
@@ -579,10 +589,10 @@ function MarketOverview() {
   const marketBreadth = breadth || {};
   // Note: Market cap not available in current API endpoints
 
-  // Sentiment history from 3 separate fields with defensive checks
-  const fearGreedHistory = Array.isArray(sentData?.fear_greed) ? sentData.fear_greed : [];
-  const naaimHistory = Array.isArray(sentData?.naaim) ? sentData.naaim : [];
-  const aaiiHistory = Array.isArray(sentData?.aaii) ? sentData.aaii : [];
+  // Sentiment history from 3 separate fields
+  const fearGreedHistory = sentData?.fear_greed || [];
+  const naaimHistory = sentData?.naaim || [];
+  const aaiiHistory = sentData?.aaii || [];
 
   console.log("✅ Data extraction:", {
     hasBreadth: !!breadth,
@@ -1093,97 +1103,12 @@ function MarketOverview() {
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} md={6}>
           <MarketExposure
-            marketData={{ data: { indices: Array.isArray(indicesData?.data) ? indicesData.data : [] } }}
+            marketData={{ data: { indices: indicesData?.data || [] } }}
             breadthData={{ data: breadth }}
             distributionDaysData={distributionDays}
           />
         </Grid>
       </Grid>
-
-      {/* Market Indices P/E Valuation */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
-          Market Indices Valuation
-        </Typography>
-        {indicesLoading ? (
-          <LinearProgress />
-        ) : (Array.isArray(indicesData?.data) ? indicesData.data : []).length > 0 ? (
-          <Grid container spacing={2}>
-            {(Array.isArray(indicesData?.data) ? indicesData.data : []).map((index) => {
-              const pePercentile = index.pe?.percentile;
-              const peColor = pePercentile ?
-                (pePercentile > 75 ? "error" :
-                 pePercentile > 50 ? "warning" :
-                 pePercentile < 25 ? "success" : "info")
-                : "grey";
-
-              return (
-                <Grid item xs={12} sm={6} md={4} key={index.symbol}>
-                  <Card sx={{
-                    border: `2px solid ${theme.palette[peColor].main}`,
-                    backgroundColor: alpha(theme.palette[peColor].main, 0.05)
-                  }}>
-                    <CardContent>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-                        {index.name}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>
-                        {index.symbol}
-                      </Typography>
-
-                      {index.pe ? (
-                        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                          <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-                            <Typography variant="body2" color="text.secondary">Trailing P/E:</Typography>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                              {index.pe.trailing ? index.pe.trailing.toFixed(2) : "—"}
-                            </Typography>
-                          </Box>
-                          <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-                            <Typography variant="body2" color="text.secondary">Forward P/E:</Typography>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                              {index.pe.forward ? index.pe.forward.toFixed(2) : "—"}
-                            </Typography>
-                          </Box>
-                          <Box sx={{ display: "flex", justifyContent: "space-between", pt: 1, borderTop: "1px solid", borderColor: "divider" }}>
-                            <Typography variant="body2" color="text.secondary">Percentile:</Typography>
-                            <Chip
-                              label={`${index.pe.percentile}th`}
-                              size="small"
-                              color={peColor === "grey" ? "default" : peColor}
-                              variant="filled"
-                            />
-                          </Box>
-                          <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", gap: 1, mt: 1 }}>
-                            <Box sx={{ flex: 1 }}>
-                              <Typography variant="caption" color="text.secondary" display="block">Min</Typography>
-                              <Typography variant="caption">{index.pe.historical?.min?.toFixed(2)}</Typography>
-                            </Box>
-                            <Box sx={{ flex: 1 }}>
-                              <Typography variant="caption" color="text.secondary" display="block">Median</Typography>
-                              <Typography variant="caption">{index.pe.historical?.median?.toFixed(2)}</Typography>
-                            </Box>
-                            <Box sx={{ flex: 1 }}>
-                              <Typography variant="caption" color="text.secondary" display="block">Max</Typography>
-                              <Typography variant="caption">{index.pe.historical?.max?.toFixed(2)}</Typography>
-                            </Box>
-                          </Box>
-                        </Box>
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">
-                          P/E data not available
-                        </Typography>
-                      )}
-                    </CardContent>
-                  </Card>
-                </Grid>
-              );
-            })}
-          </Grid>
-        ) : (
-          <Alert severity="info">No indices data available</Alert>
-        )}
-      </Box>
 
       {/* Top Movers Section - Not available in current API structure */}
       {/* To enable: Need to implement /api/market/top-movers or /api/stocks/gainers endpoint */}
@@ -1499,21 +1424,58 @@ function MarketOverview() {
         )}
       </Box>
 
-      {/* Sentiment History Section */}
-      {tabsReady && (
-        <>
-        <Box sx={{ mb: 6 }}>
-          <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
-            Sentiment History
-          </Typography>
+      {/* Enhanced Tabs Section */}
+      <Box>
+        <Box
+          sx={{
+            borderBottom: 1,
+            borderColor: "divider",
+            bgcolor: "background.paper",
+          }}
+        >
+          <Tabs
+              value={tabValue}
+              onChange={handleTabChange}
+              aria-label="market data tabs"
+              variant="scrollable"
+              scrollButtons="auto"
+              sx={{
+                "& .MuiTab-root": {
+                  minHeight: 56,
+                  fontWeight: 600,
+                  fontSize: "0.875rem",
+                  textTransform: "none",
+                  "&.Mui-selected": {
+                    color: theme.palette.primary.main,
+                  },
+                },
+                "& .MuiTabs-indicator": {
+                  height: 3,
+                  borderRadius: "3px 3px 0 0",
+                  background: `linear-gradient(90deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+                },
+              }}
+            >
+              <Tab
+                value={0}
+                label="Sentiment History"
+                icon={<Timeline />}
+                iconPosition="start"
+              />
+            </Tabs>
+        </Box>
+
+        {tabsReady && (
+          <>
+        <TabPanel value={tabValue} index={0}>
           {marketLoading ? (
             <LinearProgress />
           ) : (
             <SentimentHistoryPanel />
           )}
-        </Box>
+        </TabPanel>
 
-        {/* Seasonality Section */}
+        {/* Seasonality Section - Moved from tab to main page */}
         <Box sx={{ mt: 6 }}>
           <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
             Market Seasonality
@@ -1751,7 +1713,7 @@ function MarketOverview() {
                         <Box sx={{ height: 300, width: '100%' }}>
                           <ResponsiveContainer width="100%" height="100%">
                             <BarChart
-                              data={Array.isArray(seasonality?.data?.presidentialCycle?.data) ? seasonality.data.presidentialCycle.data : []}
+                              data={seasonality?.data?.presidentialCycle?.data || []}
                             >
                               <CartesianGrid strokeDasharray="3 3" />
                               <XAxis
@@ -1880,7 +1842,7 @@ function MarketOverview() {
                                 opacity={0.75}
                                 radius={[4, 4, 0, 0]}
                               >
-                                {(Array.isArray(seasonality?.data?.monthlySeasonality) ? seasonality.data.monthlySeasonality : []).map((entry, index) => (
+                                {(seasonality?.data?.monthlySeasonality || []).map((entry, index) => (
                                   <Cell
                                     key={`cell-${index}`}
                                     fill={(entry.avgReturn || 0) >= 0 ? "#22c55e" : "#ef4444"}
@@ -1904,7 +1866,7 @@ function MarketOverview() {
                         >
                           Day of Week Effects
                         </Typography>
-                        {(Array.isArray(seasonality?.data?.dayOfWeekEffects) ? seasonality.data.dayOfWeekEffects : []).map(
+                        {(seasonality?.data?.dayOfWeekEffects || []).map(
                           (day) => (
                             <Box
                               key={day.day}
@@ -1952,7 +1914,7 @@ function MarketOverview() {
                           Seasonal Anomalies & Effects
                         </Typography>
                         <Grid container spacing={2}>
-                          {(Array.isArray(seasonality?.data?.seasonalAnomalies) ? seasonality.data.seasonalAnomalies : []).map(
+                          {(seasonality?.data?.seasonalAnomalies || []).map(
                             (anomaly, index) => (
                               <Grid item xs={12} sm={6} md={3} key={index}>
                                 <Box
@@ -2023,7 +1985,7 @@ function MarketOverview() {
                               </TableRow>
                             </TableHead>
                             <TableBody>
-                              {(Array.isArray(seasonality?.data?.holidayEffects) ? seasonality.data.holidayEffects : []).map(
+                              {(seasonality?.data?.holidayEffects || []).map(
                                 (holiday, index) => {
                                   const effectValue = holiday.effect ? parseFloat(holiday.effect.replace("%", "")) : 0;
                                   return (
@@ -2064,8 +2026,10 @@ function MarketOverview() {
             </Grid>
           )}
         </Box>
-        </>
-      )}
+
+          </>
+        )}
+      </Box>
     </Box>
   );
 }
