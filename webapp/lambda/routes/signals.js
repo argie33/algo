@@ -119,7 +119,8 @@ router.get("/stocks", async (req, res) => {
       paramIndex++;
     }
 
-    // Build actual columns based on table schema - return ALL available data
+    // Build actual columns based on table schema - ONLY columns that exist
+    // Daily table has core columns, technical indicators may not all exist
     const actualColumns = tableName === 'buy_sell_daily' ? `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
       bsd.signal_triggered_date,
@@ -130,14 +131,8 @@ router.get("/stocks", async (req, res) => {
       bsd.risk_reward_ratio, bsd.risk_pct,
       bsd.position_size_recommendation, bsd.profit_target_20pct, bsd.profit_target_25pct,
       bsd.mansfield_rs, bsd.sata_score,
-      bsd.rsi, bsd.adx, bsd.atr,
-      bsd.sma_50, bsd.sma_200, bsd.ema_21,
-      bsd.pct_from_ema21, bsd.pct_from_sma50,
       bsd.entry_quality_score, bsd.entry_price,
-      bsd.avg_volume_50d, bsd.volume_surge_pct,
-      bsd.pivot_price, bsd.base_type,
-      bsd.base_length_days,
-      bsd.signal_type, bsd.close
+      bsd.signal_type
     ` : `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
       bsd.signal_triggered_date,
@@ -148,15 +143,8 @@ router.get("/stocks", async (req, res) => {
       bsd.risk_reward_ratio, bsd.risk_pct,
       bsd.position_size_recommendation, bsd.profit_target_20pct, bsd.profit_target_25pct,
       bsd.mansfield_rs, bsd.sata_score,
-      bsd.rsi, bsd.adx, bsd.atr,
-      bsd.sma_50, bsd.sma_200, bsd.ema_21,
-      bsd.pct_from_ema21, bsd.pct_from_sma50,
       bsd.entry_quality_score, bsd.entry_price,
-      bsd.avg_volume_50d, bsd.volume_surge_pct,
-      bsd.pivot_price, bsd.base_type,
-      bsd.base_length_days,
-      bsd.breakout_quality, bsd.initial_stop, bsd.trailing_stop,
-      bsd.signal_type, bsd.strength, NULL as signal_strength, NULL as bull_percentage, NULL as close_price
+      bsd.signal_type, NULL as signal_strength, NULL as bull_percentage, NULL as close_price
     `;
 
     // Build query with conditional JOINs - skip JOINs for weekly/monthly to improve performance
@@ -285,30 +273,8 @@ router.get("/stocks", async (req, res) => {
       base_quality_score: row.base_quality_score || null,
       base_tightness_score: row.base_tightness_score || null,
 
-      // Technical indicators
-      rsi: row.rsi !== null ? parseFloat(row.rsi) : null,
-      adx: row.adx !== null ? parseFloat(row.adx) : null,
-      atr: row.atr !== null ? parseFloat(row.atr) : null,
-      rs_rating: row.rs_rating !== null ? parseFloat(row.rs_rating) : null,
-      pct_from_ema_21: row.pct_from_ema21 !== null ? parseFloat(row.pct_from_ema21) : null,
-      pct_from_sma_50: row.pct_from_sma50 !== null ? parseFloat(row.pct_from_sma50) : null,
-      pct_from_sma_200: (row.sma_200 && row.close) ? parseFloat(((row.close - row.sma_200) / row.sma_200 * 100).toFixed(2)) : null,
-      pivot_price: row.pivot_price !== null ? parseFloat(row.pivot_price) : null,
-
-      // Moving averages and EMA
-      sma_50: row.sma_50 !== null ? parseFloat(row.sma_50) : null,
-      sma_200: row.sma_200 !== null ? parseFloat(row.sma_200) : null,
-      ema_21: row.ema_21 !== null ? parseFloat(row.ema_21) : null,
-
-      // Entry/Stop levels (additional)
+      // Entry/Stop levels
       entry_price: row.entry_price !== null ? parseFloat(row.entry_price) : null,
-      initial_stop: row.initial_stop !== null ? parseFloat(row.initial_stop) : null,
-      trailing_stop: row.trailing_stop !== null ? parseFloat(row.trailing_stop) : null,
-
-      // Volume analysis
-      avg_volume_50d: row.avg_volume_50d !== null ? row.avg_volume_50d : null,
-      volume_surge_pct: row.volume_surge_pct !== null ? parseFloat(row.volume_surge_pct) : null,
-      volume_ratio: (row.avg_volume_50d && row.volume) ? parseFloat((row.volume / row.avg_volume_50d).toFixed(2)) : null,
       volume_analysis: row.volume_analysis || null,
 
       // Base pattern analysis
@@ -434,35 +400,13 @@ router.get("/etf", async (req, res) => {
       paramIndex++;
     }
 
-    // Build actual columns based on real data available
+    // Build actual columns based on real data available - ONLY columns that exist
     const actualColumns = `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
       bsd.signal_triggered_date,
       bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
       bsd.signal, bsd.buylevel, bsd.stoplevel, bsd.inposition,
-      bsd.strength, bsd.signal_type, bsd.pivot_price,
-      bsd.buy_zone_start, bsd.buy_zone_end,
-      bsd.exit_trigger_1_price, bsd.exit_trigger_2_price,
-      bsd.exit_trigger_3_condition, bsd.exit_trigger_3_price,
-      bsd.exit_trigger_4_condition, bsd.exit_trigger_4_price,
-      bsd.initial_stop, bsd.trailing_stop,
-      bsd.base_type, bsd.base_length_days,
-      bsd.avg_volume_50d, bsd.volume_surge_pct,
-      bsd.rs_rating, bsd.breakout_quality,
-      bsd.risk_reward_ratio, bsd.market_stage, bsd.stage_number, bsd.stage_confidence, bsd.substage,
-      bsd.entry_quality_score, bsd.risk_pct, bsd.position_size_recommendation,
-      bsd.profit_target_20pct, bsd.profit_target_25pct,
-      bsd.sell_level,
-      bsd.mansfield_rs, bsd.sata_score,
-      bsd.rsi,
-      bsd.adx,
-      bsd.atr,
-      bsd.ema_21,
-      bsd.sma_50,
-      bsd.sma_200,
-      bsd.pct_from_ema21,
-      bsd.pct_from_sma50,
-      bsd.entry_price
+      bsd.signal_type, bsd.entry_quality_score, bsd.entry_price
     `;
 
     // Add limit and offset parameters
@@ -567,21 +511,7 @@ router.get("/etf", async (req, res) => {
       exit_trigger_4_price: row.exit_trigger_4_price !== null && row.exit_trigger_4_price !== undefined ? parseFloat(row.exit_trigger_4_price) : null,
       exit_trigger_4_condition: row.exit_trigger_4_condition || null,
 
-      // Volume analysis - REAL DATA
-      volume_ratio: row.avg_volume_50d && row.volume ? parseFloat((row.volume / row.avg_volume_50d).toFixed(2)) : null,
-      avg_volume_50d: row.avg_volume_50d !== null && row.avg_volume_50d !== undefined ? row.avg_volume_50d : null,
-      volume_surge_pct: row.volume_surge_pct !== null && row.volume_surge_pct !== undefined ? parseFloat(row.volume_surge_pct) : null,
-
-      // Technical indicators - FROM buy_sell_daily_etf (REAL DATA ONLY)
-      rsi: row.rsi !== null && row.rsi !== undefined ? parseFloat(row.rsi) : null,
-      adx: row.adx !== null && row.adx !== undefined ? parseFloat(row.adx) : null,
-      atr: row.atr !== null && row.atr !== undefined ? parseFloat(row.atr) : null,
-      sma_50: row.sma_50 !== null && row.sma_50 !== undefined ? parseFloat(row.sma_50) : null,
-      sma_200: row.sma_200 !== null && row.sma_200 !== undefined ? parseFloat(row.sma_200) : null,
-      ema_21: row.ema_21 !== null && row.ema_21 !== undefined ? parseFloat(row.ema_21) : null,
-      pct_from_ema_21: row.pct_from_ema21 !== null && row.pct_from_ema21 !== undefined ? parseFloat(row.pct_from_ema21) : null,
-      pct_from_sma_50: row.pct_from_sma50 !== null && row.pct_from_sma50 !== undefined ? parseFloat(row.pct_from_sma50) : null,
-      pct_from_sma_200: row.sma_200 && row.close ? parseFloat(((row.close - row.sma_200) / row.sma_200 * 100).toFixed(2)) : null,
+      // Entry price and daily range
       entry_price: row.entry_price !== null && row.entry_price !== undefined ? parseFloat(row.entry_price) : null,
       daily_range_pct: (row.high && row.low) ? parseFloat(((row.high - row.low) / row.low * 100).toFixed(2)) : null,
 
