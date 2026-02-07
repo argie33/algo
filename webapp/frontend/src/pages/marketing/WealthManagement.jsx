@@ -73,7 +73,7 @@ const WealthManagement = () => {
             </Grid>
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=800&h=500&fit=crop&auto=format&q=80"
+                src="gradient"
                 alt="Wealth Management Solutions"
                 height={{ xs: '300px', md: '450px' }}
               />
@@ -167,7 +167,7 @@ const WealthManagement = () => {
           title="Transform Your Wealth Management"
           subtitle="Access institutional-grade portfolio management tools designed for serious investors."
           primaryCTA={{ label: 'Become a Client', link: '/contact' }}
-          secondaryCTA={{ label: 'View Services', link: '/services' }}
+          
         />
       </Box>
     </MarketingLayout>

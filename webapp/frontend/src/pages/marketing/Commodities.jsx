@@ -73,7 +73,7 @@ const Commodities = () => {
             </Grid>
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="https://images.unsplash.com/photo-1642781855326-0efbe6f8df60?w=800&h=500&fit=crop"
+                src="gradient"
                 alt="Commodities Trading Analysis"
                 height={{ xs: '300px', md: '450px' }}
               />

@@ -109,7 +109,7 @@ const FAQs = () => {
           title="Still have questions?"
           subtitle="Contact our team directly for more detailed information about our research platform and services."
           primaryCTA={{ label: 'Contact Us', link: '/contact' }}
-          secondaryCTA={{ label: 'View Services', link: '/services' }}
+          
         />
       </Box>
     </MarketingLayout>

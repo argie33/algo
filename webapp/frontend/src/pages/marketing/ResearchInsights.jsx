@@ -4,7 +4,6 @@ import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
 import CTASection from '../../components/marketing/CTASection';
 import PromoBanner from '../../components/marketing/PromoBanner';
-import ImagePlaceholder from '../../components/marketing/ImagePlaceholder';
 import { Insights as InsightsIcon } from '@mui/icons-material';
 
 const ResearchInsights = () => {
@@ -64,11 +63,28 @@ const ResearchInsights = () => {
               </Typography>
             </Grid>
             <Grid item xs={12} md={6}>
-              <ImagePlaceholder
-                src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop&auto=format&q=80"
-                alt="Research Intelligence Dashboard"
-                height={{ xs: '300px', md: '450px' }}
-              />
+              <Box
+                sx={{
+                  height: { xs: '300px', md: '450px' },
+                  background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.secondary.main, 0.08)} 100%)`,
+                  border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+                  borderRadius: '0px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  overflow: 'hidden',
+                  position: 'relative',
+                }}
+              >
+                <Box sx={{
+                  textAlign: 'center',
+                  color: theme.palette.text.secondary,
+                  fontSize: '1.1rem',
+                  fontWeight: 500,
+                }}>
+                  Research Intelligence Dashboard
+                </Box>
+              </Box>
             </Grid>
           </Grid>
         </Container>
@@ -241,6 +257,127 @@ const ResearchInsights = () => {
         </Container>
       </Box>
 
+      {/* What Sets Our Research Apart Section */}
+      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: alpha(theme.palette.primary.main, 0.04) }}>
+        <Container maxWidth="lg">
+          <Typography
+            variant="h3"
+            sx={{
+              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
+              fontWeight: 800,
+              mb: 2,
+              textAlign: 'center',
+              color: theme.palette.text.primary,
+            }}
+          >
+            What Sets Our Research Apart
+          </Typography>
+          <Typography
+            sx={{
+              fontSize: '1.05rem',
+              color: theme.palette.text.secondary,
+              textAlign: 'center',
+              mb: 6,
+              maxWidth: '700px',
+              mx: 'auto',
+            }}
+          >
+            Independent research built on rigorous quantitative analysis and fundamental insights
+          </Typography>
+          <Grid container spacing={4}>
+            {[
+              {
+                number: '1',
+                title: 'Multi-Dimensional Analysis',
+                description: 'We combine fundamental analysis, technical research, and quantitative models to provide comprehensive stock coverage. Our approach integrates earnings data, valuation metrics, price action, and sector trends.',
+              },
+              {
+                number: '2',
+                title: 'Evidence-Based Methodology',
+                description: 'Every signal is backtested against 10+ years of market data. We validate our models against real market outcomes and continuously refine our research process based on performance.',
+              },
+              {
+                number: '3',
+                title: 'Institutional-Grade Tools',
+                description: 'Access the same caliber of research tools used by professional investors. Our platform provides detailed analytics, stock screening, and portfolio monitoring for serious investors.',
+              },
+              {
+                number: '4',
+                title: 'Independent & Transparent',
+                description: 'We publish independent research without investment banking conflicts. Our methodology is transparent, and we explain the factors driving our analysis and recommendations.',
+              },
+            ].map((item, idx) => (
+              <Grid item xs={12} sm={6} md={3} key={idx}>
+                <Box
+                  sx={{
+                    backgroundColor: theme.palette.background.paper,
+                    border: `1px solid ${theme.palette.divider}`,
+                    borderRadius: '0px',
+                    transition: 'all 0.3s ease',
+                    overflow: 'hidden',
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    '&:hover': {
+                      borderColor: theme.palette.primary.main,
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
+                      transform: 'translateY(-4px)',
+                    },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      height: { xs: '200px', md: '200px' },
+                      background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.15)} 0%, ${alpha(theme.palette.secondary.main, 0.1)} 100%)`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Typography sx={{ color: theme.palette.text.secondary, textAlign: 'center', px: 2, fontSize: '0.9rem' }}>
+                      {item.title}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ p: 3, flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <Typography
+                      sx={{
+                        fontSize: '1.8rem',
+                        fontWeight: 800,
+                        color: theme.palette.primary.main,
+                        mb: 1,
+                      }}
+                    >
+                      {item.number}
+                    </Typography>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        fontWeight: 700,
+                        mb: 1.5,
+                        color: theme.palette.text.primary,
+                        fontSize: '1.15rem',
+                      }}
+                    >
+                      {item.title}
+                    </Typography>
+                    <Typography
+                      sx={{
+                        color: theme.palette.text.secondary,
+                        lineHeight: 1.6,
+                        fontSize: '0.95rem',
+                        flex: 1,
+                      }}
+                    >
+                      {item.description}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Grid>
+            ))}
+          </Grid>
+        </Container>
+      </Box>
+
       <PromoBanner
         icon={<InsightsIcon sx={{ color: theme.palette.primary.main }} />}
         title="Ready for Professional-Grade Insights?"
@@ -254,8 +391,7 @@ const ResearchInsights = () => {
           variant="primary"
           title="Unlock Market Intelligence"
           subtitle="Access comprehensive research and insights to stay ahead of the market."
-          primaryCTA={{ label: 'Get Started', link: '/contact' }}
-          secondaryCTA={{ label: 'Learn More', link: '/services' }}
+          primaryCTA={{ label: 'Get Started', link: '/app/market' }}
         />
       </Box>
     </MarketingLayout>

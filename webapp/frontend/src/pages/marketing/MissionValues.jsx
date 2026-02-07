@@ -43,7 +43,7 @@ const MissionValues = () => {
                   mb: 2,
                 }}
               >
-                The best edge in investing isn't secrets. It's better analysis. Wall Street spends millions on research you can't access. We built Bullseye so you don't have to. Same institutional data. Same AI sophistication. Same competitive advantage - without the premium pricing or gatekeeping.
+                Superior investment outcomes require superior research. Bullseye Financial delivers institutional-grade equity research combining rigorous fundamental analysis, quantitative modeling, and real-time market intelligence. We serve institutional investors, asset managers, and professional advisors with the same analytical rigor and comprehensive coverage that define the research standards of leading investment firms.
               </Typography>
               <Typography
                 variant="body1"
@@ -53,14 +53,14 @@ const MissionValues = () => {
                   lineHeight: 1.8,
                 }}
               >
-                The game isn't rigged in your favor, but it doesn't have to be rigged against you. We combine 10+ years of market data, advanced machine learning, and transparent methodology to show you what institutional investors see. Compete on skill. On execution. On discipline. Not on access.
+                Our platform analyzes 5,300+ equities across six integrated research dimensions—valuation, earnings fundamentals, technical analysis, market sentiment, sector dynamics, and quantitative factors. By integrating over a decade of historical market data with real-time feeds from market data providers, we deliver the systematic, evidence-based research framework that professional investors require for informed capital allocation decisions.
               </Typography>
             </Grid>
 
             {/* Right Image */}
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=700&h=500&fit=crop"
+                src="gradient"
                 alt="Our Mission and Values"
                 height={{ xs: '300px', md: '450px' }}
               />
@@ -86,34 +86,34 @@ const MissionValues = () => {
         <Grid container spacing={4}>
           {[
             {
-              title: 'Innovation First',
+              title: 'Rigorous Methodology',
               description:
-                'We constantly push boundaries with cutting-edge AI and machine learning. Our research team works tirelessly to improve our models and discover new insights.',
+                'Every analytical model undergoes systematic validation against historical market data and real-world outcomes. We maintain institutional-grade standards for research quality, with documented methodologies and peer review processes that ensure accuracy and reproducibility.',
             },
             {
-              title: 'Data-Driven Truth',
+              title: 'Integrated Analysis',
               description:
-                'We follow the data, not narratives. Every indicator is rigorously tested. We prioritize accuracy over consensus and evidence over emotion.',
+                'Superior research requires multiple analytical perspectives. Our six-dimensional framework integrates fundamental research, valuation metrics, technical analysis, sentiment indicators, and quantitative modeling into a unified analytical framework for comprehensive investment insights.',
             },
             {
-              title: 'Transparency Always',
+              title: 'Institutional Transparency',
               description:
-                'Our users understand how our analysis works. We explain our methodology, data sources, and confidence levels. No black boxes, no hidden secrets.',
+                'Professional investors require transparency in research methodology and analytical confidence. We document data sources, explain model assumptions, disclose analytical limitations, and provide detailed confidence intervals for all published research.',
             },
             {
-              title: 'Excellence Daily',
+              title: 'Research Excellence',
               description:
-                'We measure success by our users\' success. Our platform is built by experienced traders and investors who understand what you need.',
+                'Our research standards reflect the institutional investment practices of leading global asset managers. We measure success by our clients\' investment outcomes and maintain the analytical discipline required for professional capital allocation.',
             },
             {
-              title: 'Accessibility & Inclusion',
+              title: 'Comprehensive Coverage',
               description:
-                'We believe brilliant financial tools should be accessible to everyone. We work to lower barriers and empower diverse investors.',
+                'Full-coverage equities research across all market segments and sectors. Our systematic approach ensures that both large-cap and micro-cap opportunities receive the same rigorous analytical attention, enabling truly unbiased security selection.',
             },
             {
-              title: 'Continuous Learning',
+              title: 'Continuous Model Development',
               description:
-                'Markets evolve, and so do we. Our AI models learn continuously, improving from every trade outcome and market condition.',
+                'Market regimes evolve, and our analytical models adapt accordingly. We continuously refine our factors, update our algorithms, and enhance our research frameworks to maintain analytical edge in dynamic market environments.',
             },
           ].map((value, idx) => (
             <Grid item xs={12} sm={6} key={idx}>
@@ -166,19 +166,19 @@ const MissionValues = () => {
 
       <PromoBanner
         icon={<CheckCircleIcon sx={{ color: theme.palette.primary.main }} />}
-        title="Live Our Values Every Day"
-        subtitle="Experience the Bullseye difference through our commitment to innovation and integrity"
-        primaryCTA={{ label: 'Try Platform', href: '/app/market' }}
-        secondaryCTA={{ label: 'Learn More', href: '/services' }}
+        title="Institutional-Grade Research Standards"
+        subtitle="Experience rigorous, comprehensive research methodology designed for professional investors"
+        primaryCTA={{ label: 'Explore Platform', href: '/app/market' }}
+        secondaryCTA={{ label: 'View Services', href: '/services' }}
       />
 
       <Box sx={{ mx: { xs: 2, md: 4 }, mb: 6 }}>
         <CTASection
           variant="primary"
-          title="Join Our Mission"
-          subtitle="Be part of a team revolutionizing how investors access market intelligence."
-          primaryCTA={{ label: 'Become a Client', link: '/contact' }}
-          secondaryCTA={{ label: 'Contact Us', link: '/contact' }}
+          title="Partner with Bullseye Financial"
+          subtitle="Access professional-grade equity research and comprehensive market analysis."
+          primaryCTA={{ label: 'Schedule Consultation', link: '/contact' }}
+          secondaryCTA={{ label: 'Learn About Access', link: '/services' }}
         />
       </Box>
     </MarketingLayout>

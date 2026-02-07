@@ -47,7 +47,7 @@ const Markets = () => {
       <Box sx={{ py: { xs: 4, md: 6 }, backgroundColor: alpha(theme.palette.primary.main, 0.02) }}>
         <Container maxWidth="lg">
           <ImagePlaceholder
-            src="https://images.unsplash.com/photo-1611432579699-484f7990f311?w=1200&h=500&fit=crop&auto=format&q=80"
+            src="gradient"
             alt="Market analysis and surveillance"
             height={{ xs: '250px', md: '400px' }}
           />
