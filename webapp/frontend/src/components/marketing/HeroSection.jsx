@@ -54,9 +54,7 @@ const HeroSection = () => {
                   letterSpacing: '-0.5px',
                 }}
               >
-                Research That Finds Better Opportunities
-                <br />
-                <span style={{ color: theme.palette.primary.main }}>AI-Powered Intelligence. Professional Results.</span>
+                Research Without the Guesswork
               </Typography>
 
               <Typography
@@ -70,10 +68,24 @@ const HeroSection = () => {
                   maxWidth: '95%',
                 }}
               >
-                Stop guessing on stock picks. Bullseye analyzes 5,300+ companies across multiple dimensions in real-time, identifying patterns and opportunities that human analysis consistently misses. Get the edge institutional investors rely on.
+                We're tired of watching Wall Street have all the advantages. That ends now.
               </Typography>
 
-              {/* CTA Buttons */}
+              <Typography
+                variant="body1"
+                sx={{
+                  fontSize: { xs: '0.95rem', sm: '1.05rem', md: '1.1rem' },
+                  color: theme.palette.text.secondary,
+                  mb: 4,
+                  fontWeight: 400,
+                  lineHeight: 1.7,
+                  maxWidth: '95%',
+                }}
+              >
+                Bullseye harnesses cutting-edge AI and advanced technology to deliver institutional-grade research completely free. Quantitative insights, fundamental analysis, technical research—everything the big guys pay millions for. We're using the same tools and tech that power Wall Street to level the playing field and give individual investors a real competitive edge.
+              </Typography>
+
+              {/* CTA Button */}
               <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', mb: 5 }}>
                 <Button
                   variant="contained"
@@ -92,28 +104,7 @@ const HeroSection = () => {
                     },
                   }}
                 >
-                  Explore AI Analysis
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="large"
-                  onClick={() => navigate('/services')}
-                  sx={{
-                    fontSize: '1.05rem',
-                    fontWeight: 600,
-                    py: 1.75,
-                    px: 4,
-                    borderRadius: '6px',
-                    textTransform: 'none',
-                    borderColor: alpha(theme.palette.primary.main, 0.5),
-                    color: theme.palette.primary.main,
-                    '&:hover': {
-                      backgroundColor: alpha(theme.palette.primary.main, 0.05),
-                      borderColor: theme.palette.primary.main,
-                    },
-                  }}
-                >
-                  View Capabilities
+                  Get Started
                 </Button>
               </Box>
             </Box>

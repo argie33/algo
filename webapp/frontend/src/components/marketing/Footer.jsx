@@ -12,7 +12,6 @@ const Footer = () => {
       title: 'Company',
       links: [
         { label: 'Firm', path: '/firm' },
-        { label: 'Services', path: '/services' },
         { label: 'Contact', path: '/contact' },
       ],
     },

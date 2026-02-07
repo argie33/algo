@@ -176,6 +176,35 @@ function EarningsCalendar() {
     refetchInterval: 300000,
   });
 
+  // Fetch past earnings calendar events (recently reported)
+  const {
+    data: pastCalendarData,
+    isLoading: pastLoading,
+    error: pastError,
+  } = useQuery({
+    queryKey: ["pastEarningsCalendar"],
+    queryFn: async () => {
+      const response = await fetch(`${API_BASE}/api/earnings/calendar?period=past&limit=50`);
+      if (!response.ok) {
+        const text = await response.text();
+        logger.error("Past calendar fetch failed", {
+          status: response.status,
+          text,
+        });
+        throw new Error(
+          `Failed to fetch past calendar: ${response.status} ${text}`
+        );
+      }
+      const json = await response.json();
+      if (!json.items) throw new Error('No past earnings calendar items returned');
+      return {
+        data: json.items,
+        success: json.success
+      };
+    },
+    refetchInterval: 300000,
+  });
+
   // Fetch all earnings data for symbol drill-down
   const {
     data: earningsData,
@@ -303,13 +332,13 @@ function EarningsCalendar() {
     return <ShowChart sx={{ fontSize: 16 }} />;
   };
 
-  // Group earnings by date - show all upcoming earnings grouped by date
-  const weeklyEvents = useMemo(() => {
+  // Group past earnings by date - show recently reported earnings grouped by date
+  const pastWeeklyEvents = useMemo(() => {
     const dateMap = new Map(); // Track formatted date -> { date object, events array }
 
     // Populate events into the dates
     // API response: { data: [...], success: true }
-    let events = weeklyCalendarData?.data || [];
+    let events = pastCalendarData?.data || [];
     if (!Array.isArray(events)) {
       events = [];
     }
@@ -357,7 +386,7 @@ function EarningsCalendar() {
     );
 
     return eventsByDate;
-  }, [weeklyCalendarData]);
+  }, [pastCalendarData]);
 
   // Format earnings data for table
   // API response: { data: [...], success: true }
@@ -1008,19 +1037,19 @@ function EarningsCalendar() {
             <Typography variant="h6">Recently Reported Earnings</Typography>
           </Box>
 
-          {weeklyError && (
+          {pastError && (
             <Alert severity="error" sx={{ mb: 2 }}>
-              Failed to load weekly calendar. Please try again later.
+              Failed to load past earnings calendar. Please try again later.
             </Alert>
           )}
 
-          {weeklyLoading ? (
+          {pastLoading ? (
             <Box display="flex" justifyContent="center" py={3}>
               <CircularProgress size={28} />
             </Box>
           ) : (
             <Grid container spacing={2}>
-              {Object.entries(weeklyEvents).map(([date, events]) => (
+              {Object.entries(pastWeeklyEvents).map(([date, events]) => (
                 <Grid item xs={12} sm={6} md={2.4} key={date}>
                   <Card variant="outlined" sx={{ height: "100%" }}>
                     <CardContent>

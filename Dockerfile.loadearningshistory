@@ -1,14 +1,6 @@
 FROM python:3.11-slim
-# FORCE RUN: 2026-01-30-091500 - EXECUTE EARNINGS LOADER NOW - infrastructure confirmed ready
 
 WORKDIR /app
-
-# Database credentials for ECS execution
-ENV DB_HOST=stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com
-ENV DB_USER=stocks
-ENV DB_PASSWORD=bed0elAn
-ENV DB_PORT=5432
-ENV DB_NAME=stocks
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -27,6 +19,7 @@ RUN pip install --upgrade pip && \
         yfinance \
         requests \
         python-dateutil \
+        python-dotenv \
     && python -c "import boto3; import psycopg2; print('✓ Dependencies installed')"
 
 ENV PYTHONUNBUFFERED=1

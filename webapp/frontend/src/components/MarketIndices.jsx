@@ -27,21 +27,82 @@ const MarketIndices = ({ data, isLoading, error }) => {
     );
   }
 
-  // Since /indices endpoint returns empty, show placeholder with major indices
+  // Display actual data from backend
+  if (data && Array.isArray(data) && data.length > 0) {
+    return (
+      <Grid container spacing={3}>
+        {data.map((index) => (
+          <Grid item xs={12} sm={6} md={4} key={index.symbol}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                  {index.name}
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 1 }}>
+                  <strong>Symbol:</strong> {index.symbol}
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 1 }}>
+                  <strong>Price:</strong> ${index.price}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    mb: 2,
+                    color: index.changePercent >= 0 ? "success.main" : "error.main"
+                  }}
+                >
+                  <strong>Change:</strong> {index.changePercent}% ({index.change >= 0 ? '+' : ''}{index.change})
+                </Typography>
+
+                {/* Valuation Metrics */}
+                {index.pe && (
+                  <Box sx={{ pt: 2, borderTop: 1, borderColor: "divider" }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                      Valuation Metrics
+                    </Typography>
+                    <Typography variant="caption" sx={{ display: "block", mb: 0.5 }}>
+                      <strong>Trailing P/E:</strong> {index.pe.trailing}
+                    </Typography>
+                    <Typography variant="caption" sx={{ display: "block", mb: 0.5 }}>
+                      <strong>Forward P/E:</strong> {index.pe.forward}
+                    </Typography>
+                    {index.pe.priceToBook && (
+                      <Typography variant="caption" sx={{ display: "block", mb: 0.5 }}>
+                        <strong>P/B Ratio:</strong> {index.pe.priceToBook}
+                      </Typography>
+                    )}
+                    {index.pe.priceToSales && (
+                      <Typography variant="caption" sx={{ display: "block", mb: 0.5 }}>
+                        <strong>P/S Ratio:</strong> {index.pe.priceToSales}
+                      </Typography>
+                    )}
+                    {index.pe.dividendYield && (
+                      <Typography variant="caption" sx={{ display: "block", fontSize: "0.75rem", color: "text.secondary" }}>
+                        <strong>Dividend Yield:</strong> {index.pe.dividendYield}%
+                      </Typography>
+                    )}
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+    );
+  }
+
+  // Fallback placeholder
   const majorIndices = [
     { symbol: "^GSPC", name: "S&P 500", sector: "Broad Market" },
     { symbol: "^IXIC", name: "NASDAQ Composite", sector: "Technology Heavy" },
     { symbol: "^DJI", name: "Dow Jones Industrial", sector: "Large Cap" },
-    { symbol: "^GSPTSE", name: "TSX Composite", sector: "Canadian" },
-    { symbol: "^FTSE", name: "FTSE 100", sector: "British" },
-    { symbol: "^N225", name: "Nikkei 225", sector: "Japanese" },
+    { symbol: "^RUT", name: "Russell 2000", sector: "Small Cap" },
   ];
 
   return (
     <Box>
       <Alert severity="info" sx={{ mb: 3 }}>
-        📊 <strong>Market Indices</strong> - Global equity indices tracking major market
-        movements. Data will display when real-time index prices are available.
+        📊 <strong>Market Indices</strong> - Real-time market index data
       </Alert>
 
       <Grid container spacing={3}>
@@ -90,116 +151,6 @@ const MarketIndices = ({ data, isLoading, error }) => {
                 </Card>
               </Grid>
             ))}
-          </Grid>
-        </Grid>
-
-        {/* Index Information */}
-        <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                What Are Market Indices?
-              </Typography>
-
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                <Box sx={{ p: 2, bgcolor: "grey.50", borderRadius: 1 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                    📈 S&P 500 (^GSPC)
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Tracks the 500 largest US companies. Considered the primary barometer of the
-                    US economy and market health.
-                  </Typography>
-                </Box>
-
-                <Box sx={{ p: 2, bgcolor: "grey.50", borderRadius: 1 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                    💻 NASDAQ Composite (^IXIC)
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Includes all stocks listed on NASDAQ exchange, heavily weighted toward
-                    technology and growth companies.
-                  </Typography>
-                </Box>
-
-                <Box sx={{ p: 2, bgcolor: "grey.50", borderRadius: 1 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                    🏢 Dow Jones Industrial (^DJI)
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Price-weighted index of 30 blue-chip US companies across diverse sectors.
-                    One of the oldest and most recognized indices.
-                  </Typography>
-                </Box>
-
-                <Box sx={{ p: 2, bgcolor: "grey.50", borderRadius: 1 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                    🌍 International Indices
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    TSX (Canada), FTSE (UK), and Nikkei (Japan) represent major market regions
-                    outside the United States.
-                  </Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Index Stats */}
-        <Grid item xs={12}>
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent sx={{ textAlign: "center" }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    Total Indices Tracked
-                  </Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                    {majorIndices.length}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent sx={{ textAlign: "center" }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    US Indices
-                  </Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                    3
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent sx={{ textAlign: "center" }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    International
-                  </Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 600 }}>
-                    3
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} sm={6} md={3}>
-              <Card>
-                <CardContent sx={{ textAlign: "center" }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    Update Frequency
-                  </Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                    Real-time
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
           </Grid>
         </Grid>
       </Grid>

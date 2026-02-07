@@ -1,0 +1,344 @@
+================================================================================
+                 FINANCIAL DATA LOAD PLAN - EXECUTIVE SUMMARY
+================================================================================
+
+Generated: February 7, 2026
+Database: PostgreSQL (stocks@localhost:5432)
+Total Loaders: 57 Python scripts
+Estimated Time: 3-5 hours (full load) or 1.5-2 hours (critical data only)
+
+================================================================================
+1. QUICK START (5 MINUTES)
+================================================================================
+
+Start PostgreSQL:
+    cd /home/stocks/algo
+    docker-compose up -d
+
+OR use interactive menu:
+    ./QUICK_START_GUIDE.sh
+
+================================================================================
+2. CRITICAL DATA (Load in Order)
+================================================================================
+
+PHASE 1: FOUNDATION (10 minutes)
+  ✓ python3 loadstocksymbols.py
+  ✓ python3 loadsectors.py
+    → Creates stock_symbols, etf_symbols, sectors, industries tables
+
+PHASE 2: PRICES (60 minutes)
+  ✓ python3 loadpricedaily.py (THIS IS THE LONGEST)
+  ✓ python3 loadpriceweekly.py
+  ✓ python3 loadpricemonthly.py
+    → Creates price_daily, price_weekly, price_monthly tables
+
+PHASE 3: EARNINGS (30 minutes)
+  ✓ python3 loadearningshistory.py
+  ✓ python3 loadearningssurprise.py
+  ✓ python3 loadearningsrevisions.py
+  ✓ python3 loadguidance.py
+    → Creates earnings_history, earnings_surprise tables
+
+Result: Basic admin dashboard functional (~100-120 minutes)
+
+================================================================================
+3. DATABASE VERIFICATION
+================================================================================
+
+Check if PostgreSQL is running:
+    docker-compose ps
+
+Verify database connection:
+    PGPASSWORD=stocks psql -h localhost -U stocks -d stocks -c "SELECT 1"
+
+Count records in key tables:
+    PGPASSWORD=stocks psql -h localhost -U stocks -d stocks << 'EOF'
+    SELECT 'stock_symbols' as table_name, COUNT(*) FROM stock_symbols
+    UNION ALL
+    SELECT 'price_daily', COUNT(*) FROM price_daily
+    UNION ALL
+    SELECT 'earnings_history', COUNT(*) FROM earnings_history;
+    EOF
+
+================================================================================
+4. LOADER CATEGORIES & DEPENDENCIES
+================================================================================
+
+INDEPENDENT (Can run anytime):
+  - loadstocksymbols.py
+  - loadsectors.py
+
+DEPENDS ON STOCK_SYMBOLS (32 loaders):
+  All price loaders, financial statement loaders, analyst data, etc.
+  Cannot run until loadstocksymbols.py completes
+
+DEPENDS ON PRICE_DAILY (5 loaders):
+  - loadfactormetrics.py
+  - loadrelativeperformance.py
+  - loadseasonality.py
+  - loadoptionschains.py
+  - loadsectors.py (secondary run)
+
+DEPENDS ON EARNINGS_HISTORY (2 loaders):
+  - loadearningssurprise.py
+  - loadfactormetrics.py
+
+FINAL (Depends on all metrics):
+  - loadstockscores.py (run this LAST)
+
+================================================================================
+5. THREE LOAD SCENARIOS
+================================================================================
+
+SCENARIO A: MINIMAL (MVP Dashboard)
+  Time: 90-120 minutes
+  Loaders: 4
+  1. loadstocksymbols.py (5 min)
+  2. loadsectors.py (5 min)
+  3. loadpricedaily.py (60 min)
+  4. loadearningshistory.py (30 min)
+  Result: Functional dashboard with symbols, prices, earnings
+
+SCENARIO B: STANDARD (Full Featured)
+  Time: 3-3.5 hours
+  Loaders: 25
+  All of MINIMAL, plus:
+  - All other price loaders (weekly, monthly, latest)
+  - All earnings loaders (revisions, surprise, guidance)
+  - All financial statement loaders (8 loaders)
+  - All analyst/sentiment loaders (5 loaders)
+  - Metric loaders (factor, fundamental, positioning, scores)
+  Result: Feature-complete dashboard
+
+SCENARIO C: COMPLETE (All 57 Loaders)
+  Time: 4-5 hours
+  Loaders: 57
+  All of STANDARD, plus:
+  - Technical indicators (13 loaders)
+  - Optional/secondary (19 loaders)
+  Result: Comprehensive financial data platform
+
+================================================================================
+6. ENVIRONMENT SETUP
+================================================================================
+
+Required environment variables (.env.local already configured):
+    DB_HOST=localhost
+    DB_PORT=5432
+    DB_USER=stocks
+    DB_PASSWORD=stocks
+    DB_NAME=stocks
+
+For AWS/Production, use environment variables instead:
+    AWS_REGION=us-east-1
+    DB_SECRET_ARN=arn:aws:secretsmanager:...
+
+Loaders will automatically use local vars or AWS secrets manager
+
+================================================================================
+7. DATA EXPECTATIONS
+================================================================================
+
+After CRITICAL DATA load:
+  Stock Symbols: ~5,000+ companies + ~2,000+ ETFs
+  Price Records: ~10,000,000+ daily prices (5,000 symbols × 10+ years)
+  Earnings Records: ~100,000+ earnings history entries
+  Date Range: 2015-2026
+  Coverage: All major US stocks (NASDAQ, NYSE, AMEX)
+
+Database Size: ~8-15GB after full load
+Peak Memory: ~600MB per loader during batch processing
+Time to Completion: See load times in scenarios above
+
+================================================================================
+8. KEY TABLES CREATED
+================================================================================
+
+FOUNDATION TABLES:
+  - stock_symbols (all tradeable stock tickers)
+  - etf_symbols (all ETF tickers)
+  - sectors (sector classifications)
+  - industries (industry classifications)
+
+PRICE DATA TABLES:
+  - price_daily, price_weekly, price_monthly
+  - latest_price_daily, latest_price_weekly, latest_price_monthly
+  - etf_price_daily, etf_price_weekly, etf_price_monthly
+
+EARNINGS TABLES:
+  - earnings_history (complete earnings data)
+  - earnings_surprise (EPS surprise %)
+  - earnings_revisions (analyst revisions)
+  - earnings_guidance (forward guidance)
+
+FINANCIAL STATEMENT TABLES:
+  - annual_income_statement, quarterly_income_statement, ttm_income_statement
+  - annual_balance_sheet, quarterly_balance_sheet
+  - annual_cash_flow, quarterly_cash_flow, ttm_cash_flow
+
+SENTIMENT/ANALYST TABLES:
+  - analyst_sentiment (ratings distribution)
+  - analyst_upgrades_downgrades (rating changes)
+  - news (financial news)
+  - sentiment (sentiment scores)
+  - insider_transactions (insider buying/selling)
+
+METRICS/SCORES TABLES:
+  - factor_metrics (value, growth, quality factors)
+  - fundamental_metrics (P/E, P/B, dividend yield, etc.)
+  - positioning_metrics (momentum, relative strength)
+  - stock_scores (composite 0-100 scores)
+
+TRACKING TABLES:
+  - last_updated (timestamp of each loader run)
+
+================================================================================
+9. ERROR HANDLING
+================================================================================
+
+If loader fails:
+  1. Check Docker container: docker-compose ps
+  2. Check PostgreSQL: PGPASSWORD=stocks psql -h localhost -U stocks -d stocks
+  3. Check log file: grep ERROR load_output.log
+  4. Re-run single loader: python3 loadername.py
+  5. Most loaders are idempotent - safe to re-run
+
+Common issues:
+  - "password authentication failed" → PostgreSQL not running
+  - "HTTP 429" → yfinance rate limit hit, wait 2-5 min and retry
+  - "table not found" → dependency loader didn't complete
+  - "out of memory" → run loaders sequentially instead of parallel
+
+================================================================================
+10. NEXT STEPS
+================================================================================
+
+Step 1: Start database
+    docker-compose up -d
+
+Step 2: Run critical loaders (MVP approach)
+    python3 loadstocksymbols.py
+    python3 loadsectors.py
+    python3 loadpricedaily.py
+    python3 loadearningshistory.py
+
+Step 3: Start admin dashboard
+    cd /home/stocks/algo/webapp/frontend-admin
+    npm install
+    npm start
+
+Step 4: Verify data in dashboard
+    Visit http://localhost:3000
+    Check stock symbols load
+    Verify prices display
+    Check earnings data
+
+Step 5: Add more loaders as needed
+    Run remaining loaders from /home/stocks/algo
+    Monitor with last_updated table
+
+Step 6: Set up maintenance schedule
+    Daily: loadlatestpricedaily.py, loadstockscores.py
+    Weekly: Full price reload + metrics
+    Monthly: Financial statement + symbol refresh
+
+================================================================================
+11. DOCUMENTATION
+================================================================================
+
+For detailed information, see:
+
+1. FINANCIAL_DATA_LOAD_PLAN.md (34KB)
+   - Comprehensive 13-section guide
+   - Every loader specification
+   - Database schema
+   - Validation queries
+   - Maintenance schedules
+   - Troubleshooting
+
+2. LOADER_DEPENDENCY_MATRIX.md (20KB)
+   - Complete dependency analysis
+   - All 57 loaders categorized
+   - Parallel execution strategies
+   - Runtime optimization
+   - Blocker dependencies
+
+3. QUICK_START_GUIDE.sh (13KB executable)
+   - Interactive menu system
+   - Automated setup/validation
+   - Database management
+   - Statistics reporting
+
+4. LOAD_PLAN_SUMMARY.txt (this file)
+   - Executive summary
+   - Quick reference
+   - Step-by-step guide
+
+================================================================================
+12. PERFORMANCE NOTES
+================================================================================
+
+Hardware Requirements:
+  CPU: 2+ cores (Intel i5+)
+  RAM: 4GB+ (8GB recommended)
+  Storage: 50GB+ (for database)
+  Network: Stable internet (required for data downloads)
+  Disk: SSD strongly recommended
+
+Runtime Estimates:
+  Sequential Load: 4-5 hours (safe, memory-efficient)
+  Parallel Phases: 2.5-3.5 hours (balanced approach)
+  Aggressive Parallel: 1.5-2 hours (requires 2GB+ RAM)
+
+Database Size Growth:
+  After symbols only: ~50MB
+  After prices: ~8GB
+  After financial statements: +3GB
+  After all data: ~15GB total
+  With indexes: ~20GB
+
+================================================================================
+13. COMMAND REFERENCE
+================================================================================
+
+Docker:
+    docker-compose up -d                    # Start PostgreSQL
+    docker-compose ps                       # Check status
+    docker-compose down                     # Stop database
+    docker-compose down -v                  # Stop and delete data
+
+Database:
+    PGPASSWORD=stocks psql -h localhost -U stocks -d stocks
+
+Load Data:
+    cd /home/stocks/algo
+    python3 loadstocksymbols.py
+    python3 loadsectors.py
+    python3 loadpricedaily.py
+    python3 loadearningshistory.py
+
+Monitor:
+    tail -f load_output.log
+    PGPASSWORD=stocks psql -h localhost -U stocks -d stocks -c \
+        "SELECT * FROM last_updated ORDER BY last_run DESC"
+
+Validate:
+    PGPASSWORD=stocks psql -h localhost -U stocks -d stocks -c \
+        "SELECT COUNT(*) FROM stock_symbols"
+
+================================================================================
+                              READY TO START?
+================================================================================
+
+1. Run: docker-compose up -d
+2. Run: python3 loadstocksymbols.py
+3. Run: python3 loadsectors.py
+4. Run: python3 loadpricedaily.py (wait 45+ minutes)
+5. Run: python3 loadearningshistory.py
+
+Then access dashboard at http://localhost:3000
+
+For more details, read FINANCIAL_DATA_LOAD_PLAN.md
+
+================================================================================

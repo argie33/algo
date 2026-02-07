@@ -2580,13 +2580,28 @@ export const getMarketIndices = async () => {
     console.log("✅ getMarketIndices: returning result:", result);
     return result;
   } catch (error) {
-    console.error("❌ Error fetching market indices:", {
-      message: error?.message || "Unknown error",
-      status: error.response?.status,
-      url: error.config?.url,
-    });
-    const errorMessage = handleApiError(error, "get market indices");
-    return { data: null };
+    console.warn("⚠️ Main indices endpoint failed, trying fresh-data fallback...");
+
+    // Try fallback to fresh-data endpoint
+    try {
+      const freshResponse = await api.get("/api/market/fresh-data");
+      console.log("✅ Fresh-data fallback successful");
+
+      const result = {
+        data: freshResponse.data?.indices || [],
+        success: freshResponse.data?.success ?? true,
+        timestamp: freshResponse.data?.timestamp,
+        source: "fresh-data",
+        message: "Using fresh market data from yfinance"
+      };
+      return result;
+    } catch (fallbackError) {
+      console.error("❌ Both endpoints failed:", {
+        main: error?.message,
+        fallback: fallbackError?.message
+      });
+      return { data: null };
+    }
   }
 };
 

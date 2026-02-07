@@ -1424,58 +1424,19 @@ const handleTabChange = (event, newValue) => {
         )}
       </Box>
 
-      {/* Enhanced Tabs Section */}
-      <Box>
-        <Box
-          sx={{
-            borderBottom: 1,
-            borderColor: "divider",
-            bgcolor: "background.paper",
-          }}
-        >
-          <Tabs
-              value={tabValue}
-              onChange={handleTabChange}
-              aria-label="market data tabs"
-              variant="scrollable"
-              scrollButtons="auto"
-              sx={{
-                "& .MuiTab-root": {
-                  minHeight: 56,
-                  fontWeight: 600,
-                  fontSize: "0.875rem",
-                  textTransform: "none",
-                  "&.Mui-selected": {
-                    color: theme.palette.primary.main,
-                  },
-                },
-                "& .MuiTabs-indicator": {
-                  height: 3,
-                  borderRadius: "3px 3px 0 0",
-                  background: `linear-gradient(90deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                },
-              }}
-            >
-              <Tab
-                value={0}
-                label="Sentiment History"
-                icon={<Timeline />}
-                iconPosition="start"
-              />
-            </Tabs>
-        </Box>
+      {/* Market Sentiment History Section */}
+      <Box sx={{ mt: 6 }}>
+        <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
+          Market Sentiment History
+        </Typography>
+        {marketLoading ? (
+          <LinearProgress />
+        ) : (
+          <SentimentHistoryPanel />
+        )}
+      </Box>
 
-        {tabsReady && (
-          <>
-        <TabPanel value={tabValue} index={0}>
-          {marketLoading ? (
-            <LinearProgress />
-          ) : (
-            <SentimentHistoryPanel />
-          )}
-        </TabPanel>
-
-        {/* Seasonality Section - Moved from tab to main page */}
+      {/* Seasonality Section - Moved from tab to main page */}
         <Box sx={{ mt: 6 }}>
           <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
             Market Seasonality
@@ -2026,11 +1987,7 @@ const handleTabChange = (event, newValue) => {
             </Grid>
           )}
         </Box>
-
-          </>
-        )}
       </Box>
-    </Box>
   );
 }
 
