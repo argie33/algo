@@ -12,8 +12,8 @@ echo "[${TIMESTAMP}] Starting fresh market data refresh..." >> "${LOG_FILE}"
 
 cd "${SCRIPT_DIR}"
 
-# Run the fresh data getter
-python3 get_latest_market_data.py >> "${LOG_FILE}" 2>&1
+# Run the comprehensive fresh data getter (includes all pages)
+python3 get_latest_comprehensive_data.py >> "${LOG_FILE}" 2>&1
 RESULT=$?
 
 if [ $RESULT -eq 0 ]; then

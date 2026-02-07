@@ -19,45 +19,66 @@ const Home = () => {
   const theme = useTheme();
   const navigate = useNavigate();
 
+  const articlesData = [
+    {
+      id: 'great-rotation',
+      title: 'The Great Rotation in Progress - Growth to Value/Cyclicals',
+      date: 'February 7, 2026',
+      author: 'Macro Strategy',
+      excerpt: 'Our data reveals a secular shift in early innings. After years of "Magnificent Seven" dominance, capital is rotating broadly across the market spectrum. The emergence of micro-cap names with 99+ momentum percentile readings alongside stable 55-57 composite scores suggests the rotation is becoming institutional, not retail.',
+      tags: ['Macro', 'Rotation', 'Valuation', 'Efficiency'],
+      tickers: ['GRAF', 'GGG', 'GCMG', 'MSGS'],
+    },
+    {
+      id: 'ai-efficiencies',
+      title: 'AI Efficiencies Permeating Through Economy - Start of Something Bigger',
+      date: 'February 5, 2026',
+      author: 'AI Economics',
+      excerpt: 'This is not a tech stock story anymore. It\'s an economy-wide story. Our scoring system captures this transition with composite scores 55-60 appearing in industrial names, mid-cap cyclicals, specialized materials, and overlooked sectors. This marks the START of a multi-year productivity super-cycle.',
+      tags: ['Macro', 'AI Economics', 'Productivity', 'Opportunity'],
+      tickers: ['MSGS', 'MOB', 'HYMC', 'IMSR'],
+    },
+  ];
+
   const dataCapabilities = [
-    { label: 'Equity Research', detail: 'Comprehensive stock analysis, valuation models, and comparative rankings' },
-    { label: 'Earnings Analysis', detail: 'Historical trends, estimate revisions, surprise patterns' },
-    { label: 'Market Intelligence', detail: 'Price action, volume analysis, technical patterns during market hours' },
-    { label: 'Economic Research', detail: 'Fed policy, macro indicators, interest rate impacts' },
-    { label: 'Sector Coverage', detail: 'Industry rotation, relative strength, competitive dynamics' },
-    { label: 'Quantitative Models', detail: 'Factor analysis, pattern recognition, historical backtesting' },
+    { label: 'Equity Research', detail: 'Systematic stock analysis, multi-factor valuation models, and institutional-grade comparative metrics' },
+    { label: 'Earnings Dynamics', detail: 'Comprehensive earnings patterns, analyst revision analysis, and surprise probability assessment' },
+    { label: 'Market Structure', detail: 'Real-time technical analysis, volume dynamics, and market microstructure patterns' },
+    { label: 'Macro Policy', detail: 'Federal Reserve analysis, economic indicators, and interest rate impact assessment' },
+    { label: 'Sector Rotation', detail: 'Industry relative performance, sector dynamics, and competitive positioning analysis' },
+    { label: 'Quantitative Factors', detail: 'Advanced factor analysis, systematic pattern recognition, and historical performance validation' },
   ];
 
   const keyFeatures = [
     {
       icon: <AnalyticsIcon fontSize="large" />,
-      title: 'Quantitative Stock Analysis',
+      title: 'Quantitative Equity Analysis',
       description:
-        'Multi-factor research models evaluate stocks across valuation, quality, momentum, and technical metrics. Comparative rankings updated during market hours.',
+        'Systematic multi-factor research models evaluating securities across valuation, earnings quality, momentum dynamics, and technical structure. Real-time comparative analytics for comprehensive security evaluation.',
       tags: ['Quantitative', 'Equity Research', 'Analytics'],
       link: '/app/scores',
     },
     {
       icon: <EventIcon fontSize="large" />,
-      title: 'Earnings Research',
+      title: 'Earnings Fundamentals',
       description:
-        'Comprehensive earnings analysis including historical patterns, estimate revisions, and surprise trends. 10+ years of earnings data for pattern recognition.',
+        'Rigorous earnings research integrating historical patterns, analyst estimate dynamics, surprise analysis, and revision trends. Over a decade of earnings data for systematic pattern identification.',
       tags: ['Earnings', 'Fundamentals', 'Research'],
       link: '/app/earnings',
     },
     {
       icon: <PsychologyIcon fontSize="large" />,
-      title: 'Market Sentiment Research',
+      title: 'Institutional Positioning',
       description:
-        'Track analyst ratings, institutional positioning, and market sentiment indicators. Identify extremes that historically precede reversals.',
-      tags: ['Sentiment', 'Contrarian', 'Research'],
+        'Comprehensive positioning analysis tracking analyst sentiment, institutional allocations, and market structure indicators. Identify positioning extremes that historically signal market inflection points.',
+      tags: ['Sentiment', 'Positioning', 'Research'],
       link: '/app/sentiment',
     },
     {
       icon: <BusinessIcon fontSize="large" />,
-      title: 'Sector & Macro Research',
+      title: 'Sector & Macro Analysis',
       description:
-        'Sector rotation analysis, economic research, and macro trend monitoring. Understand how Fed policy and economic data impact markets.',
+        'Systematic sector rotation analysis, macroeconomic research, and policy impact assessment. Integrate Fed policy, economic indicators, and market regime analysis for strategic positioning.',
       tags: ['Sectors', 'Economics', 'Macro'],
       link: '/app/market',
     },
@@ -96,7 +117,7 @@ const Home = () => {
               fontWeight: 500,
             }}
           >
-            Bullseye Financial delivers evidence-based equity research combining quantitative analysis, fundamental research, and technical insights. Our multi-dimensional approach helps institutional investors, RIAs, and active traders make better-informed decisions.
+            Bullseye Financial provides comprehensive equity research integrating fundamental valuation, earnings dynamics, technical market structure, sentiment positioning, and quantitative analysis. Our integrated research framework delivers the systematic, institutional-grade intelligence that professional investors require for disciplined capital allocation.
           </Typography>
           {/* Data Breadth Grid */}
           <Grid container spacing={3}>
@@ -144,28 +165,11 @@ const Home = () => {
       {/* Compact Visual Section */}
       <Box sx={{ py: { xs: 4, md: 6 }, backgroundColor: theme.palette.background.default }}>
         <Container maxWidth="lg">
-          <Box
-            sx={{
-              height: { xs: '250px', md: '350px' },
-              background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.secondary.main, 0.08)} 100%)`,
-              border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
-              borderRadius: '0px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              overflow: 'hidden',
-              position: 'relative',
-            }}
-          >
-            <Box sx={{
-              textAlign: 'center',
-              color: theme.palette.text.secondary,
-              fontSize: '1.1rem',
-              fontWeight: 500,
-            }}>
-              Team collaborating on financial research
-            </Box>
-          </Box>
+          <ImagePlaceholder
+            src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=1200&h=400&fit=crop&auto=format&q=80"
+            alt="Team collaborating on financial research"
+            height={{ xs: '250px', md: '350px' }}
+          />
         </Container>
       </Box>
 
@@ -173,7 +177,7 @@ const Home = () => {
       {/* Core Research Capabilities */}
       <FeatureGrid
         title="Core Research Capabilities"
-        subtitle="Independent equity research across fundamentals, technicals, and quantitative analysis"
+        subtitle="Integrated equity research integrating fundamental analysis, technical market structure, sentiment positioning, and quantitative modeling"
         features={keyFeatures}
         columns={{ xs: 1, sm: 2, md: 2, lg: 2 }}
       />
@@ -203,37 +207,13 @@ const Home = () => {
               mx: 'auto',
             }}
           >
-            Stay ahead of market moves with our latest AI-powered research and analysis
+            Current Research Analysis: Market Dynamics, Rotation Patterns, and Strategic Positioning
           </Typography>
-          <Grid container spacing={4}>
-            {[
-              {
-                title: 'Tech Sector Showing Renewed Strength Amid Macro Uncertainties',
-                date: 'December 23, 2025',
-                author: 'AI Research Team',
-                excerpt: 'Our AI models detected a significant shift in technical momentum for mega-cap tech stocks this week. Analysis of sentiment data and positioning metrics suggests institutional accumulation...',
-                tags: ['Technical Analysis', 'Sector Rotation', 'AI Signals'],
-                tickers: ['AAPL', 'MSFT', 'GOOGL', 'NVDA'],
-              },
-              {
-                title: 'Earnings Season Preview: 15 Stocks With High Surprise Probability',
-                date: 'December 22, 2025',
-                author: 'Earnings Intelligence',
-                excerpt: 'With earnings season approaching, our AI scoring system has identified 15 stocks with high probability of positive earnings surprises based on revision trends and analyst positioning...',
-                tags: ['Earnings', 'Forecasts', 'Stock Picks'],
-                tickers: ['AMZN', 'CRM', 'ASML', 'META'],
-              },
-              {
-                title: 'Sentiment Divergence Creating Opportunity in Energy Sector',
-                date: 'December 20, 2025',
-                author: 'Sentiment Analytics',
-                excerpt: 'Despite bearish headlines, our sentiment tracking shows institutional accumulation in select energy names. This divergence between narrative and actual positioning suggests contrarian opportunity...',
-                tags: ['Sentiment', 'Contrarian', 'Energy'],
-                tickers: ['XLE', 'XOM', 'CVX', 'MPC'],
-              },
-            ].map((insight, idx) => (
+          <Grid container spacing={4} justifyContent="center">
+            {articlesData.map((insight, idx) => (
               <Grid item xs={12} md={4} key={idx}>
                 <Card
+                  onClick={() => navigate(`/articles/${insight.id}`)}
                   sx={{
                     height: '100%',
                     border: `1px solid ${theme.palette.divider}`,

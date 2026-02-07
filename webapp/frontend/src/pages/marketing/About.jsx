@@ -44,7 +44,7 @@ const About = () => {
                   lineHeight: 1.8,
                 }}
               >
-                Bullseye Financial is built by finance and technology experts who got tired of watching the same information available to Wall Street get hidden from everyone else. We didn't just build another charting tool or sentiment aggregator. We built a research platform that does what professional investors actually need: connects the dots between fundamentals, technicals, sentiment, earnings, economic trends, and positioning.
+                Bullseye Financial represents a fundamental advancement in how institutional-quality investment research is delivered. Our platform integrates comprehensive equity analysis, quantitative modeling, and real-time market intelligence into a single, coherent research framework. We serve investment professionals who require institutional-grade analysis to drive capital allocation decisions.
               </Typography>
               <Typography
                 variant="body1"
@@ -55,7 +55,7 @@ const About = () => {
                   lineHeight: 1.8,
                 }}
               >
-                Our platform analyzes 5,300+ stocks across 6 research dimensions in real-time. We integrate 10+ years of historical market data with live feeds from earnings, economic indicators, sentiment sources, and technical analysis. Our AI models learn which patterns actually predict future moves. No black boxes. No fluff. Just institutional-grade analysis accessible to every investor.
+                Our systematic approach covers 5,300+ equities across six integrated research dimensions: fundamental valuation, earnings dynamics, technical market structure, sentiment positioning, sector rotation, and quantitative factors. By combining over a decade of historical market data with real-time feeds and proprietary analytical models, we deliver the comprehensive, evidence-based research framework that professional investors require.
               </Typography>
               <Typography
                 variant="body1"
@@ -66,14 +66,14 @@ const About = () => {
                   lineHeight: 1.8,
                 }}
               >
-                Today, thousands of professional investors, traders, and advisors use Bullseye to find better opportunities, manage risk more intelligently, and make faster decisions. We're committed to staying focused on what matters: helping you make better investment decisions faster than the crowd.
+                Investment professionals and institutional advisors rely on Bullseye to identify superior opportunities, manage portfolio construction more precisely, and execute decisions with institutional-caliber analysis. Our commitment remains focused on delivering the analytical rigor and comprehensive coverage that define professional investment research.
               </Typography>
             </Grid>
 
             {/* Right Image */}
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="gradient"
+                src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=600&fit=crop&auto=format&q=80"
                 alt="Professional team collaborating on market research"
                 height={{ xs: '300px', md: '450px' }}
               />
@@ -108,7 +108,7 @@ const About = () => {
                   lineHeight: 1.8,
                 }}
               >
-                Bullseye Financial was founded by a team of finance and technology experts who saw an opportunity to improve how market research and analysis is delivered. Our founders combined expertise in financial markets and technology development to create a better platform for investor research.
+                Bullseye Financial was established by investment professionals and technology experts who recognized a critical gap in how market research reaches the investment community. Our founders combined deep capital markets expertise with advanced technology capabilities to build a research platform meeting institutional standards.
               </Typography>
               <Typography
                 variant="body1"
@@ -118,14 +118,14 @@ const About = () => {
                   lineHeight: 1.8,
                 }}
               >
-                We built Bullseye to provide accessible market research. 10+ years of historical market data. 6 research dimensions. Multiple analytical factors. All processed through AI algorithms. Professional-grade research accessible to different investor types.
+                Our platform represents years of research infrastructure development, integrating over a decade of market data, advanced analytical models, and systematic research methodology. The result is comprehensive equity coverage underpinned by rigorous quantitative frameworks and institutional-grade research practices—delivering the analysis that professional investors require for disciplined capital allocation.
               </Typography>
             </Grid>
 
             {/* Right Image */}
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="gradient"
+                src="https://images.unsplash.com/photo-1460925895917-adf4e565016c?w=800&h=600&fit=crop&auto=format&q=80"
                 alt="Analytics dashboard with market data and performance metrics"
                 height={{ xs: '300px', md: '450px' }}
               />

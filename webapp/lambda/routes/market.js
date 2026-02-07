@@ -2949,7 +2949,6 @@ router.get("/seasonality", async (req, res) => {
 router.get("/fresh-data", async (req, res) => {
   try {
     const fs = require("fs");
-    const path = require("path");
 
     // Try to read latest fresh data from JSON file
     const freshDataPath = "/tmp/latest_market_data.json";
@@ -2965,23 +2964,95 @@ router.get("/fresh-data", async (req, res) => {
         sp500Metrics: freshData.sp500_metrics,
         timestamp: freshData.timestamp,
         source: "fresh-data",
-        message: "Real-time data from yfinance - generated just now",
+        message: "Real-time data from yfinance",
         success: true
       };
 
       return res.json(formattedData);
     }
 
-    // If fresh data file doesn't exist, return message
     return res.status(404).json({
       error: "Fresh data not available",
-      message: "Run get_latest_market_data.py to generate fresh data",
+      message: "Run get_latest_comprehensive_data.py to generate fresh data",
       success: false
     });
   } catch (error) {
     console.error("Fresh data endpoint error:", error.message);
     return res.status(500).json({
       error: "Failed to fetch fresh data",
+      details: error.message,
+      success: false
+    });
+  }
+});
+
+// Comprehensive Fresh Data Endpoint - All pages
+router.get("/comprehensive-fresh", async (req, res) => {
+  try {
+    const fs = require("fs");
+
+    const comprehensivePath = "/tmp/comprehensive_market_data.json";
+
+    if (fs.existsSync(comprehensivePath)) {
+      const comprehensiveData = JSON.parse(fs.readFileSync(comprehensivePath, "utf-8"));
+
+      return res.json({
+        indices: Object.values(comprehensiveData.indices || {}),
+        sectors: Object.values(comprehensiveData.sectors || {}),
+        industries: Object.values(comprehensiveData.industries || {}),
+        vix: comprehensiveData.vix,
+        majorStocks: Object.values(comprehensiveData.major_stocks || {}),
+        economicIndicators: Object.values(comprehensiveData.economic_indicators || {}),
+        marketBreadth: comprehensiveData.market_breadth,
+        timestamp: comprehensiveData.timestamp,
+        source: "comprehensive-fresh",
+        message: "Complete fresh market data from yfinance",
+        success: true
+      });
+    }
+
+    return res.status(404).json({
+      error: "Comprehensive data not available",
+      success: false
+    });
+  } catch (error) {
+    console.error("Comprehensive fresh data error:", error.message);
+    return res.status(500).json({
+      error: "Failed to fetch comprehensive data",
+      details: error.message,
+      success: false
+    });
+  }
+});
+
+// Market News Endpoint
+router.get("/news", async (req, res) => {
+  try {
+    const fs = require("fs");
+
+    const newsPath = "/tmp/market_news_data.json";
+
+    if (fs.existsSync(newsPath)) {
+      const newsData = JSON.parse(fs.readFileSync(newsPath, "utf-8"));
+
+      return res.json({
+        data: newsData.articles || [],
+        total: newsData.total || 0,
+        timestamp: newsData.timestamp,
+        source: "market-news",
+        message: "Latest market news articles",
+        success: true
+      });
+    }
+
+    return res.status(404).json({
+      error: "News data not available",
+      success: false
+    });
+  } catch (error) {
+    console.error("Market news error:", error.message);
+    return res.status(500).json({
+      error: "Failed to fetch market news",
       details: error.message,
       success: false
     });

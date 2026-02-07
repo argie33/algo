@@ -1178,6 +1178,40 @@ router.get("/trend/sector/:sectorName", async (req, res) => {
   }
 });
 
+// Fresh Sectors Data Endpoint - From comprehensive data
+router.get("/fresh-data", async (req, res) => {
+  try {
+    const fs = require("fs");
+
+    const comprehensivePath = "/tmp/comprehensive_market_data.json";
+
+    if (fs.existsSync(comprehensivePath)) {
+      const comprehensiveData = JSON.parse(fs.readFileSync(comprehensivePath, "utf-8"));
+
+      const sectors = Object.values(comprehensiveData.sectors || {});
+
+      return res.json({
+        data: sectors,
+        timestamp: comprehensiveData.timestamp,
+        source: "fresh-sectors",
+        message: "Fresh sector performance data",
+        success: true
+      });
+    }
+
+    return res.status(404).json({
+      error: "Fresh data not available",
+      success: false
+    });
+  } catch (error) {
+    console.error("Fresh sectors error:", error.message);
+    return res.status(500).json({
+      error: "Failed to fetch fresh sectors",
+      details: error.message,
+      success: false
+    });
+  }
+});
 
 // Rankings Endpoints - Return current rankings with daily strength scores
 module.exports = router;

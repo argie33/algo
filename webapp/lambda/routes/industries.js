@@ -304,4 +304,40 @@ router.get("/trend/industry/:industryName", async (req, res) => {
   }
 });
 
+// Fresh Industries Data Endpoint - From comprehensive data
+router.get("/fresh-data", async (req, res) => {
+  try {
+    const fs = require("fs");
+
+    const comprehensivePath = "/tmp/comprehensive_market_data.json";
+
+    if (fs.existsSync(comprehensivePath)) {
+      const comprehensiveData = JSON.parse(fs.readFileSync(comprehensivePath, "utf-8"));
+
+      const industries = Object.values(comprehensiveData.industries || {});
+      const sorted = industries.sort((a, b) => b.changePercent - a.changePercent);
+
+      return res.json({
+        data: sorted,
+        timestamp: comprehensiveData.timestamp,
+        source: "fresh-industries",
+        message: "Fresh industry ranking data",
+        success: true
+      });
+    }
+
+    return res.status(404).json({
+      error: "Fresh data not available",
+      success: false
+    });
+  } catch (error) {
+    console.error("Fresh industries error:", error.message);
+    return res.status(500).json({
+      error: "Failed to fetch fresh industries",
+      details: error.message,
+      success: false
+    });
+  }
+});
+
 module.exports = router;
