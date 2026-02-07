@@ -111,66 +111,15 @@ def load_comprehensive_metrics(conn):
     logger.info("Loading comprehensive metric data...")
     cur = conn.cursor()
 
-    # Get symbols with metrics data, excluding SPACs, ETFs, shell companies, and junk securities
-    # Filter by name patterns and quote type to remove problematic companies
+    # Get symbols from stock_symbols table - ALL SYMBOLS
+    # Calculate scores for all stocks
     cur.execute("""
-        WITH metrics_symbols AS (
-            SELECT DISTINCT symbol FROM growth_metrics
-            UNION
-            SELECT DISTINCT symbol FROM quality_metrics
-            UNION
-            SELECT DISTINCT symbol FROM stability_metrics
-            UNION
-            SELECT DISTINCT symbol FROM momentum_metrics
-            UNION
-            SELECT DISTINCT symbol FROM value_metrics
-            UNION
-            SELECT DISTINCT symbol FROM positioning_metrics
-        )
-        SELECT DISTINCT ms.symbol
-        FROM metrics_symbols ms
-        LEFT JOIN company_profile cp ON ms.symbol = cp.ticker
-        WHERE
-            -- Exclude ETFs and other non-equity securities
-            (cp.quote_type IS NULL OR cp.quote_type = 'EQUITY')
-            -- Exclude SPACs by name patterns
-            AND cp.short_name NOT ILIKE '%SPAC%'
-            AND cp.short_name NOT ILIKE '%Blank Check%'
-            AND cp.short_name NOT ILIKE '%Capital Corp%'
-            AND cp.short_name NOT ILIKE '%Acquisition%'
-            AND cp.short_name NOT ILIKE '%Merger%'
-            AND cp.short_name NOT ILIKE '%GigCapital%'
-            AND cp.short_name NOT ILIKE '%Gig Capital%'
-            AND cp.short_name NOT ILIKE '%Apollo Strategic%'
-            AND cp.short_name NOT ILIKE '%Churchill Capital%'
-            AND cp.short_name NOT ILIKE '%Apex Treasury%'
-            AND cp.short_name NOT ILIKE '%Treasury%'
-            AND cp.short_name NOT ILIKE '%Platinum Analytics%'
-            AND cp.short_name NOT ILIKE '%Graf Global%'
-            -- Exclude shell/holding companies
-            AND cp.short_name NOT ILIKE '%Holdings%'
-            AND cp.short_name NOT ILIKE '%Holding Corp%'
-            AND cp.short_name NOT ILIKE '%Investment Corp%'
-            AND cp.short_name NOT ILIKE '%Investment Co%'
-            AND cp.short_name NOT ILIKE '%Capital Investment%'
-            AND cp.short_name NOT ILIKE '%Development Corp%'
-            AND cp.short_name NOT ILIKE '%Equity Partners%'
-            -- Exclude ETNs and leveraged products by name
-            AND cp.short_name NOT ILIKE '%ETN%'
-            AND cp.short_name NOT ILIKE '%Double Long%'
-            AND cp.short_name NOT ILIKE '%Double Short%'
-            AND cp.short_name NOT ILIKE '%iPath%'
-            AND cp.short_name NOT ILIKE '%ETRACS%'
-            -- Exclude very small/illiquid by name pattern
-            AND cp.short_name NOT ILIKE '%Cayman%'
-            AND cp.short_name NOT ILIKE '%Offshore%'
-            -- Exclude test/placeholder symbols
-            AND cp.short_name NOT ILIKE '%TEST%'
-            AND cp.short_name NOT ILIKE '%TEST ONLY%'
-        ORDER BY ms.symbol
+        SELECT DISTINCT symbol
+        FROM stock_symbols
+        ORDER BY symbol
     """)
     symbols = [row[0] for row in cur.fetchall()]
-    logger.info(f"✅ Found {len(symbols)} quality stocks with metrics (SPACs, ETFs, shell companies excluded)")
+    logger.info(f"✅ Found {len(symbols)} total stocks with metrics")
 
     df = pd.DataFrame(index=symbols)
     df.index.name = 'symbol'
@@ -200,34 +149,15 @@ def load_comprehensive_metrics(conn):
         logger.info(f"  Loaded quality metrics for {quality_df.shape[0]} stocks")
 
     # ===== GROWTH METRICS (9 inputs) =====
+    # Note: growth_metrics is deduplicated to 1 row per symbol (kept latest data)
     logger.info("Loading growth metrics...")
     cur.execute("""
         SELECT symbol,
             revenue_growth_3y_cagr, eps_growth_3y_cagr, operating_income_growth_yoy,
             roe_trend, sustainable_growth_rate, fcf_growth_yoy, ocf_growth_yoy,
             net_income_growth_yoy, revenue_growth_yoy
-        FROM growth_metrics gm
-        WHERE (symbol, date) IN (
-            SELECT symbol, date FROM (
-                SELECT symbol, date,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY symbol
-                        ORDER BY
-                            (CASE WHEN revenue_growth_3y_cagr IS NOT NULL THEN 1 ELSE 0 END) +
-                            (CASE WHEN eps_growth_3y_cagr IS NOT NULL THEN 1 ELSE 0 END) +
-                            (CASE WHEN operating_income_growth_yoy IS NOT NULL THEN 1 ELSE 0 END) +
-                            (CASE WHEN roe_trend IS NOT NULL THEN 1 ELSE 0 END) +
-                            (CASE WHEN sustainable_growth_rate IS NOT NULL THEN 1 ELSE 0 END) +
-                            (CASE WHEN fcf_growth_yoy IS NOT NULL THEN 1 ELSE 0 END) +
-                            (CASE WHEN ocf_growth_yoy IS NOT NULL THEN 1 ELSE 0 END) +
-                            (CASE WHEN net_income_growth_yoy IS NOT NULL THEN 1 ELSE 0 END) +
-                            (CASE WHEN revenue_growth_yoy IS NOT NULL THEN 1 ELSE 0 END) DESC,
-                            date DESC
-                    ) as best_date_rank
-                FROM growth_metrics
-            ) ranked
-            WHERE best_date_rank = 1
-        )
+        FROM growth_metrics
+        ORDER BY symbol
     """)
     growth_data = cur.fetchall()
     if growth_data:
@@ -412,8 +342,8 @@ def main():
     logger.info("Saving scores to database...")
     cur = conn.cursor()
 
-    # Save company names before clearing
-    cur.execute("SELECT symbol, company_name FROM stock_scores")
+    # Get company names from stock_symbols for all stocks
+    cur.execute("SELECT symbol, security_name FROM stock_symbols")
     company_names = {row[0]: row[1] for row in cur.fetchall()}
 
     # Clear old scores first to ensure only filtered stocks remain
