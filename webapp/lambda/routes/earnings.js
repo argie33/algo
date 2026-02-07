@@ -648,4 +648,40 @@ router.get("/sector-trend", async (req, res) => {
   }
 });
 
+// Fresh Earnings Data Endpoint - From comprehensive data
+router.get("/fresh-data", async (req, res) => {
+  try {
+    const fs = require("fs");
+
+    const comprehensivePath = "/tmp/comprehensive_market_data.json";
+
+    if (fs.existsSync(comprehensivePath)) {
+      const comprehensiveData = JSON.parse(fs.readFileSync(comprehensivePath, "utf-8"));
+
+      // Format major stocks as earnings-related data
+      const majorStocks = Object.values(comprehensiveData.major_stocks || {});
+
+      return res.json({
+        data: majorStocks,
+        timestamp: comprehensiveData.timestamp,
+        source: "fresh-earnings",
+        message: "Fresh earnings data from major stocks",
+        success: true
+      });
+    }
+
+    return res.status(404).json({
+      error: "Fresh data not available",
+      success: false
+    });
+  } catch (error) {
+    console.error("Fresh earnings error:", error.message);
+    return res.status(500).json({
+      error: "Failed to fetch fresh earnings",
+      details: error.message,
+      success: false
+    });
+  }
+});
+
 module.exports = router;

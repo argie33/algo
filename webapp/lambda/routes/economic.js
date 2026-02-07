@@ -636,4 +636,41 @@ router.get("/calendar", async (req, res) => {
   }
 });
 
+// Fresh Economic Data Endpoint - From comprehensive data
+router.get("/fresh-data", async (req, res) => {
+  try {
+    const fs = require("fs");
+
+    const comprehensivePath = "/tmp/comprehensive_market_data.json";
+
+    if (fs.existsSync(comprehensivePath)) {
+      const comprehensiveData = JSON.parse(fs.readFileSync(comprehensivePath, "utf-8"));
+
+      const economicIndicators = Object.values(comprehensiveData.economic_indicators || {});
+      const marketBreadth = comprehensiveData.market_breadth || {};
+
+      return res.json({
+        indicators: economicIndicators,
+        breadth: marketBreadth,
+        timestamp: comprehensiveData.timestamp,
+        source: "fresh-economic",
+        message: "Fresh economic indicators and market breadth",
+        success: true
+      });
+    }
+
+    return res.status(404).json({
+      error: "Fresh data not available",
+      success: false
+    });
+  } catch (error) {
+    console.error("Fresh economic error:", error.message);
+    return res.status(500).json({
+      error: "Failed to fetch fresh economic data",
+      details: error.message,
+      success: false
+    });
+  }
+});
+
 module.exports = router;

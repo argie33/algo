@@ -60,7 +60,7 @@ const MissionValues = () => {
             {/* Right Image */}
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="gradient"
+                src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=700&h=500&fit=crop"
                 alt="Our Mission and Values"
                 height={{ xs: '300px', md: '450px' }}
               />

@@ -47,6 +47,7 @@ import About from "./pages/marketing/About";
 import OurTeam from "./pages/marketing/OurTeam";
 import MissionValues from "./pages/marketing/MissionValues";
 import ResearchInsights from "./pages/marketing/ResearchInsights";
+import ArticleDetail from "./pages/marketing/ArticleDetail";
 import Terms from "./pages/marketing/Terms";
 import Privacy from "./pages/marketing/Privacy";
 import InvestmentTools from "./pages/marketing/InvestmentTools";
@@ -368,6 +369,7 @@ function App() {
 
           {/* Services Dropdown Pages */}
           <Route path="/research-insights" element={<ResearchInsights />} />
+          <Route path="/articles/:articleId" element={<ArticleDetail />} />
           <Route path="/investment-tools" element={<InvestmentTools />} />
           <Route path="/wealth-management" element={<WealthManagement />} />
 

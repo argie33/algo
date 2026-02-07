@@ -281,8 +281,8 @@ def get_market_breadth():
 
             data = {
                 'price': round(latest['Close'], 2),
-                'above_ma20': latest['Close'] > ma_20,
-                'above_ma50': latest['Close'] > ma_50,
+                'above_ma20': str(latest['Close'] > ma_20),
+                'above_ma50': str(latest['Close'] > ma_50),
                 'ma_20': round(ma_20, 2),
                 'ma_50': round(ma_50, 2),
                 'breadth_strength': 'Strong' if latest['Close'] > ma_20 else 'Weak',

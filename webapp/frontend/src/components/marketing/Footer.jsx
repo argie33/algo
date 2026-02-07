@@ -18,7 +18,7 @@ const Footer = () => {
     {
       title: 'Resources',
       links: [
-        { label: 'Research', path: '/research' },
+        { label: 'Research & Insights', path: '/research-insights' },
         { label: 'Media', path: '/media' },
       ],
     },
