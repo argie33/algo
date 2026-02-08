@@ -399,6 +399,7 @@ function MarketOverview() {
   const {
     data: indicesData,
     isLoading: indicesLoading,
+    error: indicesError,
   } = useQuery({
     queryKey: ["market-indices"],
     queryFn: getMarketIndices,
@@ -409,7 +410,7 @@ function MarketOverview() {
 
   // Combined loading and error states
   const marketLoading = technicalsLoading || sentimentLoading || seasonalityLoading || indicesLoading;
-  const marketError = technicalsError || sentimentError || seasonalityError;
+  const marketError = technicalsError || sentimentError || seasonalityError || indicesError;
 
   const { data: correlationData, isLoading: correlationLoading } = useQuery({
     queryKey: ["market-correlation"],
