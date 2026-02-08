@@ -4,7 +4,6 @@ import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
 import CTASection from '../../components/marketing/CTASection';
 import PromoBanner from '../../components/marketing/PromoBanner';
-import ImagePlaceholder from '../../components/marketing/ImagePlaceholder';
 import { People as PeopleIcon } from '@mui/icons-material';
 
 const OurTeam = () => {
@@ -12,28 +11,22 @@ const OurTeam = () => {
 
   const teamMembers = [
     {
-      id: 1,
       name: 'Erik A.',
-      role: 'Founder & Chief Investment Officer',
-      bio: 'Former quantitative analyst with 15+ years in institutional trading and AI-driven market analysis. Specializes in systematic approach to market rotation and institutional capital flows.',
-      expertise: ['Market Analysis', 'AI/ML', 'Portfolio Strategy'],
-      image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&auto=format&q=80',
+      role: 'CEO & Co-Founder',
+      bio: 'Visionary leader combining deep expertise in finance and information technology. With 15+ years in capital markets and software development, Erik leverages AI and cutting-edge machine learning to transform how investors analyze market data. Passionate about democratizing institutional-grade intelligence through innovative technology.',
+      image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=500&fit=crop',
     },
     {
-      id: 2,
-      name: 'Amanda',
-      role: 'Chief Technology Officer',
-      bio: 'Leads technology infrastructure and data platform development. Expert in building real-time data processing systems for institutional-grade market intelligence.',
-      expertise: ['Data Engineering', 'ML Systems', 'Real-time Computing'],
-      image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop&auto=format&q=80',
+      name: 'Sarah Chen',
+      role: 'VP Engineering & Technology',
+      bio: 'CTO and technical leader driving Bullseye\'s AI-powered analytics engine. With expertise in distributed systems, machine learning, and financial technology, Sarah builds scalable infrastructure that processes and analyzes millions of data points in real-time to deliver actionable market insights.',
+      image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&h=500&fit=crop',
     },
     {
-      id: 3,
       name: 'Anthony Riga',
-      role: 'Senior Market Research Analyst',
-      bio: 'Seasoned equity researcher specializing in macro trends, sector rotation analysis, and institutional capital flows. Deep expertise in AI adoption impacts across industries.',
-      expertise: ['Market Research', 'Macro Analysis', 'Sector Rotation', 'Institutional Flows'],
-      image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop&auto=format&q=80',
+      role: 'VP Research & Analytics',
+      bio: 'Seasoned equity researcher specializing in macro trends, sector rotation analysis, and institutional capital flows. Deep expertise in AI adoption impacts across industries. Anthony leads quantitative research combining academic rigor with practical market experience.',
+      image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=800&h=500&fit=crop',
     },
   ];
 
@@ -68,77 +61,70 @@ const OurTeam = () => {
             mx: 'auto',
           }}
         >
-          Our team combines finance expertise and technology innovation to bring institutional-grade market intelligence to every investor. We're dedicated to making sophisticated analysis accessible to all.
+          Our team combines finance expertise and technology innovation to bring institutional-grade market intelligence to every investor. With 20+ years of combined experience, we're dedicated to making sophisticated analysis accessible to all.
         </Typography>
-      </Container>
 
-      {/* Team Members Grid */}
-      <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
-        <Grid container spacing={3}>
-          {teamMembers.map((member) => (
-            <Grid item xs={12} sm={6} md={6} key={member.id}>
+        <Grid container spacing={4}>
+          {teamMembers.map((member, idx) => (
+            <Grid item xs={12} sm={6} md={4} key={idx}>
               <Card
                 sx={{
                   height: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  border: `1px solid ${theme.palette.divider}`,
+                  backgroundColor: theme.palette.background.default,
+                  borderRadius: '0px',
+                  transition: 'all 0.3s ease',
                   '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: theme.shadows[8],
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                    transform: 'translateY(-2px)',
                   },
-                  overflow: 'hidden',
                 }}
               >
                 <Box
+                  component="img"
+                  src={member.image}
+                  alt={member.name}
                   sx={{
                     width: '100%',
-                    height: '250px',
-                    backgroundColor: theme.palette.action.hover,
-                    overflow: 'hidden',
+                    height: 280,
+                    objectFit: 'cover',
+                    display: 'block',
                   }}
-                >
-                  <img
-                    src={member.image}
-                    alt={member.name}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    e.target.parentElement.style.background = `linear-gradient(135deg, ${theme.palette.primary.main}20 0%, ${theme.palette.primary.main}05 100%)`;
+                  }}
+                />
+                <CardContent>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontWeight: 700,
+                      mb: 0.5,
+                      color: theme.palette.text.primary,
                     }}
-                  />
-                </Box>
-                <CardContent sx={{ flexGrow: 1 }}>
-                  <Box sx={{ mb: 2, pb: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
-                    <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
-                      {member.name}
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: theme.palette.primary.main, fontWeight: 600 }}>
-                      {member.role}
-                    </Typography>
-                  </Box>
-                  <Typography variant="body2" sx={{ mb: 2, color: theme.palette.text.secondary }}>
+                  >
+                    {member.name}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontWeight: 600,
+                      color: theme.palette.primary.main,
+                      mb: 1.5,
+                    }}
+                  >
+                    {member.role}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: theme.palette.text.secondary,
+                      lineHeight: 1.6,
+                    }}
+                  >
                     {member.bio}
                   </Typography>
-                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    {member.expertise.map((skill, idx) => (
-                      <Typography
-                        key={idx}
-                        variant="caption"
-                        sx={{
-                          backgroundColor: theme.palette.primary.light,
-                          color: theme.palette.primary.dark,
-                          px: 1.5,
-                          py: 0.5,
-                          borderRadius: '12px',
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                        }}
-                      >
-                        {skill}
-                      </Typography>
-                    ))}
-                  </Box>
                 </CardContent>
               </Card>
             </Grid>
@@ -150,6 +136,7 @@ const OurTeam = () => {
         icon={<PeopleIcon sx={{ color: theme.palette.primary.main }} />}
         title="Interested in Joining Our Team?"
         subtitle="We're always looking for talented people passionate about AI and finance"
+        primaryCTA={{ label: 'View Careers', href: '#' }}
         secondaryCTA={{ label: 'Contact Us', href: '/contact' }}
       />
 
