@@ -197,8 +197,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
     # REAL DATA ONLY: Keep NaN for rows without enough data for 50-day average
     # Use pd.Int64Dtype() to allow nullable integers (NaN preserved as <NA>)
     df['avg_volume_50d'] = df['volume'].rolling(window=50).mean()
-    # Convert to nullable integer type, preserving NaN as pd.NA
-    df['avg_volume_50d'] = df['avg_volume_50d'].astype('Int64')
+    # Keep as float - don't force Int64 conversion as rolling mean produces NaN values
 
     # === Calculate 30-week SMA for Weinstein Stage Analysis ===
     df['ma_30week'] = df['close'].rolling(window=30).mean()

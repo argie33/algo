@@ -45,18 +45,18 @@ router.get("/daily", async (req, res) => {
     const offset = (page - 1) * limit;
     const days = req.query.days ? parseInt(req.query.days) : null;
 
-    let sql = "SELECT * FROM price_daily";
+    let sql = "SELECT * FROM price_daily WHERE volume > 0";
     const params = [];
     let paramIndex = 1;
 
     if (symbol) {
-      sql += ` WHERE symbol = $${paramIndex}`;
+      sql += ` AND symbol = $${paramIndex}`;
       params.push(symbol);
       paramIndex++;
     }
 
     if (days) {
-      sql += (symbol ? " AND" : " WHERE") + ` date >= CURRENT_DATE - INTERVAL '${days} days'`;
+      sql += ` AND date >= CURRENT_DATE - INTERVAL '${days} days'`;
     }
 
     const countResult = await query(
@@ -96,12 +96,12 @@ router.get("/weekly", async (req, res) => {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const offset = (page - 1) * limit;
 
-    let sql = "SELECT * FROM price_weekly";
+    let sql = "SELECT * FROM price_weekly WHERE volume > 0";
     const params = [];
     let paramIndex = 1;
 
     if (symbol) {
-      sql += ` WHERE symbol = $${paramIndex}`;
+      sql += ` AND symbol = $${paramIndex}`;
       params.push(symbol);
       paramIndex++;
     }
@@ -136,12 +136,12 @@ router.get("/monthly", async (req, res) => {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const offset = (page - 1) * limit;
 
-    let sql = "SELECT * FROM price_monthly";
+    let sql = "SELECT * FROM price_monthly WHERE volume > 0";
     const params = [];
     let paramIndex = 1;
 
     if (symbol) {
-      sql += ` WHERE symbol = $${paramIndex}`;
+      sql += ` AND symbol = $${paramIndex}`;
       params.push(symbol);
       paramIndex++;
     }

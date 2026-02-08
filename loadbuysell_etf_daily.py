@@ -1427,7 +1427,7 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     # Calculate 50-day rolling average volume
     # REAL DATA ONLY: Keep NaN for rows without enough data
     df['avg_volume_50d'] = df['volume'].rolling(window=50).mean()
-    df['avg_volume_50d'] = df['avg_volume_50d'].astype('Int64')
+    # Keep as float - don't force Int64 conversion as rolling mean produces NaN values
 
     # Calculate volume surge percentage: (current_volume / avg_volume_50d - 1) * 100
     # REAL DATA ONLY: Use None if avg_volume is missing, not fake 0
