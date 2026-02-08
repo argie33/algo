@@ -25,26 +25,42 @@ logging.basicConfig(
     stream=sys.stdout
 )
 
-# Environment & Secrets
-SECRET_ARN = os.environ.get("DB_SECRET_ARN")
-if not SECRET_ARN:
-    logging.error("DB_SECRET_ARN environment variable not set")
-    sys.exit(1)
+# Environment & Secrets - support both AWS Secrets Manager and environment variables
+from dotenv import load_dotenv
+load_dotenv('/home/stocks/algo/.env.local')
 
-# Get database credentials
-try:
-    sm_client = boto3.client("secretsmanager")
-    secret_resp = sm_client.get_secret_value(SecretId=SECRET_ARN)
-    creds = json.loads(secret_resp["SecretString"])
-    
-    DB_USER = creds["username"]
-    DB_PASSWORD = creds["password"]
-    DB_HOST = creds["host"]
-    DB_PORT = int(creds.get("port", 5432))
-    DB_NAME = creds["dbname"]
-except Exception as e:
-    logging.error(f"Failed to get database credentials: {e}")
-    sys.exit(1)
+SECRET_ARN = os.environ.get("DB_SECRET_ARN")
+DB_HOST = None
+DB_PORT = None
+DB_USER = None
+DB_PASSWORD = None
+DB_NAME = None
+
+if SECRET_ARN:
+    # Try AWS Secrets Manager first
+    try:
+        sm_client = boto3.client("secretsmanager")
+        secret_resp = sm_client.get_secret_value(SecretId=SECRET_ARN)
+        creds = json.loads(secret_resp["SecretString"])
+
+        DB_USER = creds["username"]
+        DB_PASSWORD = creds["password"]
+        DB_HOST = creds["host"]
+        DB_PORT = int(creds.get("port", 5432))
+        DB_NAME = creds["dbname"]
+        logging.info("Using AWS Secrets Manager for database config")
+    except Exception as e:
+        logging.warning(f"Failed to get database credentials from AWS Secrets Manager: {e}")
+        SECRET_ARN = None
+
+# Fall back to environment variables if AWS Secrets Manager failed or not configured
+if not SECRET_ARN or DB_HOST is None:
+    DB_HOST = os.environ.get("DB_HOST", "localhost")
+    DB_USER = os.environ.get("DB_USER", "stocks")
+    DB_PASSWORD = os.environ.get("DB_PASSWORD", "")
+    DB_PORT = int(os.environ.get("DB_PORT", 5432))
+    DB_NAME = os.environ.get("DB_NAME", "stocks")
+    logging.info("Using environment variables for database config")
 
 # Commodity symbols and categories
 COMMODITY_SYMBOLS = {

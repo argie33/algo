@@ -1401,7 +1401,7 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     # REAL DATA ONLY: Use None if avg_volume is missing, not fake 0
     df['volume_surge_pct'] = df.apply(
         lambda row: round(((row['volume'] / row['avg_volume_50d'] - 1) * 100), 2)
-        if row['avg_volume_50d'] > 0 else None,
+        if pd.notna(row['avg_volume_50d']) and row['avg_volume_50d'] > 0 else None,
         axis=1
     )
 
@@ -1890,14 +1890,14 @@ def main():
 
     logging.info(f"📊 Found {len(symbols)} incomplete symbols to process")
 
-    # Load country ETF symbols (from stock_symbols where etf='Y' AND country IS NOT NULL)
+    # Load country ETF symbols (from stock_symbols where etf='Y')
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT symbol FROM stock_symbols WHERE etf='Y' AND country IS NOT NULL;")
+        cur.execute("SELECT symbol FROM stock_symbols WHERE etf='Y';")
         country_symbols = [r[0] for r in cur.fetchall()]
     except Exception as e:
-        logging.warning(f"Could not load country ETF symbols from stock_symbols: {e}")
+        logging.warning(f"Could not load ETF symbols from stock_symbols: {e}")
         country_symbols = []
     finally:
         cur.close()

@@ -99,7 +99,7 @@ const Firm = () => {
       <Box sx={{ py: { xs: 4, md: 6 }, backgroundColor: theme.palette.background.paper }}>
         <Container maxWidth="lg">
           <ImagePlaceholder
-            src="https://picsum.photos/1200/400?random"
+            src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=1200&h=400&fit=crop&auto=format&q=80"
             alt="Data analytics and market research visualization"
             height={{ xs: '250px', md: '350px' }}
           />

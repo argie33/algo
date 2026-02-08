@@ -504,8 +504,8 @@ async function queryScores(options = {}) {
   let queryParams = [];
   let paramIndex = 1;
 
-  // Filter to S&P 500 stocks ONLY - DISABLED to return all stocks
-  // whereConditions.push(`EXISTS (SELECT 1 FROM stock_symbols ss2 WHERE ss2.symbol = ss.symbol AND ss2.is_sp500 = TRUE)`);
+  // Filter to S&P 500 stocks ONLY
+  whereConditions.push(`EXISTS (SELECT 1 FROM stock_symbols ss2 WHERE ss2.symbol = ss.symbol AND ss2.is_sp500 = TRUE)`);
 
   // SPAC filtering disabled for performance (causing timeout on COUNT queries)
   // Stock scores table should not contain SPACs if loader is configured correctly
