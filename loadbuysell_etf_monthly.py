@@ -1506,7 +1506,7 @@ def generate_signals(df, pvtLenL=3, pvtLenR=3, useMaFilter=True, maLength=50, sh
     # REAL DATA ONLY: Use None if avg_volume is missing, not fake 0
     df['volume_surge_pct'] = df.apply(
         lambda row: round(((row['volume'] / row['avg_volume_50d'] - 1) * 100), 2)
-        if row['avg_volume_50d'] > 0 else None,
+        if pd.notna(row['avg_volume_50d']) and row['avg_volume_50d'] > 0 else None,
         axis=1
     )
 
