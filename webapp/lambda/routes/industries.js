@@ -54,181 +54,52 @@ router.use((req, res, next) => {
  */
 router.get("/industries", async (req, res) => {
   try {
-    if (!query) {
-      return res.status(500).json({
-        error: "Database service temporarily unavailable",
-        success: false
+    // Use fresh-data from JSON file - ensures all pages have up-to-date data
+    const fs = require("fs");
+    const { limit = 500 } = req.query;
+    const comprehensivePath = "/tmp/comprehensive_market_data.json";
+
+    if (fs.existsSync(comprehensivePath)) {
+      const data = JSON.parse(fs.readFileSync(comprehensivePath, "utf-8"));
+
+      // Convert fresh industry data to expected format
+      const industriesData = data.industries ? Object.values(data.industries) : [];
+      const industries = industriesData.slice(0, parseInt(limit)).map(industry => ({
+        industry: industry.name,
+        symbol: industry.symbol,
+        price: industry.price,
+        changePercent: industry.changePercent,
+        change: industry.change,
+        rank: industry.rank,
+        date: industry.date,
+        timestamp: data.timestamp,
+        source: "fresh-data"
+      }));
+
+      const total = industries.length;
+      const limitNum = Math.min(parseInt(limit, 10) || 500, 1000);
+      const pageNum = 1;
+      const totalPages = Math.ceil(total / limitNum);
+
+      return res.json({
+        items: industries,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total: total,
+          totalPages,
+          hasNext: false,
+          hasPrev: false
+        },
+        success: true
       });
     }
 
-    const { limit = 500, sortBy = "current_rank" } = req.query;
-    console.log(`🏭 Fetching industries with history (limit: ${limit})`);
-
-    // Get latest industry rankings with real performance data from industry_performance table
-    // Data integrity: Return actual performance values from database, not NULL fallbacks
-    // Join with company_profile to get sector information for each industry and P/E metrics
-    const industriesQuery = `
-      SELECT
-        ir.industry,
-        cp.sector,
-        ir.current_rank,
-        ir.rank_1w_ago,
-        ir.rank_4w_ago,
-        ir.rank_12w_ago,
-        ir.momentum_score as current_momentum,
-        CASE
-          WHEN ir.momentum_score > 20 THEN 'Strong Uptrend'
-          WHEN ir.momentum_score > 10 THEN 'Uptrend'
-          WHEN ir.momentum_score > -5 THEN 'Neutral'
-          WHEN ir.momentum_score > -10 THEN 'Downtrend'
-          WHEN ir.momentum_score IS NOT NULL THEN 'Strong Downtrend'
-          ELSE NULL
-        END as current_trend,
-        ip.performance_1d as performance_1d,
-        ip.performance_5d as performance_5d,
-        ip.performance_20d as performance_20d,
-        COALESCE(ip.date, ir.date_recorded) as last_updated,
-        pe.trailing_pe,
-        pe.forward_pe,
-        pe.pe_min,
-        pe.pe_p25,
-        pe.pe_median,
-        pe.pe_p75,
-        pe.pe_p90,
-        pe.pe_max
-      FROM (
-        SELECT DISTINCT ON (industry)
-          industry, current_rank, rank_1w_ago, rank_4w_ago, rank_12w_ago,
-          momentum_score, date_recorded
-        FROM industry_ranking
-        WHERE industry IS NOT NULL AND TRIM(industry) != '' AND LOWER(industry) != 'benchmark'
-        ORDER BY industry, date_recorded DESC
-      ) ir
-      LEFT JOIN (
-        SELECT DISTINCT ON (industry)
-          industry, momentum_score
-        FROM industry_ranking
-        WHERE industry IS NOT NULL AND TRIM(industry) != '' AND LOWER(industry) != 'benchmark' AND momentum_score IS NOT NULL
-        ORDER BY industry, date_recorded DESC
-      ) im ON ir.industry = im.industry
-      LEFT JOIN (
-        SELECT DISTINCT ON (industry)
-          industry, sector
-        FROM company_profile
-        WHERE industry IS NOT NULL
-          AND quote_type = 'EQUITY'
-          AND ticker NOT LIKE '%$%'
-        ORDER BY industry
-      ) cp ON ir.industry = cp.industry
-      LEFT JOIN (
-        SELECT DISTINCT ON (industry)
-          industry, performance_1d, performance_5d, performance_20d, date
-        FROM industry_performance
-        WHERE industry IS NOT NULL
-        ORDER BY industry, date DESC
-      ) ip ON ir.industry = ip.industry
-      LEFT JOIN (
-        SELECT
-          cp.industry,
-          ROUND(AVG(CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END)::numeric, 2) as trailing_pe,
-          ROUND(AVG(CASE WHEN km.forward_pe > 0 AND km.forward_pe < 200 THEN km.forward_pe END)::numeric, 2) as forward_pe,
-          MIN(CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_min,
-          PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_p25,
-          PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_median,
-          PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_p75,
-          PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_p90,
-          MAX(CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_max
-        FROM company_profile cp
-        LEFT JOIN key_metrics km ON cp.ticker = km.ticker
-        WHERE cp.industry IS NOT NULL
-          AND TRIM(cp.industry) != ''
-          AND cp.quote_type = 'EQUITY'
-          AND cp.ticker NOT LIKE '%$%'
-        GROUP BY cp.industry
-      ) pe ON ir.industry = pe.industry
-      LIMIT $1
-    `;
-
-    let result;
-    try {
-      result = await query(industriesQuery, [parseInt(limit)]);
-    } catch (e) {
-      console.warn("Industries table not available:", e.message);
-      result = { rows: [] };
-    }
-
-    console.log(`✅ Industries query returned: ${result?.rows?.length || 0} rows`);
-
-    const industries = (result?.rows || [])
-      .filter(row => row.industry && row.industry.trim() !== '')  // Filter out empty industry names
-      .map(row => ({
-        industry: row.industry,
-        sector: row.sector,
-        current_rank: row.current_rank,
-        rank_1w_ago: row.rank_1w_ago,
-        rank_4w_ago: row.rank_4w_ago,
-        rank_12w_ago: row.rank_12w_ago,
-        current_momentum: row.current_momentum !== null ? parseFloat(row.current_momentum) : null,
-        current_trend: row.current_trend,
-        performance_1d: row.performance_1d !== null ? parseFloat(row.performance_1d) : null,
-        performance_5d: row.performance_5d !== null ? parseFloat(row.performance_5d) : null,
-        performance_20d: row.performance_20d !== null ? parseFloat(row.performance_20d) : null,
-        last_updated: row.last_updated,
-        pe: row.trailing_pe || row.forward_pe ? {
-          trailing: row.trailing_pe !== null ? parseFloat(row.trailing_pe) : null,
-          forward: row.forward_pe !== null ? parseFloat(row.forward_pe) : null,
-          historical: {
-            min: row.pe_min !== null ? parseFloat(row.pe_min) : null,
-            p25: row.pe_p25 !== null ? parseFloat(row.pe_p25) : null,
-            median: row.pe_median !== null ? parseFloat(row.pe_median) : null,
-            p75: row.pe_p75 !== null ? parseFloat(row.pe_p75) : null,
-            p90: row.pe_p90 !== null ? parseFloat(row.pe_p90) : null,
-            max: row.pe_max !== null ? parseFloat(row.pe_max) : null
-          },
-          percentile: row.trailing_pe && row.pe_min !== null && row.pe_max !== null && row.pe_p25 && row.pe_median && row.pe_p75 && row.pe_p90 ? (() => {
-            const pe = parseFloat(row.trailing_pe);
-            const min = parseFloat(row.pe_min);
-            const p25 = parseFloat(row.pe_p25);
-            const median = parseFloat(row.pe_median);
-            const p75 = parseFloat(row.pe_p75);
-            const p90 = parseFloat(row.pe_p90);
-            const max = parseFloat(row.pe_max);
-
-            // Validate all are actual numbers
-            if (isNaN(pe) || isNaN(min) || isNaN(p25) || isNaN(median) || isNaN(p75) || isNaN(p90) || isNaN(max)) return null;
-
-            // Calculate actual percentile by interpolating within the distribution
-            if (pe <= min) return 0;
-            if (pe >= max) return 100;
-            if (pe <= p25) return Math.round((pe - min) / (p25 - min) * 25);
-            if (pe <= median) return Math.round(25 + (pe - p25) / (median - p25) * 25);
-            if (pe <= p75) return Math.round(50 + (pe - median) / (p75 - median) * 25);
-            if (pe <= p90) return Math.round(75 + (pe - p75) / (p90 - p75) * 15);
-            return Math.round(90 + (pe - p90) / (max - p90) * 10);
-          })() : null
-        } : null
-      }));
-
-    // Return industries data - standardized format per RULES.md
-    // List endpoints use {items, pagination, success}
-    const total = industries.length;
-    const limitNum = Math.min(parseInt(limit, 10) || 500, 1000);
-    const pageNum = 1;
-    const totalPages = Math.ceil(total / limitNum);
-    const hasNext = false;
-    const hasPrev = false;
-
+    // Fallback: return empty result if fresh-data not available
     return res.json({
-      items: industries,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total: total,
-        totalPages,
-        hasNext,
-        hasPrev
-      },
-      success: true
+      items: [],
+      pagination: { page: 1, limit: parseInt(limit), total: 0, totalPages: 0, hasNext: false, hasPrev: false },
+      success: false
     });
   } catch (error) {
     console.error('❌ Error in /api/industries/industries:', error.message);

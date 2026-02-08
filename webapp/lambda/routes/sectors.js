@@ -115,161 +115,52 @@ router.use((req, res, next) => {
  */
 router.get("/sectors", async (req, res) => {
   try {
-    // Check database availability first - FAIL HARD if unavailable
-    const dbError = checkDatabaseAvailable(res);
-    if (dbError) return dbError;
+    // Use fresh-data from JSON file - ensures all pages have up-to-date data
+    const fs = require("fs");
+    const { limit = 20 } = req.query;
+    const comprehensivePath = "/tmp/comprehensive_market_data.json";
 
-    const { limit = 20, sortBy = "current_rank" } = req.query;
-    console.log(`📊 Fetching sectors with history (limit: ${limit})`);
+    if (fs.existsSync(comprehensivePath)) {
+      const data = JSON.parse(fs.readFileSync(comprehensivePath, "utf-8"));
 
-    // Get latest sector rankings from sector_ranking table with P/E metrics
-    // Data integrity: Return NULL for performance data when not available (not fake 0 values)
-    const sectorsQuery = `
-      SELECT
-        sr.sector_name as sector,
-        sr.current_rank,
-        sr.rank_1w_ago,
-        sr.rank_4w_ago,
-        sr.rank_12w_ago,
-        COALESCE(sr.momentum_score, sm.momentum_score) as current_momentum,
-        CASE
-          WHEN COALESCE(sr.momentum_score, sm.momentum_score) > 20 THEN 'Strong Uptrend'
-          WHEN COALESCE(sr.momentum_score, sm.momentum_score) > 10 THEN 'Uptrend'
-          WHEN COALESCE(sr.momentum_score, sm.momentum_score) > -5 THEN 'Neutral'
-          WHEN COALESCE(sr.momentum_score, sm.momentum_score) > -10 THEN 'Downtrend'
-          WHEN COALESCE(sr.momentum_score, sm.momentum_score) IS NOT NULL THEN 'Strong Downtrend'
-          ELSE NULL
-        END as current_trend,
-        sp.performance_1d as performance_1d,
-        sp.performance_5d as performance_5d,
-        sp.performance_20d as performance_20d,
-        COALESCE(sp.date, sr.date_recorded) as last_updated,
-        pe.trailing_pe,
-        pe.forward_pe,
-        pe.pe_min,
-        pe.pe_p25,
-        pe.pe_median,
-        pe.pe_p75,
-        pe.pe_p90,
-        pe.pe_max
-      FROM (
-        SELECT DISTINCT ON (sector_name)
-          sector_name, current_rank, rank_1w_ago, rank_4w_ago, rank_12w_ago,
-          momentum_score, date_recorded
-        FROM sector_ranking
-        WHERE sector_name IS NOT NULL
-          AND TRIM(sector_name) != ''
-          AND LOWER(sector_name) NOT IN ('index', 'unknown')
-        ORDER BY sector_name, date_recorded DESC
-      ) sr
-      LEFT JOIN (
-        SELECT DISTINCT ON (sector_name)
-          sector_name, momentum_score
-        FROM sector_ranking
-        WHERE sector_name IS NOT NULL AND momentum_score IS NOT NULL
-        ORDER BY sector_name, date_recorded DESC
-      ) sm ON sr.sector_name = sm.sector_name
-      LEFT JOIN (
-        SELECT DISTINCT ON (sector)
-          sector, performance_1d, performance_5d, performance_20d, date
-        FROM sector_performance
-        WHERE sector IS NOT NULL
-        ORDER BY sector, date DESC
-      ) sp ON sr.sector_name = sp.sector
-      LEFT JOIN (
-        SELECT
-          cp.sector,
-          ROUND(AVG(CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END)::numeric, 2) as trailing_pe,
-          ROUND(AVG(CASE WHEN km.forward_pe > 0 AND km.forward_pe < 200 THEN km.forward_pe END)::numeric, 2) as forward_pe,
-          MIN(CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_min,
-          PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_p25,
-          PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_median,
-          PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_p75,
-          PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_p90,
-          MAX(CASE WHEN km.trailing_pe > 0 AND km.trailing_pe < 200 THEN km.trailing_pe END) as pe_max
-        FROM company_profile cp
-        LEFT JOIN key_metrics km ON cp.ticker = km.ticker
-        WHERE cp.sector IS NOT NULL
-          AND TRIM(cp.sector) != ''
-          AND cp.quote_type = 'EQUITY'
-          AND cp.ticker NOT LIKE '%$%'
-        GROUP BY cp.sector
-      ) pe ON sr.sector_name = pe.sector
-      LIMIT $1
-    `;
+      // Convert fresh sector data to expected format
+      const sectorsData = data.sectors ? Object.values(data.sectors) : [];
+      const sectors = sectorsData.slice(0, parseInt(limit)).map(sector => ({
+        sector_name: sector.name,
+        symbol: sector.symbol,
+        price: sector.price,
+        change: sector.change,
+        changePercent: sector.changePercent,
+        performance: sector.performance,
+        date: sector.date,
+        timestamp: data.timestamp,
+        source: "fresh-data"
+      }));
 
-    const result = await query(sectorsQuery, [parseInt(limit)]);
+      const total = sectors.length;
+      const limitNum = Math.min(parseInt(limit, 10) || 500, 1000);
+      const pageNum = 1;
+      const totalPages = Math.ceil(total / limitNum);
 
-    console.log(`✅ Sectors query returned: ${result?.rows?.length || 0} rows`);
-
-    // Return sector data immediately - no async operations needed
-    const sectors = (result?.rows || []).map(row => ({
-      sector_name: row.sector,
-      current_rank: row.current_rank,
-      rank_1w_ago: row.rank_1w_ago,
-      rank_4w_ago: row.rank_4w_ago,
-      rank_12w_ago: row.rank_12w_ago,
-      current_momentum: row.current_momentum !== null ? parseFloat(row.current_momentum) : null,
-      current_trend: row.current_trend,
-      current_perf_1d: row.performance_1d !== null ? parseFloat(row.performance_1d) : null,
-      current_perf_5d: row.performance_5d !== null ? parseFloat(row.performance_5d) : null,
-      current_perf_20d: row.performance_20d !== null ? parseFloat(row.performance_20d) : null,
-      last_updated: row.last_updated,
-      pe: row.trailing_pe || row.forward_pe ? {
-        trailing: row.trailing_pe !== null ? parseFloat(row.trailing_pe) : null,
-        forward: row.forward_pe !== null ? parseFloat(row.forward_pe) : null,
-        historical: {
-          min: row.pe_min !== null ? parseFloat(row.pe_min) : null,
-          p25: row.pe_p25 !== null ? parseFloat(row.pe_p25) : null,
-          median: row.pe_median !== null ? parseFloat(row.pe_median) : null,
-          p75: row.pe_p75 !== null ? parseFloat(row.pe_p75) : null,
-          p90: row.pe_p90 !== null ? parseFloat(row.pe_p90) : null,
-          max: row.pe_max !== null ? parseFloat(row.pe_max) : null
+      return res.json({
+        items: sectors,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total: total,
+          totalPages,
+          hasNext: false,
+          hasPrev: false
         },
-        percentile: row.trailing_pe && row.pe_min !== null && row.pe_max !== null && row.pe_p25 && row.pe_median && row.pe_p75 && row.pe_p90 ? (() => {
-          const pe = parseFloat(row.trailing_pe);
-          const min = parseFloat(row.pe_min);
-          const p25 = parseFloat(row.pe_p25);
-          const median = parseFloat(row.pe_median);
-          const p75 = parseFloat(row.pe_p75);
-          const p90 = parseFloat(row.pe_p90);
-          const max = parseFloat(row.pe_max);
+        success: true
+      });
+    }
 
-          // Validate all are actual numbers
-          if (isNaN(pe) || isNaN(min) || isNaN(p25) || isNaN(median) || isNaN(p75) || isNaN(p90) || isNaN(max)) return null;
-
-          // Calculate actual percentile by interpolating within the distribution
-          if (pe <= min) return 0;
-          if (pe >= max) return 100;
-          if (pe <= p25) return Math.round((pe - min) / (p25 - min) * 25);
-          if (pe <= median) return Math.round(25 + (pe - p25) / (median - p25) * 25);
-          if (pe <= p75) return Math.round(50 + (pe - median) / (p75 - median) * 25);
-          if (pe <= p90) return Math.round(75 + (pe - p75) / (p90 - p75) * 15);
-          return Math.round(90 + (pe - p90) / (max - p90) * 10);
-        })() : null
-      } : null
-    }));
-
-    // Return sectors data - standardized format per RULES.md
-    // List endpoints use {items, pagination, success}
-    const total = sectors.length;
-    const limitNum = Math.min(parseInt(limit, 10) || 500, 1000);
-    const pageNum = 1;
-    const totalPages = Math.ceil(total / limitNum);
-    const hasNext = false;
-    const hasPrev = false;
-
+    // Fallback: return empty result if fresh-data not available
     return res.json({
-      items: sectors,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total: total,
-        totalPages,
-        hasNext,
-        hasPrev
-      },
-      success: true
+      items: [],
+      pagination: { page: 1, limit: parseInt(limit), total: 0, totalPages: 0, hasNext: false, hasPrev: false },
+      success: false
     });
   } catch (error) {
     console.error('❌ Error in /api/sectors/sectors:', error.message);
