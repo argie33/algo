@@ -428,10 +428,10 @@ router.get("/metrics", authenticateToken, async (req, res) => {
       // Get Alpaca holdings from database
       const alpacaHoldingsResult = await query(
         `SELECT ph.symbol, ph.quantity, ph.current_price, ph.average_cost, c.sector,
-                ph.market_value, ph.unrealized_pnl, ss.beta
+                ph.market_value, ph.unrealized_pnl, sm.beta
          FROM portfolio_holdings ph
          LEFT JOIN company_profile c ON ph.symbol = c.ticker
-         LEFT JOIN stock_scores ss ON ph.symbol = ss.symbol
+         LEFT JOIN stability_metrics sm ON ph.symbol = sm.symbol AND sm.date = (SELECT MAX(date) FROM stability_metrics WHERE symbol = ph.symbol)
          WHERE ph.user_id = $1 AND ph.quantity > 0
          ORDER BY (ph.quantity * ph.current_price) DESC`,
         [userId]
@@ -557,10 +557,10 @@ router.get("/metrics", authenticateToken, async (req, res) => {
     // Enrich holdings with database data (average_cost, sector, beta) if missing
     try {
       const dbHoldings = await query(
-        `SELECT ph.symbol, ph.average_cost, c.sector, ss.beta
+        `SELECT ph.symbol, ph.average_cost, c.sector, sm.beta
          FROM portfolio_holdings ph
          LEFT JOIN company_profile c ON ph.symbol = c.ticker
-         LEFT JOIN stock_scores ss ON ph.symbol = ss.symbol
+         LEFT JOIN stability_metrics sm ON ph.symbol = sm.symbol AND sm.date = (SELECT MAX(date) FROM stability_metrics WHERE symbol = ph.symbol)
          WHERE ph.user_id = $1 AND ph.symbol = ANY($2)`,
         [userId, validHoldings.map(h => h.symbol)]
       );
