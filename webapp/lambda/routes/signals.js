@@ -124,7 +124,7 @@ router.get("/stocks", async (req, res) => {
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.signal_triggered_date,
       bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
       bsd.signal, bsd.buylevel, bsd.stoplevel, bsd.inposition,
-      bsd.strength, bsd.signal_strength, bsd.confirmed,
+      bsd.strength, bsd.signal_strength,
       bsd.signal_type, bsd.pivot_price, bsd.buy_zone_start, bsd.buy_zone_end,
       bsd.exit_trigger_1_price, bsd.exit_trigger_2_price, bsd.exit_trigger_3_condition, bsd.exit_trigger_3_price,
       bsd.exit_trigger_4_condition, bsd.exit_trigger_4_price,
@@ -259,7 +259,6 @@ router.get("/stocks", async (req, res) => {
       // Signal quality
       strength: row.strength !== null ? parseFloat(row.strength) : null,
       signal_strength: row.signal_strength !== null ? parseFloat(row.signal_strength) : null,
-      confirmed: row.confirmed || false,
 
       // Technical indicators
       rsi: row.rsi !== null ? parseFloat(row.rsi) : null,
@@ -424,7 +423,7 @@ router.get("/etf", async (req, res) => {
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.signal_triggered_date,
       bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
       bsd.signal, bsd.buylevel, bsd.stoplevel, bsd.inposition,
-      bsd.strength, bsd.signal_strength, bsd.confirmed,
+      bsd.strength, bsd.signal_strength,
       bsd.signal_type, bsd.pivot_price, bsd.buy_zone_start, bsd.buy_zone_end,
       bsd.exit_trigger_1_price, bsd.exit_trigger_2_price, bsd.exit_trigger_3_condition, bsd.exit_trigger_3_price,
       bsd.exit_trigger_4_condition, bsd.exit_trigger_4_price,
