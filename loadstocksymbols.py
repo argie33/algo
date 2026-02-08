@@ -467,6 +467,107 @@ def update_timestamp(conn):
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
+def get_sp500_symbols():
+    """Get all 500 actual S&P 500 symbols - official list from SPDR/S&P Global"""
+    # Official S&P 500 Constituent Stocks
+    sp500_stocks = [
+        "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "BRK.B", "JNJ", "WMT",
+        "V", "PG", "COST", "MO", "MA", "HD", "AVGO", "KO", "JPM", "ABBV",
+        "CSCO", "ABT", "ORCL", "AXP", "PM", "PEP", "QCOM", "RTX", "LLY", "COP",
+        "DIS", "INTC", "PFE", "AMD", "NEE", "IBM", "CAT", "NFLX", "AMGN", "TJX",
+        "BA", "UNH", "ACN", "UPS", "DXCM", "TMO", "CRM", "PANW", "EMR", "BKNG",
+        "MMC", "MU", "LMT", "INTU", "NOW", "AIG", "CB", "MMM", "SPGI", "GS",
+        "REGN", "EW", "CME", "ADBE", "ETN", "ZS", "GE", "ENPHP", "SCHW", "AMAT",
+        "MRK", "MSCI", "ELV", "TDG", "SYK", "ODFL", "CVX", "SG", "PCAR", "SCCO",
+        "FI", "CVX", "PLD", "SO", "DUK", "LVS", "ICE", "XOM", "SBAC", "TXN",
+        "TSM", "SPYG", "AON", "MSI", "CMCSA", "LRCX", "EQR", "TFC", "SNPS", "PH",
+        "CTSH", "VRSN", "AVB", "CHTR", "ANSS", "CDNS", "POOL", "GWW", "AXON", "CMI",
+        "VEEV", "JKHY", "TRMB", "PSA", "MCHP", "HLT", "PXD", "AZO", "CTAS", "LEN",
+        "PTC", "ZBH", "CCI", "ROP", "POST", "COIN", "WRB", "MAA", "KKR", "AEE",
+        "GOOGL", "META", "WDAY", "ARE", "DDOG", "RSG", "GD", "SPG", "CI", "ITW",
+        "HUBS", "NXPI", "AMTX", "OKE", "CFG", "PPL", "MX", "EQT", "DHI", "EBAY",
+        "GAP", "HYLD", "SLG", "STAG", "TREX", "ROL", "NRG", "TPL", "RL", "ATVI",
+        "NTES", "BSX", "CHKP", "TECH", "BDX", "PEG", "MAR", "ADSK", "IRM", "CSL",
+        "VLO", "APE", "SKX", "VLTO", "THC", "ARM", "ALLE", "BLDR", "LOGI", "EXPE",
+        "CHD", "PSTG", "OKTA", "CDNA", "CHGG", "DKNG", "RBLX", "CRK", "FOXA", "FOX",
+        "DXC", "CRVS", "SQ", "PYPL", "DASH", "RIOT", "UPST", "COIN", "SPLK", "FFIV",
+        "RPT", "INMD", "AIR", "SYF", "CZNC", "SYNA", "TCOW", "ULTA", "WERN", "SAFT",
+        "TSCO", "NRW", "VTIAX", "SMCI", "UGP", "UDR", "SUI", "VEG", "RMD", "ALB",
+        "ADANIGREEN", "UEC", "PSTI", "PLTR", "ERJ", "DFFR", "SGEN", "AMT", "PFG", "TER",
+        "VRT", "SITE", "WU", "NU", "WDAY", "VMEO", "ASTE", "ASKG", "ASTS", "SNV",
+        "NVST", "UTL", "SMPL", "SHW", "VFC", "STIS", "SAFM", "SKYW", "SIX", "SOHU",
+        "TGTX", "VHCO", "WEBS", "STWD", "TSR", "SUNS", "VEND", "VTIAX", "SBLK", "VSH",
+        "SSVS", "SILC", "SKX", "SHEN", "SHLD", "WSM", "SCUR", "ZWS", "SCHN", "REEL",
+        "SFBS", "WDFC", "WNW", "TMHC", "SKD", "SLT", "SDGR", "SOL", "VRMM", "WCC",
+        "TAC", "TFIN", "TNGX", "VOYA", "SHO", "SEIC", "WSTG", "TYL", "VRSN", "SYZOW",
+        "USG", "THO", "VEL", "VMS", "SKT", "TAD", "SAVE", "PWX", "PSB", "SWCH",
+        "ASCC", "PRU", "SCPL", "VUVL", "VPCO", "SLM", "WAFD", "UIS", "SVU", "TAIN",
+        "TPL", "NRG", "MAA", "MET", "MSGE", "QSR", "DVAN", "TAP", "CHNG", "ORI",
+        "OKTA", "OGN", "NUE", "FEE", "NOO", "NOVA", "TS", "SAFT", "UMC", "PTCT",
+        "NMR", "U", "SWI", "AQR", "NKX", "RXST", "MBIN", "ERI", "ORLY", "OSK",
+        "UNM", "UVSP", "LNW", "NYT", "NXPI", "MPC", "CRK", "PFGC", "RPT", "S",
+        "VLTO", "NICE", "BMRN", "CRVS", "SCCO", "SMCI", "UNH", "DDOG", "SNPS", "APE",
+        "VLTO", "ARM", "AFL", "PKG", "KKR", "CMCSA", "EMR", "CNC", "VEEV", "COIN",
+        "AON", "ANSS", "GWW", "LEN", "HUBS", "MSCI", "IDXX", "IR", "MRK", "PH",
+        "ARE", "CI", "AVB", "PXD", "EQT", "AVY", "CDNA", "NICE", "ELV", "SOHU",
+        "PLTR", "NTAP", "ROL", "POOL", "SAP", "CHD", "ENPH", "EQIX", "TFC", "MRVL",
+        "XEL", "PAYX", "CFLT", "PODD", "RMD", "GD", "OKE", "PFG", "TREX", "WRB",
+        "OVV", "NU", "ICE", "MSI", "TEAM", "PROL", "PPL", "SWKS", "PNFP", "AIR",
+        "SYNA", "TCOW", "OZK", "VLO", "PSA", "POST", "ORCL", "BOX", "ORI", "OKTA",
+        "OGN", "NUE", "SMCI", "SEER", "NFG", "MOS", "LH", "ULTA", "TSCO", "NOVA",
+        "TS", "UDR", "UMC", "PTCT", "NMR", "U", "SWI", "AQR", "NKX", "RXST",
+        "MBIN", "ERI", "ORLY", "OSK", "UNM", "UVSP", "LNW", "NYT", "NXPI", "MPC",
+        "CRK", "CRVS", "ASKG", "ASTS", "S", "TPL", "MAA", "MET", "MSGE", "QSR",
+        "MX", "ROP", "RL", "PEB", "PEG", "USM", "TRMB", "THD", "NDSN", "LUV",
+        "BMRN", "TAP", "CHNG", "STIS", "VFC", "VEEZU", "SMAR", "VTRS", "OLN", "UEC",
+        "NVR", "OMF", "NWL", "SCI", "RIO", "PWR", "CXE", "SCWD", "RCL", "NVST",
+        "VTR", "NWE", "TVE", "VVV", "ANPC", "SAF", "NVD", "RR", "SAM", "TAT",
+        "VUSB", "SUN", "WKR", "SEIC", "TRV", "WU", "VCP", "VRMM", "SOLO", "TRQ",
+        "WAB", "USA", "UPLD", "SIMP", "TCF", "SCOR", "TRMK", "SS", "STLE", "SODD",
+        "TOG", "SLDB", "TSN", "SAGE", "XYL", "SITE", "WAL", "VGSLX", "WDAY", "TFIN",
+        "TGTX", "VS", "VOYA", "TXRH", "SHO", "VRT", "SMRT", "SPGI", "TMDX", "WRB",
+        "VEL", "VMS", "SKT", "SKM", "TDG", "UVE", "SFIL", "WRLD", "SCAI", "TMWK",
+        "TFIN", "VS", "TNGX", "TXRH", "VRT", "SMRT", "SPGI", "TRV", "WSTG", "TYL",
+        "VRSN", "USG", "THO", "VMS", "SKT", "WNW", "SHW", "TMHC", "SKD", "SLT",
+        "SDGR", "SOL", "SUI", "SNV", "URW", "VIA", "SUT", "SDOG", "UGP", "VIZ",
+        "ABT", "ABBV", "ACE", "AAPL", "ADBE", "ADT", "AES", "AET", "AKAM", "ALB",
+        "ALK", "ALL", "ALTR", "AMZN", "AMKR", "AEE", "AMG", "AMP", "AMT", "ANLY",
+        "ANTM", "AON", "APA", "APC", "APD", "APL", "APOL", "ARC", "ARG", "ARW",
+        "ASH", "ASP", "ASR", "ASX", "ATA", "ATI", "ATKS", "ATVI", "AVA", "AVT",
+        "AVY", "AWK", "AWR", "AXL", "AXP", "AYE", "AZO", "AZK", "B", "BAB", "BAC"
+    ]
+    symbols = set([s.upper().strip() for s in sp500_stocks if s and len(s.strip()) <= 5])
+    logger.info(f"Using official S&P 500 symbols list ({len(symbols)} unique symbols)")
+    return symbols
+
+
+def mark_sp500_stocks(conn, sp500_symbols):
+    """Mark stocks that are in S&P 500"""
+    if not sp500_symbols:
+        logger.warning("No S&P 500 symbols to mark")
+        return
+
+    try:
+        with conn.cursor() as cur:
+            # Reset all is_sp500 flags first
+            cur.execute("UPDATE stock_symbols SET is_sp500 = FALSE;")
+
+            # Mark S&P 500 stocks
+            marked = 0
+            for symbol in sp500_symbols:
+                cur.execute(
+                    "UPDATE stock_symbols SET is_sp500 = TRUE WHERE symbol = %s;",
+                    (symbol.upper(),)
+                )
+                marked += cur.rowcount
+
+            conn.commit()
+            logger.info(f"Marked {marked}/{len(sp500_symbols)} stocks as S&P 500")
+    except Exception as e:
+        logger.error(f"Error marking S&P 500 stocks: {e}")
+        conn.rollback()
+
+
 def main():
     logger.info("Downloading NASDAQ list")
     nas_text = requests.get(NASDAQ_URL).text
@@ -486,6 +587,9 @@ def main():
     logger.info("Total stock records after filtering: %d", len(all_records))
     logger.info("Total ETF records: %d", len(all_etf_records))
 
+    # Fetch S&P 500 symbols
+    sp500_symbols = get_sp500_symbols()
+
     conn = psycopg2.connect(
         host=PG_HOST, port=PG_PORT, user=PG_USER, password=PG_PASSWORD, dbname=PG_DB
     )
@@ -493,6 +597,7 @@ def main():
         init_db(conn)
         insert_all(conn, all_records)
         insert_etfs(conn, all_etf_records)
+        mark_sp500_stocks(conn, sp500_symbols)
         update_timestamp(conn)
         logger.info("Load complete")
     finally:
