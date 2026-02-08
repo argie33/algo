@@ -119,7 +119,7 @@ router.get("/stocks", async (req, res) => {
       paramIndex++;
     }
 
-    // Build actual columns based on table schema - ONLY columns that definitely exist
+    // Build actual columns - ONLY real data that exists in database
     const actualColumns = tableName === 'buy_sell_daily' ? `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
       bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
@@ -212,7 +212,7 @@ router.get("/stocks", async (req, res) => {
     // Summary statistics are calculated on frontend from items array per RULES.md
     const signalData = signalsResult.rows;
 
-    // Format the response data - ONLY REAL COLUMNS THAT EXIST
+    // Format the response data - ONLY REAL DATA THAT EXISTS
     const formattedData = signalsResult.rows.map(row => ({
       // Basic signal info
       id: row.id,
@@ -330,7 +330,7 @@ router.get("/etf", async (req, res) => {
       paramIndex++;
     }
 
-    // Build actual columns based on real data available - ONLY columns that exist
+    // For ETF signals, use same real data columns
     const actualColumns = `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
       bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
