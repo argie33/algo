@@ -339,18 +339,20 @@ def main():
     logger.info(f"Calculated {df['composite_score'].notna().sum()} composite scores")
 
     # ===== SAVE TO DATABASE =====
-    logger.info("Saving scores to database...")
+    logger.info(f"Saving scores to database for {len(df)} symbols...")
     cur = conn.cursor()
 
     # Get company names from stock_symbols for all stocks
     cur.execute("SELECT symbol, security_name FROM stock_symbols")
     company_names = {row[0]: row[1] for row in cur.fetchall()}
+    logger.info(f"Loading company names for {len(company_names)} stocks")
 
-    # Clear old scores first to ensure only filtered stocks remain
+    # Clear old scores first to ensure clean state
     cur.execute("TRUNCATE TABLE stock_scores")
     logger.info("Cleared old scores from database")
 
     saved = 0
+    failed = 0
     for idx, symbol in enumerate(df.index):
         try:
             composite_val = df.iloc[idx]['composite_score']
@@ -387,14 +389,15 @@ def main():
             """, (symbol, composite, quality, growth, value, momentum, positioning, stability))
 
             saved += 1
-            if saved % 500 == 0:
+            if saved % 1000 == 0:
                 conn.commit()
-                logger.info(f"  Saved {saved} scores...")
+                logger.info(f"  Saved {saved}/{len(df)} scores...")
         except Exception as e:
-            logger.warning(f"Error for {symbol}: {e}")
-            conn.rollback()
+            logger.warning(f"Error saving {symbol}: {e}")
+            failed += 1
 
     conn.commit()
+    logger.info(f"✅ Saved {saved} / {len(df)} stocks ({100*saved/len(df):.1f}%). Failed: {failed}")
 
     # Restore company names that were saved
     if company_names:
