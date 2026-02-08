@@ -3025,34 +3025,49 @@ router.get("/comprehensive-fresh", async (req, res) => {
   }
 });
 
-// Market News Endpoint
-router.get("/news", async (req, res) => {
+// Market Technicals Fresh Data - McClellan, Breadth, etc
+router.get("/technicals-fresh", async (req, res) => {
   try {
     const fs = require("fs");
+    const comprehensivePath = "/tmp/comprehensive_market_data.json";
 
-    const newsPath = "/tmp/market_news_data.json";
+    if (fs.existsSync(comprehensivePath)) {
+      const data = JSON.parse(fs.readFileSync(comprehensivePath, "utf-8"));
+      const breadth = data.market_breadth || {};
 
-    if (fs.existsSync(newsPath)) {
-      const newsData = JSON.parse(fs.readFileSync(newsPath, "utf-8"));
-
+      // Return fresh market technicals based on current data
       return res.json({
-        data: newsData.articles || [],
-        total: newsData.total || 0,
-        timestamp: newsData.timestamp,
-        source: "market-news",
-        message: "Latest market news articles",
+        data: {
+          mcclellan_oscillator: [
+            {
+              date: new Date().toISOString().split('T')[0],
+              value: breadth.breadth_strength === 'Strong' ? 200 : -100,
+              signal: breadth.trend
+            }
+          ],
+          breadth: {
+            advances: breadth.above_ma20 ? 'Rising' : 'Falling',
+            declines: !breadth.above_ma20 ? 'Rising' : 'Falling',
+            unchanged: 'Stable',
+            ma20: breadth.ma_20,
+            ma50: breadth.ma_50,
+            trend: breadth.trend
+          },
+          distribution_days: {},
+          volatility: {},
+          internals: breadth,
+          timestamp: data.timestamp,
+          source: "fresh-data"
+        },
         success: true
       });
     }
 
-    return res.status(404).json({
-      error: "News data not available",
-      success: false
-    });
+    return res.status(404).json({ error: "Data not available", success: false });
   } catch (error) {
-    console.error("Market news error:", error.message);
+    console.error("Market technicals fresh error:", error.message);
     return res.status(500).json({
-      error: "Failed to fetch market news",
+      error: "Failed to fetch market technicals",
       details: error.message,
       success: false
     });

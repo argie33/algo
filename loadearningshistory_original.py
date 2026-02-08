@@ -170,48 +170,12 @@ def load_earnings_history(symbols, cur, conn):
                         # Parse the quarter index which is typically in the format YYYY-MM-DD
                         quarter_date = str(quarter)
 
-                        # CRITICAL: Validate EPS values - yfinance sometimes returns corrupted data
-                        eps_actual = pyval(row.get('epsActual'))
-                        eps_estimate = pyval(row.get('epsEstimate'))
-                        eps_difference = pyval(row.get('epsDifference'))
-                        surprise_percent = pyval(row.get('surprisePercent'))
-
-                        # Filter out unrealistic EPS values
-                        # Real EPS rarely exceeds +/-500 for individual stocks
-                        # Values outside -100 to +100 are likely corrupted from yfinance
-                        if eps_actual is not None and (eps_actual > 100 or eps_actual < -100):
-                            logging.warning(
-                                f"Skipping {orig_sym} Q{quarter_date}: eps_actual={eps_actual} (out of realistic range)"
-                            )
-                            continue
-
-                        if eps_estimate is not None and (eps_estimate > 100 or eps_estimate < -100):
-                            logging.warning(
-                                f"Skipping {orig_sym} Q{quarter_date}: eps_estimate={eps_estimate} (out of realistic range)"
-                            )
-                            continue
-
-                        # Skip records if EPS data is clearly corrupted (has extreme difference)
-                        if (eps_actual is not None and eps_difference is not None and
-                            abs(eps_difference) > 50):
-                            logging.warning(
-                                f"Skipping {orig_sym} Q{quarter_date}: eps_difference={eps_difference} (unrealistic gap)"
-                            )
-                            continue
-
-                        # Skip if surprise is nonsensical (>1000% would be impossible)
-                        if surprise_percent is not None and abs(surprise_percent) > 1000:
-                            logging.warning(
-                                f"Skipping {orig_sym} Q{quarter_date}: surprise_percent={surprise_percent} (impossible value)"
-                            )
-                            continue
-
                         history_data.append((
                             orig_sym, quarter_date,
-                            eps_actual,
-                            eps_estimate,
-                            eps_difference,
-                            surprise_percent
+                            pyval(row.get('epsActual')),
+                            pyval(row.get('epsEstimate')),
+                            pyval(row.get('epsDifference')),
+                            pyval(row.get('surprisePercent'))
                         ))
 
                     if history_data:
