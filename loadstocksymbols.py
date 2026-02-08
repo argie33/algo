@@ -352,8 +352,16 @@ def init_db(conn):
                 financial_status  VARCHAR(50),
                 round_lot_size    INT,
                 etf               CHAR(1),
-                secondary_symbol  VARCHAR(50)
+                secondary_symbol  VARCHAR(50),
+                is_sp500          BOOLEAN DEFAULT FALSE
             );
+        """
+        )
+        # Add is_sp500 column if it doesn't exist (for existing tables)
+        cur.execute(
+            """
+            ALTER TABLE stock_symbols
+            ADD COLUMN IF NOT EXISTS is_sp500 BOOLEAN DEFAULT FALSE;
         """
         )
         # etf_symbols
