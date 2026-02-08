@@ -17,16 +17,10 @@ const OurTeam = () => {
       image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=500&fit=crop',
     },
     {
-      name: 'Sarah Chen',
-      role: 'VP Engineering & Technology',
-      bio: 'CTO and technical leader driving Bullseye\'s AI-powered analytics engine. With expertise in distributed systems, machine learning, and financial technology, Sarah builds scalable infrastructure that processes and analyzes millions of data points in real-time to deliver actionable market insights.',
-      image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&h=500&fit=crop',
-    },
-    {
-      name: 'Anthony Riga',
-      role: 'VP Research & Analytics',
-      bio: 'Seasoned equity researcher specializing in macro trends, sector rotation analysis, and institutional capital flows. Deep expertise in AI adoption impacts across industries. Anthony leads quantitative research combining academic rigor with practical market experience.',
-      image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=800&h=500&fit=crop',
+      name: 'Amanda Foster',
+      role: 'Head of Operations & Business Development',
+      bio: 'Strategic operations leader focused on scaling Bullseye and expanding market reach. Amanda oversees business development, partnerships, and operational excellence, ensuring the platform meets the needs of individual investors and institutional clients alike.',
+      image: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=500&fit=crop',
     },
   ];
 
