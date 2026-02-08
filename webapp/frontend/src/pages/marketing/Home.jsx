@@ -19,26 +19,7 @@ const Home = () => {
   const theme = useTheme();
   const navigate = useNavigate();
 
-  const articlesData = [
-    {
-      id: 'great-rotation',
-      title: 'The Great Rotation in Progress - Growth to Value/Cyclicals',
-      date: 'February 7, 2026',
-      author: 'Macro Strategy',
-      excerpt: 'Our data reveals a secular shift in early innings. After years of "Magnificent Seven" dominance, capital is rotating broadly across the market spectrum. The emergence of micro-cap names with 99+ momentum percentile readings alongside stable 55-57 composite scores suggests the rotation is becoming institutional, not retail.',
-      tags: ['Macro', 'Rotation', 'Valuation', 'Efficiency'],
-      tickers: ['GRAF', 'GGG', 'GCMG', 'MSGS'],
-    },
-    {
-      id: 'ai-efficiencies',
-      title: 'AI Efficiencies Permeating Through Economy - Start of Something Bigger',
-      date: 'February 5, 2026',
-      author: 'AI Economics',
-      excerpt: 'This is not a tech stock story anymore. It\'s an economy-wide story. Our scoring system captures this transition with composite scores 55-60 appearing in industrial names, mid-cap cyclicals, specialized materials, and overlooked sectors. This marks the START of a multi-year productivity super-cycle.',
-      tags: ['Macro', 'AI Economics', 'Productivity', 'Opportunity'],
-      tickers: ['MSGS', 'MOB', 'HYMC', 'IMSR'],
-    },
-  ];
+  const articlesData = [];
 
   const dataCapabilities = [
     { label: 'Equity Research', detail: 'Systematic stock analysis, multi-factor valuation models, and institutional-grade comparative metrics' },
@@ -307,109 +288,7 @@ const Home = () => {
       {/* Community Signup Section */}
       <CommunitySignup />
 
-      {/* Testimonials Section */}
-      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.default }}>
-        <Container maxWidth="lg">
-          <Typography
-            variant="h3"
-            sx={{
-              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
-              fontWeight: 800,
-              mb: 2,
-              textAlign: 'center',
-              color: theme.palette.text.primary,
-            }}
-          >
-            Trusted by Professional Investors
-          </Typography>
-          <Typography
-            sx={{
-              fontSize: '1.05rem',
-              color: theme.palette.text.secondary,
-              textAlign: 'center',
-              mb: 6,
-              maxWidth: '700px',
-              mx: 'auto',
-            }}
-          >
-            See what professional traders, advisors, and institutional investors are saying about Bullseye's research
-          </Typography>
-          <Grid container spacing={4}>
-            {[
-              {
-                name: 'Portfolio Manager',
-                role: 'Mid-sized Asset Manager',
-                quote: 'The quantitative scoring models help us identify opportunities across our coverage universe. The earnings analysis has been particularly useful for timing positions around quarterly reports.',
-              },
-              {
-                name: 'Registered Investment Advisor',
-                role: 'Independent RIA',
-                quote: 'Bullseye\'s research saves me hours of analysis time. The multi-factor approach gives me confidence in stock selection, and the sector rotation signals help with tactical allocation decisions.',
-              },
-              {
-                name: 'Active Investor',
-                role: 'Individual Trader',
-                quote: 'The platform gives me access to institutional-caliber research at a fraction of the cost. The technical analysis tools combined with fundamental metrics help me make better-informed trading decisions.',
-              },
-            ].map((testimonial, idx) => (
-              <Grid item xs={12} sm={6} md={4} key={idx}>
-                <Box
-                  sx={{
-                    p: 3,
-                    backgroundColor: theme.palette.background.paper,
-                    border: `1px solid ${theme.palette.divider}`,
-                    borderRadius: '0px',
-                    height: '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    transition: 'all 0.3s ease',
-                    '&:hover': {
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                      transform: 'translateY(-2px)',
-                    },
-                  }}
-                >
-                  <Typography
-                    sx={{
-                      fontSize: '1rem',
-                      color: theme.palette.text.secondary,
-                      mb: 3,
-                      lineHeight: 1.7,
-                      fontStyle: 'italic',
-                      flex: 1,
-                    }}
-                  >
-                    "{testimonial.quote}"
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 2, pt: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
-                    <Box>
-                      <Typography
-                        sx={{
-                          fontWeight: 700,
-                          color: theme.palette.text.primary,
-                          fontSize: '0.95rem',
-                        }}
-                      >
-                        {testimonial.name}
-                      </Typography>
-                      <Typography
-                        sx={{
-                          fontSize: '0.85rem',
-                          color: theme.palette.text.secondary,
-                        }}
-                      >
-                        {testimonial.role}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Box>
-              </Grid>
-            ))}
-          </Grid>
-        </Container>
-      </Box>
-
-      {/* CTA Section */}
+{/* CTA Section */}
       <CTASection
         variant="dark"
         title="Ready to Access Professional Research?"

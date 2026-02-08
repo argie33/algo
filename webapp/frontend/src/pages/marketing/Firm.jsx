@@ -43,36 +43,7 @@ const Firm = () => {
     },
   ];
 
-  const teamMembers = [
-    {
-      name: 'Sarah Chen',
-      role: 'Founder & CEO',
-      bio: 'Financial market specialist with deep experience in equity analysis, market trends, and investment strategy. Combines traditional financial knowledge with innovative analytical approaches.',
-      image: 'placeholder',
-      expertise: 'Market Analysis, Investment Strategy, Financial Research',
-    },
-    {
-      name: 'Michael Rodriguez',
-      role: 'Chief Research Officer',
-      bio: 'Technology expert specializing in data analysis and system architecture. Focuses on translating market insights into actionable intelligence through advanced analytics and AI.',
-      image: 'placeholder',
-      expertise: 'Data Science, AI Development, Technical Architecture',
-    },
-    {
-      name: 'Dr. James Park',
-      role: 'VP of AI & Engineering',
-      bio: 'Software engineer and systems architect dedicated to building intuitive, robust platforms that deliver market intelligence to investors. Expert in financial technology development.',
-      image: 'placeholder',
-      expertise: 'Software Engineering, Platform Development, Technology',
-    },
-    {
-      name: 'Emily Thompson',
-      role: 'Chief Operations Officer',
-      bio: 'Business operations specialist focused on scaling the platform and ensuring clients get maximum value from our research and analytics tools.',
-      image: 'placeholder',
-      expertise: 'Operations, Client Success, Business Strategy',
-    },
-  ];
+  const teamMembers = [];
 
   return (
     <MarketingLayout>
