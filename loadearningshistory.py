@@ -113,48 +113,29 @@ def pyval(val):
     return val
 
 def load_earnings_history(symbols, cur, conn):
-    # FILTER: Only load major stocks with proven earnings data
-    # Skip: penny stocks, preferred shares, micro-caps, delisted
-    major_stock_keywords = ['SPY', 'QQQ', 'DIA', 'IWM']  # ETFs are proxies
+    # Load earnings data for ALL symbols - no filtering
+    # yfinance will return empty if no data available
 
-    # Filter to only symbols that are likely to have data
-    # Criteria: No dots (preferred shares), No $, reasonable length (2-5 chars)
-    filtered_symbols = [
-        s for s in symbols
-        if '.' not in s and '$' not in s and len(s) <= 5 and len(s) >= 1
-    ]
-
-    total = len(filtered_symbols)
-    logging.info(f"Loading earnings history for {total} symbols (filtered from {len(symbols)})")
+    total = len(symbols)
+    logging.info(f"Loading earnings history for {total} symbols (no filtering)")
     processed, failed = 0, []
     CHUNK_SIZE = 20
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     for batch_idx in range(batches):
-        batch = filtered_symbols[batch_idx*CHUNK_SIZE:(batch_idx+1)*CHUNK_SIZE]
-        # Handle preferred shares (symbols with $): use base ticker for yfinance
+        batch = symbols[batch_idx*CHUNK_SIZE:(batch_idx+1)*CHUNK_SIZE]
+        # Handle symbol conversion for yfinance
         yq_batch = []
         for s in batch:
-            if '$' in s:
-                # CADE$A -> CADE (use base ticker for preferred shares)
-                base_ticker = s.split('$')[0]
-                yq_batch.append(base_ticker)
-            else:
-                # Normal ticker conversion
-                yq_batch.append(s.replace('.', '-').upper())
+            # Convert to yfinance format (. -> -, uppercase)
+            yq_sym = s.replace('.', '-').upper()
+            yq_batch.append(yq_sym)
         mapping = dict(zip(yq_batch, batch))
 
         logging.info(f"Processing batch {batch_idx+1}/{batches}")
         log_mem(f"Batch {batch_idx+1} start")
 
         for yq_sym, orig_sym in mapping.items():
-            # Skip symbols that are known to have no earnings data
-            # Preferred shares (contain $), micro-caps, penny stocks
-            if '$' in orig_sym or '.' in orig_sym:
-                logging.debug(f"Skipping {orig_sym} (preferred share or special class)")
-                failed.append(orig_sym)
-                continue
-
             earnings_history = None
             for attempt in range(1, 2):  # Only try once - if no data, skip
                 try:
