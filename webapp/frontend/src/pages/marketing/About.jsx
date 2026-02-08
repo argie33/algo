@@ -121,6 +121,15 @@ const About = () => {
                 Our platform represents years of research infrastructure development, integrating over a decade of market data, advanced analytical models, and systematic research methodology. The result is comprehensive equity coverage underpinned by rigorous quantitative frameworks and institutional-grade research practices—delivering the analysis that professional investors require for disciplined capital allocation.
               </Typography>
             </Grid>
+
+            {/* Right Image */}
+            <Grid item xs={12} md={6}>
+              <ImagePlaceholder
+                src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1200&h=400&fit=crop&auto=format&q=80"
+                alt="Analytics dashboard with market data and performance metrics"
+                height={{ xs: '300px', md: '450px' }}
+              />
+            </Grid>
           </Grid>
         </Container>
       </Box>
