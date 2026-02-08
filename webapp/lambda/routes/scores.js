@@ -482,7 +482,7 @@ const ALLOWED_SORT_COLUMNS = [
 // Unified query builder for stock scores
 async function queryScores(options = {}) {
   const {
-    limit = 50,
+    limit = 5057,
     offset = 0,
     search = '',
     sortBy = 'composite_score',
