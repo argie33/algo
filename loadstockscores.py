@@ -404,45 +404,58 @@ def main():
         conn.commit()
         logger.info(f"Restored {len(company_names)} company names")
 
-    # Post-processing: Fill any missing scores and ensure data quality
-    logger.info("\nRunning data quality cleanup...")
+    # Post-processing: Calculate composite score from factor scores
+    logger.info("\nFinalizing composite scores...")
     try:
         cur = conn.cursor()
 
-        # Fill any remaining NULL scores with neutral value (50.0 = balanced)
-        null_counts = {}
-        for col in ['quality_score', 'growth_score', 'stability_score', 'momentum_score', 'value_score', 'positioning_score']:
-            cur.execute(f"UPDATE stock_scores SET {col} = 50.0 WHERE {col} IS NULL")
-            null_counts[col] = cur.rowcount
-
-        # Recalculate composite score including sentiment if available
+        # Calculate composite as average of 6 factor scores (no sentiment, no fake fills)
+        # NULLS preserved: only averages valid factor scores present
         cur.execute("""
             UPDATE stock_scores
             SET composite_score = (
-              COALESCE(quality_score, 50) +
-              COALESCE(growth_score, 50) +
-              COALESCE(stability_score, 50) +
-              COALESCE(momentum_score, 50) +
-              COALESCE(value_score, 50) +
-              COALESCE(positioning_score, 50) +
-              COALESCE(sentiment_score, 50)
-            ) / 7.0
+              SELECT AVG(score) FROM (
+                VALUES
+                  (quality_score),
+                  (growth_score),
+                  (stability_score),
+                  (momentum_score),
+                  (value_score),
+                  (positioning_score)
+              ) AS factor_scores(score)
+              WHERE score IS NOT NULL
+            )
         """)
 
         conn.commit()
 
-        # Log data quality summary
-        if any(null_counts.values()):
-            logger.info("  Filled missing scores:")
-            for col, count in null_counts.items():
-                if count > 0:
-                    logger.info(f"    {col}: {count} rows")
-        else:
-            logger.info("  ✅ No missing scores to fill - data is complete!")
+        # Log data completeness
+        cur.execute("""
+          SELECT
+            COUNT(*) as total,
+            COUNT(*) FILTER (WHERE quality_score IS NOT NULL) as has_quality,
+            COUNT(*) FILTER (WHERE growth_score IS NOT NULL) as has_growth,
+            COUNT(*) FILTER (WHERE stability_score IS NOT NULL) as has_stability,
+            COUNT(*) FILTER (WHERE momentum_score IS NOT NULL) as has_momentum,
+            COUNT(*) FILTER (WHERE value_score IS NOT NULL) as has_value,
+            COUNT(*) FILTER (WHERE positioning_score IS NOT NULL) as has_positioning,
+            COUNT(*) FILTER (WHERE composite_score IS NOT NULL) as has_composite
+          FROM stock_scores
+        """)
+        stats = cur.fetchone()
+        logger.info(f"  Data completeness:")
+        logger.info(f"    Total stocks: {stats[0]}")
+        logger.info(f"    Quality scores: {stats[1]} ({100*stats[1]/stats[0]:.1f}%)")
+        logger.info(f"    Growth scores: {stats[2]} ({100*stats[2]/stats[0]:.1f}%)")
+        logger.info(f"    Stability scores: {stats[3]} ({100*stats[3]/stats[0]:.1f}%)")
+        logger.info(f"    Momentum scores: {stats[4]} ({100*stats[4]/stats[0]:.1f}%)")
+        logger.info(f"    Value scores: {stats[5]} ({100*stats[5]/stats[0]:.1f}%)")
+        logger.info(f"    Positioning scores: {stats[6]} ({100*stats[6]/stats[0]:.1f}%)")
+        logger.info(f"    Composite scores: {stats[7]} ({100*stats[7]/stats[0]:.1f}%)")
 
         cur.close()
     except Exception as e:
-        logger.warning(f"Data quality cleanup failed: {e}")
+        logger.warning(f"Composite score finalization failed: {e}")
         conn.rollback()
     finally:
         conn.close()

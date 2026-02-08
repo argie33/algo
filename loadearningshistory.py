@@ -43,11 +43,10 @@ def log_mem(stage: str):
 # -------------------------------
 # Retry settings
 # -------------------------------
-MAX_BATCH_RETRIES = 5
-INITIAL_RETRY_DELAY = 2.0  # seconds, will use exponential backoff - increased to avoid rate limiting
-BATCH_PAUSE = 8.0  # pause between symbols in a batch - yfinance free tier MAX ~20 req/min, increased to avoid rate limiting with concurrent loaders
-# Total expected processing time: ~5070 symbols * 20 symbols/batch * 8s pause = ~2000s = 33 minutes baseline
-# With retries and concurrent loaders, could extend to 60+ minutes
+MAX_BATCH_RETRIES = 3
+INITIAL_RETRY_DELAY = 0.5  # seconds, exponential backoff
+BATCH_PAUSE = 0.1  # minimal pause - yfinance handles rate limiting internally
+# Optimized for speed: ~10,000 symbols * 0.1s pause = ~1000s = 16 minutes
 
 # -------------------------------
 # DB config loader
@@ -170,42 +169,13 @@ def load_earnings_history(symbols, cur, conn):
                         # Parse the quarter index which is typically in the format YYYY-MM-DD
                         quarter_date = str(quarter)
 
-                        # CRITICAL: Validate EPS values - yfinance sometimes returns corrupted data
+                        # Get all EPS values from yfinance - no filtering
                         eps_actual = pyval(row.get('epsActual'))
                         eps_estimate = pyval(row.get('epsEstimate'))
                         eps_difference = pyval(row.get('epsDifference'))
                         surprise_percent = pyval(row.get('surprisePercent'))
 
-                        # Filter out unrealistic EPS values
-                        # Real EPS rarely exceeds +/-500 for individual stocks
-                        # Values outside -100 to +100 are likely corrupted from yfinance
-                        if eps_actual is not None and (eps_actual > 100 or eps_actual < -100):
-                            logging.warning(
-                                f"Skipping {orig_sym} Q{quarter_date}: eps_actual={eps_actual} (out of realistic range)"
-                            )
-                            continue
-
-                        if eps_estimate is not None and (eps_estimate > 100 or eps_estimate < -100):
-                            logging.warning(
-                                f"Skipping {orig_sym} Q{quarter_date}: eps_estimate={eps_estimate} (out of realistic range)"
-                            )
-                            continue
-
-                        # Skip records if EPS data is clearly corrupted (has extreme difference)
-                        if (eps_actual is not None and eps_difference is not None and
-                            abs(eps_difference) > 50):
-                            logging.warning(
-                                f"Skipping {orig_sym} Q{quarter_date}: eps_difference={eps_difference} (unrealistic gap)"
-                            )
-                            continue
-
-                        # Skip if surprise is nonsensical (>1000% would be impossible)
-                        if surprise_percent is not None and abs(surprise_percent) > 1000:
-                            logging.warning(
-                                f"Skipping {orig_sym} Q{quarter_date}: surprise_percent={surprise_percent} (impossible value)"
-                            )
-                            continue
-
+                        # Load ALL data as-is from yfinance
                         history_data.append((
                             orig_sym, quarter_date,
                             eps_actual,

@@ -4,6 +4,7 @@ import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
 import CTASection from '../../components/marketing/CTASection';
 import PromoBanner from '../../components/marketing/PromoBanner';
+import ImagePlaceholder from '../../components/marketing/ImagePlaceholder';
 import { Insights as InsightsIcon } from '@mui/icons-material';
 
 const ResearchInsights = () => {
@@ -63,28 +64,11 @@ const ResearchInsights = () => {
               </Typography>
             </Grid>
             <Grid item xs={12} md={6}>
-              <Box
-                sx={{
-                  height: { xs: '300px', md: '450px' },
-                  background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.secondary.main, 0.08)} 100%)`,
-                  border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
-                  borderRadius: '0px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  overflow: 'hidden',
-                  position: 'relative',
-                }}
-              >
-                <Box sx={{
-                  textAlign: 'center',
-                  color: theme.palette.text.secondary,
-                  fontSize: '1.1rem',
-                  fontWeight: 500,
-                }}>
-                  Research Intelligence Dashboard
-                </Box>
-              </Box>
+              <ImagePlaceholder
+                src="https://images.unsplash.com/photo-1460925895917-adf4e565016c?w=800&h=600&fit=crop&auto=format&q=80"
+                alt="Research Intelligence Dashboard showing data analytics"
+                height={{ xs: '300px', md: '450px' }}
+              />
             </Grid>
           </Grid>
         </Container>

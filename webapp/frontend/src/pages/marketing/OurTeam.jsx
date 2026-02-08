@@ -4,6 +4,7 @@ import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
 import CTASection from '../../components/marketing/CTASection';
 import PromoBanner from '../../components/marketing/PromoBanner';
+import ImagePlaceholder from '../../components/marketing/ImagePlaceholder';
 import { People as PeopleIcon } from '@mui/icons-material';
 
 const OurTeam = () => {
@@ -44,8 +45,18 @@ const OurTeam = () => {
         >
           Our team combines finance expertise and technology innovation to bring institutional-grade market intelligence to every investor. We're dedicated to making sophisticated analysis accessible to all.
         </Typography>
-
       </Container>
+
+      {/* Team Image Section */}
+      <Box sx={{ py: { xs: 4, md: 6 }, backgroundColor: theme.palette.background.default }}>
+        <Container maxWidth="lg">
+          <ImagePlaceholder
+            src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=1200&h=400&fit=crop&auto=format&q=80"
+            alt="Professional team working on market analysis"
+            height={{ xs: '250px', md: '350px' }}
+          />
+        </Container>
+      </Box>
 
       <PromoBanner
         icon={<PeopleIcon sx={{ color: theme.palette.primary.main }} />}

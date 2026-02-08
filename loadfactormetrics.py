@@ -292,13 +292,10 @@ def calculate_cagr(start_value: float, end_value: float, periods: int) -> Option
     if start_value == 0 or abs(start_value) < 0.0001:
         # Can't use standard CAGR formula (division by zero)
         # For recovery (0 -> positive) or deterioration (0 -> negative),
-        # return a large positive or negative value to capture improvement/decline
-        if end_value > 0:
-            # Recovery from zero - strong positive signal (cap at 999%)
-            return 999.0
-        elif end_value < 0:
-            # Deterioration from zero - strong negative signal (cap at -999%)
-            return -999.0
+        # return NULL to avoid extreme outliers contaminating z-scores
+        if end_value > 0 or end_value < 0:
+            # Recovery from zero or deterioration - return NULL instead of placeholder
+            return None
         else:
             # Both zero - no change
             return 0.0

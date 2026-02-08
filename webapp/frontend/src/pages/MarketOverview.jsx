@@ -430,13 +430,13 @@ const handleTabChange = (event, newValue) => {
 
   console.log("📊 Market data structure:", { techData, sentData, seasonData });
 
-  // Extract technicals data
-  const breadth = techData?.breadth || {};
-  const mcclellanRawData = techData?.mcclellan_oscillator || [];
+  // Extract technicals data (nested under .data)
+  const breadth = techData?.data?.breadth || {};
+  const mcclellanRawData = techData?.data?.mcclellan_oscillator || [];
   // API now returns actual distribution_days data keyed by symbol (^GSPC, ^IXIC, ^DJI)
-  const distributionDays = techData?.distribution_days || {};
-  const volatility = techData?.volatility || {};
-  const internals = techData?.internals || {};
+  const distributionDays = techData?.data?.distribution_days || {};
+  const volatility = techData?.data?.volatility || {};
+  const internals = techData?.data?.internals || {};
   const seasonality = seasonData || {};
 
   // Transform McClellan data to component format
