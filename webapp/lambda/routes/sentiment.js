@@ -201,22 +201,55 @@ router.get("/history", async (req, res) => {
 // GET /api/sentiment/current - Current market sentiment (fear/greed, NAAIM, AAII)
 router.get("/current", async (req, res) => {
   try {
-    // Get the latest sentiment readings
-    // Note: market_metrics table doesn't exist, returning null values for now
+    // Try to fetch sentiment data from actual tables, handle gracefully if missing
+    let fearGreed = null, naaim = null, aaii = null;
+
+    try {
+      const fearGreedResult = await query(
+        `SELECT index_value as value, rating, date FROM fear_greed_index ORDER BY date DESC LIMIT 1`
+      );
+      fearGreed = fearGreedResult.rows[0] || null;
+    } catch (e) {
+      console.warn("fear_greed_index table not available:", e.message);
+    }
+
+    try {
+      const naaImResult = await query(
+        `SELECT naaim_number_mean, bullish, bearish, date FROM naaim ORDER BY date DESC LIMIT 1`
+      );
+      naaim = naaImResult.rows[0] || null;
+    } catch (e) {
+      console.warn("naaim table not available:", e.message);
+    }
+
+    try {
+      const aaiiResult = await query(
+        `SELECT bullish, neutral, bearish, date FROM aaii_sentiment ORDER BY date DESC LIMIT 1`
+      );
+      aaii = aaiiResult.rows[0] || null;
+    } catch (e) {
+      console.warn("aaii_sentiment table not available:", e.message);
+    }
+
     return res.json({
       data: {
-        fear_greed: null,
-        naaim: null,
-        aaii: null,
-        note: "Sentiment metrics data not available"
+        fear_greed: fearGreed,
+        naaim: naaim,
+        aaii: aaii,
+        timestamp: new Date().toISOString()
       },
       success: true
     });
   } catch (error) {
     console.error("Current sentiment error:", error);
-    return res.status(500).json({
-      error: "Failed to fetch current sentiment",
-      success: false
+    return res.json({
+      data: {
+        fear_greed: null,
+        naaim: null,
+        aaii: null,
+        timestamp: new Date().toISOString()
+      },
+      success: true
     });
   }
 });
