@@ -19,7 +19,26 @@ const Home = () => {
   const theme = useTheme();
   const navigate = useNavigate();
 
-  const articlesData = [];
+  const articlesData = [
+    {
+      id: 'great-rotation',
+      title: 'The Great Rotation: Capital Flows Signal Structural Market Shift Away From Concentration',
+      date: 'February 7, 2026',
+      author: 'Erik A.',
+      excerpt: 'Market breadth expanding significantly as institutional capital rotates away from mega-cap concentration. Real data on valuations, flows, and structural drivers.',
+      tags: ['Macro Analysis', 'Market Rotation', 'Institutional Flows'],
+      tickers: [],
+    },
+    {
+      id: 'ai-efficiencies',
+      title: 'The AI Productivity Inflection: How AI Adoption is Creating a Multi-Year Economic Super-Cycle',
+      date: 'February 5, 2026',
+      author: 'Erik A.',
+      excerpt: 'AI benefits spreading from software into manufacturing, logistics, healthcare sectors. Backed by real productivity data and sector-specific economic analysis.',
+      tags: ['AI Economics', 'Productivity', 'Structural Trends'],
+      tickers: [],
+    },
+  ];
 
   const dataCapabilities = [
     { label: 'Equity Research', detail: 'Systematic stock analysis, multi-factor valuation models, and institutional-grade comparative metrics' },

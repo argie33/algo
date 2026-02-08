@@ -4,6 +4,7 @@ import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
 import CTASection from '../../components/marketing/CTASection';
 import PromoBanner from '../../components/marketing/PromoBanner';
+import ImagePlaceholder from '../../components/marketing/ImagePlaceholder';
 import {
   Flag as FlagIcon,
   Lightbulb as LightbulbIcon,
@@ -91,6 +92,17 @@ const Firm = () => {
           >
             Our research covers earnings analysis, sector rotation, economic trends, and multi-factor stock scoring. We maintain research independence without investment banking conflicts, allowing us to publish unbiased analysis focused solely on investment merit.
           </Typography>
+        </Container>
+      </Box>
+
+      {/* Visual Section */}
+      <Box sx={{ py: { xs: 4, md: 6 }, backgroundColor: theme.palette.background.paper }}>
+        <Container maxWidth="lg">
+          <ImagePlaceholder
+            src="https://images.unsplash.com/photo-1460925895917-adf4e565016c?w=1200&h=400&fit=crop&auto=format&q=80"
+            alt="Data analytics and market research visualization"
+            height={{ xs: '250px', md: '350px' }}
+          />
         </Container>
       </Box>
 
@@ -420,101 +432,6 @@ const Firm = () => {
             </Box>
           </Box>
         </Box>
-      </Box>
-
-      {/* Leadership Team Section */}
-      <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.paper }}>
-        <Container maxWidth="lg">
-          <Typography
-            variant="h3"
-            sx={{
-              fontSize: { xs: '1.8rem', sm: '2.2rem', md: '2.5rem' },
-              fontWeight: 800,
-              mb: 2,
-              textAlign: 'center',
-              color: theme.palette.text.primary,
-            }}
-          >
-            Our Research Leadership
-          </Typography>
-          <Typography
-            sx={{
-              fontSize: '1.05rem',
-              color: theme.palette.text.secondary,
-              textAlign: 'center',
-              mb: 6,
-              maxWidth: '800px',
-              mx: 'auto',
-            }}
-          >
-            Our team combines deep Wall Street experience with cutting-edge AI and data science expertise
-          </Typography>
-
-          <Grid container spacing={4}>
-            {teamMembers.map((member, idx) => (
-              <Grid item xs={12} md={6} key={idx}>
-                <Card
-                  sx={{
-                    height: '100%',
-                    border: `1px solid ${theme.palette.divider}`,
-                    backgroundColor: theme.palette.background.default,
-                    borderRadius: '0px',
-                    overflow: 'hidden',
-                    transition: 'all 0.3s ease',
-                    '&:hover': {
-                      boxShadow: '0 6px 16px rgba(0,0,0,0.1)',
-                      transform: 'translateY(-2px)',
-                    },
-                  }}
-                >
-                  <CardContent>
-                    <Typography
-                      variant="h6"
-                      sx={{
-                        fontWeight: 700,
-                        mb: 0.5,
-                        color: theme.palette.text.primary,
-                      }}
-                    >
-                      {member.name}
-                    </Typography>
-                    <Typography
-                      sx={{
-                        fontWeight: 600,
-                        color: theme.palette.primary.main,
-                        mb: 2,
-                        fontSize: '0.95rem',
-                      }}
-                    >
-                      {member.role}
-                    </Typography>
-                    <Typography
-                      sx={{
-                        color: theme.palette.text.secondary,
-                        lineHeight: 1.6,
-                        mb: 2,
-                        fontSize: '0.95rem',
-                      }}
-                    >
-                      {member.bio}
-                    </Typography>
-                    <Typography
-                      sx={{
-                        fontWeight: 600,
-                        color: theme.palette.primary.main,
-                        fontSize: '0.85rem',
-                        textTransform: 'uppercase',
-                        letterSpacing: 0.5,
-                      }}
-                    >
-                      Expertise: {member.expertise}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
-        </Container>
       </Box>
 
       {/* Core Values Section */}

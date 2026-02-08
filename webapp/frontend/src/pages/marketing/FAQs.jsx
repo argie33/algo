@@ -4,6 +4,7 @@ import { ExpandMore as ExpandMoreIcon, Help as HelpIcon } from '@mui/icons-mater
 import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
 import CTASection from '../../components/marketing/CTASection';
+import ImagePlaceholder from '../../components/marketing/ImagePlaceholder';
 
 const FAQs = () => {
   const theme = useTheme();
@@ -34,6 +35,17 @@ const FAQs = () => {
         title="Frequently Asked Questions"
         subtitle="Find answers to common questions about our research platform and services"
       />
+
+      {/* Hero Image */}
+      <Box sx={{ py: { xs: 4, md: 6 }, backgroundColor: theme.palette.background.paper }}>
+        <Container maxWidth="lg">
+          <ImagePlaceholder
+            src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=1200&h=400&fit=crop&auto=format&q=80"
+            alt="Professional support and customer service"
+            height={{ xs: '250px', md: '350px' }}
+          />
+        </Container>
+      </Box>
 
       <Box sx={{ py: { xs: 6, md: 8 }, backgroundColor: theme.palette.background.default }}>
         <Container maxWidth="lg">
