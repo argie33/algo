@@ -119,19 +119,11 @@ router.get("/stocks", async (req, res) => {
       paramIndex++;
     }
 
-    // Build actual columns based on table schema - ONLY columns that exist
-    // Daily table has core columns, technical indicators may not all exist
+    // Build actual columns based on table schema - ONLY columns that definitely exist
     const actualColumns = tableName === 'buy_sell_daily' ? `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
-      bsd.signal_triggered_date,
       bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
-      bsd.signal, bsd.buylevel, bsd.stoplevel, NULL as selllevel, bsd.inposition,
-      NULL as target_price, NULL as current_price,
-      bsd.market_stage, bsd.stage_number, bsd.stage_confidence, bsd.substage,
-      bsd.risk_reward_ratio, bsd.risk_pct,
-      bsd.position_size_recommendation, bsd.profit_target_20pct, bsd.profit_target_25pct,
-      bsd.mansfield_rs, bsd.sata_score,
-      bsd.entry_quality_score, bsd.entry_price,
+      bsd.signal, bsd.buylevel, bsd.stoplevel, bsd.inposition,
       bsd.signal_type
     ` : `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
@@ -220,7 +212,7 @@ router.get("/stocks", async (req, res) => {
     // Summary statistics are calculated on frontend from items array per RULES.md
     const signalData = signalsResult.rows;
 
-    // Format the response data - USE ACTUAL COLUMNS FROM buy_sell_daily TABLE
+    // Format the response data - ONLY REAL COLUMNS THAT EXIST
     const formattedData = signalsResult.rows.map(row => ({
       // Basic signal info
       id: row.id,
@@ -228,7 +220,6 @@ router.get("/stocks", async (req, res) => {
       signal: row.signal,
       signal_type: row.signal_type || null,
       date: row.date,
-      signal_triggered_date: row.signal_triggered_date || null,
       timeframe: row.timeframe || timeframe,
 
       // Price data
@@ -242,68 +233,7 @@ router.get("/stocks", async (req, res) => {
       // Entry/Exit levels
       buylevel: row.buylevel !== null && row.buylevel !== undefined ? parseFloat(row.buylevel) : null,
       stoplevel: row.stoplevel !== null && row.stoplevel !== undefined ? parseFloat(row.stoplevel) : null,
-      sell_level: row.selllevel !== null && row.selllevel !== undefined ? parseFloat(row.selllevel) : (row.sell_level !== null && row.sell_level !== undefined ? parseFloat(row.sell_level) : null),
       inposition: row.inposition || false,
-
-      // Price targets
-      target_price: row.target_price !== null ? parseFloat(row.target_price) : null,
-      current_price: row.current_price !== null ? parseFloat(row.current_price) : null,
-
-      // Market stage and structure
-      market_stage: row.market_stage || null,
-      stage_number: row.stage_number || null,
-      stage_confidence: row.stage_confidence || null,
-      substage: row.substage || null,
-      volatility_profile: row.volatility_profile || null,
-      passes_minervini_template: row.passes_minervini_template || false,
-
-      // Risk/reward
-      risk_reward_ratio: row.risk_reward_ratio !== null ? parseFloat(row.risk_reward_ratio) : null,
-      risk_pct: row.risk_pct !== null ? parseFloat(row.risk_pct) : null,
-      position_size_recommendation: row.position_size_recommendation !== null ? parseFloat(row.position_size_recommendation) : null,
-
-      // Profit targets
-      profit_target_20pct: row.profit_target_20pct !== null ? parseFloat(row.profit_target_20pct) : null,
-      profit_target_25pct: row.profit_target_25pct !== null ? parseFloat(row.profit_target_25pct) : null,
-
-      // Scores and ratings
-      mansfield_rs: row.mansfield_rs !== null ? parseFloat(row.mansfield_rs) : null,
-      sata_score: row.sata_score || null,
-      entry_quality_score: row.entry_quality_score || null,
-      base_quality_score: row.base_quality_score || null,
-      base_tightness_score: row.base_tightness_score || null,
-
-      // Entry/Stop levels
-      entry_price: row.entry_price !== null ? parseFloat(row.entry_price) : null,
-      volume_analysis: row.volume_analysis || null,
-
-      // Base pattern analysis
-      base_pivot_price: row.pivot_price !== null ? parseFloat(row.pivot_price) : null,
-      base_support_price: row.base_support_price !== null ? parseFloat(row.base_support_price) : null,
-      base_type: row.base_type || null,
-      base_pattern: row.base_type || null,
-      base_depth_pct: row.base_depth_pct !== null ? parseFloat(row.base_depth_pct) : null,
-      base_length_days: row.base_length_days || null,
-      base_duration_days: row.base_length_days || null,
-      is_base_on_base: row.is_base_on_base || false,
-      breakout_quality: row.breakout_quality || null,
-
-      // Moving average filters
-      ma_filter_value: row.ma_filter_value !== null ? parseFloat(row.ma_filter_value) : null,
-      ma_filter_type: row.ma_filter_type || null,
-      ma_filter_period: row.ma_filter_period || null,
-
-      // Signal strength and quality metrics
-      strength: row.strength !== null ? parseFloat(row.strength) : null,
-      signal_strength: row.signal_strength !== null ? parseFloat(row.signal_strength) : null,
-      bull_percentage: row.bull_percentage !== null ? parseFloat(row.bull_percentage) : null,
-      close_price: row.close_price !== null ? parseFloat(row.close_price) : null,
-
-      // Company and earnings information (from joined tables)
-      company_name: row.company_name || null,
-      stability_score: row.stability_score !== null && row.stability_score !== undefined ? parseFloat(row.stability_score) : null,
-      next_earnings_date: row.next_earnings_date || null,
-      days_to_earnings: row.days_to_earnings || null,
     }));
 
     // Get total count of records for pagination
@@ -403,10 +333,9 @@ router.get("/etf", async (req, res) => {
     // Build actual columns based on real data available - ONLY columns that exist
     const actualColumns = `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
-      bsd.signal_triggered_date,
       bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
       bsd.signal, bsd.buylevel, bsd.stoplevel, bsd.inposition,
-      bsd.signal_type, bsd.entry_quality_score, bsd.entry_price
+      bsd.signal_type
     `;
 
     // Add limit and offset parameters
