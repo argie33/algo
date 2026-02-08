@@ -36,9 +36,9 @@ const ImagePlaceholder = ({
         height,
         background: imageLoaded
           ? 'transparent'
-          : `linear-gradient(135deg, ${theme.palette.primary.main}25 0%, ${theme.palette.secondary.main}15 100%)`,
-        border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
-        borderRadius: '0px',
+          : `linear-gradient(135deg, ${theme.palette.primary.main}20 0%, ${theme.palette.secondary.main}10 100%)`,
+        border: `2px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+        borderRadius: '2px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -61,6 +61,17 @@ const ImagePlaceholder = ({
             display: imageLoaded ? 'block' : 'none',
           }}
         />
+      )}
+      {!imageLoaded && !isPlaceholder && (
+        <Box sx={{
+          textAlign: 'center',
+          color: theme.palette.text.secondary,
+          fontSize: '1rem',
+          fontWeight: 500,
+          padding: '20px',
+        }}>
+          {alt}
+        </Box>
       )}
     </Box>
   );

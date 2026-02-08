@@ -2231,46 +2231,54 @@ router.get("/internals", async (req, res) => {
 // AAII Sentiment Data - Retail investor sentiment indicator
 router.get("/aaii", async (req, res) => {
   try {
-    if (!query) {
-      return res.status(500).json({error: "Database service unavailable", success: false});
-    }
-
+    const fs = require("fs");
+    const comprehensivePath = "/tmp/comprehensive_market_data.json";
     const { range = "30d" } = req.query;
 
-    // Convert range parameter to days
+    // Try to get AAII data from comprehensive market data file first
+    if (fs.existsSync(comprehensivePath)) {
+      const data = JSON.parse(fs.readFileSync(comprehensivePath, "utf-8"));
+      const aaii = data.sentiment?.aaii || [];
+
+      if (aaii.length > 0) {
+        return res.json({
+          items: aaii,
+          pagination: {
+            total: aaii.length,
+            range: range,
+            count: aaii.length
+          },
+          source: "fresh-data",
+          success: true
+        });
+      }
+    }
+
+    // Fallback to database
+    if (!query) {
+      return res.json({items: [], pagination: {total: 0}, success: false});
+    }
+
     let days = 30;
     switch(range) {
       case "90d": days = 90; break;
       case "6m": days = 180; break;
       case "1y": days = 365; break;
-      case "all": days = 10000; break; // Large number for "all" data
+      case "all": days = 10000; break;
       default: days = 30;
     }
 
     const result = await query(`
-      SELECT
-        date,
-        bullish,
-        neutral,
-        bearish
-      FROM aaii_sentiment
+      SELECT date, bullish, neutral, bearish FROM aaii_sentiment
       WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
-      ORDER BY date ASC
-    `, [days]);
+      ORDER BY date ASC LIMIT $2
+    `, [days, 1000]);
 
-    if (!result || !result.rows) {
-      return res.json({
-        data: [],
-        range: range,
-        success: true
-      });
-    }
-
-    const data = result.rows.map(row => ({
+    const data = (result?.rows || []).map(row => ({
       date: row.date,
-      bullish: parseFloat(row.bullish),
-      neutral: parseFloat(row.neutral),
-      bearish: parseFloat(row.bearish)
+      bullish: parseFloat(row.bullish || 0),
+      neutral: parseFloat(row.neutral || 0),
+      bearish: parseFloat(row.bearish || 0)
     }));
 
     return res.json({
@@ -2285,7 +2293,7 @@ router.get("/aaii", async (req, res) => {
 
   } catch (error) {
     console.error("AAII sentiment error:", error);
-    return res.status(500).json({error: "Failed to fetch AAII sentiment data", success: false});
+    return res.json({items: [], pagination: {total: 0}, success: false});
   }
 });
 
@@ -2349,13 +2357,31 @@ router.get("/fear-greed", async (req, res) => {
 // NAAIM - Professional advisor sentiment indicator
 router.get("/naaim", async (req, res) => {
   try {
+    const fs = require("fs");
+    const comprehensivePath = "/tmp/comprehensive_market_data.json";
+    const { range = "30d" } = req.query;
+
+    // Try to get NAAIM data from comprehensive market data file first
+    if (fs.existsSync(comprehensivePath)) {
+      const data = JSON.parse(fs.readFileSync(comprehensivePath, "utf-8"));
+      const naaim = data.sentiment?.naaim || [];
+
+      if (naaim.length > 0) {
+        return res.json({
+          data: naaim,
+          range: range,
+          count: naaim.length,
+          source: "fresh-data",
+          success: true
+        });
+      }
+    }
+
+    // Fallback to database
     if (!query) {
       return res.status(500).json({error: "Database service unavailable", success: false});
     }
 
-    const { range = "30d" } = req.query;
-
-    // Convert range parameter to days
     let days = 30;
     switch(range) {
       case "90d": days = 90; break;
@@ -2366,39 +2392,18 @@ router.get("/naaim", async (req, res) => {
     }
 
     const result = await query(`
-      SELECT
-        date,
-        bullish,
-        bearish,
-        naaim_number_mean,
-        quart1,
-        quart2,
-        quart3,
-        deviation
-      FROM naaim
+      SELECT date, bullish, bearish FROM naaim
       WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
-      ORDER BY date ASC
-    `, [days]);
+      ORDER BY date ASC LIMIT $2
+    `, [days, 1000]);
 
-    if (!result || !result.rows) {
-      return res.json({
-        data: [],
-        range: range,
-        success: true
-      });
-    }
-
-    const data = result.rows.map(row => ({
+    const data = (result?.rows || []).map(row => ({
       date: row.date,
-      bullish_exposure: parseFloat(row.bullish),
-      bearish_exposure: parseFloat(row.bearish),
-      // Also include simple names for backward compatibility
-      bullish: parseFloat(row.bullish),
-      bearish: parseFloat(row.bearish)
+      value: parseFloat(row.bullish || 0)
     }));
 
     return res.json({
-      data: data,
+      data: data.length > 0 ? data : [],
       range: range,
       count: data.length,
       success: true
@@ -2406,7 +2411,7 @@ router.get("/naaim", async (req, res) => {
 
   } catch (error) {
     console.error("NAAIM sentiment error:", error);
-    return res.status(500).json({error: "Failed to fetch NAAIM sentiment data", success: false});
+    return res.json({data: [], range: "30d", success: false});
   }
 });
 
