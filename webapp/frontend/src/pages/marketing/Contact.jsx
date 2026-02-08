@@ -69,7 +69,7 @@ const Contact = () => {
       <Box sx={{ py: { xs: 4, md: 6 }, backgroundColor: alpha(theme.palette.primary.main, 0.02) }}>
         <Container maxWidth="lg">
           <ImagePlaceholder
-            src="https://picsum.photos/1200/400?random"
+            src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=1200&h=400&fit=crop&auto=format&q=80"
             alt="Professional team in discussion"
             height={{ xs: '250px', md: '400px' }}
           />

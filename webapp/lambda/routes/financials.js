@@ -37,24 +37,21 @@ router.get("/:symbol/balance-sheet", async (req, res) => {
     console.log(`📊 [FINANCIALS] Fetching balance sheet for ${upperSymbol} (${period})`);
 
     const tableName = period === 'quarterly' ? 'quarterly_balance_sheet' : 'annual_balance_sheet';
-    // Query normalized format and transform to object for each date
+    // Query actual denormalized format
     const result = await query(`
-      SELECT
-        symbol,
-        date,
-        json_object_agg(item_name, value) as metrics
-      FROM ${tableName}
+      SELECT * FROM ${tableName}
       WHERE symbol = $1
-      GROUP BY symbol, date
       ORDER BY date DESC
       LIMIT 20
     `, [upperSymbol]);
 
-    // Transform results to flat objects with camelCase keys
+    // Transform results to include all columns
     const transformedData = (result.rows || []).map(row => ({
       symbol: row.symbol,
       date: row.date,
-      ...row.metrics
+      total_assets: row.total_assets,
+      total_liabilities: row.total_liabilities,
+      total_equity: row.total_equity
     }));
 
     res.json({
@@ -84,25 +81,19 @@ router.get("/:symbol/income-statement", async (req, res) => {
     console.log(`📊 [FINANCIALS] Fetching income statement for ${upperSymbol} (${period})`);
 
     const tableName = period === 'quarterly' ? 'quarterly_income_statement' : 'annual_income_statement';
-    // Query normalized format and transform to object for each date
+    // Query actual denormalized format
     const result = await query(`
-      SELECT
-        symbol,
-        date,
-        json_object_agg(item_name, value) as metrics
-      FROM ${tableName}
+      SELECT * FROM ${tableName}
       WHERE symbol = $1
-      GROUP BY symbol, date
       ORDER BY date DESC
       LIMIT 20
     `, [upperSymbol]);
 
-    // Transform results to flat objects
-    const transformedData = (result.rows || []).map(row => ({
-      symbol: row.symbol,
-      date: row.date,
-      ...row.metrics
-    }));
+    // Transform results - return all available columns
+    const transformedData = (result.rows || []).map(row => {
+      const { symbol, date, ...metrics } = row;
+      return { symbol, date, ...metrics };
+    });
 
     res.json({
       data: {
@@ -131,25 +122,19 @@ router.get("/:symbol/cash-flow", async (req, res) => {
     console.log(`📊 [FINANCIALS] Fetching cash flow for ${upperSymbol} (${period})`);
 
     const tableName = period === 'quarterly' ? 'quarterly_cash_flow' : 'annual_cash_flow';
-    // Query normalized format and transform to object for each date
+    // Query actual denormalized format
     const result = await query(`
-      SELECT
-        symbol,
-        date,
-        json_object_agg(item_name, value) as metrics
-      FROM ${tableName}
+      SELECT * FROM ${tableName}
       WHERE symbol = $1
-      GROUP BY symbol, date
       ORDER BY date DESC
       LIMIT 20
     `, [upperSymbol]);
 
-    // Transform results to flat objects
-    const transformedData = (result.rows || []).map(row => ({
-      symbol: row.symbol,
-      date: row.date,
-      ...row.metrics
-    }));
+    // Transform results - return all available columns
+    const transformedData = (result.rows || []).map(row => {
+      const { symbol, date, ...metrics } = row;
+      return { symbol, date, ...metrics };
+    });
 
     res.json({
       data: {
