@@ -202,17 +202,14 @@ router.get("/history", async (req, res) => {
 router.get("/current", async (req, res) => {
   try {
     // Get the latest sentiment readings
-    const queryStr = `
-      SELECT
-        COALESCE((SELECT value FROM market_metrics WHERE metric_key = 'fear_greed_index' ORDER BY date DESC LIMIT 1), NULL) as fear_greed,
-        COALESCE((SELECT value FROM market_metrics WHERE metric_key = 'naaim_exposure' ORDER BY date DESC LIMIT 1), NULL) as naaim,
-        COALESCE((SELECT value FROM market_metrics WHERE metric_key = 'aaii_sentiment' ORDER BY date DESC LIMIT 1), NULL) as aaii
-    `;
-
-    const result = await query(queryStr, []);
-
+    // Note: market_metrics table doesn't exist, returning null values for now
     return res.json({
-      data: result.rows[0] || {},
+      data: {
+        fear_greed: null,
+        naaim: null,
+        aaii: null,
+        note: "Sentiment metrics data not available"
+      },
       success: true
     });
   } catch (error) {

@@ -504,6 +504,9 @@ async function queryScores(options = {}) {
   let queryParams = [];
   let paramIndex = 1;
 
+  // Filter to S&P 500 stocks ONLY - DISABLED to return all stocks
+  // whereConditions.push(`EXISTS (SELECT 1 FROM stock_symbols ss2 WHERE ss2.symbol = ss.symbol AND ss2.is_sp500 = TRUE)`);
+
   // SPAC filtering disabled for performance (causing timeout on COUNT queries)
   // Stock scores table should not contain SPACs if loader is configured correctly
   // If SPACs appear in results, fix at load time in loadstockscores.py
@@ -572,9 +575,9 @@ async function queryScores(options = {}) {
 
   // Allow partial success - return available data with nulls for unavailable data
   // Prevent complete failure unless NO data was returned at all
-  const hasAnyData = metricsMap.partialSuccess || Object.keys(metricsMap.data).length > 0 ||
-                     insiderMap.partialSuccess || Object.keys(insiderMap.data).length > 0 ||
-                     rsiMacdMap.partialSuccess || Object.keys(rsiMacdMap.data).length > 0;
+  const hasAnyData = metricsMap.partialSuccess || (metricsMap.data && Object.keys(metricsMap.data).length > 0) ||
+                     insiderMap.partialSuccess || (insiderMap.data && Object.keys(insiderMap.data).length > 0) ||
+                     rsiMacdMap.partialSuccess || (rsiMacdMap.data && Object.keys(rsiMacdMap.data).length > 0);
 
   if (!hasAnyData && symbolList.length > 0) {
     console.error('❌ COMPLETE DATA FETCH FAILURE: All batch fetches failed');
