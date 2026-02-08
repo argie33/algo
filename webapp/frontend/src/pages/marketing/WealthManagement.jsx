@@ -73,7 +73,7 @@ const WealthManagement = () => {
             </Grid>
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="gradient"
+                src="https://picsum.photos/1200/400?random"
                 alt="Wealth Management Solutions"
                 height={{ xs: '300px', md: '450px' }}
               />
