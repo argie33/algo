@@ -10,7 +10,29 @@ import { People as PeopleIcon } from '@mui/icons-material';
 const OurTeam = () => {
   const theme = useTheme();
 
-  const teamMembers = [];
+  const teamMembers = [
+    {
+      id: 1,
+      name: 'Erik A.',
+      role: 'Founder & Chief Investment Officer',
+      bio: 'Former quantitative analyst with 15+ years in institutional trading and AI-driven market analysis. Specializes in systematic approach to market rotation and institutional capital flows.',
+      expertise: ['Market Analysis', 'AI/ML', 'Portfolio Strategy'],
+    },
+    {
+      id: 2,
+      name: 'Amanda',
+      role: 'Chief Technology Officer',
+      bio: 'Leads technology infrastructure and data platform development. Expert in building real-time data processing systems for institutional-grade market intelligence.',
+      expertise: ['Data Engineering', 'ML Systems', 'Real-time Computing'],
+    },
+    {
+      id: 3,
+      name: 'Anthony Riga',
+      role: 'Senior Market Research Analyst',
+      bio: 'Seasoned equity researcher specializing in macro trends, sector rotation analysis, and institutional capital flows. Deep expertise in AI adoption impacts across industries.',
+      expertise: ['Market Research', 'Macro Analysis', 'Sector Rotation', 'Institutional Flows'],
+    },
+  ];
 
   return (
     <MarketingLayout>
@@ -47,11 +69,66 @@ const OurTeam = () => {
         </Typography>
       </Container>
 
+      {/* Team Members Grid */}
+      <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
+        <Grid container spacing={3}>
+          {teamMembers.map((member) => (
+            <Grid item xs={12} sm={6} md={6} key={member.id}>
+              <Card
+                sx={{
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: theme.shadows[8],
+                  },
+                }}
+              >
+                <CardContent sx={{ flexGrow: 1 }}>
+                  <Box sx={{ mb: 2, pb: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
+                      {member.name}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: theme.palette.primary.main, fontWeight: 600 }}>
+                      {member.role}
+                    </Typography>
+                  </Box>
+                  <Typography variant="body2" sx={{ mb: 2, color: theme.palette.text.secondary }}>
+                    {member.bio}
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    {member.expertise.map((skill, idx) => (
+                      <Typography
+                        key={idx}
+                        variant="caption"
+                        sx={{
+                          backgroundColor: theme.palette.primary.light,
+                          color: theme.palette.primary.dark,
+                          px: 1.5,
+                          py: 0.5,
+                          borderRadius: '12px',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {skill}
+                      </Typography>
+                    ))}
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      </Container>
+
       {/* Team Image Section */}
       <Box sx={{ py: { xs: 4, md: 6 }, backgroundColor: theme.palette.background.default }}>
         <Container maxWidth="lg">
           <ImagePlaceholder
-            src="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%271200%27 height=%27400%27%3E%3Crect fill=%27%234a5568%27 width=%271200%27 height=%27400%27/%3E%3Ctext x=%2750%25%27 y=%2750%25%27 font-size=%2732%27 fill=%27white%27 text-anchor=%27middle%27 dominant-baseline=%27middle%27 font-family=%27Arial%27%3EProfessional Market Analysis%3C/text%3E%3C/svg%3E"
+            src="https://picsum.photos/1200/400?random"
             alt="Professional team working on market analysis"
             height={{ xs: '250px', md: '350px' }}
           />

@@ -24,7 +24,7 @@ const Home = () => {
       id: 'great-rotation',
       title: 'The Great Rotation: Capital Flows Signal Structural Market Shift Away From Concentration',
       date: 'February 7, 2026',
-      author: 'Erik A.',
+      author: 'Anthony Riga',
       excerpt: 'Market breadth expanding significantly as institutional capital rotates away from mega-cap concentration. Real data on valuations, flows, and structural drivers.',
       tags: ['Macro Analysis', 'Market Rotation', 'Institutional Flows'],
       tickers: [],
@@ -33,7 +33,7 @@ const Home = () => {
       id: 'ai-efficiencies',
       title: 'The AI Productivity Inflection: How AI Adoption is Creating a Multi-Year Economic Super-Cycle',
       date: 'February 5, 2026',
-      author: 'Erik A.',
+      author: 'Anthony Riga',
       excerpt: 'AI benefits spreading from software into manufacturing, logistics, healthcare sectors. Backed by real productivity data and sector-specific economic analysis.',
       tags: ['AI Economics', 'Productivity', 'Structural Trends'],
       tickers: [],
@@ -166,7 +166,7 @@ const Home = () => {
       <Box sx={{ py: { xs: 4, md: 6 }, backgroundColor: theme.palette.background.default }}>
         <Container maxWidth="lg">
           <ImagePlaceholder
-            src="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%271200%27 height=%27400%27%3E%3Crect fill=%27%234a5568%27 width=%271200%27 height=%27400%27/%3E%3Ctext x=%2750%25%27 y=%2750%25%27 font-size=%2732%27 fill=%27white%27 text-anchor=%27middle%27 dominant-baseline=%27middle%27 font-family=%27Arial%27%3EProfessional Market Analysis%3C/text%3E%3C/svg%3E"
+            src="https://picsum.photos/1200/400?random"
             alt="Team collaborating on financial research"
             height={{ xs: '250px', md: '350px' }}
           />

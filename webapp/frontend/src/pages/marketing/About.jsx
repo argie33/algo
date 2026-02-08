@@ -73,7 +73,7 @@ const About = () => {
             {/* Right Image */}
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%271200%27 height=%27400%27%3E%3Crect fill=%27%234a5568%27 width=%271200%27 height=%27400%27/%3E%3Ctext x=%2750%25%27 y=%2750%25%27 font-size=%2732%27 fill=%27white%27 text-anchor=%27middle%27 dominant-baseline=%27middle%27 font-family=%27Arial%27%3EProfessional Market Analysis%3C/text%3E%3C/svg%3E"
+                src="https://picsum.photos/1200/400?random"
                 alt="Professional team collaborating on market research"
                 height={{ xs: '300px', md: '450px' }}
               />
@@ -125,7 +125,7 @@ const About = () => {
             {/* Right Image */}
             <Grid item xs={12} md={6}>
               <ImagePlaceholder
-                src="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%271200%27 height=%27400%27%3E%3Crect fill=%27%234a5568%27 width=%271200%27 height=%27400%27/%3E%3Ctext x=%2750%25%27 y=%2750%25%27 font-size=%2732%27 fill=%27white%27 text-anchor=%27middle%27 dominant-baseline=%27middle%27 font-family=%27Arial%27%3EProfessional Market Analysis%3C/text%3E%3C/svg%3E"
+                src="https://picsum.photos/1200/400?random"
                 alt="Analytics dashboard with market data and performance metrics"
                 height={{ xs: '300px', md: '450px' }}
               />

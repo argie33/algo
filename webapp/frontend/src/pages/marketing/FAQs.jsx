@@ -40,7 +40,7 @@ const FAQs = () => {
       <Box sx={{ py: { xs: 4, md: 6 }, backgroundColor: theme.palette.background.paper }}>
         <Container maxWidth="lg">
           <ImagePlaceholder
-            src="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%271200%27 height=%27400%27%3E%3Crect fill=%27%234a5568%27 width=%271200%27 height=%27400%27/%3E%3Ctext x=%2750%25%27 y=%2750%25%27 font-size=%2732%27 fill=%27white%27 text-anchor=%27middle%27 dominant-baseline=%27middle%27 font-family=%27Arial%27%3EProfessional Market Analysis%3C/text%3E%3C/svg%3E"
+            src="https://picsum.photos/1200/400?random"
             alt="Professional support and customer service"
             height={{ xs: '250px', md: '350px' }}
           />

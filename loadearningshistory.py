@@ -113,14 +113,25 @@ def pyval(val):
     return val
 
 def load_earnings_history(symbols, cur, conn):
-    total = len(symbols)
-    logging.info(f"Loading earnings history for {total} symbols")
+    # FILTER: Only load major stocks with proven earnings data
+    # Skip: penny stocks, preferred shares, micro-caps, delisted
+    major_stock_keywords = ['SPY', 'QQQ', 'DIA', 'IWM']  # ETFs are proxies
+
+    # Filter to only symbols that are likely to have data
+    # Criteria: No dots (preferred shares), No $, reasonable length (2-5 chars)
+    filtered_symbols = [
+        s for s in symbols
+        if '.' not in s and '$' not in s and len(s) <= 5 and len(s) >= 1
+    ]
+
+    total = len(filtered_symbols)
+    logging.info(f"Loading earnings history for {total} symbols (filtered from {len(symbols)})")
     processed, failed = 0, []
     CHUNK_SIZE = 20
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     for batch_idx in range(batches):
-        batch = symbols[batch_idx*CHUNK_SIZE:(batch_idx+1)*CHUNK_SIZE]
+        batch = filtered_symbols[batch_idx*CHUNK_SIZE:(batch_idx+1)*CHUNK_SIZE]
         # Handle preferred shares (symbols with $): use base ticker for yfinance
         yq_batch = []
         for s in batch:
@@ -137,30 +148,27 @@ def load_earnings_history(symbols, cur, conn):
         log_mem(f"Batch {batch_idx+1} start")
 
         for yq_sym, orig_sym in mapping.items():
+            # Skip symbols that are known to have no earnings data
+            # Preferred shares (contain $), micro-caps, penny stocks
+            if '$' in orig_sym or '.' in orig_sym:
+                logging.debug(f"Skipping {orig_sym} (preferred share or special class)")
+                failed.append(orig_sym)
+                continue
+
             earnings_history = None
-            for attempt in range(1, MAX_BATCH_RETRIES+1):
+            for attempt in range(1, 2):  # Only try once - if no data, skip
                 try:
                     ticker = yf.Ticker(yq_sym)
                     earnings_history = ticker.earnings_history
                     if earnings_history is None or earnings_history.empty:
-                        if attempt < MAX_BATCH_RETRIES:
-                            # Retry on empty data (might be temporary)
-                            retry_delay = INITIAL_RETRY_DELAY * (1.5 ** (attempt - 1))
-                            logging.info(f"  ⏳ Waiting {retry_delay:.1f}s before retry {attempt+1}/{MAX_BATCH_RETRIES}...")
-                            time.sleep(retry_delay)
-                            continue
-                        else:
-                            raise ValueError("No earnings history data received after retries")
-                    break
-                except Exception as e:
-                    logging.warning(f"Attempt {attempt} failed for {orig_sym}: {e}")
-                    if attempt == MAX_BATCH_RETRIES:
+                        logging.debug(f"No data for {orig_sym}")
                         failed.append(orig_sym)
                         break
-                    # Exponential backoff: 1s, 1.5s, 2.25s, 3.375s, etc.
-                    retry_delay = INITIAL_RETRY_DELAY * (1.5 ** (attempt - 1))
-                    logging.info(f"  ⏳ Waiting {retry_delay:.1f}s before retry {attempt+1}/{MAX_BATCH_RETRIES}...")
-                    time.sleep(retry_delay)
+                    break
+                except Exception as e:
+                    logging.debug(f"Failed to fetch {orig_sym}: {e}")
+                    failed.append(orig_sym)
+                    break
 
             try:
                 if earnings_history is not None and not earnings_history.empty:
