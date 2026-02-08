@@ -606,11 +606,8 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
     # This must happen BEFORE the insert loop and for ALL columns (float, int, object)
     for col in df.columns:
         # Convert all NaN/NaT values to None for ANY column type
-        if df[col].dtype == 'object' or df[col].dtype.name.startswith(('float', 'int')):
-            df[col] = df[col].astype('object').where(pd.notnull(df[col]), None)
-        else:
-            # For other dtypes (bool, datetime, etc), also convert NaN to None
-            df[col] = df[col].where(pd.notnull(df[col]), None)
+        # Use where() without astype to avoid type conversion issues
+        df[col] = df[col].where(pd.notnull(df[col]), None)
 
     # === EXTRA SAFETY: Explicitly handle position_size_recommendation and sata_score for NaN ===
     # These are calculated after the initial columns and may contain NaN values
