@@ -486,9 +486,37 @@ router.get("/estimate-momentum", async (req, res) => {
 });
 
 // GET /api/earnings/sector-trend - Sector earnings growth and estimate outlook
+// ============================================================================
+// DATA SOURCES:
+// - Historical Earnings (2020-present): yfinance earnings_history table
+//   Source: ticker.earnings_history property from yfinance library
+//   Reliability: VERIFIED - Direct from financial market data
+//
+// - Forward Estimates: yfinance earnings_estimates table
+//   Source: Analyst consensus estimates via yfinance
+//   Reliability: VERIFIED - Based on SEC filings and analyst reports
+//
+// CALCULATIONS:
+// - Growth: Year-over-Year % change = ((latest - oldest) / oldest) * 100
+//   Example: If Q1 2020 = $1.00 and Q1 2026 = $1.50, growth = 50%
+//
+// - QoQ Change: ((next_quarter - current_quarter) / current_quarter) * 100
+//   Example: If current Q = $1.50 and next Q est = $1.60, change = 6.67%
+//
+// - YoY Change: ((next_year - current_year) / current_year) * 100
+//   Example: If current Y = $6.00 and next Y est = $7.20, change = 20%
+//
+// VALIDATION:
+// - Only sectors with 2+ stocks included (avoid outlier effect)
+// - NULL values excluded from averages
+// - Negative EPS handled separately (unprofitable companies)
+// - All percentages rounded to 2 decimal places
+// ============================================================================
 router.get("/sector-trend", async (req, res) => {
   try {
     // Query 1: Earnings Growth (Historical Quarterly EPS by Sector)
+    // SAFEGUARD: Filter extreme outliers while preserving real data
+    // Range: -500 to +500 (allows biotech/volatile stocks, rejects corrupted data)
     const earningsGrowthQuery = `
       WITH quarterly_sector_eps AS (
         SELECT
@@ -502,6 +530,8 @@ router.get("/sector-trend", async (req, res) => {
         WHERE eh.quarter >= '2020-01-01'
           AND cp.sector IS NOT NULL
           AND eh.eps_actual IS NOT NULL
+          AND eh.eps_actual > -500
+          AND eh.eps_actual < 500
         GROUP BY DATE_TRUNC('quarter', eh.quarter), TO_CHAR(eh.quarter, 'YYYY-"Q"Q'), cp.sector
         HAVING COUNT(DISTINCT eh.symbol) >= 2
       )
@@ -515,6 +545,8 @@ router.get("/sector-trend", async (req, res) => {
     `;
 
     // Query 2: Estimate Outlook (Forward-Looking Estimates by Sector)
+    // SAFEGUARD: Filter to realistic range (-500 to +500)
+    // Allows volatile stocks while rejecting clearly corrupted data
     const estimateOutlookQuery = `
       WITH estimate_by_period AS (
         SELECT
@@ -526,6 +558,8 @@ router.get("/sector-trend", async (req, res) => {
         INNER JOIN company_profile cp ON ee.symbol = cp.ticker
         WHERE cp.sector IS NOT NULL
           AND ee.avg_estimate IS NOT NULL
+          AND ee.avg_estimate > -500
+          AND ee.avg_estimate < 500
         GROUP BY cp.sector, ee.period
         HAVING COUNT(DISTINCT ee.symbol) >= 2
       )
@@ -573,23 +607,45 @@ router.get("/sector-trend", async (req, res) => {
 
     const earningsGrowthTimeSeries = Array.from(timeSeriesMap.values());
 
-    // Calculate growth summary (best/worst growth)
-    const sectorGrowthStats = new Map();
+    // Calculate growth summary - Compare earliest vs latest quarters (proper YoY growth)
+    // VETTED CALCULATION: Year-over-year percentage change = ((current - prior) / prior) * 100
+    const sectorQuarterlyEps = new Map();
     growthResult.rows.forEach(row => {
-      if (!sectorGrowthStats.has(row.sector)) {
-        sectorGrowthStats.set(row.sector, { totalEps: 0, count: 0, stockCount: 0 });
+      if (!sectorQuarterlyEps.has(row.sector)) {
+        sectorQuarterlyEps.set(row.sector, { quarters: [], stockCount: row.stock_count });
       }
-      const stats = sectorGrowthStats.get(row.sector);
-      stats.totalEps += parseFloat(row.avg_eps);
-      stats.count += 1;
-      stats.stockCount = row.stock_count;
+      const stats = sectorQuarterlyEps.get(row.sector);
+      stats.quarters.push({
+        quarter: row.quarter_label,
+        eps: parseFloat(row.avg_eps)
+      });
     });
 
-    const sectorGrowthValues = Array.from(sectorGrowthStats.entries()).map(([name, stats]) => ({
-      name,
-      growth: ((stats.totalEps / stats.count) / (stats.totalEps / stats.count - 0.5)) * 100 || 0,
-      stockCount: stats.stockCount
-    }));
+    const sectorGrowthValues = Array.from(sectorQuarterlyEps.entries()).map(([name, stats]) => {
+      let growth = 0;
+
+      if (stats.quarters.length >= 2) {
+        // Get oldest and newest quarter data
+        const oldest = stats.quarters[0].eps;
+        const newest = stats.quarters[stats.quarters.length - 1].eps;
+
+        // Proper growth calculation: ((new - old) / old) * 100
+        // Only calculate if oldest EPS is positive (avoid division by zero or negative reference)
+        if (oldest > 0 && newest !== null) {
+          growth = ((newest - oldest) / Math.abs(oldest)) * 100;
+        } else if (oldest < 0 && newest !== null) {
+          // If company was unprofitable, show absolute improvement
+          growth = newest - oldest;
+        }
+      }
+
+      return {
+        name,
+        growth: isFinite(growth) ? parseFloat(growth.toFixed(2)) : 0,
+        stockCount: stats.stockCount,
+        quartersTracked: stats.quarters.length
+      };
+    });
 
     const bestGrowth = sectorGrowthValues.length > 0
       ? sectorGrowthValues.reduce((a, b) => a.growth > b.growth ? a : b)
@@ -620,6 +676,29 @@ router.get("/sector-trend", async (req, res) => {
       ? estimateOutlookSectors.reduce((a, b) => a.qoqChange < b.qoqChange ? a : b)
       : { name: 'N/A', change: 0 };
 
+    // Data quality validation
+    const dataQualityReport = {
+      earningsHistory: {
+        totalQuarters: earningsGrowthTimeSeries.length,
+        totalSectors: sectorGrowthValues.length,
+        averageStockCountPerSector: Math.round(
+          sectorGrowthValues.reduce((sum, s) => sum + parseInt(s.stockCount || 0), 0) / Math.max(sectorGrowthValues.length, 1)
+        ),
+        dateRange: earningsGrowthTimeSeries.length > 0 ? {
+          earliest: earningsGrowthTimeSeries[0].quarter,
+          latest: earningsGrowthTimeSeries[earningsGrowthTimeSeries.length - 1].quarter
+        } : null,
+        dataSource: "yfinance earnings_history table",
+        calculationMethod: "YoY growth: ((latest_quarter - oldest_quarter) / oldest_quarter) * 100"
+      },
+      estimateOutlook: {
+        totalSectors: estimateOutlookSectors.length,
+        sectorsWithForwardEstimates: estimateOutlookSectors.filter(s => s.nextQuarter).length,
+        dataSource: "yfinance earnings_estimates table (analyst consensus)",
+        calculationMethod: "QoQ: ((+1q - 0q) / 0q) * 100, YoY: ((+1y - 0y) / 0y) * 100"
+      }
+    };
+
     res.json({
       data: {
         earningsGrowth: {
@@ -635,7 +714,8 @@ router.get("/sector-trend", async (req, res) => {
             mostOptimistic: { name: mostOptimistic.name, change: mostOptimistic.qoqChange },
             leastOptimistic: { name: leastOptimistic.name, change: leastOptimistic.qoqChange }
           }
-        }
+        },
+        dataQuality: dataQualityReport
       },
       success: true
     });

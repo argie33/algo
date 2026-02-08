@@ -2632,48 +2632,6 @@ export const getMarketVolatility = async () => {
   }
 };
 
-// Market News
-export const getMarketNews = async () => {
-  console.log("📰 getMarketNews: Starting API call...");
-  try {
-    const response = await api.get("/api/market/news");
-
-    console.log("📰 getMarketNews: Raw response:", {
-      status: response?.status,
-      hasData: !!response?.data,
-      articleCount: response?.data?.data?.length || 0,
-    });
-
-    // Return articles directly
-    const result = {
-      data: response.data?.data || [],
-      success: response.data?.success ?? true,
-      total: response.data?.total || 0,
-      timestamp: response.data?.timestamp
-    };
-    console.log("✅ getMarketNews: returning result with", result.data.length, "articles");
-    return result;
-  } catch (error) {
-    console.warn("⚠️ Market news fetch failed, using fallback articles");
-    // Provide fallback articles if API fails
-    return {
-      data: [
-        {
-          id: 1,
-          source: 'Market News',
-          title: 'Markets show strength with indices up across the board',
-          preview: 'Major indices continue to gain ground as positive earnings reports support investor sentiment...',
-          full_content: 'Major indices continue to gain ground as positive earnings reports support investor sentiment. The S&P 500 is up 1.97% with technology leading the way.',
-          link: '#',
-          published_date: '2026-02-06'
-        }
-      ],
-      success: true,
-      total: 1
-    };
-  }
-};
-
 // Economic calendar
 export const getEconomicCalendar = async () => {
   console.log("🚀 getEconomicCalendar: Starting API call...");
@@ -2930,12 +2888,12 @@ export const getMarketSentiment = async () => {
 
 // NEW FOCUSED MARKET ENDPOINTS - 3-endpoint architecture
 export const getMarketTechnicals = async () => {
-  console.log("📊 [API] Fetching market technicals...");
+  console.log("📊 [API] Fetching market technicals (FRESH DATA)...");
   try {
-    const response = await api.get("/api/market/technicals");
-    return { data: response.data?.data || {}, success: response.data?.success ?? true, timestamp: response.data?.data?.timestamp };
+    const response = await api.get("/api/market/technicals-fresh");
+    return { data: response.data?.data || {}, success: response.data?.success ?? true, timestamp: response.data?.timestamp };
   } catch (error) {
-    console.error("❌ [API] Market technicals error:", {
+    console.error("❌ [API] Market technicals fresh error:", {
       message: error?.message || "Unknown error",
       status: error.response?.status,
       url: error.config?.url,
