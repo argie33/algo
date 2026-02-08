@@ -619,10 +619,10 @@ def calculate_seasonality(symbol: str, historical_data: List[Dict[str, Any]]) ->
         for month in range(1, 13):
             if month in monthly_data and len(monthly_data[month]) >= 5:  # Need at least 5 data points
                 returns = monthly_data[month]
-                avg_return = sum(returns) / len(returns)
-                win_rate = len([r for r in returns if r > 0]) / len(returns) * 100
-                volatility = np.std(returns) if len(returns) > 1 else 0
-                
+                avg_return = float(sum(returns) / len(returns))
+                win_rate = float(len([r for r in returns if r > 0]) / len(returns) * 100)
+                volatility = float(np.std(returns)) if len(returns) > 1 else 0.0
+
                 seasonality_data.append({
                     'symbol': symbol,
                     'month': month,
