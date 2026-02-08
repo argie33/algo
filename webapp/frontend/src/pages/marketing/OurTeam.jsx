@@ -124,17 +124,6 @@ const OurTeam = () => {
         </Grid>
       </Container>
 
-      {/* Team Image Section */}
-      <Box sx={{ py: { xs: 4, md: 6 }, backgroundColor: theme.palette.background.default }}>
-        <Container maxWidth="lg">
-          <ImagePlaceholder
-            src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=1200&h=400&fit=crop&auto=format&q=80"
-            alt="Professional team working on market analysis"
-            height={{ xs: '250px', md: '350px' }}
-          />
-        </Container>
-      </Box>
-
       <PromoBanner
         icon={<PeopleIcon sx={{ color: theme.palette.primary.main }} />}
         title="Interested in Joining Our Team?"
