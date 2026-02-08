@@ -9,20 +9,7 @@ import { People as PeopleIcon } from '@mui/icons-material';
 const OurTeam = () => {
   const theme = useTheme();
 
-  const teamMembers = [
-    {
-      name: 'Erik A.',
-      role: 'Co-CEO, CIO & CTO',
-      bio: 'Visionary leader combining deep expertise in finance and information technology. With 15+ years in finance and software development, Erik leverages AI and cutting-edge machine learning to transform how investors analyze market data. Passionate about democratizing institutional-grade intelligence through innovative technology.',
-      image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&auto=format&q=80',
-    },
-    {
-      name: 'Amanda',
-      role: 'Co-CEO, COO and CFO',
-      bio: 'Strategic operations and investor relations leader in finance strategy with 20 years of experience in the industry. Dedicated to scaling Bullseye and expanding market reach, Amanda oversees business development, partnerships, and operational excellence while building strong relationships with institutional investors and stakeholders. Her focus is ensuring the platform meets the evolving needs of both individual and institutional investors.',
-      image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=400&fit=crop&auto=format&q=80',
-    },
-  ];
+  const teamMembers = [];
 
   return (
     <MarketingLayout>
@@ -58,72 +45,6 @@ const OurTeam = () => {
           Our team combines finance expertise and technology innovation to bring institutional-grade market intelligence to every investor. We're dedicated to making sophisticated analysis accessible to all.
         </Typography>
 
-        <Grid container spacing={4} justifyContent="center">
-          {teamMembers.map((member, idx) => (
-            <Grid item xs={12} sm={6} md={4} key={idx}>
-              <Card
-                sx={{
-                  height: '100%',
-                  border: `1px solid ${theme.palette.divider}`,
-                  backgroundColor: theme.palette.background.default,
-                  borderRadius: '0px',
-                  transition: 'all 0.3s ease',
-                  '&:hover': {
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                    transform: 'translateY(-2px)',
-                  },
-                }}
-              >
-                <Box
-                  component="img"
-                  src={member.image}
-                  alt={member.name}
-                  sx={{
-                    width: '100%',
-                    height: 280,
-                    objectFit: 'cover',
-                    display: 'block',
-                  }}
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                    e.target.parentElement.style.background = `linear-gradient(135deg, ${theme.palette.primary.main}20 0%, ${theme.palette.primary.main}05 100%)`;
-                  }}
-                />
-                <CardContent>
-                  <Typography
-                    variant="h6"
-                    sx={{
-                      fontWeight: 700,
-                      mb: 0.5,
-                      color: theme.palette.text.primary,
-                    }}
-                  >
-                    {member.name}
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      fontWeight: 600,
-                      color: theme.palette.primary.main,
-                      mb: 1.5,
-                    }}
-                  >
-                    {member.role}
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: theme.palette.text.secondary,
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {member.bio}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
       </Container>
 
       <PromoBanner
