@@ -17,6 +17,7 @@ const OurTeam = () => {
       role: 'Founder & Chief Investment Officer',
       bio: 'Former quantitative analyst with 15+ years in institutional trading and AI-driven market analysis. Specializes in systematic approach to market rotation and institutional capital flows.',
       expertise: ['Market Analysis', 'AI/ML', 'Portfolio Strategy'],
+      image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&auto=format&q=80',
     },
     {
       id: 2,
@@ -24,6 +25,7 @@ const OurTeam = () => {
       role: 'Chief Technology Officer',
       bio: 'Leads technology infrastructure and data platform development. Expert in building real-time data processing systems for institutional-grade market intelligence.',
       expertise: ['Data Engineering', 'ML Systems', 'Real-time Computing'],
+      image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop&auto=format&q=80',
     },
     {
       id: 3,
@@ -31,6 +33,7 @@ const OurTeam = () => {
       role: 'Senior Market Research Analyst',
       bio: 'Seasoned equity researcher specializing in macro trends, sector rotation analysis, and institutional capital flows. Deep expertise in AI adoption impacts across industries.',
       expertise: ['Market Research', 'Macro Analysis', 'Sector Rotation', 'Institutional Flows'],
+      image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop&auto=format&q=80',
     },
   ];
 
@@ -84,8 +87,27 @@ const OurTeam = () => {
                     transform: 'translateY(-4px)',
                     boxShadow: theme.shadows[8],
                   },
+                  overflow: 'hidden',
                 }}
               >
+                <Box
+                  sx={{
+                    width: '100%',
+                    height: '250px',
+                    backgroundColor: theme.palette.action.hover,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <img
+                    src={member.image}
+                    alt={member.name}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                    }}
+                  />
+                </Box>
                 <CardContent sx={{ flexGrow: 1 }}>
                   <Box sx={{ mb: 2, pb: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
                     <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
