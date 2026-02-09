@@ -50,6 +50,8 @@ import {
   getMarketSeasonalityData,
   getMarketCorrelation,
   getMarketIndices,
+  getMarketTopMovers,
+  getMarketCapDistribution,
 } from "../services/api";
 import MarketExposure from "../components/MarketExposure";
 import {
@@ -415,6 +417,20 @@ function MarketOverview() {
   const { data: correlationData, isLoading: correlationLoading } = useQuery({
     queryKey: ["market-correlation"],
     queryFn: getMarketCorrelation,
+    staleTime: 0, // Always fresh
+    refetchInterval: 120000,
+  });
+
+  const { data: topMoversData, isLoading: topMoversLoading } = useQuery({
+    queryKey: ["market-top-movers"],
+    queryFn: getMarketTopMovers,
+    staleTime: 0, // Always fresh
+    refetchInterval: 60000,
+  });
+
+  const { data: marketCapData, isLoading: marketCapLoading } = useQuery({
+    queryKey: ["market-cap-distribution"],
+    queryFn: getMarketCapDistribution,
     staleTime: 0, // Always fresh
     refetchInterval: 120000,
   });
@@ -1111,8 +1127,108 @@ const handleTabChange = (event, newValue) => {
         </Grid>
       </Grid>
 
-      {/* Top Movers Section - Not available in current API structure */}
-      {/* To enable: Need to implement /api/market/top-movers or /api/stocks/gainers endpoint */}
+      {/* Top Movers Section */}
+      {topMoversData?.data && (topMoversData.data.gainers?.length > 0 || topMoversData.data.losers?.length > 0) && (
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12} md={6}>
+            <AnimatedCard delay={2}>
+              <CardContent>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: 'success.main' }}>
+                  📈 Top Gainers
+                </Typography>
+                <TableContainer component={Paper} elevation={0} sx={{ maxHeight: 300, overflow: 'auto' }}>
+                  <Table size="small">
+                    <TableHead sx={{ backgroundColor: 'success.light' }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600 }}>Symbol</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>Change %</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {topMoversData.data.gainers?.slice(0, 10).map((stock) => (
+                        <TableRow key={stock.symbol} hover>
+                          <TableCell sx={{ fontWeight: 500 }}>{stock.symbol}</TableCell>
+                          <TableCell align="right" sx={{ color: 'success.main', fontWeight: 600 }}>
+                            +{(stock.change_pct || 0).toFixed(2)}%
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </CardContent>
+            </AnimatedCard>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <AnimatedCard delay={2}>
+              <CardContent>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: 'error.main' }}>
+                  📉 Top Losers
+                </Typography>
+                <TableContainer component={Paper} elevation={0} sx={{ maxHeight: 300, overflow: 'auto' }}>
+                  <Table size="small">
+                    <TableHead sx={{ backgroundColor: 'error.light' }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 600 }}>Symbol</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>Change %</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {topMoversData.data.losers?.slice(0, 10).map((stock) => (
+                        <TableRow key={stock.symbol} hover>
+                          <TableCell sx={{ fontWeight: 500 }}>{stock.symbol}</TableCell>
+                          <TableCell align="right" sx={{ color: 'error.main', fontWeight: 600 }}>
+                            {(stock.change_pct || 0).toFixed(2)}%
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </CardContent>
+            </AnimatedCard>
+          </Grid>
+        </Grid>
+      )}
+
+      {/* Market Cap Distribution Section */}
+      {marketCapData?.data && marketCapData.data.length > 0 && (
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12}>
+            <AnimatedCard delay={2}>
+              <CardContent>
+                <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
+                  💰 Market Cap Distribution
+                </Typography>
+                <Grid container spacing={2}>
+                  {marketCapData.data.map((tier, idx) => (
+                    <Grid item xs={12} sm={6} md={3} key={idx}>
+                      <Box
+                        sx={{
+                          p: 2,
+                          backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                          borderRadius: 1,
+                          border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                        }}
+                      >
+                        <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                          {tier.category}
+                        </Typography>
+                        <Typography variant="h5" sx={{ mb: 0.5, color: 'primary.main' }}>
+                          {parseInt(tier.count).toLocaleString()}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          stocks
+                        </Typography>
+                      </Box>
+                    </Grid>
+                  ))}
+                </Grid>
+              </CardContent>
+            </AnimatedCard>
+          </Grid>
+        </Grid>
+      )}
 
       {/* Enhanced Market Breadth Section */}
       <Grid container spacing={3} sx={{ mb: 4 }}>

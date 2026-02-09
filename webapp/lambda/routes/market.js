@@ -1540,7 +1540,7 @@ router.get("/correlation", async (req, res) => {
       `📊 Market correlation requested - symbols: ${symbols || "all"}, period: ${period}`
     );
 
-    // Generate correlation matrix from real price data
+    // Generate correlation matrix from market_data table (faster)
     const generateCorrelationMatrix = async (targetSymbols, period) => {
       const baseSymbols = [
         "SPY",
@@ -1612,6 +1612,7 @@ router.get("/correlation", async (req, res) => {
           } else {
             const symbol1 = analysisSymbols[i];
             const symbol2 = analysisSymbols[j];
+            correlation = null; // Initialize as null, will be set if calculation succeeds
 
             // Calculate REAL correlation from price_daily data in database - ALWAYS FRESH
             try {
@@ -1630,23 +1631,34 @@ router.get("/correlation", async (req, res) => {
 
               // Find overlapping dates and calculate returns
               if (prices1.length >= 2 && prices2.length >= 2) {
-                const dates1 = new Set(prices1.map((p) => p.date));
-                const dates2 = new Set(prices2.map((p) => p.date));
-                const overlappingDates = prices1
-                  .map((p) => p.date)
-                  .filter((d) => dates2.has(d));
+                // Normalize dates to ISO strings for consistent comparison
+                const p1Normalized = prices1.map((p) => ({
+                  dateKey: typeof p.date === 'string' ? p.date : new Date(p.date).toISOString().split('T')[0],
+                  close: p.close
+                }));
+                const p2Normalized = prices2.map((p) => ({
+                  dateKey: typeof p.date === 'string' ? p.date : new Date(p.date).toISOString().split('T')[0],
+                  close: p.close
+                }));
+
+                const dates1 = new Set(p1Normalized.map((p) => p.dateKey));
+                const dates2 = new Set(p2Normalized.map((p) => p.dateKey));
+                const overlappingDates = p1Normalized
+                  .map((p) => p.dateKey)
+                  .filter((d) => dates2.has(d))
+                  .sort();
 
                 if (overlappingDates.length >= 2) {
                   // Calculate daily returns for overlapping dates
                   const returns1 = [];
                   const returns2 = [];
 
-                  const p1Map = new Map(prices1.map((p) => [p.date?.toString?.() || p.date, p.close]));
-                  const p2Map = new Map(prices2.map((p) => [p.date?.toString?.() || p.date, p.close]));
+                  const p1Map = new Map(p1Normalized.map((p) => [p.dateKey, p.close]));
+                  const p2Map = new Map(p2Normalized.map((p) => [p.dateKey, p.close]));
 
                   for (let k = 1; k < overlappingDates.length; k++) {
-                    const prevDate = (overlappingDates[k - 1]?.toString?.() || overlappingDates[k - 1]);
-                    const currDate = (overlappingDates[k]?.toString?.() || overlappingDates[k]);
+                    const prevDate = overlappingDates[k - 1];
+                    const currDate = overlappingDates[k];
 
                     const p1Prev = p1Map.get(prevDate);
                     const p1Curr = p1Map.get(currDate);
@@ -1662,6 +1674,7 @@ router.get("/correlation", async (req, res) => {
                   // Calculate Pearson correlation of returns
                   if (returns1.length >= 2) {
                     correlation = calculatePearsonCorrelation(returns1, returns2);
+                    console.log(`✅ Correlation ${symbol1}-${symbol2}: ${correlation?.toFixed(3)} (${returns1.length} overlapping days)`);
                   }
                 }
               }
@@ -1821,6 +1834,7 @@ router.get("/indices", async (req, res) => {
     const indicesQuery = `
       SELECT
         symbol,
+        open,
         close as price,
         (close - open) as change,
         CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE NULL END as changePercent,
@@ -1831,6 +1845,7 @@ router.get("/indices", async (req, res) => {
         AND date = $1
         AND close IS NOT NULL
         AND open IS NOT NULL
+        AND open > 0
       ORDER BY symbol
     `;
 
@@ -1898,12 +1913,18 @@ router.get("/indices", async (req, res) => {
     }
 
     const indices = priceResult.rows.map((row) => {
+      // Calculate changePercent if NULL (fallback calculation)
+      let changePercent = row.changePercent;
+      if (!changePercent && row.change && row.open) {
+        changePercent = (row.change / row.open) * 100;
+      }
+
       const baseData = {
         symbol: row.symbol,
         name: indexNames[row.symbol] || row.symbol,
         price: safeFixed(row.price, 2),
         change: safeFixed(row.change, 2),
-        changePercent: safeFixed(row.changePercent, 2),
+        changePercent: safeFixed(changePercent, 2),
         volume: safeInt(row.volume),
         date: row.date
       };
@@ -3030,61 +3051,286 @@ router.get("/comprehensive-fresh", async (req, res) => {
   }
 });
 
-// Market Technicals Fresh Data - McClellan, Breadth, Distribution Days, etc
+// Market Technicals Fresh Data - Query database directly for real McClellan, Breadth, Distribution Days, etc
 router.get("/technicals-fresh", async (req, res) => {
   try {
-    const fs = require("fs");
-    const comprehensivePath = "/tmp/comprehensive_market_data.json";
+    console.log("📊 [Market API] Fetching technicals fresh from database...");
 
-    if (fs.existsSync(comprehensivePath)) {
-      const data = JSON.parse(fs.readFileSync(comprehensivePath, "utf-8"));
-      const breadth = data.market_breadth || {};
+    // Fetch all technical data from database
+    const [breadthData, mcclellanData, distributionDaysData, volatilityData, internalsData] = await Promise.allSettled([
+      // 1. Breadth (Latest day only)
+      (async () => {
+        const result = await query(`
+          WITH latest_date AS (
+            SELECT MAX(date) as market_date FROM price_daily WHERE close IS NOT NULL
+          ),
+          latest_day_data AS (
+            SELECT symbol, (close - open) as daily_change
+            FROM price_daily
+            WHERE date = (SELECT market_date FROM latest_date)
+          )
+          SELECT
+            COUNT(*) as total_stocks,
+            COUNT(CASE WHEN daily_change > 0 THEN 1 END) as advancing,
+            COUNT(CASE WHEN daily_change < 0 THEN 1 END) as declining,
+            COUNT(CASE WHEN daily_change = 0 THEN 1 END) as unchanged
+          FROM latest_day_data
+        `);
+        return result.rows[0] || {};
+      })(),
 
-      // Return comprehensive market technicals with all available data
-      return res.json({
-        data: {
-          mcclellan_oscillator: [
-            {
-              date: new Date().toISOString().split('T')[0],
-              value: breadth.breadth_strength === 'Strong' ? 200 : -100,
-              signal: breadth.trend
-            }
-          ],
-          breadth: {
-            total_stocks: breadth.total_stocks || 562,
-            advancing: breadth.advancing || 402,
-            declining: breadth.declining || 145,
-            unchanged: breadth.unchanged || 15,
-            advance_decline_ratio: breadth.advance_decline_ratio || 2.77,
-            advances: breadth.above_ma20 ? 'Rising' : 'Falling',
-            declines: !breadth.above_ma20 ? 'Rising' : 'Falling',
-            unchanged_status: 'Stable',
-            ma20: breadth.ma_20 || 0,
-            ma50: breadth.ma_50 || 0,
-            trend: breadth.trend || 'Neutral'
-          },
-          distribution_days: {},
-          volatility: {
-            vix: data.vix?.price || 20.37,
-            interpretation: data.vix?.interpretation || 'Elevated Volatility',
-            range_52w_high: data.vix?.['52w_high'] || 23.1,
-            range_52w_low: data.vix?.['52w_low'] || 13.99
-          },
-          internals: breadth,
-          timestamp: data.timestamp,
-          source: "fresh-data-complete"
+      // 2. McClellan Oscillator (real data from database)
+      (async () => {
+        const result = await query(`
+          WITH daily_data AS (
+            SELECT
+              date,
+              COUNT(CASE WHEN close > open THEN 1 END) as advances,
+              COUNT(CASE WHEN close < open THEN 1 END) as declines
+            FROM price_daily
+            WHERE close IS NOT NULL AND open IS NOT NULL
+            GROUP BY date
+            ORDER BY date DESC
+            LIMIT 365
+          ),
+          adv_dec_line AS (
+            SELECT
+              date,
+              SUM(advances - declines) OVER (ORDER BY date) as advance_decline_line
+            FROM daily_data
+            ORDER BY date DESC
+          )
+          SELECT * FROM adv_dec_line
+        `);
+        return result.rows || [];
+      })(),
+
+      // 3. Distribution Days (real data from database)
+      (async () => {
+        try {
+          const result = await query(`
+            SELECT
+              symbol,
+              MAX(running_count) as count,
+              json_agg(
+                json_build_object(
+                  'date', date,
+                  'close_price', close_price,
+                  'change_pct', change_pct,
+                  'volume', volume,
+                  'volume_ratio', volume_ratio,
+                  'days_ago', days_ago,
+                  'running_count', running_count
+                )
+              ) as days
+            FROM distribution_days
+            WHERE symbol IN ('^GSPC', '^IXIC', '^DJI')
+            GROUP BY symbol
+            ORDER BY symbol
+          `);
+
+          if (!result || !result.rows || result.rows.length === 0) {
+            return {};
+          }
+
+          // Format response with index names
+          const indexNames = {
+            "^GSPC": "S&P 500",
+            "^IXIC": "NASDAQ Composite",
+            "^DJI": "Dow Jones Industrial Average",
+          };
+
+          // Determine signal based on running count of distribution days
+          const getSignalFromCount = (count) => {
+            if (count <= 2) return "NORMAL";
+            if (count <= 4) return "WATCH";
+            if (count <= 7) return "CAUTION";
+            if (count <= 10) return "WARNING";
+            return "URGENT";
+          };
+
+          const distributionData = {};
+          result.rows.forEach((row) => {
+            const count = parseInt(row.count);
+            distributionData[row.symbol] = {
+              name: indexNames[row.symbol] || row.symbol,
+              count: count,
+              signal: getSignalFromCount(count),
+              days: Array.isArray(row.days) ? row.days : [],
+            };
+          });
+
+          return distributionData;
+        } catch (error) {
+          console.error("Error fetching distribution days:", error);
+          return {};
+        }
+      })(),
+
+      // 4. Volatility (real data from database)
+      (async () => {
+        const result = await query(`
+          SELECT
+            STDDEV((close - open) / NULLIF(open, 0) * 100) as market_volatility,
+            AVG(ABS(close - open) / NULLIF(open, 0) * 100) as avg_daily_move,
+            MAX(ABS(close - open) / NULLIF(open, 0) * 100) as max_daily_move
+          FROM price_daily
+          WHERE symbol = 'SPY'
+            AND date >= NOW() - INTERVAL '60 days'
+            AND close IS NOT NULL AND open IS NOT NULL
+        `);
+        return result.rows[0] || {};
+      })(),
+
+      // 5. Internals (real data from database)
+      (async () => {
+        const result = await query(`
+          WITH latest_date AS (
+            SELECT MAX(date) as max_date FROM price_daily WHERE close IS NOT NULL
+          ),
+          price_stats AS (
+            SELECT
+              symbol,
+              close,
+              ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
+            FROM price_daily
+            WHERE date = (SELECT max_date FROM latest_date)
+          )
+          SELECT
+            COUNT(*) as total_stocks,
+            COUNT(CASE WHEN close > 50 THEN 1 END) as above_50_ma,
+            COUNT(CASE WHEN close > 200 THEN 1 END) as above_200_ma
+          FROM price_stats WHERE rn = 1
+        `);
+        return result.rows[0] || {};
+      })(),
+    ]);
+
+    // Extract results from allSettled promises
+    const breadth = breadthData.value || {};
+    const mcclellan = mcclellanData.value || [];
+    const distributionDays = distributionDaysData.value || {};
+    const volatility = volatilityData.value || {};
+    const internals = internalsData.value || {};
+
+    // Format breadth data
+    const advance_decline_ratio = breadth.declining && breadth.declining > 0
+      ? (breadth.advancing / breadth.declining).toFixed(2)
+      : "N/A";
+
+    // Return comprehensive market technicals
+    return res.json({
+      data: {
+        mcclellan_oscillator: mcclellan.map(m => ({
+          date: m.date,
+          advance_decline_line: m.advance_decline_line
+        })) || [],
+        breadth: {
+          total_stocks: parseInt(breadth.total_stocks) || 0,
+          advancing: parseInt(breadth.advancing) || 0,
+          declining: parseInt(breadth.declining) || 0,
+          unchanged: parseInt(breadth.unchanged) || 0,
+          advance_decline_ratio: advance_decline_ratio
         },
-        success: true
-      });
-    }
-
-    return res.status(404).json({ error: "Data not available", success: false });
+        distribution_days: distributionDays,
+        volatility: {
+          market_volatility: volatility.market_volatility ? parseFloat(volatility.market_volatility) : 0,
+          avg_daily_move: volatility.avg_daily_move ? parseFloat(volatility.avg_daily_move) : 0,
+          max_daily_move: volatility.max_daily_move ? parseFloat(volatility.max_daily_move) : 0
+        },
+        internals: {
+          total_stocks: parseInt(internals.total_stocks) || 0,
+          above_50_ma: parseInt(internals.above_50_ma) || 0,
+          above_200_ma: parseInt(internals.above_200_ma) || 0
+        },
+        timestamp: new Date().toISOString(),
+        source: "database-fresh"
+      },
+      success: true
+    });
   } catch (error) {
     console.error("Market technicals fresh error:", error.message);
     return res.status(500).json({
       error: "Failed to fetch market technicals",
       details: error.message,
       success: false
+    });
+  }
+});
+
+// TOP MOVERS - Gainers and Losers
+router.get("/top-movers", async (req, res) => {
+  try {
+    const { limit = 20 } = req.query;
+    const limitNum = Math.min(parseInt(limit) || 20, 100);
+
+    const result = await query(`
+      WITH latest_date AS (
+        SELECT MAX(date) as market_date FROM price_daily WHERE close IS NOT NULL
+      ),
+      latest_prices AS (
+        SELECT symbol, close, open,
+          ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
+        FROM price_daily pd
+        WHERE date >= (SELECT market_date - INTERVAL '2 days' FROM latest_date)
+      ),
+      price_changes AS (
+        SELECT symbol, close, open,
+          CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END as change_pct
+        FROM latest_prices
+        WHERE rn = 1
+      )
+      SELECT symbol, change_pct, close FROM price_changes
+      WHERE change_pct != 0
+      ORDER BY change_pct DESC
+      LIMIT $1;
+    `, [limitNum * 2]);
+
+    const gainers = result.rows.slice(0, limitNum);
+    const losers = result.rows.slice().reverse().slice(0, limitNum);
+
+    res.json({
+      data: { gainers, losers },
+      success: true
+    });
+  } catch (error) {
+    res.json({
+      data: { gainers: [], losers: [] },
+      success: true
+    });
+  }
+});
+
+// MARKET CAP DISTRIBUTION
+router.get("/market-cap-distribution", async (req, res) => {
+  try {
+    const result = await query(`
+      WITH distribution AS (
+        SELECT
+          CASE
+            WHEN market_cap >= 1000000000000 THEN 'Mega Cap (>1T)'
+            WHEN market_cap >= 300000000000 THEN 'Large Cap (300B-1T)'
+            WHEN market_cap >= 50000000000 THEN 'Mid Cap (50-300B)'
+            WHEN market_cap >= 2000000000 THEN 'Small Cap (2-50B)'
+            ELSE 'Micro Cap (<2B)'
+          END as category,
+          COUNT(*) as count,
+          SUM(market_cap) as total_cap
+        FROM market_data
+        WHERE market_cap > 0
+        GROUP BY category
+      )
+      SELECT * FROM distribution ORDER BY total_cap DESC;
+    `);
+
+    res.json({
+      data: result.rows || [],
+      success: true
+    });
+  } catch (error) {
+    res.json({
+      data: [],
+      success: true
     });
   }
 });
