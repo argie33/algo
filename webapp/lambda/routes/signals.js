@@ -418,12 +418,12 @@ router.get("/etf", async (req, res) => {
       paramIndex++;
     }
 
-    // For ETF signals, use same real data columns
+    // For ETF signals, use same real data columns (ETF table lacks signal_strength column)
     const actualColumns = `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.signal_triggered_date,
       bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
       bsd.signal, bsd.buylevel, bsd.stoplevel, bsd.inposition,
-      bsd.strength, bsd.signal_strength,
+      bsd.strength, NULL as signal_strength,
       bsd.signal_type, bsd.pivot_price, bsd.buy_zone_start, bsd.buy_zone_end,
       bsd.exit_trigger_1_price, bsd.exit_trigger_2_price, bsd.exit_trigger_3_condition, bsd.exit_trigger_3_price,
       bsd.exit_trigger_4_condition, bsd.exit_trigger_4_price,
