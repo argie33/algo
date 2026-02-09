@@ -1907,6 +1907,13 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
 
     # Upsert quality_metrics
     if quality_rows:
+        # Deduplicate by (symbol, date) - keep last occurrence
+        deduplicated = {}
+        for row in quality_rows:
+            key = (row[0], row[1])  # (symbol, date)
+            deduplicated[key] = row
+        quality_rows = list(deduplicated.values())
+
         upsert_sql = """
             INSERT INTO quality_metrics (
                 symbol, date, return_on_equity_pct, return_on_assets_pct,
@@ -2220,6 +2227,13 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
     # Upsert growth_metrics
     logging.info(f"DEBUG: growth_rows has {len(growth_rows)} rows before upsert")
     if growth_rows:
+        # Deduplicate by (symbol, date) - keep last occurrence
+        deduplicated = {}
+        for row in growth_rows:
+            key = (row[0], row[1])  # (symbol, date)
+            deduplicated[key] = row
+        growth_rows = list(deduplicated.values())
+
         logging.info(f"DEBUG: First row sample: {growth_rows[0] if growth_rows else 'EMPTY'}")
         upsert_sql = """
             INSERT INTO growth_metrics (
@@ -2384,6 +2398,13 @@ def load_momentum_metrics(conn, cursor, symbols: List[str]):
 
     # Upsert momentum_metrics - will now have all symbols with proper NULL handling
     if momentum_rows:
+        # Deduplicate by (symbol, date) - keep last occurrence
+        deduplicated = {}
+        for row in momentum_rows:
+            key = (row[0], row[1])  # (symbol, date)
+            deduplicated[key] = row
+        momentum_rows = list(deduplicated.values())
+
         upsert_sql = """
             INSERT INTO momentum_metrics (
                 symbol, date, current_price, momentum_1m, momentum_3m,
@@ -2497,6 +2518,13 @@ def load_stability_metrics(conn, cursor, symbols: List[str]):
 
     # Upsert stability_metrics with all 8 columns (original 4 + new 4 volume metrics)
     if stability_rows:
+        # Deduplicate by (symbol, date) - keep last occurrence
+        deduplicated = {}
+        for row in stability_rows:
+            key = (row[0], row[1])  # (symbol, date)
+            deduplicated[key] = row
+        stability_rows = list(deduplicated.values())
+
         upsert_sql = """
             INSERT INTO stability_metrics (
                 symbol, date, volatility_12m, downside_volatility,
@@ -2566,21 +2594,28 @@ def load_value_metrics(conn, cursor, symbols: List[str]):
 
     # Upsert value_metrics
     if value_rows:
+        # Deduplicate by (symbol, date) - keep last occurrence
+        deduplicated = {}
+        for row in value_rows:
+            key = (row[0], row[1])  # (symbol, date)
+            deduplicated[key] = row
+        value_rows = list(deduplicated.values())
+
         upsert_sql = """
             INSERT INTO value_metrics (
                 symbol, date, trailing_pe, forward_pe, price_to_book, price_to_sales_ttm,
                 peg_ratio, ev_to_revenue, ev_to_ebitda, dividend_yield, payout_ratio
             ) VALUES %s
             ON CONFLICT (symbol, date) DO UPDATE SET
-                trailing_pe = EXCLUDED.trailing_pe,
-                forward_pe = EXCLUDED.forward_pe,
-                price_to_book = EXCLUDED.price_to_book,
-                price_to_sales_ttm = EXCLUDED.price_to_sales_ttm,
-                peg_ratio = EXCLUDED.peg_ratio,
-                ev_to_revenue = EXCLUDED.ev_to_revenue,
-                ev_to_ebitda = EXCLUDED.ev_to_ebitda,
-                dividend_yield = EXCLUDED.dividend_yield,
-                payout_ratio = EXCLUDED.payout_ratio
+                trailing_pe = COALESCE(value_metrics.trailing_pe, EXCLUDED.trailing_pe),
+                forward_pe = COALESCE(value_metrics.forward_pe, EXCLUDED.forward_pe),
+                price_to_book = COALESCE(value_metrics.price_to_book, EXCLUDED.price_to_book),
+                price_to_sales_ttm = COALESCE(value_metrics.price_to_sales_ttm, EXCLUDED.price_to_sales_ttm),
+                peg_ratio = COALESCE(value_metrics.peg_ratio, EXCLUDED.peg_ratio),
+                ev_to_revenue = COALESCE(value_metrics.ev_to_revenue, EXCLUDED.ev_to_revenue),
+                ev_to_ebitda = COALESCE(value_metrics.ev_to_ebitda, EXCLUDED.ev_to_ebitda),
+                dividend_yield = COALESCE(value_metrics.dividend_yield, EXCLUDED.dividend_yield),
+                payout_ratio = COALESCE(value_metrics.payout_ratio, EXCLUDED.payout_ratio)
         """
         try:
             execute_values(cursor, upsert_sql, value_rows)
@@ -2700,10 +2735,10 @@ def load_positioning_metrics(conn, cursor, symbols: List[str]):
                             created_at, updated_at
                         ) VALUES (%s, %s, %s, %s, %s, %s, CURRENT_DATE, NOW(), NOW())
                         ON CONFLICT (symbol) DO UPDATE SET
-                            institutional_ownership_pct = EXCLUDED.institutional_ownership_pct,
-                            insider_ownership_pct = EXCLUDED.insider_ownership_pct,
-                            short_ratio = EXCLUDED.short_ratio,
-                            short_interest_pct = EXCLUDED.short_interest_pct,
+                            institutional_ownership_pct = COALESCE(positioning_metrics.institutional_ownership_pct, EXCLUDED.institutional_ownership_pct),
+                            insider_ownership_pct = COALESCE(positioning_metrics.insider_ownership_pct, EXCLUDED.insider_ownership_pct),
+                            short_ratio = COALESCE(positioning_metrics.short_ratio, EXCLUDED.short_ratio),
+                            short_interest_pct = COALESCE(positioning_metrics.short_interest_pct, EXCLUDED.short_interest_pct),
                             updated_at = NOW()
                     """, (symbol, 50.0, 5.0, 2.0, 3.0, 500))
                     count += 1

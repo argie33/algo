@@ -124,7 +124,7 @@ router.get("/stocks", async (req, res) => {
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.signal_triggered_date,
       bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
       bsd.signal, bsd.buylevel, bsd.stoplevel, bsd.inposition,
-      bsd.strength, bsd.signal_strength,
+      bsd.strength as signal_strength,
       bsd.signal_type, bsd.pivot_price, bsd.buy_zone_start, bsd.buy_zone_end,
       bsd.exit_trigger_1_price, bsd.exit_trigger_2_price, bsd.exit_trigger_3_condition, bsd.exit_trigger_3_price,
       bsd.exit_trigger_4_condition, bsd.exit_trigger_4_price,
@@ -418,12 +418,12 @@ router.get("/etf", async (req, res) => {
       paramIndex++;
     }
 
-    // For ETF signals, use same real data columns (ETF table lacks signal_strength column)
+    // For ETF signals, use same real data columns
     const actualColumns = `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.signal_triggered_date,
       bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
       bsd.signal, bsd.buylevel, bsd.stoplevel, bsd.inposition,
-      bsd.strength, NULL as signal_strength,
+      bsd.strength, bsd.signal_strength,
       bsd.signal_type, bsd.pivot_price, bsd.buy_zone_start, bsd.buy_zone_end,
       bsd.exit_trigger_1_price, bsd.exit_trigger_2_price, bsd.exit_trigger_3_condition, bsd.exit_trigger_3_price,
       bsd.exit_trigger_4_condition, bsd.exit_trigger_4_price,
@@ -552,6 +552,28 @@ router.get("/etf", async (req, res) => {
       entry_quality_score: row.entry_quality_score !== null && row.entry_quality_score !== undefined ? parseInt(row.entry_quality_score) : null,
       breakout_quality: row.breakout_quality || null,
       signal_type: row.signal_type || null,
+
+      // Technical indicators - REAL DATA
+      rsi: row.rsi !== null && row.rsi !== undefined ? parseFloat(row.rsi) : null,
+      adx: row.adx !== null && row.adx !== undefined ? parseFloat(row.adx) : null,
+      atr: row.atr !== null && row.atr !== undefined ? parseFloat(row.atr) : null,
+      sma_50: row.sma_50 !== null && row.sma_50 !== undefined ? parseFloat(row.sma_50) : null,
+      sma_200: row.sma_200 !== null && row.sma_200 !== undefined ? parseFloat(row.sma_200) : null,
+      ema_21: row.ema_21 !== null && row.ema_21 !== undefined ? parseFloat(row.ema_21) : null,
+      pct_from_ema21: row.pct_from_ema21 !== null && row.pct_from_ema21 !== undefined ? parseFloat(row.pct_from_ema21) : null,
+      pct_from_sma50: row.pct_from_sma50 !== null && row.pct_from_sma50 !== undefined ? parseFloat(row.pct_from_sma50) : null,
+
+      // Signal strength - REAL DATA
+      signal_strength: row.signal_strength !== null && row.signal_strength !== undefined ? parseFloat(row.signal_strength) : null,
+
+      // Volume analysis - REAL DATA
+      avg_volume_50d: row.avg_volume_50d !== null && row.avg_volume_50d !== undefined ? row.avg_volume_50d : null,
+      volume_surge_pct: row.volume_surge_pct !== null && row.volume_surge_pct !== undefined ? parseFloat(row.volume_surge_pct) : null,
+
+      // Profit targets - REAL DATA
+      profit_target_8pct: row.profit_target_8pct !== null && row.profit_target_8pct !== undefined ? parseFloat(row.profit_target_8pct) : null,
+      profit_target_20pct: row.profit_target_20pct !== null && row.profit_target_20pct !== undefined ? parseFloat(row.profit_target_20pct) : null,
+      profit_target_25pct: row.profit_target_25pct !== null && row.profit_target_25pct !== undefined ? parseFloat(row.profit_target_25pct) : null,
 
       // ETF information
       company_name: row.company_name || null,

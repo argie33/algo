@@ -207,26 +207,22 @@ router.get("/", async (req, res) => {
     try {
       const tableExistenceCheck = await Promise.race([
         query(`
-          SELECT table_name 
-          FROM information_schema.tables 
-          WHERE table_schema = 'public' 
+          SELECT table_name
+          FROM information_schema.tables
+          WHERE table_schema = 'public'
           AND table_name IN (
             'stock_symbols', 'etf_symbols', 'last_updated',
             'price_daily', 'price_weekly', 'price_monthly', 'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly', 'price_data_montly',
             'annual_balance_sheet', 'annual_income_statement', 'annual_cash_flow',
             'quarterly_balance_sheet', 'quarterly_income_statement', 'quarterly_cash_flow',
             'ttm_income_statement', 'ttm_cash_flow',
-            'company_profile', 'market_data', 'key_metrics', 'analyst_estimates', 'governance_scores', 'leadership_team',
+            'company_profile', 'market_data', 'key_metrics',
             'earnings_history', 'earnings_estimates', 'revenue_estimates', 'calendar_events', 'earnings_metrics',
             'fear_greed_index', 'aaii_sentiment', 'naaim', 'economic_data', 'analyst_upgrade_downgrade',
             'portfolio_holdings', 'portfolio_performance', 'trading_alerts',
             'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
-            'stock_news', 'comprehensive_scores',
-            'earnings_quality_metrics', 'balance_sheet_strength', 'profitability_metrics', 'management_effectiveness',
-            'valuation_multiples', 'intrinsic_value_analysis', 'revenue_growth_analysis', 'earnings_metrics_analysis',
-            'price_momentum_analysis', 'technical_momentum_analysis', 'analyst_sentiment_analysis', 'social_sentiment_analysis',
-            'institutional_positioning', 'insider_trading_analysis', 'score_performance_tracking', 'market_regime',
-            'earnings', 'prices', 'sentiment_analysis', 'swing_trading_signals', 'technical_data_daily'
+            'stock_news', 'quality_metrics', 'growth_metrics', 'momentum_metrics', 'stability_metrics', 'value_metrics',
+            'positioning_metrics', 'stock_scores', 'analyst_sentiment_analysis', 'institutional_positioning', 'technical_data_daily'
           )
         `),
         new Promise((_, reject) =>
@@ -306,9 +302,6 @@ router.get("/", async (req, res) => {
         "company_profile",
         "market_data",
         "key_metrics",
-        "analyst_estimates",
-        "governance_scores",
-        "leadership_team",
         "earnings_history",
         "earnings_estimates",
         "revenue_estimates",
@@ -326,29 +319,16 @@ router.get("/", async (req, res) => {
         "buy_sell_weekly",
         "buy_sell_monthly",
         "stock_news",
-        "comprehensive_scores",
         "quality_metrics",
+        "growth_metrics",
+        "momentum_metrics",
+        "stability_metrics",
+        "value_metrics",
+        "positioning_metrics",
         "stock_scores",
-        "earnings_quality_metrics",
-        "balance_sheet_strength",
-        "profitability_metrics",
-        "management_effectiveness",
-        "valuation_multiples",
-        "intrinsic_value_analysis",
-        "revenue_growth_analysis",
-        "earnings_metrics_analysis",
-        "price_momentum_analysis",
-        "technical_momentum_analysis",
         "analyst_sentiment_analysis",
-        "social_sentiment_analysis",
         "institutional_positioning",
-        "insider_trading_analysis",
-        "score_performance_tracking",
-        "market_regime",
-        "earnings",
-        "prices",
-        "sentiment_analysis",
-        "swing_trading_signals"
+        "technical_data_daily"
       ].forEach((tableName) => {
         if (!existingTables.includes(tableName)) {
           tables[tableName] = "not_found";
