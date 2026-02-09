@@ -1930,12 +1930,12 @@ def main():
     try:
         conn_temp = get_db_connection()
         cur_temp = conn_temp.cursor()
-        cur_temp.execute("SELECT symbol FROM etf_symbols WHERE etf='Y' AND country IS NOT NULL AND symbol NOT IN (SELECT DISTINCT symbol FROM buy_sell_monthly_etf);")
+        cur_temp.execute("SELECT symbol FROM etf_symbols WHERE etf='Y' AND symbol NOT IN (SELECT DISTINCT symbol FROM buy_sell_monthly_etf);")
         country_symbols = [r[0] for r in cur_temp.fetchall()]
         cur_temp.close()
         conn_temp.close()
     except Exception as e:
-        logging.warning(f"Could not load country ETF symbols from etf_symbols: {e}")
+        logging.debug(f"Could not load ETF symbols from etf_symbols: {e}")
 
     conn = get_db_connection()
     cur  = conn.cursor()

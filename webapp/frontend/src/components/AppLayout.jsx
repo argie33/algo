@@ -64,6 +64,12 @@ const menuItems = [
     category: 'markets',
   },
   {
+    text: 'Commodities',
+    icon: <GrainIcon />,
+    path: '/app/commodities',
+    category: 'markets',
+  },
+  {
     text: 'Economic Indicators',
     icon: <PublicIcon />,
     path: '/app/economic',

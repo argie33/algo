@@ -65,25 +65,25 @@ const menuItems = [
   {
     text: "Market Overview",
     icon: <TrendingUpIcon />,
-    path: "/market",
+    path: "/app/market",
     category: "markets",
   },
   {
     text: "Sector Analysis",
     icon: <BusinessIcon />,
-    path: "/sectors",
+    path: "/app/sectors",
     category: "markets",
   },
   {
     text: "Commodities",
     icon: <GrainIcon />,
-    path: "/commodities",
+    path: "/app/commodities",
     category: "markets",
   },
   {
     text: "Economic Indicators",
     icon: <PublicIcon />,
-    path: "/economic",
+    path: "/app/economic",
     category: "markets",
   },
 
@@ -91,32 +91,32 @@ const menuItems = [
   {
     text: "Stock Scores",
     icon: <Stars />,
-    path: "/scores",
+    path: "/app/scores",
     category: "stocks",
     premium: true,
   },
   {
     text: "Earnings Hub",
     icon: <EventIcon />,
-    path: "/earnings",
+    path: "/app/earnings",
     category: "stocks",
   },
   {
     text: "Financial Data",
     icon: <StorageIcon />,
-    path: "/financial-data",
+    path: "/app/financial-data",
     category: "stocks",
   },
   {
     text: "Trading Signals",
     icon: <TrendingUpIcon />,
-    path: "/trading-signals",
+    path: "/app/trading-signals",
     category: "stocks",
   },
   {
     text: "ETF Trading Signals",
     icon: <PublicIcon />,
-    path: "/etf-trading-signals",
+    path: "/app/etf-trading-signals",
     category: "stocks",
   },
 
@@ -124,7 +124,7 @@ const menuItems = [
   {
     text: "Sentiment Analysis",
     icon: <PsychologyIcon />,
-    path: "/sentiment",
+    path: "/app/sentiment",
     category: "stocks",
   },
 
@@ -132,7 +132,7 @@ const menuItems = [
   {
     text: "Hedge Helper",
     icon: <SwapHorizIcon />,
-    path: "/hedge-helper",
+    path: "/app/hedge-helper",
     category: "stocks",
   },
 
