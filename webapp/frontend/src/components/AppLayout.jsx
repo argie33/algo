@@ -44,6 +44,7 @@ import {
   Logout as LogoutIcon,
   SwapHoriz as SwapHorizIcon,
   Home as HomeIcon,
+  Grain as GrainIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 

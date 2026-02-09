@@ -245,6 +245,9 @@ def load_comprehensive_metrics(conn):
         ]).set_index('symbol')
         df = df.join(positioning_df, how='left')
         logger.info(f"  Loaded positioning metrics for {positioning_df.shape[0]} stocks")
+    else:
+        # If no positioning data, leave as NaN (no fake defaults)
+        logger.warning("  No positioning metrics found - using NULL values (no fallback fills)")
 
     cur.close()
     return df

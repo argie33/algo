@@ -401,7 +401,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         profit_margin_pct, gross_margin_pct, ebitda_margin_pct,
                         operating_margin_pct, return_on_assets_pct,
                         return_on_equity_pct, revenue_growth_pct,
-                        earnings_growth_pct, last_split_factor,
+                        earnings_growth_pct,
                         last_split_date_ms, dividend_rate, dividend_yield,
                         five_year_avg_dividend_yield, ex_dividend_date_ms,
                         last_annual_dividend_amt, last_annual_dividend_yield,
@@ -414,7 +414,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
                              %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
                              %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
-                             %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                             %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     ON CONFLICT (ticker) DO UPDATE SET
                         trailing_pe = EXCLUDED.trailing_pe,
                         forward_pe = EXCLUDED.forward_pe,
@@ -446,7 +446,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         safe_float(info.get("priceToSalesTrailing12Months"), max_val=9999.99),
                         safe_float(info.get("priceToBook"), max_val=9999.99),
                         safe_int(info.get("bookValue")),
-                        safe_float(info.get("trailingPegRatio"), max_val=100, min_val=0),  # Filter garbage PEG values
+                        safe_float(info.get("trailingPegRatio"), max_val=10000, min_val=0),  # Allow high PEG values for low-growth/high-PE stocks
                         safe_int(info.get("enterpriseValue")),
                         safe_float(info.get("enterpriseToRevenue"), max_val=9999.99),
                         safe_float(info.get("enterpriseToEbitda"), max_val=9999.99),
@@ -477,18 +477,17 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         safe_float(info.get("grossMargins"), max_val=100, min_val=-100),
                         safe_float(info.get("ebitdaMargins"), max_val=100, min_val=-100),
                         safe_float(info.get("operatingMargins"), max_val=100, min_val=-100),
-                        safe_float(info.get("returnOnAssets"), max_val=100, min_val=-100),
-                        safe_float(info.get("returnOnEquity"), max_val=100, min_val=-100),
-                        safe_float(info.get("revenueGrowth"), max_val=100, min_val=-100),
-                        safe_float(missing_metrics.get('earnings_growth') or info.get("earningsGrowth"), max_val=100, min_val=-100),
-                        None,  # lastSplitFactor - yfinance returns string like "2:1", cannot convert safely
+                        safe_float(info.get("returnOnAssets"), max_val=1000, min_val=-100),
+                        safe_float(info.get("returnOnEquity"), max_val=1000, min_val=-100),
+                        safe_float(info.get("revenueGrowth"), max_val=10000, min_val=-100),
+                        safe_float(missing_metrics.get('earnings_growth') or info.get("earningsGrowth"), max_val=10000, min_val=-100),
                         safe_int(info.get("lastSplitDate")),
-                        safe_float(info.get("dividendRate"), max_val=9999.99),
-                        safe_float(info.get("dividendYield"), max_val=99.99, min_val=0),
-                        safe_float(info.get("fiveYearAvgDividendYield"), max_val=99.99, min_val=0),
+                        safe_float(info.get("dividendRate"), max_val=99999.99),
+                        safe_float(info.get("dividendYield"), max_val=10000, min_val=0),
+                        safe_float(info.get("fiveYearAvgDividendYield"), max_val=10000, min_val=0),
                         safe_int(info.get("exDividendDate")),
-                        safe_float(info.get("trailingAnnualDividendRate"), max_val=9999.99),
-                        safe_float(info.get("trailingAnnualDividendYield"), max_val=99.99, min_val=0),
+                        safe_float(info.get("trailingAnnualDividendRate"), max_val=99999.99),
+                        safe_float(info.get("trailingAnnualDividendYield"), max_val=10000, min_val=0),
                         safe_float(info.get("lastDividendValue"), max_val=9999.99),
                         safe_int(info.get("lastDividendDate")),
                         safe_int(info.get("dividendDate")),
@@ -516,23 +515,20 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 except:
                     pass
 
-        # CRITICAL FIX: Always insert key_metrics for ALL symbols, even with NULL data
-        # This ensures 100% coverage for downstream loaders (quality_metrics, value_metrics, etc)
-        # Without this, downstream metrics won't calculate for those symbols
-        try:
-            cur.execute("DELETE FROM key_metrics WHERE ticker = %s", (symbol,))
-            # Insert minimal key_metrics record - just symbol, rest can be NULL
-            cur.execute(
-                "INSERT INTO key_metrics (ticker) VALUES (%s) ON CONFLICT (ticker) DO NOTHING",
-                (symbol,),
-            )
-            stats['key_metrics'] = 1
-        except Exception as e:
-            logging.error(f"❌ CRITICAL: Failed to insert key_metrics for {symbol}: {str(e)[:200]}")
-            try:
-                conn.rollback()
-            except:
-                pass
+                # FALLBACK: Only insert key_metrics if the full insert FAILED
+                # This ensures 100% coverage for downstream loaders
+                try:
+                    cur.execute(
+                        "INSERT INTO key_metrics (ticker) VALUES (%s) ON CONFLICT (ticker) DO NOTHING",
+                        (symbol,),
+                    )
+                    stats['key_metrics'] = 1
+                except Exception as e2:
+                    logging.error(f"❌ CRITICAL: Failed to insert key_metrics fallback for {symbol}: {str(e2)[:200]}")
+                    try:
+                        conn.rollback()
+                    except:
+                        pass
 
         # 2. Insert institutional holders
         if institutional_holders is not None and not institutional_holders.empty:
@@ -570,7 +566,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     inst_data.append((
                         symbol, inst_type, inst_name,
                         safe_float(row.get('Value'), max_val=999999999999),
-                        safe_float(row.get('pctChange'), max_val=1000, min_val=-100) * 100 if row.get('pctChange') else None,
+                        safe_float(row.get('pctChange'), max_val=100, min_val=-100) if row.get('pctChange') else None,
                         safe_float(row.get('pctHeld'), max_val=100, min_val=0),
                         filing_date, quarter,
                     ))
@@ -631,7 +627,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         symbol, 'MUTUAL_FUND',
                         mf_name,
                         safe_float(row.get('Value'), max_val=999999999999),
-                        safe_float(row.get('pctChange'), max_val=1000, min_val=-100) * 100 if row.get('pctChange') else None,
+                        safe_float(row.get('pctChange'), max_val=100, min_val=-100) if row.get('pctChange') else None,
                         safe_float(row.get('pctHeld'), max_val=100, min_val=0),
                         filing_date, quarter,
                     ))
@@ -671,15 +667,15 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 for _, row in insider_transactions.iterrows():
                     insider_txn_data.append((
                         symbol,
-                        str(row.get('Insider', '')),
-                        str(row.get('Position', '')),
-                        str(row.get('Transaction', '')),
+                        safe_str(row.get('Insider'), max_len=200),
+                        safe_str(row.get('Position'), max_len=200),
+                        safe_str(row.get('Transaction'), max_len=50),
                         safe_int(row.get('Shares')),
                         safe_float(row.get('Value')),
                         safe_date(row.get('Start Date')),
-                        str(row.get('Ownership', '')),
-                        str(row.get('Text', '')),
-                        str(row.get('URL', '')),
+                        safe_str(row.get('Ownership'), max_len=10),
+                        safe_str(row.get('Text'), max_len=500),
+                        safe_str(row.get('URL'), max_len=1000),
                     ))
 
                 if insider_txn_data:
@@ -733,13 +729,13 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     for _, row in insider_roster.iterrows():
                         roster_data.append((
                             symbol,
-                            str(row.get('Name', '')),
-                            str(row.get('Position', '')),
-                            str(row.get('Most Recent Transaction', '')),
+                            safe_str(row.get('Name'), max_len=200),
+                            safe_str(row.get('Position'), max_len=200),
+                            safe_str(row.get('Most Recent Transaction'), max_len=50),
                             safe_date(row.get('Latest Transaction Date')),
                             safe_int(row.get('Shares Owned Directly')),
                             safe_date(row.get('Position Direct Date')),
-                            str(row.get('URL', '')),
+                            safe_str(row.get('URL'), max_len=1000),
                         ))
 
                     if roster_data:
@@ -811,40 +807,59 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             # DO NOT calculate from holder DataFrames (causes > 100% values and double-counting)
             inst_own = safe_float(info.get('heldPercentInstitutions')) if info else None
             insider_own = safe_float(info.get('heldPercentInsiders')) if info else None
-            short_int = safe_float(info.get('shortPercentOfFloat')) if info else None
+            short_pct = safe_float(info.get('shortPercentOfFloat')) if info else None
+            short_ratio = safe_float(info.get('shortRatio')) if info else None
 
             # If data is missing from yfinance, store as NULL (not a calculated fallback)
             # institutional_holders and major_holders DataFrames are NOT used
             # because summing individual holders' percentages causes > 100% values
 
-            ad_rating = calculate_ad_rating(inst_own, insider_own, short_int, cur, symbol)
+            ad_rating = calculate_ad_rating(inst_own, insider_own, short_pct, cur, symbol)
 
-            # Delete existing record if present, then insert fresh data (simpler than ON CONFLICT)
-            cur.execute("DELETE FROM positioning_metrics WHERE symbol = %s", (symbol,))
-            cur.execute(
-                """
-                INSERT INTO positioning_metrics (
-                    symbol, date, institutional_ownership_pct,
-                    institutional_holders_count, insider_ownership_pct,
-                    short_ratio, short_interest_pct, short_percent_of_float, ad_rating
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                """,
-                (
-                    symbol,
-                    datetime.now().date(),
-                    inst_own,
-                    safe_int(info.get('institutionsCount')) if info else None,
-                    insider_own,
-                    safe_float(info.get('shortRatio')) if info else None,
-                    short_int,
-                    short_int,
-                    ad_rating,
+            # Use ON CONFLICT to ensure atomic updates - REAL DATA ONLY, NO DEFAULTS
+            try:
+                cur.execute(
+                    """
+                    INSERT INTO positioning_metrics (
+                        symbol, date, institutional_ownership_pct,
+                        institutional_holders_count, insider_ownership_pct,
+                        short_ratio, short_interest_pct, short_percent_of_float, ad_rating
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    ON CONFLICT (symbol) DO UPDATE SET
+                        date = EXCLUDED.date,
+                        institutional_ownership_pct = EXCLUDED.institutional_ownership_pct,
+                        institutional_holders_count = EXCLUDED.institutional_holders_count,
+                        insider_ownership_pct = EXCLUDED.insider_ownership_pct,
+                        short_ratio = EXCLUDED.short_ratio,
+                        short_interest_pct = EXCLUDED.short_interest_pct,
+                        short_percent_of_float = EXCLUDED.short_percent_of_float,
+                        ad_rating = EXCLUDED.ad_rating,
+                        updated_at = CURRENT_TIMESTAMP
+                    """,
+                    (
+                        symbol,
+                        datetime.now().date(),
+                        inst_own,
+                        safe_int(info.get('institutionsCount')) if info else None,
+                        insider_own,
+                        short_ratio,
+                        short_pct,
+                        short_pct,
+                        ad_rating,
+                    )
                 )
-            )
-            stats['positioning'] = 1
+                stats['positioning'] = 1
+                logging.debug(f"{symbol}: Positioning metrics inserted - inst_own={inst_own}, insider_own={insider_own}, short_pct={short_pct}")
+            except Exception as e2:
+                logging.error(f"❌ CRITICAL: Failed to insert positioning metrics for {symbol}: {str(e2)[:200]}")
+                stats['positioning_failed'] = 1
+                try:
+                    conn.rollback()
+                except:
+                    pass
 
         except Exception as e:
-            logging.error(f"❌ CRITICAL: Failed to insert positioning metrics for {symbol}: {str(e)[:200]}")
+            logging.error(f"❌ CRITICAL: Failed to calculate/insert positioning metrics for {symbol}: {str(e)[:200]}")
             stats['positioning_failed'] = 1
             # Rollback failed transaction
             try:
@@ -999,7 +1014,15 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
         # All derived input calculations happen in loadfactormetrics.py
         # Note: stability_metrics table is populated entirely by loadfactormetrics.py
 
-        conn.commit()
+        try:
+            conn.commit()
+            logging.info(f"✓ COMMITTED {symbol}")
+        except Exception as commit_err:
+            logging.error(f"❌ COMMIT FAILED {symbol}: {str(commit_err)[:200]}")
+            try:
+                conn.rollback()
+            except:
+                pass
         return stats
 
     except Exception as e:
