@@ -1886,11 +1886,11 @@ def main():
         logging.warning(f"Failed to get risk-free rate: {e}")
         annual_rfr = 0.0
 
-    # Load symbols from database - SKIP ALREADY COMPLETED
-    symbols = get_symbols_from_db(limit=None, skip_completed=True)  # Load ONLY incomplete stocks
+    # Load symbols from database for complete coverage
+    symbols = get_symbols_from_db(limit=None, skip_completed=False)  # Load ALL stocks for complete coverage
     if not symbols:
-        print("All stock symbols already processed!")
-        logging.info("✅ No more symbols to process - all stocks complete")
+        print("No stock symbols found to process!")
+        logging.info("✅ No symbols found to process")
         return
 
     logging.info(f"📊 Found {len(symbols)} incomplete symbols to process")

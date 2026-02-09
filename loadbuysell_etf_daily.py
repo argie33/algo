@@ -1909,13 +1909,13 @@ def main():
         logging.warning(f"Failed to get risk-free rate: {e}")
         annual_rfr = 0.0
 
-    # Load symbols from database - SKIP ALREADY COMPLETED
-    symbols = get_symbols_from_db(limit=None, skip_completed=True)  # Load ONLY incomplete ETFs
+    # Load symbols from database for complete coverage
+    symbols = get_symbols_from_db(limit=None, skip_completed=False)  # Load ALL ETFs for complete coverage
     if not symbols:
-        logging.info("✅ No more symbols to process - all ETFs complete!")
+        logging.info("✅ No symbols found to process!")
         return
 
-    logging.info(f"📊 Found {len(symbols)} incomplete ETF symbols to process")
+    logging.info(f"📊 Processing {len(symbols)} symbols for complete buy/sell signal coverage")
 
     # Load country ETF symbols (from etf_symbols where etf='Y' AND country IS NOT NULL)
     # Note: Also need to filter country symbols by skip_completed
