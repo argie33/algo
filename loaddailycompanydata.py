@@ -1173,19 +1173,13 @@ if __name__ == "__main__":
     logging.info(f"Processed: {processed}/{len(symbols)}")
     logging.info(f"Failed: {len(failed)}")
 
-    # Count component failures
-    info_failures = len([s for s in total_stats if s.get('info_failed')])
-    positioning_failures = len([s for s in total_stats if s.get('positioning_failed')])
-    earnings_failures = len([s for s in total_stats if s.get('earnings_est_failed')])
-    revenue_failures = len([s for s in total_stats if s.get('revenue_est_failed')])
-    inst_failures = len([s for s in total_stats if s.get('institutional_failed')])
-
-    logging.info(f"❌ Component Failures Detected:")
-    logging.info(f"   - Company Info: {info_failures}")
-    logging.info(f"   - Positioning Metrics: {positioning_failures}")
-    logging.info(f"   - Earnings Estimates: {earnings_failures}")
-    logging.info(f"   - Revenue Estimates: {revenue_failures}")
-    logging.info(f"   - Institutional Holders: {inst_failures}")
+    # Summary stats collected from individual stock loads
+    logging.info(f"📊 Component Summary:")
+    logging.info(f"   - Company Info: {total_stats.get('info', 0)} stocks")
+    logging.info(f"   - Positioning Metrics: {total_stats.get('positioning', 0)} stocks")
+    logging.info(f"   - Insider Roster: {total_stats.get('insider_roster', 0)} records")
+    logging.info(f"   - Earnings Estimates: {total_stats.get('earnings_est', 0)} records")
+    logging.info(f"   - Revenue Estimates: {total_stats.get('revenue_est', 0)} records")
 
     if failed:
         logging.warning(f"⚠️  FAILED SYMBOLS (no data loaded): {','.join(failed[:20])}{f' +{len(failed)-20} more' if len(failed) > 20 else ''}")
