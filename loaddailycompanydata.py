@@ -384,7 +384,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     ),
                 )
 
-                # Key metrics (with new positioning fields)
+                # Key metrics (with valuation data from yfinance)
                 cur.execute(
                     """
                     INSERT INTO key_metrics (
@@ -483,15 +483,15 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         safe_float(info.get("forwardPE"), max_val=9999.99),
                         safe_float(info.get("priceToSalesTrailing12Months"), max_val=9999.99),
                         safe_float(info.get("priceToBook"), max_val=9999.99),
-                        safe_int(info.get("bookValue"), max_val=9999999999999),
-                        safe_float(info.get("trailingPegRatio"), max_val=10000, min_val=0),  # Allow high PEG values for low-growth/high-PE stocks
+                        safe_int(info.get("bookValue")),
+                        safe_float(info.get("trailingPegRatio"), max_val=100, min_val=0),
                         safe_int(info.get("enterpriseValue")),
                         safe_float(info.get("enterpriseToRevenue"), max_val=9999.99),
                         safe_float(info.get("enterpriseToEbitda"), max_val=9999.99),
-                        safe_int(info.get("totalRevenue"), max_val=9999999999999),
-                        safe_int(info.get("netIncomeToCommon"), max_val=9999999999999),
-                        safe_int(info.get("ebitda"), max_val=9999999999999),
-                        safe_int(info.get("grossProfits"), max_val=9999999999999),
+                        safe_int(info.get("totalRevenue")),
+                        safe_int(info.get("netIncomeToCommon")),
+                        safe_int(info.get("ebitda")),
+                        safe_int(info.get("grossProfits")),
                         safe_float(info.get("trailingEps"), max_val=9999.99),
                         safe_float(info.get("forwardEps"), max_val=9999.99),
                         safe_float(info.get("epsCurrentYear"), max_val=9999.99),
@@ -503,11 +503,11 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         safe_int(info.get("earningsCallTimeStampStart")),
                         safe_int(info.get("earningsCallTimeStampEnd")),
                         info.get("earningsDateIsEstimate"),
-                        safe_int(info.get("totalCash"), max_val=9999999999999),
+                        safe_int(info.get("totalCash")),
                         safe_float(info.get("totalCashPerShare"), max_val=9999.99),
-                        safe_int(info.get("operatingCashflow"), max_val=9999999999999),
-                        safe_int(info.get("freeCashflow"), max_val=9999999999999),
-                        safe_int(info.get("totalDebt"), max_val=9999999999999),
+                        safe_int(info.get("operatingCashflow")),
+                        safe_int(info.get("freeCashflow")),
+                        safe_int(info.get("totalDebt")),
                         safe_float(missing_metrics.get('debt_to_equity'), max_val=9999.99),
                         safe_float(info.get("quickRatio"), max_val=999.99),
                         safe_float(info.get("currentRatio"), max_val=999.99),
@@ -515,17 +515,17 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         safe_float(info.get("grossMargins"), max_val=100, min_val=-100),
                         safe_float(info.get("ebitdaMargins"), max_val=100, min_val=-100),
                         safe_float(info.get("operatingMargins"), max_val=100, min_val=-100),
-                        safe_float(info.get("returnOnAssets"), max_val=1000, min_val=-100),
-                        safe_float(info.get("returnOnEquity"), max_val=1000, min_val=-100),
-                        safe_float(info.get("revenueGrowth"), max_val=10000, min_val=-100),
-                        safe_float(missing_metrics.get('earnings_growth') or info.get("earningsGrowth"), max_val=10000, min_val=-100),
+                        safe_float(info.get("returnOnAssets"), max_val=100, min_val=-100),
+                        safe_float(info.get("returnOnEquity"), max_val=100, min_val=-100),
+                        safe_float(info.get("revenueGrowth"), max_val=100, min_val=-100),
+                        safe_float(missing_metrics.get('earnings_growth') or info.get("earningsGrowth"), max_val=100, min_val=-100),
                         safe_int(info.get("lastSplitDate")),
-                        safe_float(info.get("dividendRate"), max_val=99999.99),
-                        safe_float(info.get("dividendYield"), max_val=10000, min_val=0),
-                        safe_float(info.get("fiveYearAvgDividendYield"), max_val=10000, min_val=0),
+                        safe_float(info.get("dividendRate"), max_val=9999.99),
+                        safe_float(info.get("dividendYield"), max_val=99.99, min_val=0),
+                        safe_float(info.get("fiveYearAvgDividendYield"), max_val=99.99, min_val=0),
                         safe_int(info.get("exDividendDate")),
-                        safe_float(info.get("trailingAnnualDividendRate"), max_val=99999.99),
-                        safe_float(info.get("trailingAnnualDividendYield"), max_val=10000, min_val=0),
+                        safe_float(info.get("trailingAnnualDividendRate"), max_val=9999.99),
+                        safe_float(info.get("trailingAnnualDividendYield"), max_val=99.99, min_val=0),
                         safe_float(info.get("lastDividendValue"), max_val=9999.99),
                         safe_int(info.get("lastDividendDate")),
                         safe_int(info.get("dividendDate")),
@@ -535,9 +535,8 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         safe_int(info.get("sharesShort")),
                         safe_int(info.get("sharesShortPriorMonth")),
                         safe_float(info.get("shortRatio"), max_val=9999.99),
-                        # REAL DATA ONLY: Use only yfinance shortPercentOfFloat, no fallback calculations
                         safe_float(info.get("shortPercentOfFloat"), max_val=99.99, min_val=0),
-                        safe_int(info.get("impliedSharesOutstanding") or info.get("sharesOutstanding"), max_val=999999999999),
+                        safe_int(info.get("impliedSharesOutstanding") or info.get("sharesOutstanding")),
                         safe_int(info.get("floatShares")),
                     ),
                 )
@@ -552,14 +551,22 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     conn.rollback()
                 except:
                     pass
-                # FALLBACK: Always ensure symbol exists with at least ticker
-                try:
-                    cur.execute(
-                        "INSERT INTO key_metrics (ticker) VALUES (%s) ON CONFLICT (ticker) DO NOTHING",
-                        (symbol,),
-                    )
-                except:
-                    pass
+
+        # CRITICAL: Always insert key_metrics - commit immediately to guarantee persistence
+        # This is separate from company_profile to prevent rollback
+        try:
+            cur.execute(
+                "INSERT INTO key_metrics (ticker) VALUES (%s) ON CONFLICT (ticker) DO NOTHING",
+                (symbol,),
+            )
+            conn.commit()  # Commit immediately - DO NOT wait for final commit
+            stats['key_metrics'] = 1
+        except Exception as e:
+            logging.error(f"❌ CRITICAL: Failed to insert key_metrics for {symbol}: {str(e)[:200]}")
+            try:
+                conn.rollback()
+            except:
+                pass
 
         # 2. Insert institutional holders
         if institutional_holders is not None and not institutional_holders.empty:
