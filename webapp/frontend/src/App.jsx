@@ -22,6 +22,7 @@ import {
   Psychology as PsychologyIcon,
   SwapHoriz as SwapHorizIcon,
   Storage as StorageIcon,
+  Grain as GrainIcon,
 } from "@mui/icons-material";
 
 // All real page imports (PUBLIC DATA ONLY)
@@ -34,6 +35,7 @@ import { useAuth } from "./contexts/AuthContext";
 import AuthModal from "./components/auth/AuthModal";
 import ErrorBoundary from "./components/ErrorBoundary";
 import SectorAnalysis from "./pages/SectorAnalysis";
+import CommoditiesAnalysis from "./pages/CommoditiesAnalysis";
 import TradingSignals from "./pages/TradingSignals";
 import ETFSignals from "./pages/ETFSignals";
 import EconomicDashboard from "./pages/EconomicDashboard";
@@ -70,6 +72,12 @@ const menuItems = [
     text: "Sector Analysis",
     icon: <BusinessIcon />,
     path: "/sectors",
+    category: "markets",
+  },
+  {
+    text: "Commodities",
+    icon: <GrainIcon />,
+    path: "/commodities",
     category: "markets",
   },
   {
@@ -395,6 +403,7 @@ function App() {
           <Route path="/app/financial-data" element={<FinancialData />} />
           <Route path="/app/sentiment" element={<Sentiment />} />
           <Route path="/app/sectors" element={<SectorAnalysis />} />
+          <Route path="/app/commodities" element={<CommoditiesAnalysis />} />
           <Route path="/app/trading-signals" element={<TradingSignals />} />
           <Route path="/app/etf-trading-signals" element={<ETFSignals />} />
           <Route path="/app/economic" element={<EconomicDashboard />} />
