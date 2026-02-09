@@ -4,11 +4,10 @@ import {
   Box,
   Card,
   CardContent,
+  CardHeader,
   Chip,
   Container,
   Grid,
-  Tab,
-  Tabs,
   Typography,
   CircularProgress,
   Alert,
@@ -18,21 +17,33 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  LinearProgress,
+  Paper,
+  Divider,
 } from "@mui/material";
-import { TrendingUp, TrendingDown } from "@mui/icons-material";
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  ScatterChart,
+  Scatter,
+} from "recharts";
+import { TrendingUp, TrendingDown, Info } from "@mui/icons-material";
 import api from "../services/api";
-import { getChangeColor, formatPercentage } from "../utils/formatters";
-
-function TabPanel({ children, value, index }) {
-  return (
-    <div hidden={value !== index}>
-      {value === index && <Box sx={{ py: 2 }}>{children}</Box>}
-    </div>
-  );
-}
+import { getChangeColor } from "../utils/formatters";
 
 export default function CommoditiesAnalysis() {
-  const [tabValue, setTabValue] = useState(0);
+  const [selectedCommodity, setSelectedCommodity] = useState("GC=F");
 
   // Fetch categories
   const categoriesQuery = useQuery({
@@ -76,51 +87,98 @@ export default function CommoditiesAnalysis() {
     staleTime: 30 * 60 * 1000,
   });
 
+  // Fetch COT data
+  const cotQuery = useQuery({
+    queryKey: ["commodities-cot", selectedCommodity],
+    queryFn: async () => {
+      try {
+        const response = await api.get(`/api/commodities/cot/${selectedCommodity}`);
+        return response.data.data;
+      } catch {
+        return null;
+      }
+    },
+    staleTime: 24 * 60 * 60 * 1000,
+  });
+
+  // Fetch seasonality
+  const seasonalityQuery = useQuery({
+    queryKey: ["commodities-seasonality", selectedCommodity],
+    queryFn: async () => {
+      try {
+        const response = await api.get(`/api/commodities/seasonality/${selectedCommodity}`);
+        return response.data.data;
+      } catch {
+        return null;
+      }
+    },
+    staleTime: 7 * 24 * 60 * 60 * 1000,
+  });
+
   const isLoading =
     categoriesQuery.isLoading ||
     pricesQuery.isLoading ||
     summaryQuery.isLoading ||
     correlationsQuery.isLoading;
 
-  const hasError =
-    categoriesQuery.error ||
-    pricesQuery.error ||
-    summaryQuery.error ||
-    correlationsQuery.error;
+  const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7c7c", "#8dd1e1", "#d084d0"];
+
+  // Chart data
+  const categoriesChartData = categoriesQuery.data?.map((cat) => ({
+    name: cat.name,
+    change: parseFloat(cat.avgChange1d),
+    count: cat.commodityCount,
+  })) || [];
+
+  const topMoversData = summaryQuery.data
+    ? [
+        ...(summaryQuery.data.topGainers || []).slice(0, 5),
+        ...(summaryQuery.data.topLosers || []).slice(0, 5),
+      ].map((item) => ({
+        name: item.name,
+        change: parseFloat(item.change),
+        type: parseFloat(item.change) >= 0 ? "gainer" : "loser",
+      }))
+    : [];
+
+  const correlationChartData = correlationsQuery.data
+    ?.slice(0, 10)
+    .map((item) => ({
+      name: `${item.symbol1}/${item.symbol2}`,
+      coefficient: parseFloat(item.coefficient),
+    })) || [];
+
+  const seasonalityData = seasonalityQuery.data?.seasonality || [];
+
+  const cotHistoryData = cotQuery.data?.cotHistory?.slice(-12) || [];
+
+  const cotSymbols = ["GC=F", "SI=F", "CL=F", "NG=F", "HG=F", "ZC=F", "ZS=F"];
 
   return (
-    <Container maxWidth="lg" sx={{ py: 3 }}>
+    <Container maxWidth="xl" sx={{ py: 3 }}>
+      {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" component="h1" sx={{ fontWeight: 700, mb: 1 }}>
-          Commodities Analysis
+          🌾 Commodities Market Analysis
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Real-time commodity prices, market trends, and correlations
+          Real-time market data, correlations, seasonality patterns, and trader positioning
         </Typography>
       </Box>
 
       {isLoading && (
         <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
-          <Box sx={{ textAlign: "center" }}>
-            <CircularProgress />
-            <Typography sx={{ mt: 2 }}>Loading commodities data...</Typography>
-          </Box>
+          <CircularProgress />
         </Box>
       )}
 
-      {hasError && !isLoading && (
-        <Alert severity="error">
-          Failed to load commodities data. Please try again later.
-        </Alert>
-      )}
-
-      {!isLoading && !hasError && (
+      {!isLoading && (
         <>
           {/* Market Summary Cards */}
           {summaryQuery.data && (
             <Grid container spacing={2} sx={{ mb: 4 }}>
               <Grid item xs={12} sm={6} md={3}>
-                <Card>
+                <Paper elevation={2}>
                   <CardContent>
                     <Typography color="textSecondary" gutterBottom>
                       Active Contracts
@@ -129,35 +187,29 @@ export default function CommoditiesAnalysis() {
                       {summaryQuery.data.overview?.activeContracts || 0}
                     </Typography>
                   </CardContent>
-                </Card>
+                </Paper>
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
-                <Card>
+                <Paper elevation={2}>
                   <CardContent>
                     <Typography color="textSecondary" gutterBottom>
                       Total Volume
                     </Typography>
                     <Typography variant="h5">
-                      {(summaryQuery.data.overview?.totalVolume / 1e6).toFixed(
-                        1
-                      )}
-                      M
+                      {(summaryQuery.data.overview?.totalVolume / 1e6).toFixed(1)}M
                     </Typography>
                   </CardContent>
-                </Card>
+                </Paper>
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
-                <Card>
+                <Paper elevation={2}>
                   <CardContent>
                     <Typography color="textSecondary" gutterBottom>
                       Top Gainer
                     </Typography>
                     {summaryQuery.data.topGainers?.[0] && (
                       <>
-                        <Typography
-                          variant="body2"
-                          sx={{ fontWeight: 600, mb: 1 }}
-                        >
+                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
                           {summaryQuery.data.topGainers[0].name}
                         </Typography>
                         <Chip
@@ -169,20 +221,17 @@ export default function CommoditiesAnalysis() {
                       </>
                     )}
                   </CardContent>
-                </Card>
+                </Paper>
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
-                <Card>
+                <Paper elevation={2}>
                   <CardContent>
                     <Typography color="textSecondary" gutterBottom>
                       Top Loser
                     </Typography>
                     {summaryQuery.data.topLosers?.[0] && (
                       <>
-                        <Typography
-                          variant="body2"
-                          sx={{ fontWeight: 600, mb: 1 }}
-                        >
+                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
                           {summaryQuery.data.topLosers[0].name}
                         </Typography>
                         <Chip
@@ -194,231 +243,319 @@ export default function CommoditiesAnalysis() {
                       </>
                     )}
                   </CardContent>
-                </Card>
+                </Paper>
               </Grid>
             </Grid>
           )}
 
-          {/* Tabs */}
-          <Card>
-            <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
-              <Tabs value={tabValue} onChange={(e, val) => setTabValue(val)}>
-                <Tab label="Categories" />
-                <Tab label="Top Movers" />
-                <Tab label="All Prices" />
-                <Tab label="Correlations" />
-              </Tabs>
-            </Box>
+          {/* Charts Section */}
+          <Grid container spacing={3} sx={{ mb: 4 }}>
+            {/* Category Performance Chart */}
+            <Grid item xs={12} md={6}>
+              <Card elevation={2}>
+                <CardHeader title="📊 Category Performance (1D Change)" />
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={categoriesChartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
+                      <YAxis />
+                      <Tooltip
+                        formatter={(value) => `${value.toFixed(2)}%`}
+                        contentStyle={{ backgroundColor: "#f5f5f5" }}
+                      />
+                      <Bar
+                        dataKey="change"
+                        radius={[8, 8, 0, 0]}
+                        fill="#8884d8"
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </Grid>
 
-            {/* Categories Tab */}
-            <TabPanel value={tabValue} index={0}>
-              {categoriesQuery.data && categoriesQuery.data.length > 0 ? (
-                <TableContainer>
-                  <Table>
+            {/* Top Movers Chart */}
+            <Grid item xs={12} md={6}>
+              <Card elevation={2}>
+                <CardHeader title="🚀 Top Movers (Gainers & Losers)" />
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={topMoversData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
+                      <YAxis />
+                      <Tooltip formatter={(value) => `${value.toFixed(2)}%`} />
+                      <Bar dataKey="change" fill="#82ca9d" radius={[8, 8, 0, 0]}>
+                        {topMoversData.map((entry, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={entry.type === "gainer" ? "#82ca9d" : "#ff7c7c"}
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* Commodity Distribution */}
+            <Grid item xs={12} md={6}>
+              <Card elevation={2}>
+                <CardHeader title="📈 Commodity Distribution by Category" />
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={categoriesChartData}
+                        dataKey="count"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        label
+                      >
+                        {categoriesChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* Correlations Scatter */}
+            <Grid item xs={12} md={6}>
+              <Card elevation={2}>
+                <CardHeader title="🔗 Price Correlations" />
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={correlationChartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
+                      <YAxis />
+                      <Tooltip formatter={(value) => value.toFixed(2)} />
+                      <Bar dataKey="coefficient" fill="#ffc658" radius={[8, 8, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+
+          {/* Seasonality Section */}
+          <Card elevation={2} sx={{ mb: 3 }}>
+            <CardHeader
+              title="📅 Seasonal Patterns"
+              subheader="Select commodity to view best trading months"
+            />
+            <CardContent>
+              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 3 }}>
+                {cotSymbols.map((symbol) => (
+                  <Chip
+                    key={symbol}
+                    label={symbol}
+                    onClick={() => setSelectedCommodity(symbol)}
+                    color={selectedCommodity === symbol ? "primary" : "default"}
+                    variant={selectedCommodity === symbol ? "filled" : "outlined"}
+                  />
+                ))}
+              </Box>
+
+              {seasonalityQuery.isLoading && <CircularProgress />}
+              {seasonalityData.length > 0 ? (
+                <>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={seasonalityData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="monthName" angle={-45} textAnchor="end" height={80} />
+                      <YAxis yAxisId="left" label={{ value: "Win Rate %", angle: -90, position: "insideLeft" }} />
+                      <YAxis yAxisId="right" orientation="right" label={{ value: "Avg Return %", angle: 90, position: "insideRight" }} />
+                      <Tooltip />
+                      <Legend />
+                      <Line yAxisId="left" type="monotone" dataKey="winRate" stroke="#8884d8" name="Win Rate %" />
+                      <Line yAxisId="right" type="monotone" dataKey="avgReturn" stroke="#82ca9d" name="Avg Return %" />
+                    </LineChart>
+                  </ResponsiveContainer>
+
+                  <Table size="small" sx={{ mt: 3 }}>
                     <TableHead>
                       <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
-                        <TableCell sx={{ fontWeight: 600 }}>
-                          Category
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 600 }}>
-                          Count
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 600 }}>
-                          Avg Change (1D)
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 600 }}>
-                          High (52W)
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 600 }}>
-                          Low (52W)
-                        </TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Month</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>Avg Return</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>Win Rate</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>Volatility</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {categoriesQuery.data.map((cat) => (
-                        <TableRow key={cat.category}>
-                          <TableCell sx={{ fontWeight: 500 }}>
-                            {cat.name}
+                      {seasonalityData.map((item) => (
+                        <TableRow key={item.month}>
+                          <TableCell>{item.monthName}</TableCell>
+                          <TableCell align="right" sx={{ color: getChangeColor(item.avgReturn) }}>
+                            {item.avgReturn}%
                           </TableCell>
                           <TableCell align="right">
-                            {cat.commodityCount}
+                            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1 }}>
+                              {item.winRate}%
+                              <LinearProgress variant="determinate" value={Math.min(parseFloat(item.winRate), 100)} sx={{ width: 60, height: 4 }} />
+                            </Box>
                           </TableCell>
-                          <TableCell
-                            align="right"
-                            sx={{
-                              color: getChangeColor(cat.avgChange1d),
-                              fontWeight: 500,
-                            }}
-                          >
-                            {cat.avgChange1d}%
-                          </TableCell>
-                          <TableCell align="right">
-                            ${cat.highestPrice?.toFixed(2)}
-                          </TableCell>
-                          <TableCell align="right">
-                            ${cat.lowestPrice?.toFixed(2)}
-                          </TableCell>
+                          <TableCell align="right">{item.volatility}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
-                </TableContainer>
+                </>
               ) : (
-                <Alert severity="info">No category data available</Alert>
+                <Alert severity="info">No seasonality data available</Alert>
               )}
-            </TabPanel>
+            </CardContent>
+          </Card>
 
-            {/* Top Movers Tab */}
-            <TabPanel value={tabValue} index={1}>
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                  Top Gainers
-                </Typography>
-                {summaryQuery.data?.topGainers &&
-                summaryQuery.data.topGainers.length > 0 ? (
-                  <TableContainer>
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
-                          <TableCell sx={{ fontWeight: 600 }}>Symbol</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 600 }}>
-                            Price
-                          </TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 600 }}>
-                            Change
-                          </TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {summaryQuery.data.topGainers.map((item) => (
-                          <TableRow key={item.symbol}>
-                            <TableCell sx={{ fontWeight: 500 }}>
-                              {item.symbol}
-                            </TableCell>
-                            <TableCell>{item.name}</TableCell>
-                            <TableCell align="right">
-                              ${item.price?.toFixed(2)}
-                            </TableCell>
-                            <TableCell
-                              align="right"
-                              sx={{
-                                color: getChangeColor(item.change),
-                                fontWeight: 500,
-                              }}
-                            >
-                              +{item.change}%
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                ) : (
-                  <Alert severity="info">No data available</Alert>
-                )}
-              </Box>
+          {/* COT Analysis Section */}
+          <Card elevation={2} sx={{ mb: 3 }}>
+            <CardHeader
+              title="👥 Trader Positioning (Commitment of Traders)"
+              subheader="Commercial hedgers vs. Speculators positioning analysis"
+            />
+            <CardContent>
+              {cotQuery.isLoading && <CircularProgress />}
+              {cotQuery.data ? (
+                <>
+                  {/* COT Summary Cards */}
+                  <Grid container spacing={2} sx={{ mb: 3 }}>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Paper elevation={1}>
+                        <CardContent sx={{ textAlign: "center" }}>
+                          <Typography color="textSecondary" gutterBottom>Commercial Sentiment</Typography>
+                          <Chip
+                            label={cotQuery.data.analysis?.commercialSentiment}
+                            color={
+                              cotQuery.data.analysis?.commercialSentiment === "bullish"
+                                ? "success"
+                                : cotQuery.data.analysis?.commercialSentiment === "bearish"
+                                ? "error"
+                                : "default"
+                            }
+                            sx={{ mt: 1 }}
+                          />
+                        </CardContent>
+                      </Paper>
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Paper elevation={1}>
+                        <CardContent sx={{ textAlign: "center" }}>
+                          <Typography color="textSecondary" gutterBottom>Speculator Sentiment</Typography>
+                          <Chip
+                            label={cotQuery.data.analysis?.speculatorSentiment}
+                            color={
+                              cotQuery.data.analysis?.speculatorSentiment === "bullish"
+                                ? "success"
+                                : cotQuery.data.analysis?.speculatorSentiment === "bearish"
+                                ? "error"
+                                : "default"
+                            }
+                            sx={{ mt: 1 }}
+                          />
+                        </CardContent>
+                      </Paper>
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Paper elevation={1}>
+                        <CardContent sx={{ textAlign: "center" }}>
+                          <Typography color="textSecondary" gutterBottom>Divergence Signal</Typography>
+                          <Chip
+                            label={cotQuery.data.analysis?.divergence}
+                            color={cotQuery.data.analysis?.divergence === "divergent" ? "error" : "success"}
+                            sx={{ mt: 1 }}
+                          />
+                        </CardContent>
+                      </Paper>
+                    </Grid>
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Paper elevation={1}>
+                        <CardContent sx={{ textAlign: "center" }}>
+                          <Typography color="textSecondary" gutterBottom>Latest Report</Typography>
+                          <Typography variant="body2" sx={{ mt: 1, fontWeight: 600 }}>{cotQuery.data.latestReportDate}</Typography>
+                        </CardContent>
+                      </Paper>
+                    </Grid>
+                  </Grid>
 
-              <Box>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                  Top Losers
-                </Typography>
-                {summaryQuery.data?.topLosers &&
-                summaryQuery.data.topLosers.length > 0 ? (
-                  <TableContainer>
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
-                          <TableCell sx={{ fontWeight: 600 }}>Symbol</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 600 }}>
-                            Price
-                          </TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 600 }}>
-                            Change
-                          </TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {summaryQuery.data.topLosers.map((item) => (
-                          <TableRow key={item.symbol}>
-                            <TableCell sx={{ fontWeight: 500 }}>
-                              {item.symbol}
-                            </TableCell>
-                            <TableCell>{item.name}</TableCell>
-                            <TableCell align="right">
-                              ${item.price?.toFixed(2)}
-                            </TableCell>
-                            <TableCell
-                              align="right"
-                              sx={{
-                                color: getChangeColor(item.change),
-                                fontWeight: 500,
-                              }}
-                            >
-                              {item.change}%
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                ) : (
-                  <Alert severity="info">No data available</Alert>
-                )}
-              </Box>
-            </TabPanel>
+                  {/* COT History Chart */}
+                  {cotHistoryData.length > 0 && (
+                    <Box sx={{ mt: 3 }}>
+                      <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                        Positioning History (Last 12 Weeks)
+                      </Typography>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <LineChart data={cotHistoryData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="reportDate" angle={-45} textAnchor="end" height={80} />
+                          <YAxis />
+                          <Tooltip />
+                          <Legend />
+                          <Line
+                            type="monotone"
+                            dataKey="commercial.net"
+                            stroke="#8884d8"
+                            name="Commercial Net"
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="nonCommercial.net"
+                            stroke="#82ca9d"
+                            name="Speculator Net"
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </Box>
+                  )}
+                </>
+              ) : (
+                <Alert severity="warning">No COT data available for {selectedCommodity}</Alert>
+              )}
+            </CardContent>
+          </Card>
 
-            {/* All Prices Tab */}
-            <TabPanel value={tabValue} index={2}>
+          {/* All Prices Table */}
+          <Card elevation={2}>
+            <CardHeader title="💰 All Commodity Prices" />
+            <CardContent>
               {pricesQuery.data && pricesQuery.data.length > 0 ? (
-                <TableContainer>
-                  <Table size="small">
+                <TableContainer sx={{ maxHeight: 600 }}>
+                  <Table stickyHeader size="small">
                     <TableHead>
                       <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
                         <TableCell sx={{ fontWeight: 600 }}>Symbol</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Category</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 600 }}>
-                          Price
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 600 }}>
-                          Change
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 600 }}>
-                          Volume
-                        </TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>Price</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>Change %</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>Volume</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>52W High</TableCell>
+                        <TableCell align="right" sx={{ fontWeight: 600 }}>52W Low</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {pricesQuery.data.map((item) => (
-                        <TableRow key={item.symbol}>
-                          <TableCell sx={{ fontWeight: 500 }}>
-                            {item.symbol}
-                          </TableCell>
+                        <TableRow key={item.symbol} hover>
+                          <TableCell sx={{ fontWeight: 500 }}>{item.symbol}</TableCell>
                           <TableCell>{item.name}</TableCell>
                           <TableCell>
-                            <Chip
-                              label={item.category}
-                              size="small"
-                              variant="outlined"
-                            />
+                            <Chip label={item.category} size="small" variant="outlined" />
                           </TableCell>
-                          <TableCell align="right">
-                            ${item.price?.toFixed(2)}
-                          </TableCell>
-                          <TableCell
-                            align="right"
-                            sx={{
-                              color: getChangeColor(item.changePercent),
-                              fontWeight: 500,
-                            }}
-                          >
+                          <TableCell align="right">${item.price?.toFixed(2)}</TableCell>
+                          <TableCell align="right" sx={{ color: getChangeColor(item.changePercent), fontWeight: 500 }}>
                             {item.changePercent}%
                           </TableCell>
-                          <TableCell align="right">
-                            {(item.volume / 1e6).toFixed(2)}M
-                          </TableCell>
+                          <TableCell align="right">{(item.volume / 1e6).toFixed(2)}M</TableCell>
+                          <TableCell align="right">${item.high52w?.toFixed(2)}</TableCell>
+                          <TableCell align="right">${item.low52w?.toFixed(2)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -427,54 +564,7 @@ export default function CommoditiesAnalysis() {
               ) : (
                 <Alert severity="info">No price data available</Alert>
               )}
-            </TabPanel>
-
-            {/* Correlations Tab */}
-            <TabPanel value={tabValue} index={3}>
-              {correlationsQuery.data && correlationsQuery.data.length > 0 ? (
-                <TableContainer>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
-                        <TableCell sx={{ fontWeight: 600 }}>Pair</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 600 }}>
-                          Correlation
-                        </TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Strength</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {correlationsQuery.data.map((item) => (
-                        <TableRow
-                          key={`${item.symbol1}-${item.symbol2}`}
-                        >
-                          <TableCell>{item.pair}</TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 500 }}>
-                            {item.coefficient}
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              label={item.strength}
-                              size="small"
-                              color={
-                                item.strength === "strong"
-                                  ? "error"
-                                  : item.strength === "moderate"
-                                  ? "warning"
-                                  : "default"
-                              }
-                              variant="outlined"
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              ) : (
-                <Alert severity="info">No correlation data available</Alert>
-              )}
-            </TabPanel>
+            </CardContent>
           </Card>
         </>
       )}

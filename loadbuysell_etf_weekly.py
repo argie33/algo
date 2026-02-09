@@ -828,7 +828,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
                     mansfield_rs, sata_score,
                     rsi_val, adx_val, atr_val, sma_50_val, sma_200_val, ema_21_val, pct_from_ema21_val, pct_from_sma50_val, entry_price_val
                 ))
-                cur.connection.commit()  # Commit after each successful insert
+                
                 inserted += 1
             except Exception as insert_err:
                 # Rollback failed transaction and continue
