@@ -1815,17 +1815,17 @@ def main():
 
     logging.info(f"📊 Processing {len(symbols)} symbols for complete buy/sell signal coverage")
 
-    # Load country ETF symbols (from stock_symbols where etf='Y' AND country IS NOT NULL)
+    # Load country ETF symbols (from stock_symbols where etf='Y')
     country_symbols = []
     try:
         conn_temp = get_db_connection()
         cur_temp = conn_temp.cursor()
-        cur_temp.execute("SELECT symbol FROM stock_symbols WHERE etf='Y' AND country IS NOT NULL;")
+        cur_temp.execute("SELECT symbol FROM stock_symbols WHERE etf='Y';")
         country_symbols = [r[0] for r in cur_temp.fetchall()]
         cur_temp.close()
         conn_temp.close()
     except Exception as e:
-        logging.warning(f"Could not load country ETF symbols from stock_symbols: {e}")
+        logging.debug(f"Could not load ETF symbols: {e}")
 
     conn = get_db_connection()
     cur  = conn.cursor()
