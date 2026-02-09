@@ -203,9 +203,21 @@ def calculate_quality_metrics(ticker_data: Dict, ticker=None, symbol=None) -> Di
     # REAL DATA ONLY - Use yfinance profit_margin_pct, no fallback calculations
     # If yfinance doesn't provide it, profit_margin_pct will be None
 
+    # Validate ROE/ROA are in reasonable ranges (reject extreme outliers)
+    roe_normalized = normalize_percentage(roe)
+    roa_normalized = normalize_percentage(roa)
+
+    # Clamp to reasonable ranges (-200% to +200% is extreme but possible)
+    if roe_normalized is not None:
+        if roe_normalized < -200 or roe_normalized > 200:
+            roe_normalized = None
+    if roa_normalized is not None:
+        if roa_normalized < -200 or roa_normalized > 200:
+            roa_normalized = None
+
     metrics = {
-        "return_on_equity_pct": normalize_percentage(roe),
-        "return_on_assets_pct": normalize_percentage(roa),
+        "return_on_equity_pct": roe_normalized,
+        "return_on_assets_pct": roa_normalized,
         "return_on_invested_capital_pct": None,  # Calculated below from EBITDA / (Debt + Cash)
         "gross_margin_pct": normalize_percentage(gm),
         "operating_margin_pct": normalize_percentage(opm),
