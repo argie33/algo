@@ -91,7 +91,7 @@ export const getDynamicColumns = (signals, customPriorityColumns = null) => {
     "next_earnings_date", "days_to_earnings",
     "rsi", "adx", "atr",
     "ema_21", "sma_50", "sma_200",
-    "pct_from_ema_21", "pct_from_sma_50", "pct_from_sma_200",
+    "pct_from_ema21", "pct_from_sma50", "pct_from_sma200",
     "volume", "avg_volume_50d", "volume_surge_pct", "volume_ratio", "volume_analysis",
     "rs_rating", "breakout_quality", "strength", "signal_strength", "bull_percentage", "close_price",
     "signal_state", "days_in_current_state", "current_gain_loss_pct", "current_gain_pct", "days_in_position",
