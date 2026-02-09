@@ -2668,15 +2668,19 @@ router.get("/technicals", async (req, res) => {
             SELECT MAX(date) as market_date FROM price_daily WHERE close IS NOT NULL
           ),
           latest_day_data AS (
-            SELECT symbol, (close - open) as daily_change
+            SELECT
+              symbol,
+              (close - open) as daily_change,
+              CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END as pct_change
             FROM price_daily
-            WHERE date = (SELECT market_date FROM latest_date)
+            WHERE date = (SELECT market_date FROM latest_date) AND close IS NOT NULL
           )
           SELECT
             COUNT(*) as total_stocks,
             COUNT(CASE WHEN daily_change > 0 THEN 1 END) as advancing,
             COUNT(CASE WHEN daily_change < 0 THEN 1 END) as declining,
-            COUNT(CASE WHEN daily_change = 0 THEN 1 END) as unchanged
+            COUNT(CASE WHEN daily_change = 0 THEN 1 END) as unchanged,
+            AVG(ABS(pct_change)) as avg_abs_change
           FROM latest_day_data
         `);
         return result.rows[0] || {};
@@ -3065,15 +3069,19 @@ router.get("/technicals-fresh", async (req, res) => {
             SELECT MAX(date) as market_date FROM price_daily WHERE close IS NOT NULL
           ),
           latest_day_data AS (
-            SELECT symbol, (close - open) as daily_change
+            SELECT
+              symbol,
+              (close - open) as daily_change,
+              CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END as pct_change
             FROM price_daily
-            WHERE date = (SELECT market_date FROM latest_date)
+            WHERE date = (SELECT market_date FROM latest_date) AND close IS NOT NULL
           )
           SELECT
             COUNT(*) as total_stocks,
             COUNT(CASE WHEN daily_change > 0 THEN 1 END) as advancing,
             COUNT(CASE WHEN daily_change < 0 THEN 1 END) as declining,
-            COUNT(CASE WHEN daily_change = 0 THEN 1 END) as unchanged
+            COUNT(CASE WHEN daily_change = 0 THEN 1 END) as unchanged,
+            AVG(ABS(pct_change)) as avg_abs_change
           FROM latest_day_data
         `);
         return result.rows[0] || {};
@@ -3182,25 +3190,50 @@ router.get("/technicals-fresh", async (req, res) => {
         return result.rows[0] || {};
       })(),
 
-      // 5. Internals (real data from database)
+      // 5. Internals (real data from database with SMA20/50 percentages)
       (async () => {
         const result = await query(`
           WITH latest_date AS (
             SELECT MAX(date) as max_date FROM price_daily WHERE close IS NOT NULL
           ),
-          price_stats AS (
+          price_history AS (
             SELECT
               symbol,
               close,
-              ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
+              date,
+              ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as row_num
             FROM price_daily
-            WHERE date = (SELECT max_date FROM latest_date)
+            WHERE date >= (SELECT max_date - INTERVAL '200 days' FROM latest_date)
+          ),
+          sma_calc AS (
+            SELECT
+              symbol,
+              close as current_price,
+              AVG(CASE WHEN row_num <= 20 THEN close END) OVER (PARTITION BY symbol) as sma_20,
+              AVG(CASE WHEN row_num <= 50 THEN close END) OVER (PARTITION BY symbol) as sma_50,
+              AVG(CASE WHEN row_num <= 200 THEN close END) OVER (PARTITION BY symbol) as sma_200,
+              row_num
+            FROM price_history
+          ),
+          latest_smas AS (
+            SELECT
+              symbol,
+              current_price,
+              sma_20,
+              sma_50,
+              sma_200
+            FROM sma_calc
+            WHERE row_num = 1
           )
           SELECT
             COUNT(*) as total_stocks,
-            COUNT(CASE WHEN close > 50 THEN 1 END) as above_50_ma,
-            COUNT(CASE WHEN close > 200 THEN 1 END) as above_200_ma
-          FROM price_stats WHERE rn = 1
+            COUNT(CASE WHEN current_price > sma_20 THEN 1 END) as above_20_ma,
+            COUNT(CASE WHEN current_price > sma_50 THEN 1 END) as above_50_ma,
+            COUNT(CASE WHEN current_price > sma_200 THEN 1 END) as above_200_ma,
+            ROUND(100.0 * COUNT(CASE WHEN current_price > sma_20 THEN 1 END) / NULLIF(COUNT(*), 0), 1) as pct_above_20_ma,
+            ROUND(100.0 * COUNT(CASE WHEN current_price > sma_50 THEN 1 END) / NULLIF(COUNT(*), 0), 1) as pct_above_50_ma,
+            ROUND(100.0 * COUNT(CASE WHEN current_price > sma_200 THEN 1 END) / NULLIF(COUNT(*), 0), 1) as pct_above_200_ma
+          FROM latest_smas
         `);
         return result.rows[0] || {};
       })(),
@@ -3230,7 +3263,8 @@ router.get("/technicals-fresh", async (req, res) => {
           advancing: parseInt(breadth.advancing) || 0,
           declining: parseInt(breadth.declining) || 0,
           unchanged: parseInt(breadth.unchanged) || 0,
-          advance_decline_ratio: advance_decline_ratio
+          advance_decline_ratio: advance_decline_ratio,
+          average_change_percent: parseFloat(breadth.avg_abs_change) || 0
         },
         distribution_days: distributionDays,
         volatility: {
@@ -3240,8 +3274,12 @@ router.get("/technicals-fresh", async (req, res) => {
         },
         internals: {
           total_stocks: parseInt(internals.total_stocks) || 0,
+          above_20_ma: parseInt(internals.above_20_ma) || 0,
           above_50_ma: parseInt(internals.above_50_ma) || 0,
-          above_200_ma: parseInt(internals.above_200_ma) || 0
+          above_200_ma: parseInt(internals.above_200_ma) || 0,
+          pct_above_20_ma: parseFloat(internals.pct_above_20_ma) || 0,
+          pct_above_50_ma: parseFloat(internals.pct_above_50_ma) || 0,
+          pct_above_200_ma: parseFloat(internals.pct_above_200_ma) || 0
         },
         timestamp: new Date().toISOString(),
         source: "database-fresh"
