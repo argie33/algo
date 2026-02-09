@@ -277,8 +277,8 @@ const SignalCardAccordion = ({ signals = [] }) => {
                   <DataField label="SMA 50" value={signal.sma_50} format="currency" />
                   <DataField label="SMA 200" value={signal.sma_200} format="currency" />
                   <DataField label="EMA 21" value={signal.ema_21} format="currency" />
-                  <DataField label="% from EMA21" value={signal.pct_from_ema_21} format="percent" />
-                  <DataField label="% from SMA50" value={signal.pct_from_sma_50} format="percent" />
+                  <DataField label="% from EMA21" value={signal.pct_from_ema21} format="percent" />
+                  <DataField label="% from SMA50" value={signal.pct_from_sma50} format="percent" />
                   <DataField label="Daily Range %" value={signal.daily_range_pct} format="percent" />
                 </Grid>
 
@@ -304,7 +304,7 @@ const SignalCardAccordion = ({ signals = [] }) => {
                   </Box>
                   <DataField label="Risk/Reward Ratio" value={signal.risk_reward_ratio} format="number" />
                   <DataField label="Risk %" value={signal.risk_pct} format="percent" />
-                  <DataField label="Signal Strength" value={signal.strength} format="number" />
+                  <DataField label="Signal Strength" value={signal.signal_strength} format="number" />
                 </Grid>
 
                 {/* ENTRY QUALITY */}
