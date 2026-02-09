@@ -54,6 +54,7 @@ import os
 import resource
 import sys
 import time
+import threading
 from datetime import date, datetime
 from typing import Dict, List, Optional
 from functools import wraps
@@ -69,7 +70,7 @@ from psycopg2.extras import RealDictCursor, execute_values
 # Script metadata
 SCRIPT_NAME = "loaddailycompanydata.py"
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.INFO,  # Keep at INFO to avoid yfinance debug spam
     format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout,
 )
@@ -272,23 +273,46 @@ def calculate_missing_metrics(symbol: str, info: dict, ticker) -> dict:
 
 
 def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
-    """Load ALL daily data from single yfinance API call"""
+    """Load ALL daily data from single yfinance API call with timeout protection"""
+
+    def fetch_yfinance_with_timeout(yf_symbol, timeout_sec=8):
+        """Fetch yfinance data with timeout - skip if takes too long"""
+        result = {}
+        exception = None
+
+        def fetch_target():
+            try:
+                ticker = yf.Ticker(yf_symbol)
+                result['ticker'] = ticker
+                result['info'] = ticker.info
+                result['institutional_holders'] = ticker.institutional_holders
+                result['mutualfund_holders'] = ticker.mutualfund_holders
+                result['insider_transactions'] = ticker.insider_transactions
+                result['insider_roster'] = ticker.insider_roster_holders
+                result['major_holders'] = ticker.major_holders
+                result['earnings_estimate'] = ticker.earnings_estimate
+                result['revenue_estimate'] = ticker.revenue_estimate
+            except Exception as e:
+                result['error'] = str(e)
+
+        thread = threading.Thread(target=fetch_target, daemon=True)
+        thread.start()
+        thread.join(timeout=timeout_sec)
+
+        if thread.is_alive():
+            # Thread is still running after timeout - skip this symbol
+            logging.warning(f"⏱️ TIMEOUT: {yf_symbol} took >{timeout_sec}s to fetch, skipping")
+            raise TimeoutError(f"yfinance timeout for {yf_symbol}")
+
+        if 'error' in result:
+            raise Exception(result['error'])
+
+        return result
 
     @retry_with_backoff(max_retries=2, base_delay=1)  # Reduce retries from 5 to 2 (delisted stocks won't recover)
     def fetch_yfinance_data(yf_symbol):
         """Fetch yfinance data with retry logic for temporary errors only"""
-        ticker = yf.Ticker(yf_symbol)
-        return {
-            'ticker': ticker,  # Return the ticker object itself
-            'info': ticker.info,
-            'institutional_holders': ticker.institutional_holders,
-            'mutualfund_holders': ticker.mutualfund_holders,
-            'insider_transactions': ticker.insider_transactions,
-            'insider_roster': ticker.insider_roster_holders,
-            'major_holders': ticker.major_holders,
-            'earnings_estimate': ticker.earnings_estimate,
-            'revenue_estimate': ticker.revenue_estimate
-        }
+        return fetch_yfinance_with_timeout(yf_symbol, timeout_sec=8)
 
     try:
         # Convert ticker format for yfinance (e.g., BRK.B → BRK-B)
@@ -545,7 +569,11 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 conn.commit()  # Commit company_profile immediately - critical data
 
             except Exception as e:
-                logging.error(f"❌ CRITICAL: Failed to insert company info for {symbol}: {str(e)[:200]}")
+                error_msg = str(e)[:500]  # Get full error message
+                logging.error(f"❌ CRITICAL: Failed to insert company info for {symbol}: {error_msg}")
+                if "CRITICAL" not in error_msg:  # Log traceback if not already detailed
+                    import traceback
+                    logging.error(f"   Traceback: {traceback.format_exc()[:300]}")
                 stats['info_failed'] = 1  # Track failure
                 # Rollback failed transaction to reset state for next symbol
                 try:
