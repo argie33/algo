@@ -518,7 +518,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
 
         # CRITICAL FIX: Always insert key_metrics for ALL symbols, even with NULL data
         # This ensures 100% coverage for downstream loaders (quality_metrics, value_metrics, etc)
-        # Without this, 99% of symbols have no metrics at all
+        # Without this, downstream metrics won't calculate for those symbols
         try:
             cur.execute("DELETE FROM key_metrics WHERE ticker = %s", (symbol,))
             # Insert minimal key_metrics record - just symbol, rest can be NULL
@@ -529,7 +529,6 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             stats['key_metrics'] = 1
         except Exception as e:
             logging.error(f"❌ CRITICAL: Failed to insert key_metrics for {symbol}: {str(e)[:200]}")
-            # Also rollback this transaction to prevent cascade failures
             try:
                 conn.rollback()
             except:
