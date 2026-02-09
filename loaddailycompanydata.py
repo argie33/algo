@@ -280,7 +280,7 @@ def calculate_missing_metrics(symbol: str, info: dict, ticker) -> dict:
 def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
     """Load ALL daily data from single yfinance API call"""
 
-    @retry_with_backoff(max_retries=2, base_delay=1)  # Reduce retries from 5 to 2 (delisted stocks won't recover)
+    @retry_with_backoff(max_retries=7, base_delay=1)  # Aggressive retries for rate limiting: 7 attempts with exponential backoff
     def fetch_yfinance_data(yf_symbol):
         """Fetch yfinance data with retry logic for temporary errors only"""
         ticker = yf.Ticker(yf_symbol)
