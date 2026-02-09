@@ -710,9 +710,10 @@ def fetch_symbol_from_db(symbol, timeframe):
     if not rows:
         return pd.DataFrame()
 
-    # CRITICAL: Skip symbols with insufficient data for SMA-50 calculation
-    if len(rows) < 50:
-        logging.warning(f"Skipping {symbol} {timeframe}: insufficient data ({len(rows)} bars, need 50+ for SMA-50)")
+    # CRITICAL: Allow symbols with at least 20 bars (was 50, but we need all data)
+    # With fast mode (breakout_quality, market_stage, sata_score set to NULL), we can handle shorter histories
+    if len(rows) < 20:
+        logging.warning(f"Skipping {symbol} {timeframe}: insufficient data ({len(rows)} bars, need 20+ minimum)")
         return pd.DataFrame()
 
     # CRITICAL: Skip symbols with excessive zero-volume data (causes rolling window to hang)

@@ -681,8 +681,8 @@ def fetch_symbol_from_db(symbol, timeframe):
         return pd.DataFrame()
 
     # CRITICAL: Skip symbols with insufficient data for SMA-50 calculation
-    if len(rows) < 50:
-        logging.warning(f"Skipping {symbol} {timeframe}: insufficient data ({len(rows)} bars, need 50+ for SMA-50)")
+    if len(rows) < 20:
+        logging.warning(f"Skipping {symbol} {timeframe}: insufficient data ({len(rows)} bars, need 20+ minimum)")
         return pd.DataFrame()
 
     # CRITICAL: Skip symbols with excessive zero-volume data (causes rolling window to hang)
