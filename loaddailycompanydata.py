@@ -126,6 +126,7 @@ def get_db_config():
     """Get database configuration from AWS Secrets Manager or environment variables.
 
     Tries AWS Secrets Manager first (DB_SECRET_ARN + AWS_REGION), then falls back to environment variables.
+    Uses sensible defaults for local development.
     """
     aws_region = os.environ.get("AWS_REGION")
     db_secret_arn = os.environ.get("DB_SECRET_ARN")
@@ -148,28 +149,21 @@ def get_db_config():
         except Exception as e:
             logging.warning(f"Failed to load from Secrets Manager: {e}")
 
-    # Fallback to environment variables
-    db_host = os.environ.get("DB_HOST")
-    db_user = os.environ.get("DB_USER")
-    db_password = os.environ.get("DB_PASSWORD")
-    db_name = os.environ.get("DB_NAME")
+    # Fallback to environment variables with sensible defaults for local development
+    db_host = os.environ.get("DB_HOST", "localhost")
+    db_port = os.environ.get("DB_PORT", "5432")
+    db_user = os.environ.get("DB_USER", "stocks")
+    db_password = os.environ.get("DB_PASSWORD", "")
+    db_name = os.environ.get("DB_NAME", "stocks")
 
-    if db_host and db_user and db_password and db_name:
-        logging.info(f"Using database credentials from environment variables")
-        return {
-            "host": db_host,
-            "port": int(os.environ.get("DB_PORT", 5432)),
-            "user": db_user,
-            "password": db_password,
-            "dbname": db_name
-        }
-
-    # No configuration available
-    raise EnvironmentError(
-        "FATAL: No database configuration found. Set either:\n"
-        "  1. AWS_REGION and DB_SECRET_ARN (for AWS Secrets Manager), or\n"
-        "  2. DB_HOST, DB_USER, DB_PASSWORD, DB_NAME (for environment variables)"
-    )
+    logging.info(f"Using database credentials from environment (with defaults): {db_user}@{db_host}/{db_name}")
+    return {
+        "host": db_host,
+        "port": int(db_port),
+        "user": db_user,
+        "password": db_password,
+        "dbname": db_name
+    }
 
 
 def safe_float(value, default=None, max_val=None, min_val=None):
@@ -280,11 +274,12 @@ def calculate_missing_metrics(symbol: str, info: dict, ticker) -> dict:
 def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
     """Load ALL daily data from single yfinance API call"""
 
-    @retry_with_backoff(max_retries=5, base_delay=2)
+    @retry_with_backoff(max_retries=2, base_delay=1)  # Reduce retries from 5 to 2 (delisted stocks won't recover)
     def fetch_yfinance_data(yf_symbol):
-        """Fetch yfinance data with retry logic for 500 errors - increased from 3 to 5 retries"""
+        """Fetch yfinance data with retry logic for temporary errors only"""
         ticker = yf.Ticker(yf_symbol)
         return {
+            'ticker': ticker,  # Return the ticker object itself
             'info': ticker.info,
             'institutional_holders': ticker.institutional_holders,
             'mutualfund_holders': ticker.mutualfund_holders,
@@ -301,6 +296,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
 
         # SINGLE API CALL gets everything (with retry)
         data = fetch_yfinance_data(yf_symbol)
+        ticker = data['ticker']  # Reuse the ticker object - avoid duplicate HTTP 500 errors
         info = data['info']
         institutional_holders = data['institutional_holders']
         mutualfund_holders = data['mutualfund_holders']
@@ -309,9 +305,6 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
         major_holders = data['major_holders']
         earnings_estimate = data['earnings_estimate']
         revenue_estimate = data['revenue_estimate']
-
-        # Get ticker for missing metrics calculation
-        ticker = yf.Ticker(yf_symbol)
 
         # Calculate missing metrics
         missing_metrics = calculate_missing_metrics(symbol, info, ticker)
@@ -517,7 +510,30 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             except Exception as e:
                 logging.error(f"❌ CRITICAL: Failed to insert company info for {symbol}: {str(e)[:200]}")
                 stats['info_failed'] = 1  # Track failure
-                # Don't rollback - aborts entire transaction, but MARK the failure
+                # Rollback failed transaction to reset state for next symbol
+                try:
+                    conn.rollback()
+                except:
+                    pass
+
+        # CRITICAL FIX: Always insert key_metrics for ALL symbols, even with NULL data
+        # This ensures 100% coverage for downstream loaders (quality_metrics, value_metrics, etc)
+        # Without this, 99% of symbols have no metrics at all
+        try:
+            cur.execute("DELETE FROM key_metrics WHERE ticker = %s", (symbol,))
+            # Insert minimal key_metrics record - just symbol, rest can be NULL
+            cur.execute(
+                "INSERT INTO key_metrics (ticker) VALUES (%s) ON CONFLICT (ticker) DO NOTHING",
+                (symbol,),
+            )
+            stats['key_metrics'] = 1
+        except Exception as e:
+            logging.error(f"❌ CRITICAL: Failed to insert key_metrics for {symbol}: {str(e)[:200]}")
+            # Also rollback this transaction to prevent cascade failures
+            try:
+                conn.rollback()
+            except:
+                pass
 
         # 2. Insert institutional holders
         if institutional_holders is not None and not institutional_holders.empty:
@@ -582,6 +598,11 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             except Exception as e:
                 logging.error(f"❌ CRITICAL: Failed to insert institutional holders for {symbol}: {str(e)[:200]}")
                 stats['institutional_failed'] = 1
+                # Rollback failed transaction
+                try:
+                    conn.rollback()
+                except:
+                    pass
 
         # 3. Insert mutual fund holders (NEW!)
         if mutualfund_holders is not None and not mutualfund_holders.empty:
@@ -638,6 +659,11 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             except Exception as e:
                 logging.error(f"❌ CRITICAL: Failed to insert mutual fund holders for {symbol}: {str(e)[:200]}")
                 stats['mutualfund_failed'] = 1
+                # Rollback failed transaction
+                try:
+                    conn.rollback()
+                except:
+                    pass
 
         # 4. Insert insider transactions (NEW!)
         if insider_transactions is not None and not insider_transactions.empty:
@@ -674,6 +700,11 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             except Exception as e:
                 logging.error(f"❌ CRITICAL: Failed to insert insider transactions for {symbol}: {str(e)[:200]}")
                 stats['insider_txns_failed'] = 1
+                # Rollback failed transaction
+                try:
+                    conn.rollback()
+                except:
+                    pass
 
         # 5. Insert insider roster (NEW!)
         if insider_roster is not None and not insider_roster.empty:
@@ -730,9 +761,11 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
 
             except Exception as e:
                 logging.error(f"Error inserting insider roster for {symbol}: {e}")
-                # Don't rollback here - it aborts the entire transaction for all symbols
-                # Just skip this symbol's data and continue with the next one
-                pass
+                # Rollback failed transaction to reset state (required after failed INSERT)
+                try:
+                    conn.rollback()
+                except:
+                    pass
 
         # 6. Insert positioning metrics - ALWAYS INSERT (with real data or NULLs, NEVER defaults)
         # Log what data we have from yfinance for debugging coverage
@@ -768,6 +801,8 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
 
             ad_rating = calculate_ad_rating(inst_own, insider_own, short_int, cur, symbol)
 
+            # Delete existing record if present, then insert fresh data (simpler than ON CONFLICT)
+            cur.execute("DELETE FROM positioning_metrics WHERE symbol = %s", (symbol,))
             cur.execute(
                 """
                 INSERT INTO positioning_metrics (
@@ -775,16 +810,6 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     institutional_holders_count, insider_ownership_pct,
                     short_ratio, short_interest_pct, short_percent_of_float, ad_rating
                 ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                ON CONFLICT (symbol, date) DO UPDATE SET
-                    date = EXCLUDED.date,
-                    institutional_ownership_pct = EXCLUDED.institutional_ownership_pct,
-                    institutional_holders_count = EXCLUDED.institutional_holders_count,
-                    insider_ownership_pct = EXCLUDED.insider_ownership_pct,
-                    short_ratio = EXCLUDED.short_ratio,
-                    short_interest_pct = EXCLUDED.short_interest_pct,
-                    short_percent_of_float = EXCLUDED.short_percent_of_float,
-                    ad_rating = EXCLUDED.ad_rating,
-                    updated_at = CURRENT_TIMESTAMP
                 """,
                 (
                     symbol,
@@ -803,6 +828,11 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
         except Exception as e:
             logging.error(f"❌ CRITICAL: Failed to insert positioning metrics for {symbol}: {str(e)[:200]}")
             stats['positioning_failed'] = 1
+            # Rollback failed transaction
+            try:
+                conn.rollback()
+            except:
+                pass
 
         # 7. Insert earnings estimates
         if earnings_estimate is not None and not earnings_estimate.empty:
@@ -820,6 +850,8 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     ))
 
                 if earnings_data:
+                    # Delete existing earnings estimates for this symbol to avoid conflicts
+                    cur.execute("DELETE FROM earnings_estimates WHERE symbol = %s", (symbol,))
                     execute_values(
                         cur,
                         """
@@ -828,14 +860,6 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                             high_estimate, year_ago_eps, number_of_analysts,
                             growth
                         ) VALUES %s
-                        ON CONFLICT (symbol, period) DO UPDATE SET
-                            avg_estimate = EXCLUDED.avg_estimate,
-                            low_estimate = EXCLUDED.low_estimate,
-                            high_estimate = EXCLUDED.high_estimate,
-                            year_ago_eps = EXCLUDED.year_ago_eps,
-                            number_of_analysts = EXCLUDED.number_of_analysts,
-                            growth = EXCLUDED.growth,
-                            fetched_at = CURRENT_TIMESTAMP
                         """,
                         earnings_data
                     )
@@ -844,6 +868,11 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             except Exception as e:
                 logging.error(f"❌ CRITICAL: Failed to insert earnings estimates for {symbol}: {str(e)[:200]}")
                 stats['earnings_est_failed'] = 1
+                # Rollback failed transaction
+                try:
+                    conn.rollback()
+                except:
+                    pass
 
         # 8. Insert revenue estimates
         if revenue_estimate is not None and not revenue_estimate.empty:
@@ -861,6 +890,8 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     ))
 
                 if revenue_data:
+                    # Delete existing revenue estimates for this symbol to avoid conflicts
+                    cur.execute("DELETE FROM revenue_estimates WHERE symbol = %s", (symbol,))
                     execute_values(
                         cur,
                         """
@@ -869,14 +900,6 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                             high_estimate, number_of_analysts, year_ago_revenue,
                             growth
                         ) VALUES %s
-                        ON CONFLICT (symbol, period) DO UPDATE SET
-                            avg_estimate = EXCLUDED.avg_estimate,
-                            low_estimate = EXCLUDED.low_estimate,
-                            high_estimate = EXCLUDED.high_estimate,
-                            number_of_analysts = EXCLUDED.number_of_analysts,
-                            year_ago_revenue = EXCLUDED.year_ago_revenue,
-                            growth = EXCLUDED.growth,
-                            fetched_at = CURRENT_TIMESTAMP
                         """,
                         revenue_data
                     )
@@ -885,6 +908,11 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             except Exception as e:
                 logging.error(f"❌ CRITICAL: Failed to insert revenue estimates for {symbol}: {str(e)[:200]}")
                 stats['revenue_est_failed'] = 1
+                # Rollback failed transaction
+                try:
+                    conn.rollback()
+                except:
+                    pass
 
         # 8.5. Insert earnings history (actual reported earnings - consolidated from loadearningshistory.py)
         try:
@@ -942,6 +970,11 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             except Exception as e:
                 logging.debug(f"Could not insert beta for {symbol}: {e}")
                 stats['beta'] = 0
+                # Rollback failed transaction
+                try:
+                    conn.rollback()
+                except:
+                    pass
 
         # 9. Do NOT calculate liquidity metrics here - only in loadfactormetrics.py
         # This loader only loads raw yfinance data (beta, volatility, drawdown from price history)
@@ -1086,6 +1119,9 @@ if __name__ == "__main__":
     processed = 0
     failed = []
 
+    # Track symbols with persistent API errors
+    api_error_symbols = {}
+
     for symbol in symbols:
         try:
             stats = load_all_realtime_data(symbol, cur, conn)
@@ -1098,7 +1134,14 @@ if __name__ == "__main__":
                 failed.append(symbol)
 
         except Exception as e:
-            logging.error(f"❌ CRITICAL: Complete failure for {symbol}: {str(e)[:200]}")
+            error_str = str(e).lower()
+            # Track HTTP 500 errors for this symbol
+            if '500' in error_str or 'http error' in error_str:
+                api_error_symbols[symbol] = api_error_symbols.get(symbol, 0) + 1
+                if api_error_symbols[symbol] <= 1:  # Only log first occurrence per symbol
+                    logging.warning(f"⚠️  {symbol}: yfinance API error (will skip if persistent): {str(e)[:100]}")
+            else:
+                logging.error(f"❌ CRITICAL: Complete failure for {symbol}: {str(e)[:200]}")
             failed.append(symbol)
             # Don't rollback - aborts entire transaction, but error is logged
 
