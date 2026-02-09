@@ -293,7 +293,18 @@ router.get("/sp500-trend", async (req, res) => {
       ORDER BY date ASC
     `;
 
-    const earningsResult = await query(earningsQuery);
+    // Count stocks reporting in latest quarter from earnings_history
+    const stockCountQuery = `
+      SELECT COUNT(DISTINCT symbol) as stock_count
+      FROM earnings_history
+      WHERE quarter >= DATE_TRUNC('quarter', CURRENT_DATE - INTERVAL '1 month')
+        AND quarter <= DATE_TRUNC('quarter', CURRENT_DATE)
+    `;
+
+    const [earningsResult, stockCountResult] = await Promise.all([
+      query(earningsQuery),
+      query(stockCountQuery)
+    ]);
 
     // Calculate trend metrics
     const earnings = earningsResult.rows;
@@ -316,16 +327,22 @@ router.get("/sp500-trend", async (req, res) => {
       }
     }
 
+    // Get latest stock count from query result
+    const latestStockCount = stockCountResult.rows[0]?.stock_count || 0;
+
     // Format as timeSeries for chart
     const timeSeries = earnings.map(row => ({
       quarter: new Date(row.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short' }),
       value: parseFloat(row.earnings_per_share),
       isForecast: false,
-      stockCount: null
+      stockCount: latestStockCount
     }));
 
     const latestDate = earnings.length > 0 ? new Date(earnings[earnings.length - 1].date) : null;
     const isStale = latestDate && (new Date() - latestDate) > 90 * 24 * 60 * 60 * 1000; // Over 90 days old
+
+    // Count forecast periods (currently 0 since we only have historical data)
+    const forecastPeriods = 0;
 
     res.json({
       data: {
@@ -335,6 +352,8 @@ router.get("/sp500-trend", async (req, res) => {
           changePercent: changePercent.toFixed(2),
           latestEarnings: earnings.length > 0 ? parseFloat(earnings[earnings.length - 1].earnings_per_share) : null,
           latestDate: earnings.length > 0 ? earnings[earnings.length - 1].date : null,
+          latestStockCount,
+          forecastPeriods,
           isStale: isStale,
           dataWarning: isStale ? "⚠️ Data is older than 90 days - please refresh economic data" : null
         }
