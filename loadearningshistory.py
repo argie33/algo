@@ -112,7 +112,7 @@ def pyval(val):
         return val.item()
     return val
 
-def load_earnings_history(symbols, cur, conn):
+def load_earnings_history(symbols, cur, conn, cfg):
     # Load earnings data for ALL symbols - no filtering
     # yfinance will return empty if no data available
 
@@ -137,22 +137,31 @@ def load_earnings_history(symbols, cur, conn):
 
         for yq_sym, orig_sym in mapping.items():
             earnings_history = None
-            for attempt in range(1, 2):  # Only try once - if no data, skip
+            for attempt in range(1, 4):  # Retry up to 3 times for HTTP errors
                 try:
                     ticker = yf.Ticker(yq_sym)
                     earnings_history = ticker.earnings_history
                     if earnings_history is None or earnings_history.empty:
                         logging.debug(f"No data for {orig_sym}")
-                        failed.append(orig_sym)
                         break
                     break
                 except Exception as e:
-                    logging.debug(f"Failed to fetch {orig_sym}: {e}")
-                    failed.append(orig_sym)
-                    break
+                    error_str = str(e).lower()
+                    # Retry on HTTP 500, 429 (rate limit), or connection errors
+                    if ('500' in error_str or '429' in error_str or 'connection' in error_str) and attempt < 3:
+                        logging.debug(f"Attempt {attempt}/3 failed for {orig_sym}: {e}. Retrying in 2s...")
+                        time.sleep(2)
+                        continue
+                    else:
+                        logging.debug(f"Failed to fetch {orig_sym}: {e}")
+                        break
 
-            try:
-                if earnings_history is not None and not earnings_history.empty:
+            if earnings_history is None or (isinstance(earnings_history, object) and (hasattr(earnings_history, 'empty') and earnings_history.empty)):
+                failed.append(orig_sym)
+                continue
+
+            if earnings_history is not None and not earnings_history.empty:
+                try:
                     history_data = []
                     for quarter, row in earnings_history.iterrows():
                         # Parse the quarter index which is typically in the format YYYY-MM-DD
@@ -174,25 +183,43 @@ def load_earnings_history(symbols, cur, conn):
                         ))
 
                     if history_data:
-                        execute_values(cur, """
-                            INSERT INTO earnings_history (
-                                symbol, quarter, eps_actual, eps_estimate,
-                                eps_difference, surprise_percent
-                            ) VALUES %s
-                            ON CONFLICT (symbol, quarter) DO UPDATE SET
-                                eps_actual = EXCLUDED.eps_actual,
-                                eps_estimate = EXCLUDED.eps_estimate,
-                                eps_difference = EXCLUDED.eps_difference,
-                                surprise_percent = EXCLUDED.surprise_percent,
-                                fetched_at = CURRENT_TIMESTAMP
-                        """, history_data)
-                        processed += 1
-                        conn.commit()
-                        logging.info(f"Successfully processed {orig_sym}")
-            except Exception as e:
-                logging.error(f"Failed to insert data for {orig_sym}: {e}")
-                conn.rollback()
-                failed.append(orig_sym)
+                        # Retry logic for database inserts
+                        for db_attempt in range(1, 4):
+                            try:
+                                execute_values(cur, """
+                                    INSERT INTO earnings_history (
+                                        symbol, quarter, eps_actual, eps_estimate,
+                                        eps_difference, surprise_percent
+                                    ) VALUES %s
+                                    ON CONFLICT (symbol, quarter) DO UPDATE SET
+                                        eps_actual = EXCLUDED.eps_actual,
+                                        eps_estimate = EXCLUDED.eps_estimate,
+                                        eps_difference = EXCLUDED.eps_difference,
+                                        surprise_percent = EXCLUDED.surprise_percent,
+                                        fetched_at = CURRENT_TIMESTAMP
+                                """, history_data)
+                                conn.commit()
+                                processed += 1
+                                logging.info(f"Successfully processed {orig_sym}")
+                                break
+                            except psycopg2.errors.InFailedSqlTransaction:
+                                # Transaction aborted - reconnect
+                                conn.rollback()
+                                if db_attempt < 3:
+                                    logging.debug(f"Transaction error for {orig_sym}, reconnecting...")
+                                    conn.close()
+                                    conn = psycopg2.connect(**cfg)
+                                    cur = conn.cursor(cursor_factory=RealDictCursor)
+                                    time.sleep(1)
+                                else:
+                                    raise
+                except Exception as e:
+                    logging.error(f"Failed to insert data for {orig_sym}: {e}")
+                    try:
+                        conn.rollback()
+                    except:
+                        pass
+                    failed.append(orig_sym)
 
             gc.collect()
             time.sleep(BATCH_PAUSE)
@@ -222,7 +249,7 @@ def lambda_handler(event, context):
 
     cur.execute("SELECT symbol FROM stock_symbols;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
-    t, p, f = load_earnings_history(stock_syms, cur, conn)
+    t, p, f = load_earnings_history(stock_syms, cur, conn, cfg)
 
     cur.execute("""
       INSERT INTO last_updated (script_name, last_run)
