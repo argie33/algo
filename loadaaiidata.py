@@ -248,8 +248,8 @@ def load_sentiment_data(cur, conn):
             logging.warning("No valid rows after processing")
             return 0, 0, []
         
-        # Batch insert the data
-        sql = f"INSERT INTO aaii_sentiment ({COL_LIST}) VALUES %s"
+        # Batch insert the data with conflict handling
+        sql = f"INSERT INTO aaii_sentiment ({COL_LIST}) VALUES %s ON CONFLICT (date) DO UPDATE SET bullish=EXCLUDED.bullish, neutral=EXCLUDED.neutral, bearish=EXCLUDED.bearish"
         execute_values(cur, sql, rows)
         conn.commit()
         

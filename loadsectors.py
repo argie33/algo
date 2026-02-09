@@ -435,7 +435,8 @@ def populate_sector_performance(conn):
     cursor = conn.cursor()
 
     try:
-        cursor.execute("DELETE FROM sector_performance")
+        # Clear old data first, with transaction safety
+        cursor.execute("TRUNCATE TABLE sector_performance RESTART IDENTITY CASCADE")
 
         query = """
         WITH dedup_prices AS (
@@ -538,6 +539,10 @@ def populate_sector_performance(conn):
         LEFT JOIN perf_1d p1d ON pl.sector = p1d.sector
         LEFT JOIN perf_5d p5d ON pl.sector = p5d.sector
         LEFT JOIN perf_20d p20d ON pl.sector = p20d.sector
+        ON CONFLICT (sector, date) DO UPDATE SET
+            performance_1d = EXCLUDED.performance_1d,
+            performance_5d = EXCLUDED.performance_5d,
+            performance_20d = EXCLUDED.performance_20d
         """
 
         cursor.execute(query)
@@ -562,7 +567,7 @@ def populate_industry_performance(conn):
     cursor = conn.cursor()
 
     try:
-        cursor.execute("DELETE FROM industry_performance")
+        cursor.execute("TRUNCATE TABLE industry_performance RESTART IDENTITY CASCADE")
 
         query = """
         WITH dedup_prices AS (
@@ -665,6 +670,10 @@ def populate_industry_performance(conn):
         LEFT JOIN perf_1d p1d ON pl.industry = p1d.industry
         LEFT JOIN perf_5d p5d ON pl.industry = p5d.industry
         LEFT JOIN perf_20d p20d ON pl.industry = p20d.industry
+        ON CONFLICT (industry, date) DO UPDATE SET
+            performance_1d = EXCLUDED.performance_1d,
+            performance_5d = EXCLUDED.performance_5d,
+            performance_20d = EXCLUDED.performance_20d
         """
 
         cursor.execute(query)
@@ -705,7 +714,7 @@ def populate_technical_data(conn):
                       SUM(pd.volume) as total_vol
                     FROM company_profile cp
                     JOIN price_daily pd ON cp.ticker = pd.symbol
-                    INNER JOIN market_data md ON cp.ticker = md.ticker
+                    INNER JOIN market_data md ON cp.ticker = md.symbol
                     WHERE cp.sector = %s AND md.market_cap > 0
                     GROUP BY pd.date
                     ORDER BY pd.date ASC
@@ -771,7 +780,7 @@ def populate_technical_data(conn):
                       SUM(pd.volume) as total_vol
                     FROM company_profile cp
                     JOIN price_daily pd ON cp.ticker = pd.symbol
-                    INNER JOIN market_data md ON cp.ticker = md.ticker
+                    INNER JOIN market_data md ON cp.ticker = md.symbol
                     WHERE cp.industry = %s AND md.market_cap > 0
                     GROUP BY pd.date
                     ORDER BY pd.date ASC

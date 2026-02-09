@@ -216,15 +216,15 @@ def load_comprehensive_metrics(conn):
     logger.info("Loading value metrics...")
     cur.execute("""
         SELECT symbol, trailing_pe, forward_pe, price_to_book, price_to_sales_ttm,
-               peg_ratio, ev_to_revenue, ev_to_ebitda, dividend_yield, payout_ratio
+               peg_ratio, ev_to_revenue, ev_to_ebitda, dividend_yield
         FROM value_metrics vm
         WHERE date = (SELECT MAX(date) FROM value_metrics WHERE symbol = vm.symbol)
     """)
     value_data = cur.fetchall()
     if value_data:
         value_df = pd.DataFrame(value_data, columns=[
-            'symbol', 'trailing_pe', 'forward_pe', 'pb', 'ps', 'peg', 'ev_rev',
-            'ev_ebitda', 'div_yield', 'payout_v'
+            'symbol', 'trailing_pe', 'forward_pe', 'price_to_book', 'price_to_sales_ttm',
+            'peg_ratio', 'ev_to_revenue', 'ev_to_ebitda', 'dividend_yield'
         ]).set_index('symbol')
         df = df.join(value_df, how='left')
         logger.info(f"  Loaded value metrics for {value_df.shape[0]} stocks")
@@ -240,8 +240,8 @@ def load_comprehensive_metrics(conn):
     positioning_data = cur.fetchall()
     if positioning_data:
         positioning_df = pd.DataFrame(positioning_data, columns=[
-            'symbol', 'inst_own', 'insider_own', 'short_ratio', 'short_int',
-            'short_float'
+            'symbol', 'institutional_ownership_pct', 'insider_ownership_pct', 'short_ratio', 'short_interest_pct',
+            'short_percent_of_float'
         ]).set_index('symbol')
         df = df.join(positioning_df, how='left')
         logger.info(f"  Loaded positioning metrics for {positioning_df.shape[0]} stocks")
@@ -315,10 +315,10 @@ def main():
 
     # ===== VALUE SCORE (9 metrics) =====
     logger.info("Calculating VALUE scores (valuation relative to earnings, sales, cash flow)...")
-    value_metrics = ['trailing_pe', 'forward_pe', 'pb', 'ps', 'peg', 'ev_rev', 'ev_ebitda']
+    value_metrics = ['trailing_pe', 'forward_pe', 'price_to_book', 'price_to_sales_ttm', 'peg_ratio', 'ev_to_revenue', 'ev_to_ebitda']
     value_weights = {
-        'trailing_pe': 2.0, 'forward_pe': 2.0, 'pb': 1.5, 'ps': 1.0,
-        'peg': 1.5, 'ev_rev': 1.0, 'ev_ebitda': 1.0
+        'trailing_pe': 2.0, 'forward_pe': 2.0, 'price_to_book': 1.5, 'price_to_sales_ttm': 1.0,
+        'peg_ratio': 1.5, 'ev_to_revenue': 1.0, 'ev_to_ebitda': 1.0
     }
     # Invert valuation metrics (lower P/E = better value)
     value_for_calc = df.copy()
@@ -330,13 +330,13 @@ def main():
 
     # ===== POSITIONING SCORE (6 metrics) =====
     logger.info("Calculating POSITIONING scores (institutional alignment, short interest)...")
-    positioning_metrics = ['inst_own', 'insider_own', 'short_int']
+    positioning_metrics = ['institutional_ownership_pct', 'insider_ownership_pct', 'short_interest_pct']
     positioning_weights = {
-        'inst_own': 2.0, 'insider_own': 1.5, 'short_int': 2.0
+        'institutional_ownership_pct': 2.0, 'insider_ownership_pct': 1.5, 'short_interest_pct': 2.0
     }
     # Invert short interest (lower short = better positioning)
     positioning_for_calc = df.copy()
-    positioning_for_calc['short_int'] = -positioning_for_calc['short_int']
+    positioning_for_calc['short_interest_pct'] = -positioning_for_calc['short_interest_pct']
     df['positioning_z'] = calculate_weighted_score(positioning_for_calc, positioning_metrics, positioning_weights)
     df['positioning_score'] = df['positioning_z'].apply(zscore_to_percentile)
 
