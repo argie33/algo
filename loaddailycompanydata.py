@@ -54,7 +54,6 @@ import os
 import resource
 import sys
 import time
-import threading
 from datetime import date, datetime
 from typing import Dict, List, Optional
 from functools import wraps
@@ -273,46 +272,23 @@ def calculate_missing_metrics(symbol: str, info: dict, ticker) -> dict:
 
 
 def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
-    """Load ALL daily data from single yfinance API call with timeout protection"""
-
-    def fetch_yfinance_with_timeout(yf_symbol, timeout_sec=8):
-        """Fetch yfinance data with timeout - skip if takes too long"""
-        result = {}
-        exception = None
-
-        def fetch_target():
-            try:
-                ticker = yf.Ticker(yf_symbol)
-                result['ticker'] = ticker
-                result['info'] = ticker.info
-                result['institutional_holders'] = ticker.institutional_holders
-                result['mutualfund_holders'] = ticker.mutualfund_holders
-                result['insider_transactions'] = ticker.insider_transactions
-                result['insider_roster'] = ticker.insider_roster_holders
-                result['major_holders'] = ticker.major_holders
-                result['earnings_estimate'] = ticker.earnings_estimate
-                result['revenue_estimate'] = ticker.revenue_estimate
-            except Exception as e:
-                result['error'] = str(e)
-
-        thread = threading.Thread(target=fetch_target, daemon=True)
-        thread.start()
-        thread.join(timeout=timeout_sec)
-
-        if thread.is_alive():
-            # Thread is still running after timeout - skip this symbol
-            logging.warning(f"⏱️ TIMEOUT: {yf_symbol} took >{timeout_sec}s to fetch, skipping")
-            raise TimeoutError(f"yfinance timeout for {yf_symbol}")
-
-        if 'error' in result:
-            raise Exception(result['error'])
-
-        return result
+    """Load ALL daily data from single yfinance API call"""
 
     @retry_with_backoff(max_retries=2, base_delay=1)  # Reduce retries from 5 to 2 (delisted stocks won't recover)
     def fetch_yfinance_data(yf_symbol):
         """Fetch yfinance data with retry logic for temporary errors only"""
-        return fetch_yfinance_with_timeout(yf_symbol, timeout_sec=8)
+        ticker = yf.Ticker(yf_symbol)
+        return {
+            'ticker': ticker,  # Return the ticker object itself
+            'info': ticker.info,
+            'institutional_holders': ticker.institutional_holders,
+            'mutualfund_holders': ticker.mutualfund_holders,
+            'insider_transactions': ticker.insider_transactions,
+            'insider_roster': ticker.insider_roster_holders,
+            'major_holders': ticker.major_holders,
+            'earnings_estimate': ticker.earnings_estimate,
+            'revenue_estimate': ticker.revenue_estimate
+        }
 
     try:
         # Convert ticker format for yfinance (e.g., BRK.B → BRK-B)
