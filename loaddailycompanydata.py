@@ -445,7 +445,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         safe_float(info.get("forwardPE"), max_val=9999.99),
                         safe_float(info.get("priceToSalesTrailing12Months"), max_val=9999.99),
                         safe_float(info.get("priceToBook"), max_val=9999.99),
-                        safe_int(info.get("bookValue")),
+                        safe_int(info.get("bookValue"), max_val=9999999999999),
                         safe_float(info.get("trailingPegRatio"), max_val=10000, min_val=0),  # Allow high PEG values for low-growth/high-PE stocks
                         safe_int(info.get("enterpriseValue")),
                         safe_float(info.get("enterpriseToRevenue"), max_val=9999.99),
@@ -499,7 +499,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         safe_float(info.get("shortRatio"), max_val=9999.99),
                         # REAL DATA ONLY: Use only yfinance shortPercentOfFloat, no fallback calculations
                         safe_float(info.get("shortPercentOfFloat"), max_val=99.99, min_val=0),
-                        safe_int(info.get("impliedSharesOutstanding") or info.get("sharesOutstanding")),
+                        safe_int(info.get("impliedSharesOutstanding") or info.get("sharesOutstanding"), max_val=999999999999),
                         safe_int(info.get("floatShares")),
                     ),
                 )
@@ -988,7 +988,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
         # 8. Insert beta into beta_yfinance table (for loadfactormetrics consumption)
         if info and info.get('beta') is not None:
             try:
-                beta_value = safe_float(info.get('beta'), max_val=10, min_val=-5)
+                beta_value = safe_float(info.get('beta'), max_val=100, min_val=-10)
                 if beta_value is not None:
                     cur.execute("""
                         INSERT INTO beta_yfinance (symbol, beta, source, last_updated)
