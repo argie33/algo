@@ -2932,6 +2932,36 @@ export const getMarketSeasonalityData = async () => {
   }
 };
 
+export const getMarketTopMovers = async () => {
+  console.log("📈 [API] Fetching market top movers...");
+  try {
+    const response = await api.get("/api/market/top-movers");
+    return { data: response.data?.data || {}, success: response.data?.success ?? true };
+  } catch (error) {
+    console.error("❌ [API] Market top movers error:", {
+      message: error?.message || "Unknown error",
+      status: error.response?.status,
+      url: error.config?.url,
+    });
+    return { data: { gainers: [], losers: [] } };
+  }
+};
+
+export const getMarketCapDistribution = async () => {
+  console.log("💰 [API] Fetching market cap distribution...");
+  try {
+    const response = await api.get("/api/market/market-cap-distribution");
+    return { data: response.data?.data || [], success: response.data?.success ?? true };
+  } catch (error) {
+    console.error("❌ [API] Market cap distribution error:", {
+      message: error?.message || "Unknown error",
+      status: error.response?.status,
+      url: error.config?.url,
+    });
+    return { data: [] };
+  }
+};
+
 // --- FINANCIAL DATA API FUNCTIONS ---
 export const getFinancialData = async (symbol) => {
   console.log(`💰 [API] Fetching financial data for ${symbol}...`);
