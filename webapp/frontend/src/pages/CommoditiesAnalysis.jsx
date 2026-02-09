@@ -47,7 +47,6 @@ import {
   ComposedChart,
   Area,
   AreaChart,
-  Heatmap,
 } from "recharts";
 import {
   TrendingUp,

@@ -75,8 +75,8 @@ logging.basicConfig(
 )
 
 # Retry decorator for yfinance API calls (handle 500 errors, timeouts, etc.)
-def retry_with_backoff(max_retries=3, base_delay=1):
-    """Retry decorator with exponential backoff for API calls - handles HTTP errors, timeouts, etc."""
+def retry_with_backoff(max_retries=2, base_delay=2):
+    """Retry decorator with exponential backoff for API calls - handles rate limiting, HTTP errors, timeouts, etc."""
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -85,12 +85,18 @@ def retry_with_backoff(max_retries=3, base_delay=1):
                     return func(*args, **kwargs)
                 except Exception as e:
                     error_str = str(e).lower()
-                    # Retry on HTTP 500, 503 (service unavailable), timeouts, and network errors
-                    is_retriable = any(x in error_str for x in ['500', '503', 'timeout', 'connection', 'temporarily unavailable', 'remote end closed'])
+                    # Retry on rate limits, HTTP 500, 503, timeouts, and network errors
+                    is_retriable = any(x in error_str for x in ['rate limit', '429', '500', '503', 'timeout', 'connection', 'temporarily unavailable', 'remote end closed'])
 
-                    if attempt < max_retries - 1 and (is_retriable or attempt < max_retries - 1):
-                        delay = base_delay * (2 ** attempt)
+                    # For rate limit errors, use much longer delay
+                    if 'rate limit' in error_str or '429' in error_str:
+                        delay = 5 * (2 ** attempt)  # 5s, 10s - much longer for rate limits
+                        logging.warning(f"⚠️ RATE LIMITED on {func.__name__}. Waiting {delay}s before retry...")
+                    else:
+                        delay = base_delay * (2 ** attempt)  # 2s, 4s for other errors
                         logging.warning(f"Attempt {attempt + 1} failed for {func.__name__}: {e}. Retrying in {delay}s...")
+
+                    if attempt < max_retries - 1 and is_retriable:
                         time.sleep(delay)
                     else:
                         logging.error(f"All {max_retries} attempts failed for {func.__name__}: {e}")
@@ -1219,7 +1225,7 @@ if __name__ == "__main__":
             # Don't rollback - aborts entire transaction, but error is logged
 
         finally:
-            time.sleep(0.5)  # Rate limiting - reduced from 5.0s to 0.5s (retry logic handles rate limits)
+            time.sleep(1.5)  # Rate limiting - INCREASED to avoid yfinance rate limiting
 
     logging.info("=" * 80)
     logging.info("REAL-TIME DATA LOADING COMPLETE")
