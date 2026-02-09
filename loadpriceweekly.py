@@ -104,13 +104,9 @@ def get_db_config():
     db_secret_arn = os.environ.get("DB_SECRET_ARN")
 
     if not aws_region:
-        raise EnvironmentError(
-            "FATAL: AWS_REGION not set. Real data requires AWS configuration."
-        )
+        raise EnvironmentError("AWS_REGION environment variable is required")
     if not db_secret_arn:
-        raise EnvironmentError(
-            "FATAL: DB_SECRET_ARN not set. Real data requires AWS Secrets Manager configuration."
-        )
+        raise EnvironmentError("DB_SECRET_ARN environment variable is required")
 
     try:
         secret_str = boto3.client("secretsmanager", region_name=aws_region).get_secret_value(
