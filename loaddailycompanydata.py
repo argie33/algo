@@ -327,7 +327,8 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
         # This loader only loads raw yfinance data
 
         # 1. Insert company_profile, market_data, key_metrics (from ticker.info)
-        if info:
+        # ONLY attempt insert if we have real data from yfinance
+        if info and isinstance(info, dict) and len(info) > 5:
             try:
                 # Company profile
                 cur.execute(
@@ -418,26 +419,63 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     ON CONFLICT (ticker) DO UPDATE SET
                         trailing_pe = EXCLUDED.trailing_pe,
                         forward_pe = EXCLUDED.forward_pe,
+                        price_to_sales_ttm = EXCLUDED.price_to_sales_ttm,
+                        price_to_book = EXCLUDED.price_to_book,
+                        book_value = EXCLUDED.book_value,
+                        peg_ratio = EXCLUDED.peg_ratio,
+                        enterprise_value = EXCLUDED.enterprise_value,
+                        ev_to_revenue = EXCLUDED.ev_to_revenue,
+                        ev_to_ebitda = EXCLUDED.ev_to_ebitda,
+                        total_revenue = EXCLUDED.total_revenue,
+                        net_income = EXCLUDED.net_income,
+                        ebitda = EXCLUDED.ebitda,
+                        gross_profit = EXCLUDED.gross_profit,
                         eps_trailing = EXCLUDED.eps_trailing,
+                        eps_forward = EXCLUDED.eps_forward,
                         eps_current_year = EXCLUDED.eps_current_year,
+                        price_eps_current_year = EXCLUDED.price_eps_current_year,
+                        earnings_q_growth_pct = EXCLUDED.earnings_q_growth_pct,
+                        earnings_ts_ms = EXCLUDED.earnings_ts_ms,
+                        earnings_ts_start_ms = EXCLUDED.earnings_ts_start_ms,
+                        earnings_ts_end_ms = EXCLUDED.earnings_ts_end_ms,
+                        earnings_call_ts_start_ms = EXCLUDED.earnings_call_ts_start_ms,
+                        earnings_call_ts_end_ms = EXCLUDED.earnings_call_ts_end_ms,
+                        is_earnings_date_estimate = EXCLUDED.is_earnings_date_estimate,
+                        total_cash = EXCLUDED.total_cash,
+                        cash_per_share = EXCLUDED.cash_per_share,
+                        operating_cashflow = EXCLUDED.operating_cashflow,
+                        free_cashflow = EXCLUDED.free_cashflow,
+                        total_debt = EXCLUDED.total_debt,
+                        debt_to_equity = EXCLUDED.debt_to_equity,
+                        quick_ratio = EXCLUDED.quick_ratio,
+                        current_ratio = EXCLUDED.current_ratio,
+                        profit_margin_pct = EXCLUDED.profit_margin_pct,
                         gross_margin_pct = EXCLUDED.gross_margin_pct,
                         ebitda_margin_pct = EXCLUDED.ebitda_margin_pct,
-                        profit_margin_pct = EXCLUDED.profit_margin_pct,
                         operating_margin_pct = EXCLUDED.operating_margin_pct,
                         return_on_assets_pct = EXCLUDED.return_on_assets_pct,
                         return_on_equity_pct = EXCLUDED.return_on_equity_pct,
-                        earnings_growth_pct = EXCLUDED.earnings_growth_pct,
-                        earnings_q_growth_pct = EXCLUDED.earnings_q_growth_pct,
                         revenue_growth_pct = EXCLUDED.revenue_growth_pct,
-                        payout_ratio = EXCLUDED.payout_ratio,
-                        debt_to_equity = EXCLUDED.debt_to_equity,
+                        earnings_growth_pct = EXCLUDED.earnings_growth_pct,
+                        last_split_date_ms = EXCLUDED.last_split_date_ms,
+                        dividend_rate = EXCLUDED.dividend_rate,
+                        dividend_yield = EXCLUDED.dividend_yield,
+                        five_year_avg_dividend_yield = EXCLUDED.five_year_avg_dividend_yield,
+                        ex_dividend_date_ms = EXCLUDED.ex_dividend_date_ms,
                         last_annual_dividend_amt = EXCLUDED.last_annual_dividend_amt,
                         last_annual_dividend_yield = EXCLUDED.last_annual_dividend_yield,
+                        last_dividend_amt = EXCLUDED.last_dividend_amt,
+                        last_dividend_date_ms = EXCLUDED.last_dividend_date_ms,
+                        dividend_date_ms = EXCLUDED.dividend_date_ms,
+                        payout_ratio = EXCLUDED.payout_ratio,
                         held_percent_insiders = EXCLUDED.held_percent_insiders,
                         held_percent_institutions = EXCLUDED.held_percent_institutions,
                         shares_short = EXCLUDED.shares_short,
+                        shares_short_prior_month = EXCLUDED.shares_short_prior_month,
                         short_ratio = EXCLUDED.short_ratio,
-                        short_percent_of_float = EXCLUDED.short_percent_of_float
+                        short_percent_of_float = EXCLUDED.short_percent_of_float,
+                        implied_shares_outstanding = EXCLUDED.implied_shares_outstanding,
+                        float_shares = EXCLUDED.float_shares
                 """,
                     (
                         symbol,
@@ -450,10 +488,10 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         safe_int(info.get("enterpriseValue")),
                         safe_float(info.get("enterpriseToRevenue"), max_val=9999.99),
                         safe_float(info.get("enterpriseToEbitda"), max_val=9999.99),
-                        safe_int(info.get("totalRevenue")),
-                        safe_int(info.get("netIncomeToCommon")),
-                        safe_int(info.get("ebitda")),
-                        safe_int(info.get("grossProfits")),
+                        safe_int(info.get("totalRevenue"), max_val=9999999999999),
+                        safe_int(info.get("netIncomeToCommon"), max_val=9999999999999),
+                        safe_int(info.get("ebitda"), max_val=9999999999999),
+                        safe_int(info.get("grossProfits"), max_val=9999999999999),
                         safe_float(info.get("trailingEps"), max_val=9999.99),
                         safe_float(info.get("forwardEps"), max_val=9999.99),
                         safe_float(info.get("epsCurrentYear"), max_val=9999.99),
@@ -465,11 +503,11 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         safe_int(info.get("earningsCallTimeStampStart")),
                         safe_int(info.get("earningsCallTimeStampEnd")),
                         info.get("earningsDateIsEstimate"),
-                        safe_int(info.get("totalCash")),
+                        safe_int(info.get("totalCash"), max_val=9999999999999),
                         safe_float(info.get("totalCashPerShare"), max_val=9999.99),
-                        safe_int(info.get("operatingCashflow")),
-                        safe_int(info.get("freeCashflow")),
-                        safe_int(info.get("totalDebt")),
+                        safe_int(info.get("operatingCashflow"), max_val=9999999999999),
+                        safe_int(info.get("freeCashflow"), max_val=9999999999999),
+                        safe_int(info.get("totalDebt"), max_val=9999999999999),
                         safe_float(missing_metrics.get('debt_to_equity'), max_val=9999.99),
                         safe_float(info.get("quickRatio"), max_val=999.99),
                         safe_float(info.get("currentRatio"), max_val=999.99),
@@ -514,40 +552,24 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     conn.rollback()
                 except:
                     pass
-
-                # FALLBACK: Only insert key_metrics if the full insert FAILED
-                # This ensures 100% coverage for downstream loaders
-                try:
-                    cur.execute(
-                        "INSERT INTO key_metrics (ticker) VALUES (%s) ON CONFLICT (ticker) DO NOTHING",
-                        (symbol,),
-                    )
-                    stats['key_metrics'] = 1
-                except Exception as e2:
-                    logging.error(f"❌ CRITICAL: Failed to insert key_metrics fallback for {symbol}: {str(e2)[:200]}")
-                    try:
-                        conn.rollback()
-                    except:
-                        pass
+                # NO FALLBACK - Do NOT insert empty rows with just symbol
+                # If yfinance data is unavailable, don't corrupt database with fake entries
 
         # 2. Insert institutional holders
         if institutional_holders is not None and not institutional_holders.empty:
             try:
                 inst_data = []
                 for _, row in institutional_holders.iterrows():
-                    # Get filing date - use today if not provided
+                    # Get filing date - SKIP if not provided (no fake dates)
                     date_reported = row.get('Date Reported')
-                    if date_reported:
-                        year = date_reported.year
-                        quarter_num = (date_reported.month - 1) // 3 + 1
-                        quarter = f"{year}Q{quarter_num}"
-                        filing_date = date_reported
-                    else:
-                        # Use today's date if no date reported
-                        filing_date = date.today()
-                        year = filing_date.year
-                        quarter_num = (filing_date.month - 1) // 3 + 1
-                        quarter = f"{year}Q{quarter_num}"
+                    if date_reported is None or pd.isna(date_reported):
+                        # SKIP records with missing filing dates - do not insert fake data
+                        continue
+
+                    year = date_reported.year
+                    quarter_num = (date_reported.month - 1) // 3 + 1
+                    quarter = f"{year}Q{quarter_num}"
+                    filing_date = date_reported
 
                     inst_name = safe_str(row.get('Holder', ''), max_len=300)
                     # Skip if institution name is empty or None
@@ -604,19 +626,16 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             try:
                 mf_data = []
                 for _, row in mutualfund_holders.iterrows():
-                    # Get filing date - use today if not provided
+                    # Get filing date - SKIP if not provided (no fake dates)
                     date_reported = row.get('Date Reported')
-                    if date_reported:
-                        year = date_reported.year
-                        quarter_num = (date_reported.month - 1) // 3 + 1
-                        quarter = f"{year}Q{quarter_num}"
-                        filing_date = date_reported
-                    else:
-                        # Use today's date if no date reported
-                        filing_date = date.today()
-                        year = filing_date.year
-                        quarter_num = (filing_date.month - 1) // 3 + 1
-                        quarter = f"{year}Q{quarter_num}"
+                    if date_reported is None or pd.isna(date_reported):
+                        # SKIP records with missing filing dates - do not insert fake data
+                        continue
+
+                    year = date_reported.year
+                    quarter_num = (date_reported.month - 1) // 3 + 1
+                    quarter = f"{year}Q{quarter_num}"
+                    filing_date = date_reported
 
                     mf_name = safe_str(row.get('Holder', ''), max_len=300)
                     # Skip if fund name is empty or None
