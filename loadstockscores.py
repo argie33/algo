@@ -111,15 +111,24 @@ def load_comprehensive_metrics(conn):
     logger.info("Loading comprehensive metric data...")
     cur = conn.cursor()
 
-    # Get symbols from stock_symbols table - ALL SYMBOLS
-    # Calculate scores for all stocks
+    # Get symbols that actually have metric data - UNION all metric table symbols
+    # Only calculate scores for stocks with actual data (avoid ~38k stocks with no key_metrics)
     cur.execute("""
-        SELECT DISTINCT symbol
-        FROM stock_symbols
+        SELECT DISTINCT symbol FROM quality_metrics
+        UNION
+        SELECT DISTINCT symbol FROM growth_metrics
+        UNION
+        SELECT DISTINCT symbol FROM stability_metrics
+        UNION
+        SELECT DISTINCT symbol FROM momentum_metrics
+        UNION
+        SELECT DISTINCT symbol FROM value_metrics
+        UNION
+        SELECT DISTINCT symbol FROM positioning_metrics
         ORDER BY symbol
     """)
     symbols = [row[0] for row in cur.fetchall()]
-    logger.info(f"✅ Found {len(symbols)} total stocks with metrics")
+    logger.info(f"✅ Found {len(symbols)} stocks with available metrics (coverage from metric tables)")
 
     df = pd.DataFrame(index=symbols)
     df.index.name = 'symbol'
