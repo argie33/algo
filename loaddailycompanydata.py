@@ -706,66 +706,85 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 except:
                     pass
 
-        # 5. Insert insider roster (NEW!)
+        # 5. Insert insider roster (NEW!) - WITH RETRY for deadlock handling
         if insider_roster is not None and not insider_roster.empty:
-            try:
-                # Create table if not exists
-                cur.execute("""
-                    CREATE TABLE IF NOT EXISTS insider_roster (
-                        id SERIAL PRIMARY KEY,
-                        symbol VARCHAR(20),
-                        insider_name VARCHAR(200),
-                        position VARCHAR(200),
-                        most_recent_transaction VARCHAR(50),
-                        latest_transaction_date DATE,
-                        shares_owned_directly BIGINT,
-                        position_direct_date DATE,
-                        url TEXT,
-                        created_at TIMESTAMP DEFAULT NOW(),
-                        UNIQUE(symbol, insider_name)
-                    );
-                    CREATE INDEX IF NOT EXISTS idx_insider_roster_symbol ON insider_roster(symbol);
-                """)
-
-                roster_data = []
-                for _, row in insider_roster.iterrows():
-                    roster_data.append((
-                        symbol,
-                        str(row.get('Name', '')),
-                        str(row.get('Position', '')),
-                        str(row.get('Most Recent Transaction', '')),
-                        safe_date(row.get('Latest Transaction Date')),
-                        safe_int(row.get('Shares Owned Directly')),
-                        safe_date(row.get('Position Direct Date')),
-                        str(row.get('URL', '')),
-                    ))
-
-                if roster_data:
-                    execute_values(
-                        cur,
-                        """
-                        INSERT INTO insider_roster (
-                            symbol, insider_name, position, most_recent_transaction,
-                            latest_transaction_date, shares_owned_directly,
-                            position_direct_date, url
-                        ) VALUES %s
-                        ON CONFLICT (symbol, insider_name) DO UPDATE SET
-                            position = EXCLUDED.position,
-                            most_recent_transaction = EXCLUDED.most_recent_transaction,
-                            latest_transaction_date = EXCLUDED.latest_transaction_date,
-                            shares_owned_directly = EXCLUDED.shares_owned_directly
-                        """,
-                        roster_data
-                    )
-                    stats['insider_roster'] = len(roster_data)
-
-            except Exception as e:
-                logging.error(f"Error inserting insider roster for {symbol}: {e}")
-                # Rollback failed transaction to reset state (required after failed INSERT)
+            max_retries = 3
+            retry_count = 0
+            while retry_count < max_retries:
                 try:
-                    conn.rollback()
-                except:
-                    pass
+                    # Create table if not exists
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS insider_roster (
+                            id SERIAL PRIMARY KEY,
+                            symbol VARCHAR(20),
+                            insider_name VARCHAR(200),
+                            position VARCHAR(200),
+                            most_recent_transaction VARCHAR(50),
+                            latest_transaction_date DATE,
+                            shares_owned_directly BIGINT,
+                            position_direct_date DATE,
+                            url TEXT,
+                            created_at TIMESTAMP DEFAULT NOW(),
+                            UNIQUE(symbol, insider_name)
+                        );
+                        CREATE INDEX IF NOT EXISTS idx_insider_roster_symbol ON insider_roster(symbol);
+                    """)
+
+                    roster_data = []
+                    for _, row in insider_roster.iterrows():
+                        roster_data.append((
+                            symbol,
+                            str(row.get('Name', '')),
+                            str(row.get('Position', '')),
+                            str(row.get('Most Recent Transaction', '')),
+                            safe_date(row.get('Latest Transaction Date')),
+                            safe_int(row.get('Shares Owned Directly')),
+                            safe_date(row.get('Position Direct Date')),
+                            str(row.get('URL', '')),
+                        ))
+
+                    if roster_data:
+                        execute_values(
+                            cur,
+                            """
+                            INSERT INTO insider_roster (
+                                symbol, insider_name, position, most_recent_transaction,
+                                latest_transaction_date, shares_owned_directly,
+                                position_direct_date, url
+                            ) VALUES %s
+                            ON CONFLICT (symbol, insider_name) DO UPDATE SET
+                                position = EXCLUDED.position,
+                                most_recent_transaction = EXCLUDED.most_recent_transaction,
+                                latest_transaction_date = EXCLUDED.latest_transaction_date,
+                                shares_owned_directly = EXCLUDED.shares_owned_directly
+                            """,
+                            roster_data
+                        )
+                        stats['insider_roster'] = len(roster_data)
+                    break  # Success - exit retry loop
+
+                except Exception as e:
+                    error_str = str(e).lower()
+                    is_deadlock = "deadlock" in error_str
+
+                    if is_deadlock and retry_count < max_retries - 1:
+                        # Deadlock detected - retry with backoff
+                        retry_count += 1
+                        wait_time = 0.1 * (2 ** (retry_count - 1))  # 0.1s, 0.2s, 0.4s
+                        logging.warning(f"Deadlock on insider roster for {symbol}, retrying in {wait_time}s (attempt {retry_count}/{max_retries})")
+                        try:
+                            conn.rollback()
+                        except:
+                            pass
+                        time.sleep(wait_time)
+                    else:
+                        # Not a deadlock or max retries exceeded - give up
+                        logging.error(f"Error inserting insider roster for {symbol}: {e}")
+                        try:
+                            conn.rollback()
+                        except:
+                            pass
+                        break
 
         # 6. Insert positioning metrics - ALWAYS INSERT (with real data or NULLs, NEVER defaults)
         # Log what data we have from yfinance for debugging coverage
