@@ -542,6 +542,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 )
 
                 stats['info'] = 1
+                conn.commit()  # Commit company_profile immediately - critical data
 
             except Exception as e:
                 logging.error(f"❌ CRITICAL: Failed to insert company info for {symbol}: {str(e)[:200]}")
@@ -885,19 +886,14 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             except Exception as e2:
                 logging.error(f"❌ CRITICAL: Failed to insert positioning metrics for {symbol}: {str(e2)[:200]}")
                 stats['positioning_failed'] = 1
-                try:
-                    conn.rollback()
-                except:
-                    pass
+                # DO NOT rollback here - it would undo company_profile and other inserts
+                # Only skip this symbol's positioning, but keep other data
 
         except Exception as e:
-            logging.error(f"❌ CRITICAL: Failed to calculate/insert positioning metrics for {symbol}: {str(e)[:200]}")
+            logging.error(f"❌ CRITICAL: Failed to calculate positioning metrics for {symbol}: {str(e)[:200]}")
             stats['positioning_failed'] = 1
-            # Rollback failed transaction
-            try:
-                conn.rollback()
-            except:
-                pass
+            # DO NOT rollback here - it would undo company_profile and other inserts
+            # Only skip this symbol's positioning, but keep other data
 
         # 7. Insert earnings estimates
         if earnings_estimate is not None and not earnings_estimate.empty:
