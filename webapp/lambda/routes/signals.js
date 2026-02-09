@@ -329,7 +329,8 @@ router.get("/stocks", async (req, res) => {
     let totalCount = 0;
     try {
       // Pass ONLY the WHERE clause parameters (not limit/offset which are at the end)
-      const countParams = queryParams.slice(0, paramIndex - 1);
+      // paramIndex points to the next available parameter index, so we need parameters 0 through paramIndex-1
+      const countParams = queryParams.slice(0, paramIndex);
       console.log(`[${timeframe.toUpperCase()}] Executing count query with ${countParams.length} params`);
       const countResult = await query(countQuery, countParams);
       totalCount = parseInt(countResult.rows[0]?.total || 0);
@@ -562,7 +563,8 @@ router.get("/etf", async (req, res) => {
     let totalCount = 0;
     try {
       // Pass ONLY the WHERE clause parameters (not limit/offset which are at the end)
-      const countParams = queryParams.slice(0, paramIndex - 1);
+      // paramIndex points to the next available parameter index, so we need parameters 0 through paramIndex-1
+      const countParams = queryParams.slice(0, paramIndex);
       const countResult = await query(countQuery, countParams);
       totalCount = parseInt(countResult.rows[0]?.total || 0);
     } catch (e) {
