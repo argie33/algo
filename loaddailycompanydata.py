@@ -75,7 +75,7 @@ logging.basicConfig(
 )
 
 # Retry decorator for yfinance API calls (handle 500 errors, timeouts, etc.)
-def retry_with_backoff(max_retries=2, base_delay=2):
+def retry_with_backoff(max_retries=7, base_delay=2):
     """Retry decorator with exponential backoff for API calls - handles rate limiting, HTTP errors, timeouts, etc."""
     def decorator(func):
         @wraps(func)
@@ -88,13 +88,13 @@ def retry_with_backoff(max_retries=2, base_delay=2):
                     # Retry on rate limits, HTTP 500, 503, timeouts, and network errors
                     is_retriable = any(x in error_str for x in ['rate limit', '429', '500', '503', 'timeout', 'connection', 'temporarily unavailable', 'remote end closed'])
 
-                    # For rate limit errors, use much longer delay
+                    # For rate limit errors, use much longer delay (30s base)
                     if 'rate limit' in error_str or '429' in error_str:
-                        delay = 5 * (2 ** attempt)  # 5s, 10s - much longer for rate limits
-                        logging.warning(f"⚠️ RATE LIMITED on {func.__name__}. Waiting {delay}s before retry...")
+                        delay = 30 * (2 ** attempt)  # 30s, 60s, 120s, 240s, 480s, 960s
+                        logging.warning(f"⚠️ RATE LIMITED on {func.__name__}. Waiting {delay}s before retry (attempt {attempt + 1}/{max_retries})...")
                     else:
-                        delay = base_delay * (2 ** attempt)  # 2s, 4s for other errors
-                        logging.warning(f"Attempt {attempt + 1} failed for {func.__name__}: {e}. Retrying in {delay}s...")
+                        delay = base_delay * (2 ** attempt)  # 2s, 4s, 8s for other errors
+                        logging.warning(f"Attempt {attempt + 1}/{max_retries} failed for {func.__name__}: {e}. Retrying in {delay}s...")
 
                     if attempt < max_retries - 1 and is_retriable:
                         time.sleep(delay)
@@ -1225,7 +1225,7 @@ if __name__ == "__main__":
             # Don't rollback - aborts entire transaction, but error is logged
 
         finally:
-            time.sleep(1.5)  # Rate limiting - INCREASED to avoid yfinance rate limiting
+            time.sleep(5.0)  # Rate limiting - 5 seconds between requests to avoid yfinance throttling
 
     logging.info("=" * 80)
     logging.info("REAL-TIME DATA LOADING COMPLETE")
