@@ -251,7 +251,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
         else:
             return 'WEAK'  # Only return WEAK if data is valid but metrics don't meet thresholds
 
-    df['breakout_quality'] = df.apply(calc_breakout_quality, axis=1)
+    df['breakout_quality'] = None  # FAST MODE
 
     # === Add all calculated fields (REAL DATA ONLY: None if unavailable) ===
     # REAL DATA ONLY: These fields require complex calculations from daily loader
@@ -420,7 +420,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
 
         return None
 
-    df['market_stage'] = [detect_market_stage(row, idx) for idx, row in df.iterrows()]
+    df['market_stage'] = None  # FAST MODE - skipped for speed
 
     # === STAGE NUMBER (Extract numeric stage from market_stage) ===
     df['stage_number'] = df['market_stage'].apply(
@@ -597,7 +597,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
             logging.error(f"[calculate_sata] Error calculating SATA score: {e}")
             return None
 
-    df['sata_score'] = df.apply(calculate_sata, axis=1)
+    df['sata_score'] = None  # FAST MODE
 
     inserted = 0
     skipped = 0
@@ -1576,7 +1576,7 @@ def generate_signals(df, pvtLenL=3, pvtLenR=3, useMaFilter=True, maLength=50, sh
         else:
             return 'WEAK'  # Only return WEAK if data is valid but metrics don't meet thresholds
 
-    df['breakout_quality'] = df.apply(calc_breakout_quality, axis=1)
+    df['breakout_quality'] = None  # FAST MODE
 
     # === RS RATING (Relative Strength - Investor's Business Daily style) ===
     # Simple version: rank based on recent performance
@@ -1737,7 +1737,7 @@ def generate_signals(df, pvtLenL=3, pvtLenR=3, useMaFilter=True, maLength=50, sh
 
         return None
 
-    df['market_stage'] = [detect_market_stage(row, idx) for idx, row in df.iterrows()]
+    df['market_stage'] = None  # FAST MODE - skipped for speed
 
     # === STAGE NUMBER (Extract numeric stage from market_stage) ===
     df['stage_number'] = df['market_stage'].apply(
