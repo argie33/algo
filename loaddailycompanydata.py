@@ -552,8 +552,14 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     conn.rollback()
                 except:
                     pass
-                # NO FALLBACK - Do NOT insert empty rows with just symbol
-                # If yfinance data is unavailable, don't corrupt database with fake entries
+                # FALLBACK: Always ensure symbol exists with at least ticker
+                try:
+                    cur.execute(
+                        "INSERT INTO key_metrics (ticker) VALUES (%s) ON CONFLICT (ticker) DO NOTHING",
+                        (symbol,),
+                    )
+                except:
+                    pass
 
         # 2. Insert institutional holders
         if institutional_holders is not None and not institutional_holders.empty:
