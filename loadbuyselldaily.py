@@ -1855,8 +1855,9 @@ def process_symbol_set(symbols, table_name, label, max_workers=6):
         logging.info(f"{label}: No symbols to process")
         return
 
-    # Use 16 workers for maximum speed (earnings loader killed, only signals + sentiment running)
-    max_workers = min(max_workers, 16)
+    # Use 8 workers for parallelism - faster despite database load
+    # Database WALWrite is acceptable bottleneck vs sequential processing
+    max_workers = min(max_workers, 8)
 
     logging.info(f"Starting {label} processing with {max_workers} workers for {len(symbols)} symbols")
 
@@ -1880,12 +1881,12 @@ def process_symbol_set(symbols, table_name, label, max_workers=6):
                 continue
 
             # Force garbage collection after each symbol to free memory
-            if completed % 10 == 0:
+            if completed % 20 == 0:
                 gc.collect()
 
-            # Log progress (every 10 symbols to reduce I/O overhead)
+            # Log progress (every symbol for visibility into actual speed)
             progress = (completed / len(symbols)) * 100
-            if completed % 10 == 0:
+            if completed % 5 == 0:  # Log every 5 symbols instead of 10
                 fail_pct = (failed / completed) * 100 if completed > 0 else 0
                 logging.info(f"{label} Progress: {completed}/{len(symbols)} ({progress:.1f}%) - Failed: {failed} ({fail_pct:.1f}%)")
 
