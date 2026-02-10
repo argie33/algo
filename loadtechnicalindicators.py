@@ -319,7 +319,11 @@ def load_technical_indicators(cur, conn):
         return len(indicators_data)
 
     except Exception as e:
-        logging.error(f"❌ Failed to load technical indicators: {str(e)}")
+        error_msg = str(e) if str(e) else f"Unknown error (type: {type(e).__name__})"
+        logging.error(f"❌ Failed to load technical indicators: {error_msg}")
+        logging.error(f"Exception type: {type(e).__name__}")
+        import traceback
+        logging.error(f"Traceback: {traceback.format_exc()}")
         conn.rollback()
         raise
 
@@ -350,7 +354,11 @@ def main():
         return 0
 
     except Exception as e:
-        logging.error(f"❌ FATAL: {str(e)}")
+        error_msg = str(e) if str(e) else f"Unknown error (type: {type(e).__name__})"
+        logging.error(f"❌ FATAL: {error_msg}")
+        logging.error(f"Exception type: {type(e).__name__}")
+        import traceback
+        logging.error(f"Full traceback:\n{traceback.format_exc()}")
         return 1
 
 
