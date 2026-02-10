@@ -66,57 +66,65 @@ for i, symbol in enumerate(symbols, 1):
 
             growth_data = {}
 
+            # Convert to float to avoid Decimal type issues
+            latest_revenue = float(latest['total_revenue']) if latest['total_revenue'] else 0
+            prior_revenue = float(prior_year['total_revenue']) if prior_year['total_revenue'] else 0
+            latest_ni = float(latest['net_income']) if latest['net_income'] else 0
+            prior_ni = float(prior_year['net_income']) if prior_year['net_income'] else 0
+            latest_oi = float(latest['operating_income']) if latest['operating_income'] else 0
+            prior_oi = float(prior_year['operating_income']) if prior_year['operating_income'] else 0
+
             # Revenue growth YoY
-            if latest['total_revenue'] and prior_year['total_revenue'] and prior_year['total_revenue'] > 0:
-                revenue_growth = ((latest['total_revenue'] - prior_year['total_revenue']) / prior_year['total_revenue'] * 100)
+            if latest_revenue and prior_revenue and prior_revenue > 0:
+                revenue_growth = ((latest_revenue - prior_revenue) / prior_revenue * 100)
                 growth_data['revenue_growth_yoy'] = max(-99.99, min(99.99, revenue_growth))
 
             # Net income growth YoY
-            if latest['net_income'] and prior_year['net_income'] and prior_year['net_income'] > 0:
-                ni_growth = ((latest['net_income'] - prior_year['net_income']) / prior_year['net_income'] * 100)
+            if latest_ni and prior_ni and prior_ni > 0:
+                ni_growth = ((latest_ni - prior_ni) / prior_ni * 100)
                 growth_data['net_income_growth_yoy'] = max(-99.99, min(99.99, ni_growth))
 
             # Operating income growth
-            if latest['operating_income'] and prior_year['operating_income'] and prior_year['operating_income'] > 0:
-                op_growth = ((latest['operating_income'] - prior_year['operating_income']) / prior_year['operating_income'] * 100)
+            if latest_oi and prior_oi and prior_oi > 0:
+                op_growth = ((latest_oi - prior_oi) / prior_oi * 100)
                 growth_data['operating_income_growth_yoy'] = max(-99.99, min(99.99, op_growth))
 
             # Margin calculations
-            if latest['total_revenue'] and latest['total_revenue'] > 0:
-                if latest['operating_income']:
-                    op_margin = (latest['operating_income'] / latest['total_revenue']) * 100
-                    if prior_year['operating_income'] and prior_year['total_revenue'] > 0:
-                        prior_op_margin = (prior_year['operating_income'] / prior_year['total_revenue']) * 100
+            if latest_revenue and latest_revenue > 0:
+                if latest_oi:
+                    op_margin = (latest_oi / latest_revenue) * 100
+                    if prior_oi and prior_revenue > 0:
+                        prior_op_margin = (prior_oi / prior_revenue) * 100
                         growth_data['operating_margin_trend'] = op_margin - prior_op_margin
                     else:
                         growth_data['operating_margin_trend'] = op_margin
 
                 # Use a simple estimate for gross margin based on operating income
-                if latest['operating_income']:
-                    gross_margin = (latest['operating_income'] / latest['total_revenue']) * 130  # Rough estimate
-                    if prior_year['operating_income'] and prior_year['total_revenue'] > 0:
-                        prior_gross_margin = (prior_year['operating_income'] / prior_year['total_revenue']) * 130
+                if latest_oi:
+                    gross_margin = (latest_oi / latest_revenue) * 130  # Rough estimate
+                    if prior_oi and prior_revenue > 0:
+                        prior_gross_margin = (prior_oi / prior_revenue) * 130
                         growth_data['gross_margin_trend'] = gross_margin - prior_gross_margin
                     else:
                         growth_data['gross_margin_trend'] = gross_margin
 
-                if latest['net_income']:
-                    net_margin = (latest['net_income'] / latest['total_revenue']) * 100
-                    if prior_year['net_income'] and prior_year['total_revenue'] > 0:
-                        prior_net_margin = (prior_year['net_income'] / prior_year['total_revenue']) * 100
+                if latest_ni:
+                    net_margin = (latest_ni / latest_revenue) * 100
+                    if prior_ni and prior_revenue > 0:
+                        prior_net_margin = (prior_ni / prior_revenue) * 100
                         growth_data['net_margin_trend'] = net_margin - prior_net_margin
                     else:
                         growth_data['net_margin_trend'] = net_margin
 
             # Default values for other growth metrics
-            growth_data['revenue_growth_3y_cagr'] = growth_data.get('revenue_growth_yoy', 0) * 0.75  # Approximate
-            growth_data['eps_growth_3y_cagr'] = growth_data.get('net_income_growth_yoy', 0) * 0.75
-            growth_data['roe_trend'] = growth_data.get('net_income_growth_yoy', 0) * 0.5
-            growth_data['sustainable_growth_rate'] = growth_data.get('net_income_growth_yoy', 5) * 0.4
-            growth_data['fcf_growth_yoy'] = growth_data.get('revenue_growth_yoy', 0) * 0.6
-            growth_data['quarterly_growth_momentum'] = growth_data.get('revenue_growth_yoy', 0)
-            growth_data['asset_growth_yoy'] = growth_data.get('revenue_growth_yoy', 0) * 0.5
-            growth_data['ocf_growth_yoy'] = growth_data.get('revenue_growth_yoy', 0) * 0.7
+            growth_data['revenue_growth_3y_cagr'] = float(growth_data.get('revenue_growth_yoy', 0) * 0.75)  # Approximate
+            growth_data['eps_growth_3y_cagr'] = float(growth_data.get('net_income_growth_yoy', 0) * 0.75)
+            growth_data['roe_trend'] = float(growth_data.get('net_income_growth_yoy', 0) * 0.5)
+            growth_data['sustainable_growth_rate'] = float(growth_data.get('net_income_growth_yoy', 5) * 0.4)
+            growth_data['fcf_growth_yoy'] = float(growth_data.get('revenue_growth_yoy', 0) * 0.6)
+            growth_data['quarterly_growth_momentum'] = float(growth_data.get('revenue_growth_yoy', 0))
+            growth_data['asset_growth_yoy'] = float(growth_data.get('revenue_growth_yoy', 0) * 0.5)
+            growth_data['ocf_growth_yoy'] = float(growth_data.get('revenue_growth_yoy', 0) * 0.7)
 
             if growth_data:
                 # Build UPDATE for growth_metrics with NULL handling
@@ -159,11 +167,11 @@ for i, symbol in enumerate(symbols, 1):
 
         fin_data = cur.fetchone()
         if fin_data and fin_data['total_revenue']:
-            net_income = fin_data['net_income']
-            revenue = fin_data['total_revenue']
-            gross_profit = fin_data['gross_profit']
-            operating_income = fin_data['operating_income']
-            ebitda = fin_data['ebitda']
+            net_income = float(fin_data['net_income']) if fin_data['net_income'] else 0
+            revenue = float(fin_data['total_revenue']) if fin_data['total_revenue'] else 0
+            gross_profit = float(fin_data['gross_profit']) if fin_data['gross_profit'] else 0
+            operating_income = float(fin_data['operating_income']) if fin_data['operating_income'] else 0
+            ebitda = float(fin_data['ebitda']) if fin_data['ebitda'] else 0
 
             quality_data = {}
 
@@ -189,9 +197,9 @@ for i, symbol in enumerate(symbols, 1):
 
             # Default quality metrics
             if 'profit_margin_pct' in quality_data:
-                quality_data['fcf_to_net_income'] = min(1.5, max(0.0, 0.7 + (quality_data['profit_margin_pct'] / 100)))
-                quality_data['operating_cf_to_net_income'] = min(1.5, max(0.0, 0.8 + (quality_data['profit_margin_pct'] / 100)))
-                quality_data['eps_growth_stability'] = min(50, max(-50, quality_data['profit_margin_pct']))
+                quality_data['fcf_to_net_income'] = float(min(1.5, max(0.0, 0.7 + (quality_data['profit_margin_pct'] / 100))))
+                quality_data['operating_cf_to_net_income'] = float(min(1.5, max(0.0, 0.8 + (quality_data['profit_margin_pct'] / 100))))
+                quality_data['eps_growth_stability'] = float(min(50, max(-50, quality_data['profit_margin_pct'])))
             else:
                 quality_data['fcf_to_net_income'] = 0.7
                 quality_data['operating_cf_to_net_income'] = 0.8
@@ -202,7 +210,7 @@ for i, symbol in enumerate(symbols, 1):
             quality_data['quick_ratio'] = 1.2
             quality_data['earnings_surprise_avg'] = 2.5
             quality_data['payout_ratio'] = 30.0
-            quality_data['return_on_invested_capital_pct'] = quality_data.get('return_on_equity_pct', 12.0) * 0.8
+            quality_data['return_on_invested_capital_pct'] = float(quality_data.get('return_on_equity_pct', 12.0) * 0.8)
             quality_data['roe_stability_index'] = 0.8
             quality_data['earnings_beat_rate'] = 65.0
 
@@ -259,11 +267,11 @@ for i, symbol in enumerate(symbols, 1):
 
             # SMA comparisons
             current_price = prices[0]
-            sma_50 = np.mean(prices[:50]) if len(prices) >= 50 else current_price
-            sma_200 = np.mean(prices[:200]) if len(prices) >= 200 else current_price
+            sma_50 = float(np.mean(prices[:50])) if len(prices) >= 50 else current_price
+            sma_200 = float(np.mean(prices[:200])) if len(prices) >= 200 else current_price
 
-            momentum_data['price_vs_sma_50'] = ((current_price - sma_50) / sma_50 * 100) if sma_50 > 0 else 0
-            momentum_data['price_vs_sma_200'] = ((current_price - sma_200) / sma_200 * 100) if sma_200 > 0 else 0
+            momentum_data['price_vs_sma_50'] = float(((current_price - sma_50) / sma_50 * 100)) if sma_50 > 0 else 0
+            momentum_data['price_vs_sma_200'] = float(((current_price - sma_200) / sma_200 * 100)) if sma_200 > 0 else 0
             momentum_data['price_vs_52w_high'] = current_price
             momentum_data['current_price'] = current_price
 
