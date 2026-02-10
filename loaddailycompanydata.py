@@ -1234,23 +1234,10 @@ if __name__ == "__main__":
     # Track symbols with persistent API errors
     api_error_symbols = {}
 
-    # Crash recovery: Skip symbols already loaded to avoid duplicates
-    already_loaded = set()
-    try:
-        cur.execute("SELECT DISTINCT ticker FROM key_metrics")
-        already_loaded = {row[0] for row in cur.fetchall()}
-        logging.info(f"Resume mode: {len(already_loaded)} stocks already loaded, skipping to next missing stock")
-    except Exception as e:
-        logging.warning(f"Could not check already_loaded: {e}")
-
     # Track execution time
     start_time = time.time()
     rate_limit_consecutive = 0
     for i, symbol in enumerate(symbols):
-        # Skip if already loaded (crash recovery)
-        if symbol in already_loaded:
-            logging.debug(f"Skipping {symbol} - already loaded")
-            continue
         try:
             stats = load_all_realtime_data(symbol, cur, conn)
             if stats:
