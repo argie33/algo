@@ -545,8 +545,11 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
     # === GET MANSFIELD RS FROM STOCK_SCORES ===
     # DISABLED: mansfield_rs column was moved out of stock_scores table
     # This query was causing loader to crash. Keeping fields as None for now.
-    # FIXED #4: Calculate Mansfield RS from 52-week high
-    df['mansfield_rs'] = df.apply(lambda row: round((row['close'] / row['high_52w']) * 100, 2) if (row.get('high_52w') and row.get('high_52w') > 0 and row.get('close')) else None, axis=1)
+    # FIXED #4: Calculate Mansfield RS from 52-week high (VECTORIZED for speed)
+    high_52w = pd.to_numeric(df.get('high_52w', [None]*len(df)), errors='coerce')
+    close = pd.to_numeric(df.get('close', [None]*len(df)), errors='coerce')
+    df['mansfield_rs'] = (close / high_52w * 100).round(2)
+    df.loc[(high_52w.isna()) | (high_52w <= 0) | (close.isna()), 'mansfield_rs'] = None
     df['sata_score'] = None
     # Previous code that queried non-existent column is commented out:
     # try:
