@@ -102,7 +102,7 @@ def retry_with_backoff(max_retries=2, base_delay=1):
                     elif is_transient:
                         delay = base_delay * (2 ** attempt)  # 1s, 2s for transient errors
                         if attempt < max_retries - 1:
-                            logging.warning(f"Attempt {attempt + 1}/{max_retries} failed for {func.__name__}: {e}. Retrying in {delay}s...")
+                            # Silently retry transient errors (HTTP 500, timeouts, etc.) - only log if all attempts fail
                             time.sleep(delay)
                         else:
                             logging.error(f"All {max_retries} attempts failed for {func.__name__}: {e}")
