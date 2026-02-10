@@ -349,7 +349,8 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
             logging.warning(f"⚠️  SATA calculation error: {e} | Row data: stage={row.get('stage_number')}, rs={row.get('rs_rating')}")
             return None
 
-    df['sata_score'] = None  # FAST MODE
+    # ENABLED: Calculate SATA score for complete data (required for analysis)
+    df['sata_score'] = df.apply(calculate_sata, axis=1)
 
     # === BUILD BULK INSERT DATA (instead of row-by-row inserts) ===
     # This replaces the slow iterrows() with bulk executemany() - 10x+ faster
@@ -1476,7 +1477,8 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
         else:
             return 'WEAK'  # Only return WEAK if data is valid but metrics don't meet thresholds
 
-    df['breakout_quality'] = None  # FAST MODE
+    # ENABLED: Calculate breakout quality for complete data (required for analysis)
+    df['breakout_quality'] = df.apply(calc_breakout_quality, axis=1)
 
     # === RS RATING (Relative Strength - Investor's Business Daily style) ===
     # Simple version: rank based on recent performance
@@ -1638,7 +1640,10 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
 
         return None
 
-    df['market_stage'] = None  # FAST MODE - skipped for speed
+    # ENABLED: Detect market stage for complete data (required for analysis)
+    df['market_stage'] = df.apply(
+        lambda row: detect_market_stage(row, row.name), axis=1
+    )
 
     # === STAGE NUMBER (Extract numeric stage from market_stage) ===
     df['stage_number'] = df['market_stage'].apply(
