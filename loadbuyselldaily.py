@@ -287,13 +287,11 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
     # === CALCULATE MANSFIELD RS (Relative Strength vs 52-week high) ===
     # Mansfield RS = (Current Price / 52-week High) * 100
     # Range: 0-100 (100 = at 52-week high, 0 = at 52-week low)
-    def calculate_mansfield_rs(row):
-        """Calculate Mansfield RS = (close / 52-week high) * 100"""
-        if row.get('high_52w') is None or row.get('high_52w') <= 0 or row.get('close') is None:
-            return None
-        return round((row['close'] / row['high_52w']) * 100, 2)
-
-    df['mansfield_rs'] = df.apply(calculate_mansfield_rs, axis=1)
+    # VECTORIZED for speed (10x+ faster than row-by-row apply)
+    high_52w = pd.to_numeric(df.get('high_52w', [None]*len(df)), errors='coerce')
+    close = pd.to_numeric(df.get('close', [None]*len(df)), errors='coerce')
+    df['mansfield_rs'] = (close / high_52w * 100).round(2)
+    df.loc[(high_52w.isna()) | (high_52w <= 0) | (close.isna()), 'mansfield_rs'] = None
 
     # === CALCULATE SATA SCORE (0-10 scale) ===
     # SATA = Stage Analysis Technical Attributes
