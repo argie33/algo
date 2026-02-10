@@ -75,8 +75,13 @@ logging.basicConfig(
 )
 
 # Retry decorator for yfinance API calls (handle 500 errors, timeouts, etc.)
-def retry_with_backoff(max_retries=7, base_delay=2):
-    """Retry decorator with exponential backoff for API calls - handles rate limiting, HTTP errors, timeouts, etc."""
+def retry_with_backoff(max_retries=2, base_delay=1):
+    """Retry decorator with exponential backoff for API calls - handles rate limiting, HTTP errors, timeouts, etc.
+
+    NOTE: Rate limiting should be handled by main loop delays (5s between requests), not retries.
+    This decorator only retries transient errors (timeouts, connection errors, HTTP 500/503).
+    Rate limit errors are counted but not retried to avoid cascading delays.
+    """
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -85,21 +90,26 @@ def retry_with_backoff(max_retries=7, base_delay=2):
                     return func(*args, **kwargs)
                 except Exception as e:
                     error_str = str(e).lower()
-                    # Retry on rate limits, HTTP 500, 503, timeouts, and network errors
-                    is_retriable = any(x in error_str for x in ['rate limit', '429', '500', '503', 'timeout', 'connection', 'temporarily unavailable', 'remote end closed'])
+                    # Retry on transient errors: HTTP 500, 503, timeouts, connection errors
+                    is_transient = any(x in error_str for x in ['500', '503', 'timeout', 'connection', 'temporarily unavailable', 'remote end closed'])
+                    # Rate limit errors are NOT retried - the main loop delay handles spacing
+                    is_rate_limit = any(x in error_str for x in ['rate limit', '429'])
 
-                    # For rate limit errors, use much longer delay (30s base)
-                    if 'rate limit' in error_str or '429' in error_str:
-                        delay = 30 * (2 ** attempt)  # 30s, 60s, 120s, 240s, 480s, 960s
-                        logging.warning(f"⚠️ RATE LIMITED on {func.__name__}. Waiting {delay}s before retry (attempt {attempt + 1}/{max_retries})...")
+                    if is_rate_limit:
+                        # Log rate limit but don't retry - main loop will space requests
+                        logging.warning(f"⚠️ RATE LIMITED on {func.__name__} (attempt {attempt + 1}/{max_retries}). Main loop will add spacing.")
+                        raise  # Fail immediately so main loop can add 5s delay before retry
+                    elif is_transient:
+                        delay = base_delay * (2 ** attempt)  # 1s, 2s for transient errors
+                        if attempt < max_retries - 1:
+                            logging.warning(f"Attempt {attempt + 1}/{max_retries} failed for {func.__name__}: {e}. Retrying in {delay}s...")
+                            time.sleep(delay)
+                        else:
+                            logging.error(f"All {max_retries} attempts failed for {func.__name__}: {e}")
+                            raise
                     else:
-                        delay = base_delay * (2 ** attempt)  # 2s, 4s, 8s for other errors
-                        logging.warning(f"Attempt {attempt + 1}/{max_retries} failed for {func.__name__}: {e}. Retrying in {delay}s...")
-
-                    if attempt < max_retries - 1 and is_retriable:
-                        time.sleep(delay)
-                    else:
-                        logging.error(f"All {max_retries} attempts failed for {func.__name__}: {e}")
+                        # Unknown error - log and fail
+                        logging.error(f"Non-retriable error in {func.__name__}: {e}")
                         raise
         return wrapper
     return decorator
@@ -280,21 +290,46 @@ def calculate_missing_metrics(symbol: str, info: dict, ticker) -> dict:
 def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
     """Load ALL daily data from single yfinance API call"""
 
-    @retry_with_backoff(max_retries=7, base_delay=1)  # Aggressive retries for rate limiting: 7 attempts with exponential backoff
+    @retry_with_backoff(max_retries=2, base_delay=1)  # Only retry transient errors; rate limits handled by main loop
     def fetch_yfinance_data(yf_symbol):
-        """Fetch yfinance data with retry logic for temporary errors only"""
+        """Fetch yfinance data with delays between property accesses
+
+        CRITICAL FIX: Each yfinance property access (ticker.info, ticker.institutional_holders, etc.)
+        makes a SEPARATE HTTP request. Accessing all 8 properties in rapid succession (~10ms apart)
+        causes yfinance to see them as a burst and returns 429 Rate Limited.
+
+        Solution: Add 0.5s delay between each property access to spread requests over ~4 seconds.
+        This prevents the burst detection while still completing in reasonable time.
+        """
         ticker = yf.Ticker(yf_symbol)
-        return {
-            'ticker': ticker,  # Return the ticker object itself
-            'info': ticker.info,
-            'institutional_holders': ticker.institutional_holders,
-            'mutualfund_holders': ticker.mutualfund_holders,
-            'insider_transactions': ticker.insider_transactions,
-            'insider_roster': ticker.insider_roster_holders,
-            'major_holders': ticker.major_holders,
-            'earnings_estimate': ticker.earnings_estimate,
-            'revenue_estimate': ticker.revenue_estimate
-        }
+        result = {'ticker': ticker}
+
+        # Space out property accesses to avoid rate limiting
+        time.sleep(0.5)
+        result['info'] = ticker.info
+
+        time.sleep(0.5)
+        result['institutional_holders'] = ticker.institutional_holders
+
+        time.sleep(0.5)
+        result['mutualfund_holders'] = ticker.mutualfund_holders
+
+        time.sleep(0.5)
+        result['insider_transactions'] = ticker.insider_transactions
+
+        time.sleep(0.5)
+        result['insider_roster'] = ticker.insider_roster_holders
+
+        time.sleep(0.5)
+        result['major_holders'] = ticker.major_holders
+
+        time.sleep(0.5)
+        result['earnings_estimate'] = ticker.earnings_estimate
+
+        time.sleep(0.5)
+        result['revenue_estimate'] = ticker.revenue_estimate
+
+        return result
 
     try:
         # Convert ticker format for yfinance (e.g., BRK.B → BRK-B)
@@ -1201,31 +1236,60 @@ if __name__ == "__main__":
     # Track symbols with persistent API errors
     api_error_symbols = {}
 
-    for symbol in symbols:
+    # Track execution time
+    start_time = time.time()
+    rate_limit_consecutive = 0
+    for i, symbol in enumerate(symbols):
         try:
             stats = load_all_realtime_data(symbol, cur, conn)
             if stats:
                 for key in total_stats:
                     total_stats[key] += stats.get(key, 0)
                 processed += 1
+                rate_limit_consecutive = 0  # Reset rate limit counter on success
                 logging.info(f"✅ {symbol}: {stats}")
             else:
                 failed.append(symbol)
+                logging.warning(f"⚠️  {symbol}: No stats returned")
 
         except Exception as e:
             error_str = str(e).lower()
-            # Track HTTP 500 errors for this symbol
-            if '500' in error_str or 'http error' in error_str:
-                api_error_symbols[symbol] = api_error_symbols.get(symbol, 0) + 1
-                if api_error_symbols[symbol] <= 1:  # Only log first occurrence per symbol
-                    logging.warning(f"⚠️  {symbol}: yfinance API error (will skip if persistent): {str(e)[:100]}")
+            # Check for rate limit errors
+            if 'rate limit' in error_str or '429' in error_str:
+                rate_limit_consecutive += 1
+                logging.warning(f"⚠️ RATE LIMITED on {symbol} (consecutive: {rate_limit_consecutive}). Increasing delay...")
             else:
-                logging.error(f"❌ CRITICAL: Complete failure for {symbol}: {str(e)[:200]}")
+                # Track HTTP 500 errors for this symbol
+                if '500' in error_str or 'http error' in error_str:
+                    api_error_symbols[symbol] = api_error_symbols.get(symbol, 0) + 1
+                    if api_error_symbols[symbol] <= 1:  # Only log first occurrence per symbol
+                        logging.warning(f"⚠️  {symbol}: yfinance API error (will skip if persistent): {str(e)[:100]}")
+                else:
+                    logging.error(f"❌ CRITICAL: Complete failure for {symbol}: {str(e)[:200]}")
+                rate_limit_consecutive = 0  # Reset on non-rate-limit errors
             failed.append(symbol)
             # Don't rollback - aborts entire transaction, but error is logged
 
         finally:
-            time.sleep(5.0)  # Rate limiting - 5 seconds between requests to avoid yfinance throttling
+            # Delay between requests to respect yfinance rate limits
+            # Using adaptive delays: start at 2.5s, increase only if hitting rate limits
+            if rate_limit_consecutive > 0:
+                # Exponential backoff after rate limit hits: 5s, 8s, 12s, 16s, 20s...
+                delay = 5.0 + (3.0 * (rate_limit_consecutive - 1))
+                delay = min(delay, 30.0)  # Cap at 30 seconds
+                logging.info(f"Rate limit backoff: {delay}s (consecutive hits: {rate_limit_consecutive})")
+            else:
+                # Normal spacing: 2.5 seconds between requests (fast but respects rate limits)
+                delay = 2.5
+
+            time.sleep(delay)
+
+            # Progress indicator every 100 symbols
+            if (i + 1) % 100 == 0:
+                pct = round((i + 1) / len(symbols) * 100, 1)
+                elapsed_min = round((time.time() - start_time) / 60, 1)
+                eta_min = round(elapsed_min * len(symbols) / (i + 1) - elapsed_min, 1) if i > 0 else 0
+                logging.info(f"Progress: {i + 1}/{len(symbols)} ({pct}%) - {processed} loaded, {len(failed)} failed - Elapsed: {elapsed_min}min, ETA: {eta_min}min")
 
     logging.info("=" * 80)
     logging.info("REAL-TIME DATA LOADING COMPLETE")
