@@ -197,9 +197,9 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
         logging.warning(f"[{symbol}] pivot_price column NOT FOUND!")
 
     # Calculate metrics
-    # REAL DATA ONLY: Keep NaN for rows without enough data for 50-day average
+    # REAL DATA ONLY: Keep NaN for rows without enough data for 20-month average
     # Use pd.Int64Dtype() to allow nullable integers (NaN preserved as <NA>)
-    df['avg_volume_50d'] = df['volume'].rolling(window=50).mean()
+    df['avg_volume_50d'] = df['volume'].rolling(window=20).mean()
     # Convert to nullable integer type, preserving NaN as pd.NA
     # Keep as float - don't force Int64 conversion as rolling mean produces NaN values
 
@@ -259,8 +259,9 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
     # === Add all calculated fields (REAL DATA ONLY: None if unavailable) ===
     # REAL DATA ONLY: These fields require complex calculations from daily loader
     # For weekly/monthly, set to None rather than calculating incorrect values
+    # NOTE: pivot_price, trailing_stop, initial_stop are calculated in generate_signals() - DON'T OVERRIDE!
     df['signal_type'] = None  # Would need full signal analysis
-    df['pivot_price'] = None  # Would need pivot analysis
+    # df['pivot_price'] = None  # REMOVED: Already calculated in generate_signals()
     df['buy_zone_start'] = None  # Requires technical analysis
     df['buy_zone_end'] = None  # Requires technical analysis
     df['exit_trigger_1_price'] = None  # Requires exit analysis
@@ -269,8 +270,8 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
     df['exit_trigger_3_price'] = None  # Requires exit analysis
     df['exit_trigger_4_condition'] = None  # Requires exit analysis
     df['exit_trigger_4_price'] = None  # Requires exit analysis
-    df['initial_stop'] = None  # Requires stop analysis
-    df['trailing_stop'] = None  # Requires trailing stop analysis
+    # df['initial_stop'] = None  # REMOVED: Already calculated in generate_signals()
+    # df['trailing_stop'] = None  # REMOVED: Already calculated in generate_signals()
     # NOTE: base_type is calculated in generate_signals(), don't overwrite here!
     # df['base_type'] = None  # REMOVED: Already calculated in generate_signals
     df['base_length_days'] = None  # Requires base pattern analysis
@@ -1417,9 +1418,9 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
             df.at[i, 'base_length_days'] = length if length > 0 else None
 
     # === CALCULATE REAL METRICS ===
-    # Calculate 50-day rolling average volume
+    # Calculate rolling average volume: 20-month window for monthly data (vs 50-day for daily)
     # REAL DATA ONLY: Keep NaN for rows without enough data
-    df['avg_volume_50d'] = df['volume'].rolling(window=50).mean()
+    df['avg_volume_50d'] = df['volume'].rolling(window=20).mean()
     # Keep as float - don't force Int64 conversion as rolling mean produces NaN values
 
     # Calculate volume surge percentage: (current_volume / avg_volume_50d - 1) * 100
@@ -1496,7 +1497,8 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
         else:
             return 'WEAK'  # Only return WEAK if data is valid but metrics don't meet thresholds
 
-    df['breakout_quality'] = None  # FAST MODE
+    # ENABLED: Calculate breakout quality for complete data
+    df['breakout_quality'] = df.apply(calc_breakout_quality, axis=1)
 
     # === RS RATING (Relative Strength - Investor's Business Daily style) ===
     # Simple version: rank based on recent performance
