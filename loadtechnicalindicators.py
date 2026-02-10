@@ -213,7 +213,7 @@ def load_technical_indicators(cur, conn):
             ORDER BY symbol
         """)
 
-        symbols = [row[0] for row in cur.fetchall()]
+        symbols = [row['symbol'] for row in cur.fetchall()]
         logging.info(f"Processing {len(symbols)} symbols with price data")
 
         indicators_data = []
@@ -237,8 +237,8 @@ def load_technical_indicators(cur, conn):
                 # Reverse to chronological order
                 price_rows = list(reversed(price_rows))
 
-                prices = np.array([float(row[1]) for row in price_rows if row[1] is not None])
-                report_date = price_rows[-1][0]  # Most recent date
+                prices = np.array([float(row['close']) for row in price_rows if row['close'] is not None])
+                report_date = price_rows[-1]['date']  # Most recent date
 
                 if len(prices) < 14:
                     continue
