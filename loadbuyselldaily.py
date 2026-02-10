@@ -1840,13 +1840,18 @@ def process_symbol_wrapper(sym):
 
         return sym, rets, durs, df
     except Exception as e:
-        logging.error(f"Error processing {sym}: {e}")
-        return sym, None, None, None
+        # Log error with full traceback to both file and stderr
+        logging.error(f"Error processing {sym}: {e}", exc_info=True)
+        import sys
+        print(f"WORKER ERROR [{sym}]: {e}", file=sys.stderr, flush=True)
+        # Re-raise the exception so it propagates to the main thread
+        raise
 
 def process_symbol_set(symbols, table_name, label, max_workers=6):
     """Process symbols with parallel workers for speed"""
     from concurrent.futures import ThreadPoolExecutor, as_completed
     import gc
+    import sys
 
     if not symbols:
         logging.info(f"{label}: No symbols to process")
@@ -1860,10 +1865,21 @@ def process_symbol_set(symbols, table_name, label, max_workers=6):
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(process_symbol_wrapper, sym): sym for sym in symbols}
         completed = 0
+        failed = 0
+        errors = []
 
         for future in as_completed(futures):
             completed += 1
-            sym, rets, durs, df = future.result()
+            try:
+                sym, rets, durs, df = future.result()
+            except Exception as e:
+                # Worker thread raised an exception
+                failed += 1
+                sym = futures[future]
+                errors.append((sym, str(e)))
+                logging.error(f"❌ Worker FAILED for {sym}: {e}")
+                print(f"WORKER FAILED [{sym}]: {e}", file=sys.stderr, flush=True)
+                continue
 
             # Force garbage collection after each symbol to free memory
             if completed % 10 == 0:
@@ -1872,7 +1888,15 @@ def process_symbol_set(symbols, table_name, label, max_workers=6):
             # Log progress (every 10 symbols to reduce I/O overhead)
             progress = (completed / len(symbols)) * 100
             if completed % 10 == 0:
-                logging.info(f"{label} Progress: {completed}/{len(symbols)} ({progress:.1f}%)")
+                fail_pct = (failed / completed) * 100 if completed > 0 else 0
+                logging.info(f"{label} Progress: {completed}/{len(symbols)} ({progress:.1f}%) - Failed: {failed} ({fail_pct:.1f}%)")
+
+        # Final summary
+        total_fail_pct = (failed / len(symbols)) * 100 if symbols else 0
+        logging.info(f"{label} COMPLETED: {len(symbols) - failed}/{len(symbols)} successful ({100-total_fail_pct:.1f}%), {failed} failed ({total_fail_pct:.1f}%)")
+        if errors:
+            logging.error(f"{label} First 5 errors: {errors[:5]}")
+            print(f"\n{label} ERROR SUMMARY: {failed}/{len(symbols)} workers failed", file=sys.stderr, flush=True)
 
 def main():
 
