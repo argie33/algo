@@ -516,15 +516,15 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 """,
                     (
                         symbol,
-                        safe_float(info.get("trailingPE"), max_val=9999.99),
-                        safe_float(info.get("forwardPE"), max_val=9999.99),
-                        safe_float(info.get("priceToSalesTrailing12Months"), max_val=9999.99),
-                        safe_float(info.get("priceToBook"), max_val=9999.99),
+                        safe_float(info.get("trailingPE"), max_val=150),  # Realistic PE cap
+                        safe_float(info.get("forwardPE"), max_val=150),  # Realistic PE cap
+                        safe_float(info.get("priceToSalesTrailing12Months"), max_val=500),  # P/S ratio
+                        safe_float(info.get("priceToBook"), max_val=500),  # P/B ratio
                         safe_int(info.get("bookValue")),
                         safe_float(info.get("trailingPegRatio"), max_val=100, min_val=0),
                         safe_int(info.get("enterpriseValue")),
-                        safe_float(info.get("enterpriseToRevenue"), max_val=9999.99),
-                        safe_float(info.get("enterpriseToEbitda"), max_val=9999.99),
+                        safe_float(info.get("enterpriseToRevenue"), max_val=500),  # EV/Revenue
+                        safe_float(info.get("enterpriseToEbitda"), max_val=500),  # EV/EBITDA
                         safe_int(info.get("totalRevenue")),
                         safe_int(info.get("netIncomeToCommon")),
                         safe_int(info.get("ebitda")),
@@ -557,13 +557,13 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         safe_float(info.get("revenueGrowth"), max_val=100, min_val=-100),
                         safe_float(missing_metrics.get('earnings_growth') or info.get("earningsGrowth"), max_val=100, min_val=-100),
                         safe_int(info.get("lastSplitDate")),
-                        safe_float(info.get("dividendRate"), max_val=9999.99),
-                        safe_float(info.get("dividendYield"), max_val=99.99, min_val=0),
-                        safe_float(info.get("fiveYearAvgDividendYield"), max_val=99.99, min_val=0),
+                        safe_float(info.get("dividendRate"), max_val=500),  # Realistic dividend
+                        safe_float(info.get("dividendYield"), max_val=20, min_val=0),  # Max 20% yield
+                        safe_float(info.get("fiveYearAvgDividendYield"), max_val=20, min_val=0),
                         safe_int(info.get("exDividendDate")),
-                        safe_float(info.get("trailingAnnualDividendRate"), max_val=9999.99),
-                        safe_float(info.get("trailingAnnualDividendYield"), max_val=99.99, min_val=0),
-                        safe_float(info.get("lastDividendValue"), max_val=9999.99),
+                        safe_float(info.get("trailingAnnualDividendRate"), max_val=500),
+                        safe_float(info.get("trailingAnnualDividendYield"), max_val=20, min_val=0),  # Max 20% yield
+                        safe_float(info.get("lastDividendValue"), max_val=500),
                         safe_int(info.get("lastDividendDate")),
                         safe_int(info.get("dividendDate")),
                         safe_float(missing_metrics.get('payout_ratio') or info.get("payoutRatio"), max_val=100, min_val=0),
