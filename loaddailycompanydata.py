@@ -321,9 +321,6 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
         result['insider_roster'] = ticker.insider_roster_holders
 
         time.sleep(0.5)
-        result['major_holders'] = ticker.major_holders
-
-        time.sleep(0.5)
         result['earnings_estimate'] = ticker.earnings_estimate
 
         time.sleep(0.5)
@@ -343,7 +340,6 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
         mutualfund_holders = data['mutualfund_holders']
         insider_transactions = data['insider_transactions']
         insider_roster = data['insider_roster']
-        major_holders = data['major_holders']
         earnings_estimate = data['earnings_estimate']
         revenue_estimate = data['revenue_estimate']
 
