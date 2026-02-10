@@ -1277,8 +1277,8 @@ if __name__ == "__main__":
                 delay = min(delay, 30.0)  # Cap at 30 seconds
                 logging.info(f"Rate limit backoff: {delay}s (consecutive hits: {rate_limit_consecutive})")
             else:
-                # Normal spacing: 1.5 seconds between requests (maximum speed)
-                delay = 1.5
+                # Aggressive speed: 0.5 seconds between requests (max speed without rate limit)
+                delay = 0.5
 
             time.sleep(delay)
 
