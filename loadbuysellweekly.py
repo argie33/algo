@@ -250,8 +250,8 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
         else:
             return 'WEAK'  # Only return WEAK if data is valid but metrics don't meet thresholds
 
-    # FAST MODE: Skip expensive calculation - set to NULL to speed up loading
-    df['breakout_quality'] = None
+    # ENABLED: Calculate breakout quality for complete data
+    df['breakout_quality'] = df.apply(calc_breakout_quality, axis=1)
 
     # === Add all calculated fields (REAL DATA ONLY: None if unavailable) ===
     # REAL DATA ONLY: These fields require complex calculations from daily loader
@@ -422,9 +422,10 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
 
         return None
 
-    # FAST MODE: Skip expensive row-by-row calculation - set to NULL
-    df['market_stage'] = None
-    # df['market_stage'] = [detect_market_stage(row, idx) for idx, row in df.iterrows()]  # TOO SLOW
+    # ENABLED: Detect market stage for complete data
+    df['market_stage'] = df.apply(
+        lambda row: detect_market_stage(row, row.name), axis=1
+    )
 
     # === STAGE NUMBER (Extract numeric stage from market_stage) ===
     df['stage_number'] = df['market_stage'].apply(
@@ -552,7 +553,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
     close = pd.to_numeric(df.get('close', [None]*len(df)), errors='coerce')
     df['mansfield_rs'] = (close / high_52w * 100).round(2)
     df.loc[(high_52w.isna()) | (high_52w <= 0) | (close.isna()), 'mansfield_rs'] = None
-    df['sata_score'] = None
+    # Note: sata_score is already calculated above with df.apply(calculate_sata, axis=1)
     # Previous code that queried non-existent column is commented out:
     # try:
     #     stock_scores_q = "SELECT date, mansfield_rs FROM stock_scores WHERE symbol = %s"
@@ -605,8 +606,8 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
             logging.debug(f"Error calculating SATA score: {e}")
             return None
 
-    # FAST MODE: Skip expensive calculation - set to NULL
-    df['sata_score'] = None
+    # ENABLED: Calculate SATA score for complete data
+    df['sata_score'] = df.apply(calculate_sata, axis=1)
 
     # === CRITICAL: Replace ALL NaN values with None before INSERT ===
     # PostgreSQL cannot handle NaN floats/ints - convert all numeric NaNs to None
@@ -1453,8 +1454,8 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
         else:
             return 'WEAK'  # Only return WEAK if data is valid but metrics don't meet thresholds
 
-    # FAST MODE: Skip expensive calculation - set to NULL to speed up loading
-    df['breakout_quality'] = None
+    # ENABLED: Calculate breakout quality for complete data
+    df['breakout_quality'] = df.apply(calc_breakout_quality, axis=1)
 
     # === RS RATING (Relative Strength - Investor's Business Daily style) ===
     # Simple version: rank based on recent performance
@@ -1616,9 +1617,10 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
 
         return None
 
-    # FAST MODE: Skip expensive row-by-row calculation - set to NULL
-    df['market_stage'] = None
-    # df['market_stage'] = [detect_market_stage(row, idx) for idx, row in df.iterrows()]  # TOO SLOW
+    # ENABLED: Detect market stage for complete data
+    df['market_stage'] = df.apply(
+        lambda row: detect_market_stage(row, row.name), axis=1
+    )
 
     # === STAGE NUMBER (Extract numeric stage from market_stage) ===
     df['stage_number'] = df['market_stage'].apply(
