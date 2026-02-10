@@ -321,8 +321,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
             logging.debug(f"Error calculating SATA score: {e}")
             return None
 
-    # ENABLED: Calculate SATA score for complete data
-    df['sata_score'] = df.apply(calculate_sata, axis=1)
+    df['sata_score'] = None  # FAST MODE
 
     # === BUILD BULK INSERT DATA (instead of row-by-row inserts) ===
     # This replaces the slow iterrows() with bulk executemany() - 10x+ faster
@@ -1505,8 +1504,7 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
         else:
             return 'WEAK'  # Only return WEAK if data is valid but metrics don't meet thresholds
 
-    # ENABLED: Calculate breakout quality for complete data
-    df['breakout_quality'] = df.apply(calc_breakout_quality, axis=1)
+    df['breakout_quality'] = None  # FAST MODE
 
     # === RS RATING (Relative Strength - Investor's Business Daily style) ===
     # Simple version: rank based on recent performance
@@ -1665,7 +1663,322 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
 
         return None
 
-    # ENABLED: Detect market stage for complete data
-    df['market_stage'] = df.apply(
-        lambda row: detect_market_stage(row, row.name), axis=1
+    df['market_stage'] = None  # FAST MODE - skipped for speed
+
+    # === STAGE NUMBER (Extract numeric stage from market_stage) ===
+    df['stage_number'] = df['market_stage'].apply(
+        lambda x: int(x.split()[1]) if pd.notna(x) and 'Stage' in str(x) else None
     )
+
+    # === STAGE CONFIDENCE (Based on price distance from MA_200) ===
+    def calc_stage_confidence(row):
+        """Calculate confidence in market stage (0-100) based on distance from 200-day MA (matching stock loaders exactly)"""
+        if pd.isna(row.get('market_stage')):
+            return None
+
+        close = row['close']
+        ma_200 = row['ma_200']
+
+        if pd.isna(ma_200) or ma_200 is None or ma_200 <= 0:
+            return None
+
+        # Distance from 200-day MA as % of price
+        distance_pct = abs((close - ma_200) / ma_200 * 100)
+
+        # More distance = more confidence (stage is clearer)
+        if distance_pct > 15:
+            return 95  # Very clear stage separation
+        elif distance_pct > 10:
+            return 85
+        elif distance_pct > 5:
+            return 75  # Moderate clarity
+        elif distance_pct > 2:
+            return 60  # Weak clarity
+        else:
+            return 40  # Very close to MA (ambiguous)
+
+    df['stage_confidence'] = df.apply(calc_stage_confidence, axis=1)
+
+    # === SUBSTAGE (Early vs Late in stage) ===
+    def detect_substage(row):
+        """Detect substage within the 4-stage cycle - Distinguishes breakout vs breakdown"""
+        stage = row.get('market_stage')
+        if pd.isna(stage):
+            return None
+
+        if 'Basing' in str(stage):
+            # Check if early or late in basing
+            vol_surge = row.get('volume_surge_pct')
+            if vol_surge is not None and vol_surge > 30:
+                # HIGH VOLUME: Distinguish breakout (upside) vs breakdown (downside)
+                signal = row.get('Signal')
+                risk_reward = row.get('risk_reward_ratio')
+
+                # Breakout = Buy signal with positive risk/reward
+                if signal == 'Buy' and (pd.isna(risk_reward) or risk_reward > 0):
+                    return 'Late Basing - Breakout Imminent'
+                # Breakdown = Sell signal or negative risk/reward
+                elif signal == 'Sell' or (not pd.isna(risk_reward) and risk_reward < 0):
+                    return 'Late Basing - Breakdown'
+                # Ambiguous = default to Breakout Imminent
+                else:
+                    return 'Late Basing - Breakout Imminent'
+            return 'Early Basing'
+
+        elif 'Advancing' in str(stage):
+            # Check trend strength
+            rs = row.get('rs_rating')
+            if rs is not None and rs > 75:
+                return 'Strong Advance'
+            return 'Early Advance'
+
+        elif 'Topping' in str(stage):
+            return 'Distribution'
+
+        elif 'Declining' in str(stage):
+            return 'Breakdown'
+
+        return None
+
+    df['substage'] = df.apply(detect_substage, axis=1)
+
+    # === POSITION SIZING (Shares based on risk) ===
+    df['position_size_pct'] = df.apply(
+        lambda row: round(
+            min(5.0, 0.5 / row['risk_pct'] * 100),  # Risk 0.5% of account per trade
+            2
+        ) if (row['risk_pct'] is not None and row['risk_pct'] > 0) else None,
+        axis=1
+    )
+
+    # Initialize position tracking fields as None (not fake 0/50 values)
+    df['current_gain_pct'] = None
+    df['days_in_position'] = None
+
+    logging.debug(f"✅ Generated {len(df[df['Signal']=='Buy'])} Buy signals and {len(df[df['Signal']=='Sell'])} Sell signals")
+    return df
+
+###############################################################################
+# 5) BACKTEST & METRICS
+###############################################################################
+def backtest_fixed_capital(df):
+    trades = []
+    buys   = df.index[df['Signal']=='Buy'].tolist()
+    if not buys:
+        return trades, [], [], None, None
+
+    df2 = df.iloc[buys[0]:].reset_index(drop=True)
+    pos_open = False
+    for i in range(len(df2)-1):
+        sig, o, d = df2.loc[i,'Signal'], df2.loc[i+1,'open'], df2.loc[i+1,'date']
+        if sig=='Buy' and not pos_open:
+            pos_open=True; trades.append({'date':d,'action':'Buy','price':o})
+        elif sig=='Sell' and pos_open:
+            pos_open=False; trades.append({'date':d,'action':'Sell','price':o})
+
+    if pos_open:
+        last = df2.iloc[-1]
+        trades.append({'date':last['date'],'action':'Sell','price':last['close']})
+
+    rets, durs = [], []
+    i = 0
+    while i < len(trades)-1:
+        if trades[i]['action']=='Buy' and trades[i+1]['action']=='Sell':
+            e, x = trades[i]['price'], trades[i+1]['price']
+            if e >= 1.0:
+                rets.append((x-e)/e)
+                durs.append((trades[i+1]['date']-trades[i]['date']).days)
+            i += 2
+        else:
+            i += 1
+
+    return trades, rets, durs, df['date'].iloc[0], df['date'].iloc[-1]
+
+def compute_metrics_fixed_capital(rets, durs, annual_rfr=0.0):
+    n = len(rets)
+    if n == 0:
+        return {}
+    wins   = [r for r in rets if r>0]
+    losses = [r for r in rets if r<0]
+    avg    = np.mean(rets) if n else 0.0
+    std    = np.std(rets, ddof=1) if n>1 else 0.0
+    return {
+      'num_trades':     n,
+      'win_rate':       len(wins)/n,
+      'avg_return':     avg,
+      # Cap at 9999 for database compatibility (represents 10000:1 profit ratio, effectively perfect)
+      'profit_factor':  min(9999, sum(wins)/abs(sum(losses))) if losses else 9999,
+      'sharpe_ratio':   ((avg-annual_rfr)/std*np.sqrt(n)) if std>0 else 0.0
+    }
+
+def analyze_trade_returns_fixed_capital(rets, durs, tag, annual_rfr=0.0):
+    m = compute_metrics_fixed_capital(rets, durs, annual_rfr)
+    if not m:
+        logging.info(f"{tag}: No trades.")
+        return
+    logging.info(
+      f"{tag} → Trades:{m['num_trades']} "
+      f"WinRate:{m['win_rate']:.2%} "
+      f"AvgRet:{m['avg_return']*100:.2f}% "
+      f"PF:{m['profit_factor']:.2f} "
+      f"Sharpe:{m['sharpe_ratio']:.2f}"
+    )
+
+###############################################################################
+# 6) PROCESS & MAIN
+###############################################################################
+def process_symbol(symbol, timeframe):
+    logging.debug(f"  [process_symbol] Fetching {symbol} {timeframe}")
+    try:
+        df = fetch_symbol_from_db(symbol, timeframe)
+        logging.debug(f"  [process_symbol] Done fetching {symbol} {timeframe}, rows: {len(df)}")
+        return generate_signals(df) if not df.empty else df
+    except Exception as e:
+        logging.error(f"Error in process_symbol for {symbol}: {e}", exc_info=True)
+        raise
+
+def process_symbol_wrapper(sym):
+    """Process a single symbol in a thread-safe manner"""
+    try:
+        tf = 'Daily'
+        logging.debug(f"  [thread] Processing {sym} {tf}")
+        df = process_symbol(sym, tf)
+        logging.debug(f"  [thread] Done processing {sym} {tf}")
+
+        if df.empty:
+            logging.debug(f"[{tf}] no data for {sym}")
+            return sym, None, None, None
+
+        # Each thread gets its own database connection
+        conn = get_db_connection()
+        conn.autocommit = True
+        cur = conn.cursor()
+
+        insert_symbol_results(cur, sym, tf, df, conn)
+
+        _, rets, durs, _, _ = backtest_fixed_capital(df)
+
+        cur.close()
+        conn.close()
+
+        return sym, rets, durs, df
+    except Exception as e:
+        # Log error with full traceback to both file and stderr
+        logging.error(f"Error processing {sym}: {e}", exc_info=True)
+        import sys
+        print(f"WORKER ERROR [{sym}]: {e}", file=sys.stderr, flush=True)
+        # Re-raise the exception so it propagates to the main thread
+        raise
+
+def process_symbol_set(symbols, table_name, label, max_workers=6):
+    """Process symbols with parallel workers for speed"""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    import gc
+    import sys
+
+    if not symbols:
+        logging.info(f"{label}: No symbols to process")
+        return
+
+    # Use 4 workers for balanced speed/stability (was 2, can tolerate some locks)
+    max_workers = min(max_workers, 4)
+
+    logging.info(f"Starting {label} processing with {max_workers} workers for {len(symbols)} symbols")
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(process_symbol_wrapper, sym): sym for sym in symbols}
+        completed = 0
+        failed = 0
+        errors = []
+
+        for future in as_completed(futures):
+            completed += 1
+            try:
+                sym, rets, durs, df = future.result()
+            except Exception as e:
+                # Worker thread raised an exception
+                failed += 1
+                sym = futures[future]
+                errors.append((sym, str(e)))
+                logging.error(f"❌ Worker FAILED for {sym}: {e}")
+                print(f"WORKER FAILED [{sym}]: {e}", file=sys.stderr, flush=True)
+                continue
+
+            # Force garbage collection after each symbol to free memory
+            if completed % 10 == 0:
+                gc.collect()
+
+            # Log progress
+            progress = (completed / len(symbols)) * 100
+            fail_pct = (failed / completed) * 100 if completed > 0 else 0
+            logging.info(f"{label} Progress: {completed}/{len(symbols)} ({progress:.1f}%) - Failed: {failed} ({fail_pct:.1f}%)")
+
+        # Final summary
+        total_fail_pct = (failed / len(symbols)) * 100 if symbols else 0
+        logging.info(f"{label} COMPLETED: {len(symbols) - failed}/{len(symbols)} successful ({100-total_fail_pct:.1f}%), {failed} failed ({total_fail_pct:.1f}%)")
+        if errors:
+            logging.error(f"{label} First 5 errors: {errors[:5]}")
+            print(f"\n{label} ERROR SUMMARY: {failed}/{len(symbols)} workers failed", file=sys.stderr, flush=True)
+
+def main():
+
+    try:
+        annual_rfr = get_risk_free_rate_fred(FRED_API_KEY)
+        if annual_rfr is not None:
+            print(f"Annual RFR: {annual_rfr:.2%}")
+        else:
+            print("Annual RFR: Not available (FRED API key not set)")
+            annual_rfr = 0.0
+    except Exception as e:
+        logging.warning(f"Failed to get risk-free rate: {e}")
+        annual_rfr = 0.0
+
+    # Load symbols from database for complete coverage
+    symbols = get_symbols_from_db(limit=None, skip_completed=False)  # Load ALL ETFs for complete coverage
+    if not symbols:
+        logging.info("✅ No symbols found to process!")
+        return
+
+    logging.info(f"📊 Processing {len(symbols)} symbols for complete buy/sell signal coverage")
+
+    # Load country ETF symbols (from etf_symbols where etf='Y' AND country IS NOT NULL)
+    # Note: Also need to filter country symbols by skip_completed
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT symbol FROM etf_symbols WHERE etf='Y' AND country IS NOT NULL AND symbol NOT IN (SELECT DISTINCT symbol FROM buy_sell_daily_etf);")
+        country_symbols = [r[0] for r in cur.fetchall()]
+    except Exception as e:
+        logging.warning(f"Could not load country ETF symbols from etf_symbols: {e}")
+        country_symbols = []
+    finally:
+        cur.close()
+        conn.close()
+
+    # Create single unified ETF signals table
+    conn = get_db_connection()
+    conn.autocommit = True
+    cur = conn.cursor()
+    create_buy_sell_table(cur, conn, "buy_sell_daily_etf")
+    cur.close()
+    conn.close()
+
+    # Combine regular and country ETF symbols into single list
+    all_etf_symbols = symbols + country_symbols
+    logging.info(f"🚀 Processing {len(symbols)} incomplete regular ETFs + {len(country_symbols)} incomplete country ETFs = {len(all_etf_symbols)} total ETFs")
+
+    # BLACKLIST: Skip bond ETFs that don't work with breakout strategy
+    blacklist = {'SHY', 'IEF', 'TLT', 'SHV', 'BND', 'AGG'}  # Bond ETFs - too stable
+    all_etf_symbols = [s for s in all_etf_symbols if s not in blacklist]
+    logging.info(f"After filtering blacklist: {len(all_etf_symbols)} ETFs to process")
+
+    # Process all ETFs into single unified table
+    if all_etf_symbols:
+        process_symbol_set(all_etf_symbols, "buy_sell_daily_etf", "ETF Signals", max_workers=12)
+
+    logging.info("Processing complete.")
+
+if __name__ == "__main__":
+    logging.info("Starting ETF Signals Loader")
+    main()
+    logging.info("✅ ETF Signals Loader completed")
