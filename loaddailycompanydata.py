@@ -75,7 +75,7 @@ logging.basicConfig(
 )
 
 # Retry decorator for yfinance API calls (handle 500 errors, timeouts, etc.)
-def retry_with_backoff(max_retries=2, base_delay=1):
+def retry_with_backoff(max_retries=4, base_delay=1):
     """Retry decorator with exponential backoff for API calls - handles rate limiting, HTTP errors, timeouts, etc.
 
     NOTE: Rate limiting should be handled by main loop delays (5s between requests), not retries.
@@ -304,26 +304,13 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
         ticker = yf.Ticker(yf_symbol)
         result = {'ticker': ticker}
 
-        # Space out property accesses to avoid rate limiting
-        time.sleep(0.5)
+        # Fetch all properties without artificial delays - yfinance handles rate limiting
         result['info'] = ticker.info
-
-        time.sleep(0.5)
         result['institutional_holders'] = ticker.institutional_holders
-
-        time.sleep(0.5)
         result['mutualfund_holders'] = ticker.mutualfund_holders
-
-        time.sleep(0.5)
         result['insider_transactions'] = ticker.insider_transactions
-
-        time.sleep(0.5)
         result['insider_roster'] = ticker.insider_roster_holders
-
-        time.sleep(0.5)
         result['earnings_estimate'] = ticker.earnings_estimate
-
-        time.sleep(0.5)
         result['revenue_estimate'] = ticker.revenue_estimate
 
         return result
@@ -1309,8 +1296,8 @@ if __name__ == "__main__":
                 delay = min(delay, 30.0)  # Cap at 30 seconds
                 logging.info(f"Rate limit backoff: {delay}s (consecutive hits: {rate_limit_consecutive})")
             else:
-                # Aggressive speed: 0.5 seconds between requests (max speed without rate limit)
-                delay = 0.5
+                # Balanced speed: 0.2 seconds between requests (reduces 500 errors while staying fast)
+                delay = 0.2
 
             time.sleep(delay)
 
