@@ -290,7 +290,7 @@ def calculate_missing_metrics(symbol: str, info: dict, ticker) -> dict:
 def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
     """Load ALL daily data from single yfinance API call"""
 
-    @retry_with_backoff(max_retries=2, base_delay=1)  # Only retry transient errors; rate limits handled by main loop
+    @retry_with_backoff(max_retries=3, base_delay=2)  # Retry 3 times with 2s base delay for transient 500 errors
     def fetch_yfinance_data(yf_symbol):
         """Fetch yfinance data with delays between property accesses
 
@@ -332,8 +332,26 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
         # Convert ticker format for yfinance (e.g., BRK.B → BRK-B)
         yf_symbol = symbol.replace('.', '-').replace('$', '-').upper()
 
-        # SINGLE API CALL gets everything (with retry)
-        data = fetch_yfinance_data(yf_symbol)
+        # SINGLE API CALL gets everything (with retry on 500 errors)
+        # Retry up to 3 times to recover from transient yfinance API failures
+        for attempt in range(3):
+            try:
+                data = fetch_yfinance_data(yf_symbol)
+                break
+            except Exception as e:
+                if attempt < 2:
+                    delay = 3 + (2 ** attempt)  # 4s, 5s, 6s delays
+                    logging.debug(f"Fetch failed for {symbol}, retry {attempt + 1}/3 in {delay}s...")
+                    time.sleep(delay)
+                else:
+                    logging.warning(f"All fetch attempts failed for {symbol}: {e}")
+                    data = None
+                    break
+
+        if data is None:
+            logging.warning(f"Could not fetch any data for {symbol} after 3 retries - skipping")
+            return {}
+
         ticker = data['ticker']  # Reuse the ticker object - avoid duplicate HTTP 500 errors
         info = data['info']
         institutional_holders = data['institutional_holders']
@@ -518,13 +536,13 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         symbol,
                         safe_float(info.get("trailingPE"), max_val=150),  # Realistic PE cap
                         safe_float(info.get("forwardPE"), max_val=150),  # Realistic PE cap
-                        safe_float(info.get("priceToSalesTrailing12Months"), max_val=500),  # P/S ratio
-                        safe_float(info.get("priceToBook"), max_val=500),  # P/B ratio
+                        safe_float(info.get("priceToSalesTrailing12Months"), max_val=10000, min_val=0),  # P/S ratio (speculative stocks can be extreme)
+                        safe_float(info.get("priceToBook"), max_val=10000, min_val=0),  # P/B ratio
                         safe_int(info.get("bookValue")),
-                        safe_float(info.get("trailingPegRatio"), max_val=100, min_val=0),
+                        safe_float(info.get("trailingPegRatio"), max_val=1000, min_val=0),
                         safe_int(info.get("enterpriseValue")),
-                        safe_float(info.get("enterpriseToRevenue"), max_val=500),  # EV/Revenue
-                        safe_float(info.get("enterpriseToEbitda"), max_val=500),  # EV/EBITDA
+                        safe_float(info.get("enterpriseToRevenue"), max_val=10000, min_val=0),  # EV/Revenue (allow real outliers)
+                        safe_float(info.get("enterpriseToEbitda"), max_val=10000, min_val=0),  # EV/EBITDA (allow real outliers)
                         safe_int(info.get("totalRevenue")),
                         safe_int(info.get("netIncomeToCommon")),
                         safe_int(info.get("ebitda")),
@@ -1020,7 +1038,21 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
 
         # 8.5. Insert earnings history (actual reported earnings - consolidated from loadearningshistory.py)
         try:
-            earnings_history = ticker.earnings_history
+            # Retry earnings history fetch with exponential backoff (it often fails with 500 errors)
+            earnings_history = None
+            for attempt in range(3):
+                try:
+                    earnings_history = ticker.earnings_history
+                    if earnings_history is not None and not earnings_history.empty:
+                        break
+                except Exception as eh:
+                    if attempt < 2:
+                        delay = 2 ** attempt  # 1s, 2s backoff
+                        logging.debug(f"Earnings history fetch failed for {symbol}, retry in {delay}s...")
+                        time.sleep(delay)
+                    else:
+                        raise
+
             if earnings_history is not None and not earnings_history.empty:
                 history_data = []
                 for quarter, row in earnings_history.iterrows():

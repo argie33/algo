@@ -1302,7 +1302,7 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
         elif sell_cond and in_position:
             signal = 'Sell'
         else:
-            signal = 'None'
+            signal = None
 
         signals.append(signal)
 

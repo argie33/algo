@@ -197,9 +197,9 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
         logging.warning(f"[{symbol}] pivot_price column NOT FOUND!")
 
     # Calculate metrics
-    # REAL DATA ONLY: Keep NaN for rows without enough data for 50-day average
+    # REAL DATA ONLY: Keep NaN for rows without enough data for 20-month average
     # Use pd.Int64Dtype() to allow nullable integers (NaN preserved as <NA>)
-    df['avg_volume_50d'] = df['volume'].rolling(window=50).mean()
+    df['avg_volume_50d'] = df['volume'].rolling(window=20).mean()
     # Keep as float - don't force Int64 conversion as rolling mean produces NaN values
 
     # === Calculate 30-month SMA for Weinstein Stage Analysis ===
@@ -1496,9 +1496,9 @@ def generate_signals(df, pvtLenL=3, pvtLenR=3, useMaFilter=True, maLength=50, sh
             df.at[i, 'base_length_days'] = length if length > 0 else None
 
     # === CALCULATE REAL METRICS ===
-    # Calculate 50-day rolling average volume
+    # Calculate rolling average volume: 20-month window for monthly data (vs 50-day for daily)
     # REAL DATA ONLY: Keep NaN for rows without enough data
-    df['avg_volume_50d'] = df['volume'].rolling(window=50).mean()
+    df['avg_volume_50d'] = df['volume'].rolling(window=20).mean()
     # Convert to float64 to avoid type casting errors with NaN values
     df['avg_volume_50d'] = df['avg_volume_50d'].astype('float64')
 

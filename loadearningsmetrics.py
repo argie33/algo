@@ -230,7 +230,9 @@ def load_earnings_metrics(cur, conn):
             report_date = report_date_ts.date()  # Convert to date for database
 
             # Get prior quarters for YoY comparison (4 quarters back)
-            prior_yoy = symbol_history[symbol_history['quarter'] < report_date_ts - timedelta(days=365)]
+            # Convert quarter column to datetime for proper comparison
+            symbol_history['quarter_dt'] = pd.to_datetime(symbol_history['quarter'])
+            prior_yoy = symbol_history[symbol_history['quarter_dt'] < report_date_ts - timedelta(days=365)]
 
             eps_qoq_growth = None
             eps_yoy_growth = None
