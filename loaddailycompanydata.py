@@ -896,6 +896,18 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
 
             # Use ON CONFLICT to ensure atomic updates - REAL DATA ONLY, NO DEFAULTS
             try:
+                values = (
+                    symbol,
+                    datetime.now().date(),
+                    inst_own,
+                    safe_int(info.get('institutionsCount')) if info else None,
+                    insider_own,
+                    short_ratio,
+                    short_pct,
+                    short_pct,
+                    ad_rating,
+                )
+                logging.debug(f"Positioning INSERT values for {symbol}: {values}")
                 cur.execute(
                     """
                     INSERT INTO positioning_metrics (
@@ -914,20 +926,10 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         ad_rating = EXCLUDED.ad_rating,
                         updated_at = CURRENT_TIMESTAMP
                     """,
-                    (
-                        symbol,
-                        datetime.now().date(),
-                        inst_own,
-                        safe_int(info.get('institutionsCount')) if info else None,
-                        insider_own,
-                        short_ratio,
-                        short_pct,
-                        short_pct,
-                        ad_rating,
-                    )
+                    values
                 )
                 stats['positioning'] = 1
-                logging.debug(f"{symbol}: Positioning metrics inserted - inst_own={inst_own}, insider_own={insider_own}, short_pct={short_pct}")
+                logging.info(f"✅ Positioning INSERT succeeded for {symbol}: inst_own={inst_own}, insider_own={insider_own}, short_pct={short_pct}")
             except Exception as e2:
                 logging.error(f"❌ CRITICAL: Failed to insert positioning metrics for {symbol}: {str(e2)[:200]}")
                 stats['positioning_failed'] = 1
