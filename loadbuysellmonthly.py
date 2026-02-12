@@ -271,14 +271,14 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
     df['exit_trigger_3_condition'] = '50_SMA_BREACH_WITH_VOLUME'
     df['exit_trigger_3_price'] = df['sma_50']  # Use SMA 50 as exit point
     df['exit_trigger_4_condition'] = 'STOP_LOSS_HIT'
-    df['exit_trigger_4_price'] = df['stoplevel']  # Stop loss is exit trigger
+    df['exit_trigger_4_price'] = df['stopLevel']  # Stop loss is exit trigger
 
     # Buy zone calculation (95% to 100% of buy level)
     df['buy_zone_start'] = df.apply(
         lambda row: row['buyLevel'] * 0.95 if row['buyLevel'] is not None else None,
         axis=1
     )
-    df['buy_zone_end'] = df['buylevel']
+    df['buy_zone_end'] = df['buyLevel']
 
     # Signal type determination
     df['signal_type'] = df['Signal'].map({'Buy': 'Buy', 'Sell': 'Sell'})
