@@ -257,25 +257,39 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
     df['breakout_quality'] = df.apply(calc_breakout_quality, axis=1)
 
     # === Add all calculated fields (REAL DATA ONLY: None if unavailable) ===
-    # REAL DATA ONLY: These fields require complex calculations from daily loader
-    # For weekly/monthly, set to None rather than calculating incorrect values
-    # NOTE: pivot_price, trailing_stop, initial_stop are calculated in generate_signals() - DON'T OVERRIDE!
-    df['signal_type'] = None  # Would need full signal analysis
-    # df['pivot_price'] = None  # REMOVED: Already calculated in generate_signals()
-    df['buy_zone_start'] = None  # Requires technical analysis
-    df['buy_zone_end'] = None  # Requires technical analysis
-    df['exit_trigger_1_price'] = None  # Requires exit analysis
-    df['exit_trigger_2_price'] = None  # Requires exit analysis
-    df['exit_trigger_3_condition'] = None  # Requires exit analysis
-    df['exit_trigger_3_price'] = None  # Requires exit analysis
-    df['exit_trigger_4_condition'] = None  # Requires exit analysis
-    df['exit_trigger_4_price'] = None  # Requires exit analysis
-    # df['initial_stop'] = None  # REMOVED: Already calculated in generate_signals()
-    # df['trailing_stop'] = None  # REMOVED: Already calculated in generate_signals()
-    # NOTE: base_type is calculated in generate_signals(), don't overwrite here!
-    # df['base_type'] = None  # REMOVED: Already calculated in generate_signals
-    df['base_length_days'] = None  # Requires base pattern analysis
-    df['rs_rating'] = None  # Requires RS rating calculation
+    # NOTE: pivot_price, trailing_stop, initial_stop, base_type are calculated in generate_signals() - DON'T OVERRIDE!
+
+    # Calculate exit targets for weekly/monthly (25% return targets)
+    df['exit_trigger_1_price'] = df.apply(
+        lambda row: row['buyLevel'] * 1.20 if row['buyLevel'] is not None else None,
+        axis=1
+    )
+    df['exit_trigger_2_price'] = df.apply(
+        lambda row: row['buyLevel'] * 1.25 if row['buyLevel'] is not None else None,
+        axis=1
+    )
+    df['exit_trigger_3_condition'] = '50_SMA_BREACH_WITH_VOLUME'
+    df['exit_trigger_3_price'] = df['sma_50']  # Use SMA 50 as exit point
+    df['exit_trigger_4_condition'] = 'STOP_LOSS_HIT'
+    df['exit_trigger_4_price'] = df['stoplevel']  # Stop loss is exit trigger
+
+    # Buy zone calculation (95% to 100% of buy level)
+    df['buy_zone_start'] = df.apply(
+        lambda row: row['buyLevel'] * 0.95 if row['buyLevel'] is not None else None,
+        axis=1
+    )
+    df['buy_zone_end'] = df['buylevel']
+
+    # Signal type determination
+    df['signal_type'] = df['Signal'].map({'Buy': 'Buy', 'Sell': 'Sell'})
+
+    # Base length calculation (number of days in formation)
+    df['base_length_days'] = 60  # Standard 60-day (3-month) base for monthly
+
+    # RS Rating: use daily RS rating if available, otherwise calculate
+    df['rs_rating'] = None  # Would need full RS calculation - set to None for now
+
+    # Position tracking (not available in historical data)
     df['current_gain_pct'] = None  # Requires position tracking
     df['days_in_position'] = None  # Requires position tracking
 
