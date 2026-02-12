@@ -75,12 +75,14 @@ logging.basicConfig(
 )
 
 # Retry decorator for yfinance API calls (handle 500 errors, timeouts, etc.)
-def retry_with_backoff(max_retries=4, base_delay=1):
-    """Retry decorator with exponential backoff for API calls - handles rate limiting, HTTP errors, timeouts, etc.
+def retry_with_backoff(max_retries=10, base_delay=0.5):
+    """Retry decorator with exponential backoff for API calls - RESILIENT to HTTP 500 errors.
 
-    NOTE: Rate limiting should be handled by main loop delays (5s between requests), not retries.
-    This decorator only retries transient errors (timeouts, connection errors, HTTP 500/503).
-    Rate limit errors are counted but not retried to avoid cascading delays.
+    Enhanced to handle yfinance HTTP 500 errors more effectively:
+    - Increased max_retries from 4 to 10
+    - Longer exponential backoff (0.5s, 1s, 2s, 4s, 8s, 16s, 32s, 64s, 120s, 120s)
+    - Retries ALL transient errors (HTTP 500, 503, timeouts, connection errors)
+    - Rate limit errors trigger main loop backoff
     """
     def decorator(func):
         @wraps(func)
@@ -91,21 +93,25 @@ def retry_with_backoff(max_retries=4, base_delay=1):
                 except Exception as e:
                     error_str = str(e).lower()
                     # Retry on transient errors: HTTP 500, 503, timeouts, connection errors
-                    is_transient = any(x in error_str for x in ['500', '503', 'timeout', 'connection', 'temporarily unavailable', 'remote end closed'])
-                    # Rate limit errors are NOT retried - the main loop delay handles spacing
+                    is_transient = any(x in error_str for x in ['500', '503', 'timeout', 'connection', 'temporarily unavailable', 'remote end closed', 'http error'])
+                    # Rate limit errors should trigger main loop backoff
                     is_rate_limit = any(x in error_str for x in ['rate limit', '429'])
 
                     if is_rate_limit:
-                        # Log rate limit but don't retry - main loop will space requests
+                        # Log rate limit and fail - main loop will space requests
                         logging.warning(f"⚠️ RATE LIMITED on {func.__name__} (attempt {attempt + 1}/{max_retries}). Main loop will add spacing.")
-                        raise  # Fail immediately so main loop can add 5s delay before retry
+                        raise  # Fail immediately so main loop can add delay before retry
                     elif is_transient:
-                        delay = base_delay * (2 ** attempt)  # 1s, 2s for transient errors
+                        # RESILIENT: Exponential backoff with longer delays (0.5, 1, 2, 4, 8, 16, 32, 64, 120, 120)
+                        delay = base_delay * (2 ** attempt)
+                        delay = min(delay, 120)  # Cap at 2 minutes for extreme cases
+
                         if attempt < max_retries - 1:
-                            # Silently retry transient errors (HTTP 500, timeouts, etc.) - only log if all attempts fail
+                            # Retry transient errors with exponential backoff
+                            logging.warning(f"⚠️ Transient error in {func.__name__} (attempt {attempt + 1}/{max_retries}), retrying in {delay:.1f}s: {str(e)[:80]}")
                             time.sleep(delay)
                         else:
-                            logging.error(f"All {max_retries} attempts failed for {func.__name__}: {e}")
+                            logging.error(f"❌ All {max_retries} retry attempts exhausted for {func.__name__}: {e}")
                             raise
                     else:
                         # Unknown error - log and fail
@@ -1256,63 +1262,90 @@ if __name__ == "__main__":
     # Track execution time
     start_time = time.time()
     rate_limit_consecutive = 0
-    for i, symbol in enumerate(symbols):
-        try:
-            stats = load_all_realtime_data(symbol, cur, conn)
-            if stats:
-                for key in total_stats:
-                    total_stats[key] += stats.get(key, 0)
-                processed += 1
-                rate_limit_consecutive = 0  # Reset rate limit counter on success
-                logging.info(f"✅ {symbol}: {stats}")
-            else:
-                failed.append(symbol)
-                logging.warning(f"⚠️  {symbol}: No stats returned")
 
-        except Exception as e:
-            error_str = str(e).lower()
-            # Check for rate limit errors
-            if 'rate limit' in error_str or '429' in error_str:
-                rate_limit_consecutive += 1
-                logging.warning(f"⚠️ RATE LIMITED on {symbol} (consecutive: {rate_limit_consecutive}). Increasing delay...")
-            else:
-                # Track HTTP 500 errors for this symbol
-                if '500' in error_str or 'http error' in error_str:
-                    api_error_symbols[symbol] = api_error_symbols.get(symbol, 0) + 1
-                    if api_error_symbols[symbol] <= 1:  # Only log first occurrence per symbol
-                        logging.warning(f"⚠️  {symbol}: yfinance API error (will skip if persistent): {str(e)[:100]}")
+    # MAIN LOOP: Process all symbols with automatic retries for failures
+    logging.info(f"🚀 Starting RESILIENT data load with automatic retries for {len(symbols)} symbols")
+
+    # Try each symbol up to 4 times (initial + 3 retries)
+    attempt = 1
+    max_attempts = 4
+    symbols_to_process = symbols[:]  # Copy list for retry attempts
+
+    while symbols_to_process and attempt <= max_attempts:
+        if attempt > 1:
+            logging.info(f"🔄 Retry pass {attempt}/{max_attempts}: Retrying {len(symbols_to_process)} failed symbols (with longer delays)...")
+
+        failed_this_pass = []
+
+        for i, symbol in enumerate(symbols_to_process):
+            try:
+                stats = load_all_realtime_data(symbol, cur, conn)
+                if stats:
+                    for key in total_stats:
+                        total_stats[key] += stats.get(key, 0)
+                    processed += 1
+                    rate_limit_consecutive = 0  # Reset rate limit counter on success
+                    logging.info(f"✅ {symbol}: {stats}")
                 else:
-                    logging.error(f"❌ CRITICAL: Complete failure for {symbol}: {str(e)[:200]}")
-                rate_limit_consecutive = 0  # Reset on non-rate-limit errors
-            failed.append(symbol)
-            # Don't rollback - aborts entire transaction, but error is logged
+                    failed_this_pass.append(symbol)
+                    logging.warning(f"⚠️  {symbol}: No stats returned")
 
-        finally:
-            # Delay between requests to respect yfinance rate limits
-            # Using adaptive delays: start at 2.5s, increase only if hitting rate limits
-            if rate_limit_consecutive > 0:
-                # Exponential backoff after rate limit hits: 5s, 8s, 12s, 16s, 20s...
-                delay = 5.0 + (3.0 * (rate_limit_consecutive - 1))
-                delay = min(delay, 30.0)  # Cap at 30 seconds
-                logging.info(f"Rate limit backoff: {delay}s (consecutive hits: {rate_limit_consecutive})")
-            else:
-                # Balanced speed: 0.2 seconds between requests (reduces 500 errors while staying fast)
-                delay = 0.2
+            except Exception as e:
+                error_str = str(e).lower()
+                # Check for rate limit errors
+                if 'rate limit' in error_str or '429' in error_str:
+                    rate_limit_consecutive += 1
+                    logging.warning(f"⚠️ RATE LIMITED on {symbol} (consecutive: {rate_limit_consecutive}). Increasing delay...")
+                else:
+                    # Track HTTP 500 errors for this symbol
+                    if '500' in error_str or 'http error' in error_str:
+                        api_error_symbols[symbol] = api_error_symbols.get(symbol, 0) + 1
+                        logging.warning(f"⚠️  {symbol}: yfinance API error (attempt {api_error_symbols[symbol]}): {str(e)[:100]}")
+                    else:
+                        logging.error(f"❌ CRITICAL: Complete failure for {symbol}: {str(e)[:200]}")
+                    rate_limit_consecutive = 0  # Reset on non-rate-limit errors
+                failed_this_pass.append(symbol)
+                # Don't rollback - error is logged
 
-            time.sleep(delay)
+            finally:
+                # Delay between requests to respect yfinance rate limits
+                # RESILIENT: Longer delays to reduce HTTP 500 errors
+                if rate_limit_consecutive > 0:
+                    # Exponential backoff after rate limit hits: 5s, 8s, 12s, 16s, 20s...
+                    delay = 5.0 + (3.0 * (rate_limit_consecutive - 1))
+                    delay = min(delay, 30.0)  # Cap at 30 seconds
+                    logging.info(f"Rate limit backoff: {delay}s (consecutive hits: {rate_limit_consecutive})")
+                else:
+                    # IMPROVED: Longer delays reduce HTTP 500 errors
+                    if attempt == 1:
+                        delay = 1.0  # Initial pass: 1 second between requests
+                    else:
+                        delay = 2.0  # Retry passes: 2 seconds between requests (be gentler on API)
 
-            # Progress indicator every 100 symbols
-            if (i + 1) % 100 == 0:
-                pct = round((i + 1) / len(symbols) * 100, 1)
-                elapsed_min = round((time.time() - start_time) / 60, 1)
-                eta_min = round(elapsed_min * len(symbols) / (i + 1) - elapsed_min, 1) if i > 0 else 0
-                logging.info(f"Progress: {i + 1}/{len(symbols)} ({pct}%) - {processed} loaded, {len(failed)} failed - Elapsed: {elapsed_min}min, ETA: {eta_min}min")
+                time.sleep(delay)
+
+                # Progress indicator every 50 symbols
+                if (i + 1) % 50 == 0:
+                    elapsed_min = round((time.time() - start_time) / 60, 1)
+                    logging.info(f"Progress: {processed}/{len(symbols)} loaded - Elapsed: {elapsed_min}min (Attempt {attempt})")
+
+        # Update symbols to retry for next attempt
+        symbols_to_process = failed_this_pass
+        if not symbols_to_process:
+            logging.info(f"✅ All symbols loaded successfully on attempt {attempt}!")
+            break
+        elif len(symbols_to_process) < len(symbols_to_process if attempt > 1 else symbols):
+            logging.info(f"✅ Progress: Fixed {len(symbols_to_process) if attempt == 1 else 'some'} symbols, retrying {len(symbols_to_process)} on next pass")
+
+        attempt += 1
 
     logging.info("=" * 80)
     logging.info("REAL-TIME DATA LOADING COMPLETE")
     logging.info("=" * 80)
-    logging.info(f"Processed: {processed}/{len(symbols)}")
-    logging.info(f"Failed: {len(failed)}")
+    success_rate = round(processed / len(symbols) * 100, 1) if symbols else 0
+    logging.info(f"✅ SUCCESS: {processed}/{len(symbols)} ({success_rate}%)")
+    if failed:
+        logging.info(f"⚠️  STILL FAILING: {len(failed)} ({round(len(failed)/len(symbols)*100, 1)}%) - will need manual retry")
 
     # Summary stats collected from individual stock loads
     logging.info(f"📊 Component Summary:")
