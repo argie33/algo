@@ -141,138 +141,124 @@ function TradingSignals() {
     }
   };
 
-  // Fetch buy/sell signals for ALL timeframes in parallel
+  // Fetch buy/sell signals for CURRENT timeframe only (not all three)
   const {
-    data: allTimeframesData,
-    isLoading: allTimeframesLoading,
-    error: allTimeframesError,
+    data: signalsData,
+    isLoading: signalsLoading,
+    error: signalsError,
   } = useQuery({
     queryKey: [
-      "tradingSignalsAllTimeframes",
-      assetType, // Stock or ETF
+      "tradingSignals",
+      assetType,
+      timeframe,
       signalType,
       symbolFilter,
-      // Note: timeframe is removed - we load ALL timeframes now
     ],
     queryFn: async () => {
       try {
-        const timeframes = ["daily", "weekly", "monthly"];
+        const params = new URLSearchParams();
+
+        // Only add defined parameters
+        if (signalType !== "all") {
+          params.append("signal_type", signalType);
+        }
+        params.append("timeframe", timeframe);
+
+        // Reasonable limits:
+        // - If filtering by symbol: load up to 500 signals for that symbol
+        // - Otherwise: load up to 100 signals (default behavior)
+        if (symbolFilter) {
+          params.append("limit", 500);
+          params.append("symbol", symbolFilter);
+        } else {
+          params.append("limit", 100);
+        }
+
+        // Add cache-busting parameter to force fresh data from server
+        params.append("_t", Date.now());
+
+        // Use correct endpoint based on asset type
+        const endpoint = assetType === "etf" ? "etf" : "stocks";
+        const url = `${API_BASE}/api/signals/${endpoint}?${params}`;
         const startTime = Date.now();
 
-        logger.info("🔄 LOADING ALL TIMEFRAMES - Starting parallel fetch");
+        logger.info(`📡 Fetching ${timeframe} signals: ${url}`);
 
+        const response = await fetch(url);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+
+        const data = await response.json();
+        const duration = Date.now() - startTime;
+        const itemCount = data?.items?.length || 0;
+
+        logger.info(`✅ Loaded ${itemCount} signals in ${duration}ms`, {
+          timeframe,
+          items: itemCount,
+          pagination: data?.pagination,
+        });
+
+        return data;
+      } catch (err) {
+        logger.error("fetchTradingSignals - Error", err);
+        console.error("❌ ERROR LOADING SIGNALS:", err);
+        throw err;
+      }
+    },
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+    gcTime: 0,
+    cacheTime: 0,
+    refetchInterval: 5000,
+    onError: (err) =>
+      logger.queryError("tradingSignals", err, { timeframe, signalType }),
+  });
+
+  // Fetch summary stats from all timeframes (lightweight operation)
+  const {
+    data: allTimeframesData,
+  } = useQuery({
+    queryKey: ["tradingSignalsSummary", assetType, signalType, symbolFilter],
+    queryFn: async () => {
+      try {
+        const timeframes = ["daily", "weekly", "monthly"];
         const requests = timeframes.map(async (tf) => {
           const params = new URLSearchParams();
-
-          // Only add defined parameters
           if (signalType !== "all") {
             params.append("signal_type", signalType);
           }
           params.append("timeframe", tf);
-
-          // Smart loading strategy:
-          // - If filtering by symbol: load ALL historical data for that symbol
-          // - Otherwise: load only recent signals for performance
-          if (symbolFilter) {
-            params.append("limit", 100000); // Load all history for specific symbol
-          } else {
-            params.append("limit", 5000); // Default: load recent signals only
-          }
-
+          params.append("limit", 100); // Small limit for summary only
           if (symbolFilter) {
             params.append("symbol", symbolFilter);
           }
-
-          // Add cache-busting parameter to force fresh data from server
           params.append("_t", Date.now());
 
-          // Use correct endpoint based on asset type
           const endpoint = assetType === "etf" ? "etf" : "stocks";
           const url = `${API_BASE}/api/signals/${endpoint}?${params}`;
-          const tfStartTime = Date.now();
-
-          logger.info(`📡 [${tf.toUpperCase()}] Request: ${url}`);
 
           const response = await fetch(url);
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`HTTP ${response.status}: ${errorText}`);
-          }
-
-          const data = await response.json();
-          const tfDuration = Date.now() - tfStartTime;
-          const itemCount = data?.items?.length || 0;
-
-          logger.info(`✅ [${tf.toUpperCase()}] Loaded ${itemCount} signals in ${tfDuration}ms`, {
-            items: itemCount,
-            pagination: data?.pagination,
-          });
-
-          return {
-            timeframe: tf,
-            data: data,
-            loadTime: tfDuration,
-          };
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return await response.json();
         });
 
-        // Execute all requests in parallel
         const results = await Promise.all(requests);
-
-        // Combine results into a single object
-        const combined = {
-          daily: results.find((r) => r.timeframe === "daily")?.data || { items: [] },
-          weekly: results.find((r) => r.timeframe === "weekly")?.data || { items: [] },
-          monthly: results.find((r) => r.timeframe === "monthly")?.data || { items: [] },
+        return {
+          daily: results[0] || { items: [] },
+          weekly: results[1] || { items: [] },
+          monthly: results[2] || { items: [] },
         };
-
-        const totalTime = Date.now() - startTime;
-        const dailyCount = combined.daily?.items?.length || 0;
-        const weeklyCount = combined.weekly?.items?.length || 0;
-        const monthlyCount = combined.monthly?.items?.length || 0;
-        const totalCount = dailyCount + weeklyCount + monthlyCount;
-
-        logger.info(`🎯 ALL TIMEFRAMES LOADED in ${totalTime}ms - Total: ${totalCount} signals`, {
-          daily: dailyCount,
-          weekly: weeklyCount,
-          monthly: monthlyCount,
-          total: totalCount,
-          totalLoadTime: totalTime,
-        });
-
-        // Also log to console for visibility
-        console.log(`
-═══════════════════════════════════════════════════════════════
-🎯 TRADING SIGNALS - ALL TIMEFRAMES LOADED
-═══════════════════════════════════════════════════════════════
-📊 DAILY:   ${dailyCount} signals
-📊 WEEKLY:  ${weeklyCount} signals
-📊 MONTHLY: ${monthlyCount} signals
-───────────────────────────────────────────────────────────────
-🏆 TOTAL:   ${totalCount} signals
-⏱️  Load Time: ${totalTime}ms
-═══════════════════════════════════════════════════════════════
-        `);
-
-        return combined;
       } catch (err) {
-        logger.error("fetchTradingSignals - Error loading timeframes", err);
-        console.error("❌ ERROR LOADING TIMEFRAMES:", err);
-        throw err;
+        logger.warn("fetchSummaryStats - Error", err);
+        return { daily: { items: [] }, weekly: { items: [] }, monthly: { items: [] } };
       }
     },
-    refetchOnWindowFocus: true, // Refetch when window regains focus
-    staleTime: 0, // Always fresh - no stale cache
-    gcTime: 0, // Disable garbage collection cache (React Query v5+)
-    cacheTime: 0, // Disable caching for older React Query versions
-    refetchInterval: 5000, // Refetch every 5 seconds for real-time updates
-    onError: (err) =>
-      logger.queryError("tradingSignalsAllTimeframes", err, { signalType }),
+    staleTime: 10000,
+    gcTime: 10000,
+    cacheTime: 10000,
   });
-
-  // Get the current timeframe's data from all loaded data
-  const signalsData = allTimeframesData ? allTimeframesData[timeframe] : null;
-  const signalsLoading = allTimeframesLoading;
-  const signalsError = allTimeframesError;
 
   // Ensure we have a valid response object, default to empty items
   const validSignalsData = signalsData || { items: [] };
@@ -380,6 +366,12 @@ function TradingSignals() {
     // Always filter out signals with no real data (show only signals with substantial data)
     filtered = filtered.filter((signal) => hasRealData(signal));
 
+    // Apply signal type filter (Buy/Sell) - API filters, but re-filter on frontend for safety
+    if (signalType !== "all") {
+      const typeToMatch = signalType.charAt(0).toUpperCase() + signalType.slice(1).toLowerCase();
+      filtered = filtered.filter((signal) => signal.signal === typeToMatch);
+    }
+
     // Apply date range filter only if not "all"
     if (dateRange !== "all") {
       filtered = filtered.filter((signal) => matchesDateRange(signal.date));
@@ -412,6 +404,7 @@ function TradingSignals() {
     return filtered;
   }, [
     validSignalsData,
+    signalType,
     showActiveOnly,
     dateRange,
     symbolFilter,
