@@ -227,51 +227,67 @@ def load_earnings_history(symbols, cur, conn, cfg):
     return total, processed, failed
 
 def lambda_handler(event, context):
-    log_mem("startup")
-    cfg = get_db_config()
-    if cfg["host"]:
-        conn = psycopg2.connect(
-            host=cfg["host"], port=cfg.get("port", 5432),
-            user=cfg["user"], password=cfg["password"],
-            dbname=cfg["dbname"]
-        )
-    else:
-        # Socket connection (peer auth)
-        conn = psycopg2.connect(
-            dbname=cfg["dbname"],
-            user=cfg["user"]
-        )
-    conn.autocommit = False
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        log_mem("startup")
+        cfg = get_db_config()
+        logging.info(f"Connecting to {cfg['host']}:{cfg.get('port', 5432)}/{cfg['dbname']} as {cfg['user']}")
 
-    create_tables(cur)
-    conn.commit()
+        if cfg["host"]:
+            conn = psycopg2.connect(
+                host=cfg["host"], port=cfg.get("port", 5432),
+                user=cfg["user"], password=cfg["password"],
+                dbname=cfg["dbname"]
+            )
+        else:
+            # Socket connection (peer auth)
+            conn = psycopg2.connect(
+                dbname=cfg["dbname"],
+                user=cfg["user"]
+            )
+        conn.autocommit = False
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    cur.execute("SELECT symbol FROM stock_symbols;")
-    stock_syms = [r["symbol"] for r in cur.fetchall()]
-    t, p, f = load_earnings_history(stock_syms, cur, conn, cfg)
+        logging.info("Database connected successfully")
 
-    cur.execute("""
-      INSERT INTO last_updated (script_name, last_run)
-      VALUES (%s, NOW())
-      ON CONFLICT (script_name) DO UPDATE
-        SET last_run = EXCLUDED.last_run;
-    """, (SCRIPT_NAME,))
-    conn.commit()
+        create_tables(cur)
+        conn.commit()
 
-    peak = get_rss_mb()
-    logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
-    logging.info(f"Earnings History — total: {t}, processed: {p}, failed: {len(f)}")
+        cur.execute("SELECT symbol FROM stock_symbols;")
+        stock_syms = [r["symbol"] for r in cur.fetchall()]
+        logging.info(f"Loaded {len(stock_syms)} symbols from database")
 
-    cur.close()
-    conn.close()
-    logging.info("All done.")
-    return {
-        "total": t,
-        "processed": p,
-        "failed": f,
-        "peak_rss_mb": peak
-    }
+        t, p, f = load_earnings_history(stock_syms, cur, conn, cfg)
+
+        cur.execute("""
+          INSERT INTO last_updated (script_name, last_run)
+          VALUES (%s, NOW())
+          ON CONFLICT (script_name) DO UPDATE
+            SET last_run = EXCLUDED.last_run;
+        """, (SCRIPT_NAME,))
+        conn.commit()
+
+        peak = get_rss_mb()
+        logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
+        logging.info(f"Earnings History — total: {t}, processed: {p}, failed: {len(f)}")
+
+        cur.close()
+        conn.close()
+        logging.info("All done.")
+        return {
+            "total": t,
+            "processed": p,
+            "failed": f,
+            "peak_rss_mb": peak
+        }
+    except Exception as e:
+        logging.error(f"FATAL ERROR in lambda_handler: {type(e).__name__}: {e}", exc_info=True)
+        raise
 
 if __name__ == "__main__":
-    lambda_handler(None, None)
+    try:
+        lambda_handler(None, None)
+    except Exception as e:
+        logging.error(f"FATAL ERROR: {type(e).__name__}: {e}", exc_info=True)
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
