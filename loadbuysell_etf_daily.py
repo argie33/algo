@@ -1881,7 +1881,7 @@ def process_symbol_set(symbols, table_name, label, max_workers=6):
         return
 
     # Use 4 workers for balanced speed/stability (was 2, can tolerate some locks)
-    max_workers = min(max_workers, 4)
+    max_workers = min(max_workers, 2)  # OOM FIX: Reduce from 4
 
     logging.info(f"Starting {label} processing with {max_workers} workers for {len(symbols)} symbols")
 
@@ -1974,7 +1974,7 @@ def main():
 
     # Process all ETFs into single unified table
     if all_etf_symbols:
-        process_symbol_set(all_etf_symbols, "buy_sell_daily_etf", "ETF Signals", max_workers=12)
+        process_symbol_set(all_etf_symbols, "buy_sell_daily_etf", "ETF Signals", max_workers=2)  # OOM FIX
 
     logging.info("Processing complete.")
 
