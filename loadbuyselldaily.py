@@ -245,12 +245,16 @@ def create_buy_sell_table(cur, conn, table_name="buy_sell_daily"):
         conn.rollback()
 
 def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell_daily"):
+    """Insert symbol results with memory optimization - process in chunks"""
+    # Free memory immediately - don't keep full dataframe
+    import gc
+
     # DEBUG: Check if pivot_price exists in DataFrame
     if 'pivot_price' in df.columns:
         non_null = df['pivot_price'].notna().sum()
-        logging.info(f"[{symbol}] pivot_price column exists: {non_null}/{len(df)} non-null values. Sample: {df['pivot_price'].head(3).tolist()}")
+        logging.info(f"[{symbol}] pivot_price column exists: {non_null}/{len(df)} non-null values")
     else:
-        logging.warning(f"[{symbol}] pivot_price column NOT FOUND! Columns: {list(df.columns)}")
+        logging.warning(f"[{symbol}] pivot_price column NOT FOUND! Columns count: {len(df.columns)}")
 
     insert_q = f"""
       INSERT INTO {table_name} (
@@ -616,32 +620,38 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
             skipped += 1
             continue
 
-    # === BULK INSERT ALL ROWS AT ONCE ===
-    # This single executemany() call is 10x+ faster than individual INSERT statements
+    # === CHUNKED BULK INSERT (OOM FIX) ===
+    # Process in chunks of 1000 rows to prevent memory exhaustion
+    # Memory cleanup after each chunk flush
+    import gc
+
+    CHUNK_SIZE = 1000
+    total_inserted = 0
+    total_skipped = 0
+
     if insert_rows:
         try:
-            cur.executemany(insert_q, insert_rows)
-            rows_affected = cur.rowcount
-            conn.commit()
+            # Process in chunks
+            for i in range(0, len(insert_rows), CHUNK_SIZE):
+                chunk = insert_rows[i:i + CHUNK_SIZE]
+                try:
+                    cur.executemany(insert_q, chunk)
+                    rows_affected = cur.rowcount
+                    conn.commit()
+                    total_inserted += rows_affected
+                except Exception as e:
+                    conn.rollback()
+                    logging.warning(f"Chunk {i//CHUNK_SIZE} insert failed for {symbol} {timeframe}: {e}")
 
-            # CRITICAL: Check if ALL rows were silently skipped by ON CONFLICT
-            if rows_affected == 0 and len(insert_rows) > 0:
-                logging.error(f"🚨 SILENT FAILURE: ON CONFLICT silently skipped ALL {len(insert_rows)} rows for {symbol} {timeframe} - data already exists for (symbol, timeframe, date)")
-                inserted = 0
-            elif rows_affected < len(insert_rows):
-                logging.warning(f"⚠️  PARTIAL CONFLICT: {rows_affected}/{len(insert_rows)} rows inserted for {symbol} {timeframe} - {len(insert_rows) - rows_affected} skipped by ON CONFLICT")
-                inserted = rows_affected
-            else:
-                logging.debug(f"✅ Bulk inserted {rows_affected} rows for {symbol} {timeframe}")
+            # Force garbage collection to free dataframe memory
+            del insert_rows
+            gc.collect()
 
-        except psycopg2.IntegrityError as ie:
-            conn.rollback()
-            # CRITICAL FIX: Integrity error means ENTIRE batch was rolled back - ZERO rows inserted
-            logging.error(f"🚨 BATCH INSERT FAILED: IntegrityError for {symbol} {timeframe} - ROLLED BACK {len(insert_rows)} rows: {ie}")
-            inserted = 0  # MUST be 0 - entire batch rolled back
+            inserted = total_inserted
+
         except Exception as e:
             conn.rollback()
-            logging.error(f"🚨 BATCH INSERT FAILED: Generic error for {symbol} {timeframe} - ROLLED BACK {len(insert_rows)} rows: {e}")
+            logging.error(f"🚨 BATCH INSERT FAILED: {symbol} {timeframe}: {e}")
             inserted = 0
 
     # Alert if skipped rows or batch failures
@@ -1819,6 +1829,7 @@ def process_symbol(symbol, timeframe):
 
 def process_symbol_wrapper(sym):
     """Process a single symbol in a thread-safe manner"""
+    import gc
     try:
         tf = 'Daily'
         logging.debug(f"  [thread] Processing {sym} {tf}")
@@ -1841,7 +1852,11 @@ def process_symbol_wrapper(sym):
         cur.close()
         conn.close()
 
-        return sym, rets, durs, df
+        # CRITICAL: Clear dataframe from memory immediately after use
+        del df
+        gc.collect()
+
+        return sym, rets, durs, None  # Return None instead of df to free memory
     except Exception as e:
         # Log error with full traceback to both file and stderr
         logging.error(f"Error processing {sym}: {e}", exc_info=True)
@@ -1860,9 +1875,10 @@ def process_symbol_set(symbols, table_name, label, max_workers=6):
         logging.info(f"{label}: No symbols to process")
         return
 
-    # Use 8 workers for parallelism - faster despite database load
-    # Database WALWrite is acceptable bottleneck vs sequential processing
-    max_workers = min(max_workers, 8)
+    # OOM FIX: Reduced max to 3 workers - prevents heap corruption from simultaneous dataframe allocations
+    # Lower parallelism = lower peak memory usage
+    # Database I/O is the bottleneck anyway, not CPU
+    max_workers = min(max_workers, 3)
 
     logging.info(f"Starting {label} processing with {max_workers} workers for {len(symbols)} symbols")
 
@@ -1948,9 +1964,10 @@ def main():
     # Process ONLY regular stocks (NO ETFs) - NOW ONLY INCOMPLETE ONES
     logging.info(f"🚀 Processing {len(symbols)} remaining regular stocks (excluding {len(country_symbols)} country symbols)")
 
-    # Process all stocks into single unified table (increased to 8 workers for better performance)
+    # Process all stocks into single unified table (reduced to 2 workers to prevent OOM)
+    # OOM fix: Using fewer workers prevents simultaneous massive dataframe allocations
     if symbols:
-        process_symbol_set(symbols, "buy_sell_daily", "Stock Signals", max_workers=8)
+        process_symbol_set(symbols, "buy_sell_daily", "Stock Signals", max_workers=2)
 
     logging.info("Processing complete.")
 
