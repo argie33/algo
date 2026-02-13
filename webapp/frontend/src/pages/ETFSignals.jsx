@@ -166,12 +166,12 @@ function ETFSignals() {
           params.append("timeframe", tf);
 
           // Smart loading strategy:
-          // - If filtering by symbol: load ALL historical data for that symbol
+          // - If filtering by symbol: load limited historical data for that symbol
           // - Otherwise: load only recent signals for performance
           if (symbolFilter) {
-            params.append("limit", 100000); // Load all history for specific symbol
+            params.append("limit", 1000); // Reduced from 100000 to prevent OOM
           } else {
-            params.append("limit", 5000); // Default: load recent signals only
+            params.append("limit", 500); // Reduced from 5000 to prevent OOM
           }
 
           if (symbolFilter) {
@@ -1059,7 +1059,7 @@ function ETFSignals() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {historicalData?.data?.map((signal, index) => (
+                  {historicalData?.items?.map((signal, index) => (
                     <TableRow key={`${signal.symbol}-${signal.date || signal.signal_triggered_date}-${index}`}>
                       <TableCell>
                         {signal.signal_triggered_date

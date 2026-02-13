@@ -72,7 +72,7 @@ export const getDynamicColumns = (signals, customPriorityColumns = null) => {
   const defaultPriorityColumns = [
     "symbol", "company_name", "signal", "date",
     "current_price", "close", "open", "high", "low",
-    "buylevel", "stoplevel", "selllevel", "target_price",
+    "buylevel", "stoplevel", "sell_level", "target_price",
     "profit_target_8pct", "profit_target_20pct", "profit_target_25pct",
     "risk_reward_ratio", "risk_pct", "position_size_recommendation",
     "market_stage", "stage_number", "stage_confidence", "substage", "quality_score",

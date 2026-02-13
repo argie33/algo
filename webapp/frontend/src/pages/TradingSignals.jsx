@@ -165,13 +165,13 @@ function TradingSignals() {
         params.append("timeframe", timeframe);
 
         // Reasonable limits:
-        // - If filtering by symbol: load up to 500 signals for that symbol
-        // - Otherwise: load up to 100 signals (default behavior)
+        // - If filtering by symbol: load up to 200 signals for that symbol
+        // - Otherwise: load up to 50 signals (default behavior)
         if (symbolFilter) {
-          params.append("limit", 500);
+          params.append("limit", 200);
           params.append("symbol", symbolFilter);
         } else {
-          params.append("limit", 100);
+          params.append("limit", 50);
         }
 
         // Add cache-busting parameter to force fresh data from server
@@ -211,7 +211,7 @@ function TradingSignals() {
     staleTime: 0,
     gcTime: 0,
     cacheTime: 0,
-    refetchInterval: 5000,
+    refetchInterval: 30000, // Reduced from 5000ms (5s) to 30000ms (30s)
     onError: (err) =>
       logger.queryError("tradingSignals", err, { timeframe, signalType }),
   });
@@ -1102,7 +1102,7 @@ function TradingSignals() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {historicalData?.data?.map((signal, index) => (
+                  {historicalData?.items?.map((signal, index) => (
                     <TableRow key={`${signal.symbol}-${signal.date || signal.signal_triggered_date}-${index}`}>
                       <TableCell>
                         {signal.signal_triggered_date
