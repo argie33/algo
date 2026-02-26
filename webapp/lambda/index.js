@@ -150,9 +150,8 @@ app.options('*', (req, res) => {
 
   // Ensure CORS headers are explicitly set for AWS API Gateway compatibility
   const origin = req.headers.origin;
-  const allowedOrigin = origin && origin.includes("d1copuy2oqlazx.cloudfront.net") ? origin :
-                       origin && origin.includes("localhost") ? origin :
-                       "https://d1copuy2oqlazx.cloudfront.net";
+  const defaultCloudFront = process.env.CLOUDFRONT_DOMAIN || "https://d1copuy2oqlazx.cloudfront.net";
+  const allowedOrigin = origin && (origin.includes(".cloudfront.net") || origin.includes("localhost")) ? origin : defaultCloudFront;
 
   res.header("Access-Control-Allow-Origin", allowedOrigin);
   res.header("Access-Control-Allow-Credentials", "true");
@@ -182,8 +181,8 @@ app.use(
       // Specific allowed origins
       const allowedOrigins = [
         // CloudFront & AWS Endpoints
-        "https://d1copuy2oqlazx.cloudfront.net",
-        "https://qda42av7je.execute-api.us-east-1.amazonaws.com",
+        process.env.CLOUDFRONT_DOMAIN || "https://d1copuy2oqlazx.cloudfront.net",
+        process.env.API_GATEWAY_URL || "https://qda42av7je.execute-api.us-east-1.amazonaws.com",
 
         // Production domains - update these with your actual domains
         "https://example.com",           // Site A - Markets & Stocks (public)
@@ -262,10 +261,11 @@ app.use((req, res, next) => {
   const isAPIGateway = req.headers['x-forwarded-for'] || req.headers['x-amzn-requestid'];
 
   // Always set CORS headers for all requests (crucial for AWS API Gateway)
-  const allowedOrigin = origin && (origin.includes("d1copuy2oqlazx.cloudfront.net") ||
+  const defaultCloudFront = process.env.CLOUDFRONT_DOMAIN || "https://d1copuy2oqlazx.cloudfront.net";
+  const allowedOrigin = origin && (origin.includes(".cloudfront.net") ||
                                    origin.includes("localhost") ||
                                    origin.includes("127.0.0.1")) ? origin :
-                       "https://d1copuy2oqlazx.cloudfront.net";
+                       defaultCloudFront;
 
   res.header("Access-Control-Allow-Origin", allowedOrigin);
   res.header("Access-Control-Allow-Credentials", "true");
