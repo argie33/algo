@@ -10,11 +10,11 @@ router.get("/", async (req, res) => {
     const offset = parseInt(req.query.offset) || 0;
 
     const result = await query(
-      "SELECT id, symbol, name, sector, industry FROM stocks ORDER BY symbol LIMIT $1 OFFSET $2",
+      "SELECT symbol, security_name as name, market_category as category, exchange FROM stock_symbols ORDER BY symbol LIMIT $1 OFFSET $2",
       [limit, offset]
     );
 
-    const countResult = await query("SELECT COUNT(*) as total FROM stocks");
+    const countResult = await query("SELECT COUNT(*) as total FROM stock_symbols");
     const total = parseInt(countResult.rows[0].total);
 
     res.json({
@@ -42,7 +42,7 @@ router.get("/:symbol", async (req, res) => {
     const { symbol } = req.params;
 
     const result = await query(
-      "SELECT id, symbol, name, sector, industry FROM stocks WHERE symbol = $1",
+      "SELECT symbol, security_name as name, market_category as category, exchange FROM stock_symbols WHERE symbol = $1",
       [symbol.toUpperCase()]
     );
 
