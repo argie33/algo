@@ -95,39 +95,55 @@ COL_LIST     = ", ".join(["symbol"] + PRICE_COLUMNS)
 # DB config loader
 # -------------------------------
 def get_db_config():
-    """Get database configuration from AWS Secrets Manager.
+    """Get database configuration from environment variables with fallbacks.
 
-    REQUIRES AWS_REGION and DB_SECRET_ARN environment variables to be set.
-    No fallbacks - fails loudly if AWS is not configured.
+    Tries in order:
+    1. AWS Secrets Manager (if AWS_REGION + DB_SECRET_ARN set)
+    2. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
     """
     aws_region = os.environ.get("AWS_REGION")
     db_secret_arn = os.environ.get("DB_SECRET_ARN")
 
-    if not aws_region:
-        raise EnvironmentError("AWS_REGION environment variable is required")
-    if not db_secret_arn:
-        raise EnvironmentError("DB_SECRET_ARN environment variable is required")
+    # Try AWS Secrets Manager first if both vars are set
+    if aws_region and db_secret_arn:
+        try:
+            secret_str = boto3.client("secretsmanager", region_name=aws_region).get_secret_value(
+                SecretId=db_secret_arn
+            )["SecretString"]
+            sec = json.loads(secret_str)
+            logging.info(f"✅ Using AWS Secrets Manager for credentials")
+            return {
+                "host": sec["host"],
+                "port": int(sec.get("port", 5432)),
+                "user": sec["username"],
+                "password": sec["password"],
+                "dbname": sec["dbname"]
+            }
+        except Exception as e:
+            logging.warning(f"⚠️  AWS Secrets Manager failed: {str(e)[:100]} - trying environment variables...")
 
-    try:
-        secret_str = boto3.client("secretsmanager", region_name=aws_region).get_secret_value(
-            SecretId=db_secret_arn
-        )["SecretString"]
-        sec = json.loads(secret_str)
-        logging.info(f"Loaded real database credentials from AWS Secrets Manager: {db_secret_arn}")
+    # Fallback to environment variables for local development
+    db_host = os.environ.get("DB_HOST")
+    db_user = os.environ.get("DB_USER")
+    db_password = os.environ.get("DB_PASSWORD")
+    db_name = os.environ.get("DB_NAME")
+    db_port = os.environ.get("DB_PORT", "5432")
+
+    if db_host and db_user and db_password and db_name:
+        logging.info(f"✅ Using environment variables for database connection")
         return {
-            "host": sec["host"],
-            "port": int(sec.get("port", 5432)),
-            "user": sec["username"],
-            "password": sec["password"],
-            "dbname": sec["dbname"]
+            "host": db_host,
+            "port": int(db_port),
+            "user": db_user,
+            "password": db_password,
+            "dbname": db_name
         }
-    except Exception as e:
-        raise EnvironmentError(
-            f"FATAL: Cannot load database credentials from AWS Secrets Manager ({db_secret_arn}). "
-            f"Error: {e.__class__.__name__}: {str(e)[:200]}\n"
-            f"Ensure AWS credentials are configured and Secrets Manager is accessible.\n"
-            f"Real data requires proper AWS setup - no fallbacks allowed."
-        )
+
+    raise EnvironmentError(
+        "❌ Cannot find database credentials. Provide either:\n"
+        "  AWS: AWS_REGION + DB_SECRET_ARN\n"
+        "  Local: DB_HOST + DB_USER + DB_PASSWORD + DB_NAME"
+    )
 
 # -------------------------------
 # Main loader with batched inserts
