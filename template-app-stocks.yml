@@ -171,6 +171,7 @@ Outputs:
     Description: Master username
     Value: !Ref RDSUsername
     Export:
+      Name: StocksApp-DBUsername
 
   EmailConfigSecretArn:
     Description: ARN of email configuration secret
@@ -182,7 +183,7 @@ Outputs:
     Description: Email address for contact form notifications
     Value: edgebrookecapital@gmail.com
     Export:
-      Name: StocksApp-DBUsername
+      Name: StocksApp-EmailNotificationEmail
 
   SecretArn:
     Description: ARN of DB credentials secret
