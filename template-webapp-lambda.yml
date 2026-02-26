@@ -21,7 +21,8 @@ Parameters:
 
 Globals:
   Function:
-    Timeout: 60
+    Timeout: 300
+    MemorySize: 512
     Runtime: nodejs18.x
     Environment:
       Variables:
@@ -159,6 +160,9 @@ Resources:
       FunctionName: !Sub 'stocks-webapp-api-${EnvironmentName}'
       CodeUri: webapp/lambda/
       Handler: index.handler
+      ReservedConcurrentExecutions: 10
+      MemorySize: 512
+      Timeout: 300
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DatabaseSecretArn

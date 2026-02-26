@@ -147,8 +147,8 @@ async function getDbConfig() {
           user: secret.username,
           password: secret.password,
           database: secret.dbname,
-          max: parseInt(process.env.DB_POOL_MAX) || 3, // Lambda-optimized
-          min: parseInt(process.env.DB_POOL_MIN) || 1,
+          max: parseInt(process.env.DB_POOL_MAX) || 10, // Increased for reserved concurrency
+          min: parseInt(process.env.DB_POOL_MIN) || 2,
           idleTimeoutMillis:
             parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 10000,
           connectionTimeoutMillis:
@@ -199,8 +199,8 @@ async function getDbConfig() {
         password: process.env.DB_PASSWORD || "",
         database,
         // AWS Lambda optimized connection pool settings
-        max: parseInt(process.env.DB_POOL_MAX) || 3, // Reduced for Lambda - avoid connection exhaustion
-        min: parseInt(process.env.DB_POOL_MIN) || 1, // Keep minimal connections
+        max: parseInt(process.env.DB_POOL_MAX) || 10, // Increased for reserved concurrency
+        min: parseInt(process.env.DB_POOL_MIN) || 2, // Keep minimal connections
         idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT) || 10000, // Shorter idle timeout
         connectionTimeoutMillis:
           parseInt(process.env.DB_CONNECT_TIMEOUT) || 3000, // Fast timeout for Lambda
