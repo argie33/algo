@@ -456,9 +456,6 @@ const SCORE_COLUMNS = [
   'company_name',
   'composite_score',
   'momentum_score',
-  'momentum_3m',
-  'momentum_6m',
-  'momentum_12m',
   'value_score',
   'quality_score',
   'growth_score',
@@ -595,9 +592,6 @@ async function queryScores(options = {}) {
       company_name: row.company_name,
       composite_score: row.composite_score == null ? null : parseFloat(row.composite_score),
       momentum_score: row.momentum_score == null ? null : parseFloat(row.momentum_score),
-      momentum_3m: row.momentum_3m == null ? null : parseFloat(row.momentum_3m),
-      momentum_6m: row.momentum_6m == null ? null : parseFloat(row.momentum_6m),
-      momentum_12m: row.momentum_12m == null ? null : parseFloat(row.momentum_12m),
       value_score: row.value_score == null ? null : parseFloat(row.value_score),
       quality_score: row.quality_score == null ? null : parseFloat(row.quality_score),
       growth_score: row.growth_score == null ? null : parseFloat(row.growth_score),
@@ -606,18 +600,7 @@ async function queryScores(options = {}) {
       last_updated: row.last_updated
     };
 
-    // Populate top-level momentum fields from momentum_inputs if they're still null
-    // This ensures we always have the momentum values available
-    const momentumMetrics = metricsMap.data[row.symbol.toUpperCase()]?.momentum_metrics;
-    if (momentumMetrics && stock.momentum_3m == null && momentumMetrics.momentum_3m != null) {
-      stock.momentum_3m = parseFloat(momentumMetrics.momentum_3m);
-    }
-    if (momentumMetrics && stock.momentum_6m == null && momentumMetrics.momentum_6m != null) {
-      stock.momentum_6m = parseFloat(momentumMetrics.momentum_6m);
-    }
-    if (momentumMetrics && stock.momentum_12m == null && momentumMetrics.momentum_12m != null) {
-      stock.momentum_12m = parseFloat(momentumMetrics.momentum_12m);
-    }
+    // Momentum metrics are provided via quality_inputs from batch metrics fetch below
 
     // Attach factor metrics from batch result (already fetched)
     // Helper: Remove metadata fields from metric objects
