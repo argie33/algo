@@ -8,11 +8,18 @@ import logging
 import os
 import re
 import sys
+from pathlib import Path
 
 import boto3
 import psycopg2
 import requests
+from dotenv import load_dotenv
 from psycopg2.extras import execute_values
+
+# Load environment variables from .env.local if it exists
+env_path = Path(__file__).parent / '.env.local'
+if env_path.exists():
+    load_dotenv(env_path)
 
 # ─── Logging setup ─────────────────────────────────────────────────────────────
 logging.basicConfig(

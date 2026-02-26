@@ -15,6 +15,7 @@ import gc
 import resource
 import math
 import argparse
+from pathlib import Path
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
@@ -23,6 +24,12 @@ from datetime import datetime
 import boto3
 import pandas as pd
 import yfinance as yf
+from dotenv import load_dotenv
+
+# Load environment variables from .env.local if it exists
+env_path = Path(__file__).parent / '.env.local'
+if env_path.exists():
+    load_dotenv(env_path)
 
 # -------------------------------
 # Script metadata & logging setup
