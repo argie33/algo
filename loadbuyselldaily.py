@@ -22,10 +22,13 @@ from psycopg2.extras import RealDictCursor
 from datetime import datetime
 import logging
 from importlib import import_module
+from pathlib import Path
 from dotenv import load_dotenv
 
 # Load environment from .env.local
-load_dotenv('/home/stocks/algo/.env.local')
+env_path = Path(__file__).parent / '.env.local'
+if env_path.exists():
+    load_dotenv(env_path)
 
 # -------------------------------
 # Script metadata & logging setup

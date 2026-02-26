@@ -10,8 +10,15 @@ import logging
 import os
 import boto3
 import json
+from pathlib import Path
 from scipy import stats
 from scipy.stats import zscore
+from dotenv import load_dotenv
+
+# Load environment variables from .env.local if it exists
+env_path = Path(__file__).parent / '.env.local'
+if env_path.exists():
+    load_dotenv(env_path)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
