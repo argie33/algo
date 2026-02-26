@@ -7,9 +7,9 @@ name: 🧪 Automated Testing Suite
 
 on:
   push:
-    branches: [ main, loaddata, develop ]
+    branches: [ loaddata, develop ]
   pull_request:
-    branches: [ main, loaddata ]
+    branches: [ loaddata ]
   schedule:
     # Run comprehensive tests daily at 2 AM UTC
     - cron: '0 2 * * *'
