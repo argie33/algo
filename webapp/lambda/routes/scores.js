@@ -504,7 +504,8 @@ async function queryScores(options = {}) {
   let queryParams = [];
   let paramIndex = 1;
 
-  // Filter to S&P 500 stocks ONLY (disabled until is_sp500 column is populated)
+  // NOTE: S&P500 filtering removed - is_sp500 column not available in all environments
+  // Re-enable this filter once data loaders have populated the is_sp500 column across all databases
   // whereConditions.push(`EXISTS (SELECT 1 FROM stock_symbols ss2 WHERE ss2.symbol = ss.symbol AND ss2.is_sp500 = TRUE)`);
 
   // SPAC filtering disabled for performance (causing timeout on COUNT queries)
