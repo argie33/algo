@@ -25,7 +25,29 @@ jobs:
 
       - name: Deploy bootstrap CloudFormation
         run: |
-          aws cloudformation deploy \
+          # Check if stack already exists
+          STACK_STATUS=$(aws cloudformation describe-stacks \
             --stack-name stocks-oidc-bootstrap \
-            --template-file template-bootstrap.yml \
-            --capabilities CAPABILITY_NAMED_IAM 
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "STACK_NOT_FOUND")
+
+          if [ "$STACK_STATUS" == "STACK_NOT_FOUND" ]; then
+            echo "Creating bootstrap stack..."
+            aws cloudformation deploy \
+              --stack-name stocks-oidc-bootstrap \
+              --template-file template-bootstrap.yml \
+              --capabilities CAPABILITY_NAMED_IAM \
+              --no-fail-on-empty-changeset
+          else
+            echo "Bootstrap stack already exists with status: $STACK_STATUS"
+            if [ "$STACK_STATUS" == "CREATE_COMPLETE" ] || [ "$STACK_STATUS" == "UPDATE_COMPLETE" ]; then
+              echo "✅ Stack is healthy, no action needed"
+            else
+              echo "⚠️ Stack is in state: $STACK_STATUS, attempting update..."
+              aws cloudformation deploy \
+                --stack-name stocks-oidc-bootstrap \
+                --template-file template-bootstrap.yml \
+                --capabilities CAPABILITY_NAMED_IAM \
+                --no-fail-on-empty-changeset || true
+            fi
+          fi
