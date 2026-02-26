@@ -460,8 +460,7 @@ const SCORE_COLUMNS = [
   'quality_score',
   'growth_score',
   'positioning_score',
-  'stability_score',
-  'last_updated'
+  'stability_score'
 ];
 
 // Allowed sort columns for safety
@@ -596,8 +595,7 @@ async function queryScores(options = {}) {
       quality_score: row.quality_score == null ? null : parseFloat(row.quality_score),
       growth_score: row.growth_score == null ? null : parseFloat(row.growth_score),
       positioning_score: row.positioning_score == null ? null : parseFloat(row.positioning_score),
-      stability_score: row.stability_score == null ? null : parseFloat(row.stability_score),
-      last_updated: row.last_updated
+      stability_score: row.stability_score == null ? null : parseFloat(row.stability_score)
     };
 
     // Momentum metrics are provided via quality_inputs from batch metrics fetch below
