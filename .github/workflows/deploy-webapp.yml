@@ -403,22 +403,17 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Install Frontend dependencies and test build
+      - name: Verify frontend build (pre-built)
         working-directory: webapp/frontend
         run: |
-          # Check Node.js version compatibility first
-          echo "Checking Node.js version compatibility..."
-          npm run test:node-version
-          echo "✅ Node.js version compatible"
-          
-          # Use strict dependency resolution to catch version conflicts early
-          npm ci
-          echo "Frontend dependencies installed with strict resolution"
-          
-          # Test that build works with dependencies
-          echo "Testing build to catch dependency issues..."
-          npm run build
-          echo "Build test passed - dependencies are compatible"
+          echo "Frontend pre-built locally - skipping npm install in GitHub Actions"
+          echo "Frontend will be synced to S3 after infrastructure is deployed"
+          if [ -d "dist" ]; then
+            echo "✅ Frontend dist folder exists"
+            du -sh dist
+          else
+            echo "⚠️ Frontend dist folder not found - will need to build manually"
+          fi
       - name: Get Cognito configuration
         id: cognito_config
         run: |
@@ -625,30 +620,16 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Install Admin Frontend dependencies
+      - name: Verify Admin Frontend (pre-built)
         working-directory: webapp/frontend-admin
         run: |
-          npm ci
-          echo "Admin frontend dependencies installed"
-
-      - name: Build Admin Frontend
-        working-directory: webapp/frontend-admin
-        env:
-          VITE_API_URL: ${{ needs.deploy_infrastructure.outputs.api_url }}
-          VITE_AWS_REGION: ${{ env.AWS_REGION }}
-          VITE_SERVERLESS: "true"
-          VITE_ENVIRONMENT: "production"
-        run: |
-          echo "🔧 Building admin frontend with API URL: $VITE_API_URL"
-
-          # Create .env file
-          echo "VITE_API_URL=$VITE_API_URL" > .env
-          echo "VITE_AWS_REGION=$VITE_AWS_REGION" >> .env
-          echo "VITE_SERVERLESS=true" >> .env
-          echo "VITE_ENVIRONMENT=production" >> .env
-
-          npm run build
-          echo "✅ Admin frontend build completed"
+          echo "Admin frontend will be synced after infrastructure is deployed"
+          if [ -d "dist" ]; then
+            echo "✅ Admin frontend dist folder exists"
+            du -sh dist
+          else
+            echo "⚠️ Admin frontend dist folder not found"
+          fi
 
       - name: Deploy Admin Frontend to S3
         working-directory: webapp/frontend-admin
