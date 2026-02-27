@@ -135,12 +135,12 @@ async function getFactorMetricsInBatch(symbols) {
 
     // Batch query each table for ALL symbols at once
     for (const [key, table] of tables) {
+      let metricsQuery;
       try {
         const placeholders = symbols.map((_, i) => `$${i + 1}`).join(',');
         // Use DISTINCT ON to get only the latest row per symbol (most recent date)
         // positioning_metrics doesn't have a date column, so handle differently
         // For value_metrics, prioritize records with non-null values over purely recent records
-        let metricsQuery;
         if (table === 'positioning_metrics') {
           // Join with key_metrics to get short_percent_of_float since it doesn't exist in positioning_metrics table
           // key_metrics uses 'ticker' column while positioning_metrics uses 'symbol'
