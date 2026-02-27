@@ -1883,11 +1883,10 @@ def process_symbol_set(symbols, table_name, label, max_workers=6):
         logging.info(f"{label}: No symbols to process")
         return
 
-    # CRITICAL FIX (2026-02-26 20:30): Reduced to 3 workers to prevent system crashes
-    # Previous issue: 5-6 workers caused system thrashing with only 99MB free RAM
-    # Root cause: Combined with other loaders running in parallel, exhausted memory
-    # New approach: Conservative 3 workers + sequential loader execution
-    max_workers = min(max_workers, 3)
+    # OPTIMIZATION (2026-02-26 21:30): Increased to 6 workers for full signal coverage
+    # Running loader alone with sufficient RAM - can use more parallelization
+    # Sequential execution ensures safe operation
+    max_workers = min(max_workers, 6)
 
     logging.info(f"Starting {label} processing with {max_workers} workers for {len(symbols)} symbols")
 
