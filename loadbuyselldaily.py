@@ -1972,10 +1972,10 @@ def main():
     # Process ONLY regular stocks (NO ETFs) - NOW ONLY INCOMPLETE ONES
     logging.info(f"🚀 Processing {len(symbols)} remaining regular stocks (excluding {len(country_symbols)} country symbols)")
 
-    # Process all stocks into single unified table (increased to 5 workers for speed)
-    # Memory analysis: System has 1.2GB available, each worker uses ~85-125MB, can support 5-10 workers safely
+    # Process all stocks into single unified table (increased to 6 workers for speed)
+    # Memory analysis: System has 1.2GB available, each worker uses ~85-125MB, can support 6-10 workers safely
     if symbols:
-        process_symbol_set(symbols, "buy_sell_daily", "Stock Signals", max_workers=5)
+        process_symbol_set(symbols, "buy_sell_daily", "Stock Signals", max_workers=6)
 
     logging.info("Processing complete.")
 
