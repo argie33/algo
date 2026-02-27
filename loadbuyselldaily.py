@@ -110,15 +110,17 @@ def get_symbols_from_db(limit=None, skip_completed=False):
     conn = get_db_connection()
     cur  = conn.cursor()
     try:
+        # FIXED: Include ALL exchanges to ensure complete coverage (NASDAQ, NYSE, AMEX, etc.)
+        # Previously only loaded NASDAQ+NYSE, missing 240+ AMEX stocks and 7 other exchange stocks
         q = """
           SELECT symbol
             FROM stock_symbols
-           WHERE (exchange IN ('NASDAQ','New York Stock Exchange')
-              OR etf='Y')
         """
         # OPTIMIZATION: Skip symbols already processed in buy_sell_daily
         if skip_completed:
             q += " AND symbol NOT IN (SELECT DISTINCT symbol FROM buy_sell_daily)"
+
+        q += " ORDER BY symbol"
 
         if limit:
             q += " LIMIT %s"
@@ -628,7 +630,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
     # Memory cleanup after each chunk flush
     import gc
 
-    CHUNK_SIZE = 1000
+    CHUNK_SIZE = 100  # Reduced from 1000 to prevent memory buildup during inserts
     total_inserted = 0
     total_skipped = 0
 
@@ -728,12 +730,15 @@ def fetch_symbol_from_db(symbol, timeframe):
         logging.warning(f"Skipping {symbol} {timeframe}: insufficient data ({len(rows)} bars, need 20+ minimum)")
         return pd.DataFrame()
 
-    # CRITICAL: Skip symbols with excessive zero-volume data (causes rolling window to hang)
+    # FIXED: Changed threshold from 50% to 90% to avoid skipping valid thinly-traded stocks
+    # Only skip if MOST data is missing volume (probably delisted/inactive)
     zero_volume_count = sum(1 for r in rows if r.get('volume', 0) == 0)
     zero_volume_pct = (zero_volume_count / len(rows)) * 100 if rows else 0
-    if zero_volume_pct > 50:
-        logging.warning(f"Skipping {symbol} {timeframe}: {zero_volume_pct:.1f}% zero-volume bars (causes calculation hang)")
+    if zero_volume_pct > 90:
+        logging.warning(f"Skipping {symbol} {timeframe}: {zero_volume_pct:.1f}% zero-volume bars (probably delisted)")
         return pd.DataFrame()
+    elif zero_volume_pct > 50:
+        logging.debug(f"Warning: {symbol} has {zero_volume_pct:.1f}% zero-volume bars but processing anyway")
 
     df = pd.DataFrame(rows)
     df['date'] = pd.to_datetime(df['date'])
