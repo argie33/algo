@@ -121,7 +121,7 @@ def load_prices(table_name, symbols, cur, conn):
     logging.info(f"Loading {table_name}: {total} symbols")
     inserted, failed = 0, []
     timeout_failures = []  # Track timeouts separately for end-of-load retry
-    CHUNK_SIZE, PAUSE = 20, 0.1  # 20 symbols per batch, 0.1s pause - FAST MODE (no rate limits observed)
+    CHUNK_SIZE, PAUSE = 5, 2.0   # 5 symbols per batch, 2.0s pause - MEMORY CONSERVATIVE MODE (prevent system crashes)
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     # Skip if no symbols to load
@@ -325,6 +325,8 @@ def load_prices(table_name, symbols, cur, conn):
         gc.collect()
         log_mem(f"{table_name} batch {batch_idx+1} end")
         time.sleep(PAUSE)
+        # Force additional garbage collection to prevent memory buildup
+        gc.collect()
 
     # ─── End-of-load retry for timeout failures ──────────────────────────────
     if timeout_failures:
@@ -407,8 +409,8 @@ if __name__ == "__main__":
         DATA_PERIOD = "3mo"
         logging.info("Running in INCREMENTAL mode - loading recent 3 months of data")
     else:
-        DATA_PERIOD = "max"  # Default to full history
-        logging.info("Running in DEFAULT mode - loading full historical data")
+        DATA_PERIOD = "3mo"  # Default to recent data to prevent memory exhaustion
+        logging.info("Running in DEFAULT mode - loading recent 3 months of data (use --historical for full history)")
 
     log_mem("startup")
 

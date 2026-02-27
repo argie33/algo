@@ -156,6 +156,12 @@ def load_etf_signals():
                     (symbol, timeframe, date, open, high, low, close, volume, signal, signal_triggered_date,
                      buylevel, stoplevel, strength, signal_type, market_stage, stage_number, entry_quality_score)
                     VALUES %s
+                    ON CONFLICT (symbol, timeframe, date) DO UPDATE SET
+                        open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low, close = EXCLUDED.close,
+                        volume = EXCLUDED.volume, signal = EXCLUDED.signal, signal_triggered_date = EXCLUDED.signal_triggered_date,
+                        buylevel = EXCLUDED.buylevel, stoplevel = EXCLUDED.stoplevel, strength = EXCLUDED.strength,
+                        signal_type = EXCLUDED.signal_type, market_stage = EXCLUDED.market_stage,
+                        stage_number = EXCLUDED.stage_number, entry_quality_score = EXCLUDED.entry_quality_score
                 """
                 execute_values(cur, sql, signal_rows)
                 conn.commit()

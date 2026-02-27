@@ -316,6 +316,12 @@ def load_earnings_metrics(cur, conn):
                     symbol, report_date, eps_qoq_growth, eps_yoy_growth,
                     revenue_yoy_growth, earnings_surprise_pct, earnings_quality_score
                 ) VALUES %s
+                ON CONFLICT (symbol, report_date) DO UPDATE SET
+                    eps_qoq_growth = EXCLUDED.eps_qoq_growth,
+                    eps_yoy_growth = EXCLUDED.eps_yoy_growth,
+                    revenue_yoy_growth = EXCLUDED.revenue_yoy_growth,
+                    earnings_surprise_pct = EXCLUDED.earnings_surprise_pct,
+                    earnings_quality_score = EXCLUDED.earnings_quality_score
                 """,
                 metrics_data,
                 page_size=1000

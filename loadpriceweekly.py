@@ -153,7 +153,7 @@ def load_prices(table_name, symbols, cur, conn):
     logging.info(f"Loading {table_name}: {total} symbols")
     inserted, failed = 0, []
     timeout_failures = []  # Track timeouts separately for end-of-load retry
-    CHUNK_SIZE, PAUSE = 20, 0.1  # FAST MODE  # Single symbol, 0.5s pause - optimized for speed
+    CHUNK_SIZE, PAUSE = 5, 2.0  # MEMORY CONSERVATIVE MODE  # Single symbol, 0.5s pause - optimized for speed
     batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
 
     for batch_idx in range(batches):

@@ -407,7 +407,17 @@ def insert_all(conn, records):
         symbol, exchange, security_name, cqs_symbol,
         market_category, test_issue, financial_status,
         round_lot_size, etf, secondary_symbol
-      ) VALUES %s;
+      ) VALUES %s
+      ON CONFLICT (symbol) DO UPDATE SET
+        exchange = EXCLUDED.exchange,
+        security_name = EXCLUDED.security_name,
+        cqs_symbol = EXCLUDED.cqs_symbol,
+        market_category = EXCLUDED.market_category,
+        test_issue = EXCLUDED.test_issue,
+        financial_status = EXCLUDED.financial_status,
+        round_lot_size = EXCLUDED.round_lot_size,
+        etf = EXCLUDED.etf,
+        secondary_symbol = EXCLUDED.secondary_symbol;
     """
     values = [
         (
@@ -436,7 +446,17 @@ def insert_etfs(conn, records):
         symbol, exchange, security_name, cqs_symbol,
         market_category, test_issue, financial_status,
         round_lot_size, etf, secondary_symbol
-      ) VALUES %s;
+      ) VALUES %s
+      ON CONFLICT (symbol) DO UPDATE SET
+        exchange = EXCLUDED.exchange,
+        security_name = EXCLUDED.security_name,
+        cqs_symbol = EXCLUDED.cqs_symbol,
+        market_category = EXCLUDED.market_category,
+        test_issue = EXCLUDED.test_issue,
+        financial_status = EXCLUDED.financial_status,
+        round_lot_size = EXCLUDED.round_lot_size,
+        etf = EXCLUDED.etf,
+        secondary_symbol = EXCLUDED.secondary_symbol;
     """
     values = [
         (
