@@ -26,7 +26,7 @@ class TimeoutException(Exception):
 def timeout_handler(signum, frame):
     raise TimeoutException("Download timed out - forcing kill")
 
-def download_with_timeout(tickers, period="max", interval="1mo", timeout_seconds=90):
+def download_with_timeout(tickers, period="3mo", interval="1mo", timeout_seconds=90):
     """Wrapper that FORCIBLY kills downloads after timeout_seconds"""
     signal.signal(signal.SIGALRM, timeout_handler)
     signal.alarm(timeout_seconds)  # Set alarm
@@ -292,7 +292,7 @@ def load_prices(table_name, symbols, cur, conn):
             symbol_success = False
             for sym_attempt in range(1, MAX_SYMBOL_RETRIES + 1):
                 try:
-                    single_df = yf.download(orig_sym, period="max", interval="1mo", auto_adjust=False, actions=True, progress=False, timeout=60)
+                    single_df = yf.download(orig_sym, period="3mo", interval="1mo", auto_adjust=False, actions=True, progress=False, timeout=60)
                     if not single_df.empty:
                         # Now insert this data into database
                         rows = []
