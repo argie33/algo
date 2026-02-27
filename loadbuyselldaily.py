@@ -1883,10 +1883,11 @@ def process_symbol_set(symbols, table_name, label, max_workers=6):
         logging.info(f"{label}: No symbols to process")
         return
 
-    # Memory optimization: Use up to 6 workers for better throughput
-    # System analysis: 3.8GB available, each worker uses ~85-125MB RSS, can safely support 6+ workers
-    # Database I/O is still the bottleneck, but multiple workers improve overall throughput
-    max_workers = min(max_workers, 6)
+    # CRITICAL FIX (2026-02-26 20:30): Reduced to 3 workers to prevent system crashes
+    # Previous issue: 5-6 workers caused system thrashing with only 99MB free RAM
+    # Root cause: Combined with other loaders running in parallel, exhausted memory
+    # New approach: Conservative 3 workers + sequential loader execution
+    max_workers = min(max_workers, 3)
 
     logging.info(f"Starting {label} processing with {max_workers} workers for {len(symbols)} symbols")
 
@@ -1972,10 +1973,11 @@ def main():
     # Process ONLY regular stocks (NO ETFs) - NOW ONLY INCOMPLETE ONES
     logging.info(f"🚀 Processing {len(symbols)} remaining regular stocks (excluding {len(country_symbols)} country symbols)")
 
-    # Process all stocks into single unified table (increased to 6 workers for speed)
-    # Memory analysis: System has 1.2GB available, each worker uses ~85-125MB, can support 6-10 workers safely
+    # CRITICAL FIX (2026-02-26 20:30): Reduced to 3 workers for system stability
+    # Previous: 6 workers caused crashes due to combined memory pressure
+    # Now: Conservative 3 workers (90MB per worker = 270MB total)
     if symbols:
-        process_symbol_set(symbols, "buy_sell_daily", "Stock Signals", max_workers=6)
+        process_symbol_set(symbols, "buy_sell_daily", "Stock Signals", max_workers=3)
 
     logging.info("Processing complete.")
 
