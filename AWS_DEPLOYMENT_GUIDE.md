@@ -1,283 +1,99 @@
-# 🚀 AWS DEPLOYMENT GUIDE - STOCK PLATFORM
+# 🚀 AWS DEPLOYMENT GUIDE - QUICK START
 
 ## Current Status
-- ✅ All data loaded locally (32.4M records)
-- ✅ All APIs tested and working
-- ✅ Code pushed to GitHub
-- ✅ Database backed up
-- ⏳ Ready for AWS deployment
-
-## Prerequisites
-```bash
-# Install AWS CLI
-aws --version
-
-# Configure AWS credentials
-aws configure
-
-# Install PostgreSQL client
-psql --version
-```
-
-## Step 1: Get RDS Endpoint
-
-### Option A: From AWS Console
-1. Go to RDS → Databases
-2. Find your "stocks" database
-3. Copy the Endpoint (e.g., `stocks.xxxxx.us-east-1.rds.amazonaws.com`)
-
-### Option B: Using AWS CLI
-```bash
-aws rds describe-db-instances \
-  --query 'DBInstances[0].Endpoint.Address' \
-  --output text
-```
-
-Save this as `RDS_ENDPOINT`
-
-## Step 2: Check RDS Security Group
-
-```bash
-# Allow inbound PostgreSQL (5432) from your IP
-aws ec2 authorize-security-group-ingress \
-  --group-id sg-xxxxxxxx \
-  --protocol tcp \
-  --port 5432 \
-  --cidr YOUR_IP/32
-```
-
-## Step 3: Restore Database to AWS RDS
-
-### Option A: Direct Restore (Slow for 32GB)
-```bash
-# Using compressed backup
-gunzip -c /tmp/stocks_backup_latest.sql.gz | \
-  psql -h $RDS_ENDPOINT \
-       -U stocks \
-       -d stocks \
-       -v ON_ERROR_STOP=1
-
-# Or uncompressed (faster for large files)
-psql -h $RDS_ENDPOINT \
-     -U stocks \
-     -d stocks \
-     -f /tmp/stocks_backup_latest.sql
-```
-
-### Option B: Using S3 (Faster - Recommended)
-```bash
-# 1. Upload to S3
-aws s3 cp /tmp/stocks_backup_latest.sql.gz \
-  s3://your-bucket/database-backups/
-
-# 2. Create IAM role for RDS to access S3
-aws iam create-role \
-  --role-name rds-s3-access \
-  --assume-role-policy-document file://trust-policy.json
-
-# 3. Use RDS import feature (if supported)
-```
-
-### Option C: Using AWS DMS (Data Migration Service)
-```bash
-# Create DMS task to migrate from local to RDS
-# This is the most reliable for large datasets
-```
-
-## Step 4: Verify Data on RDS
-
-```bash
-# Connect to RDS
-psql -h $RDS_ENDPOINT -U stocks -d stocks
-
-# Count records on each table
-SELECT tablename, (SELECT COUNT(*) FROM tablename) as count 
-FROM pg_tables WHERE schemaname='public' ORDER BY tablename;
-
-# Expected results (should match local counts):
-# stock_symbols: 4,988
-# price_daily: 22,451,317
-# stock_scores: 4,988
-# etc.
-```
-
-## Step 5: Update Lambda Environment Variables
-
-```bash
-# Get RDS secret ARN
-aws secretsmanager describe-secret \
-  --secret-id stocks-db-secret \
-  --query 'ARN' \
-  --output text
-
-# Update Lambda environment variable
-aws lambda update-function-configuration \
-  --function-name stocks-webapp-function \
-  --environment Variables={DB_SECRET_ARN=arn:aws:...,DB_ENDPOINT=$RDS_ENDPOINT}
-```
-
-## Step 6: Test Lambda Connection
-
-```bash
-# Invoke Lambda test
-aws lambda invoke \
-  --function-name stocks-webapp-function \
-  --payload '{"path":"/api/health"}' \
-  /tmp/lambda-test.json
-
-# Check response
-cat /tmp/lambda-test.json
-```
-
-## Step 7: Deploy Frontend
-
-```bash
-# Build frontend
-cd webapp/frontend
-npm run build
-
-# Deploy to S3 + CloudFront
-aws s3 sync dist/ s3://your-bucket-frontend/
-aws cloudfront create-invalidation \
-  --distribution-id E1234567890ABC \
-  --paths "/*"
-```
-
-## Step 8: Monitor and Verify
-
-### Check CloudWatch Logs
-```bash
-aws logs tail /aws/lambda/stocks-webapp-function --follow
-```
-
-### Test API Endpoints
-```bash
-# Get CloudFront URL
-aws cloudfront list-distributions \
-  --query 'DistributionList.Items[0].DomainName'
-
-# Test endpoint
-curl https://d1234567890.cloudfront.net/api/stocks?limit=5
-curl https://d1234567890.cloudfront.net/api/health
-```
-
-### Monitor Performance
-```bash
-# CloudWatch metrics
-aws cloudwatch get-metric-statistics \
-  --namespace AWS/Lambda \
-  --metric-name Duration \
-  --dimensions Name=FunctionName,Value=stocks-webapp-function \
-  --start-time 2026-02-26T00:00:00Z \
-  --end-time 2026-02-27T00:00:00Z \
-  --period 300 \
-  --statistics Average,Maximum
-```
-
-## Troubleshooting
-
-### Database Connection Fails
-```bash
-# 1. Check security group
-aws ec2 describe-security-groups --group-ids sg-xxx
-
-# 2. Test connectivity
-nc -zv $RDS_ENDPOINT 5432
-
-# 3. Check RDS password in Secrets Manager
-aws secretsmanager get-secret-value --secret-id stocks-db-secret
-```
-
-### Lambda Can't Find Tables
-```bash
-# 1. Verify data on RDS
-psql -h $RDS_ENDPOINT -U stocks -d stocks -c "SELECT COUNT(*) FROM stock_symbols"
-
-# 2. Check Lambda has correct DB_SECRET_ARN
-aws lambda get-function-configuration \
-  --function-name stocks-webapp-function
-
-# 3. Restart Lambda (deploy empty change)
-aws lambda update-function-code \
-  --function-name stocks-webapp-function \
-  --s3-bucket your-bucket --s3-key code.zip
-```
-
-### Slow Queries
-```bash
-# Add indexes for frequently queried columns
-psql -h $RDS_ENDPOINT -U stocks -d stocks << SQL
-CREATE INDEX idx_stock_symbols_symbol ON stock_symbols(symbol);
-CREATE INDEX idx_price_daily_symbol_date ON price_daily(symbol, date DESC);
-CREATE INDEX idx_stock_scores_symbol ON stock_scores(symbol);
-SQL
-```
-
-## Performance Optimization
-
-### RDS Parameter Group
-```bash
-# Set parameters for better performance
-aws rds modify-db-parameter-group \
-  --db-parameter-group-name stocks-pg \
-  --parameters "ParameterName=shared_buffers,ParameterValue=262144,ApplyMethod=immediate"
-```
-
-### Connection Pooling
-The Lambda already has connection pooling configured (10 max connections).
-
-### Caching Strategy
-- CloudFront caches static assets
-- Lambda caches database connections
-- Consider ElastiCache for frequently accessed data
-
-## Cost Estimation
-
-- **RDS PostgreSQL:** ~$50-150/month (db.t3.small)
-- **Lambda:** ~$1-10/month (pay per request)
-- **CloudFront:** ~$0.085/GB (depending on traffic)
-- **S3:** ~$0.023/GB (storage)
-- **Total:** ~$100-300/month for production
-
-## Monitoring Checklist
-
-- [ ] RDS backup automated (daily)
-- [ ] CloudWatch alarms set up
-- [ ] Error rate monitoring enabled
-- [ ] Database query logging enabled
-- [ ] API response time monitored
-- [ ] Cost alerts configured
-
-## Rollback Plan
-
-If issues occur:
-```bash
-# 1. Rollback Lambda to previous version
-aws lambda update-alias \
-  --function-name stocks-webapp-function \
-  --name live \
-  --function-version PREVIOUS_VERSION
-
-# 2. Restore RDS from snapshot
-aws rds restore-db-instance-from-db-snapshot \
-  --db-instance-identifier stocks-db-restored \
-  --db-snapshot-identifier stocks-snapshot
-
-# 3. Update endpoint in Secrets Manager
-aws secretsmanager update-secret \
-  --secret-id stocks-db-secret \
-  --secret-string '{"host":"new-endpoint"...}'
-```
-
-## Support Resources
-
-- AWS RDS Documentation: https://docs.aws.amazon.com/rds/
-- AWS Lambda Documentation: https://docs.aws.amazon.com/lambda/
-- PostgreSQL Documentation: https://www.postgresql.org/docs/
-- GitHub Actions CI/CD: https://docs.github.com/actions
+✅ Local Data: 4,989 symbols with 13,979 signals + scores
+✅ Export Ready: Database prepared for sync
+✅ Script Ready: Automated deployment available
 
 ---
 
-**Last Updated:** 2026-02-26
-**Data Size:** 32.4M records (~3.5GB)
-**Estimated Deployment Time:** 30-60 minutes
+## 3 DEPLOYMENT OPTIONS
+
+### OPTION 1: Interactive Script (EASIEST)
+```bash
+bash /home/arger/algo/DEPLOY_TO_AWS.sh
+```
+- Asks for RDS endpoint
+- Exports + uploads automatically  
+- Verifies data in AWS
+
+### OPTION 2: Manual Steps (FULL CONTROL)
+```bash
+# Step 1: Export local database
+PGPASSWORD=bed0elAn pg_dump -h localhost -U stocks -d stocks -F p > /tmp/stocks.sql
+
+# Step 2: Get RDS endpoint from AWS Console
+# AWS → RDS → Databases → stocks → Endpoint
+
+# Step 3: Restore to AWS
+PGPASSWORD=<RDS_PASSWORD> psql -h <RDS_ENDPOINT> -U stocks -d stocks < /tmp/stocks.sql
+
+# Step 4: Verify
+PGPASSWORD=<RDS_PASSWORD> psql -h <RDS_ENDPOINT> -U stocks -d stocks -c \
+  "SELECT COUNT(*) FROM buy_sell_daily"
+# Should return: 13979
+```
+
+### OPTION 3: AWS CloudShell (BEST)
+From AWS CloudShell (has AWS CLI + credentials):
+```bash
+aws rds describe-db-instances --region us-east-1 \
+  --query 'DBInstances[?DBInstanceIdentifier==`stocks`].Endpoint.Address' \
+  --output text
+# Copy the endpoint, then run OPTION 2 above
+```
+
+---
+
+## 🎯 WHAT YOU NEED
+
+1. **RDS Endpoint**
+   - Find in AWS Console: RDS → Databases → stocks
+   - Format: `stocks-xxxxx.us-east-1.rds.amazonaws.com`
+
+2. **RDS Username & Password**
+   - Usually: stocks / [your password]
+   - Or from AWS Secrets Manager
+
+3. **Network Access**
+   - RDS security group must allow your IP
+   - Or run from AWS CloudShell (no IP restrictions)
+
+---
+
+## 📊 DATA BEING DEPLOYED
+
+- Stock Symbols: 4,989
+- Buy/Sell Signals: 13,979 records (4,989 symbols)
+- Stock Scores: 4,989
+- Daily Prices: 22.4M records
+- Quality Metrics: 4,989
+- All technical indicators
+
+Total size: ~1-2GB
+
+---
+
+## ⏱️ TIMING
+
+- Export: 5-10 minutes
+- Upload: 10-15 minutes (depends on internet)
+- Verify: 2-3 minutes
+- **Total: 20-30 minutes**
+
+---
+
+## ✨ NEXT STEPS
+
+1. **Get RDS Endpoint** from AWS Console
+2. **Choose deployment option** (1, 2, or 3 above)
+3. **Run deployment**
+4. **Verify data** in AWS
+5. **Update Lambda** to use AWS RDS
+6. **Test API** against AWS data
+7. **Deploy to production!**
+
+---
+
+**Ready when you are!** 🚀
+
