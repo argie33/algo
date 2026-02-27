@@ -26,7 +26,7 @@ export DB_NAME="${DB_NAME:-stocks}"
 
 check_system_resources() {
     local min_free_mb=300
-    local free_mb=$(free -h | awk '/^Mem:/ {print int($7)}')
+    local free_mb=$(free -m | awk '/^Mem:/ {print $7}')
     local load_avg=$(uptime | awk -F'load average:' '{print $2}' | cut -d, -f1 | xargs)
 
     echo "════════════════════════════════════════════════════════════════"
