@@ -1,0 +1,64 @@
+name: Load Data on AWS
+
+on:
+  workflow_dispatch:  # Manual trigger
+  push:
+    branches:
+      - main
+    paths:
+      - 'load*.py'
+      - 'aws-load-all-data.sh'
+
+jobs:
+  load-data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: us-east-1
+
+      - name: Get RDS credentials from Secrets Manager
+        id: rds-secret
+        run: |
+          SECRET=$(aws secretsmanager get-secret-value \
+            --secret-id algo/rds/credentials \
+            --query SecretString \
+            --output text)
+          echo "DB_HOST=$(echo $SECRET | jq -r '.host')" >> $GITHUB_ENV
+          echo "DB_USER=$(echo $SECRET | jq -r '.username')" >> $GITHUB_ENV
+          echo "DB_PASSWORD=$(echo $SECRET | jq -r '.password')" >> $GITHUB_ENV
+          echo "DB_NAME=$(echo $SECRET | jq -r '.dbname')" >> $GITHUB_ENV
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Load data on AWS RDS
+        env:
+          DB_HOST: ${{ env.DB_HOST }}
+          DB_USER: ${{ env.DB_USER }}
+          DB_PASSWORD: ${{ env.DB_PASSWORD }}
+          DB_NAME: ${{ env.DB_NAME }}
+        run: |
+          bash aws-load-all-data.sh
+
+      - name: Notify on success
+        run: echo "✅ Data loaded successfully on AWS RDS"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Data loading failed"
+          exit 1
