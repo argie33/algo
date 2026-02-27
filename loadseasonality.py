@@ -315,6 +315,7 @@ def store_seasonality_data(conn, monthly_returns, quarterly_returns, monthly_sta
             insert_monthly = """
                 INSERT INTO seasonality_monthly (year, month, month_name, close, return_pct)
                 VALUES %s
+                ON CONFLICT (year, month) DO UPDATE SET month_name = EXCLUDED.month_name, close = EXCLUDED.close, return_pct = EXCLUDED.return_pct
             """
             monthly_values = [
                 (r['year'], r['month'], r['month_name'], r['close'], r['return_pct'])
@@ -328,6 +329,7 @@ def store_seasonality_data(conn, monthly_returns, quarterly_returns, monthly_sta
             insert_quarterly = """
                 INSERT INTO seasonality_quarterly (year, quarter, close, return_pct)
                 VALUES %s
+                ON CONFLICT (year, quarter) DO UPDATE SET close = EXCLUDED.close, return_pct = EXCLUDED.return_pct
             """
             quarterly_values = [
                 (r['year'], r['quarter'], r['close'], r['return_pct'])
@@ -342,6 +344,7 @@ def store_seasonality_data(conn, monthly_returns, quarterly_returns, monthly_sta
                 INSERT INTO seasonality_monthly_stats
                 (month, month_name, avg_return, best_return, worst_return, years_counted, winning_years, losing_years)
                 VALUES %s
+                ON CONFLICT (month) DO UPDATE SET month_name = EXCLUDED.month_name, avg_return = EXCLUDED.avg_return, best_return = EXCLUDED.best_return, worst_return = EXCLUDED.worst_return, years_counted = EXCLUDED.years_counted, winning_years = EXCLUDED.winning_years, losing_years = EXCLUDED.losing_years
             """
             stats_values = [
                 (s['month'], s['month_name'], s['avg_return'], s['best_return'],
@@ -356,6 +359,7 @@ def store_seasonality_data(conn, monthly_returns, quarterly_returns, monthly_sta
             insert_dow = """
                 INSERT INTO seasonality_day_of_week (day, day_num, avg_return, win_rate, days_counted)
                 VALUES %s
+                ON CONFLICT (day_num) DO UPDATE SET day = EXCLUDED.day, avg_return = EXCLUDED.avg_return, win_rate = EXCLUDED.win_rate, days_counted = EXCLUDED.days_counted
             """
             dow_values = [
                 (s['day'], s['day_num'], s['avg_return'], s['win_rate'], s['days_counted'])
