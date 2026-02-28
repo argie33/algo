@@ -10,6 +10,7 @@ import logging
 import psycopg2
 import sys
 import os
+import time
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List
 
@@ -72,7 +73,7 @@ def get_db_connection():
         conn = psycopg2.connect(
             host=cfg["host"],
             port=cfg["port"],
-            database=cfg["database"],
+            dbname=cfg["database"],  # psycopg2 parameter name is 'dbname' not 'database'
             user=cfg["user"],
             password=cfg["password"]
         )
@@ -82,18 +83,31 @@ def get_db_connection():
         sys.exit(1)
 
 def get_cik_number(symbol: str) -> Optional[str]:
-    """Get CIK number for a symbol from SEC Edgar"""
+    """Get CIK number for a symbol from SEC Edgar with robust error handling"""
     try:
         url = f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&company={symbol}&type=10-K&dateb=&owner=exclude&count=100&output=json"
         resp = requests.get(url, headers=SEC_HEADERS, timeout=10)
         if resp.status_code == 200:
-            data = resp.json()
-            if "cik_lookup" in data:
-                cik = data["cik_lookup"].get(symbol.upper())
-                if cik:
-                    return str(cik).zfill(10)
+            try:
+                # Check if response has content before parsing
+                if not resp.text or resp.text.strip() == "":
+                    logger.debug(f"Empty response for {symbol} CIK lookup")
+                    return None
+
+                data = resp.json()
+                if "cik_lookup" in data:
+                    cik = data["cik_lookup"].get(symbol.upper())
+                    if cik:
+                        return str(cik).zfill(10)
+            except (json.JSONDecodeError, ValueError) as je:
+                logger.debug(f"Invalid JSON response for {symbol} CIK lookup: {str(je)[:50]}")
+                return None
+        else:
+            logger.debug(f"HTTP {resp.status_code} for {symbol} CIK lookup")
+    except requests.Timeout:
+        logger.warning(f"Timeout getting CIK for {symbol}")
     except Exception as e:
-        logger.warning(f"Failed to get CIK for {symbol}: {e}")
+        logger.debug(f"Failed to get CIK for {symbol}: {type(e).__name__}: {str(e)[:50]}")
     return None
 
 def get_financial_data_from_filing(cik: str, filing_type: str = "10-K") -> Optional[Dict]:
@@ -105,11 +119,15 @@ def get_financial_data_from_filing(cik: str, filing_type: str = "10-K") -> Optio
         # Get filings list
         url = f"https://data.sec.gov/submissions/CIK{cik}.json"
         resp = requests.get(url, headers=SEC_HEADERS, timeout=10)
-        
+
         if resp.status_code != 200:
             return None
-        
-        filings = resp.json()
+
+        try:
+            filings = resp.json()
+        except (json.JSONDecodeError, ValueError):
+            logger.debug(f"Invalid JSON from SEC filings API for CIK {cik}")
+            return None
         if "filings" not in filings:
             return None
         
@@ -133,11 +151,15 @@ def get_financial_data_from_filing(cik: str, filing_type: str = "10-K") -> Optio
         # Get financial facts from filing
         facts_url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
         facts_resp = requests.get(facts_url, headers=SEC_HEADERS, timeout=10)
-        
+
         if facts_resp.status_code != 200:
             return None
-        
-        facts = facts_resp.json()
+
+        try:
+            facts = facts_resp.json()
+        except (json.JSONDecodeError, ValueError):
+            logger.debug(f"Invalid JSON from SEC facts API for CIK {cik}")
+            return None
         us_gaap = facts.get("facts", {}).get("us-gaap", {})
         
         # Extract key financial metrics
@@ -206,20 +228,24 @@ def load_sec_data():
     """Main loader - load SEC data for all symbols"""
     conn = get_db_connection()
     cur = conn.cursor()
-    
+
     # Get all symbols
     cur.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
     symbols = [row[0] for row in cur.fetchall()]
-    
+
     logger.info(f"Loading SEC data for {len(symbols)} symbols...")
-    
+
     loaded = 0
     failed = 0
-    
+
     for idx, symbol in enumerate(symbols):
         if idx % 100 == 0:
             logger.info(f"Progress: {idx}/{len(symbols)} ({100*idx//len(symbols)}%)")
-        
+
+        # Rate limiting: SEC API is rate-limited, add small delay between requests
+        if idx > 0:
+            time.sleep(0.5)  # 500ms between requests
+
         # Get CIK
         cik = get_cik_number(symbol)
         if not cik:
