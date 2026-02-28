@@ -803,10 +803,8 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                             safe_str(row.get('Name'), max_len=200),
                             safe_str(row.get('Position'), max_len=200),
                             safe_str(row.get('Most Recent Transaction'), max_len=50),
-                            safe_date(row.get('Latest Transaction Date')),
-                            safe_int(row.get('Shares Owned Directly', 0)),
-                            safe_date(row.get('Position Direct Date')),
-                            safe_str(row.get('URL'), max_len=1000),
+                            safe_float(row.get('Latest Transaction Value', 0)),
+                            safe_int(row.get('Shares Owned', 0)),
                         ))
 
                     if roster_data:
@@ -815,16 +813,13 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                             """
                             INSERT INTO insider_roster (
                                 symbol, insider_name, position, most_recent_transaction,
-                                latest_transaction_date, shares_owned_directly,
-                                position_direct_date, url
+                                latest_transaction_value, shares_owned
                             ) VALUES %s
                             ON CONFLICT (symbol, insider_name) DO UPDATE SET
                                 position = EXCLUDED.position,
                                 most_recent_transaction = EXCLUDED.most_recent_transaction,
-                                latest_transaction_date = EXCLUDED.latest_transaction_date,
-                                shares_owned_directly = EXCLUDED.shares_owned_directly,
-                                position_direct_date = EXCLUDED.position_direct_date,
-                                url = EXCLUDED.url
+                                latest_transaction_value = EXCLUDED.latest_transaction_value,
+                                shares_owned = EXCLUDED.shares_owned
                             """,
                             roster_data
                         )
