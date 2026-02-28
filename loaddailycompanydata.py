@@ -792,23 +792,9 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             retry_count = 0
             while retry_count < max_retries:
                 try:
-                    # Create table if not exists
-                    cur.execute("""
-                        CREATE TABLE IF NOT EXISTS insider_roster (
-                            id SERIAL PRIMARY KEY,
-                            symbol VARCHAR(20),
-                            insider_name VARCHAR(200),
-                            position VARCHAR(200),
-                            most_recent_transaction VARCHAR(50),
-                            latest_transaction_date DATE,
-                            shares_owned_directly BIGINT,
-                            position_direct_date DATE,
-                            url TEXT,
-                            created_at TIMESTAMP DEFAULT NOW(),
-                            UNIQUE(symbol, insider_name)
-                        );
-                        CREATE INDEX IF NOT EXISTS idx_insider_roster_symbol ON insider_roster(symbol);
-                    """)
+                    # Table already exists with proper schema, skip creation
+                    # insider_roster has: symbol, insider_name, position, most_recent_transaction,
+                    # latest_transaction_value, shares_owned, created_at
 
                     roster_data = []
                     for _, row in insider_roster.iterrows():
@@ -954,16 +940,18 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     fiscal_year = str(period) if period else None
                     if not fiscal_year:
                         continue
-                    earnings_data.append((
-                        symbol, fiscal_year,
-                        safe_float(row.get("avg"), max_val=1000000, min_val=-1000000),
-                        safe_float(row.get("low"), max_val=1000000, min_val=-1000000),
-                        safe_float(row.get("high"), max_val=1000000, min_val=-1000000),
-                        safe_float(row.get("yearAgoEps"), max_val=1000000, min_val=-1000000),
-                        safe_int(row.get("numberOfAnalysts"), max_val=10000, min_val=0),
-                        safe_float(row.get("growth"), max_val=10000, min_val=-10000),
-                        str(period),
-                    ))
+                    # Only add if fiscal_year is available (required field)
+                        if fiscal_year:
+                            earnings_data.append((
+                                symbol, fiscal_year,  # fiscal_year is DATE or NULL
+                                safe_float(row.get("avg"), max_val=1000000, min_val=-1000000),
+                                safe_float(row.get("low"), max_val=1000000, min_val=-1000000),
+                                safe_float(row.get("high"), max_val=1000000, min_val=-1000000),
+                                safe_float(row.get("yearAgoEps"), max_val=1000000, min_val=-1000000),
+                                safe_int(row.get("numberOfAnalysts"), max_val=10000, min_val=0),
+                                safe_float(row.get("growth"), max_val=10000, min_val=-10000),
+                                str(period),
+                            ))
 
                 if earnings_data:
                     # Delete existing earnings estimates for this symbol to avoid conflicts
@@ -976,6 +964,10 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                             high_estimate, year_ago_eps, number_of_analysts,
                             growth, period
                         ) VALUES %s
+                        ON CONFLICT (symbol, fiscal_year_ending) DO UPDATE SET
+                            avg_estimate = COALESCE(EXCLUDED.avg_estimate, earnings_estimates.avg_estimate),
+                            low_estimate = COALESCE(EXCLUDED.low_estimate, earnings_estimates.low_estimate),
+                            high_estimate = COALESCE(EXCLUDED.high_estimate, earnings_estimates.high_estimate)
                         """,
                         earnings_data
                     )
