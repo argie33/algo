@@ -304,19 +304,25 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
         makes a SEPARATE HTTP request. Accessing all 8 properties in rapid succession (~10ms apart)
         causes yfinance to see them as a burst and returns 429 Rate Limited.
 
-        Solution: Add 0.5s delay between each property access to spread requests over ~4 seconds.
+        Solution: Add 1.0s delay between each property access to spread requests over ~8 seconds.
         This prevents the burst detection while still completing in reasonable time.
         """
         ticker = yf.Ticker(yf_symbol)
         result = {'ticker': ticker}
 
-        # Fetch all properties without artificial delays - yfinance handles rate limiting
+        # Fetch properties with 1.0s delays between each to prevent burst rate limiting
         result['info'] = ticker.info
+        time.sleep(1.0)
         result['institutional_holders'] = ticker.institutional_holders
+        time.sleep(1.0)
         result['mutualfund_holders'] = ticker.mutualfund_holders
+        time.sleep(1.0)
         result['insider_transactions'] = ticker.insider_transactions
+        time.sleep(1.0)
         result['insider_roster'] = ticker.insider_roster_holders
+        time.sleep(1.0)
         result['earnings_estimate'] = ticker.earnings_estimate
+        time.sleep(1.0)
         result['revenue_estimate'] = ticker.revenue_estimate
 
         return result
@@ -1315,16 +1321,16 @@ if __name__ == "__main__":
                 # Delay between requests to respect yfinance rate limits
                 # RESILIENT: Longer delays to reduce HTTP 500 errors
                 if rate_limit_consecutive > 0:
-                    # Exponential backoff after rate limit hits: 5s, 8s, 12s, 16s, 20s...
-                    delay = 5.0 + (3.0 * (rate_limit_consecutive - 1))
-                    delay = min(delay, 30.0)  # Cap at 30 seconds
+                    # Exponential backoff after rate limit hits: 10s, 15s, 20s, 25s, 30s...
+                    delay = 10.0 + (5.0 * (rate_limit_consecutive - 1))
+                    delay = min(delay, 60.0)  # Cap at 60 seconds
                     logging.info(f"Rate limit backoff: {delay}s (consecutive hits: {rate_limit_consecutive})")
                 else:
-                    # IMPROVED: Longer delays reduce HTTP 500 errors
+                    # IMPROVED: Longer delays reduce HTTP 500 errors and rate limits
                     if attempt == 1:
-                        delay = 1.0  # Initial pass: 1 second between requests
+                        delay = 2.0  # Initial pass: 2 seconds between requests (plus 6s from property delays = 8s total)
                     else:
-                        delay = 2.0  # Retry passes: 2 seconds between requests (be gentler on API)
+                        delay = 3.0  # Retry passes: 3 seconds between requests (be gentler on API)
 
                 time.sleep(delay)
 

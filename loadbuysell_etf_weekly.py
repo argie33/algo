@@ -14,7 +14,7 @@ import logging
 from dotenv import load_dotenv
 
 # Load environment from .env.local
-load_dotenv('/home/stocks/algo/.env.local')
+load_dotenv('/home/arger/algo/.env.local')
 
 # Setup rotating log file handler to prevent disk exhaustion from excessive logging
 from logging.handlers import RotatingFileHandler

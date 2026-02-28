@@ -20,7 +20,7 @@ import boto3
 import yfinance as yf
 
 # Load environment from .env.local
-load_dotenv('/home/stocks/algo/.env.local')
+load_dotenv('/home/arger/algo/.env.local')
 
 # -------------------------------
 # Script metadata & logging setup
