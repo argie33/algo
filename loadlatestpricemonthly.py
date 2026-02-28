@@ -98,7 +98,7 @@ def get_db_config():
         "port": int(os.environ.get("DB_PORT", 5432)),
         "user": os.environ.get("DB_USER", "stocks"),
         "password": os.environ.get("DB_PASSWORD", ""),
-        "database": os.environ.get("DB_NAME", "stocks")
+        "dbname": os.environ.get("DB_NAME", "stocks")
     }
 
 
