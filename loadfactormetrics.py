@@ -2581,19 +2581,21 @@ def load_value_metrics(conn, cursor, symbols: List[str]):
             ticker = yf.Ticker(symbol)
             info = ticker.info
 
-            if info and len(info) > 5:
+            # Load ALL symbols - NULL values are meaningful data!
+            # NULL PE = no earnings, NULL P/B = financial issues, etc.
+            if info:
                 value_rows.append((
                     symbol,
                     today,
-                    info.get('trailingPE'),  # trailing_pe
-                    info.get('forwardPE'),  # forward_pe
-                    info.get('priceToBook'),  # price_to_book
-                    info.get('priceToSalesTrailing12Months'),  # price_to_sales_ttm
+                    info.get('trailingPE'),  # trailing_pe (NULL = no earnings)
+                    info.get('forwardPE'),  # forward_pe (NULL = unprofitable)
+                    info.get('priceToBook'),  # price_to_book (NULL = no book value)
+                    info.get('priceToSalesTrailing12Months'),  # price_to_sales_ttm (NULL = no sales)
                     info.get('trailingPegRatio'),  # peg_ratio
                     info.get('enterpriseToRevenue'),  # ev_to_revenue
                     info.get('enterpriseToEbitda'),  # ev_to_ebitda
-                    info.get('dividendYield'),  # dividend_yield
-                    info.get('payoutRatio')   # payout_ratio
+                    info.get('dividendYield'),  # dividend_yield (NULL = no dividend)
+                    info.get('payoutRatio')   # payout_ratio (NULL = no earnings to pay)
                 ))
         except Exception as e:
             logging.debug(f"Could not load value metrics for {symbol}: {e}")
