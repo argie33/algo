@@ -424,28 +424,38 @@ def load_news_data(symbols, cur, conn):
                         json.dumps(related_tickers) if related_tickers else None
                     ))
                 
-                # Insert news items
+                # Insert news items - deduplicate by uuid first to prevent ON CONFLICT issues
                 if news_items:
-                    execute_values(
-                        cur,
-                        """
-                        INSERT INTO stock_news (
-                            uuid, ticker, title, publisher, link, 
-                            publish_time, news_type, thumbnail, related_tickers
-                        ) VALUES %s
-                        ON CONFLICT (uuid) DO UPDATE SET
-                            title = EXCLUDED.title,
-                            publisher = EXCLUDED.publisher,
-                            link = EXCLUDED.link,
-                            publish_time = EXCLUDED.publish_time,
-                            news_type = EXCLUDED.news_type,
-                            thumbnail = EXCLUDED.thumbnail,
-                            related_tickers = EXCLUDED.related_tickers
-                        """,
-                        news_items
-                    )
-                    
-                    logging.info(f"Inserted {len(news_items)} news items for {orig_sym}")
+                    # Deduplicate by uuid (keep first occurrence of each uuid)
+                    seen_uuids = set()
+                    dedup_items = []
+                    for item in news_items:
+                        uuid = item[0]  # uuid is first element of tuple
+                        if uuid not in seen_uuids:
+                            seen_uuids.add(uuid)
+                            dedup_items.append(item)
+
+                    if dedup_items:
+                        execute_values(
+                            cur,
+                            """
+                            INSERT INTO stock_news (
+                                uuid, ticker, title, publisher, link,
+                                publish_time, news_type, thumbnail, related_tickers
+                            ) VALUES %s
+                            ON CONFLICT (uuid) DO UPDATE SET
+                                title = EXCLUDED.title,
+                                publisher = EXCLUDED.publisher,
+                                link = EXCLUDED.link,
+                                publish_time = EXCLUDED.publish_time,
+                                news_type = EXCLUDED.news_type,
+                                thumbnail = EXCLUDED.thumbnail,
+                                related_tickers = EXCLUDED.related_tickers
+                            """,
+                            dedup_items
+                        )
+
+                        logging.info(f"Inserted {len(dedup_items)} news items for {orig_sym} (deduplicated from {len(news_items)})")
                 
                 conn.commit()
                 processed += 1

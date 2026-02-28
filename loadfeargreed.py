@@ -383,7 +383,21 @@ async def main():
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        # Handle event loop properly for both Python 3.9+ and older versions
+        try:
+            # Python 3.10+ - asyncio.run handles the event loop properly
+            asyncio.run(main())
+        except RuntimeError as e:
+            if "Event loop is closed" in str(e):
+                # Fallback for event loop closure issues
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(main())
+                finally:
+                    loop.close()
+            else:
+                raise
     except Exception as e:
         logging.error(f"❌ CRITICAL ERROR in Fear & Greed loader: {e}")
         import traceback

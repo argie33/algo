@@ -11,7 +11,15 @@ from datetime import datetime, timedelta
 
 import boto3
 import pandas as pd
-from fredapi import Fred
+
+# Try to import fredapi, skip if not available
+try:
+    from fredapi import Fred
+    FREDAPI_AVAILABLE = True
+except ImportError:
+    Fred = None
+    FREDAPI_AVAILABLE = False
+
 import psycopg2
 from psycopg2.extras import execute_values
 
@@ -379,6 +387,10 @@ def get_next_cpi_dates(today):
 
 def handler(event, context):
     try:
+        # Check if fredapi module is available
+        if not FREDAPI_AVAILABLE:
+            logger.warning("⚠️ fredapi module not installed - using fallback calendar methods only")
+
         # Check FRED API key - if not set, use fallback methods
         if not FRED_API_KEY:
             logger.warning("⚠️ FRED_API_KEY not set - using fallback calendar methods only")
