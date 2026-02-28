@@ -215,40 +215,22 @@ def load_analyst_sentiment(symbols, cur, conn):
                 logging.warning(f"Failed to calculate upside/downside for {symbol}: {str(e)}")
                 pass
 
-        # Map to table columns: bullish_count, neutral_count, bearish_count
-        # If rating is available, use estimated distribution; otherwise leave NULL
-        if data["numeric_rating"] is not None:
-            bullish_count = strong_buy + buy  # Combine strong buy + buy
-            neutral_count = hold
-            bearish_count = strong_sell + sell  # Combine sell + strong sell
-        else:
-            # No rating available - leave counts as NULL
-            bullish_count = None
-            neutral_count = None
-            bearish_count = None
-
-        row = [
-            symbol,
-            datetime.now().date(),
-            bullish_count,      # bullish_count (estimated from average rating)
-            neutral_count,      # neutral_count (estimated from average rating)
-            bearish_count,      # bearish_count (estimated from average rating)
-            data["analyst_count"],  # total_analysts
-            data["target_mean"],    # target_price
-            current_price,          # current_price
-            upside_downside_percent  # upside_downside_percent
-        ]
+        # Data is ready to insert - will be mapped in SQL section below
 
         # Insert analyst sentiment data (fresh load, no conflicts expected)
+        # Map to actual table columns: symbol, recommendation_key, rating_count, rating_score
+        recommendation_key = data["rating_name"] if data["rating_name"] else None
+        rating_count = data["analyst_count"]
+        rating_score = data["numeric_rating"]
+
         sql = """
             INSERT INTO analyst_sentiment_analysis
-            (symbol, date_recorded, bullish_count, neutral_count, bearish_count,
-             total_analysts, target_price, current_price, upside_downside_percent)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (symbol, recommendation_key, rating_count, rating_score)
+            VALUES (%s, %s, %s, %s)
         """
 
         try:
-            cur.execute(sql, row)
+            cur.execute(sql, [symbol, recommendation_key, rating_count, rating_score])
             conn.commit()
             inserted += 1
             if data["analyst_count"] is not None and data["analyst_count"] > 0:
