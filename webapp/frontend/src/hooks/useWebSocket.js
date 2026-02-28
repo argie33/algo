@@ -15,7 +15,7 @@ export const useWebSocket = (url, options = {}) => {
         const apiUrl = window.__CONFIG__?.API_URL ||
                       (import.meta.env?.VITE_API_URL) ||
                       (window.location.hostname === 'localhost'
-                        ? 'http://localhost:3001'
+                        ? 'http://localhost:3000'
                         : 'https://qda42av7je.execute-api.us-east-1.amazonaws.com/dev');
         // Convert http(s) to ws(s)
         wsUrl = apiUrl

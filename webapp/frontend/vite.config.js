@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
   const isProduction = mode === "production";
 
   // API URL configuration - use loadEnv to properly read .env file
-  const apiUrl = env.VITE_API_URL || (isDevelopment ? "http://localhost:3001" : "");
+  const apiUrl = env.VITE_API_URL || (isDevelopment ? "http://localhost:3000" : "");
 
   console.log("Vite Config:", {
     mode,

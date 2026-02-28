@@ -66,12 +66,12 @@ def retry_with_backoff(max_retries=10, base_delay=0.5, verbose=True):
 @retry_with_backoff(max_retries=3, base_delay=1)
 def _fetch_from_yfinance(ticker, period, start, end, interval):
     """Internal function to fetch from yfinance with retry logic"""
+    # Note: progress parameter removed - not supported in newer yfinance
     return yf.Ticker(ticker).history(
         period=period if period else None,
         start=start if start else None,
         end=end if end else None,
-        interval=interval,
-        progress=False
+        interval=interval
     )
 
 

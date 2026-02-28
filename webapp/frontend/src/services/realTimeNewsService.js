@@ -20,18 +20,18 @@ export class RealTimeNewsService {
       const wsProtocol = protocol === "https:" ? "wss:" : "ws:";
 
       if (hostname === "localhost" || hostname === "127.0.0.1") {
-        return "ws://localhost:3001";
+        return "ws://localhost:3000";
       }
 
-      // AWS or production - use same origin with port 3001
-      const baseUrl = origin.replace(/:\d+$/, ":3001");
+      // AWS or production - use same origin with port 3000
+      const baseUrl = origin.replace(/:\d+$/, ":3000");
       return baseUrl
         .replace(/^https:/, "wss:")
         .replace(/^http:/, "ws:");
     }
 
     // Final fallback
-    return "ws://localhost:3001";
+    return "ws://localhost:3000";
   }
 
   connect() {
