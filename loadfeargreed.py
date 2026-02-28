@@ -44,7 +44,9 @@ from datetime import datetime
 
 import boto3
 import pandas as pd
-from pyppeteer import launch
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # -------------------------------
 # Script metadata & logging setup 
@@ -71,14 +73,14 @@ def log_mem(stage: str):
 # -------------------------------
 # Retry settings
 # -------------------------------
-MAX_BROWSER_RETRIES = 5
+MAX_RETRIES = 5
 RETRY_DELAY = 5.0  # seconds between browser retries
 BACKOFF_MULTIPLIER = 2.0  # exponential backoff multiplier
 
 # -------------------------------
 # Fear & Greed columns
 # -------------------------------
-FEAR_GREED_COLUMNS = ["date", "index_value", "rating"]
+FEAR_GREED_COLUMNS = ["date", "fear_greed_value"]
 COL_LIST = ", ".join(FEAR_GREED_COLUMNS)
 
 # -------------------------------
@@ -134,134 +136,65 @@ def timestamptodatestr(ts):
     return d.strftime("%Y-%m-%d")
 
 # -------------------------------
-# Scrape Fear & Greed data
+# Fetch Fear & Greed data via HTTP
 # -------------------------------
 async def get_fear_greed_data():
     """
-    Scrapes the CNN Fear & Greed index data using a headless browser.
+    Fetches the CNN Fear & Greed index data via HTTP.
     Returns a list of dictionaries with date, index_value, and rating.
     """
-    logging.info(f"🔄 Starting Fear & Greed data scraping from: {FEAR_GREED_URL}")
+    logging.info(f"🔄 Starting Fear & Greed data fetch from: {FEAR_GREED_URL}")
 
-    # Try multiple chromium paths in order of preference
-    chromium_paths = [
-        '/usr/bin/chromium',
-        '/usr/bin/chromium-browser',
-        '/usr/bin/google-chrome',
-        '/home/arger/.cache/ms-playwright/chromium-1194/chrome-linux/chrome',
-        '/home/arger/.cache/ms-playwright/chromium-1187/chrome-linux/chrome',
-        '/snap/bin/chromium',
-    ]
-
-    browser = None
-    for attempt in range(1, MAX_BROWSER_RETRIES + 1):
+    for attempt in range(1, MAX_RETRIES + 1):
         try:
-            logging.info(f"🌐 Browser attempt {attempt}/{MAX_BROWSER_RETRIES}")
+            logging.info(f"🌐 HTTP attempt {attempt}/{MAX_RETRIES}")
 
-            # Find available chromium executable
-            available_chromium = None
-            for path in chromium_paths:
-                if os.path.exists(path):
-                    available_chromium = path
-                    logging.info(f"✓ Found chromium at: {available_chromium}")
-                    break
-
-            if not available_chromium:
-                raise FileNotFoundError(f"No chromium browser found. Tried: {chromium_paths}")
-
-            # Launch browser with comprehensive arguments for containerized environment
-            browser_args = [
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-accelerated-2d-canvas",
-                "--no-first-run",
-                "--no-zygote",
-                "--disable-gpu",
-                "--disable-background-timer-throttling",
-                "--disable-backgrounding-occluded-windows",
-                "--disable-renderer-backgrounding",
-                "--disable-web-security",
-                "--disable-features=VizDisplayCompositor",
-                "--memory-pressure-off",
-                "--max_old_space_size=4096",
-                "--disable-background-networking",
-                "--disable-default-apps",
-                "--disable-extensions",
-                "--disable-sync",
-                "--disable-translate",
-                "--hide-scrollbars",
-                "--metrics-recording-only",
-                "--mute-audio",
-                "--no-default-browser-check",
-                "--no-pings",
-                "--password-store=basic",
-                "--use-mock-keychain",
-                "--disable-blink-features=AutomationControlled"
-            ]
-
-            logging.info(f"🚀 Launching browser with {len(browser_args)} arguments")
-            browser = await launch(
-                executablePath=available_chromium,
-                args=browser_args,
-                headless=True,
-                timeout=60000,  # 60 second timeout
-                ignoreHTTPSErrors=True,
-                defaultViewport={'width': 1280, 'height': 720}
+            # Create a session with retries
+            session = requests.Session()
+            retry = Retry(
+                total=3,
+                backoff_factor=1,
+                status_forcelist=(500, 502, 503, 504),
+                allowed_methods=["GET"]
             )
-            
-            page = await browser.newPage()
-            
-            # Set user agent to avoid detection
-            await page.setUserAgent(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-            )
-            
-            # Navigate to the Fear & Greed API endpoint
-            await page.goto(FEAR_GREED_URL, waitUntil='networkidle0', timeout=30000)
-            
-            # Wait for the data to load
-            selector = 'pre'
-            await page.waitForSelector(selector, timeout=30000)
-            
-            # Extract the JSON data
-            element = await page.querySelector(selector)
-            data = await page.evaluate('(element) => element.textContent', element)
-            data_json = json.loads(data)
-            
+            adapter = HTTPAdapter(max_retries=retry)
+            session.mount('http://', adapter)
+            session.mount('https://', adapter)
+
+            # Set headers to avoid being blocked
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+
+            # Fetch the data
+            logging.info(f"📡 Fetching JSON from CNN API...")
+            response = session.get(FEAR_GREED_URL, headers=headers, timeout=30)
+            response.raise_for_status()
+
+            data_json = response.json()
+
             # Extract the historical data array
             data_array = data_json['fear_and_greed_historical']['data']
-            
-            logging.info(f"Successfully scraped {len(data_array)} Fear & Greed records")
-            
-            # Close browser
-            await browser.close()
-            browser = None
-            
+
+            logging.info(f"✅ Successfully fetched {len(data_array)} Fear & Greed records")
+            session.close()
+
             return data_array
-            
+
         except Exception as e:
-            logging.error(f"❌ Browser attempt {attempt} failed: {e}")
+            logging.error(f"❌ HTTP attempt {attempt} failed: {e}")
             logging.error(f"❌ Error type: {type(e).__name__}")
             import traceback
             logging.error(f"❌ Stack trace: {traceback.format_exc()}")
-            if browser:
-                try:
-                    await browser.close()
-                    logging.info("🔄 Browser closed successfully")
-                except Exception as close_error:
-                    logging.error(f"❌ Failed to close browser: {close_error}")
-                browser = None
-            
-            if attempt < MAX_BROWSER_RETRIES:
+
+            if attempt < MAX_RETRIES:
                 retry_delay = RETRY_DELAY * (BACKOFF_MULTIPLIER ** (attempt - 1))
-                logging.info(f"⏳ Retrying in {retry_delay:.1f} seconds... (attempt {attempt}/{MAX_BROWSER_RETRIES})")
+                logging.info(f"⏳ Retrying in {retry_delay:.1f} seconds... (attempt {attempt}/{MAX_RETRIES})")
                 await asyncio.sleep(retry_delay)  # Use async sleep
             else:
-                logging.error(f"❌ CRITICAL: Failed to scrape Fear & Greed data after {MAX_BROWSER_RETRIES} attempts")
+                logging.error(f"❌ CRITICAL: Failed to fetch Fear & Greed data after {MAX_RETRIES} attempts")
                 logging.error(f"❌ Final error: {e}")
-                raise Exception(f"Failed to scrape Fear & Greed data after {MAX_BROWSER_RETRIES} attempts: {e}")
+                raise Exception(f"Failed to fetch Fear & Greed data after {MAX_RETRIES} attempts: {e}")
 
 # -------------------------------
 # Main loader with batched inserts
@@ -282,27 +215,26 @@ async def load_fear_greed_data(cur, conn):
         for item in data_array:
             try:
                 dt = timestamptodatestr(item['x'])
-                index_value = float(item['y']) if item['y'] is not None else None
-                rating = str(item['rating']) if item['rating'] else None
-                
+                fear_greed_value = int(item['y']) if item['y'] is not None else None
+
                 # Keep the most recent data for each date (if duplicates exist)
-                rows_dict[dt] = [dt, index_value, rating]
+                rows_dict[dt] = [dt, fear_greed_value]
             except Exception as e:
                 logging.warning(f"Failed to process item {item}: {e}")
                 continue
-        
+
         # Convert back to list
         rows = list(rows_dict.values())
-        
+
         if not rows:
             logging.warning("No valid rows after processing")
             return 0, 0, []
-        
+
         logging.info(f"Processing {len(rows)} unique Fear & Greed records (deduplicated from {len(data_array)} total)")
-        
+
         # Batch insert the data with proper error handling
         try:
-            sql = f"INSERT INTO fear_greed_index ({COL_LIST}) VALUES %s ON CONFLICT (date) DO UPDATE SET index_value = EXCLUDED.index_value, rating = EXCLUDED.rating, fetched_at = CURRENT_TIMESTAMP"
+            sql = f"INSERT INTO fear_greed_index ({COL_LIST}) VALUES %s ON CONFLICT (date) DO UPDATE SET fear_greed_value = EXCLUDED.fear_greed_value, created_at = CURRENT_TIMESTAMP"
             execute_values(cur, sql, rows)
             conn.commit()
             
@@ -344,11 +276,10 @@ async def main():
     logging.info("Ensuring fear_greed_index table...")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS fear_greed_index (
-            id          SERIAL PRIMARY KEY,
-            date        DATE         NOT NULL UNIQUE,
-            index_value DOUBLE PRECISION,
-            rating      VARCHAR(50),
-            fetched_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+            id                  SERIAL PRIMARY KEY,
+            date                DATE         NOT NULL UNIQUE,
+            fear_greed_value    INTEGER,
+            created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
     """)
     
@@ -383,21 +314,18 @@ async def main():
 
 if __name__ == "__main__":
     try:
-        # Handle event loop properly for both Python 3.9+ and older versions
+        # Handle event loop properly for Python 3.10+
+        import platform
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         try:
-            # Python 3.10+ - asyncio.run handles the event loop properly
-            asyncio.run(main())
-        except RuntimeError as e:
-            if "Event loop is closed" in str(e):
-                # Fallback for event loop closure issues
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    loop.run_until_complete(main())
-                finally:
-                    loop.close()
-            else:
-                raise
+            loop.run_until_complete(main())
+        finally:
+            # Don't close the loop if it's already closed by pyppeteer
+            try:
+                loop.close()
+            except RuntimeError:
+                pass  # Loop already closed by pyppeteer
     except Exception as e:
         logging.error(f"❌ CRITICAL ERROR in Fear & Greed loader: {e}")
         import traceback
