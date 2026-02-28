@@ -2576,33 +2576,30 @@ def load_value_metrics(conn, cursor, symbols: List[str]):
     value_rows = []
     today = date.today()
 
-    for symbol in symbols:
+    for idx, symbol in enumerate(symbols, 1):
         try:
-            cursor.execute("""
-                SELECT trailing_pe, forward_pe, price_to_book, price_to_sales_ttm,
-                       peg_ratio, ev_to_revenue, ev_to_ebitda, dividend_yield,
-                       payout_ratio
-                FROM key_metrics
-                WHERE ticker = %s
-            """, (symbol,))
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
 
-            row = cursor.fetchone()
-            if row:
+            if info and len(info) > 5:
                 value_rows.append((
                     symbol,
                     today,
-                    row[0],  # trailing_pe
-                    row[1],  # forward_pe
-                    row[2],  # price_to_book
-                    row[3],  # price_to_sales_ttm
-                    row[4],  # peg_ratio
-                    row[5],  # ev_to_revenue
-                    row[6],  # ev_to_ebitda
-                    row[7],  # dividend_yield
-                    row[8]   # payout_ratio
+                    info.get('trailingPE'),  # trailing_pe
+                    info.get('forwardPE'),  # forward_pe
+                    info.get('priceToBook'),  # price_to_book
+                    info.get('priceToSalesTrailing12Months'),  # price_to_sales_ttm
+                    info.get('trailingPegRatio'),  # peg_ratio
+                    info.get('enterpriseToRevenue'),  # ev_to_revenue
+                    info.get('enterpriseToEbitda'),  # ev_to_ebitda
+                    info.get('dividendYield'),  # dividend_yield
+                    info.get('payoutRatio')   # payout_ratio
                 ))
         except Exception as e:
             logging.debug(f"Could not load value metrics for {symbol}: {e}")
+
+        if idx % 100 == 0:
+            logging.info(f"Processing value metrics for {symbol} ({idx}/{len(symbols)})")
 
     # Upsert value_metrics
     if value_rows:
