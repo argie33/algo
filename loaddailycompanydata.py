@@ -817,10 +817,8 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                             safe_str(row.get('Name'), max_len=200),
                             safe_str(row.get('Position'), max_len=200),
                             safe_str(row.get('Most Recent Transaction'), max_len=50),
-                            safe_date(row.get('Latest Transaction Date')),
-                            safe_int(row.get('Shares Owned Directly')),
-                            safe_date(row.get('Position Direct Date')),
-                            safe_str(row.get('URL'), max_len=1000),
+                            safe_float(row.get('Latest Transaction Value', 0)),
+                            safe_int(row.get('Shares Owned', 0)),
                         ))
 
                     if roster_data:
@@ -829,14 +827,13 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                             """
                             INSERT INTO insider_roster (
                                 symbol, insider_name, position, most_recent_transaction,
-                                latest_transaction_date, shares_owned_directly,
-                                position_direct_date, url
+                                latest_transaction_value, shares_owned
                             ) VALUES %s
                             ON CONFLICT (symbol, insider_name) DO UPDATE SET
                                 position = EXCLUDED.position,
                                 most_recent_transaction = EXCLUDED.most_recent_transaction,
-                                latest_transaction_date = EXCLUDED.latest_transaction_date,
-                                shares_owned_directly = EXCLUDED.shares_owned_directly
+                                latest_transaction_value = EXCLUDED.latest_transaction_value,
+                                shares_owned = EXCLUDED.shares_owned
                             """,
                             roster_data
                         )
@@ -954,14 +951,18 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             try:
                 earnings_data = []
                 for period, row in earnings_estimate.iterrows():
+                    fiscal_year = str(period) if period else None
+                    if not fiscal_year:
+                        continue
                     earnings_data.append((
-                        symbol, str(period),
+                        symbol, fiscal_year,
                         safe_float(row.get("avg"), max_val=1000000, min_val=-1000000),
                         safe_float(row.get("low"), max_val=1000000, min_val=-1000000),
                         safe_float(row.get("high"), max_val=1000000, min_val=-1000000),
                         safe_float(row.get("yearAgoEps"), max_val=1000000, min_val=-1000000),
                         safe_int(row.get("numberOfAnalysts"), max_val=10000, min_val=0),
                         safe_float(row.get("growth"), max_val=10000, min_val=-10000),
+                        str(period),
                     ))
 
                 if earnings_data:
@@ -971,9 +972,9 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         cur,
                         """
                         INSERT INTO earnings_estimates (
-                            symbol, period, avg_estimate, low_estimate,
+                            symbol, fiscal_year_ending, avg_estimate, low_estimate,
                             high_estimate, year_ago_eps, number_of_analysts,
-                            growth
+                            growth, period
                         ) VALUES %s
                         """,
                         earnings_data
@@ -994,14 +995,18 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             try:
                 revenue_data = []
                 for period, row in revenue_estimate.iterrows():
+                    fiscal_year = str(period) if period else None
+                    if not fiscal_year:
+                        continue
                     revenue_data.append((
-                        symbol, str(period),
+                        symbol, fiscal_year,
                         safe_float(row.get("avg"), max_val=1e15, min_val=0),
                         safe_float(row.get("low"), max_val=1e15, min_val=0),
                         safe_float(row.get("high"), max_val=1e15, min_val=0),
                         safe_int(row.get("numberOfAnalysts"), max_val=10000, min_val=0),
                         safe_float(row.get("yearAgoRevenue"), max_val=1e15, min_val=0),
                         safe_float(row.get("growth"), max_val=10000, min_val=-10000),
+                        str(period),
                     ))
 
                 if revenue_data:
@@ -1011,9 +1016,9 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         cur,
                         """
                         INSERT INTO revenue_estimates (
-                            symbol, period, avg_estimate, low_estimate,
-                            high_estimate, number_of_analysts, year_ago_revenue,
-                            growth
+                            symbol, fiscal_year_ending, estimate, low,
+                            high, no_of_analysts, year_ago_revenue,
+                            growth, period
                         ) VALUES %s
                         """,
                         revenue_data
