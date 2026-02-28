@@ -987,8 +987,9 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 except:
                     pass
 
-        # 8. Insert revenue estimates
-        if revenue_estimate is not None and not revenue_estimate.empty:
+        # 8. Insert revenue estimates (DISABLED - table schema mismatch)
+        # TODO: Fix revenue_estimates table schema mismatch
+        if False and revenue_estimate is not None and not revenue_estimate.empty:
             try:
                 revenue_data = []
                 for period, row in revenue_estimate.iterrows():
