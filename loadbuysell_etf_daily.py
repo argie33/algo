@@ -16,7 +16,7 @@ from importlib import import_module
 from dotenv import load_dotenv
 
 # Load environment from .env.local
-load_dotenv('/home/stocks/algo/.env.local')
+load_dotenv('/home/arger/algo/.env.local')
 
 # -------------------------------
 # Script metadata & logging setup

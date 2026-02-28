@@ -148,8 +148,8 @@ async def get_fear_greed_data():
         '/usr/bin/chromium',
         '/usr/bin/chromium-browser',
         '/usr/bin/google-chrome',
-        '/home/stocks/.cache/ms-playwright/chromium-1194/chrome-linux/chrome',
-        '/home/stocks/.cache/ms-playwright/chromium-1187/chrome-linux/chrome',
+        '/home/arger/.cache/ms-playwright/chromium-1194/chrome-linux/chrome',
+        '/home/arger/.cache/ms-playwright/chromium-1187/chrome-linux/chrome',
         '/snap/bin/chromium',
     ]
 

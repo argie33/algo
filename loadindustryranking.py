@@ -19,7 +19,7 @@ def main():
     logger.info("   All sector and industry ranking logic is in loadsectors.py")
 
     # Call the main sector loader which includes industry ranking
-    result = subprocess.run([sys.executable, '/home/stocks/algo/loadsectors.py'],
+    result = subprocess.run([sys.executable, '/home/arger/algo/loadsectors.py'],
                           capture_output=False)
     return result.returncode
 

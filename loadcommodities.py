@@ -27,7 +27,7 @@ logging.basicConfig(
 
 # Environment & Secrets - support both AWS Secrets Manager and environment variables
 from dotenv import load_dotenv
-load_dotenv('/home/stocks/algo/.env.local')
+load_dotenv('/home/arger/algo/.env.local')
 
 SECRET_ARN = os.environ.get("DB_SECRET_ARN")
 DB_HOST = None

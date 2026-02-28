@@ -27,7 +27,7 @@ import boto3
 import requests
 
 # Import Greeks calculator
-sys.path.insert(0, '/home/stocks/algo/utils')
+sys.path.insert(0, '/home/arger/algo/utils')
 try:
     from greeks_calculator import GreeksCalculator
 except ImportError as e:
