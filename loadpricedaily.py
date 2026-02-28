@@ -181,7 +181,7 @@ def load_prices(table_name, symbols, cur, conn):
                         single_df = yf.download(orig_sym, period=DATA_PERIOD, interval="1d", auto_adjust=False, actions=True, progress=False)
                         if not single_df.empty:
                             # CRITICAL FIX: Normalize column names to lowercase (yfinance returns uppercase)
-                            single_df.columns = [col.lower() for col in single_df.columns]
+                            single_df.columns = [col.lower() if col is not None else "unknown" for col in single_df.columns]
                             per_symbol_results[orig_sym] = single_df
                             symbol_success = True
                             last_error = None
@@ -264,10 +264,10 @@ def load_prices(table_name, symbols, cur, conn):
                 # Flatten any remaining MultiIndex structure and lowercase
                 if isinstance(sub.columns, pd.MultiIndex):
                     # Extract the rightmost level of the MultiIndex
-                    sub.columns = [col[-1].lower() if isinstance(col, tuple) else str(col).lower() for col in sub.columns]
+                    sub.columns = [col[-1].lower() if col is not None and isinstance(col, tuple) else (str(col).lower() if col is not None else "unknown") for col in sub.columns]
                 else:
                     # Regular columns - just lowercase them
-                    sub.columns = [col.lower() for col in sub.columns]
+                    sub.columns = [col.lower() if col is not None else "unknown" for col in sub.columns]
 
                 # Verify that 'open' column exists after normalization
                 if "open" not in sub.columns:
@@ -338,7 +338,7 @@ def load_prices(table_name, symbols, cur, conn):
                     single_df = yf.download(orig_sym, period=DATA_PERIOD, interval="1d", auto_adjust=False, actions=True, progress=False)
                     if not single_df.empty:
                         # Normalize column names to lowercase
-                        single_df.columns = [col.lower() for col in single_df.columns]
+                        single_df.columns = [col.lower() if col is not None else "unknown" for col in single_df.columns]
                         # Now insert this data into database
                         rows = []
                         single_df = single_df.sort_index()
