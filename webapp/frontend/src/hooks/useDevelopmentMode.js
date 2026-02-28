@@ -27,8 +27,8 @@ export function useDevelopmentMode() {
             if (import.meta.env?.VITE_API_URL) return import.meta.env.VITE_API_URL;
             // Only use localhost as last resort during local development
             return window.location.hostname === 'localhost'
-              ? 'http://localhost:3001'
-              : window.location.origin.replace(/:\d+$/, ':3001');
+              ? 'http://localhost:3000'
+              : window.location.origin.replace(/:\d+$/, ':3000');
           })();
           const response = await fetch(`${apiUrl}/api/health?quick=true`, {
             signal: controller.signal,

@@ -48,9 +48,9 @@ provider:
 functions:
   api:
     handler: index.handler
-    timeout: 30
-    memorySize: 512
-    description: Stock Analysis API
+    timeout: 60
+    memorySize: 1024
+    description: Stock Analysis API - Financial Dashboard
     events:
       - httpApi:
           path: /{proxy+}
@@ -60,10 +60,10 @@ functions:
           method: ANY
     vpc:
       securityGroupIds:
-        - sg-xxxxxx  # Replace with your security group
+        - ${env:AWS_SECURITY_GROUP_ID, 'sg-xxxxxx'}  # Update with your security group ID
       subnetIds:
-        - subnet-xxxxxx  # Replace with your subnet
-        - subnet-xxxxxx  # Replace with another subnet
+        - ${env:AWS_SUBNET_ID_1, 'subnet-xxxxxx'}  # Update with your private subnet 1
+        - ${env:AWS_SUBNET_ID_2, 'subnet-xxxxxx'}  # Update with your private subnet 2
 
 plugins: []
 

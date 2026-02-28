@@ -16,12 +16,12 @@ export const getApiConfig = () => {
   const isDev = import.meta.env && import.meta.env.DEV;
 
   if (!apiUrl && isDev) {
-    // Use relative path in development - Vite proxy will forward to localhost:3001
+    // Use relative path in development - Vite proxy will forward to localhost:3000
     apiUrl = "/";
   } else if (!apiUrl && typeof window !== "undefined") {
     const { hostname, origin, port, protocol } = window.location;
     if (hostname === "localhost" || hostname === "127.0.0.1") {
-      apiUrl = "http://localhost:3001";
+      apiUrl = "http://localhost:3000";
     } else {
       // AWS production - use Lambda API Gateway endpoint
       // Default to AWS Lambda endpoint for serverless API
@@ -117,7 +117,7 @@ if (typeof process === "undefined" || process.env.NODE_ENV !== "test") {
 // Create API instance - test-safe
 // IMPORTANT: Always use absolute URL to backend for reliable proxying
 let api = axios.create({
-  baseURL: currentConfig.baseURL, // Always use absolute URL to backend (http://localhost:3001 or production URL)
+  baseURL: currentConfig.baseURL, // Always use absolute URL to backend (http://localhost:3000 or production URL)
   timeout: currentConfig.isServerless ? 45000 : 30000, // Longer timeout for Lambda cold starts
   headers: {
     "Content-Type": "application/json",
