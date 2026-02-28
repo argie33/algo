@@ -262,12 +262,36 @@ def load_prices(table_name, symbols, cur, conn):
                 sub = sub.sort_index()
                 # CRITICAL FIX: Normalize ALL column names to lowercase (yfinance returns UPPERCASE)
                 # Flatten any remaining MultiIndex structure and lowercase
-                if isinstance(sub.columns, pd.MultiIndex):
-                    # Extract the rightmost level of the MultiIndex
-                    sub.columns = [col[-1].lower() if col is not None and isinstance(col, tuple) else (str(col).lower() if col is not None else "unknown") for col in sub.columns]
-                else:
-                    # Regular columns - just lowercase them
-                    sub.columns = [col.lower() if col is not None else "unknown" for col in sub.columns]
+                try:
+                    if isinstance(sub.columns, pd.MultiIndex):
+                        # Extract the rightmost level of the MultiIndex
+                        safe_cols = []
+                        for col in sub.columns:
+                            try:
+                                if col is not None and isinstance(col, tuple) and len(col) > 0:
+                                    safe_cols.append(str(col[-1]).lower())
+                                elif col is not None:
+                                    safe_cols.append(str(col).lower())
+                                else:
+                                    safe_cols.append("unknown")
+                            except (TypeError, IndexError):
+                                safe_cols.append("unknown")
+                        sub.columns = safe_cols
+                    else:
+                        # Regular columns - just lowercase them
+                        safe_cols = []
+                        for col in sub.columns:
+                            try:
+                                if col is not None:
+                                    safe_cols.append(str(col).lower())
+                                else:
+                                    safe_cols.append("unknown")
+                            except (TypeError, AttributeError):
+                                safe_cols.append("unknown")
+                        sub.columns = safe_cols
+                except Exception as e:
+                    logging.warning(f"Error normalizing columns for {orig_sym}: {str(e)}, skipping")
+                    continue
 
                 # Verify that 'open' column exists after normalization
                 if "open" not in sub.columns:

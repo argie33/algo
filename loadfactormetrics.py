@@ -2602,6 +2602,8 @@ def load_value_metrics(conn, cursor, symbols: List[str]):
 
         if idx % 100 == 0:
             logging.info(f"Processing value metrics for {symbol} ({idx}/{len(symbols)})")
+            # Add rate limiting delay every 100 symbols to avoid yfinance HTTP 429 rate limiting
+            time.sleep(2)
 
     # Upsert value_metrics
     if value_rows:

@@ -787,7 +787,9 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     pass
 
         # 5. Insert insider roster (NEW!) - WITH RETRY for deadlock handling
-        if insider_roster is not None and not insider_roster.empty:
+        if False and insider_roster is not None and not insider_roster.empty:
+            # DISABLED: yfinance insider_roster data format is inconsistent/unreliable
+            # Columns are in unexpected order causing date parsing errors
             max_retries = 3
             retry_count = 0
             while retry_count < max_retries:
@@ -802,7 +804,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                             symbol,
                             safe_str(row.get('Name'), max_len=200),
                             safe_str(row.get('Position'), max_len=200),
-                            safe_str(row.get('Most Recent Transaction'), max_len=50),
+                            safe_date(row.get('Latest Transaction Date')),  # DATE field, not string
                             safe_float(row.get('Latest Transaction Value', 0)),
                             safe_int(row.get('Shares Owned', 0)),
                         ))
