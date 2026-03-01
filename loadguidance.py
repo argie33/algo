@@ -122,10 +122,10 @@ def main():
                 with conn.cursor() as cur:
                     # Fetch only REAL data from earnings_estimates
                     cur.execute("""
-                        SELECT avg_estimate, period, fetched_at
+                        SELECT avg_estimate, period
                         FROM earnings_estimates
                         WHERE symbol = %s AND avg_estimate IS NOT NULL
-                        ORDER BY fetched_at DESC LIMIT 2;
+                        ORDER BY period DESC LIMIT 2;
                     """, (symbol,))
 
                     estimates = cur.fetchall()
@@ -147,7 +147,7 @@ def main():
 
                         guidance_records.append((
                             symbol,
-                            latest['fetched_at'].date() if latest['fetched_at'] else None,
+                            None,  # guidance_date - use default created_at timestamp
                             prior_eps,
                             latest_eps,
                             change,
