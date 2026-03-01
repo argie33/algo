@@ -256,17 +256,17 @@ def update_last_run(conn):
 def main():
     conn = None
     try:
-        user, pwd, host, port, dbname = get_db_config()
+        cfg = get_db_config()
 
         # For local connections, use disable SSL; for remote use require
-        ssl_mode = "disable" if host == "localhost" else "require"
+        ssl_mode = "disable" if cfg["host"] == "localhost" else "require"
 
         conn = psycopg2.connect(
-            host=host,
-            port=port,
-            user=user,
-            password=pwd,
-            dbname=dbname,
+            host=cfg["host"],
+            port=cfg["port"],
+            user=cfg["user"],
+            password=cfg["password"],
+            dbname=cfg["database"],
             sslmode=ssl_mode,
             cursor_factory=DictCursor
         )
