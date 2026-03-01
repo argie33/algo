@@ -293,10 +293,18 @@ def load_naaim_data(cur, conn):
         
         # Convert DataFrame to list of tuples for batch insert
         rows = []
+        seen_dates = set()  # Track dates to prevent duplicates within this batch
         for _, row in df.iterrows():
             try:
+                date_val = row['Date']
+                # Skip if we've already seen this date in this batch (keep only first occurrence)
+                if date_val in seen_dates:
+                    logging.debug(f"Skipping duplicate date: {date_val}")
+                    continue
+                seen_dates.add(date_val)
+
                 rows.append([
-                    row['Date'],
+                    date_val,
                     None if pd.isna(row['NAAIM Number Mean/Average']) else float(row['NAAIM Number Mean/Average']),
                     None if pd.isna(row['Bearish']) else float(row['Bearish']),
                     None if pd.isna(row['Quart1']) else float(row['Quart1']),
@@ -308,11 +316,13 @@ def load_naaim_data(cur, conn):
             except Exception as e:
                 logging.warning(f"Failed to process row {row}: {e}")
                 continue
-        
+
         if not rows:
             logging.warning("No valid rows after processing")
             return 0, 0, []
-        
+
+        logging.info(f"Processing {len(rows)} deduplicated NAAIM records (removed {len(df) - len(rows)} duplicates)")
+
         # Batch insert the data - DELETE duplicates first to avoid conflict
         cur.execute(f"DELETE FROM naaim WHERE date IN ({','.join(['%s'] * len(rows))})", [r[0] for r in rows])
         sql = f"INSERT INTO naaim ({COL_LIST}) VALUES %s"

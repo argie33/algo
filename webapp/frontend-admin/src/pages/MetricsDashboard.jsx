@@ -367,14 +367,14 @@ const MetricsDashboard = () => {
                   <Typography
                     variant="h6"
                     sx={{
-                      color: getMetricColor(stock.returnOnEquity),
+                      color: getMetricColor(stock.quality_inputs?.return_on_equity_pct),
                       fontWeight: "bold",
                     }}
                   >
-                    {safeMetricDisplay(stock.returnOnEquity)}
+                    {safeMetricDisplay(stock.quality_inputs?.return_on_equity_pct)}
                   </Typography>
                   <Tooltip
-                    title={`PE: ${stock.pe || 'N/A'}`}
+                    title={`PE: ${stock.quality_inputs?.trailing_pe || 'N/A'}`}
                   >
                     <IconButton size="small">
                       <Info fontSize="small" />
@@ -384,21 +384,21 @@ const MetricsDashboard = () => {
               </TableCell>
               <TableCell align="center">
                 <Typography
-                  sx={{ color: getMetricColor(stock.profitMargin) }}
+                  sx={{ color: getMetricColor(stock.quality_inputs?.profit_margin_pct) }}
                 >
-                  {safeMetricDisplay(stock.profitMargin)}
+                  {safeMetricDisplay(stock.quality_inputs?.profit_margin_pct)}
                 </Typography>
               </TableCell>
               <TableCell align="center">
-                <Typography sx={{ color: getMetricColor(stock.debtToEquity) }}>
-                  {safeMetricDisplay(stock.debtToEquity)}
+                <Typography sx={{ color: getMetricColor(stock.quality_inputs?.debt_to_equity) }}>
+                  {safeMetricDisplay(stock.quality_inputs?.debt_to_equity)}
                 </Typography>
               </TableCell>
               <TableCell align="center">
                 <Typography
-                  sx={{ color: getMetricColor(stock.returnOnAssets) }}
+                  sx={{ color: getMetricColor(stock.quality_inputs?.return_on_assets_pct) }}
                 >
-                  {safeMetricDisplay(stock.returnOnAssets)}
+                  {safeMetricDisplay(stock.quality_inputs?.return_on_assets_pct)}
                 </Typography>
               </TableCell>
               <TableCell>${stock.currentPrice?.toFixed(2) || "N/A"}</TableCell>
