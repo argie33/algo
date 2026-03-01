@@ -28,6 +28,7 @@ import os
 import gc
 import resource
 import re
+import signal
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Tuple, Any
 from collections import defaultdict
@@ -64,11 +65,38 @@ except ImportError:
 
 # Script configuration
 SCRIPT_NAME = "loadsentiment.py"
+NEWS_FETCH_TIMEOUT = 10  # seconds - yfinance ticker.news can hang indefinitely
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout
 )
+
+# Timeout handler for hanging yfinance calls
+class TimeoutException(Exception):
+    pass
+
+def timeout_handler(signum, frame):
+    raise TimeoutException(f"News fetch timed out after {NEWS_FETCH_TIMEOUT}s")
+
+def get_ticker_news_with_timeout(symbol):
+    """Fetch ticker news with timeout to prevent hanging on yfinance API."""
+    try:
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(NEWS_FETCH_TIMEOUT)
+        yf_symbol = symbol.replace('.', '-').replace('$', '-').upper()
+        ticker = yf.Ticker(yf_symbol)
+        news_data = ticker.news
+        signal.alarm(0)  # Cancel alarm
+        return news_data
+    except TimeoutException:
+        logging.warning(f"News fetch timeout for {symbol} after {NEWS_FETCH_TIMEOUT}s")
+        return None
+    except Exception as e:
+        signal.alarm(0)  # Cancel alarm on any exception
+        logging.error(f"Error fetching news for {symbol}: {e}")
+        return None
 
 def log_mem(stage: str):
     usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
@@ -490,9 +518,9 @@ class SocialSentimentCollector:
         }
         
         try:
-            # Get recent news from yfinance
+            # Get recent news from yfinance with timeout to prevent hanging
             if self.ticker:
-                news = self.ticker.news
+                news = get_ticker_news_with_timeout(self.symbol)
             else:
                 news = None
             
