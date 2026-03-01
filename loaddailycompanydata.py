@@ -1057,55 +1057,6 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 except:
                     pass
 
-        # 8. Insert revenue estimates (DISABLED - table schema mismatch)
-        # TODO: Fix revenue_estimates table schema mismatch
-        if False and revenue_estimate is not None and not revenue_estimate.empty:
-            try:
-                revenue_data = []
-                for period, row in revenue_estimate.iterrows():
-                    fiscal_year = str(period) if period else None
-                    if not fiscal_year:
-                        continue
-                    revenue_data.append((
-                        symbol, fiscal_year,
-                        safe_float(row.get("avg"), max_val=1e15, min_val=0),
-                        safe_float(row.get("low"), max_val=1e15, min_val=0),
-                        safe_float(row.get("high"), max_val=1e15, min_val=0),
-                        safe_int(row.get("numberOfAnalysts"), max_val=10000, min_val=0),
-                        safe_float(row.get("yearAgoRevenue"), max_val=1e15, min_val=0),
-                        safe_float(row.get("growth"), max_val=10000, min_val=-10000),
-                        str(period),
-                    ))
-
-                if revenue_data:
-                    # Delete existing revenue estimates for this symbol to avoid conflicts
-                    cur.execute("DELETE FROM revenue_estimates WHERE symbol = %s", (symbol,))
-                    execute_values(
-                        cur,
-                        """
-                        INSERT INTO revenue_estimates (
-                            symbol, fiscal_year_ending, estimate, low,
-                            high, no_of_analysts, year_ago_revenue,
-                            growth, period
-                        ) VALUES %s
-                        ON CONFLICT (symbol, fiscal_year_ending) DO UPDATE SET
-                            estimate = COALESCE(EXCLUDED.estimate, revenue_estimates.estimate),
-                            low = COALESCE(EXCLUDED.low, revenue_estimates.low),
-                            high = COALESCE(EXCLUDED.high, revenue_estimates.high)
-                        """,
-                        revenue_data
-                    )
-                    stats['revenue_est'] = len(revenue_data)
-
-            except Exception as e:
-                logging.error(f"❌ CRITICAL: Failed to insert revenue estimates for {symbol}: {str(e)[:200]}")
-                stats['revenue_est_failed'] = 1
-                # Rollback failed transaction
-                try:
-                    conn.rollback()
-                except:
-                    pass
-
         # 8.5. Insert earnings history (actual reported earnings - consolidated from loadearningshistory.py)
         try:
             # Retry earnings history fetch with exponential backoff (it often fails with 500 errors)
