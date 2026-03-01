@@ -31,6 +31,7 @@ import json
 import os
 import gc
 import resource
+import signal
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Tuple, Any
 
@@ -42,6 +43,30 @@ import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from yfinance_helper import retry_with_backoff
 from lib.db import get_db_config, get_connection
+
+# Timeout handler for yfinance API calls
+class TimeoutException(Exception):
+    pass
+
+def timeout_handler(signum, frame):
+    raise TimeoutException("API call timed out")
+
+def get_ticker_info_with_timeout(ticker, timeout_sec=15):
+    """Safely get ticker.info with timeout protection."""
+    try:
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(timeout_sec)
+        info = ticker.info
+        signal.alarm(0)  # Cancel alarm
+        return info
+    except TimeoutException:
+        logging.warning(f"ticker.info call timed out after {timeout_sec}s")
+        signal.alarm(0)
+        return {}
+    except Exception as e:
+        signal.alarm(0)
+        logging.warning(f"Error fetching ticker.info: {str(e)[:50]}")
+        return {}
 
 # Script configuration
 SCRIPT_NAME = "loadmarket.py"
@@ -153,8 +178,8 @@ class MarketDataCollector:
                 logging.warning(f"No historical data for {self.symbol}")
                 return None
 
-            # Get basic info
-            info = self.ticker.info
+            # Get basic info with timeout protection
+            info = get_ticker_info_with_timeout(self.ticker, timeout_sec=15)
             
             # Calculate latest metrics
             latest_date = hist.index[-1]

@@ -9,12 +9,37 @@ import functools
 import os
 import json
 import resource
+import signal
 
 import boto3
 import psycopg2
 from psycopg2.extras import DictCursor
 import yfinance as yf
 import pandas as pd
+
+# Timeout handler for yfinance API calls
+class TimeoutException(Exception):
+    pass
+
+def timeout_handler(signum, frame):
+    raise TimeoutException("API call timed out")
+
+def get_ticker_property_with_timeout(ticker, prop_name, timeout_sec=15):
+    """Safely get ticker properties with timeout protection."""
+    try:
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(timeout_sec)
+        prop = getattr(ticker, prop_name)
+        signal.alarm(0)  # Cancel alarm
+        return prop
+    except TimeoutException:
+        logging.warning(f"ticker.{prop_name} call timed out after {timeout_sec}s")
+        signal.alarm(0)
+        return None
+    except Exception as e:
+        signal.alarm(0)
+        logging.warning(f"Error fetching ticker.{prop_name}: {str(e)[:50]}")
+        return None
 
 # Script metadata & logging setup
 SCRIPT_NAME = "loadinsidertransactions.py"
@@ -135,8 +160,8 @@ def process_symbol(symbol, conn):
     ticker = yf.Ticker(yf_symbol)
 
     try:
-        insider_data = ticker.insider_transactions
-        if insider_data is None or insider_data.empty:
+        insider_data = get_ticker_property_with_timeout(ticker, 'insider_transactions', timeout_sec=15)
+        if insider_data is None or (hasattr(insider_data, 'empty') and insider_data.empty):
             return False
     except Exception as e:
         raise e
