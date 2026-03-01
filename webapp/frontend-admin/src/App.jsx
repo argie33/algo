@@ -64,12 +64,12 @@ import AuthTest from "./pages/AuthTest";
 const drawerWidth = 240;
 
 const menuItems = [
-  // Stocks Section
+  // Deep Value Section
   {
     text: "Deep Value Picks",
     icon: <TrendingDownIcon />,
     path: "/deep-value-stocks",
-    category: "stocks",
+    category: "deepvalue",
   },
   // Portfolio Section (Admin only - no markets data)
   {
@@ -119,6 +119,7 @@ function App() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [userMenuAnchor, setUserMenuAnchor] = useState(null);
   const [expandedSections, setExpandedSections] = useState({
+    deepvalue: true,
     markets: true,
     stocks: true,
     sentiment: false,
@@ -203,6 +204,7 @@ function App() {
 
   const sectionTitles = {
     main: "Dashboard",
+    deepvalue: "💎 Deep Value",
     markets: "Markets",
     stocks: "Stocks",
     sentiment: "Sentiment Analysis",
