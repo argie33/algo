@@ -72,7 +72,7 @@ def get_db_config():
                 "port": int(secret.get("port", 5432)),
                 "user": secret["username"],
                 "password": secret["password"],
-                "database": secret["dbname"]
+                "dbname": secret["dbname"]
             }
         except Exception as e:
             logger.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
@@ -84,7 +84,7 @@ def get_db_config():
         "port": int(os.getenv('DB_PORT', 5432)),
         "user": os.getenv('DB_USER', 'stocks'),
         "password": os.getenv('DB_PASSWORD', ''),
-        "database": os.getenv('DB_NAME', 'stocks')
+        "dbname": os.getenv('DB_NAME', 'stocks')
     }
 
 
@@ -93,7 +93,7 @@ def get_db_connection():
     try:
         config = get_db_config()
         conn = psycopg2.connect(**config)
-        logger.info(f"Connected to database: {config['database']}")
+        logger.info(f"Connected to database: {config['dbname']}")
         return conn
     except psycopg2.Error as e:
         logger.error(f"Database connection failed: {e}")
