@@ -1,4 +1,4 @@
-#!/usr/bin/env python3  
+#!/usr/bin/env python3
 # Updated: 2025-07-15 - Trigger deployment for news data loading - Database population v2
 import sys
 import time
@@ -10,6 +10,7 @@ import resource
 import math
 import hashlib
 import re
+import signal
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 
@@ -49,12 +50,40 @@ def log_mem(stage: str):
 # -------------------------------
 MAX_BATCH_RETRIES = 3
 RETRY_DELAY = 0.2  # seconds between download retries
+NEWS_FETCH_TIMEOUT = 10  # seconds - yfinance ticker.news can hang indefinitely
 
 # -------------------------------
 # Environment
 # -------------------------------
 BATCH_SIZE = int(os.environ.get("BATCH_SIZE", "30"))
 PAUSE = float(os.environ.get("PAUSE", "0.5"))
+
+# -------------------------------
+# Timeout handler for hanging yfinance calls
+# -------------------------------
+class TimeoutException(Exception):
+    pass
+
+def timeout_handler(signum, frame):
+    raise TimeoutException(f"News fetch timed out after {NEWS_FETCH_TIMEOUT}s")
+
+def get_ticker_news_with_timeout(symbol):
+    """Fetch ticker news with timeout to prevent hanging on yfinance API."""
+    try:
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(NEWS_FETCH_TIMEOUT)
+        yf_symbol = symbol.replace('.', '-').replace('$', '-').upper()
+        ticker = yf.Ticker(yf_symbol)
+        news_data = ticker.news
+        signal.alarm(0)  # Cancel alarm
+        return news_data
+    except TimeoutException:
+        logging.warning(f"News fetch timeout for {symbol} after {NEWS_FETCH_TIMEOUT}s")
+        return None
+    except Exception as e:
+        signal.alarm(0)  # Cancel alarm on any exception
+        logging.error(f"Error fetching news for {symbol}: {e}")
+        return None
 
 # -------------------------------
 # DB config loader - works in AWS and locally
@@ -364,13 +393,9 @@ def load_news_data(symbols, cur, conn):
             try:
                 logging.info(f"Fetching news for {orig_sym}")
 
-                # Get ticker object (convert ticker format for yfinance: BRK.B → BRK-B)
-                yf_symbol = symbol.replace('.', '-').replace('$', '-').upper()
-                ticker = yf.Ticker(yf_symbol)
-                
-                # Get news data
-                news_data = ticker.news
-                
+                # Get news data with timeout to prevent hanging on yfinance API
+                news_data = get_ticker_news_with_timeout(symbol)
+
                 if not news_data:
                     logging.warning(f"No news data found for {orig_sym}")
                     continue
