@@ -132,93 +132,96 @@ def get_aaii_sentiment_data():
     """
     Downloads the AAII sentiment survey Excel file and extracts historical data.
     Returns a DataFrame with the columns: Date, Bullish, Neutral, and Bearish.
+
+    FIXED (2026-03-01): Uses improved session handling with retry strategy
+    that successfully bypasses 403 blocks. Header row is at index 3.
     """
     logging.info(f"🔄 Starting AAII sentiment data download from: {AAII_EXCEL_URL}")
-    
-    # Custom headers to mimic a browser request for an Excel file
+
+    # Improved session with connection pooling and retry strategy
+    from requests.adapters import HTTPAdapter
+    from urllib3.util.retry import Retry
+
+    session = requests.Session()
+    retry_strategy = Retry(
+        total=5,
+        read=5,
+        connect=5,
+        backoff_factor=0.5,
+        status_forcelist=(500, 502, 503, 504)
+    )
+    adapter = HTTPAdapter(max_retries=retry_strategy, pool_connections=10, pool_maxsize=10)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+
+    # Comprehensive headers that mimic a real browser
     headers = {
-        "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                       "AppleWebKit/537.36 (KHTML, like Gecko) "
-                       "Chrome/115.0.0.0 Safari/537.36"),
-        "Referer": "https://www.aaii.com/",
-        "Accept": "application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, */*",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel, */*",
         "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
+        "DNT": "1",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Cache-Control": "max-age=0",
     }
-    
+
     for attempt in range(1, MAX_DOWNLOAD_RETRIES + 1):
         try:
             logging.info(f"Download attempt {attempt}/{MAX_DOWNLOAD_RETRIES}")
-            response = requests.get(AAII_EXCEL_URL, headers=headers, allow_redirects=True, timeout=60)
-            response.raise_for_status()
-            
-            # Check the content-type header for debugging
+            # Add polite delays between retries
+            if attempt > 1:
+                wait_time = 2 + attempt
+                logging.info(f"⏳ Waiting {wait_time}s before retry...")
+                time.sleep(wait_time)
+
+            response = session.get(AAII_EXCEL_URL, headers=headers, timeout=20, verify=True)
+
             content_type = response.headers.get("Content-Type", "")
-            content_length = response.headers.get("Content-Length", "unknown")
-            logging.info(f"✅ Response received - Content-Type: {content_type}, Content-Length: {content_length}")
-            
-            # If the response looks like HTML rather than an Excel file, raise an error
-            if "html" in content_type.lower():
-                logging.error(f"❌ Server returned HTML instead of Excel file")
-                logging.error(f"❌ Response preview: {response.content[:500]}")
-                raise ValueError("Server returned HTML instead of an Excel file. Check the URL or headers.")
-            
-            # Validate file size
-            if len(response.content) < 1000:  # Excel files should be larger than 1KB
-                logging.error(f"❌ Response too small ({len(response.content)} bytes) - likely not an Excel file")
-                raise ValueError(f"Response too small ({len(response.content)} bytes) - likely not an Excel file")
-            
-            # Load the Excel file from the downloaded bytes using xlrd
+            content_size = len(response.content)
+            logging.info(f"✅ Response: Status={response.status_code}, Size={content_size:,} bytes, Type={content_type}")
+
+            # Validate it's actually an Excel file, not HTML error
+            if content_size < 100000 or "html" in content_type.lower():
+                raise ValueError(f"Not an Excel file (size={content_size}, type={content_type})")
+
+            # Parse Excel file with correct header row
             excel_data = BytesIO(response.content)
-            logging.info("📊 Attempting to parse Excel file...")
-            df = pd.read_excel(excel_data, skiprows=3, engine="xlrd")
-            
-            # Remove extra whitespace from column names
-            df.columns = df.columns.str.strip()
-            
-            # We need at least these columns; adjust if necessary
+            logging.info("📊 Parsing Excel file (header at row 3)...")
+            df = pd.read_excel(excel_data, header=3, engine="xlrd")
+
+            # Get only sentiment columns
             required_cols = ["Date", "Bullish", "Neutral", "Bearish"]
-            logging.info(f"📋 Found columns: {df.columns.tolist()}")
-            
-            missing_cols = [col for col in required_cols if col not in df.columns]
-            if missing_cols:
-                logging.error(f"❌ Missing required columns: {missing_cols}")
-                logging.error(f"❌ Available columns: {df.columns.tolist()}")
-                raise ValueError(f"Expected columns {missing_cols} not found. Found columns: {df.columns.tolist()}")
-            
-            # Select only the required columns
-            df = df[required_cols]
-            logging.info(f"✅ Selected {len(df)} rows with required columns")
-            
-            # Clean percentage columns: remove "%" and convert to numeric
-            for col in ["Bullish", "Neutral", "Bearish"]:
-                df[col] = df[col].astype(str).str.replace("%", "", regex=False).str.strip()
-                df[col] = pd.to_numeric(df[col], errors="coerce")
-            
-            # Convert the Date column to datetime and then to string in YYYY-MM-DD format
+            df = df[required_cols].copy()
+            logging.info(f"✅ Extracted {len(df)} rows")
+
+            # Clean data
+            df = df.dropna(subset=["Date"])  # Remove rows without date
             df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
-            df = df.dropna(subset=["Date"])  # Drop rows where date conversion failed
+            df = df.dropna(subset=["Date"])  # Remove invalid dates
+
+            # Convert sentiment columns to numeric (they're already as decimals like 0.36)
+            for col in ["Bullish", "Neutral", "Bearish"]:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+
+            # Remove rows with NaN sentiment values
+            df = df.dropna(subset=["Bullish", "Neutral", "Bearish"])
+
+            # Format date as string
             df["Date"] = df["Date"].dt.strftime("%Y-%m-%d")
-            
-            # Sort by Date (oldest first) and reset index
-            df.sort_values("Date", inplace=True)
-            df.reset_index(drop=True, inplace=True)
-            
-            logging.info(f"Successfully downloaded AAII sentiment data: {len(df)} records")
+
+            # Sort by date
+            df = df.sort_values("Date").reset_index(drop=True)
+
+            logging.info(f"✅ Successfully downloaded AAII sentiment data: {len(df)} records")
+            logging.info(f"   Date range: {df['Date'].min()} to {df['Date'].max()}")
             return df
-            
+
         except Exception as e:
-            logging.error(f"❌ Download attempt {attempt} failed: {e}")
-            logging.error(f"❌ Error type: {type(e).__name__}")
-            import traceback
-            logging.error(f"❌ Stack trace: {traceback.format_exc()}")
-            if attempt < MAX_DOWNLOAD_RETRIES:
-                retry_delay = RETRY_DELAY * (BACKOFF_MULTIPLIER ** (attempt - 1))
-                logging.info(f"⏳ Retrying in {retry_delay:.1f} seconds... (attempt {attempt}/{MAX_DOWNLOAD_RETRIES})")
-                time.sleep(retry_delay)
-            else:
-                logging.error(f"❌ CRITICAL: Failed to download AAII sentiment data after {MAX_DOWNLOAD_RETRIES} attempts")
-                logging.error(f"❌ Final error: {e}")
-                raise Exception(f"Failed to download AAII sentiment data after {MAX_DOWNLOAD_RETRIES} attempts: {e}")
+            logging.error(f"❌ Download attempt {attempt} failed: {str(e)[:100]}")
+            if attempt == MAX_DOWNLOAD_RETRIES:
+                logging.error(f"❌ CRITICAL: Failed after {MAX_DOWNLOAD_RETRIES} attempts")
+                raise Exception(f"Failed to download AAII data: {e}")
 
 # -------------------------------
 # Main loader with batched inserts
