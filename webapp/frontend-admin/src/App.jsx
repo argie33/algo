@@ -53,6 +53,7 @@ import PortfolioOptimizerNew from "./pages/PortfolioOptimizerNew";
 import TradeHistory from "./pages/TradeHistory";
 import Settings from "./pages/Settings";
 import Messages from "./pages/Messages";
+import DeepValueStocks from "./pages/DeepValueStocks";
 import { useAuth } from "./contexts/AuthContext";
 import AuthModal from "./components/auth/AuthModal";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
@@ -63,6 +64,13 @@ import AuthTest from "./pages/AuthTest";
 const drawerWidth = 240;
 
 const menuItems = [
+  // Stocks Section
+  {
+    text: "Deep Value Picks",
+    icon: <TrendingDownIcon />,
+    path: "/deep-value-stocks",
+    category: "stocks",
+  },
   // Portfolio Section (Admin only - no markets data)
   {
     text: "Portfolio Holdings",
@@ -488,6 +496,7 @@ function App() {
             <Route path="/trade-history" element={<ProtectedRoute><TradeHistory /></ProtectedRoute>} />
             <Route path="/optimizer" element={<ProtectedRoute><PortfolioOptimizerNew /></ProtectedRoute>} />
             <Route path="/metrics" element={<MetricsDashboard />} />
+            <Route path="/deep-value-stocks" element={<DeepValueStocks />} />
             <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
             <Route path="/service-health" element={<ServiceHealth />} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
