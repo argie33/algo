@@ -313,8 +313,9 @@ def load_naaim_data(cur, conn):
             logging.warning("No valid rows after processing")
             return 0, 0, []
         
-        # Batch insert the data
-        sql = f"INSERT INTO naaim ({COL_LIST}) VALUES %s ON CONFLICT (date) DO UPDATE SET naaim_number_mean = EXCLUDED.naaim_number_mean, bearish = EXCLUDED.bearish, quart1 = EXCLUDED.quart1, quart2 = EXCLUDED.quart2, quart3 = EXCLUDED.quart3, bullish = EXCLUDED.bullish, deviation = EXCLUDED.deviation"
+        # Batch insert the data - DELETE duplicates first to avoid conflict
+        cur.execute(f"DELETE FROM naaim WHERE date IN ({','.join(['%s'] * len(rows))})", [r[0] for r in rows])
+        sql = f"INSERT INTO naaim ({COL_LIST}) VALUES %s"
         execute_values(cur, sql, rows)
         conn.commit()
         
