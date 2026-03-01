@@ -30,6 +30,7 @@ import logging
 import os
 import resource
 import sys
+import signal
 import time
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Tuple
@@ -41,6 +42,30 @@ import psycopg2.extensions
 import numpy as np
 import yfinance as yf
 from psycopg2.extras import RealDictCursor, execute_values
+
+# Timeout handler for yfinance API calls
+class TimeoutException(Exception):
+    pass
+
+def timeout_handler(signum, frame):
+    raise TimeoutException("API call timed out")
+
+def get_ticker_info_with_timeout(ticker, timeout_sec=15):
+    """Safely get ticker.info with timeout protection."""
+    try:
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(timeout_sec)
+        info = ticker.info
+        signal.alarm(0)  # Cancel alarm
+        return info
+    except TimeoutException:
+        logging.warning(f"ticker.info call timed out after {timeout_sec}s")
+        signal.alarm(0)
+        return {}
+    except Exception as e:
+        signal.alarm(0)
+        logging.warning(f"Error fetching ticker.info: {str(e)[:50]}")
+        return {}
 
 # Rate limiting for yfinance (disabled - use calculate_missing_beta.py for beta calculations)
 # YFINANCE_RATE_LIMIT_DELAY = 0.1  # 100ms between requests
@@ -1411,7 +1436,8 @@ def validate_beta_with_yfinance(symbol: str, calculated_beta: Optional[float]) -
 
     try:
         ticker = yf.Ticker(symbol)
-        yf_beta = ticker.info.get('beta')
+        info = get_ticker_info_with_timeout(ticker, timeout_sec=15)
+        yf_beta = info.get('beta')
 
         if yf_beta is None:
             validation["status"] = "NO_YFINANCE_BETA"
@@ -2579,7 +2605,7 @@ def load_value_metrics(conn, cursor, symbols: List[str]):
     for idx, symbol in enumerate(symbols, 1):
         try:
             ticker = yf.Ticker(symbol)
-            info = ticker.info
+            info = get_ticker_info_with_timeout(ticker, timeout_sec=15)
 
             # Load ALL symbols - NULL values are meaningful data!
             # NULL PE = no earnings, NULL P/B = financial issues, etc.

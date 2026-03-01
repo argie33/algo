@@ -3,6 +3,7 @@
 import os
 import sys
 import json
+import signal
 import pandas as pd
 import numpy as np
 import boto3
@@ -16,6 +17,30 @@ import requests
 from typing import Dict, List, Any
 import xml.etree.ElementTree as ET
 from io import StringIO
+
+# Timeout handler for yfinance API calls
+class TimeoutException(Exception):
+    pass
+
+def timeout_handler(signum, frame):
+    raise TimeoutException("API call timed out")
+
+def get_ticker_info_with_timeout(ticker, timeout_sec=15):
+    """Safely get ticker.info with timeout protection."""
+    try:
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(timeout_sec)
+        info = ticker.info
+        signal.alarm(0)  # Cancel alarm
+        return info
+    except TimeoutException:
+        logging.warning(f"ticker.info call timed out after {timeout_sec}s")
+        signal.alarm(0)
+        return {}
+    except Exception as e:
+        signal.alarm(0)
+        logging.warning(f"Error fetching ticker.info: {str(e)[:50]}")
+        return {}
 
 # Script metadata & logging setup
 SCRIPT_NAME = "loadcommodities.py"
@@ -250,9 +275,9 @@ def fetch_commodity_data(symbol: str) -> Dict[str, Any]:
         yf_symbol = symbol.replace(".", "-").replace("$", "-").upper()
 
         ticker = yf.Ticker(yf_symbol)
-        
+
         # Get current data
-        info = ticker.info
+        info = get_ticker_info_with_timeout(ticker, timeout_sec=15)
         hist = ticker.history(period="1d")
         
         if hist.empty:

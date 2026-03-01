@@ -12,6 +12,7 @@ import json
 import os
 import gc
 import resource
+import signal
 
 import psycopg2
 from psycopg2.extras import execute_values
@@ -19,6 +20,30 @@ from datetime import datetime
 
 import boto3
 import yfinance as yf
+
+# Timeout handler for yfinance API calls
+class TimeoutException(Exception):
+    pass
+
+def timeout_handler(signum, frame):
+    raise TimeoutException("API call timed out")
+
+def get_ticker_info_with_timeout(ticker, timeout_sec=15):
+    """Safely get ticker.info with timeout protection."""
+    try:
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(timeout_sec)
+        info = ticker.info
+        signal.alarm(0)  # Cancel alarm
+        return info
+    except TimeoutException:
+        logging.warning(f"ticker.info call timed out after {timeout_sec}s")
+        signal.alarm(0)
+        return {}
+    except Exception as e:
+        signal.alarm(0)
+        logging.warning(f"Error fetching ticker.info: {str(e)[:50]}")
+        return {}
 
 SCRIPT_NAME = "loadanalystsentiment.py"
 logging.basicConfig(
@@ -149,7 +174,7 @@ def fetch_analyst_data(symbol):
         # Convert ticker format for yfinance (e.g., BRK.B → BRK-B)
         yf_symbol = symbol.replace('.', '-').replace('$', '-').upper()
         ticker = yf.Ticker(yf_symbol)
-        info = ticker.info
+        info = get_ticker_info_with_timeout(ticker, timeout_sec=15)
 
         # Extract analyst data fields - NO FAKE DEFAULTS
         analyst_count = info.get("numberOfAnalystOpinions")  # None if missing (not fake 0)
