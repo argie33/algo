@@ -377,6 +377,8 @@ def load_news_data(symbols, cur, conn):
                 
                 # Process each news item
                 news_items = []
+                seen_uuids = set()  # Track UUIDs within this symbol's batch
+
                 for news_item in news_data:
                     # Extract news data
                     uuid = news_item.get('uuid')
@@ -387,12 +389,17 @@ def load_news_data(symbols, cur, conn):
                         link = news_item.get('link', '')
                         uuid = hashlib.md5(f"{title}{link}".encode()).hexdigest()
 
+                    # Skip if we already have this UUID in this batch
+                    if uuid in seen_uuids:
+                        continue
+                    seen_uuids.add(uuid)
+
                     title = news_item.get('title', '')
                     publisher = news_item.get('publisher', '')
                     link = news_item.get('link', '')
                     publish_time = news_item.get('providerPublishTime')
                     news_type = news_item.get('type', '')
-                    
+
                     # Convert timestamp to datetime
                     publish_datetime = None
                     if publish_time:
@@ -400,18 +407,18 @@ def load_news_data(symbols, cur, conn):
                             publish_datetime = datetime.fromtimestamp(publish_time)
                         except (ValueError, TypeError):
                             logging.warning(f"Invalid timestamp for {orig_sym}: {publish_time}")
-                    
+
                     # Get thumbnail and related tickers
                     thumbnail = None
                     if 'thumbnail' in news_item and 'resolutions' in news_item['thumbnail']:
                         thumbnails = news_item['thumbnail']['resolutions']
                         if thumbnails:
                             thumbnail = thumbnails[0].get('url')
-                    
+
                     related_tickers = []
                     if 'relatedTickers' in news_item:
                         related_tickers = [ticker for ticker in news_item['relatedTickers'] if ticker]
-                    
+
                     news_items.append((
                         uuid,
                         orig_sym,
@@ -423,39 +430,29 @@ def load_news_data(symbols, cur, conn):
                         thumbnail,
                         json.dumps(related_tickers) if related_tickers else None
                     ))
-                
-                # Insert news items - deduplicate by uuid first to prevent ON CONFLICT issues
+
+                # Insert news items
                 if news_items:
-                    # Deduplicate by uuid (keep first occurrence of each uuid)
-                    seen_uuids = set()
-                    dedup_items = []
-                    for item in news_items:
-                        uuid = item[0]  # uuid is first element of tuple
-                        if uuid not in seen_uuids:
-                            seen_uuids.add(uuid)
-                            dedup_items.append(item)
+                    execute_values(
+                        cur,
+                        """
+                        INSERT INTO stock_news (
+                            uuid, ticker, title, publisher, link,
+                            publish_time, news_type, thumbnail, related_tickers
+                        ) VALUES %s
+                        ON CONFLICT (uuid) DO UPDATE SET
+                            title = EXCLUDED.title,
+                            publisher = EXCLUDED.publisher,
+                            link = EXCLUDED.link,
+                            publish_time = EXCLUDED.publish_time,
+                            news_type = EXCLUDED.news_type,
+                            thumbnail = EXCLUDED.thumbnail,
+                            related_tickers = EXCLUDED.related_tickers
+                        """,
+                        news_items
+                    )
 
-                    if dedup_items:
-                        execute_values(
-                            cur,
-                            """
-                            INSERT INTO stock_news (
-                                uuid, ticker, title, publisher, link,
-                                publish_time, news_type, thumbnail, related_tickers
-                            ) VALUES %s
-                            ON CONFLICT (uuid) DO UPDATE SET
-                                title = EXCLUDED.title,
-                                publisher = EXCLUDED.publisher,
-                                link = EXCLUDED.link,
-                                publish_time = EXCLUDED.publish_time,
-                                news_type = EXCLUDED.news_type,
-                                thumbnail = EXCLUDED.thumbnail,
-                                related_tickers = EXCLUDED.related_tickers
-                            """,
-                            dedup_items
-                        )
-
-                        logging.info(f"Inserted {len(dedup_items)} news items for {orig_sym} (deduplicated from {len(news_items)})")
+                    logging.info(f"Inserted {len(news_items)} news items for {orig_sym}")
                 
                 conn.commit()
                 processed += 1
