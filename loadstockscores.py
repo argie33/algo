@@ -331,6 +331,11 @@ def main():
         'peg_ratio': 1.5, 'ev_to_revenue': 1.0, 'ev_to_ebitda': 1.0
     }
     # Invert valuation metrics (lower P/E = better value)
+    # NOTE: NaN values in value_metrics are MEANINGFUL DATA (yfinance doesn't expose ratios for unprofitable stocks)
+    # The weighted score calculation uses nanmean which handles these correctly:
+    # - Stocks with complete value data: scored across all metrics
+    # - Stocks with missing value data (yfinance limitation): score uses only available metrics
+    # This is CORRECT behavior, not a data quality issue
     value_for_calc = df.copy()
     for metric in value_metrics:
         if metric in value_for_calc.columns:

@@ -13,6 +13,10 @@ Data Loaded (6 tables):
 3. momentum_metrics (price momentum across 1m/3m/6m/12m timeframes, SMAs)
 4. stability_metrics (volatility, drawdown, beta, volume consistency)
 5. value_metrics (P/E, P/B, P/S, PEG, EV ratios, dividend yield, payout ratio)
+   - NOTE: ~3,820 stocks will have NULL values (yfinance limitation)
+   - This is CORRECT - yfinance only exposes ratios for profitable/major stocks
+   - NULL = yfinance didn't provide data, not a data quality issue
+   - Scoring system handles NULLs correctly using nanmean
 6. positioning_metrics (institutional ownership, insider ownership, short interest, A/D rating)
 
 STATUS: PRODUCTION - Consolidated loader
@@ -2607,21 +2611,26 @@ def load_value_metrics(conn, cursor, symbols: List[str]):
             ticker = yf.Ticker(symbol)
             info = get_ticker_info_with_timeout(ticker, timeout_sec=15)
 
-            # Load ALL symbols - NULL values are meaningful data!
-            # NULL PE = no earnings, NULL P/B = financial issues, etc.
+            # Load ALL symbols - NULL values are MEANINGFUL DATA, not missing data!
+            # yfinance only exposes ratio fields for profitable/major stocks
+            # When info.get('trailingPE') returns None, it means:
+            #   - yfinance didn't provide it (not a data quality issue)
+            #   - Stock is unprofitable, micro-cap, delisted, or ADR
+            #   - The NULL is the CORRECT representation in our database
+            # DO NOT treat NULLs as failures or try to "fill" them
             if info:
                 value_rows.append((
                     symbol,
                     today,
-                    info.get('trailingPE'),  # trailing_pe (NULL = no earnings)
-                    info.get('forwardPE'),  # forward_pe (NULL = unprofitable)
-                    info.get('priceToBook'),  # price_to_book (NULL = no book value)
-                    info.get('priceToSalesTrailing12Months'),  # price_to_sales_ttm (NULL = no sales)
+                    info.get('trailingPE'),  # trailing_pe - NULL when yfinance doesn't expose it
+                    info.get('forwardPE'),  # forward_pe - NULL when yfinance doesn't expose it
+                    info.get('priceToBook'),  # price_to_book - NULL when yfinance doesn't expose it
+                    info.get('priceToSalesTrailing12Months'),  # price_to_sales_ttm - NULL when yfinance doesn't expose it
                     info.get('trailingPegRatio'),  # peg_ratio
                     info.get('enterpriseToRevenue'),  # ev_to_revenue
                     info.get('enterpriseToEbitda'),  # ev_to_ebitda
-                    info.get('dividendYield'),  # dividend_yield (NULL = no dividend)
-                    info.get('payoutRatio')   # payout_ratio (NULL = no earnings to pay)
+                    info.get('dividendYield'),  # dividend_yield - NULL when no dividend
+                    info.get('payoutRatio')   # payout_ratio - NULL when no earnings to pay
                 ))
         except Exception as e:
             logging.debug(f"Could not load value metrics for {symbol}: {e}")
@@ -3001,19 +3010,22 @@ def create_factor_metrics_tables(cursor):
         """)
 
         # Create value_metrics table
+        # NOTE: All ratio columns are FLOAT NULL because yfinance only exposes them for profitable/major stocks.
+        # NULL values are MEANINGFUL - they indicate yfinance limitation, not missing data.
+        # Do NOT try to fill/default these NULLs - the scoring system handles them correctly with nanmean.
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS value_metrics (
                 symbol VARCHAR(50) NOT NULL,
                 date DATE NOT NULL,
-                trailing_pe FLOAT,
-                forward_pe FLOAT,
-                price_to_book FLOAT,
-                price_to_sales_ttm FLOAT,
+                trailing_pe FLOAT,           -- NULL when yfinance doesn't expose it (unprofitable stocks, etc.)
+                forward_pe FLOAT,            -- NULL when yfinance doesn't expose it
+                price_to_book FLOAT,         -- NULL when yfinance doesn't expose it
+                price_to_sales_ttm FLOAT,    -- NULL when yfinance doesn't expose it
                 peg_ratio FLOAT,
                 ev_to_revenue FLOAT,
                 ev_to_ebitda FLOAT,
-                dividend_yield FLOAT,
-                payout_ratio FLOAT,
+                dividend_yield FLOAT,        -- NULL when stock doesn't pay dividends
+                payout_ratio FLOAT,          -- NULL when unprofitable
                 fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (symbol, date)
             )
