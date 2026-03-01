@@ -86,6 +86,12 @@ const menuItems = [
     premium: true,
   },
   {
+    text: '💎 Deep Value Picks',
+    icon: <Stars />,
+    path: '/app/deep-value',
+    category: 'stocks',
+  },
+  {
     text: 'Earnings Hub',
     icon: <EventIcon />,
     path: '/app/earnings',
