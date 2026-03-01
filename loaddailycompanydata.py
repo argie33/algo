@@ -92,7 +92,13 @@ def get_ticker_with_timeout(symbol_str):
         yf_symbol = symbol_str.replace('.', '-').replace('$', '-').upper()
         ticker = yf.Ticker(yf_symbol)
         # Fetch info immediately to catch hanging at the right place
-        _ = ticker.info
+        try:
+            _ = ticker.info
+        except Exception as info_err:
+            # Catch curl errors, network errors, etc. that happen inside yfinance
+            logging.warning(f"⚠️  Failed to fetch info for {symbol_str} (curl/network error): {str(info_err)[:100]}")
+            signal.alarm(0)  # Cancel alarm
+            return ticker  # Return ticker anyway - we'll skip info fields but continue processing
         signal.alarm(0)  # Cancel alarm
         return ticker
     except TimeoutException:
