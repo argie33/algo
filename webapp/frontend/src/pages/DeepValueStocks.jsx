@@ -34,7 +34,7 @@ const DeepValueStocks = () => {
   const [stocks, setStocks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [qualityThreshold, setQualityThreshold] = useState(70);
+  const [qualityThreshold, setQualityThreshold] = useState(60);
   const [selectedStock, setSelectedStock] = useState(null);
   const [infoOpen, setInfoOpen] = useState(false);
 
