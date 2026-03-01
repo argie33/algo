@@ -98,8 +98,8 @@ const menuItems = [
     premium: true,
   },
   {
-    text: "Deep Value Picks",
-    icon: <TrendingDownIcon />,
+    text: "💎 Deep Value Picks",
+    icon: <Stars />,
     path: "/app/deep-value",
     category: "stocks",
   },
