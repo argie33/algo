@@ -16,6 +16,7 @@ import {
   ExpandMore,
   Stars,
   TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
   Business as BusinessIcon,
   Public as PublicIcon,
   Event as EventIcon,
@@ -31,6 +32,7 @@ import EarningsCalendar from "./pages/EarningsCalendar";
 import FinancialData from "./pages/FinancialData";
 import Sentiment from "./pages/Sentiment";
 import ScoresDashboard from "./pages/ScoresDashboard";
+import DeepValueStocks from "./pages/DeepValueStocks";
 import { useAuth } from "./contexts/AuthContext";
 import AuthModal from "./components/auth/AuthModal";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -94,6 +96,12 @@ const menuItems = [
     path: "/app/scores",
     category: "stocks",
     premium: true,
+  },
+  {
+    text: "Deep Value Picks",
+    icon: <TrendingDownIcon />,
+    path: "/app/deep-value",
+    category: "stocks",
   },
   {
     text: "Earnings Hub",
@@ -399,6 +407,7 @@ function App() {
         <Routes>
           <Route path="/app/market" element={<MarketOverview />} />
           <Route path="/app/scores" element={<ScoresDashboard />} />
+          <Route path="/app/deep-value" element={<DeepValueStocks />} />
           <Route path="/app/earnings" element={<EarningsCalendar />} />
           <Route path="/app/financial-data" element={<FinancialData />} />
           <Route path="/app/sentiment" element={<Sentiment />} />
