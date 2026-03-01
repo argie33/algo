@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # Economic data loader - Fed data, inflation, employment, GDP
 # Trigger deploy-app-stocks workflow - loadecondata v4.6 - EXPANDED FRED SERIES + RECESSION INDICATORS - DEPLOY NOW
-# Trigger: 20251220-FINAL - Update stale economic_data after infrastructure deployment 
+# Trigger: 20251220-FINAL - Update stale economic_data after infrastructure deployment
 import sys
 import os
 import json
 import logging
 import requests
+import time
 from datetime import datetime, timedelta
 
 import boto3
@@ -112,6 +113,55 @@ def get_economic_calendar_data():
         logger.error(f"Failed to fetch economic calendar data: {e}")
         return []
 
+def retry_with_exponential_backoff(max_retries=3, initial_delay=0.5):
+    """Retry decorator with exponential backoff for API calls.
+
+    Handles 429 (rate limit) errors specifically - waits longer on 429.
+    Uses exponential backoff: 0.5s, 1s, 2s, 4s...
+    """
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            delay = initial_delay
+            for attempt in range(1, max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except requests.exceptions.HTTPError as e:
+                    if e.response.status_code == 429:
+                        # Rate limited - wait longer
+                        wait_time = delay * 4  # 4x longer for rate limits
+                        logger.warning(f"Rate limited (429) on attempt {attempt}/{max_retries}. Waiting {wait_time}s...")
+                        time.sleep(wait_time)
+                    elif e.response.status_code >= 500:
+                        # Server error - retry with backoff
+                        logger.warning(f"Server error ({e.response.status_code}) on attempt {attempt}/{max_retries}. Waiting {delay}s...")
+                        time.sleep(delay)
+                        delay *= 2  # Exponential backoff
+                    else:
+                        # Client error - don't retry
+                        logger.error(f"Client error {e.response.status_code}: {e}")
+                        return None
+
+                    if attempt == max_retries:
+                        logger.error(f"Failed after {max_retries} attempts")
+                        return None
+                except Exception as e:
+                    logger.error(f"Unexpected error on attempt {attempt}/{max_retries}: {e}")
+                    if attempt < max_retries:
+                        time.sleep(delay)
+                        delay *= 2
+                    else:
+                        return None
+            return None
+        return wrapper
+    return decorator
+
+@retry_with_exponential_backoff(max_retries=3, initial_delay=0.5)
+def _fetch_fred_api(url, params):
+    """Make FRED API call with retry support."""
+    response = requests.get(url, params=params, timeout=30)
+    response.raise_for_status()
+    return response.json()
+
 def get_fred_release_calendar():
     """Get upcoming economic releases from FRED API (completely free)."""
     try:
@@ -129,37 +179,38 @@ def get_fred_release_calendar():
             'limit': '50'
         }
 
-        response = requests.get(url, params=params, timeout=30)
-        response.raise_for_status()
-
-        data = response.json()
-        if 'release_dates' not in data:
-            logger.warning("No release_dates in FRED response")
+        data = _fetch_fred_api(url, params)
+        if data is None or 'release_dates' not in data:
+            logger.warning("No release_dates in FRED response or API call failed")
             return []
 
         events = []
         today = datetime.now().date()
 
         for release in data['release_dates']:
-            release_date = datetime.strptime(release['date'], '%Y-%m-%d').date()
+            try:
+                release_date = datetime.strptime(release['date'], '%Y-%m-%d').date()
 
-            # Only include future dates within next 90 days
-            if release_date >= today and release_date <= today + timedelta(days=90):
-                event = {
-                    'Event': release.get('release_name', 'Economic Release'),
-                    'Date': release['date'],
-                    'Time': '08:30',  # Most releases are at 8:30 AM
-                    'Country': 'United States',
-                    'Category': categorize_fred_release(release.get('release_name', '')),
-                    'Importance': get_fred_importance(release.get('release_name', '')),
-                    'Currency': 'USD',
-                    'Forecast': 'TBD',
-                    'Previous': 'See FRED data',
-                    'Unit': '',
-                    'Frequency': 'Monthly',
-                    'Source': 'Federal Reserve Economic Data (FRED)'
-                }
-                events.append(event)
+                # Only include future dates within next 90 days
+                if release_date >= today and release_date <= today + timedelta(days=90):
+                    event = {
+                        'Event': release.get('release_name', 'Economic Release'),
+                        'Date': release['date'],
+                        'Time': '08:30',  # Most releases are at 8:30 AM
+                        'Country': 'United States',
+                        'Category': categorize_fred_release(release.get('release_name', '')),
+                        'Importance': get_fred_importance(release.get('release_name', '')),
+                        'Currency': 'USD',
+                        'Forecast': 'TBD',
+                        'Previous': 'See FRED data',
+                        'Unit': '',
+                        'Frequency': 'Monthly',
+                        'Source': 'Federal Reserve Economic Data (FRED)'
+                    }
+                    events.append(event)
+            except Exception as e:
+                logger.debug(f"Error processing FRED release: {e}")
+                continue
 
         logger.info(f"✓ Found {len(events)} upcoming FRED releases")
         return events
