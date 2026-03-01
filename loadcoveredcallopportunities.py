@@ -1024,7 +1024,7 @@ def main():
         # Use most recent available data date (not today's date if data isn't loaded yet)
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT MAX(data_date) FROM options_chains
+                SELECT MAX(date_recorded) FROM options_chains
             """)
             result = cur.fetchone()
             data_date = result[0] if result and result[0] else date.today()
