@@ -34,7 +34,7 @@ const DeepValueStocks = () => {
   const [stocks, setStocks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [qualityThreshold, setQualityThreshold] = useState(60);
+  const [qualityThreshold, setQualityThreshold] = useState(51);
   const [selectedStock, setSelectedStock] = useState(null);
   const [infoOpen, setInfoOpen] = useState(false);
 
@@ -70,7 +70,7 @@ const DeepValueStocks = () => {
     }
   };
 
-  // Deep Value Criteria: HIGH quality + HIGH growth + LOW composite = BEST PICKS
+  // Deep Value Criteria: HIGH quality + HIGH growth + REASONABLE price = BEST PICKS
   const getBestPicks = () => {
     return stocks
       .filter((stock) => {
@@ -78,11 +78,12 @@ const DeepValueStocks = () => {
         const growth = stock.growth_score || 0;
         const composite = stock.composite_score || 50;
 
-        // SELECTIVE: Only stocks with BOTH high quality AND growth
-        return quality >= qualityThreshold && growth >= 60 && composite <= 55;
+        // SELECTIVE: Only stocks with BOTH strong quality AND growth
+        // Thresholds: quality >= threshold (default 51 for top quartile), growth >= 50 (top half), composite <= 52 (fair value)
+        return quality >= qualityThreshold && growth >= 50 && composite <= 52;
       })
       .sort((a, b) => {
-        // Sort by best quality-to-composite ratio
+        // Sort by best quality-to-composite ratio (highest fundamentals relative to price)
         const ratioA = ((a.quality_score || 0) + (a.growth_score || 0)) / Math.max(a.composite_score || 50, 1);
         const ratioB = ((b.quality_score || 0) + (b.growth_score || 0)) / Math.max(b.composite_score || 50, 1);
         return ratioB - ratioA;
@@ -147,9 +148,9 @@ const DeepValueStocks = () => {
                 Why This Stock?
               </Typography>
               <Typography variant="body2" color="textSecondary">
-                High quality fundamentals ({stock.quality_score?.toFixed(1)}) with strong
-                growth potential ({stock.growth_score?.toFixed(1)}), trading at a discount (composite:{" "}
-                {stock.composite_score?.toFixed(1)})
+                Excellent fundamentals with quality score of {stock.quality_score?.toFixed(1)} and growth of{" "}
+                {stock.growth_score?.toFixed(1)}, trading at fair value ({stock.composite_score?.toFixed(1)}).
+                This combination of quality + growth at reasonable valuations is rare and attractive for long-term investors.
               </Typography>
             </Box>
           </Box>
@@ -205,11 +206,11 @@ const DeepValueStocks = () => {
           <Card>
             <CardContent>
               <Typography color="textSecondary" gutterBottom>
-                Quality Threshold
+                Quality Filter
               </Typography>
               <Typography variant="h6">{qualityThreshold}+</Typography>
               <Typography variant="caption" color="textSecondary">
-                Minimum quality score
+                {qualityThreshold === 51 ? "Top quartile" : qualityThreshold === 52 ? "Top 10%" : "All stocks"}
               </Typography>
             </CardContent>
           </Card>
@@ -267,10 +268,9 @@ const DeepValueStocks = () => {
               onChange={(e) => setQualityThreshold(Number(e.target.value))}
               size="small"
             >
-              <MenuItem value={50}>Basic (50+)</MenuItem>
-              <MenuItem value={60}>Good (60+)</MenuItem>
-              <MenuItem value={70}>Excellent (70+)</MenuItem>
-              <MenuItem value={80}>Outstanding (80+)</MenuItem>
+              <MenuItem value={50}>All Stocks (50+)</MenuItem>
+              <MenuItem value={51}>Excellent (51+) - Top Quartile</MenuItem>
+              <MenuItem value={52}>Outstanding (52+) - Top 10%</MenuItem>
             </TextField>
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
@@ -416,40 +416,40 @@ const DeepValueStocks = () => {
       )}
 
       <Dialog open={infoOpen} onClose={() => setInfoOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>How We Find The Best Stocks On Sale</DialogTitle>
+        <DialogTitle>How We Find Quality Stocks At Fair Value</DialogTitle>
         <DialogContent>
           <Box sx={{ mt: 2, space: 2 }}>
             <Box sx={{ mb: 2 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                ✅ High Quality (70+)
+                ✅ Excellent Fundamentals (Quality 51+)
               </Typography>
               <Typography variant="body2" color="textSecondary">
-                Strong fundamentals: good earnings, cash flow, balance sheet, margins
+                Top quartile quality scores: strong earnings, solid cash flow, healthy balance sheet, good margins
               </Typography>
             </Box>
 
             <Box sx={{ mb: 2 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                📈 Growth Potential (60+)
+                📈 Growth Momentum (Growth 50+)
               </Typography>
               <Typography variant="body2" color="textSecondary">
-                Revenue & earnings growth momentum, expanding margins
+                Top half growth potential: expanding revenues, earnings momentum, improving margins
               </Typography>
             </Box>
 
             <Box sx={{ mb: 2 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                💰 On Sale (Composite 55 or less)
+                💰 Fair Valuation (Composite 52 or less)
               </Typography>
               <Typography variant="body2" color="textSecondary">
-                Trading below intrinsic value - the discount hunters dream
+                Trading at reasonable prices relative to fundamentals - not overvalued
               </Typography>
             </Box>
 
             <Box sx={{ p: 2, backgroundColor: "#e8f5e9", borderRadius: 1 }}>
               <Typography variant="body2" sx={{ fontWeight: 600, color: "#2e7d32" }}>
-                💡 This rare combination happens infrequently. When it does, these are the
-                best opportunities for long-term wealth building.
+                💡 This combination of quality + growth + fair valuation is selective and attractive for long-term
+                investors seeking established companies with good prospects at reasonable prices.
               </Typography>
             </Box>
           </Box>
