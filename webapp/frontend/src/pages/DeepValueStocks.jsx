@@ -57,7 +57,18 @@ const DeepValueStocks = () => {
       const stocksData = result.data || result;
 
       if (Array.isArray(stocksData)) {
-        setStocks(stocksData);
+        // Convert string scores to numbers
+        const normalizedStocks = stocksData.map(stock => ({
+          ...stock,
+          composite_score: parseFloat(stock.composite_score) || 0,
+          quality_score: parseFloat(stock.quality_score) || 0,
+          growth_score: parseFloat(stock.growth_score) || 0,
+          value_score: parseFloat(stock.value_score) || 0,
+          momentum_score: parseFloat(stock.momentum_score) || 0,
+          stability_score: parseFloat(stock.stability_score) || 0,
+          positioning_score: parseFloat(stock.positioning_score) || 0,
+        }));
+        setStocks(normalizedStocks);
       } else {
         throw new Error("Invalid response format");
       }
