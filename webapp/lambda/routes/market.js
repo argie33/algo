@@ -524,6 +524,7 @@ function getMarketStatus() {
 // NOTE: /overview endpoint consolidated into /data
 // NOTE: Sector endpoints moved to /api/sectors/sectors route (sectors.js)
 // NOTE: Sentiment endpoints moved to /api/sentiment/* routes
+
 // Get market breadth indicators - CONSOLIDATED INTO /data
 router.get("/breadth", async (req, res) => {
   console.log("Market breadth endpoint called");
@@ -2480,7 +2481,9 @@ router.get("/naaim", async (req, res) => {
 // ============================================================================
 // Instead of making 14+ separate API calls to /overview, /breadth, /indices, etc.
 // This single endpoint returns ALL market data with proper structure
-router.get("/data", async (req, res) => {
+
+// Extract handler as a function so both /data and /overview can use it
+async function getMarketDataHandler(req, res) {
   try {
     if (!query) {
       return res.status(500).json({
@@ -2687,6 +2690,16 @@ router.get("/data", async (req, res) => {
       success: false
     });
   }
+}
+
+// Mount the handler for both /data and /overview endpoints
+router.get("/data", getMarketDataHandler);
+
+// BACKWARD COMPATIBILITY: /overview is an alias for /data
+// Added for frontend compatibility - frontend was calling /overview which was consolidated into /data
+router.get("/overview", async (req, res) => {
+  console.log("📊 /api/market/overview - Called (BACKWARD COMPATIBLE - using /data endpoint)");
+  return getMarketDataHandler(req, res);
 });
 
 // ============================================================

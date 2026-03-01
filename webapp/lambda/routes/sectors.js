@@ -1104,5 +1104,139 @@ router.get("/fresh-data", async (req, res) => {
   }
 });
 
+// ============================================================================
+// BACKWARD COMPATIBILITY ENDPOINTS - Frontend expects these paths
+// ============================================================================
+
+// GET /api/sectors/sectors-with-history - Return all sectors with ranking history
+router.get("/sectors-with-history", async (req, res) => {
+  try {
+    if (databaseInitError || !query) {
+      return res.status(503).json({
+        error: "Database service unavailable",
+        success: false
+      });
+    }
+
+    console.log("📊 /api/sectors/sectors-with-history - Fetching sector data from database...");
+
+    // Get current sector rankings with their latest performance
+    const sectorQuery = `
+      SELECT DISTINCT
+        sector_name,
+        current_rank as rank,
+        momentum_score,
+        trailing_pe,
+        date_recorded,
+        COUNT(*) OVER (PARTITION BY sector_name) as history_count
+      FROM sector_ranking
+      WHERE date_recorded >= CURRENT_DATE - INTERVAL '90 days'
+      ORDER BY sector_name, date_recorded DESC
+    `;
+
+    const result = await query(sectorQuery);
+
+    if (!result || !result.rows) {
+      return res.json({
+        data: [],
+        success: true,
+        message: "No sector data available"
+      });
+    }
+
+    // Group by sector to get latest entry
+    const sectorMap = {};
+    result.rows.forEach(row => {
+      if (!sectorMap[row.sector_name]) {
+        sectorMap[row.sector_name] = {
+          name: row.sector_name,
+          rank: row.rank,
+          momentum_score: safeFloat(row.momentum_score),
+          trailing_pe: safeFloat(row.trailing_pe),
+          date: row.date_recorded,
+          history_count: row.history_count
+        };
+      }
+    });
+
+    const sectors = Object.values(sectorMap);
+
+    return res.json({
+      data: sectors,
+      count: sectors.length,
+      success: true
+    });
+  } catch (error) {
+    console.error("❌ Sectors with history error:", error.message);
+    return res.status(500).json({
+      error: "Failed to fetch sectors with history",
+      details: error.message,
+      success: false
+    });
+  }
+});
+
+// GET /api/sectors/sectors-with-history/performance - Return sector performance data
+router.get("/sectors-with-history/performance", async (req, res) => {
+  try {
+    if (databaseInitError || !query) {
+      return res.status(503).json({
+        error: "Database service unavailable",
+        success: false
+      });
+    }
+
+    console.log("📊 /api/sectors/sectors-with-history/performance - Fetching sector performance...");
+
+    // Get latest sector performance data - simple query to avoid timeouts
+    const performanceQuery = `
+      SELECT DISTINCT ON (sector_name)
+        sector_name,
+        date as performance_date
+      FROM sector_performance
+      ORDER BY sector_name, date DESC
+      LIMIT 20
+    `;
+
+    try {
+      const result = await query(performanceQuery);
+
+      if (!result || !result.rows) {
+        return res.json({
+          data: [],
+          success: true,
+          message: "No performance data available"
+        });
+      }
+
+      const performanceData = result.rows.map(row => ({
+        sector_name: row.sector_name || "Unknown",
+        date: row.performance_date
+      }));
+
+      return res.json({
+        data: performanceData,
+        count: performanceData.length,
+        success: true
+      });
+    } catch (queryError) {
+      // If query fails, return empty data instead of error
+      console.warn("⚠️ Sector performance query failed, returning empty data:", queryError.message);
+      return res.json({
+        data: [],
+        success: true,
+        message: "Performance data temporarily unavailable"
+      });
+    }
+  } catch (error) {
+    console.error("❌ Sector performance error:", error.message);
+    return res.json({
+      data: [],
+      success: true,
+      message: "Performance data temporarily unavailable"
+    });
+  }
+});
+
 // Rankings Endpoints - Return current rankings with daily strength scores
 module.exports = router;
