@@ -1341,9 +1341,19 @@ def get_stability_metrics(cursor, symbol: str, benchmark_cache: Dict = None) -> 
         "beta": None,
     }
 
-    # Beta is calculated separately by calculate_missing_beta.py after all other metrics
-    # Skip yfinance beta fetch to avoid HTTP 429 rate limiting on high-volume loads
-    # Beta will be NULL here and calculated later in post-processing
+    # Beta from yfinance ticker.info (with timeout protection)
+    try:
+        ticker = yf.Ticker(symbol)
+        info = get_ticker_info_with_timeout(ticker, timeout_sec=15)
+        if info and info.get('beta') is not None:
+            try:
+                beta_val = float(info.get('beta'))
+                metrics["beta"] = beta_val if not np.isnan(beta_val) else None
+            except (ValueError, TypeError):
+                metrics["beta"] = None
+    except Exception as e:
+        logging.debug(f"Could not get beta for {symbol}: {e}")
+        metrics["beta"] = None
 
     try:
         # Get last 252 trading days of price data for 12-month volatility
@@ -1947,6 +1957,23 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
                     logging.debug(f"Rollback failed after fallback quality metrics error for {symbol}: {rollback_e}")
                     pass
 
+    # CRITICAL: Add ALL remaining symbols with NULL values (valid data = no quality metrics available)
+    # This ensures every stock has a quality_metrics record, even if all values are NULL
+    all_processed = {row[0] for row in quality_rows}  # Extract symbols already added
+    truly_missing_symbols = set(symbols) - all_processed
+    if truly_missing_symbols:
+        logging.info(f"Adding {len(truly_missing_symbols)} stocks with no quality data (all NULLs)")
+        for symbol in truly_missing_symbols:
+            # Add row with all NULLs - this is valid data (stock has no quality metrics)
+            quality_rows.append([
+                symbol,
+                date.today(),
+                None, None, None, None, None, None, None, None,  # ROE, ROA, ROIC, margins, FCF
+                None, None, None, None, None, None,              # Debt, ratios, earnings surprise
+                None, None, None, None, None, None,              # Beat rate, revision, quarters, surprise
+                None, None, None, None,                          # Growth, revision activity, momentum
+            ])
+
     # Upsert quality_metrics
     if quality_rows:
         # Deduplicate by (symbol, date) - keep last occurrence
@@ -2534,19 +2561,20 @@ def load_stability_metrics(conn, cursor, symbols: List[str]):
             # Merge both metric sets
             all_metrics = {**stability, **volume_metrics}
 
-            if any(v is not None for v in all_metrics.values()):
-                stability_rows.append((
-                    symbol,
-                    today,
-                    all_metrics.get("volatility_12m"),
-                    all_metrics.get("downside_volatility"),
-                    all_metrics.get("max_drawdown_52w"),
-                    all_metrics.get("beta"),
-                    all_metrics.get("volume_consistency"),
-                    all_metrics.get("turnover_velocity"),
-                    all_metrics.get("volatility_volume_ratio"),
-                    all_metrics.get("daily_spread")
-                ))
+            # CRITICAL: Add EVERY stock, even if all values are None
+            # NULLs are valid data (stock has no stability metrics available)
+            stability_rows.append((
+                symbol,
+                today,
+                all_metrics.get("volatility_12m"),
+                all_metrics.get("downside_volatility"),
+                all_metrics.get("max_drawdown_52w"),
+                all_metrics.get("beta"),
+                all_metrics.get("volume_consistency"),
+                all_metrics.get("turnover_velocity"),
+                all_metrics.get("volatility_volume_ratio"),
+                all_metrics.get("daily_spread")
+            ))
 
             if (i % 100) == 0:
                 logging.info(f"Processed {i}/{len(symbols)} symbols for stability metrics")
@@ -2618,22 +2646,31 @@ def load_value_metrics(conn, cursor, symbols: List[str]):
             #   - Stock is unprofitable, micro-cap, delisted, or ADR
             #   - The NULL is the CORRECT representation in our database
             # DO NOT treat NULLs as failures or try to "fill" them
-            if info:
-                value_rows.append((
-                    symbol,
-                    today,
-                    info.get('trailingPE'),  # trailing_pe - NULL when yfinance doesn't expose it
-                    info.get('forwardPE'),  # forward_pe - NULL when yfinance doesn't expose it
-                    info.get('priceToBook'),  # price_to_book - NULL when yfinance doesn't expose it
-                    info.get('priceToSalesTrailing12Months'),  # price_to_sales_ttm - NULL when yfinance doesn't expose it
-                    info.get('trailingPegRatio'),  # peg_ratio
-                    info.get('enterpriseToRevenue'),  # ev_to_revenue
-                    info.get('enterpriseToEbitda'),  # ev_to_ebitda
-                    info.get('dividendYield'),  # dividend_yield - NULL when no dividend
-                    info.get('payoutRatio')   # payout_ratio - NULL when no earnings to pay
-                ))
+            # CRITICAL: Add EVERY stock, even if info is None (that's valid NULL data)
+            if info is None:
+                info = {}  # Empty dict so .get() returns None for all fields
+
+            value_rows.append((
+                symbol,
+                today,
+                info.get('trailingPE'),  # trailing_pe - NULL when yfinance doesn't expose it
+                info.get('forwardPE'),  # forward_pe - NULL when yfinance doesn't expose it
+                info.get('priceToBook'),  # price_to_book - NULL when yfinance doesn't expose it
+                info.get('priceToSalesTrailing12Months'),  # price_to_sales_ttm - NULL when yfinance doesn't expose it
+                info.get('trailingPegRatio'),  # peg_ratio
+                info.get('enterpriseToRevenue'),  # ev_to_revenue
+                info.get('enterpriseToEbitda'),  # ev_to_ebitda
+                info.get('dividendYield'),  # dividend_yield - NULL when no dividend
+                info.get('payoutRatio')   # payout_ratio - NULL when no earnings to pay
+            ))
         except Exception as e:
             logging.debug(f"Could not load value metrics for {symbol}: {e}")
+            # Even on error, add a row with all NULLs (valid data = no value metrics available)
+            value_rows.append((
+                symbol,
+                today,
+                None, None, None, None, None, None, None, None, None
+            ))
 
         if idx % 100 == 0:
             logging.info(f"Processing value metrics for {symbol} ({idx}/{len(symbols)})")
