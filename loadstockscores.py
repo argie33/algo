@@ -63,7 +63,7 @@ def get_db_config():
 
 def get_connection():
     cfg = get_db_config()
-    return psycopg2.connect(host=cfg["host"], port=cfg["port"], user=cfg["user"], password=cfg["password"], database=cfg["database"], connect_timeout=30)
+    return psycopg2.connect(host=cfg["host"], port=cfg["port"], user=cfg["user"], password=cfg["password"], dbname=cfg["database"], connect_timeout=30)
 
 def zscore_to_percentile(z_score):
     if np.isnan(z_score) or np.isinf(z_score):
