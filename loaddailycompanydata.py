@@ -54,6 +54,7 @@ import os
 import resource
 import sys
 import time
+import signal
 from datetime import date, datetime
 from typing import Dict, List, Optional
 from functools import wraps
@@ -68,11 +69,39 @@ from psycopg2.extras import RealDictCursor, execute_values
 
 # Script metadata
 SCRIPT_NAME = "loaddailycompanydata.py"
+TICKER_INFO_TIMEOUT = 15  # seconds - yfinance ticker.info can hang indefinitely
+
 logging.basicConfig(
     level=logging.INFO,  # Keep at INFO to avoid yfinance debug spam
     format="%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout,
 )
+
+# Timeout handler for hanging yfinance calls
+class TimeoutException(Exception):
+    pass
+
+def timeout_handler(signum, frame):
+    raise TimeoutException(f"yfinance API call timed out after {TICKER_INFO_TIMEOUT}s")
+
+def get_ticker_with_timeout(symbol_str):
+    """Get ticker object and info with timeout to prevent hanging on yfinance API."""
+    try:
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(TICKER_INFO_TIMEOUT)
+        yf_symbol = symbol_str.replace('.', '-').replace('$', '-').upper()
+        ticker = yf.Ticker(yf_symbol)
+        # Fetch info immediately to catch hanging at the right place
+        _ = ticker.info
+        signal.alarm(0)  # Cancel alarm
+        return ticker
+    except TimeoutException:
+        logging.warning(f"Timeout fetching ticker info for {symbol_str} after {TICKER_INFO_TIMEOUT}s")
+        return None
+    except Exception as e:
+        signal.alarm(0)  # Cancel alarm on any exception
+        logging.error(f"Error getting ticker for {symbol_str}: {e}")
+        return None
 
 # Retry decorator for yfinance API calls (handle 500 errors, timeouts, etc.)
 def retry_with_backoff(max_retries=10, base_delay=0.5):
@@ -306,26 +335,64 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
 
         Solution: Add 1.0s delay between each property access to spread requests over ~8 seconds.
         This prevents the burst detection while still completing in reasonable time.
+
+        ALSO: Add timeouts to prevent hanging on individual API calls.
         """
-        ticker = yf.Ticker(yf_symbol)
-        result = {'ticker': ticker}
+        try:
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(TICKER_INFO_TIMEOUT)
+            ticker = yf.Ticker(yf_symbol)
+            result = {'ticker': ticker}
 
-        # Fetch properties with 1.0s delays between each to prevent burst rate limiting
-        result['info'] = ticker.info
-        time.sleep(1.0)
-        result['institutional_holders'] = ticker.institutional_holders
-        time.sleep(1.0)
-        result['mutualfund_holders'] = ticker.mutualfund_holders
-        time.sleep(1.0)
-        result['insider_transactions'] = ticker.insider_transactions
-        time.sleep(1.0)
-        result['insider_roster'] = ticker.insider_roster_holders
-        time.sleep(1.0)
-        result['earnings_estimate'] = ticker.earnings_estimate
-        time.sleep(1.0)
-        result['revenue_estimate'] = ticker.revenue_estimate
+            # Fetch properties with 1.0s delays between each to prevent burst rate limiting
+            # Each call has timeout protection to prevent hanging
+            try:
+                result['info'] = ticker.info
+            except TimeoutException:
+                result['info'] = None
+            time.sleep(1.0)
 
-        return result
+            try:
+                result['institutional_holders'] = ticker.institutional_holders
+            except TimeoutException:
+                result['institutional_holders'] = None
+            time.sleep(1.0)
+
+            try:
+                result['mutualfund_holders'] = ticker.mutualfund_holders
+            except TimeoutException:
+                result['mutualfund_holders'] = None
+            time.sleep(1.0)
+
+            try:
+                result['insider_transactions'] = ticker.insider_transactions
+            except TimeoutException:
+                result['insider_transactions'] = None
+            time.sleep(1.0)
+
+            try:
+                result['insider_roster'] = ticker.insider_roster_holders
+            except TimeoutException:
+                result['insider_roster'] = None
+            time.sleep(1.0)
+
+            try:
+                result['earnings_estimate'] = ticker.earnings_estimate
+            except TimeoutException:
+                result['earnings_estimate'] = None
+            time.sleep(1.0)
+
+            try:
+                result['revenue_estimate'] = ticker.revenue_estimate
+            except TimeoutException:
+                result['revenue_estimate'] = None
+
+            signal.alarm(0)  # Cancel alarm
+            return result
+        except TimeoutException:
+            signal.alarm(0)
+            logging.warning(f"Timeout fetching yfinance data for {yf_symbol}")
+            return {'ticker': None, 'info': None}
 
     try:
         # Convert ticker format for yfinance (e.g., BRK.B → BRK-B)
