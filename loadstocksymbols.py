@@ -496,9 +496,9 @@ def update_timestamp(conn):
 # ─── Main ─────────────────────────────────────────────────────────────────────
 def main():
     logger.info("Downloading NASDAQ list")
-    nas_text = requests.get(NASDAQ_URL).text
+    nas_text = requests.get(NASDAQ_URL, timeout=15).text
     logger.info("Downloading OTHER list")
-    oth_text = requests.get(OTHER_URL).text
+    oth_text = requests.get(OTHER_URL, timeout=15).text
 
     # parse non-ETF stocks
     nas = parse_nasdaq(nas_text)
