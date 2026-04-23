@@ -3,7 +3,12 @@
     "allow": [
       "Bash(grep -E \"\\\\.py$\")",
       "Bash(psql -U postgres -d algo -c \"\\\\dt\")",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "Bash(pkill -f \"node.*local-server\")",
+      "Bash(npm start *)",
+      "Bash(curl -s http://localhost:3000/api/health)",
+      "Bash(node /c/Users/arger/code/algo/webapp/local-server.js)",
+      "Bash(npm install *)"
     ]
   }
 }
