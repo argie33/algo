@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 # Weekly price data loader - fetches weekly OHLCV data for all symbols
 # FORCE REBUILD TRIGGER: 20260107-220000-AWS-ECS - Weekly price loader with signal-based timeout
 import sys
@@ -7,9 +7,15 @@ import logging
 import json
 import os
 import gc
-import resource
 import math
 import signal
+
+# Windows compatibility: resource module doesn't exist on Windows
+try:
+    import resource
+    HAS_RESOURCE = True
+except ImportError:
+    HAS_RESOURCE = False
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
@@ -28,6 +34,20 @@ def timeout_handler(signum, frame):
 
 def download_with_timeout(tickers, period="3mo", interval="1wk", timeout_seconds=90):
     """Wrapper that FORCIBLY kills downloads after timeout_seconds"""
+    # SIGALRM not available on Windows - skip timeout protection
+    if not hasattr(signal, 'SIGALRM'):
+        return yf.download(
+            tickers=tickers,
+            period=period,
+            interval=interval,
+            group_by="ticker",
+            auto_adjust=False,
+            actions=True,
+            threads=True,
+            progress=False,
+            timeout=60
+        )
+
     signal.signal(signal.SIGALRM, timeout_handler)
     signal.alarm(timeout_seconds)  # Set alarm
     try:
@@ -65,10 +85,18 @@ logging.basicConfig(
 # Memory-logging helper (RSS in MB)
 # -------------------------------
 def get_rss_mb():
-    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    if sys.platform.startswith("linux"):
-        return usage / 1024
-    return usage / (1024 * 1024)
+    if HAS_RESOURCE:
+        usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        if sys.platform.startswith("linux"):
+            return usage / 1024
+        return usage / (1024 * 1024)
+    else:
+        # Fallback for Windows: use psutil if available, else return 0
+        try:
+            import psutil
+            return psutil.Process().memory_info().rss / (1024 * 1024)
+        except:
+            return 0
 
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")

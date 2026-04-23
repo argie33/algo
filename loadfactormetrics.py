@@ -32,7 +32,11 @@ import gc
 import json
 import logging
 import os
-import resource
+try:
+    import resource
+    HAS_RESOURCE = True
+except ImportError:
+    HAS_RESOURCE = False
 import sys
 import signal
 import time
@@ -56,6 +60,14 @@ def timeout_handler(signum, frame):
 
 def get_ticker_info_with_timeout(ticker, timeout_sec=15):
     """Safely get ticker.info with timeout protection."""
+    # SIGALRM not available on Windows - skip timeout protection
+    if not hasattr(signal, 'SIGALRM'):
+        try:
+            return ticker.info
+        except Exception as e:
+            logging.warning(f"Error fetching ticker.info: {str(e)[:50]}")
+            return {}
+
     try:
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(timeout_sec)
@@ -106,10 +118,17 @@ psycopg2.extensions.register_adapter(np.float32, adapt_numpy_float64)
 
 
 def get_rss_mb():
-    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    if sys.platform.startswith("linux"):
-        return usage / 1024
-    return usage / (1024 * 1024)
+    if HAS_RESOURCE:
+        usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        if sys.platform.startswith("linux"):
+            return usage / 1024
+        return usage / (1024 * 1024)
+    else:
+        try:
+            import psutil
+            return psutil.Process().memory_info().rss / (1024 * 1024)
+        except:
+            return 0
 
 
 def log_mem(stage: str):

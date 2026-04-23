@@ -1,10 +1,22 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const { Pool } = require('pg');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Serve static frontend files with index.html fallback
+const frontendPath = path.join(__dirname, 'webapp/frontend-admin/dist-admin');
+app.use(express.static(frontendPath, {
+  index: 'index.html',
+  setHeaders: (res, path) => {
+    if (path.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+  }
+}));
 
 // Database connection
 const pool = new Pool({
@@ -48,7 +60,33 @@ app.get('/api/stocks/:symbol', async (req, res) => {
   }
 });
 
+// Additional useful API endpoints
+app.get('/api/stocks-count', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT COUNT(DISTINCT symbol) as count FROM price_daily');
+    res.json(result.rows[0]);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/prices-count', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT COUNT(*) as count FROM price_daily');
+    res.json(result.rows[0]);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// SPA fallback - serve index.html for all non-API routes
+app.use((req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`✅ Local API server running on port ${PORT}`);
+  console.log(`✅ Server running on http://localhost:${PORT}`);
+  console.log(`📊 API: http://localhost:${PORT}/api/`);
+  console.log(`🌐 Frontend: http://localhost:${PORT}/`);
 });

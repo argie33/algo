@@ -30,10 +30,16 @@ import logging
 import json
 import os
 import gc
-import resource
 import signal
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Tuple, Any
+
+# Windows compatibility: resource module doesn't exist on Windows
+try:
+    import resource
+    HAS_RESOURCE = True
+except ImportError:
+    HAS_RESOURCE = False
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
@@ -53,6 +59,14 @@ def timeout_handler(signum, frame):
 
 def get_ticker_info_with_timeout(ticker, timeout_sec=15):
     """Safely get ticker.info with timeout protection."""
+    # SIGALRM not available on Windows - skip timeout protection
+    if not hasattr(signal, 'SIGALRM'):
+        try:
+            return ticker.info
+        except Exception as e:
+            logging.warning(f"Error fetching ticker.info: {str(e)[:50]}")
+            return {}
+
     try:
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(timeout_sec)
@@ -77,8 +91,15 @@ logging.basicConfig(
 )
 
 def log_mem(stage: str):
-    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    mb = usage / 1024 if sys.platform.startswith("linux") else usage / (1024 * 1024)
+    if HAS_RESOURCE:
+        usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        mb = usage / 1024 if sys.platform.startswith("linux") else usage / (1024 * 1024)
+    else:
+        try:
+            import psutil
+            mb = psutil.Process().memory_info().rss / (1024 * 1024)
+        except:
+            mb = 0
     logging.info(f"[MEM] {stage}: {mb:.1f} MB RSS")
 
 

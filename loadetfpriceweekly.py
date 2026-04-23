@@ -6,9 +6,15 @@ import logging
 import json
 import os
 import gc
-import resource
 import math
 import argparse
+
+# Windows compatibility: resource module doesn't exist on Windows
+try:
+    import resource
+    HAS_RESOURCE = True
+except ImportError:
+    HAS_RESOURCE = False
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
@@ -27,10 +33,17 @@ logging.basicConfig(
 )
 
 def get_rss_mb():
-    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    if sys.platform.startswith("linux"):
-        return usage / 1024
-    return usage / (1024 * 1024)
+    if HAS_RESOURCE:
+        usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        if sys.platform.startswith("linux"):
+            return usage / 1024
+        return usage / (1024 * 1024)
+    else:
+        try:
+            import psutil
+            return psutil.Process().memory_info().rss / (1024 * 1024)
+        except:
+            return 0
 
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")

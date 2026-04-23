@@ -1,4 +1,13 @@
 {
+  "name": "algo-trading-system",
+  "version": "1.0.0",
+  "description": "Algorithmic trading system with stock analysis",
+  "main": "local-server.js",
+  "scripts": {
+    "start": "node local-server.js",
+    "dev": "node local-server.js",
+    "test": "playwright test"
+  },
   "devDependencies": {
     "playwright": "^1.56.1"
   },
