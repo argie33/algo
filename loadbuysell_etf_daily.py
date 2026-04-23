@@ -16,7 +16,7 @@ from importlib import import_module
 from dotenv import load_dotenv
 
 # Load environment from .env.local
-load_dotenv('/home/arger/algo/.env.local')
+load_dotenv(env_file) if (env_file := Path(__file__).parent / '.env.local').exists() else None
 
 # -------------------------------
 # Script metadata & logging setup

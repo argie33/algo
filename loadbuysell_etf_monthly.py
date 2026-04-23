@@ -14,7 +14,7 @@ import logging
 from dotenv import load_dotenv
 
 # Load environment from .env.local
-load_dotenv('/home/arger/algo/.env.local')
+load_dotenv(env_file) if (env_file := Path(__file__).parent / '.env.local').exists() else None
 
 # Setup rotating log file handler to prevent disk exhaustion from excessive logging
 import tempfile

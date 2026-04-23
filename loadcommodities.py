@@ -52,7 +52,7 @@ logging.basicConfig(
 
 # Environment & Secrets - support both AWS Secrets Manager and environment variables
 from dotenv import load_dotenv
-load_dotenv('/home/arger/algo/.env.local')
+load_dotenv(env_file) if (env_file := Path(__file__).parent / '.env.local').exists() else None
 
 SECRET_ARN = os.environ.get("DB_SECRET_ARN")
 DB_HOST = None

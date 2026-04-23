@@ -8,7 +8,17 @@
       "Bash(npm start *)",
       "Bash(curl -s http://localhost:3000/api/health)",
       "Bash(node /c/Users/arger/code/algo/webapp/local-server.js)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(pkill -9 -f \"node.*local-server\\\\|node.*index.js\")",
+      "Bash(awk '{print $2}')",
+      "Bash(xargs kill *)",
+      "Bash(netstat -ano)",
+      "Bash(curl -s http://localhost:3000/api/stocks)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(curl -s http://localhost:5174)",
+      "Bash(curl -s \"http://localhost:3000/api/stocks\")",
+      "Bash(curl -s \"http://localhost:3000/api/market/overview\")",
+      "Bash(curl -s \"http://localhost:3000/api/scores/stockscores\")"
     ]
   }
 }

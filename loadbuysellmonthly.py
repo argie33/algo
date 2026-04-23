@@ -12,8 +12,11 @@ from datetime import datetime
 import logging
 from dotenv import load_dotenv
 
-# Load environment from .env.local
-load_dotenv('/home/arger/algo/.env.local')
+# Load environment from .env.local (cross-platform)
+from pathlib import Path
+env_file = Path(__file__).parent / '.env.local'
+if env_file.exists():
+    load_dotenv(env_file)
 
 # Setup rotating log file handler to prevent disk exhaustion from excessive logging
 import tempfile
