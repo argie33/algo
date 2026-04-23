@@ -217,7 +217,7 @@ def create_columns(cur, conn):
             ADD COLUMN IF NOT EXISTS rel_volatility NUMERIC;
         """)
         conn.commit()
-        logging.info("✅ Relative performance columns created/verified")
+        logging.info(" Relative performance columns created/verified")
     except Exception as e:
         logging.info(f"Columns may already exist: {e}")
 

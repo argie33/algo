@@ -304,7 +304,7 @@ def lambda_handler(event, context):
 
     cur.close()
     conn.close()
-    logging.info("✅ All done.")
+    logging.info(" All done.")
 
     return {
         "total": total,
@@ -319,13 +319,13 @@ def main():
     try:
         result = lambda_handler(None, None)
         if result and result.get("total", 0) >= 0:
-            logging.info("✅ Task completed successfully")
+            logging.info(" Task completed successfully")
             sys.exit(0)
         else:
-            logging.error("❌ Task failed")
+            logging.error(" Task failed")
             sys.exit(1)
     except Exception as e:
-        logging.error(f"❌ Unhandled error: {e}")
+        logging.error(f" Unhandled error: {e}")
         import traceback
         logging.error(traceback.format_exc())
         sys.exit(1)

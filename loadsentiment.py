@@ -61,7 +61,7 @@ try:
     PRAW_AVAILABLE = True
 except ImportError:
     PRAW_AVAILABLE = False
-    logging.warning("⚠️  PRAW not installed - Reddit sentiment will be unavailable. Install with: pip install praw")
+    logging.warning("  PRAW not installed - Reddit sentiment will be unavailable. Install with: pip install praw")
 
 # Script configuration
 SCRIPT_NAME = "loadsentiment.py"
@@ -150,7 +150,7 @@ def get_reddit_client():
     Create Reddit app at: https://www.reddit.com/prefs/apps
     """
     if not PRAW_AVAILABLE:
-        logging.warning("⚠️  PRAW not available - Reddit sentiment will be unavailable")
+        logging.warning("  PRAW not available - Reddit sentiment will be unavailable")
         return None
 
     try:
@@ -172,7 +172,7 @@ def get_reddit_client():
 
         # Check if we have credentials
         if not client_id or not client_secret or client_id == "your_reddit_client_id_here":
-            logging.warning("⚠️  Reddit API credentials not configured")
+            logging.warning("  Reddit API credentials not configured")
             logging.warning("Set up Reddit app at: https://www.reddit.com/prefs/apps")
             logging.warning("Then add to .env.local or AWS Secrets Manager:")
             logging.warning("  - REDDIT_CLIENT_ID")
@@ -190,7 +190,7 @@ def get_reddit_client():
         return reddit
 
     except Exception as e:
-        logging.warning(f"⚠️  Failed to initialize Reddit client: {e}")
+        logging.warning(f"  Failed to initialize Reddit client: {e}")
         logging.warning("Troubleshooting steps:")
         logging.warning("1. Create app at: https://www.reddit.com/prefs/apps")
         logging.warning("2. Set environment variables: REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET")
@@ -387,11 +387,11 @@ class SocialSentimentCollector:
 
         # If no Reddit client available, return NULL values
         if reddit_client is None:
-            logging.warning(f"⚠️  Reddit sentiment unavailable for {self.symbol} - API not configured. Returning NULL.")
+            logging.warning(f"  Reddit sentiment unavailable for {self.symbol} - API not configured. Returning NULL.")
             return data
 
         try:
-            logging.info(f"📱 Fetching REAL Reddit data for {self.symbol}...")
+            logging.info(f" Fetching REAL Reddit data for {self.symbol}...")
 
             # Search major investment subreddits
             target_subreddits = ['stocks', 'wallstreetbets', 'investing', 'options', 'SecurityAnalysis']
@@ -450,7 +450,7 @@ class SocialSentimentCollector:
                 logging.warning(f"No Reddit mentions found for {self.symbol}")
 
         except Exception as e:
-            logging.error(f"❌ Error fetching Reddit data for {self.symbol}: {e}")
+            logging.error(f" Error fetching Reddit data for {self.symbol}: {e}")
             # Return None values instead of fake data
 
         return data
@@ -499,7 +499,7 @@ class SocialSentimentCollector:
                 time.sleep(1)
             else:
                 # Return NULL instead of fake data if pytrends not available
-                logging.warning(f"⚠️  PyTrends not available - Google Trends data unavailable for {self.symbol}")
+                logging.warning(f"  PyTrends not available - Google Trends data unavailable for {self.symbol}")
 
         except Exception as e:
             logging.warning(f"Error collecting Google Trends for {self.symbol}: {e}")
@@ -843,7 +843,7 @@ def load_sentiment_batch(symbols: List[str], conn, cur, batch_size: int = 10) ->
     # Initialize Reddit client once for all symbols
     reddit_client = get_reddit_client()
     if reddit_client is None:
-        logging.warning("⚠️  Reddit API not configured - Reddit sentiment will be NULL for all symbols")
+        logging.warning("  Reddit API not configured - Reddit sentiment will be NULL for all symbols")
     else:
         logging.info("✓ Reddit API initialized for sentiment collection")
 
@@ -1078,7 +1078,7 @@ def load_sentiment_batch(symbols: List[str], conn, cur, batch_size: int = 10) ->
                                                                      neutral_mentions, total_mentions, source))
                                 logging.debug(f"✓ Inserted sentiment for {symbol}: {sentiment_score:.3f} ({source})")
                             else:
-                                logging.debug(f"⚠️  No real sentiment data for {symbol} (news/trends unavailable) - score will be NULL")
+                                logging.debug(f"  No real sentiment data for {symbol} (news/trends unavailable) - score will be NULL")
                         except Exception as e:
                             logging.warning(f"Could not insert sentiment for {item.get('symbol')}: {e}")
 

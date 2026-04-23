@@ -143,11 +143,11 @@ async def get_fear_greed_data():
     Fetches the CNN Fear & Greed index data via HTTP.
     Returns a list of dictionaries with date, index_value, and rating.
     """
-    logging.info(f"🔄 Starting Fear & Greed data fetch from: {FEAR_GREED_URL}")
+    logging.info(f" Starting Fear & Greed data fetch from: {FEAR_GREED_URL}")
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            logging.info(f"🌐 HTTP attempt {attempt}/{MAX_RETRIES}")
+            logging.info(f" HTTP attempt {attempt}/{MAX_RETRIES}")
 
             # Create a session with retries
             session = requests.Session()
@@ -167,7 +167,7 @@ async def get_fear_greed_data():
             }
 
             # Fetch the data
-            logging.info(f"📡 Fetching JSON from CNN API...")
+            logging.info(f" Fetching JSON from CNN API...")
             response = session.get(FEAR_GREED_URL, headers=headers, timeout=30)
             response.raise_for_status()
 
@@ -176,24 +176,24 @@ async def get_fear_greed_data():
             # Extract the historical data array
             data_array = data_json['fear_and_greed_historical']['data']
 
-            logging.info(f"✅ Successfully fetched {len(data_array)} Fear & Greed records")
+            logging.info(f" Successfully fetched {len(data_array)} Fear & Greed records")
             session.close()
 
             return data_array
 
         except Exception as e:
-            logging.error(f"❌ HTTP attempt {attempt} failed: {e}")
-            logging.error(f"❌ Error type: {type(e).__name__}")
+            logging.error(f" HTTP attempt {attempt} failed: {e}")
+            logging.error(f" Error type: {type(e).__name__}")
             import traceback
-            logging.error(f"❌ Stack trace: {traceback.format_exc()}")
+            logging.error(f" Stack trace: {traceback.format_exc()}")
 
             if attempt < MAX_RETRIES:
                 retry_delay = RETRY_DELAY * (BACKOFF_MULTIPLIER ** (attempt - 1))
                 logging.info(f"⏳ Retrying in {retry_delay:.1f} seconds... (attempt {attempt}/{MAX_RETRIES})")
                 await asyncio.sleep(retry_delay)  # Use async sleep
             else:
-                logging.error(f"❌ CRITICAL: Failed to fetch Fear & Greed data after {MAX_RETRIES} attempts")
-                logging.error(f"❌ Final error: {e}")
+                logging.error(f" CRITICAL: Failed to fetch Fear & Greed data after {MAX_RETRIES} attempts")
+                logging.error(f" Final error: {e}")
                 raise Exception(f"Failed to fetch Fear & Greed data after {MAX_RETRIES} attempts: {e}")
 
 # -------------------------------
@@ -256,19 +256,19 @@ async def load_fear_greed_data(cur, conn):
 # Entrypoint
 # -------------------------------
 async def main():
-    logging.info(f"🚀 Starting {SCRIPT_NAME} execution")
+    logging.info(f" Starting {SCRIPT_NAME} execution")
     log_mem("startup")
 
     # Connect to DB
-    logging.info("🔌 Loading database configuration...")
+    logging.info(" Loading database configuration...")
     cfg = get_db_config()
-    logging.info(f"🔌 Connecting to database: {cfg['host']}:{cfg['port']}/{cfg['dbname']}")
+    logging.info(f" Connecting to database: {cfg['host']}:{cfg['port']}/{cfg['dbname']}")
     conn = psycopg2.connect(
         host=cfg["host"], port=cfg["port"],
         user=cfg["user"], password=cfg["password"],
         dbname=cfg["dbname"]
     )
-    logging.info("✅ Database connection established")
+    logging.info(" Database connection established")
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -327,7 +327,7 @@ if __name__ == "__main__":
             except RuntimeError:
                 pass  # Loop already closed by pyppeteer
     except Exception as e:
-        logging.error(f"❌ CRITICAL ERROR in Fear & Greed loader: {e}")
+        logging.error(f" CRITICAL ERROR in Fear & Greed loader: {e}")
         import traceback
-        logging.error(f"❌ Full traceback: {traceback.format_exc()}")
+        logging.error(f" Full traceback: {traceback.format_exc()}")
         sys.exit(1) 

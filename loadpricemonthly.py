@@ -407,10 +407,10 @@ if __name__ == "__main__":
             """)
             cur.execute("CREATE INDEX IF NOT EXISTS idx_price_monthly_symbol ON price_monthly(symbol);")
             cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_price_monthly_symbol_date ON price_monthly(symbol, date);")
-            logging.info("✅ price_monthly table ready")
+            logging.info(" price_monthly table ready")
             conn.commit()
         except Exception as e:
-            logging.error(f"❌ Failed to create price_monthly table: {e}")
+            logging.error(f" Failed to create price_monthly table: {e}")
             conn.rollback()
             raise
 

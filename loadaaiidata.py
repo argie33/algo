@@ -136,7 +136,7 @@ def get_aaii_sentiment_data():
     FIXED (2026-03-01): Uses improved session handling with retry strategy
     that successfully bypasses 403 blocks. Header row is at index 3.
     """
-    logging.info(f"🔄 Starting AAII sentiment data download from: {AAII_EXCEL_URL}")
+    logging.info(f" Starting AAII sentiment data download from: {AAII_EXCEL_URL}")
 
     # Improved session with connection pooling and retry strategy
     from requests.adapters import HTTPAdapter
@@ -179,7 +179,7 @@ def get_aaii_sentiment_data():
 
             content_type = response.headers.get("Content-Type", "")
             content_size = len(response.content)
-            logging.info(f"✅ Response: Status={response.status_code}, Size={content_size:,} bytes, Type={content_type}")
+            logging.info(f" Response: Status={response.status_code}, Size={content_size:,} bytes, Type={content_type}")
 
             # Validate it's actually an Excel file, not HTML error
             if content_size < 100000 or "html" in content_type.lower():
@@ -187,13 +187,13 @@ def get_aaii_sentiment_data():
 
             # Parse Excel file with correct header row
             excel_data = BytesIO(response.content)
-            logging.info("📊 Parsing Excel file (header at row 3)...")
+            logging.info(" Parsing Excel file (header at row 3)...")
             df = pd.read_excel(excel_data, header=3, engine="xlrd")
 
             # Get only sentiment columns
             required_cols = ["Date", "Bullish", "Neutral", "Bearish"]
             df = df[required_cols].copy()
-            logging.info(f"✅ Extracted {len(df)} rows")
+            logging.info(f" Extracted {len(df)} rows")
 
             # Clean data
             df = df.dropna(subset=["Date"])  # Remove rows without date
@@ -213,14 +213,14 @@ def get_aaii_sentiment_data():
             # Sort by date
             df = df.sort_values("Date").reset_index(drop=True)
 
-            logging.info(f"✅ Successfully downloaded AAII sentiment data: {len(df)} records")
+            logging.info(f" Successfully downloaded AAII sentiment data: {len(df)} records")
             logging.info(f"   Date range: {df['Date'].min()} to {df['Date'].max()}")
             return df
 
         except Exception as e:
-            logging.error(f"❌ Download attempt {attempt} failed: {str(e)[:100]}")
+            logging.error(f" Download attempt {attempt} failed: {str(e)[:100]}")
             if attempt == MAX_DOWNLOAD_RETRIES:
-                logging.error(f"❌ CRITICAL: Failed after {MAX_DOWNLOAD_RETRIES} attempts")
+                logging.error(f" CRITICAL: Failed after {MAX_DOWNLOAD_RETRIES} attempts")
                 raise Exception(f"Failed to download AAII data: {e}")
 
 # -------------------------------
@@ -270,19 +270,19 @@ def load_sentiment_data(cur, conn):
 # -------------------------------
 if __name__ == "__main__":
     try:
-        logging.info(f"🚀 Starting {SCRIPT_NAME} execution")
+        logging.info(f" Starting {SCRIPT_NAME} execution")
         log_mem("startup")
 
         # Connect to DB
-        logging.info("🔌 Loading database configuration...")
+        logging.info(" Loading database configuration...")
         cfg = get_db_config()
-        logging.info(f"🔌 Connecting to database: {cfg['host']}:{cfg['port']}/{cfg['dbname']}")
+        logging.info(f" Connecting to database: {cfg['host']}:{cfg['port']}/{cfg['dbname']}")
         conn = psycopg2.connect(
             host=cfg["host"], port=cfg["port"],
             user=cfg["user"], password=cfg["password"],
             dbname=cfg["dbname"]
         )
-        logging.info("✅ Database connection established")
+        logging.info(" Database connection established")
         conn.autocommit = False
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -320,7 +320,7 @@ if __name__ == "__main__":
         conn.close()
         logging.info("All done.")
     except Exception as e:
-        logging.error(f"❌ CRITICAL ERROR in AAII loader: {e}")
+        logging.error(f" CRITICAL ERROR in AAII loader: {e}")
         import traceback
-        logging.error(f"❌ Full traceback: {traceback.format_exc()}")
+        logging.error(f" Full traceback: {traceback.format_exc()}")
         sys.exit(1) 

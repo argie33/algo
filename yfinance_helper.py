@@ -38,7 +38,7 @@ def retry_with_backoff(max_retries=10, base_delay=0.5, verbose=True):
                     if is_rate_limit:
                         # Log rate limit and fail - main loop will space requests
                         if verbose:
-                            logging.warning(f"⚠️ RATE LIMITED on {func.__name__} (attempt {attempt + 1}/{max_retries}). Main loop will add spacing.")
+                            logging.warning(f" RATE LIMITED on {func.__name__} (attempt {attempt + 1}/{max_retries}). Main loop will add spacing.")
                         raise  # Fail immediately so main loop can add delay before retry
                     elif is_transient:
                         # RESILIENT: Exponential backoff with longer delays (0.5, 1, 2, 4, 8, 16, 32, 64, 120, 120)
@@ -48,11 +48,11 @@ def retry_with_backoff(max_retries=10, base_delay=0.5, verbose=True):
                         if attempt < max_retries - 1:
                             # Retry transient errors with exponential backoff
                             if verbose:
-                                logging.warning(f"⚠️ Transient error in {func.__name__} (attempt {attempt + 1}/{max_retries}), retrying in {delay:.1f}s: {str(e)[:80]}")
+                                logging.warning(f" Transient error in {func.__name__} (attempt {attempt + 1}/{max_retries}), retrying in {delay:.1f}s: {str(e)[:80]}")
                             time.sleep(delay)
                         else:
                             if verbose:
-                                logging.error(f"❌ All {max_retries} retry attempts exhausted for {func.__name__}: {e}")
+                                logging.error(f" All {max_retries} retry attempts exhausted for {func.__name__}: {e}")
                             raise
                     else:
                         # Unknown error - log and fail
@@ -101,15 +101,15 @@ def fetch_ticker_history(symbol, period='max', start=None, end=None, interval='1
         hist = _fetch()
 
         if hist is None or hist.empty:
-            logger.warning(f"⚠️ Empty data for {symbol}")
+            logger.warning(f" Empty data for {symbol}")
             return None
 
         if len(hist) < min_rows:
-            logger.warning(f"⚠️ Insufficient data for {symbol}: {len(hist)} rows < {min_rows}")
+            logger.warning(f" Insufficient data for {symbol}: {len(hist)} rows < {min_rows}")
             return None
 
         return hist
 
     except Exception as e:
-        logger.error(f"❌ Failed to fetch {symbol}: {e}")
+        logger.error(f" Failed to fetch {symbol}: {e}")
         return None

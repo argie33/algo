@@ -332,13 +332,13 @@ def load_technical_indicators(cur, conn):
                 page_size=1000
             )
             conn.commit()
-            logging.info(f"✅ Inserted {len(indicators_data)} technical indicator records")
+            logging.info(f" Inserted {len(indicators_data)} technical indicator records")
 
         return len(indicators_data)
 
     except Exception as e:
         error_msg = str(e) if str(e) else f"Unknown error (type: {type(e).__name__})"
-        logging.error(f"❌ Failed to load technical indicators: {error_msg}")
+        logging.error(f" Failed to load technical indicators: {error_msg}")
         logging.error(f"Exception type: {type(e).__name__}")
         import traceback
         logging.error(f"Traceback: {traceback.format_exc()}")
@@ -358,12 +358,12 @@ def main():
         conn = psycopg2.connect(**db_config)
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        logging.info(f"✅ Connected to {db_config['dbname']} database")
+        logging.info(f" Connected to {db_config['dbname']} database")
 
         # Load technical indicators
         count = load_technical_indicators(cur, conn)
 
-        logging.info(f"✅ Technical indicators loaded successfully ({count} records)")
+        logging.info(f" Technical indicators loaded successfully ({count} records)")
         log_mem("finished")
 
         cur.close()
@@ -373,7 +373,7 @@ def main():
 
     except Exception as e:
         error_msg = str(e) if str(e) else f"Unknown error (type: {type(e).__name__})"
-        logging.error(f"❌ FATAL: {error_msg}")
+        logging.error(f" FATAL: {error_msg}")
         logging.error(f"Exception type: {type(e).__name__}")
         import traceback
         logging.error(f"Full traceback:\n{traceback.format_exc()}")

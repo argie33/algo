@@ -125,7 +125,7 @@ def load_comprehensive_metrics(conn):
         ORDER BY symbol
     """)
     symbols = [row[0] for row in cur.fetchall()]
-    logger.info(f"✅ Loading metrics for all {len(symbols)} stocks (will calculate scores from available data)")
+    logger.info(f" Loading metrics for all {len(symbols)} stocks (will calculate scores from available data)")
 
     df = pd.DataFrame(index=symbols)
     df.index.name = 'symbol'
@@ -226,11 +226,11 @@ def load_comprehensive_metrics(conn):
         df = df.join(value_df, how='left')
         logger.info(f"  Loaded value metrics for {value_df.shape[0]} stocks")
 
-    # ===== POSITIONING METRICS (7 inputs) =====
+    # ===== POSITIONING METRICS (6 inputs) =====
     logger.info("Loading positioning metrics...")
     cur.execute("""
         SELECT symbol, institutional_ownership_pct, insider_ownership_pct,
-               short_ratio, short_interest_pct, short_percent_of_float
+               short_ratio, short_interest_pct, ad_rating
         FROM positioning_metrics pm
         WHERE date = (SELECT MAX(date) FROM positioning_metrics WHERE symbol = pm.symbol)
     """)
@@ -238,7 +238,7 @@ def load_comprehensive_metrics(conn):
     if positioning_data:
         positioning_df = pd.DataFrame(positioning_data, columns=[
             'symbol', 'institutional_ownership_pct', 'insider_ownership_pct', 'short_ratio', 'short_interest_pct',
-            'short_percent_of_float'
+            'ad_rating'
         ]).set_index('symbol')
         df = df.join(positioning_df, how='left')
         logger.info(f"  Loaded positioning metrics for {positioning_df.shape[0]} stocks")
@@ -418,7 +418,7 @@ def main():
             failed += 1
 
     conn.commit()
-    logger.info(f"✅ Saved {saved} / {len(df)} stocks ({100*saved/len(df):.1f}%). Failed: {failed}")
+    logger.info(f" Saved {saved} / {len(df)} stocks ({100*saved/len(df):.1f}%). Failed: {failed}")
 
     # Restore company names that were saved
     if company_names:
@@ -486,10 +486,10 @@ def main():
     finally:
         conn.close()
 
-    logger.info(f"\n✅ Saved {saved} stocks with comprehensive scores")
+    logger.info(f"\n Saved {saved} stocks with comprehensive scores")
     logger.info("=" * 100)
     logger.info("COMPLETE - Stock scores recalculated with all available metrics!")
-    logger.info("✅ Data quality verified - all scores complete with no gaps")
+    logger.info(" Data quality verified - all scores complete with no gaps")
     logger.info("=" * 100)
 
 if __name__ == '__main__':

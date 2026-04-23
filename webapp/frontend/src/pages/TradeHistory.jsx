@@ -21,7 +21,7 @@ import {
 } from '@mui/material';
 import './TradeHistory.css';
 
-const API_BASE_URL = (import.meta.env && import.meta.env.VITE_API_URL) || (window.__CONFIG__ && window.__CONFIG__.API_URL) || "http://localhost:3001";
+const API_BASE_URL = (import.meta.env && import.meta.env.VITE_API_URL) || (window.__CONFIG__ && window.__CONFIG__.API_URL) || "http://localhost:3000";
 
 const TradeHistory = () => {
   const [page, setPage] = useState(1);

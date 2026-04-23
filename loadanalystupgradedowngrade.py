@@ -149,7 +149,7 @@ def lambda_handler(event, context):
     log_mem("startup")
     conn = get_db_connection(SCRIPT_NAME)
     if not conn:
-        logging.error("❌ Failed to connect to database")
+        logging.error(" Failed to connect to database")
         return {"error": "Database connection failed"}
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -189,13 +189,13 @@ def main():
     try:
         result = lambda_handler(None, None)
         if result and result.get("total", 0) >= 0:
-            logging.info("✅ Task completed successfully")
+            logging.info(" Task completed successfully")
             sys.exit(0)
         else:
-            logging.error("❌ Task failed or returned invalid result")
+            logging.error(" Task failed or returned invalid result")
             sys.exit(1)
     except Exception as e:
-        logging.error(f"❌ Unhandled error: {e}")
+        logging.error(f" Unhandled error: {e}")
         import traceback
         logging.error(f"Stack trace: {traceback.format_exc()}")
         sys.exit(1)

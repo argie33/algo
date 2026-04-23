@@ -174,7 +174,7 @@ def load_earnings_metrics(cur, conn):
 
         history_rows = cur.fetchall()
         if not history_rows:
-            logging.warning("⚠️  No earnings history found")
+            logging.warning("  No earnings history found")
             return 0
 
         history_df = pd.DataFrame(history_rows, columns=[
@@ -182,7 +182,7 @@ def load_earnings_metrics(cur, conn):
             'eps_difference', 'surprise_percent', 'fetched_at'
         ])
 
-        logging.info(f"✅ Loaded {len(history_df)} earnings history records")
+        logging.info(f" Loaded {len(history_df)} earnings history records")
 
         # Get earnings estimates for growth context
         logging.info("Loading earnings estimates data...")
@@ -205,9 +205,9 @@ def load_earnings_metrics(cur, conn):
                 'symbol', 'period', 'avg_estimate', 'low_estimate',
                 'high_estimate', 'year_ago_eps', 'growth'
             ])
-            logging.info(f"✅ Loaded {len(estimates_df)} earnings estimates records")
+            logging.info(f" Loaded {len(estimates_df)} earnings estimates records")
         else:
-            logging.warning("⚠️  No earnings estimates found yet")
+            logging.warning("  No earnings estimates found yet")
             estimates_df = pd.DataFrame()
 
         # Calculate metrics for each symbol's recent quarter
@@ -327,12 +327,12 @@ def load_earnings_metrics(cur, conn):
                 page_size=1000
             )
             conn.commit()
-            logging.info(f"✅ Inserted {len(metrics_data)} earnings metrics records")
+            logging.info(f" Inserted {len(metrics_data)} earnings metrics records")
 
         return len(metrics_data)
 
     except Exception as e:
-        logging.error(f"❌ Failed to load earnings metrics: {str(e)}")
+        logging.error(f" Failed to load earnings metrics: {str(e)}")
         conn.rollback()
         raise
 
@@ -349,7 +349,7 @@ def main():
         conn = psycopg2.connect(**db_config)
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        logging.info(f"✅ Connected to {db_config['dbname']} database")
+        logging.info(f" Connected to {db_config['dbname']} database")
 
         # Create table if not exists
         logging.info("Running schema migrations...")
@@ -367,12 +367,12 @@ def main():
             )
         """)
         conn.commit()
-        logging.info("✅ earnings_metrics table created/verified")
+        logging.info(" earnings_metrics table created/verified")
 
         # Load earnings metrics
         count = load_earnings_metrics(cur, conn)
 
-        logging.info(f"✅ Earnings metrics loaded successfully ({count} records)")
+        logging.info(f" Earnings metrics loaded successfully ({count} records)")
         log_mem("finished")
 
         cur.close()
@@ -381,7 +381,7 @@ def main():
         return 0
 
     except Exception as e:
-        logging.error(f"❌ FATAL: {str(e)}")
+        logging.error(f" FATAL: {str(e)}")
         return 1
 
 

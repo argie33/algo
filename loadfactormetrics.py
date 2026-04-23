@@ -137,7 +137,7 @@ def log_mem(stage: str):
 
 def track_calc_failure(symbol: str, metric_name: str, error: Exception):
     """Log calculation failures with full details instead of silent pass"""
-    logging.warning(f"⚠️  {symbol}: {metric_name} calculation FAILED - {type(error).__name__}: {str(error)[:100]}")
+    logging.warning(f"  {symbol}: {metric_name} calculation FAILED - {type(error).__name__}: {str(error)[:100]}")
 
 
 def get_db_config():
@@ -1654,7 +1654,7 @@ def calculate_accumulation_distribution_rating(cursor, symbol: str) -> Optional[
         return round(rating_score, 2)
 
     except Exception as e:
-        logging.warning(f"❌ Failed to calculate A/D rating for {symbol}: {type(e).__name__}: {str(e)[:200]}")
+        logging.warning(f" Failed to calculate A/D rating for {symbol}: {type(e).__name__}: {str(e)[:200]}")
         import traceback
         logging.debug(f"A/D calculation traceback: {traceback.format_exc()}")
         return None
@@ -1695,7 +1695,7 @@ def load_ad_ratings(conn, cursor, symbols: List[str]):
     # Update positioning_metrics with A/D ratings (including None values)
     if ad_rows:
         logging.info(f"Updating {len(ad_rows)} A/D ratings in positioning_metrics...")
-        logging.info(f"  ⚠️  {len(failed_symbols)} symbols with NULL A/D (insufficient price data or calculation failed)")
+        logging.info(f"    {len(failed_symbols)} symbols with NULL A/D (insufficient price data or calculation failed)")
 
         updated_count = 0
         for ad_rating, symbol in ad_rows:
@@ -1715,7 +1715,7 @@ def load_ad_ratings(conn, cursor, symbols: List[str]):
 
         try:
             conn.commit()
-            logging.info(f"✅ Updated {updated_count} A/D ratings ({len(ad_rows) - len(failed_symbols)} with values, {len(failed_symbols)} NULL)")
+            logging.info(f" Updated {updated_count} A/D ratings ({len(ad_rows) - len(failed_symbols)} with values, {len(failed_symbols)} NULL)")
         except Exception as e:
             logging.error(f"Failed to commit A/D updates: {e}")
             conn.rollback()
@@ -2535,7 +2535,7 @@ def load_stability_metrics(conn, cursor, symbols: List[str]):
     # Initialize benchmark cache to avoid redundant SPY queries
     # This reduces database load from 5000+ SPY queries to just 1
     benchmark_cache = {}
-    logging.info(f"📊 Benchmark cache initialized - SPY data will be loaded once and reused for {len(symbols)} symbols")
+    logging.info(f" Benchmark cache initialized - SPY data will be loaded once and reused for {len(symbols)} symbols")
 
     for i, symbol in enumerate(symbols, 1):
         try:
@@ -3161,7 +3161,7 @@ def create_factor_metrics_tables(cursor):
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_value_metrics_symbol_date ON value_metrics(symbol, date DESC)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_positioning_metrics_symbol ON positioning_metrics(symbol)")
 
-        logging.info("✅ Factor metrics tables created/verified (6 tables: quality, growth, momentum, stability, value, positioning)")
+        logging.info(" Factor metrics tables created/verified (6 tables: quality, growth, momentum, stability, value, positioning)")
     except Exception as e:
         logging.error(f"Error creating tables: {e}")
         raise
@@ -3256,7 +3256,7 @@ def fill_metric_gaps(conn, cursor):
         logging.info(f"  Profit Margin: {pm_filled:,}/{total:,} ({pm_filled/total*100:.1f}%)")
         logging.info(f"  D/E Ratio: {de_filled:,}/{total:,} ({de_filled/total*100:.1f}%)")
         logging.info(f"  ROE %: {roe_filled:,}/{total:,} ({roe_filled/total*100:.1f}%)")
-        logging.info("\n✅ Gap filling completed")
+        logging.info("\n Gap filling completed")
 
     except Exception as e:
         logging.error(f"Error filling metric gaps: {e}", exc_info=True)
@@ -3501,7 +3501,7 @@ def main():
             result = subprocess.run(['python3', 'calculate_missing_beta.py'],
                                     capture_output=True, text=True, timeout=1800)
             if result.returncode == 0:
-                logging.info("✅ Beta calculation completed")
+                logging.info(" Beta calculation completed")
             else:
                 logging.warning(f"Beta calculation warning: {result.stderr[:200]}")
         except Exception as beta_err:

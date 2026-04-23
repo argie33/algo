@@ -55,18 +55,18 @@ def create_earnings_history_table():
             """, data)
         
         conn.commit()
-        print("✅ Successfully created earnings_history table and inserted sample data")
+        print(" Successfully created earnings_history table and inserted sample data")
         
         # Verify the data
         cur.execute("SELECT COUNT(*) FROM earnings_history")
         count = cur.fetchone()['count']
-        print(f"📊 Total earnings records: {count}")
+        print(f" Total earnings records: {count}")
         
         cur.close()
         conn.close()
         
     except Exception as e:
-        print(f"❌ Error setting up earnings_history table: {e}")
+        print(f" Error setting up earnings_history table: {e}")
         raise
 
 if __name__ == "__main__":

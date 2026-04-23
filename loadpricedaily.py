@@ -106,7 +106,7 @@ def get_db_config():
                 SecretId=db_secret_arn
             )["SecretString"]
             sec = json.loads(secret_str)
-            logging.info(f"✅ Loaded database credentials from AWS Secrets Manager: {db_secret_arn}")
+            logging.info(f" Loaded database credentials from AWS Secrets Manager: {db_secret_arn}")
             return {
                 "host": sec["host"],
                 "port": int(sec.get("port", 5432)),
@@ -118,7 +118,7 @@ def get_db_config():
             logging.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
 
     # Fall back to environment variables for local development
-    logging.info("✅ Using environment variables for database config")
+    logging.info(" Using environment variables for database config")
     return {
         "host": os.environ.get("DB_HOST", "localhost"),
         "port": int(os.environ.get("DB_PORT", 5432)),
@@ -531,7 +531,7 @@ if __name__ == "__main__":
 
         t_w, i_w, f_w = load_prices("etf_price_daily", etf_syms, cur, conn)
     except psycopg2.errors.UndefinedTable:
-        logging.warning("⚠️ etf_symbols table does not exist - skipping ETF price loading")
+        logging.warning(" etf_symbols table does not exist - skipping ETF price loading")
         t_w, i_w, f_w = 0, 0, 0
 
     # Record last run

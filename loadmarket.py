@@ -768,12 +768,12 @@ if __name__ == "__main__":
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     # Create tables
-    logging.info("\n📊 Step 1: Creating tables...")
+    logging.info("\n Step 1: Creating tables...")
     create_market_data_table(cur, conn)
     create_distribution_days_table(cur, conn)
 
     # Load market data for indices and ETFs
-    logging.info("\n📊 Step 2: Loading market data for indices and ETFs...")
+    logging.info("\n Step 2: Loading market data for indices and ETFs...")
     market_start = time.time()
 
     # Combine all symbols to load
@@ -785,7 +785,7 @@ if __name__ == "__main__":
     logging.info(f"   Market data: {market_processed} processed, {market_inserted} inserted ({market_time:.1f}s)")
 
     # Load distribution days (fast)
-    logging.info("\n📊 Step 3: Calculating distribution days...")
+    logging.info("\n Step 3: Calculating distribution days...")
     start_time = time.time()
     dist_days_inserted = load_distribution_days(MAJOR_INDICES, conn, cur)
     dist_time = time.time() - start_time
@@ -808,7 +808,7 @@ if __name__ == "__main__":
     logging.info("UNIFIED MARKET DATA LOADING COMPLETE")
     logging.info("=" * 80)
 
-    logging.info("\n✅ Market Data:")
+    logging.info("\n Market Data:")
     logging.info(f"  Symbols processed: {market_processed}")
     logging.info(f"  Records inserted: {market_inserted}")
     logging.info(f"  Processing time: {market_time:.1f}s")
@@ -819,7 +819,7 @@ if __name__ == "__main__":
     total_market = result.get('count') if isinstance(result, dict) else result[0]
     logging.info(f"  Total records in database: {total_market}")
 
-    logging.info("\n✅ Distribution Days:")
+    logging.info("\n Distribution Days:")
     logging.info(f"  Records inserted: {dist_days_inserted}")
     logging.info(f"  Processing time: {dist_time:.1f}s")
 
@@ -829,7 +829,7 @@ if __name__ == "__main__":
     total_dist_days = result.get('count') if isinstance(result, dict) else result[0]
     logging.info(f"  Total records in database: {total_dist_days}")
 
-    logging.info(f"\n⏱️  Total execution time: {market_time + dist_time:.1f}s (market: {market_time:.1f}s + distribution: {dist_time:.1f}s)")
+    logging.info(f"\n⏱  Total execution time: {market_time + dist_time:.1f}s (market: {market_time:.1f}s + distribution: {dist_time:.1f}s)")
     log_mem("completion")
 
     # Show final distribution days summary with RUNNING counts
@@ -841,7 +841,7 @@ if __name__ == "__main__":
         ORDER BY symbol
     """)
 
-    logging.info("\n📊 IBD Distribution Days Summary (RUNNING COUNTS):")
+    logging.info("\n IBD Distribution Days Summary (RUNNING COUNTS):")
     for row in cur.fetchall():
         symbol = row.get('symbol') if isinstance(row, dict) else row[0]
         total_count = int(row.get('total_count') if isinstance(row, dict) else row[1])
@@ -850,21 +850,21 @@ if __name__ == "__main__":
 
         # Determine signal based on RUNNING count (what matters for trading)
         if running_count <= 2:
-            signal = "✅ NORMAL"
+            signal = " NORMAL"
         elif running_count <= 4:
-            signal = "⚠️  WATCH"
+            signal = "  WATCH"
         elif running_count <= 7:
-            signal = "🟡 CAUTION"
+            signal = " CAUTION"
         elif running_count <= 10:
-            signal = "🔴 PRESSURE"
+            signal = " PRESSURE"
         else:
-            signal = "⚠️⚠️ SERIOUS PRESSURE"
+            signal = " SERIOUS PRESSURE"
 
         logging.info(f"  {symbol}: {running_count} running (latest: {latest}) | {signal}")
 
     cur.close()
     conn.close()
-    logging.info("\n✅ Database connection closed")
+    logging.info("\n Database connection closed")
     logging.info("=" * 80)
     logging.info("READY FOR DASHBOARD!")
     logging.info("=" * 80)

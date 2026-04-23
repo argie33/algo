@@ -133,7 +133,7 @@ def get_naaim_data():
     Downloads the NAAIM Exposure Index data from their website.
     Returns a DataFrame with the NAAIM exposure data.
     """
-    logging.info(f"🔄 Starting NAAIM data download from: {NAAIM_URL}")
+    logging.info(f" Starting NAAIM data download from: {NAAIM_URL}")
     
     # Custom headers to mimic a browser request and avoid compression
     headers = {
@@ -264,17 +264,17 @@ def get_naaim_data():
             raise ValueError("No valid NAAIM data tables found on the page")
             
         except Exception as e:
-            logging.error(f"❌ Download attempt {attempt} failed: {e}")
-            logging.error(f"❌ Error type: {type(e).__name__}")
+            logging.error(f" Download attempt {attempt} failed: {e}")
+            logging.error(f" Error type: {type(e).__name__}")
             import traceback
-            logging.error(f"❌ Stack trace: {traceback.format_exc()}")
+            logging.error(f" Stack trace: {traceback.format_exc()}")
             if attempt < MAX_DOWNLOAD_RETRIES:
                 retry_delay = RETRY_DELAY * (BACKOFF_MULTIPLIER ** (attempt - 1))
                 logging.info(f"⏳ Retrying in {retry_delay:.1f} seconds... (attempt {attempt}/{MAX_DOWNLOAD_RETRIES})")
                 time.sleep(retry_delay)
             else:
-                logging.error(f"❌ CRITICAL: Failed to download NAAIM data after {MAX_DOWNLOAD_RETRIES} attempts")
-                logging.error(f"❌ Final error: {e}")
+                logging.error(f" CRITICAL: Failed to download NAAIM data after {MAX_DOWNLOAD_RETRIES} attempts")
+                logging.error(f" Final error: {e}")
                 raise Exception(f"Failed to download NAAIM data after {MAX_DOWNLOAD_RETRIES} attempts: {e}")
 
 # -------------------------------
@@ -343,19 +343,19 @@ def load_naaim_data(cur, conn):
 # -------------------------------
 def main():
     """Main synchronous function to run NAAIM data loading."""
-    logging.info(f"🚀 Starting {SCRIPT_NAME} execution")
+    logging.info(f" Starting {SCRIPT_NAME} execution")
     log_mem("startup")
 
     # Connect to DB
-    logging.info("🔌 Loading database configuration...")
+    logging.info(" Loading database configuration...")
     cfg = get_db_config()
-    logging.info(f"🔌 Connecting to database: {cfg['host']}:{cfg['port']}/{cfg['dbname']}")
+    logging.info(f" Connecting to database: {cfg['host']}:{cfg['port']}/{cfg['dbname']}")
     conn = psycopg2.connect(
         host=cfg["host"], port=cfg["port"],
         user=cfg["user"], password=cfg["password"],
         dbname=cfg["dbname"]
     )
-    logging.info("✅ Database connection established")
+    logging.info(" Database connection established")
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -411,7 +411,7 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        logging.error(f"❌ CRITICAL ERROR in NAAIM loader: {e}")
+        logging.error(f" CRITICAL ERROR in NAAIM loader: {e}")
         import traceback
-        logging.error(f"❌ Full traceback: {traceback.format_exc()}")
+        logging.error(f" Full traceback: {traceback.format_exc()}")
         sys.exit(1) 

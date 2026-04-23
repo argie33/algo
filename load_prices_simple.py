@@ -151,7 +151,7 @@ def main():
             inserted = load_prices_for_symbol(conn, symbol, days=30)
             total_inserted += inserted
 
-        logger.info(f"\n✅ Complete! Inserted {total_inserted} total price records")
+        logger.info(f"\n Complete! Inserted {total_inserted} total price records")
 
         # Show sample data
         with conn.cursor() as cur:

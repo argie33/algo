@@ -64,7 +64,7 @@ def fetch_benchmark_data(symbol, lookback_days=365, max_retries=5):
     }
     period = period_map.get(lookback_days, "max")
 
-    logger.info(f"📊 Fetching {symbol} data from yfinance (period: {period})...")
+    logger.info(f" Fetching {symbol} data from yfinance (period: {period})...")
 
     # Use the yfinance helper with better rate limit handling
     hist = fetch_ticker_history(
@@ -75,16 +75,16 @@ def fetch_benchmark_data(symbol, lookback_days=365, max_retries=5):
     )
 
     if hist is not None:
-        logger.info(f"✅ Retrieved {len(hist)} {symbol} bars from yfinance")
+        logger.info(f" Retrieved {len(hist)} {symbol} bars from yfinance")
     else:
-        logger.warning(f"⚠️  No data retrieved for {symbol}")
+        logger.warning(f"  No data retrieved for {symbol}")
 
     return hist
 
 def insert_benchmark_data(conn, symbol, hist):
     """Insert benchmark bars into price_daily table"""
     if hist is None or hist.empty:
-        logger.warning(f"⚠️  No {symbol} data to insert")
+        logger.warning(f"  No {symbol} data to insert")
         return 0
 
     try:
@@ -125,11 +125,11 @@ def insert_benchmark_data(conn, symbol, hist):
             execute_values(cur, query, records)
         conn.commit()
 
-        logger.info(f"✅ Inserted/updated {len(records)} {symbol} price records")
+        logger.info(f" Inserted/updated {len(records)} {symbol} price records")
         cur.close()
         return len(records)
     except psycopg2.Error as e:
-        logger.error(f"❌ Database error inserting {symbol} data: {e}")
+        logger.error(f" Database error inserting {symbol} data: {e}")
         # Don't rollback - let the loader continue with next symbol
         return 0
 
@@ -155,11 +155,11 @@ def create_index_metrics_table(conn):
             )
         """)
         conn.commit()
-        logger.info("✅ Index metrics table ensured")
+        logger.info(" Index metrics table ensured")
         cur.close()
         return True
     except psycopg2.Error as e:
-        logger.error(f"❌ Error creating index_metrics table: {e}")
+        logger.error(f" Error creating index_metrics table: {e}")
         return False
 
 def calculate_index_pe_metrics(conn):
@@ -287,29 +287,29 @@ def calculate_index_pe_metrics(conn):
             """
             execute_values(cur, query, index_metrics_data)
             conn.commit()
-            logger.info(f"✅ Updated {len(index_metrics_data)} index metrics")
+            logger.info(f" Updated {len(index_metrics_data)} index metrics")
 
         cur.close()
         return True
     except psycopg2.Error as e:
-        logger.error(f"❌ Error calculating index P/E metrics: {e}")
+        logger.error(f" Error calculating index P/E metrics: {e}")
         return False
 
 def main():
     """Main execution"""
-    logger.info("🚀 Starting Benchmark & Market Index Data Loader")
-    logger.info(f"📊 Loading benchmarks: {', '.join(BENCHMARK_SYMBOLS)}")
+    logger.info(" Starting Benchmark & Market Index Data Loader")
+    logger.info(f" Loading benchmarks: {', '.join(BENCHMARK_SYMBOLS)}")
 
     # Connect to database
     conn = get_db_connection(SCRIPT_NAME)
     if not conn:
-        logger.error("❌ Failed to connect to database")
+        logger.error(" Failed to connect to database")
         sys.exit(1)
 
     total_inserted = 0
 
     # Phase 1: Load benchmark price data
-    logger.info("\n📈 Phase 1: Loading benchmark ETF price data...")
+    logger.info("\n Phase 1: Loading benchmark ETF price data...")
     for i, symbol in enumerate(BENCHMARK_SYMBOLS):
         # Add longer delay between benchmark fetches to avoid rate limiting
         if i > 0:
@@ -325,24 +325,24 @@ def main():
             inserted = insert_benchmark_data(conn, symbol, hist)
             total_inserted += inserted
         else:
-            logger.warning(f"⚠️  Skipped {symbol} due to fetch failure")
+            logger.warning(f"  Skipped {symbol} due to fetch failure")
 
     # Phase 2: Load index P/E metrics
-    logger.info("\n💹 Phase 2: Loading market index P/E metrics...")
+    logger.info("\n Phase 2: Loading market index P/E metrics...")
     if create_index_metrics_table(conn):
         time.sleep(5)  # Brief pause before calculating metrics
         calculate_index_pe_metrics(conn)
     else:
-        logger.warning("⚠️  Failed to prepare index metrics table")
+        logger.warning("  Failed to prepare index metrics table")
 
     conn.close()
 
     if total_inserted > 0:
-        logger.info(f"\n✅ Data loaded successfully ({total_inserted} benchmark records)")
-        logger.info("📊 Beta, Correlation, and Index P/E calculations will now work")
+        logger.info(f"\n Data loaded successfully ({total_inserted} benchmark records)")
+        logger.info(" Beta, Correlation, and Index P/E calculations will now work")
         sys.exit(0)
     else:
-        logger.warning("⚠️  No benchmark data loaded, but index metrics may be available")
+        logger.warning("  No benchmark data loaded, but index metrics may be available")
         sys.exit(0)  # Still exit 0 since index metrics might be available
 
 if __name__ == '__main__':

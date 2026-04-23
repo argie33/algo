@@ -16,9 +16,11 @@ from dotenv import load_dotenv
 load_dotenv('/home/arger/algo/.env.local')
 
 # Setup rotating log file handler to prevent disk exhaustion from excessive logging
+import tempfile
 from logging.handlers import RotatingFileHandler
+log_path = os.path.join(tempfile.gettempdir(), 'loadbuysellweekly.log')
 log_handler = RotatingFileHandler(
-    '/tmp/loadbuysellweekly.log',
+    log_path,
     maxBytes=100*1024*1024,  # 100MB max per file
     backupCount=3  # Keep 3 backup files
 )
@@ -369,7 +371,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
                 score += 10
 
         # Price positioning (0-15): Timing relative to short-term MA
-        # ✅ FIXED: Add pd.notna() check in addition to is not None (NaN is not None!)
+        #  FIXED: Add pd.notna() check in addition to is not None (NaN is not None!)
         if row.get('close') is not None and row.get('maFilter') is not None and pd.notna(row['close']) and pd.notna(row['maFilter']):
             if row['close'] > row['maFilter']:
                 score += 15
@@ -398,7 +400,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
             return None
 
         # Calculate price position relative to MA
-        # ✅ FIXED: Add NaN/None check before comparison to prevent TypeError
+        #  FIXED: Add NaN/None check before comparison to prevent TypeError
         price_diff_pct = ((close - ma_30week) / ma_30week * 100) if (ma_30week is not None and not pd.isna(ma_30week) and ma_30week > 0) else None
         if price_diff_pct is None:
             return None
@@ -415,15 +417,15 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
             return 'Stage 4 - Declining'
 
         # Stage 3: Distribution/Topping - Price at/near flattening MA (improved detection)
-        if is_ma_flat and -5 <= price_diff_pct <= 8:  # ✅ Expanded range: -3..5 → -5..8
+        if is_ma_flat and -5 <= price_diff_pct <= 8:  #  Expanded range: -3..5 → -5..8
             return 'Stage 3 - Topping'
-        elif is_ma_flat and -8 <= price_diff_pct <= 10:  # ✅ Wider oscillation pattern
+        elif is_ma_flat and -8 <= price_diff_pct <= 10:  #  Wider oscillation pattern
             return 'Stage 3 - Topping'
 
         # Stage 2: Advancing - Price above rising MA (most bullish)
         if close > ma_30week and is_ma_rising:
             return 'Stage 2 - Advancing'
-        # ✅ NEW: If price clearly above MA, treat as advance even if MA slope weak
+        #  NEW: If price clearly above MA, treat as advance even if MA slope weak
         if close > ma_30week and not is_ma_rising:
             return 'Stage 2 - Advancing'
 
@@ -454,7 +456,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
             return None
 
         close = row['close']
-        ma_30week = row.get('ma_30week')  # ✅ FIXED: Use ma_30week not buyLevel!
+        ma_30week = row.get('ma_30week')  #  FIXED: Use ma_30week not buyLevel!
 
         if pd.isna(ma_30week) or ma_30week is None or ma_30week <= 0:
             return None
@@ -1173,7 +1175,7 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     the MOST RECENT pivot value whenever a NEW pivot is detected.
     """
 
-    logging.debug("🎯 Rewritten: Generating signals matching Pine Script exactly")
+    logging.debug(" Rewritten: Generating signals matching Pine Script exactly")
 
     # === CALCULATE TECHNICAL INDICATORS ===
     df['sma_50'] = calculate_sma(df['close'], 50)
@@ -1649,7 +1651,7 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
             return None
 
         close = row['close']
-        ma_200 = row['ma_200']  # ✅ FIXED: Use ma_200 (200-day MA) not ma_50!
+        ma_200 = row['ma_200']  #  FIXED: Use ma_200 (200-day MA) not ma_50!
 
         if pd.isna(ma_200) or ma_200 is None or ma_200 <= 0:
             return None
@@ -1727,7 +1729,7 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     df['current_gain_pct'] = None
     df['days_in_position'] = None
 
-    logging.info(f"✅ Generated {len(df[df['Signal']=='Buy'])} Buy signals and {len(df[df['Signal']=='Sell'])} Sell signals")
+    logging.info(f" Generated {len(df[df['Signal']=='Buy'])} Buy signals and {len(df[df['Signal']=='Sell'])} Sell signals")
 
     return df
 
@@ -1843,10 +1845,10 @@ def main():
 
     symbols = get_symbols_from_db(limit=None, skip_completed=False)  # Process ALL symbols for complete coverage
     if not symbols:
-        logging.info("✅ No symbols found to process!")
+        logging.info(" No symbols found to process!")
         return
 
-    logging.info(f"📊 Processing {len(symbols)} symbols for complete buy/sell signal coverage")
+    logging.info(f" Processing {len(symbols)} symbols for complete buy/sell signal coverage")
 
     # Load country ETF symbols (from stock_symbols where etf='Y')
     country_symbols = []
@@ -1870,7 +1872,7 @@ def main():
                'Monthly':{'rets':[],'durs':[]}}
 
     # Process ONLY regular stocks (NO ETFs) - NOW ONLY INCOMPLETE
-    logging.info(f"🚀 Processing {len(symbols)} remaining regular stocks (excluding {len(country_symbols)} country symbols)")
+    logging.info(f" Processing {len(symbols)} remaining regular stocks (excluding {len(country_symbols)} country symbols)")
 
     for sym in symbols:
         logging.info(f"=== {sym} ===")
@@ -1915,4 +1917,4 @@ def main():
 if __name__ == "__main__":
     logging.info("Starting Weekly Signals Loader")
     main()
-    logging.info("✅ Weekly Signals Loader completed")
+    logging.info(" Weekly Signals Loader completed")

@@ -16,9 +16,11 @@ from dotenv import load_dotenv
 load_dotenv('/home/arger/algo/.env.local')
 
 # Setup rotating log file handler to prevent disk exhaustion from excessive logging
+import tempfile
 from logging.handlers import RotatingFileHandler
+log_path = os.path.join(tempfile.gettempdir(), 'loadbuysellmonthly.log')
 log_handler = RotatingFileHandler(
-    '/tmp/loadbuysellmonthly.log',
+    log_path,
     maxBytes=100*1024*1024,  # 100MB max per file
     backupCount=3  # Keep 3 backup files
 )
@@ -416,15 +418,15 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
             return 'Stage 4 - Declining'
 
         # Stage 3: Distribution/Topping - Price at/near flattening MA (improved detection)
-        if is_ma_flat and -5 <= price_diff_pct <= 8:  # ✅ Expanded range: -3..5 → -5..8
+        if is_ma_flat and -5 <= price_diff_pct <= 8:  #  Expanded range: -3..5 → -5..8
             return 'Stage 3 - Topping'
-        elif is_ma_flat and -8 <= price_diff_pct <= 10:  # ✅ Wider oscillation pattern
+        elif is_ma_flat and -8 <= price_diff_pct <= 10:  #  Wider oscillation pattern
             return 'Stage 3 - Topping'
 
         # Stage 2: Advancing - Price above rising MA (most bullish)
         if close > ma_30month and is_ma_rising:
             return 'Stage 2 - Advancing'
-        # ✅ NEW: If price clearly above MA, treat as advance even if MA slope weak
+        #  NEW: If price clearly above MA, treat as advance even if MA slope weak
         if close > ma_30month and not is_ma_rising:
             return 'Stage 2 - Advancing'
 
@@ -455,7 +457,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
             return None
 
         close = row['close']
-        ma_30month = row.get('ma_30month')  # ✅ FIXED: Use ma_30month not buyLevel!
+        ma_30month = row.get('ma_30month')  #  FIXED: Use ma_30month not buyLevel!
 
         if pd.isna(ma_30month) or ma_30month is None or ma_30month <= 0:
             return None
@@ -1219,7 +1221,7 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     the MOST RECENT pivot value whenever a NEW pivot is detected.
     """
 
-    logging.debug("🎯 Rewritten: Generating signals matching Pine Script exactly")
+    logging.debug(" Rewritten: Generating signals matching Pine Script exactly")
 
     # === CALCULATE TECHNICAL INDICATORS ===
     df['sma_50'] = calculate_sma(df['close'], 50)
@@ -1691,7 +1693,7 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
             return None
 
         close = row['close']
-        ma_200 = row['ma_200']  # ✅ FIXED: Use ma_200 (200-day MA) not ma_50!
+        ma_200 = row['ma_200']  #  FIXED: Use ma_200 (200-day MA) not ma_50!
 
         if pd.isna(ma_200) or ma_200 is None or ma_200 <= 0:
             return None
@@ -1769,7 +1771,7 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     df['current_gain_pct'] = None
     df['days_in_position'] = None
 
-    logging.info(f"✅ Generated {len(df[df['Signal']=='Buy'])} Buy signals and {len(df[df['Signal']=='Sell'])} Sell signals")
+    logging.info(f" Generated {len(df[df['Signal']=='Buy'])} Buy signals and {len(df[df['Signal']=='Sell'])} Sell signals")
 
     return df
 
@@ -1859,10 +1861,10 @@ def main():
 
     symbols = get_symbols_from_db(limit=None, skip_completed=False)  # Process ALL symbols for complete coverage
     if not symbols:
-        logging.info("✅ No symbols found to process!")
+        logging.info(" No symbols found to process!")
         return
 
-    logging.info(f"📊 Processing {len(symbols)} symbols for complete buy/sell signal coverage")
+    logging.info(f" Processing {len(symbols)} symbols for complete buy/sell signal coverage")
 
     # Load country ETF symbols (from stock_symbols where etf='Y' AND country IS NOT NULL)
     country_symbols = []
@@ -1886,7 +1888,7 @@ def main():
                'Monthly':{'rets':[],'durs':[]}}
 
     # Process ONLY regular stocks (NO ETFs) - NOW ONLY INCOMPLETE
-    logging.info(f"🚀 Processing {len(symbols)} remaining regular stocks (excluding {len(country_symbols)} country symbols)")
+    logging.info(f" Processing {len(symbols)} remaining regular stocks (excluding {len(country_symbols)} country symbols)")
 
     for sym in symbols:
         logging.info(f"=== {sym} ===")
@@ -1926,4 +1928,4 @@ def main():
 if __name__ == "__main__":
     logging.info("Starting Monthly Signals Loader")
     main()
-    logging.info("✅ Monthly Signals Loader completed")
+    logging.info(" Monthly Signals Loader completed")

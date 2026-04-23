@@ -17,9 +17,11 @@ from dotenv import load_dotenv
 load_dotenv('/home/arger/algo/.env.local')
 
 # Setup rotating log file handler to prevent disk exhaustion from excessive logging
+import tempfile
 from logging.handlers import RotatingFileHandler
+log_path = os.path.join(tempfile.gettempdir(), 'loadbuysell_etf_monthly.log')
 log_handler = RotatingFileHandler(
-    '/tmp/loadbuysell_etf_monthly.log',
+    log_path,
     maxBytes=100*1024*1024,  # 100MB max per file
     backupCount=3  # Keep 3 backup files
 )
@@ -387,8 +389,8 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
             return None
 
         # Detect MA direction - tuned thresholds for better discrimination
-        is_ma_rising = ma_slope > 1.5 if pd.notna(ma_slope) else False  # ✅ Tuned: 1.0 → 1.5
-        is_ma_falling = ma_slope < -1.5 if pd.notna(ma_slope) else False  # ✅ Tuned: -1.0 → -1.5
+        is_ma_rising = ma_slope > 1.5 if pd.notna(ma_slope) else False  #  Tuned: 1.0 → 1.5
+        is_ma_falling = ma_slope < -1.5 if pd.notna(ma_slope) else False  #  Tuned: -1.0 → -1.5
         is_ma_flat = not is_ma_rising and not is_ma_falling
 
         # === Weinstein Stage Detection ===
@@ -398,15 +400,15 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
             return 'Stage 4 - Declining'
 
         # Stage 3: Distribution/Topping - Price at/near flattening MA (improved detection)
-        if is_ma_flat and -5 <= price_diff_pct <= 8:  # ✅ Expanded range: -3..5 → -5..8
+        if is_ma_flat and -5 <= price_diff_pct <= 8:  #  Expanded range: -3..5 → -5..8
             return 'Stage 3 - Topping'
-        elif is_ma_flat and -8 <= price_diff_pct <= 10:  # ✅ Wider oscillation pattern
+        elif is_ma_flat and -8 <= price_diff_pct <= 10:  #  Wider oscillation pattern
             return 'Stage 3 - Topping'
 
         # Stage 2: Advancing - Price above rising MA (most bullish)
         if close > ma_30month and is_ma_rising:
             return 'Stage 2 - Advancing'
-        # ✅ NEW: If price clearly above MA, treat as advance even if MA slope weak
+        #  NEW: If price clearly above MA, treat as advance even if MA slope weak
         if close > ma_30month and not is_ma_rising:
             return 'Stage 2 - Advancing'
 
@@ -434,7 +436,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
             return None
 
         close = row['close']
-        ma_30month = row.get('ma_30month')  # ✅ FIXED: Use ma_30month not buyLevel!
+        ma_30month = row.get('ma_30month')  #  FIXED: Use ma_30month not buyLevel!
 
         if pd.isna(ma_30month) or ma_30month is None or ma_30month <= 0:
             return None
@@ -1751,7 +1753,7 @@ def generate_signals(df, pvtLenL=3, pvtLenR=3, useMaFilter=True, maLength=50, sh
             return None
 
         close = row['close']
-        ma_200 = row['ma_200']  # ✅ FIXED: Use ma_200 (200-day MA) not ma_200!
+        ma_200 = row['ma_200']  #  FIXED: Use ma_200 (200-day MA) not ma_200!
 
         if pd.isna(ma_200) or ma_200 is None or ma_200 <= 0:
             return None
@@ -1829,7 +1831,7 @@ def generate_signals(df, pvtLenL=3, pvtLenR=3, useMaFilter=True, maLength=50, sh
     df['current_gain_pct'] = None
     df['days_in_position'] = None
 
-    logging.info(f"✅ Generated {len(df[df['Signal']=='Buy'])} Buy signals and {len(df[df['Signal']=='Sell'])} Sell signals")
+    logging.info(f" Generated {len(df[df['Signal']=='Buy'])} Buy signals and {len(df[df['Signal']=='Sell'])} Sell signals")
 
     return df
 
@@ -1919,10 +1921,10 @@ def main():
 
     symbols = get_symbols_from_db(limit=None, skip_completed=False)  # Process ALL symbols for complete coverage
     if not symbols:
-        logging.info("✅ No symbols found to process!")
+        logging.info(" No symbols found to process!")
         return
 
-    logging.info(f"📊 Processing {len(symbols)} symbols for complete buy/sell signal coverage")
+    logging.info(f" Processing {len(symbols)} symbols for complete buy/sell signal coverage")
 
     # Load country ETF symbols (from etf_symbols where etf='Y' AND country IS NOT NULL)
     # Also filter to skip already-completed
@@ -1948,7 +1950,7 @@ def main():
 
     # Combine regular and country ETF symbols into single list
     all_etf_symbols = symbols + country_symbols
-    logging.info(f"🚀 Processing {len(symbols)} incomplete regular ETFs + {len(country_symbols)} incomplete country ETFs = {len(all_etf_symbols)} total ETFs")
+    logging.info(f" Processing {len(symbols)} incomplete regular ETFs + {len(country_symbols)} incomplete country ETFs = {len(all_etf_symbols)} total ETFs")
 
     # BLACKLIST: Skip bond ETFs that don't work with breakout strategy
     blacklist = {'SHY', 'IEF', 'TLT', 'SHV', 'BND', 'AGG'}  # Bond ETFs - too stable
@@ -1993,4 +1995,4 @@ def main():
 if __name__ == "__main__":
     logging.info("Starting Monthly Signals Loader")
     main()
-    logging.info("✅ Monthly Signals Loader completed")
+    logging.info(" Monthly Signals Loader completed")

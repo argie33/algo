@@ -18,14 +18,14 @@ try:
     conn = get_db_connection()
     result = get_stock_data_from_database(conn, 'AAPL')
     if result:
-        print("✅ AAPL Score Calculation SUCCESS")
+        print(" AAPL Score Calculation SUCCESS")
         print(f"Composite Score: {result.get('composite_score')}")
         print(f"Sentiment Score: {result.get('sentiment_score')}")
         print(f"Positioning Score: {result.get('positioning_score')}")
     else:
-        print("❌ AAPL Score Calculation returned None")
+        print(" AAPL Score Calculation returned None")
     conn.close()
 except Exception as e:
-    print(f"❌ Error: {e}")
+    print(f" Error: {e}")
     import traceback
     traceback.print_exc()

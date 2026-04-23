@@ -158,7 +158,7 @@ def load_index_data(symbol: str, name: str, period: str = "5y") -> Optional[int]
         cur.close()
         conn.close()
 
-        logging.info(f"  ✅ Inserted/updated {inserted} records for {symbol}")
+        logging.info(f"   Inserted/updated {inserted} records for {symbol}")
         return inserted
 
     except Exception as e:

@@ -257,11 +257,11 @@ def create_tables():
         """)
         
         conn.commit()
-        logging.info("✅ Database tables created successfully")
+        logging.info(" Database tables created successfully")
         
     except Exception as e:
         conn.rollback()
-        logging.error(f"❌ Error creating tables: {e}")
+        logging.error(f" Error creating tables: {e}")
         raise
     finally:
         cursor.close()
@@ -386,11 +386,11 @@ def save_current_prices(commodity_data: List[Dict[str, Any]]):
             ))
             
         conn.commit()
-        logging.info(f"✅ Saved {len(commodity_data)} commodity prices")
+        logging.info(f" Saved {len(commodity_data)} commodity prices")
         
     except Exception as e:
         conn.rollback()
-        logging.error(f"❌ Error saving prices: {e}")
+        logging.error(f" Error saving prices: {e}")
         raise
     finally:
         cursor.close()
@@ -428,11 +428,11 @@ def save_historical_data(historical_data: List[Dict[str, Any]]):
             ))
             
         conn.commit()
-        logging.info(f"✅ Saved {len(historical_data)} historical records")
+        logging.info(f" Saved {len(historical_data)} historical records")
         
     except Exception as e:
         conn.rollback()
-        logging.error(f"❌ Error saving historical data: {e}")
+        logging.error(f" Error saving historical data: {e}")
         raise
     finally:
         cursor.close()
@@ -485,11 +485,11 @@ def populate_categories():
             """, (symbol, category, subcategory, unit, exchange))
             
         conn.commit()
-        logging.info("✅ Populated commodity categories")
+        logging.info(" Populated commodity categories")
         
     except Exception as e:
         conn.rollback()
-        logging.error(f"❌ Error populating categories: {e}")
+        logging.error(f" Error populating categories: {e}")
         raise
     finally:
         cursor.close()
@@ -558,7 +558,7 @@ def fetch_cot_data(symbol: str) -> List[Dict[str, Any]]:
                 logging.error(f"Error parsing COT record for {symbol}: {e}")
                 continue
                 
-        logging.info(f"✅ Fetched {len(cot_records)} COT records for {symbol}")
+        logging.info(f" Fetched {len(cot_records)} COT records for {symbol}")
         return cot_records
         
     except requests.RequestException as e:
@@ -612,11 +612,11 @@ def save_cot_data(cot_records: List[Dict[str, Any]]):
             ))
             
         conn.commit()
-        logging.info(f"✅ Saved {len(cot_records)} COT records")
+        logging.info(f" Saved {len(cot_records)} COT records")
         
     except Exception as e:
         conn.rollback()
-        logging.error(f"❌ Error saving COT data: {e}")
+        logging.error(f" Error saving COT data: {e}")
         raise
     finally:
         cursor.close()
@@ -693,11 +693,11 @@ def save_seasonality_data(seasonality_data: List[Dict[str, Any]]):
             ))
             
         conn.commit()
-        logging.info(f"✅ Saved seasonality data for {len(seasonality_data)} months")
+        logging.info(f" Saved seasonality data for {len(seasonality_data)} months")
         
     except Exception as e:
         conn.rollback()
-        logging.error(f"❌ Error saving seasonality data: {e}")
+        logging.error(f" Error saving seasonality data: {e}")
         raise
     finally:
         cursor.close()
@@ -707,7 +707,7 @@ def main():
     """Main execution function"""
     try:
         start_time = time.time()
-        logging.info(f"🚀 Starting {SCRIPT_NAME}")
+        logging.info(f" Starting {SCRIPT_NAME}")
         
         # Create tables
         create_tables()
@@ -716,7 +716,7 @@ def main():
         populate_categories()
         
         # Fetch current prices
-        logging.info("📊 Fetching current commodity prices...")
+        logging.info(" Fetching current commodity prices...")
         current_data = []
         
         for symbol in COMMODITY_SYMBOLS.keys():
@@ -732,7 +732,7 @@ def main():
             
         # Fetch and save historical data for key commodities
         key_commodities = ['GC=F', 'SI=F', 'CL=F', 'NG=F', 'ZC=F', 'ZS=F', 'HG=F', 'LE=F', 'HE=F']
-        logging.info("📈 Fetching historical data for key commodities...")
+        logging.info(" Fetching historical data for key commodities...")
         
         for symbol in key_commodities:
             logging.info(f"Fetching historical data for {symbol}...")
@@ -749,7 +749,7 @@ def main():
             
         # Fetch COT data for supported commodities
         cot_commodities = ['CL=F', 'NG=F', 'GC=F', 'SI=F', 'HG=F', 'ZC=F', 'ZS=F', 'ZW=F', 'LE=F', 'HE=F']
-        logging.info("📊 Fetching COT data for supported commodities...")
+        logging.info(" Fetching COT data for supported commodities...")
         
         for symbol in cot_commodities:
             logging.info(f"Fetching COT data for {symbol}...")
@@ -759,10 +759,10 @@ def main():
             time.sleep(1.0)  # Rate limiting for CFTC API
             
         elapsed_time = time.time() - start_time
-        logging.info(f"✅ {SCRIPT_NAME} completed successfully in {elapsed_time:.2f} seconds")
+        logging.info(f" {SCRIPT_NAME} completed successfully in {elapsed_time:.2f} seconds")
         
     except Exception as e:
-        logging.error(f"❌ {SCRIPT_NAME} failed: {e}")
+        logging.error(f" {SCRIPT_NAME} failed: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

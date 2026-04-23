@@ -172,7 +172,7 @@ def ensure_tables(cur, conn):
     cur.execute("CREATE INDEX IF NOT EXISTS idx_iv_history_symbol_date ON iv_history(symbol, date DESC);")
 
     conn.commit()
-    logger.info("✅ All options tables ensured")
+    logger.info(" All options tables ensured")
 
 # ===========================
 # Data Fetching Functions
@@ -199,7 +199,7 @@ def get_risk_free_rate():
 
         if 'observations' in data and len(data['observations']) > 0:
             rate = float(data['observations'][0]['value']) / 100
-            logger.info(f"✅ Risk-free rate: {rate:.4f} ({rate*100:.2f}%)")
+            logger.info(f" Risk-free rate: {rate:.4f} ({rate*100:.2f}%)")
             return rate
         else:
             logger.warning("No FRED data, using default 4.5%")
@@ -221,7 +221,7 @@ def get_active_symbols(conn):
         with conn.cursor() as cur:
             cur.execute(query)
             symbols = [row[0] for row in cur.fetchall()]
-        logger.info(f"✅ Found {len(symbols)} symbols with recent price data")
+        logger.info(f" Found {len(symbols)} symbols with recent price data")
         return symbols
     except Exception as e:
         logger.error(f"Error getting active symbols: {e}")
@@ -431,7 +431,7 @@ def insert_options_chains(conn, data):
         execute_values(cur, query, values)
         conn.commit()
 
-    logger.info(f"✅ Inserted {len(data)} option chains")
+    logger.info(f" Inserted {len(data)} option chains")
 
 def insert_options_greeks(conn, data):
     """Bulk insert Greeks with conflict handling."""
@@ -467,7 +467,7 @@ def insert_options_greeks(conn, data):
         execute_values(cur, query, values)
         conn.commit()
 
-    logger.info(f"✅ Inserted {len(data)} Greeks")
+    logger.info(f" Inserted {len(data)} Greeks")
 
 # ===========================
 # Main Entry Point
@@ -475,7 +475,7 @@ def insert_options_greeks(conn, data):
 def main():
     """Main execution."""
     logger.info("=" * 60)
-    logger.info("🚀 STARTING OPTIONS CHAIN LOADER")
+    logger.info(" STARTING OPTIONS CHAIN LOADER")
     logger.info("=" * 60)
 
     try:
@@ -530,10 +530,10 @@ def main():
         conn.close()
 
         logger.info("=" * 60)
-        logger.info(f"✅ COMPLETE: {success_count}/{len(symbols)} symbols processed")
-        logger.info(f"📊 Total options loaded: {total_options}")
+        logger.info(f" COMPLETE: {success_count}/{len(symbols)} symbols processed")
+        logger.info(f" Total options loaded: {total_options}")
         if failed_symbols:
-            logger.warning(f"⚠️  Failed symbols ({len(failed_symbols)}): {', '.join(failed_symbols[:5])}")
+            logger.warning(f"  Failed symbols ({len(failed_symbols)}): {', '.join(failed_symbols[:5])}")
         logger.info("=" * 60)
 
     except Exception as e:

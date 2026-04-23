@@ -36,9 +36,11 @@ if env_path.exists():
 SCRIPT_NAME = "loadbuyselldaily.py"
 
 # Setup rotating log file handler to prevent disk exhaustion from excessive logging
+import tempfile
 from logging.handlers import RotatingFileHandler
+log_path = os.path.join(tempfile.gettempdir(), 'loadbuyselldaily.log')
 log_handler = RotatingFileHandler(
-    '/tmp/loadbuyselldaily.log',
+    log_path,
     maxBytes=100*1024*1024,  # 100MB max per file
     backupCount=3  # Keep 3 backup files
 )
@@ -207,7 +209,7 @@ def create_buy_sell_table(cur, conn, table_name="buy_sell_daily"):
     # Ensure signal_triggered_date column exists (for existing tables that may lack it)
     try:
         cur.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS signal_triggered_date DATE")
-        logging.info(f"✅ {table_name}.signal_triggered_date column ready")
+        logging.info(f" {table_name}.signal_triggered_date column ready")
     except Exception as e:
         logging.warning(f"Could not add signal_triggered_date column to {table_name}: {e}")
         # Try to catch if column already exists - this is expected for IF NOT EXISTS
@@ -218,10 +220,10 @@ def create_buy_sell_table(cur, conn, table_name="buy_sell_daily"):
     # First, try to clean up any duplicate rows by keeping only the latest one per (symbol, timeframe, date)
     # NOTE: Skip cleanup if table is very large - constraint will prevent new duplicates
     try:
-        logging.info(f"🧹 Skipping duplicate cleanup for large table (will use UNIQUE constraint)...")
+        logging.info(f" Skipping duplicate cleanup for large table (will use UNIQUE constraint)...")
         # Skip duplicate cleanup entirely - UNIQUE constraint prevents new duplicates
         # Historical duplicates won't cause issues, and cleanup query is too slow on 22M+ record tables
-        logging.info(f"✅ {table_name} will rely on UNIQUE constraint (symbol, timeframe, date)")
+        logging.info(f" {table_name} will rely on UNIQUE constraint (symbol, timeframe, date)")
         conn.commit()
 
     except Exception as e:
@@ -229,18 +231,18 @@ def create_buy_sell_table(cur, conn, table_name="buy_sell_daily"):
         try:
             conn.rollback()
         except Exception as rollback_err:
-            logging.warning(f"⚠️  Rollback failed: {rollback_err}")
+            logging.warning(f"  Rollback failed: {rollback_err}")
 
     # Now try to add the constraint
     try:
         # Try to add the constraint - if it already exists, this will fail gracefully
         cur.execute(f"ALTER TABLE {table_name} ADD CONSTRAINT uq_{table_name}_symbol_timeframe_date UNIQUE (symbol, timeframe, date)")
-        logging.info(f"✅ {table_name} UNIQUE constraint added")
+        logging.info(f" {table_name} UNIQUE constraint added")
         conn.commit()
     except psycopg2.Error as e:
         error_str = str(e).lower()
         if "already exists" in error_str or "duplicate key" in error_str or "constraint" in error_str:
-            logging.debug(f"ℹ️ {table_name} UNIQUE constraint already exists or conflicts detected")
+            logging.debug(f"ℹ {table_name} UNIQUE constraint already exists or conflicts detected")
             conn.rollback()
         else:
             logging.warning(f"Could not add UNIQUE constraint to {table_name}: {e}")
@@ -355,7 +357,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
             # Clamp to 0-10 range
             return max(0, min(10, int(round(sata))))
         except Exception as e:
-            logging.warning(f"⚠️  SATA calculation error: {e} | Row data: stage={row.get('stage_number')}, rs={row.get('rs_rating')}")
+            logging.warning(f"  SATA calculation error: {e} | Row data: stage={row.get('stage_number')}, rs={row.get('rs_rating')}")
             return None
 
     # ENABLED: Calculate SATA score - REQUIRED for complete data
@@ -402,7 +404,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
                         if not (np.isnan(fv) or np.isinf(fv)):
                             buyLevel_val = fv
                     except (ValueError, TypeError) as e:
-                        logging.debug(f"⚠️  buyLevel conversion failed for {symbol}: {row.get('buyLevel')} -> {e}")
+                        logging.debug(f"  buyLevel conversion failed for {symbol}: {row.get('buyLevel')} -> {e}")
 
                 stopLevel_val = None
                 if pd.notna(row.get('stopLevel')):
@@ -411,7 +413,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
                         if not (np.isnan(fv) or np.isinf(fv)):
                             stopLevel_val = fv
                     except (ValueError, TypeError) as e:
-                        logging.debug(f"⚠️  stopLevel conversion failed for {symbol}: {row.get('stopLevel')} -> {e}")
+                        logging.debug(f"  stopLevel conversion failed for {symbol}: {row.get('stopLevel')} -> {e}")
 
                 inPos_val = bool(row.get('inPosition', False))
 
@@ -422,7 +424,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
                         if not (np.isnan(fv) or np.isinf(fv)):
                             strength_val = fv
                     except (ValueError, TypeError) as e:
-                        logging.debug(f"⚠️  strength conversion failed for {symbol}: {row.get('strength')} -> {e}")
+                        logging.debug(f"  strength conversion failed for {symbol}: {row.get('strength')} -> {e}")
 
             except (ValueError, OverflowError) as ve:
                 logging.warning(f"Skipping row {idx}: type conversion error: {ve}")
@@ -621,7 +623,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
 
         except Exception as e:
             # Skip this row and continue - validation errors in data prep
-            logging.warning(f"🚨 Row validation FAILED for {symbol} {timeframe} row {idx}: {e}")
+            logging.warning(f" Row validation FAILED for {symbol} {timeframe} row {idx}: {e}")
             skipped += 1
             continue
 
@@ -656,14 +658,14 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
 
         except Exception as e:
             conn.rollback()
-            logging.error(f"🚨 BATCH INSERT FAILED: {symbol} {timeframe}: {e}")
+            logging.error(f" BATCH INSERT FAILED: {symbol} {timeframe}: {e}")
             inserted = 0
 
     # Alert if skipped rows or batch failures
     if skipped > 0 or inserted == 0:
-        logging.warning(f"⚠️  {symbol} {timeframe}: Inserted {inserted} rows, SKIPPED {skipped} rows")
+        logging.warning(f"  {symbol} {timeframe}: Inserted {inserted} rows, SKIPPED {skipped} rows")
     else:
-        logging.info(f"✅ {symbol} {timeframe}: Successfully inserted {inserted} rows")
+        logging.info(f" {symbol} {timeframe}: Successfully inserted {inserted} rows")
 
 ###############################################################################
 # 2) RISK-FREE RATE (FRED)
@@ -1195,7 +1197,7 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     the MOST RECENT pivot value whenever a NEW pivot is detected.
     """
 
-    logging.debug("🎯 Rewritten: Generating signals matching Pine Script exactly")
+    logging.debug(" Rewritten: Generating signals matching Pine Script exactly")
 
     # === CALCULATE TECHNICAL INDICATORS (FAST path for coverage) ===
     df['sma_50'] = calculate_sma(df['close'], 50)
@@ -1675,7 +1677,7 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
             return None
 
         close = row['close']
-        ma_200 = row['ma_200']  # ✅ FIXED: Use ma_200 (200-day MA) not ma_50!
+        ma_200 = row['ma_200']  #  FIXED: Use ma_200 (200-day MA) not ma_50!
 
         if pd.isna(ma_200) or ma_200 is None or ma_200 <= 0:
             return None
@@ -1753,7 +1755,7 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     df['current_gain_pct'] = None
     df['days_in_position'] = None
 
-    logging.debug(f"✅ Generated {len(df[df['Signal']=='Buy'])} Buy signals and {len(df[df['Signal']=='Sell'])} Sell signals")
+    logging.debug(f" Generated {len(df[df['Signal']=='Buy'])} Buy signals and {len(df[df['Signal']=='Sell'])} Sell signals")
     return df
 
 ###############################################################################
@@ -1905,7 +1907,7 @@ def process_symbol_set(symbols, table_name, label, max_workers=6):
                 failed += 1
                 sym = futures[future]
                 errors.append((sym, str(e)))
-                logging.error(f"❌ Worker FAILED for {sym}: {e}")
+                logging.error(f" Worker FAILED for {sym}: {e}")
                 print(f"WORKER FAILED [{sym}]: {e}", file=sys.stderr, flush=True)
                 continue
 
@@ -1943,10 +1945,10 @@ def main():
     symbols = get_symbols_from_db(limit=None, skip_completed=False)  # Load ALL stocks for complete coverage
     if not symbols:
         print("No stock symbols found to process!")
-        logging.info("✅ No symbols found to process")
+        logging.info(" No symbols found to process")
         return
 
-    logging.info(f"📊 Found {len(symbols)} incomplete symbols to process")
+    logging.info(f" Found {len(symbols)} incomplete symbols to process")
 
     # Load country ETF symbols (from stock_symbols where etf='Y')
     conn = get_db_connection()
@@ -1970,7 +1972,7 @@ def main():
     conn.close()
 
     # Process ONLY regular stocks (NO ETFs) - NOW ONLY INCOMPLETE ONES
-    logging.info(f"🚀 Processing {len(symbols)} remaining regular stocks (excluding {len(country_symbols)} country symbols)")
+    logging.info(f" Processing {len(symbols)} remaining regular stocks (excluding {len(country_symbols)} country symbols)")
 
     # CRITICAL FIX (2026-02-26 20:30): Reduced to 3 workers for system stability
     # Previous: 6 workers caused crashes due to combined memory pressure
@@ -1983,4 +1985,4 @@ def main():
 if __name__ == "__main__":
     logging.info("Starting Stock Signals Loader")
     main()
-    logging.info("✅ Stock Signals Loader completed")
+    logging.info(" Stock Signals Loader completed")

@@ -135,7 +135,7 @@ def clear_old_data(conn, days=0):
             if days == 0:
                 cur.execute("DELETE FROM earnings_estimate_trends")
                 cur.execute("DELETE FROM earnings_estimate_revisions")
-                logger.info("🗑️  Cleared all old earnings estimate data")
+                logger.info("  Cleared all old earnings estimate data")
             else:
                 cur.execute(f"""
                     DELETE FROM earnings_estimate_trends
@@ -145,7 +145,7 @@ def clear_old_data(conn, days=0):
                     DELETE FROM earnings_estimate_revisions
                     WHERE snapshot_date < CURRENT_DATE - INTERVAL '{days} days'
                 """)
-                logger.info(f"🗑️  Cleared earnings data older than {days} days")
+                logger.info(f"  Cleared earnings data older than {days} days")
             conn.commit()
     except Exception as e:
         logger.error(f"Error clearing old data: {e}")
@@ -165,9 +165,9 @@ def fetch_and_load_revisions():
             cur.execute("SELECT DISTINCT symbol FROM stock_symbols WHERE symbol IS NOT NULL AND etf = 'N' ORDER BY symbol")
             symbols = [row[0] for row in cur.fetchall()]
 
-        logger.info(f"📊 Processing {len(symbols)} total symbols...")
-        logger.warning("⚠️  NOTE: yfinance eps_trend/eps_revisions endpoints are frequently rate-limited by yfinance.")
-        logger.info(f"⏱️  Estimated time: {len(symbols) * 1 / 60:.1f} minutes (with aggressive rate limiting)")
+        logger.info(f" Processing {len(symbols)} total symbols...")
+        logger.warning("  NOTE: yfinance eps_trend/eps_revisions endpoints are frequently rate-limited by yfinance.")
+        logger.info(f"⏱  Estimated time: {len(symbols) * 1 / 60:.1f} minutes (with aggressive rate limiting)")
 
         # Batch parameters - MUCH MORE AGGRESSIVE rate limiting after discovery of batch 10-26 failure
         batch_size = 20  # REDUCED from 30 (smaller batches = finer control)
@@ -185,7 +185,7 @@ def fetch_and_load_revisions():
             batch_end = min(batch_start + batch_size, len(symbols))
             batch_symbols = symbols[batch_start:batch_end]
 
-            logger.info(f"\n📦 Batch {batch_num + 1}/{total_batches} ({batch_start + 1}-{batch_end}/{len(symbols)})")
+            logger.info(f"\n Batch {batch_num + 1}/{total_batches} ({batch_start + 1}-{batch_end}/{len(symbols)})")
 
             batch_success = 0
             batch_errors = 0
@@ -280,9 +280,9 @@ def fetch_and_load_revisions():
                         )
                         conn.commit()
                         total_trends_inserted += len(batch_trends_data)
-                        logger.debug(f"  ✅ Inserted {len(batch_trends_data)} trend records")
+                        logger.debug(f"   Inserted {len(batch_trends_data)} trend records")
                 except Exception as e:
-                    logger.error(f"  ❌ ERROR inserting trends: {e}")
+                    logger.error(f"   ERROR inserting trends: {e}")
                     conn.rollback()
 
             if batch_revisions_data:
@@ -306,9 +306,9 @@ def fetch_and_load_revisions():
                         )
                         conn.commit()
                         total_revisions_inserted += len(batch_revisions_data)
-                        logger.debug(f"  ✅ Inserted {len(batch_revisions_data)} revision records")
+                        logger.debug(f"   Inserted {len(batch_revisions_data)} revision records")
                 except Exception as e:
-                    logger.error(f"  ❌ ERROR inserting revisions: {e}")
+                    logger.error(f"   ERROR inserting revisions: {e}")
                     conn.rollback()
 
             # Delay between batches - INCREASED to prevent rate limit
@@ -318,7 +318,7 @@ def fetch_and_load_revisions():
 
         # Final summary
         logger.info(f"\n{'='*70}")
-        logger.info(f"✅ EARNINGS REVISIONS LOADER COMPLETE")
+        logger.info(f" EARNINGS REVISIONS LOADER COMPLETE")
         logger.info(f"{'='*70}")
         logger.info(f"Total symbols processed: {len(symbols)}")
         logger.info(f"Symbols with data fetched: {global_success_count}")
@@ -328,7 +328,7 @@ def fetch_and_load_revisions():
         logger.info(f"Revision records inserted: {total_revisions_inserted}")
         logger.info(f"Success rate: {(global_success_count/len(symbols)*100):.1f}%")
         logger.info(f"{'='*70}\n")
-        logger.info(f"✅ Data is now available on the earnings page!")
+        logger.info(f" Data is now available on the earnings page!")
 
     finally:
         conn.close()

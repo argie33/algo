@@ -434,7 +434,7 @@ try {
         // Development mode: Use dev-bypass-token for localhost or when dev auth is forced
         if (
           import.meta.env.DEV &&
-          (currentConfig.baseURL.includes("localhost:3001") ||
+          (currentConfig.baseURL.includes("localhost:3000") ||
             import.meta.env.VITE_FORCE_DEV_AUTH === "true")
         ) {
           // If we have a dev token from devAuth service, replace it with bypass token

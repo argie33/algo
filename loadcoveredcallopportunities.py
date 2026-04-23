@@ -171,7 +171,7 @@ def ensure_covered_calls_table(cur, conn):
     cur.execute("CREATE INDEX IF NOT EXISTS idx_cc_opps_exp_date ON covered_call_opportunities(expiration_date);")
 
     conn.commit()
-    logger.info("✅ Covered call opportunities table ensured")
+    logger.info(" Covered call opportunities table ensured")
 
 # ===========================
 # Trading Playbook Calculation
@@ -875,7 +875,7 @@ def calculate_opportunities(conn, data_date):
         # Insert opportunities
         if opportunities:
             insert_opportunities(conn, opportunities)
-            logger.info(f"✅ Calculated {len(opportunities)} covered call opportunities")
+            logger.info(f" Calculated {len(opportunities)} covered call opportunities")
 
         return len(opportunities)
 
@@ -1009,7 +1009,7 @@ def insert_opportunities(conn, data):
 def main():
     """Main execution."""
     logger.info("=" * 60)
-    logger.info("🚀 STARTING COVERED CALL OPPORTUNITIES CALCULATOR")
+    logger.info(" STARTING COVERED CALL OPPORTUNITIES CALCULATOR")
     logger.info("=" * 60)
 
     try:
@@ -1047,7 +1047,7 @@ def main():
         conn.close()
 
         logger.info("=" * 60)
-        logger.info(f"✅ COMPLETE: {count} covered call opportunities calculated")
+        logger.info(f" COMPLETE: {count} covered call opportunities calculated")
         logger.info("=" * 60)
 
     except Exception as e:

@@ -46,12 +46,12 @@ PAPER_TRADING = os.getenv('ALPACA_PAPER_TRADING', 'true').lower() == 'true'
 PORTFOLIO_USER_ID = os.getenv('PORTFOLIO_USER_ID', '')
 
 if not ALPACA_API_KEY or not ALPACA_SECRET_KEY:
-    logger.error("❌ Alpaca API credentials not found in environment variables")
+    logger.error(" Alpaca API credentials not found in environment variables")
     logger.error("Please set ALPACA_API_KEY and ALPACA_SECRET_KEY")
     sys.exit(1)
 
 if not PORTFOLIO_USER_ID:
-    logger.error("❌ Portfolio user ID not found in environment variables")
+    logger.error(" Portfolio user ID not found in environment variables")
     logger.error("Please set PORTFOLIO_USER_ID to the real user account ID")
     sys.exit(1)
 
@@ -110,7 +110,7 @@ def get_alpaca_headers():
 def fetch_positions():
     """Fetch current positions from Alpaca API"""
     try:
-        logger.info("📊 Fetching positions from Alpaca...")
+        logger.info(" Fetching positions from Alpaca...")
         url = f"{ALPACA_BASE_URL}/v2/positions"
         headers = get_alpaca_headers()
 
@@ -118,16 +118,16 @@ def fetch_positions():
         response.raise_for_status()
 
         positions = response.json()
-        logger.info(f"✅ Retrieved {len(positions)} positions from Alpaca")
+        logger.info(f" Retrieved {len(positions)} positions from Alpaca")
         return positions
     except requests.RequestException as e:
-        logger.error(f"❌ Failed to fetch positions: {e}")
+        logger.error(f" Failed to fetch positions: {e}")
         return []
 
 def fetch_account():
     """Fetch account information from Alpaca API"""
     try:
-        logger.info("📈 Fetching account information from Alpaca...")
+        logger.info(" Fetching account information from Alpaca...")
         url = f"{ALPACA_BASE_URL}/v2/account"
         headers = get_alpaca_headers()
 
@@ -135,10 +135,10 @@ def fetch_account():
         response.raise_for_status()
 
         account = response.json()
-        logger.info(f"✅ Retrieved account information")
+        logger.info(f" Retrieved account information")
         return account
     except requests.RequestException as e:
-        logger.error(f"❌ Failed to fetch account: {e}")
+        logger.error(f" Failed to fetch account: {e}")
         return None
 
 def fetch_historical_bars(symbol, lookback_days=365):
@@ -162,13 +162,13 @@ def fetch_historical_bars(symbol, lookback_days=365):
         data = response.json()
         return data.get('bars', [])
     except requests.RequestException as e:
-        logger.debug(f"⚠️  Could not fetch bars for {symbol}: {e}")
+        logger.debug(f"  Could not fetch bars for {symbol}: {e}")
         return []
 
 def fetch_account_equity_history():
     """Fetch account equity history from Alpaca for portfolio performance tracking"""
     try:
-        logger.info("📈 Fetching account portfolio history from Alpaca...")
+        logger.info(" Fetching account portfolio history from Alpaca...")
         url = f"{ALPACA_BASE_URL}/v2/account/portfolio/history"
         headers = get_alpaca_headers()
 
@@ -182,16 +182,16 @@ def fetch_account_equity_history():
         response.raise_for_status()
 
         data = response.json()
-        logger.info(f"✅ Retrieved account portfolio history")
+        logger.info(f" Retrieved account portfolio history")
         return data
     except requests.RequestException as e:
-        logger.warn(f"⚠️  Could not fetch portfolio history: {e}")
+        logger.warn(f"  Could not fetch portfolio history: {e}")
         return None
 
 def fetch_orders():
     """Fetch completed orders from Alpaca API"""
     try:
-        logger.info("📊 Fetching orders from Alpaca...")
+        logger.info(" Fetching orders from Alpaca...")
         url = f"{ALPACA_BASE_URL}/v2/orders"
         headers = get_alpaca_headers()
 
@@ -207,14 +207,14 @@ def fetch_orders():
 
         orders = response.json()
         if isinstance(orders, list):
-            logger.info(f"✅ Retrieved {len(orders)} orders from Alpaca")
+            logger.info(f" Retrieved {len(orders)} orders from Alpaca")
         else:
-            logger.warn(f"⚠️  Unexpected orders response format: {type(orders)}")
+            logger.warn(f"  Unexpected orders response format: {type(orders)}")
             return []
 
         return orders
     except requests.RequestException as e:
-        logger.error(f"❌ Failed to fetch orders: {e}")
+        logger.error(f" Failed to fetch orders: {e}")
         return []
 
 def calculate_daily_performance(account_info):
@@ -226,25 +226,25 @@ def calculate_daily_performance(account_info):
         # CRITICAL: No fake 0 defaults for portfolio metrics
         portfolio_value = account_info.get('portfolio_value')
         if portfolio_value is None:
-            logger.warning("⚠️  portfolio_value not available from Alpaca")
+            logger.warning("  portfolio_value not available from Alpaca")
             return None
         portfolio_value = float(portfolio_value)
 
         last_equity = account_info.get('last_equity')  # NO FALLBACK - return None if missing
         cash = account_info.get('cash')
         if cash is None:
-            logger.warning("⚠️  cash balance not available from Alpaca")
+            logger.warning("  cash balance not available from Alpaca")
             return None
         cash = float(cash)
 
         # REAL DATA ONLY: Only calculate daily P&L if we have previous equity value
         if last_equity is None:
-            logger.warning("⚠️  last_equity not available from Alpaca - cannot calculate daily P&L")
+            logger.warning("  last_equity not available from Alpaca - cannot calculate daily P&L")
             return None
 
         last_equity = float(last_equity)
         if last_equity <= 0:
-            logger.warning("⚠️  last_equity is invalid (<=0) - cannot calculate daily P&L")
+            logger.warning("  last_equity is invalid (<=0) - cannot calculate daily P&L")
             return None
 
         # Calculate daily P&L from real data
@@ -265,7 +265,7 @@ def calculate_daily_performance(account_info):
             'cash': cash
         }
     except (KeyError, ValueError, TypeError) as e:
-        logger.error(f"❌ Failed to calculate performance: {e}")
+        logger.error(f" Failed to calculate performance: {e}")
         return None
 
 
@@ -316,9 +316,9 @@ def ensure_tables_exist(conn):
         """)
 
         conn.commit()
-        logger.info("✅ Database tables ready")
+        logger.info(" Database tables ready")
     except psycopg2.Error as e:
-        logger.error(f"❌ Failed to create tables: {e}")
+        logger.error(f" Failed to create tables: {e}")
         conn.rollback()
         raise
 
@@ -330,7 +330,7 @@ def load_holdings(conn, positions):
     # Clear existing holdings for fresh load
     try:
         cur.execute("DELETE FROM portfolio_holdings WHERE user_id = %s", (user_id,))
-        logger.info("🗑️  Cleared previous holdings")
+        logger.info("  Cleared previous holdings")
     except psycopg2.Error as e:
         logger.warn(f"Could not clear holdings: {e}")
 
@@ -348,7 +348,7 @@ def load_holdings(conn, positions):
 
             # CRITICAL: Skip if any essential data missing (no fake 0 defaults for portfolio data)
             if None in [qty_raw, current_price_raw, avg_cost_raw, market_value_raw]:
-                logger.warning(f"⚠️  Skipping {symbol}: missing critical position data from Alpaca")
+                logger.warning(f"  Skipping {symbol}: missing critical position data from Alpaca")
                 continue
 
             qty = float(qty_raw)
@@ -384,14 +384,14 @@ def load_holdings(conn, positions):
             loaded_count += 1
 
         except (KeyError, ValueError, TypeError) as e:
-            logger.warn(f"⚠️  Failed to process position: {e}")
+            logger.warn(f"  Failed to process position: {e}")
             continue
 
     try:
         conn.commit()
-        logger.info(f"✅ Loaded {loaded_count} holdings into database")
+        logger.info(f" Loaded {loaded_count} holdings into database")
     except psycopg2.Error as e:
-        logger.error(f"❌ Failed to commit holdings: {e}")
+        logger.error(f" Failed to commit holdings: {e}")
         conn.rollback()
         raise
 
@@ -400,7 +400,7 @@ def load_trades(conn, orders):
     cur = conn.cursor()
 
     if not orders:
-        logger.info("ℹ️  No orders to load")
+        logger.info("ℹ  No orders to load")
         return 0
 
     loaded_count = 0
@@ -412,7 +412,7 @@ def load_trades(conn, orders):
 
             # Skip orders without critical data
             if not symbol:
-                logger.debug(f"⚠️  Skipping order: missing symbol")
+                logger.debug(f"  Skipping order: missing symbol")
                 continue
 
             # Only load filled orders - REAL DATA ONLY
@@ -420,7 +420,7 @@ def load_trades(conn, orders):
 
             # Skip if not filled or no filled quantity
             if filled_qty is None or float(filled_qty) == 0:
-                logger.debug(f"⚠️  Skipping {symbol} order: not filled")
+                logger.debug(f"  Skipping {symbol} order: not filled")
                 continue
 
             filled_qty = float(filled_qty)
@@ -432,7 +432,7 @@ def load_trades(conn, orders):
                 filled_avg_price = order.get('limit_price')
 
             if filled_avg_price is None:
-                logger.debug(f"⚠️  Skipping {symbol} order: no price data")
+                logger.debug(f"  Skipping {symbol} order: no price data")
                 continue
 
             filled_avg_price = float(filled_avg_price)
@@ -440,7 +440,7 @@ def load_trades(conn, orders):
             # Get filled timestamp
             filled_at = order.get('filled_at')
             if not filled_at:
-                logger.debug(f"⚠️  Skipping {symbol} order: no fill timestamp")
+                logger.debug(f"  Skipping {symbol} order: no fill timestamp")
                 continue
 
             # Calculate total amount (order_value in schema)
@@ -469,15 +469,15 @@ def load_trades(conn, orders):
             logger.debug(f"  ✓ Loaded trade: {symbol} {side} {filled_qty}@${filled_avg_price:.2f}")
 
         except (KeyError, ValueError, TypeError) as e:
-            logger.debug(f"⚠️  Failed to process order: {e}")
+            logger.debug(f"  Failed to process order: {e}")
             continue
 
     try:
         conn.commit()
-        logger.info(f"✅ Loaded {loaded_count} trades into database")
+        logger.info(f" Loaded {loaded_count} trades into database")
         return loaded_count
     except psycopg2.Error as e:
-        logger.error(f"❌ Failed to commit trades: {e}")
+        logger.error(f" Failed to commit trades: {e}")
         conn.rollback()
         raise
 
@@ -488,7 +488,7 @@ def load_performance(conn, account_info):
 
     perf = calculate_daily_performance(account_info)
     if not perf:
-        logger.info("ℹ️  Skipping performance update - insufficient real data from Alpaca")
+        logger.info("ℹ  Skipping performance update - insufficient real data from Alpaca")
         logger.info("   (Alpaca account may not have last_equity data available yet)")
         return
 
@@ -515,9 +515,9 @@ def load_performance(conn, account_info):
         conn.commit()
         daily_pnl = perf['daily_pnl'] if perf['daily_pnl'] is not None else "N/A"
         daily_pct = f"{perf['daily_pnl_percent']:.2f}%" if perf['daily_pnl_percent'] is not None else "N/A"
-        logger.info(f"✅ Loaded performance data - Portfolio: ${perf['portfolio_value']:,.2f}, Daily P&L: {daily_pnl} ({daily_pct})")
+        logger.info(f" Loaded performance data - Portfolio: ${perf['portfolio_value']:,.2f}, Daily P&L: {daily_pnl} ({daily_pct})")
     except psycopg2.Error as e:
-        logger.error(f"❌ Failed to load performance: {e}")
+        logger.error(f" Failed to load performance: {e}")
         conn.rollback()
         raise
 
@@ -527,7 +527,7 @@ def load_historical_performance(conn, portfolio_history):
     user_id = PORTFOLIO_USER_ID  # Real user account ID from environment
 
     if not portfolio_history or 'equity' not in portfolio_history:
-        logger.warn("⚠️  No historical equity data available")
+        logger.warn("  No historical equity data available")
         return 0
 
     try:
@@ -535,13 +535,13 @@ def load_historical_performance(conn, portfolio_history):
         equity_values = portfolio_history.get('equity', [])
 
         if not timestamps or not equity_values:
-            logger.warn("⚠️  Empty portfolio history data")
+            logger.warn("  Empty portfolio history data")
             return 0
 
         # Clear existing performance data to start fresh
         try:
             cur.execute("DELETE FROM portfolio_performance WHERE user_id = %s", (user_id,))
-            logger.info("🗑️  Cleared previous performance history")
+            logger.info("  Cleared previous performance history")
         except psycopg2.Error as e:
             logger.warn(f"Could not clear performance data: {e}")
 
@@ -562,7 +562,7 @@ def load_historical_performance(conn, portfolio_history):
                 continue
 
         if not valid_equities:
-            logger.warn("⚠️  No valid equity data in portfolio history")
+            logger.warn("  No valid equity data in portfolio history")
             return 0
 
         first_value = valid_equities[0]
@@ -617,26 +617,26 @@ def load_historical_performance(conn, portfolio_history):
                     logger.info(f"  ✓ Loaded {loaded_count} historical records... Latest: {perf_date} - ${equity:,.2f}")
 
             except (ValueError, TypeError) as e:
-                logger.debug(f"⚠️  Could not process history entry: {e}")
+                logger.debug(f"  Could not process history entry: {e}")
                 continue
 
         if loaded_count > 0:
             conn.commit()
-            logger.info(f"✅ Loaded {loaded_count} days of Alpaca portfolio history")
+            logger.info(f" Loaded {loaded_count} days of Alpaca portfolio history")
         else:
-            logger.warn("⚠️  No historical records loaded")
+            logger.warn("  No historical records loaded")
 
         return loaded_count
 
     except Exception as e:
-        logger.error(f"❌ Failed to load historical performance: {e}")
+        logger.error(f" Failed to load historical performance: {e}")
         conn.rollback()
         return 0
 
 def main():
     """Main loader function"""
     logger.info("=" * 60)
-    logger.info("🚀 Alpaca Portfolio Data Loader Starting")
+    logger.info(" Alpaca Portfolio Data Loader Starting")
     logger.info("=" * 60)
 
     # Connect to database
@@ -647,12 +647,12 @@ def main():
         ensure_tables_exist(conn)
 
         # Fetch data from Alpaca
-        logger.info("📊 Phase 1: Fetching current holdings and account data...")
+        logger.info(" Phase 1: Fetching current holdings and account data...")
         positions = fetch_positions()
         account = fetch_account()
 
         if not positions and not account:
-            logger.error("❌ Failed to fetch any data from Alpaca")
+            logger.error(" Failed to fetch any data from Alpaca")
             return False
 
         # Load data into database
@@ -664,7 +664,7 @@ def main():
 
         # Fetch and load trades and historical performance data
         logger.info("")
-        logger.info("📈 Phase 2: Fetching trade history and portfolio performance...")
+        logger.info(" Phase 2: Fetching trade history and portfolio performance...")
 
         # Fetch orders from Alpaca
         orders = fetch_orders()
@@ -677,27 +677,27 @@ def main():
 
         if portfolio_history:
             history_count = load_historical_performance(conn, portfolio_history)
-            logger.info(f"✅ Successfully loaded {history_count} historical data points")
+            logger.info(f" Successfully loaded {history_count} historical data points")
         else:
-            logger.warn("⚠️  Could not fetch portfolio history - dashboard metrics may be limited")
+            logger.warn("  Could not fetch portfolio history - dashboard metrics may be limited")
             logger.info("   This is normal if account has limited trading history")
 
         logger.info("")
         logger.info("=" * 60)
-        logger.info("✅ Alpaca Portfolio Data Loader Complete")
+        logger.info(" Alpaca Portfolio Data Loader Complete")
         logger.info("=" * 60)
         logger.info("")
-        logger.info("📊 Dashboard Status:")
+        logger.info(" Dashboard Status:")
         logger.info(f"   ✓ Holdings: {'Loaded' if positions else 'Empty'}")
         logger.info(f"   ✓ Current Performance: {'Loaded' if account else 'Failed'}")
         logger.info(f"   ✓ Trade History: {trade_count} trades loaded" if trade_count > 0 else "   ✓ Trade History: No trades found")
         logger.info(f"   ✓ Historical Data: {'Available for metrics' if portfolio_history and history_count > 10 else 'Limited'}")
         logger.info("")
-        logger.info("💡 Refresh your portfolio dashboard and trade history to see all data")
+        logger.info(" Refresh your portfolio dashboard and trade history to see all data")
         return True
 
     except Exception as e:
-        logger.error(f"❌ Loader failed: {e}")
+        logger.error(f" Loader failed: {e}")
         return False
     finally:
         conn.close()

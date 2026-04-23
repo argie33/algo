@@ -83,7 +83,7 @@ def get_economic_calendar_data():
             if fred_events:
                 logger.info(f"✓ Loaded {len(fred_events)} FRED calendar events from API")
         else:
-            logger.warning("⚠️ FRED_API_KEY not set - using scheduled economic events only")
+            logger.warning(" FRED_API_KEY not set - using scheduled economic events only")
             logger.info("   Get free FRED API key at: https://fredaccount.stlouisfed.org/login")
 
         # Always include scheduled economic events as baseline
@@ -106,7 +106,7 @@ def get_economic_calendar_data():
             logger.info(f"✓ Total {len(unique_events)} unique calendar events loaded")
             return unique_events
         else:
-            logger.warning("❌ No calendar events loaded from any source")
+            logger.warning(" No calendar events loaded from any source")
             return []
 
     except Exception as e:
@@ -440,11 +440,11 @@ def handler(event, context):
     try:
         # Check if fredapi module is available
         if not FREDAPI_AVAILABLE:
-            logger.warning("⚠️ fredapi module not installed - using fallback calendar methods only")
+            logger.warning(" fredapi module not installed - using fallback calendar methods only")
 
         # Check FRED API key - if not set, use fallback methods
         if not FRED_API_KEY:
-            logger.warning("⚠️ FRED_API_KEY not set - using fallback calendar methods only")
+            logger.warning(" FRED_API_KEY not set - using fallback calendar methods only")
         else:
             logger.info("✓ FRED_API_KEY found - will fetch full economic calendar")
 
@@ -564,7 +564,7 @@ def handler(event, context):
                 conn.commit()
                 logger.info(f"✓ {len(rows)} rows upserted for {sid}")
         else:
-            logger.warning("⚠️ Skipping FRED data fetching - no API key available")
+            logger.warning(" Skipping FRED data fetching - no API key available")
 
         # 5) Load economic calendar data
         logger.info("Loading economic calendar data...")

@@ -241,7 +241,7 @@ def calculate_trap_scores():
     conn.close()
 
     inserted = df[df['trap_risk_score'].notna()].shape[0]
-    logger.info(f"✅ Stored {inserted} trap risk scores")
+    logger.info(f" Stored {inserted} trap risk scores")
 
     return df
 

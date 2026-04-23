@@ -291,7 +291,7 @@ def load_sec_data():
     cur.close()
     conn.close()
     
-    logger.info(f"✅ Complete: {loaded} loaded, {failed} failed")
+    logger.info(f" Complete: {loaded} loaded, {failed} failed")
 
 if __name__ == "__main__":
     load_sec_data()

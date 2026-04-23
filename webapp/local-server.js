@@ -17,7 +17,7 @@ require("dotenv").config({ path: path.resolve(__dirname, "../.env.local") });
 const { handler } = require("./lambda/index.js");
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 
 // CORS configuration
 app.use(

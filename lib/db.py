@@ -32,7 +32,7 @@ def get_db_config() -> Dict[str, any]:
                 SecretId=db_secret_arn
             )["SecretString"]
             sec = json.loads(secret_str)
-            logging.info(f"✅ Loaded database credentials from AWS Secrets Manager: {db_secret_arn}")
+            logging.info(f" Loaded database credentials from AWS Secrets Manager: {db_secret_arn}")
             return {
                 "host": sec["host"],
                 "port": int(sec.get("port", 5432)),
@@ -51,7 +51,7 @@ def get_db_config() -> Dict[str, any]:
     db_name = os.environ.get("DB_NAME") or os.environ.get("PGDATABASE") or "stocks"
 
     if db_host and db_user and db_name:
-        logging.info(f"✅ Using local database: {db_user}@{db_host}/{db_name}")
+        logging.info(f" Using local database: {db_user}@{db_host}/{db_name}")
         return {
             "host": db_host,
             "port": int(db_port),
@@ -112,4 +112,4 @@ def update_last_updated(cur, conn, script_name: str):
         SET last_run = EXCLUDED.last_run;
     """, (script_name,))
     conn.commit()
-    logging.info(f"✅ Updated last_updated table for {script_name}")
+    logging.info(f" Updated last_updated table for {script_name}")

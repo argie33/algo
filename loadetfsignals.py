@@ -178,7 +178,7 @@ def load_etf_signals():
     cur.execute("SELECT COUNT(*) as monthly FROM buy_sell_monthly_etf")
     monthly = cur.fetchone()['monthly']
     
-    logging.info(f"\n✅ Complete:")
+    logging.info(f"\n Complete:")
     logging.info(f"  Daily ETF Signals: {daily}")
     logging.info(f"  Weekly ETF Signals: {weekly}")
     logging.info(f"  Monthly ETF Signals: {monthly}")

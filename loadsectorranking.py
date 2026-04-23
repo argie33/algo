@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 
 def main():
     """Delegate to loadsectors.py which handles both sector and industry loading"""
-    logger.info("🔄 loadsectorranking.py delegating to loadsectors.py...")
-    logger.info("⚠️  DEPRECATED: loadsectorranking.py is for backward compatibility only")
+    logger.info(" loadsectorranking.py delegating to loadsectors.py...")
+    logger.info("  DEPRECATED: loadsectorranking.py is for backward compatibility only")
     logger.info("   All sector and industry ranking logic is in loadsectors.py")
 
     # Call the main sector loader which includes sector ranking

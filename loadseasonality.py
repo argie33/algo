@@ -71,12 +71,12 @@ def get_db_connection():
         )
         return conn
     except Exception as e:
-        print(f"❌ Database connection failed: {e}")
+        print(f" Database connection failed: {e}")
         sys.exit(1)
 
 def load_spy_prices(conn):
     """Load SPY (S&P 500) price data"""
-    print("📊 Loading SPY price data...")
+    print(" Loading SPY price data...")
 
     try:
         cursor = conn.cursor()
@@ -94,7 +94,7 @@ def load_spy_prices(conn):
         cursor.close()
 
         if not data:
-            print("⚠️  No SPY data found in database")
+            print("  No SPY data found in database")
             return pd.DataFrame()
 
         # Create DataFrame
@@ -102,16 +102,16 @@ def load_spy_prices(conn):
         df['date'] = pd.to_datetime(df['date'])
         df = df.sort_values('date').reset_index(drop=True)
 
-        print(f"✅ Loaded {len(df)} SPY price records from {df['date'].min().date()} to {df['date'].max().date()}")
+        print(f" Loaded {len(df)} SPY price records from {df['date'].min().date()} to {df['date'].max().date()}")
         return df
 
     except Exception as e:
-        print(f"❌ Error loading SPY prices: {e}")
+        print(f" Error loading SPY prices: {e}")
         return pd.DataFrame()
 
 def calculate_monthly_returns(spy_df):
     """Calculate monthly returns for SPY"""
-    print("📈 Calculating monthly returns...")
+    print(" Calculating monthly returns...")
 
     if spy_df.empty:
         return []
@@ -137,12 +137,12 @@ def calculate_monthly_returns(spy_df):
             'return_pct': float(round(return_pct, 2))
         })
 
-    print(f"✅ Calculated {len(monthly_data)} monthly returns")
+    print(f" Calculated {len(monthly_data)} monthly returns")
     return monthly_data
 
 def calculate_quarterly_returns(spy_df):
     """Calculate quarterly returns for SPY"""
-    print("📊 Calculating quarterly returns...")
+    print(" Calculating quarterly returns...")
 
     if spy_df.empty:
         return []
@@ -168,12 +168,12 @@ def calculate_quarterly_returns(spy_df):
             'return_pct': float(round(return_pct, 2))
         })
 
-    print(f"✅ Calculated {len(quarterly_data)} quarterly returns")
+    print(f" Calculated {len(quarterly_data)} quarterly returns")
     return quarterly_data
 
 def calculate_monthly_statistics(monthly_returns):
     """Calculate average returns by month across all years"""
-    print("📅 Calculating monthly statistics...")
+    print(" Calculating monthly statistics...")
 
     monthly_stats = defaultdict(list)
 
@@ -202,12 +202,12 @@ def calculate_monthly_statistics(monthly_returns):
                 'losing_years': int(len([r for r in returns if r < 0]))
             })
 
-    print(f"✅ Calculated statistics for {len(results)} months")
+    print(f" Calculated statistics for {len(results)} months")
     return results
 
 def calculate_day_of_week_effects(spy_df):
     """Calculate average returns by day of week"""
-    print("📆 Calculating day-of-week effects...")
+    print(" Calculating day-of-week effects...")
 
     if spy_df.empty:
         return []
@@ -239,12 +239,12 @@ def calculate_day_of_week_effects(spy_df):
                 'days_counted': int(len(day_data))
             })
 
-    print(f"✅ Calculated statistics for {len(day_stats)} days of week")
+    print(f" Calculated statistics for {len(day_stats)} days of week")
     return day_stats
 
 def store_seasonality_data(conn, monthly_returns, quarterly_returns, monthly_stats, dow_stats):
     """Store seasonality data in database"""
-    print("💾 Storing seasonality data...")
+    print(" Storing seasonality data...")
 
     try:
         cursor = conn.cursor()
@@ -322,7 +322,7 @@ def store_seasonality_data(conn, monthly_returns, quarterly_returns, monthly_sta
                 for r in monthly_returns
             ]
             execute_values(cursor, insert_monthly, monthly_values)
-            print(f"✅ Inserted {len(monthly_returns)} monthly return records")
+            print(f" Inserted {len(monthly_returns)} monthly return records")
 
         # Insert quarterly returns
         if quarterly_returns:
@@ -336,7 +336,7 @@ def store_seasonality_data(conn, monthly_returns, quarterly_returns, monthly_sta
                 for r in quarterly_returns
             ]
             execute_values(cursor, insert_quarterly, quarterly_values)
-            print(f"✅ Inserted {len(quarterly_returns)} quarterly return records")
+            print(f" Inserted {len(quarterly_returns)} quarterly return records")
 
         # Insert monthly statistics
         if monthly_stats:
@@ -352,7 +352,7 @@ def store_seasonality_data(conn, monthly_returns, quarterly_returns, monthly_sta
                 for s in monthly_stats
             ]
             execute_values(cursor, insert_stats, stats_values)
-            print(f"✅ Inserted {len(monthly_stats)} monthly statistics records")
+            print(f" Inserted {len(monthly_stats)} monthly statistics records")
 
         # Insert day-of-week statistics
         if dow_stats:
@@ -366,22 +366,22 @@ def store_seasonality_data(conn, monthly_returns, quarterly_returns, monthly_sta
                 for s in dow_stats
             ]
             execute_values(cursor, insert_dow, dow_values)
-            print(f"✅ Inserted {len(dow_stats)} day-of-week statistics records")
+            print(f" Inserted {len(dow_stats)} day-of-week statistics records")
 
         conn.commit()
         cursor.close()
-        print("✅ Seasonality data stored successfully")
+        print(" Seasonality data stored successfully")
         return True
 
     except Exception as e:
-        print(f"❌ Error storing data: {e}")
+        print(f" Error storing data: {e}")
         conn.rollback()
         return False
 
 def main():
     """Main execution"""
     print("=" * 60)
-    print("🔄 Loading Seasonality Data")
+    print(" Loading Seasonality Data")
     print("=" * 60)
 
     # Connect to database
@@ -392,7 +392,7 @@ def main():
         spy_df = load_spy_prices(conn)
 
         if spy_df.empty:
-            print("⚠️  No data to process")
+            print("  No data to process")
             conn.close()
             return
 
@@ -407,11 +407,11 @@ def main():
 
         if success:
             print("\n" + "=" * 60)
-            print("✅ Seasonality data loaded successfully!")
+            print(" Seasonality data loaded successfully!")
             print("=" * 60)
 
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f" Error: {e}")
 
     finally:
         conn.close()

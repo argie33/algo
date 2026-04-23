@@ -278,7 +278,7 @@ if __name__ == "__main__":
     # Connect to DB
     conn = get_db_connection(SCRIPT_NAME)
     if not conn:
-        logging.error("❌ Failed to connect to database")
+        logging.error(" Failed to connect to database")
         sys.exit(1)
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)

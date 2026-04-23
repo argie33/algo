@@ -122,7 +122,7 @@ def create_tables_if_needed(conn):
                 UNIQUE(sector_name, date_recorded)
             )
         """)
-        logger.info("✅ sector_ranking table ready")
+        logger.info(" sector_ranking table ready")
 
         # Ensure industry_ranking table exists with correct schema (never drop)
         cursor.execute("""
@@ -142,7 +142,7 @@ def create_tables_if_needed(conn):
                 UNIQUE(industry, date_recorded)
             )
         """)
-        logger.info("✅ industry_ranking table ready")
+        logger.info(" industry_ranking table ready")
 
         # Ensure sector_performance table exists (never drop)
         cursor.execute("""
@@ -158,7 +158,7 @@ def create_tables_if_needed(conn):
                 UNIQUE(sector, date)
             )
         """)
-        logger.info("✅ sector_performance table ready")
+        logger.info(" sector_performance table ready")
 
         # Ensure industry_performance table exists (never drop)
         cursor.execute("""
@@ -174,7 +174,7 @@ def create_tables_if_needed(conn):
                 UNIQUE(industry, date)
             )
         """)
-        logger.info("✅ industry_performance table ready")
+        logger.info(" industry_performance table ready")
 
         # Ensure sector_technical_data table exists (never drop)
         cursor.execute("""
@@ -192,7 +192,7 @@ def create_tables_if_needed(conn):
                 UNIQUE(sector, date)
             )
         """)
-        logger.info("✅ sector_technical_data table ready")
+        logger.info(" sector_technical_data table ready")
 
         # Ensure industry_technical_data table exists (never drop)
         cursor.execute("""
@@ -210,7 +210,7 @@ def create_tables_if_needed(conn):
                 UNIQUE(industry, date)
             )
         """)
-        logger.info("✅ industry_technical_data table ready")
+        logger.info(" industry_technical_data table ready")
 
         # Create indexes for performance (only for ranking tables - performance tables already have indexes on fetched_at)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_sector_ranking_date ON sector_ranking(date_recorded)")
@@ -219,13 +219,13 @@ def create_tables_if_needed(conn):
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_industry_ranking_industry ON industry_ranking(industry)")
 
         conn.commit()
-        logger.info("✅ All required tables created/verified with indexes")
+        logger.info(" All required tables created/verified with indexes")
         return True
 
     except Exception as e:
         import traceback
         tb_str = traceback.format_exc()
-        logger.error(f"❌ Error creating tables: {e}")
+        logger.error(f" Error creating tables: {e}")
         logger.error(f"Traceback: {tb_str}")
         print(f"CREATE TABLES ERROR TRACEBACK:\n{tb_str}", file=sys.stderr)
         conn.rollback()
@@ -239,7 +239,7 @@ def populate_sector_ranking(conn):
     Populate sector_ranking table with sector rankings - OPTIMIZED VERSION
     Uses single efficient SQL query instead of 36K+ individual queries
     """
-    logger.info("📊 Populating sector_ranking table with optimized bulk insert...")
+    logger.info(" Populating sector_ranking table with optimized bulk insert...")
     cursor = conn.cursor()
 
     try:
@@ -274,10 +274,10 @@ def populate_sector_ranking(conn):
         cursor.execute(insert_query)
         conn.commit()
         rows_inserted = cursor.rowcount
-        logger.info(f"✅ Successfully populated {rows_inserted} sector-date ranking combinations")
+        logger.info(f" Successfully populated {rows_inserted} sector-date ranking combinations")
 
         # Now populate historical ranks (1w ago, 4w ago, 12w ago)
-        logger.info("📊 Populating historical ranks for sectors...")
+        logger.info(" Populating historical ranks for sectors...")
         # First, clear any existing historical ranks to ensure fresh recalculation
         cursor.execute("UPDATE sector_ranking SET rank_1w_ago = NULL, rank_4w_ago = NULL, rank_12w_ago = NULL")
         logger.info(f"Cleared existing historical ranks for recalculation")
@@ -292,7 +292,7 @@ def populate_sector_ranking(conn):
         cursor.execute(update_query)
         rows_updated = cursor.rowcount
         conn.commit()
-        logger.info(f"✅ Updated {rows_updated} rows with historical ranks for sectors")
+        logger.info(f" Updated {rows_updated} rows with historical ranks for sectors")
 
         return True
 
@@ -313,7 +313,7 @@ def populate_industry_ranking(conn):
     Populate industry_ranking table - SIMPLE equal-weighted version
     Uses single efficient SQL query with simple average returns
     """
-    logger.info("📊 Populating industry_ranking table with equal-weighted returns...")
+    logger.info(" Populating industry_ranking table with equal-weighted returns...")
     cursor = conn.cursor()
 
     try:
@@ -348,10 +348,10 @@ def populate_industry_ranking(conn):
         cursor.execute(insert_query)
         conn.commit()
         rows_inserted = cursor.rowcount
-        logger.info(f"✅ Successfully populated {rows_inserted} industry-date ranking combinations")
+        logger.info(f" Successfully populated {rows_inserted} industry-date ranking combinations")
 
         # Now populate historical ranks (1w ago, 4w ago, 12w ago)
-        logger.info("📊 Populating historical ranks for industries...")
+        logger.info(" Populating historical ranks for industries...")
         # First, clear any existing historical ranks to ensure fresh recalculation
         cursor.execute("UPDATE industry_ranking SET rank_1w_ago = NULL, rank_4w_ago = NULL, rank_12w_ago = NULL")
         logger.info(f"Cleared existing historical ranks for industries - recalculating...")
@@ -366,10 +366,10 @@ def populate_industry_ranking(conn):
         cursor.execute(update_query)
         rows_updated = cursor.rowcount
         conn.commit()
-        logger.info(f"✅ Updated {rows_updated} rows with historical ranks for industries")
+        logger.info(f" Updated {rows_updated} rows with historical ranks for industries")
 
         # Special handling for Benchmark industry (SPY) - calculate as market-weighted average
-        logger.info("📊 Populating Benchmark industry momentum as market average...")
+        logger.info(" Populating Benchmark industry momentum as market average...")
         benchmark_query = """
         INSERT INTO industry_ranking (industry, date_recorded, current_rank, momentum_score)
         SELECT
@@ -392,7 +392,7 @@ def populate_industry_ranking(conn):
         cursor.execute(benchmark_query)
         benchmark_rows = cursor.rowcount
         conn.commit()
-        logger.info(f"✅ Populated {benchmark_rows} Benchmark momentum values from market average")
+        logger.info(f" Populated {benchmark_rows} Benchmark momentum values from market average")
 
         return True
 
@@ -409,7 +409,7 @@ def populate_sector_performance(conn):
     Populate sector_performance table with equal-weighted daily returns calculation
     Calculates daily returns for each stock, then averages across all stocks in each sector
     """
-    logger.info("📊 Populating sector_performance table with equal-weighted returns...")
+    logger.info(" Populating sector_performance table with equal-weighted returns...")
     cursor = conn.cursor()
 
     try:
@@ -525,11 +525,11 @@ def populate_sector_performance(conn):
 
         cursor.execute(query)
         conn.commit()
-        logger.info(f"✅ Populated sector_performance table")
+        logger.info(f" Populated sector_performance table")
         return True
 
     except Exception as e:
-        logger.error(f"❌ Error populating sector_performance: {e}")
+        logger.error(f" Error populating sector_performance: {e}")
         conn.rollback()
         return False
     finally:
@@ -541,7 +541,7 @@ def populate_industry_performance(conn):
     Populate industry_performance table with equal-weighted daily returns calculation
     Calculates daily returns for each stock, then averages across all stocks in each industry
     """
-    logger.info("📊 Populating industry_performance table with equal-weighted returns...")
+    logger.info(" Populating industry_performance table with equal-weighted returns...")
     cursor = conn.cursor()
 
     try:
@@ -656,11 +656,11 @@ def populate_industry_performance(conn):
 
         cursor.execute(query)
         conn.commit()
-        logger.info(f"✅ Populated industry_performance table")
+        logger.info(f" Populated industry_performance table")
         return True
 
     except Exception as e:
-        logger.error(f"❌ Error populating industry_performance: {e}")
+        logger.error(f" Error populating industry_performance: {e}")
         conn.rollback()
         return False
     finally:
@@ -673,7 +673,7 @@ def populate_technical_data(conn):
     with 200-day price history, moving averages, and RSI indicators
     Uses MARKET-CAP WEIGHTED calculations for accuracy
     """
-    logger.info("📊 Populating technical data tables...")
+    logger.info(" Populating technical data tables...")
     cursor = conn.cursor()
 
     try:
@@ -737,11 +737,11 @@ def populate_technical_data(conn):
 
                 conn.commit()
             except Exception as e:
-                logger.warning(f"⚠️  Error processing sector {sector}: {e}")
+                logger.warning(f"  Error processing sector {sector}: {e}")
                 conn.rollback()
                 continue
 
-        logger.info(f"  ✅ Processed {len(sectors)} sectors")
+        logger.info(f"   Processed {len(sectors)} sectors")
 
         # Process industries
         cursor.execute("SELECT DISTINCT industry FROM company_profile WHERE industry IS NOT NULL ORDER BY industry")
@@ -803,16 +803,16 @@ def populate_technical_data(conn):
 
                 conn.commit()
             except Exception as e:
-                logger.warning(f"⚠️  Error processing industry {industry}: {e}")
+                logger.warning(f"  Error processing industry {industry}: {e}")
                 conn.rollback()
                 continue
 
-        logger.info(f"  ✅ Processed {len(industries)} industries")
-        logger.info("✅ Technical data population completed!")
+        logger.info(f"   Processed {len(industries)} industries")
+        logger.info(" Technical data population completed!")
         return True
 
     except Exception as e:
-        logger.error(f"❌ Error populating technical data: {e}")
+        logger.error(f" Error populating technical data: {e}")
         conn.rollback()
         return False
     finally:
@@ -822,7 +822,7 @@ def populate_technical_data(conn):
 def main():
     """Main function - load all sector and industry data in proper order"""
     logger.info("="*70)
-    logger.info("🚀 MAIN SECTOR & INDUSTRY DATA LOADER")
+    logger.info(" MAIN SECTOR & INDUSTRY DATA LOADER")
     logger.info("="*70)
 
     conn = get_db_connection()
@@ -830,35 +830,35 @@ def main():
     try:
         # Create tables if they don't exist
         if not create_tables_if_needed(conn):
-            logger.error("❌ Failed to create required tables")
+            logger.error(" Failed to create required tables")
             return False
 
         # Step 1: Populate sector rankings
         if not populate_sector_ranking(conn):
-            logger.error("❌ Failed to populate sector rankings")
+            logger.error(" Failed to populate sector rankings")
             return False
 
         # Step 2: Populate industry rankings
         if not populate_industry_ranking(conn):
-            logger.error("❌ Failed to populate industry rankings")
+            logger.error(" Failed to populate industry rankings")
             return False
 
         # Step 3: Populate sector performance
         if not populate_sector_performance(conn):
-            logger.error("❌ Failed to populate sector performance")
+            logger.error(" Failed to populate sector performance")
             return False
 
         # Step 4: Populate industry performance
         if not populate_industry_performance(conn):
-            logger.error("❌ Failed to populate industry performance")
+            logger.error(" Failed to populate industry performance")
             return False
 
         # Step 5: Populate technical data for both sectors and industries
         if not populate_technical_data(conn):
-            logger.warning("⚠️  Technical data population had errors, but continuing...")
+            logger.warning("  Technical data population had errors, but continuing...")
 
         logger.info("="*70)
-        logger.info("✅ ALL SECTOR & INDUSTRY DATA LOADED SUCCESSFULLY")
+        logger.info(" ALL SECTOR & INDUSTRY DATA LOADED SUCCESSFULLY")
         logger.info("="*70)
         return True
 

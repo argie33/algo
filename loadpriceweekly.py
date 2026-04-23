@@ -139,7 +139,7 @@ def get_db_config():
                 SecretId=db_secret_arn
             )["SecretString"]
             sec = json.loads(secret_str)
-            logging.info(f"✅ Using AWS Secrets Manager for credentials")
+            logging.info(f" Using AWS Secrets Manager for credentials")
             return {
                 "host": sec["host"],
                 "port": int(sec.get("port", 5432)),
@@ -148,7 +148,7 @@ def get_db_config():
                 "dbname": sec["dbname"]
             }
         except Exception as e:
-            logging.warning(f"⚠️  AWS Secrets Manager failed: {str(e)[:100]} - trying environment variables...")
+            logging.warning(f"  AWS Secrets Manager failed: {str(e)[:100]} - trying environment variables...")
 
     # Fallback to environment variables for local development
     db_host = os.environ.get("DB_HOST")
@@ -158,7 +158,7 @@ def get_db_config():
     db_port = os.environ.get("DB_PORT", "5432")
 
     if db_host and db_user and db_password and db_name:
-        logging.info(f"✅ Using environment variables for database connection")
+        logging.info(f" Using environment variables for database connection")
         return {
             "host": db_host,
             "port": int(db_port),
@@ -168,7 +168,7 @@ def get_db_config():
         }
 
     raise EnvironmentError(
-        "❌ Cannot find database credentials. Provide either:\n"
+        " Cannot find database credentials. Provide either:\n"
         "  AWS: AWS_REGION + DB_SECRET_ARN\n"
         "  Local: DB_HOST + DB_USER + DB_PASSWORD + DB_NAME"
     )
@@ -423,10 +423,10 @@ if __name__ == "__main__":
             """)
             cur.execute("CREATE INDEX IF NOT EXISTS idx_price_weekly_symbol ON price_weekly(symbol);")
             cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_price_weekly_symbol_date ON price_weekly(symbol, date);")
-            logging.info("✅ price_weekly table ready")
+            logging.info(" price_weekly table ready")
             conn.commit()
         except Exception as e:
-            logging.error(f"❌ Failed to create price_weekly table: {e}")
+            logging.error(f" Failed to create price_weekly table: {e}")
             conn.rollback()
             raise
 

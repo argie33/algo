@@ -180,13 +180,13 @@ class DataService {
     if (typeof window !== "undefined") {
       const { hostname, origin } = window.location;
       if (hostname === "localhost" || hostname === "127.0.0.1") {
-        return "http://localhost:3001";
+        return "http://localhost:3000";
       }
-      return origin.replace(/:\d+$/, ":3001");
+      return origin.replace(/:\d+$/, ":3000");
     }
 
     // Final fallback
-    return "http://localhost:3001";
+    return "http://localhost:3000";
   }
 
   // Get authentication token

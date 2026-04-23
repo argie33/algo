@@ -96,7 +96,7 @@ def get_ticker_with_timeout(symbol_str):
             _ = ticker.info
         except Exception as info_err:
             # Catch curl errors, network errors, etc. that happen inside yfinance
-            logging.warning(f"⚠️  Failed to fetch info for {symbol_str} (curl/network error): {str(info_err)[:100]}")
+            logging.warning(f"  Failed to fetch info for {symbol_str} (curl/network error): {str(info_err)[:100]}")
             signal.alarm(0)  # Cancel alarm
             return ticker  # Return ticker anyway - we'll skip info fields but continue processing
         signal.alarm(0)  # Cancel alarm
@@ -134,7 +134,7 @@ def retry_with_backoff(max_retries=10, base_delay=0.5):
 
                     if is_rate_limit:
                         # Log rate limit and fail - main loop will space requests
-                        logging.warning(f"⚠️ RATE LIMITED on {func.__name__} (attempt {attempt + 1}/{max_retries}). Main loop will add spacing.")
+                        logging.warning(f" RATE LIMITED on {func.__name__} (attempt {attempt + 1}/{max_retries}). Main loop will add spacing.")
                         raise  # Fail immediately so main loop can add delay before retry
                     elif is_transient:
                         # RESILIENT: Exponential backoff with longer delays (0.5, 1, 2, 4, 8, 16, 32, 64, 120, 120)
@@ -143,10 +143,10 @@ def retry_with_backoff(max_retries=10, base_delay=0.5):
 
                         if attempt < max_retries - 1:
                             # Retry transient errors with exponential backoff
-                            logging.warning(f"⚠️ Transient error in {func.__name__} (attempt {attempt + 1}/{max_retries}), retrying in {delay:.1f}s: {str(e)[:80]}")
+                            logging.warning(f" Transient error in {func.__name__} (attempt {attempt + 1}/{max_retries}), retrying in {delay:.1f}s: {str(e)[:80]}")
                             time.sleep(delay)
                         else:
-                            logging.error(f"❌ All {max_retries} retry attempts exhausted for {func.__name__}: {e}")
+                            logging.error(f" All {max_retries} retry attempts exhausted for {func.__name__}: {e}")
                             raise
                     else:
                         # Unknown error - log and fail
@@ -673,7 +673,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
 
             except Exception as e:
                 error_msg = str(e)[:500]  # Get full error message
-                logging.error(f"❌ CRITICAL: Failed to insert company info for {symbol}: {error_msg}")
+                logging.error(f" CRITICAL: Failed to insert company info for {symbol}: {error_msg}")
                 if "CRITICAL" not in error_msg:  # Log traceback if not already detailed
                     import traceback
                     logging.error(f"   Traceback: {traceback.format_exc()[:300]}")
@@ -694,7 +694,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             conn.commit()  # Commit immediately - DO NOT wait for final commit
             stats['key_metrics'] = 1
         except Exception as e:
-            logging.error(f"❌ CRITICAL: Failed to insert key_metrics for {symbol}: {str(e)[:200]}")
+            logging.error(f" CRITICAL: Failed to insert key_metrics for {symbol}: {str(e)[:200]}")
             try:
                 conn.rollback()
             except:
@@ -758,7 +758,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     stats['institutional'] = len(inst_data)
 
             except Exception as e:
-                logging.error(f"❌ CRITICAL: Failed to insert institutional holders for {symbol}: {str(e)[:200]}")
+                logging.error(f" CRITICAL: Failed to insert institutional holders for {symbol}: {str(e)[:200]}")
                 stats['institutional_failed'] = 1
                 # Rollback failed transaction
                 try:
@@ -816,7 +816,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     stats['mutualfund'] = len(mf_data)
 
             except Exception as e:
-                logging.error(f"❌ CRITICAL: Failed to insert mutual fund holders for {symbol}: {str(e)[:200]}")
+                logging.error(f" CRITICAL: Failed to insert mutual fund holders for {symbol}: {str(e)[:200]}")
                 stats['mutualfund_failed'] = 1
                 # Rollback failed transaction
                 try:
@@ -857,7 +857,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     stats['insider_txns'] = len(insider_txn_data)
 
             except Exception as e:
-                logging.error(f"❌ CRITICAL: Failed to insert insider transactions for {symbol}: {str(e)[:200]}")
+                logging.error(f" CRITICAL: Failed to insert insider transactions for {symbol}: {str(e)[:200]}")
                 stats['insider_txns_failed'] = 1
                 # Rollback failed transaction
                 try:
@@ -1000,15 +1000,15 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     values
                 )
                 stats['positioning'] = 1
-                logging.info(f"✅ Positioning INSERT succeeded for {symbol}: inst_own={inst_own}, insider_own={insider_own}, short_pct={short_pct}")
+                logging.info(f" Positioning INSERT succeeded for {symbol}: inst_own={inst_own}, insider_own={insider_own}, short_pct={short_pct}")
             except Exception as e2:
-                logging.error(f"❌ CRITICAL: Failed to insert positioning metrics for {symbol}: {str(e2)[:200]}")
+                logging.error(f" CRITICAL: Failed to insert positioning metrics for {symbol}: {str(e2)[:200]}")
                 stats['positioning_failed'] = 1
                 # DO NOT rollback here - it would undo company_profile and other inserts
                 # Only skip this symbol's positioning, but keep other data
 
         except Exception as e:
-            logging.error(f"❌ CRITICAL: Failed to calculate positioning metrics for {symbol}: {str(e)[:200]}")
+            logging.error(f" CRITICAL: Failed to calculate positioning metrics for {symbol}: {str(e)[:200]}")
             stats['positioning_failed'] = 1
             # DO NOT rollback here - it would undo company_profile and other inserts
             # Only skip this symbol's positioning, but keep other data
@@ -1055,7 +1055,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     stats['earnings_est'] = len(earnings_data)
 
             except Exception as e:
-                logging.error(f"❌ CRITICAL: Failed to insert earnings estimates for {symbol}: {str(e)[:200]}")
+                logging.error(f" CRITICAL: Failed to insert earnings estimates for {symbol}: {str(e)[:200]}")
                 stats['earnings_est_failed'] = 1
                 # Rollback failed transaction
                 try:
@@ -1148,7 +1148,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             conn.commit()
             logging.info(f"✓ COMMITTED {symbol}")
         except Exception as commit_err:
-            logging.error(f"❌ COMMIT FAILED {symbol}: {str(commit_err)[:200]}")
+            logging.error(f" COMMIT FAILED {symbol}: {str(commit_err)[:200]}")
             try:
                 conn.rollback()
             except:
@@ -1156,7 +1156,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
         return stats
 
     except Exception as e:
-        logging.error(f"❌ CRITICAL: Complete failure loading realtime data for {symbol}: {str(e)[:200]}")
+        logging.error(f" CRITICAL: Complete failure loading realtime data for {symbol}: {str(e)[:200]}")
         return None
 
 
@@ -1270,9 +1270,9 @@ if __name__ == "__main__":
         """)
 
         conn.commit()
-        logging.info("✅ Schema migrations complete")
+        logging.info(" Schema migrations complete")
     except Exception as e:
-        logging.error(f"❌ CRITICAL: Schema migration failed - this blocks ALL data loading: {str(e)[:200]}")
+        logging.error(f" CRITICAL: Schema migration failed - this blocks ALL data loading: {str(e)[:200]}")
         # Don't rollback to allow partial schema fixes, but this is critical
 
     # Get symbols - load all non-ETF symbols (LIMIT removed to load all 5,476 stocks)
@@ -1298,7 +1298,7 @@ if __name__ == "__main__":
     rate_limit_consecutive = 0
 
     # MAIN LOOP: Process all symbols with automatic retries for failures
-    logging.info(f"🚀 Starting RESILIENT data load with automatic retries for {len(symbols)} symbols")
+    logging.info(f" Starting RESILIENT data load with automatic retries for {len(symbols)} symbols")
 
     # Try each symbol up to 4 times (initial + 3 retries)
     attempt = 1
@@ -1307,7 +1307,7 @@ if __name__ == "__main__":
 
     while symbols_to_process and attempt <= max_attempts:
         if attempt > 1:
-            logging.info(f"🔄 Retry pass {attempt}/{max_attempts}: Retrying {len(symbols_to_process)} failed symbols (with longer delays)...")
+            logging.info(f" Retry pass {attempt}/{max_attempts}: Retrying {len(symbols_to_process)} failed symbols (with longer delays)...")
 
         failed_this_pass = []
 
@@ -1319,24 +1319,24 @@ if __name__ == "__main__":
                         total_stats[key] += stats.get(key, 0)
                     processed += 1
                     rate_limit_consecutive = 0  # Reset rate limit counter on success
-                    logging.info(f"✅ {symbol}: {stats}")
+                    logging.info(f" {symbol}: {stats}")
                 else:
                     failed_this_pass.append(symbol)
-                    logging.warning(f"⚠️  {symbol}: No stats returned")
+                    logging.warning(f"  {symbol}: No stats returned")
 
             except Exception as e:
                 error_str = str(e).lower()
                 # Check for rate limit errors
                 if 'rate limit' in error_str or '429' in error_str:
                     rate_limit_consecutive += 1
-                    logging.warning(f"⚠️ RATE LIMITED on {symbol} (consecutive: {rate_limit_consecutive}). Increasing delay...")
+                    logging.warning(f" RATE LIMITED on {symbol} (consecutive: {rate_limit_consecutive}). Increasing delay...")
                 else:
                     # Track HTTP 500 errors for this symbol
                     if '500' in error_str or 'http error' in error_str:
                         api_error_symbols[symbol] = api_error_symbols.get(symbol, 0) + 1
-                        logging.warning(f"⚠️  {symbol}: yfinance API error (attempt {api_error_symbols[symbol]}): {str(e)[:100]}")
+                        logging.warning(f"  {symbol}: yfinance API error (attempt {api_error_symbols[symbol]}): {str(e)[:100]}")
                     else:
-                        logging.error(f"❌ CRITICAL: Complete failure for {symbol}: {str(e)[:200]}")
+                        logging.error(f" CRITICAL: Complete failure for {symbol}: {str(e)[:200]}")
                     rate_limit_consecutive = 0  # Reset on non-rate-limit errors
                 failed_this_pass.append(symbol)
                 # Don't rollback - error is logged
@@ -1366,10 +1366,10 @@ if __name__ == "__main__":
         # Update symbols to retry for next attempt
         symbols_to_process = failed_this_pass
         if not symbols_to_process:
-            logging.info(f"✅ All symbols loaded successfully on attempt {attempt}!")
+            logging.info(f" All symbols loaded successfully on attempt {attempt}!")
             break
         elif len(symbols_to_process) < len(symbols_to_process if attempt > 1 else symbols):
-            logging.info(f"✅ Progress: Fixed {len(symbols_to_process) if attempt == 1 else 'some'} symbols, retrying {len(symbols_to_process)} on next pass")
+            logging.info(f" Progress: Fixed {len(symbols_to_process) if attempt == 1 else 'some'} symbols, retrying {len(symbols_to_process)} on next pass")
 
         attempt += 1
 
@@ -1377,12 +1377,12 @@ if __name__ == "__main__":
     logging.info("REAL-TIME DATA LOADING COMPLETE")
     logging.info("=" * 80)
     success_rate = round(processed / len(symbols) * 100, 1) if symbols else 0
-    logging.info(f"✅ SUCCESS: {processed}/{len(symbols)} ({success_rate}%)")
+    logging.info(f" SUCCESS: {processed}/{len(symbols)} ({success_rate}%)")
     if failed:
-        logging.info(f"⚠️  STILL FAILING: {len(failed)} ({round(len(failed)/len(symbols)*100, 1)}%) - will need manual retry")
+        logging.info(f"  STILL FAILING: {len(failed)} ({round(len(failed)/len(symbols)*100, 1)}%) - will need manual retry")
 
     # Summary stats collected from individual stock loads
-    logging.info(f"📊 Component Summary:")
+    logging.info(f" Component Summary:")
     logging.info(f"   - Company Info: {total_stats.get('info', 0)} stocks")
     logging.info(f"   - Positioning Metrics: {total_stats.get('positioning', 0)} stocks")
     logging.info(f"   - Insider Roster: {total_stats.get('insider_roster', 0)} records")
@@ -1390,7 +1390,7 @@ if __name__ == "__main__":
     logging.info(f"   - Revenue Estimates: {total_stats.get('revenue_est', 0)} records")
 
     if failed:
-        logging.warning(f"⚠️  FAILED SYMBOLS (no data loaded): {','.join(failed[:20])}{f' +{len(failed)-20} more' if len(failed) > 20 else ''}")
+        logging.warning(f"  FAILED SYMBOLS (no data loaded): {','.join(failed[:20])}{f' +{len(failed)-20} more' if len(failed) > 20 else ''}")
 
     cur.execute(
         """

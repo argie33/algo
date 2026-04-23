@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E \"\\\\.py$\")",
+      "Bash(psql -U postgres -d algo -c \"\\\\dt\")",
+      "Bash(python3 *)"
+    ]
+  }
+}
