@@ -1,6 +1,7 @@
 // Load environment variables ONCE at startup from .env.local (local dev only)
 // Production: No .env file needed - uses AWS environment variables or Secrets Manager
 const path = require("path");
+const fs = require("fs");
 
 const envPath = path.resolve(__dirname, "../../.env.local");
 console.log(`🔧 Loading environment from: ${envPath}`);
@@ -519,6 +520,19 @@ app.get("/", (req, res) => {
 const server = createServer(app);
 
 
+// Error handling middleware (should be last)
+app.use(errorHandler);
+
+// 404 handler for API routes (before SPA fallback)
+app.all("/api/*", (req, res) => {
+  res.status(404).json({
+    error: "Not Found",
+    message: `API endpoint ${req.originalUrl} does not exist`,
+    success: false,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Serve main frontend static files
 const mainBuildPath = path.join(__dirname, '../frontend/dist');
 app.use(express.static(mainBuildPath, {
@@ -526,30 +540,27 @@ app.use(express.static(mainBuildPath, {
   etag: false
 }));
 
-// Fallback to index.html for SPA routing
-app.get('/', (req, res) => {
-  res.sendFile(path.join(mainBuildPath, 'index.html'));
-});
-
-// Serve admin site static files (BEFORE 404 handler)
+// Serve admin site static files
 const adminBuildPath = path.join(__dirname, '../frontend-admin/dist-admin');
 app.use(express.static(adminBuildPath, {
   maxAge: '1d',
   etag: false,
-  index: false // Don't serve index.html for directory requests
+  index: false
 }));
 
-// 404 handler (for any remaining unhandled requests)
-app.use("*", (req, res) => {
-  res.status(404).json({
-    error: "Not Found",
-    message: `Endpoint ${req.originalUrl} does not exist`,
-    timestamp: new Date().toISOString()
-  });
+// SPA fallback for frontend routes (must be last - only applies to non-API paths)
+app.get('*', (req, res) => {
+  const indexPath = path.join(mainBuildPath, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).json({
+      error: "Not Found",
+      message: "Frontend not built. Run 'npm run build' in frontend directory.",
+      success: false
+    });
+  }
 });
-
-// Error handling middleware (should be last)
-app.use(errorHandler);
 
 // AWS Lambda / EC2 handler - listen directly on existing server (supports both HTTP and WebSocket)
 const PORT = process.env.PORT || 3000;

@@ -453,7 +453,6 @@ async function getInsiderDataInBatch(symbols) {
 // Standard columns returned from stock_scores table (only columns that exist in database)
 const SCORE_COLUMNS = [
   'symbol',
-  'company_name',
   'composite_score',
   'momentum_score',
   'value_score',
@@ -535,7 +534,7 @@ async function queryScores(options = {}) {
   // Build SELECT columns
   const selectCols = SCORE_COLUMNS.join(', ');
 
-  // Count query for pagination
+  // Count query for pagination (no need for company_name in count query)
   const countQuery = `SELECT COUNT(*) as total FROM stock_scores ss ${whereClause}`;
   const countResult = await query(countQuery, queryParams);
   const totalCount = safeInt(countResult.rows[0]?.total) || 0;
@@ -588,7 +587,7 @@ async function queryScores(options = {}) {
   for (const row of result.rows || []) {
     const stock = {
       symbol: row.symbol,
-      company_name: row.company_name,
+      company_name: null,
       composite_score: row.composite_score == null ? null : parseFloat(row.composite_score),
       momentum_score: row.momentum_score == null ? null : parseFloat(row.momentum_score),
       value_score: row.value_score == null ? null : parseFloat(row.value_score),
@@ -777,7 +776,6 @@ router.get("/stockscores", async (req, res) => {
     const totalPages = Math.ceil(result.total / result.limit);
     const hasNext = page < totalPages;
     const hasPrev = page > 1;
-    // Remove all null values from stocks before returning
     const cleanedStocks = removeNullValues(result.stocks);
     res.json({ items: cleanedStocks, pagination: { page, limit: result.limit, total: result.total, totalPages, hasNext, hasPrev }, success: true });
   } catch (error) {

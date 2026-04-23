@@ -11,7 +11,11 @@ import logging
 import json
 import os
 import gc
-import resource
+try:
+    import resource
+    HAS_RESOURCE = True
+except ImportError:
+    HAS_RESOURCE = False
 import signal
 
 import psycopg2
@@ -53,10 +57,18 @@ logging.basicConfig(
 )
 
 def get_rss_mb():
-    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    """Get RSS memory in MB, cross-platform."""
+    if not HAS_RESOURCE:
+        try:
+            import psutil
+            return psutil.Process().memory_info().rss / (1024 * 1024)
+        except:
+            return 0
+    usage = resource.getrusage(resource.RUSAGE_SELF)
     if sys.platform.startswith("linux"):
         return usage / 1024
     return usage / (1024 * 1024)
+
 
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")

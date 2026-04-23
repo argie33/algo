@@ -26,7 +26,11 @@ import logging
 import json
 import os
 import gc
-import resource
+try:
+    import resource
+    HAS_RESOURCE = True
+except ImportError:
+    HAS_RESOURCE = False
 import re
 import signal
 from datetime import datetime, date, timedelta
@@ -99,7 +103,7 @@ def get_ticker_news_with_timeout(symbol):
         return None
 
 def log_mem(stage: str):
-    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    usage = resource.getrusage(resource.RUSAGE_SELF) if HAS_RESOURCE else 0
     mb = usage / 1024 if sys.platform.startswith("linux") else usage / (1024 * 1024)
     logging.info(f"[MEM] {stage}: {mb:.1f} MB RSS")
 

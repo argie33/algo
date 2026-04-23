@@ -21,7 +21,11 @@ Updated: 2026-02-09
 import gc
 import logging
 import os
-import resource
+try:
+    import resource
+    HAS_RESOURCE = True
+except ImportError:
+    HAS_RESOURCE = False
 import sys
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Tuple
@@ -60,7 +64,14 @@ psycopg2.extensions.register_adapter(np.float32, adapt_numpy_float64)
 
 
 def get_rss_mb():
-    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    """Get RSS memory in MB, cross-platform."""
+    if not HAS_RESOURCE:
+        try:
+            import psutil
+            return psutil.Process().memory_info().rss / (1024 * 1024)
+        except:
+            return 0
+    usage = resource.getrusage(resource.RUSAGE_SELF)
     if sys.platform.startswith("linux"):
         return usage / 1024
     return usage / (1024 * 1024)

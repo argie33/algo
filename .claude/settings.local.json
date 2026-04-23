@@ -18,7 +18,23 @@
       "Bash(curl -s http://localhost:5174)",
       "Bash(curl -s \"http://localhost:3000/api/stocks\")",
       "Bash(curl -s \"http://localhost:3000/api/market/overview\")",
-      "Bash(curl -s \"http://localhost:3000/api/scores/stockscores\")"
+      "Bash(curl -s \"http://localhost:3000/api/scores/stockscores\")",
+      "Bash(curl -v \"http://localhost:3000/api/market/overview\")",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(PORT=3000 node /c/Users/arger/code/algo/webapp/local-server.js)",
+      "Bash(curl -s \"http://localhost:3000/api/health\")",
+      "Bash(PORT=3000 node local-server.js)",
+      "PowerShell(Stop-Process *)",
+      "Bash(curl -v \"http://localhost:3000/api/stocks\")",
+      "Bash(curl -s \"http://localhost:3000/api/stocks?limit=2\")",
+      "Bash(curl -s -H \"X-Debug: true\" \"http://localhost:3000/api/health\")",
+      "Bash(dd bs=1 count=500 echo \"\" echo \"---\" curl -s -I \"http://localhost:3000/api/health\")",
+      "Bash(curl -s \"http://localhost:3000/api/stocks?limit=1\")",
+      "Bash(curl -v \"http://localhost:3000/api/health\")",
+      "Bash(grep -v grep echo \"---\" lsof -i :3000)",
+      "Bash(node local-server.js)",
+      "Bash(tail -50 C:\\\\\\\\Users\\\\\\\\arger\\\\\\\\.claude\\\\\\\\projects\\\\\\\\C--Users-arger-code-algo\\\\\\\\606604fd-20a0-4308-993a-a9249aeaffa3\\\\\\\\tool-results\\\\\\\\b5r2874l3.txt)",
+      "PowerShell($profile)"
     ]
   }
 }

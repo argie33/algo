@@ -36,7 +36,11 @@ from typing import Dict, List, Optional, Tuple, Any
 
 # Windows compatibility: resource module doesn't exist on Windows
 try:
+    try:
     import resource
+    HAS_RESOURCE = True
+except ImportError:
+    HAS_RESOURCE = False
     HAS_RESOURCE = True
 except ImportError:
     HAS_RESOURCE = False
@@ -92,7 +96,7 @@ logging.basicConfig(
 
 def log_mem(stage: str):
     if HAS_RESOURCE:
-        usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        usage = resource.getrusage(resource.RUSAGE_SELF) if HAS_RESOURCE else 0
         mb = usage / 1024 if sys.platform.startswith("linux") else usage / (1024 * 1024)
     else:
         try:

@@ -24,7 +24,8 @@ const pool = new Pool({
   port: process.env.DB_PORT || 5432,
   user: process.env.DB_USER || 'stocks',
   password: process.env.DB_PASSWORD || 'bed0elAn',
-  database: process.env.DB_NAME || 'stocks'
+  database: process.env.DB_NAME || 'stocks',
+  ssl: false
 });
 
 // Health check
@@ -74,6 +75,134 @@ app.get('/api/prices-count', async (req, res) => {
   try {
     const result = await pool.query('SELECT COUNT(*) as count FROM price_daily');
     res.json(result.rows[0]);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Key metrics endpoint
+app.get('/api/key-metrics/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const result = await pool.query('SELECT * FROM key_metrics WHERE ticker = $1', [symbol]);
+    res.json(result.rows[0] || {});
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Stock scores endpoint
+app.get('/api/stock-scores', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM stock_scores ORDER BY composite_score DESC LIMIT 100');
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/stock-scores/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const result = await pool.query('SELECT * FROM stock_scores WHERE symbol = $1', [symbol]);
+    res.json(result.rows[0] || {});
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Quality metrics
+app.get('/api/quality-metrics/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const result = await pool.query('SELECT * FROM quality_metrics WHERE symbol = $1', [symbol]);
+    res.json(result.rows[0] || {});
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Growth metrics
+app.get('/api/growth-metrics/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const result = await pool.query('SELECT * FROM growth_metrics WHERE symbol = $1', [symbol]);
+    res.json(result.rows[0] || {});
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Value metrics
+app.get('/api/value-metrics/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const result = await pool.query('SELECT * FROM value_metrics WHERE symbol = $1', [symbol]);
+    res.json(result.rows[0] || {});
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Stability metrics
+app.get('/api/stability-metrics/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const result = await pool.query('SELECT * FROM stability_metrics WHERE symbol = $1 ORDER BY date DESC LIMIT 1', [symbol]);
+    res.json(result.rows[0] || {});
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Momentum metrics
+app.get('/api/momentum-metrics/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const result = await pool.query('SELECT * FROM momentum_metrics WHERE symbol = $1 ORDER BY date DESC LIMIT 1', [symbol]);
+    res.json(result.rows[0] || {});
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Trading signals
+app.get('/api/signals/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const result = await pool.query(
+      'SELECT * FROM buy_sell_daily WHERE symbol = $1 ORDER BY date DESC LIMIT 10',
+      [symbol]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Top stocks by composite score
+app.get('/api/top-stocks', async (req, res) => {
+  try {
+    const limit = req.query.limit || 50;
+    const result = await pool.query(
+      'SELECT * FROM stock_scores ORDER BY composite_score DESC LIMIT $1',
+      [limit]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Bottom stocks
+app.get('/api/bottom-stocks', async (req, res) => {
+  try {
+    const limit = req.query.limit || 50;
+    const result = await pool.query(
+      'SELECT * FROM stock_scores ORDER BY composite_score ASC LIMIT $1',
+      [limit]
+    );
+    res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

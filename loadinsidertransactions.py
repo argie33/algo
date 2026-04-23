@@ -8,7 +8,11 @@ import logging
 import functools
 import os
 import json
-import resource
+try:
+    import resource
+    HAS_RESOURCE = True
+except ImportError:
+    HAS_RESOURCE = False
 import signal
 
 import boto3
@@ -113,10 +117,18 @@ def retry(max_attempts=3, initial_delay=2, backoff=2):
     return decorator
 
 def get_rss_mb():
-    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    """Get RSS memory in MB, cross-platform."""
+    if not HAS_RESOURCE:
+        try:
+            import psutil
+            return psutil.Process().memory_info().rss / (1024 * 1024)
+        except:
+            return 0
+    usage = resource.getrusage(resource.RUSAGE_SELF)
     if sys.platform.startswith("linux"):
         return usage / 1024
     return usage / (1024 * 1024)
+
 
 def ensure_table(conn):
     """Ensure insider_transactions table exists with proper schema."""
