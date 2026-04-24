@@ -26,6 +26,7 @@ import logging
 import json
 import os
 import gc
+from pathlib import Path
 try:
     import resource
     HAS_RESOURCE = True
@@ -37,7 +38,13 @@ from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Tuple, Any
 from collections import defaultdict
 
+from dotenv import load_dotenv
 import psycopg2
+
+# Load environment variables from .env.local if it exists
+env_file = Path(__file__).parent / '.env.local'
+if env_file.exists():
+    load_dotenv(env_file)
 from psycopg2.extras import RealDictCursor, execute_values
 import yfinance as yf
 import pandas as pd

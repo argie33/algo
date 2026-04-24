@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from pathlib import Path
 # CRITICAL: ETF Buy/Sell signals table missing from database. Must run to enable trading signal pages
 # Trigger: 2026-01-28-020300 - ETF signals reload to AWS RDS via ECS with task definitions
 import os

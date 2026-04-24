@@ -20,6 +20,42 @@ router.get("/", (req, res) => {
   });
 });
 
+// GET /api/economic/data - Get economic data from market_data table
+router.get("/data", async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const offset = (page - 1) * limit;
+
+    const countResult = await query(
+      `SELECT COUNT(*) as count FROM market_data WHERE metric_name IN ('VIX', 'DXY', 'YIELD')`
+    );
+    const total = countResult.rows[0]?.count || 0;
+
+    const result = await query(
+      `SELECT DISTINCT ON (metric_name)
+        metric_name,
+        metric_value,
+        date,
+        created_at
+      FROM market_data
+      WHERE metric_name IN ('VIX', 'DXY', 'YIELD')
+      ORDER BY metric_name, date DESC
+      LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
+
+    return res.json({
+      data: result.rows || [],
+      pagination: { page, limit, total, hasMore: offset + limit < total },
+      success: true
+    });
+  } catch (err) {
+    console.error("Economic data error:", err.message);
+    return res.status(500).json({ error: err.message, success: false });
+  }
+});
+
 // ============================================
 // LEADING INDICATORS - Comprehensive overview
 // ============================================
