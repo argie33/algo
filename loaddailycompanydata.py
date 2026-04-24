@@ -1361,17 +1361,41 @@ if __name__ == "__main__":
         failed_this_pass = []
 
         for i, symbol in enumerate(symbols_to_process):
+            symbol_start = time.time()
             try:
                 stats = load_all_realtime_data(symbol, cur, conn)
+                elapsed_ms = int((time.time() - symbol_start) * 1000)
                 if stats:
                     for key in total_stats:
                         total_stats[key] += stats.get(key, 0)
                     processed += 1
                     rate_limit_consecutive = 0  # Reset rate limit counter on success
                     logging.info(f" {symbol}: {stats}")
+                    # Track progress
+                    try:
+                        cur.execute("""
+                            INSERT INTO loader_run_progress (run_id, loader_name, symbol, completed_at, status, elapsed_ms)
+                            VALUES (%s, %s, %s, NOW(), %s, %s)
+                            ON CONFLICT (run_id, loader_name, symbol) DO UPDATE SET
+                                completed_at = NOW(), status = 'success', elapsed_ms = %s
+                        """, (run_id, 'loaddailycompanydata', symbol, 'success', elapsed_ms, elapsed_ms))
+                        conn.commit()
+                    except Exception as track_err:
+                        logging.debug(f"Could not track progress for {symbol}: {track_err}")
                 else:
                     failed_this_pass.append(symbol)
                     logging.warning(f"  {symbol}: No stats returned")
+                    # Track failure
+                    try:
+                        cur.execute("""
+                            INSERT INTO loader_run_progress (run_id, loader_name, symbol, completed_at, status, error_msg)
+                            VALUES (%s, %s, %s, NOW(), %s, %s)
+                            ON CONFLICT (run_id, loader_name, symbol) DO UPDATE SET
+                                completed_at = NOW(), status = 'failed', error_msg = 'No stats returned'
+                        """, (run_id, 'loaddailycompanydata', symbol, 'failed', 'No stats returned'))
+                        conn.commit()
+                    except Exception as track_err:
+                        logging.debug(f"Could not track failure for {symbol}: {track_err}")
 
             except Exception as e:
                 error_str = str(e).lower()

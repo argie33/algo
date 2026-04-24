@@ -2,5 +2,7 @@
   "completed": [
     "loadstocksymbols.py"
   ],
-  "failed": []
+  "failed": [
+    "loadpricedaily.py"
+  ]
 }
