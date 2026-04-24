@@ -296,10 +296,14 @@ def main():
     }
     # Invert volatility and drawdown (lower is better)
     stability_for_calc = df.copy()
-    stability_for_calc['volatility'] = -stability_for_calc['volatility']
-    stability_for_calc['downside_vol'] = -stability_for_calc['downside_vol']
-    stability_for_calc['max_drawdown'] = -stability_for_calc['max_drawdown']
-    stability_for_calc['beta'] = -stability_for_calc['beta']  # High beta = less stable = negative impact
+    if 'volatility' in stability_for_calc.columns:
+        stability_for_calc['volatility'] = -stability_for_calc['volatility']
+    if 'downside_vol' in stability_for_calc.columns:
+        stability_for_calc['downside_vol'] = -stability_for_calc['downside_vol']
+    if 'max_drawdown' in stability_for_calc.columns:
+        stability_for_calc['max_drawdown'] = -stability_for_calc['max_drawdown']
+    if 'beta' in stability_for_calc.columns:
+        stability_for_calc['beta'] = -stability_for_calc['beta']
     df['stability_z'] = calculate_weighted_score(stability_for_calc, stability_metrics, stability_weights)
     df['stability_score'] = df['stability_z'].apply(zscore_to_percentile)
 
@@ -341,7 +345,8 @@ def main():
     }
     # Invert short interest (lower short = better positioning)
     positioning_for_calc = df.copy()
-    positioning_for_calc['short_interest_pct'] = -positioning_for_calc['short_interest_pct']
+    if 'short_interest_pct' in positioning_for_calc.columns:
+        positioning_for_calc['short_interest_pct'] = -positioning_for_calc['short_interest_pct']
     df['positioning_z'] = calculate_weighted_score(positioning_for_calc, positioning_metrics, positioning_weights)
     df['positioning_score'] = df['positioning_z'].apply(zscore_to_percentile)
 
