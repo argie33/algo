@@ -1118,7 +1118,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         history_data
                     )
                     stats['earnings_history'] = len(history_data)
-                    logging.info(f"  ✓ Earnings history: {len(history_data)} quarters inserted for {symbol}")
+                    logging.info(f"  [OK] Earnings history: {len(history_data)} quarters inserted for {symbol}")
         except Exception as e:
             logging.debug(f"No earnings history available for {symbol}: {e}")
             stats['earnings_history'] = 0
@@ -1154,7 +1154,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
 
         try:
             conn.commit()
-            logging.info(f"✓ COMMITTED {symbol}")
+            logging.info(f"[OK] COMMITTED {symbol}")
         except Exception as commit_err:
             logging.error(f" COMMIT FAILED {symbol}: {str(commit_err)[:200]}")
             try:

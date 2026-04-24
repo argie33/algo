@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS company_profile (
     triggerable BOOLEAN,
     has_pre_post_market_data BOOLEAN,
     price_hint INTEGER,
-    max_age INTEGER,
+    max_age_sec INTEGER,
     language VARCHAR(10),
     region VARCHAR(50),
     financial_currency VARCHAR(10),
@@ -237,15 +237,16 @@ CREATE TABLE IF NOT EXISTS momentum_metrics (
 );
 
 CREATE TABLE IF NOT EXISTS positioning_metrics (
-    symbol VARCHAR(20),
+    symbol VARCHAR(20) PRIMARY KEY,
     date DATE,
     institutional_ownership_pct FLOAT,
+    institutional_holders_count INTEGER,
     insider_ownership_pct FLOAT,
     short_ratio FLOAT,
     short_interest_pct FLOAT,
+    short_percent_of_float FLOAT,
     ad_rating FLOAT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (symbol, date)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Price data
