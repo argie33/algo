@@ -9,6 +9,7 @@ router.get("/", (req, res) => {
     data: {
       endpoint: "price",
       available_routes: [
+        "GET /history/:symbol - Get price history for a specific symbol",
         "GET /daily - Get daily OHLCV prices",
         "GET /weekly - Get weekly OHLCV prices",
         "GET /monthly - Get monthly OHLCV prices",
@@ -27,6 +28,34 @@ router.get("/", (req, res) => {
     },
     success: true
   });
+});
+
+// Get price history for a specific symbol
+router.get("/history/:symbol", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const offset = (page - 1) * limit;
+
+    const result = await query(
+      `SELECT symbol, date, open, high, low, close, adj_close, volume
+       FROM price_daily
+       WHERE symbol = $1
+       ORDER BY date DESC
+       LIMIT $2 OFFSET $3`,
+      [symbol.toUpperCase(), limit, offset]
+    );
+
+    return res.json({
+      data: result.rows || [],
+      pagination: { page, limit, total: result.rowCount },
+      success: true
+    });
+  } catch (err) {
+    console.error('Error fetching price history:', err.message);
+    return res.status(500).json({ error: err.message, success: false });
+  }
 });
 
 // Helper to safely parse float

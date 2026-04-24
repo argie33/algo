@@ -21,6 +21,7 @@ router.get("/", (req, res) => {
       available_routes: [
         "GET /stocks - Get all stock trading signals with flexible filtering",
         "  Query parameters: timeframe={daily|weekly|monthly}, symbol={SYMBOL}, limit={1-500}, page={1+}, days={days}, signal_type={Buy|Sell}",
+        "GET /list - Alias for /stocks (backward compatibility)",
         "GET /etf - Get all ETF trading signals",
         "  Query parameters: timeframe={daily|weekly|monthly}, symbols={SYMBOL,SYMBOL2}, limit={1-100}"
       ],
@@ -34,6 +35,13 @@ router.get("/", (req, res) => {
     },
     success: true
   });
+});
+
+// Alias for /stocks - backward compatibility
+router.get("/list", (req, res, next) => {
+  // Forward to /stocks handler
+  req.url = "/stocks";
+  return next();
 });
 
 // Get all stock signals data - FRONTEND USES THIS

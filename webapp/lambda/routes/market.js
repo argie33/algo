@@ -464,6 +464,7 @@ router.get("/", (req, res) => {
     data: {
       endpoint: "market",
       available_routes: [
+        "/status - Current market status (open/closed/pre_market/after_hours)",
         "/overview - Market quality, top stocks, market breadth",
         "/breadth - Advance/decline ratios and market breadth indicators",
         "/mcclellan-oscillator - Breadth momentum indicator (19/39-day EMA)",
@@ -482,6 +483,23 @@ router.get("/", (req, res) => {
     },
     success: true
   });
+});
+
+// Get current market status
+router.get("/status", (req, res) => {
+  try {
+    const status = getMarketStatus();
+    return res.json({
+      data: {
+        status: status,
+        timestamp: new Date().toISOString()
+      },
+      success: true
+    });
+  } catch (err) {
+    console.error('Error getting market status:', err.message);
+    return res.status(500).json({ error: err.message, success: false });
+  }
 });
 
 // REMOVED: /summary endpoint - Generic catch-all that aggregated unrelated data

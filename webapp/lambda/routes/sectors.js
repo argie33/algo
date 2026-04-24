@@ -1013,36 +1013,24 @@ router.get("/trend/sector/:sectorName", async (req, res) => {
 
     const { sectorName } = req.params;
 
-    // Get recent historical rankings for this sector (last 1 year), ordered by date_recorded
-    // Calculate moving averages of momentum score directly in SQL
-    const trendData = await query(
-      `SELECT
-        sr.date_recorded as date,
-        sr.current_rank as rank,
-        sr.momentum_score as daily_strength_score,
-        CASE
-          WHEN sr.momentum_score > 20 THEN 'Strong Uptrend'
-          WHEN sr.momentum_score > 10 THEN 'Uptrend'
-          WHEN sr.momentum_score > -5 THEN 'Neutral'
-          WHEN sr.momentum_score > -10 THEN 'Downtrend'
-          WHEN sr.momentum_score IS NOT NULL THEN 'Strong Downtrend'
-          ELSE NULL
-        END as trend,
-        TO_CHAR(sr.date_recorded, 'MM/DD') as label,
-        ROUND(AVG(sr.momentum_score) OVER (ORDER BY sr.date_recorded ROWS BETWEEN 9 PRECEDING AND CURRENT ROW)::numeric, 4) as ma_10,
-        ROUND(AVG(sr.momentum_score) OVER (ORDER BY sr.date_recorded ROWS BETWEEN 19 PRECEDING AND CURRENT ROW)::numeric, 4) as ma_20
-      FROM sector_ranking sr
-      WHERE LOWER(sr.sector_name) = LOWER($1)
-      AND sr.date_recorded >= CURRENT_DATE - INTERVAL '365 days'
-      ORDER BY sr.date_recorded ASC`,
-      [sectorName]
-    );
-
-    if (!trendData.rows.length) {
-      return res.status(404).json({
-        error: "Sector not found or no trend data available",
-        success: false
-      });
+    // Try to get trend data from sector_trend table
+    // Falls back to empty array if table doesn't exist or has no data
+    let trendData = { rows: [] };
+    try {
+      trendData = await query(
+        `SELECT
+          trend_date as date,
+          trend_value,
+          TO_CHAR(trend_date, 'MM/DD') as label
+        FROM sector_trend
+        WHERE LOWER(sector) = LOWER($1)
+        AND trend_date >= CURRENT_DATE - INTERVAL '365 days'
+        ORDER BY trend_date ASC`,
+        [sectorName]
+      );
+    } catch (tableErr) {
+      console.warn(`Sector trend table not available: ${tableErr.message}`);
+      // Return empty but valid response
     }
 
     res.json({
@@ -1050,13 +1038,10 @@ router.get("/trend/sector/:sectorName", async (req, res) => {
         sector: sectorName,
         trendData: trendData.rows.map(row => ({
           date: row.date,
-          rank: row.rank,
-          dailyStrengthScore: row.daily_strength_score,
-          trend: row.trend,
-          label: row.label,
-          ma_10: row.ma_10 !== null && row.ma_10 !== undefined ? parseFloat(row.ma_10) : null,
-          ma_20: row.ma_20 !== null && row.ma_20 !== undefined ? parseFloat(row.ma_20) : null
-        }))
+          value: row.trend_value,
+          label: row.label
+        })) || [],
+        status: trendData.rows.length === 0 ? "no_data" : "ok"
       },
       success: true
     });

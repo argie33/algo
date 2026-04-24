@@ -224,6 +224,35 @@ router.get('/', async (req, res) => {
  * GET /api/trades/summary
  * Get trade statistics - includes REAL Alpaca data + database trades
  */
+// Get trade history with pagination
+router.get('/history', async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 50));
+    const offset = (page - 1) * limit;
+
+    const result = await dbQuery(
+      `SELECT id, symbol, type, quantity, execution_price, order_value, commission, execution_date
+       FROM trades
+       ORDER BY execution_date DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
+
+    const countResult = await dbQuery('SELECT COUNT(*) as total FROM trades', []);
+    const total = parseInt(countResult.rows[0]?.total || 0);
+
+    return res.json({
+      data: result.rows || [],
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+      success: true
+    });
+  } catch (err) {
+    console.error('Error fetching trade history:', err.message);
+    return res.status(500).json({ error: err.message, success: false });
+  }
+});
+
 router.get('/summary', async (req, res) => {
   try {
     let allTrades = [];

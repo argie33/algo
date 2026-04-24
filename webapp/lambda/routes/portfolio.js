@@ -256,10 +256,86 @@ router.get("/", (req, res) => {
     data: {
       endpoint: "portfolio",
       description: "Get complete portfolio data - holdings from Alpaca and manual trades, all metrics calculated",
-      primary_endpoint: "GET /metrics [AUTH] - Get all portfolio data (summary, positions, daily returns, metrics)"
+      primary_endpoint: "GET /metrics [AUTH] - Get all portfolio data (summary, positions, daily returns, metrics)",
+      available_routes: [
+        "GET /metrics [AUTH] - Get all portfolio data",
+        "GET /manual-positions - Get all manual positions",
+        "POST /manual-positions - Create a manual position"
+      ]
     },
     success: true
   });
+});
+
+// Get manual positions
+router.get("/manual-positions", async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT id, symbol, quantity, entry_price, created_at, updated_at
+       FROM manual_positions
+       ORDER BY created_at DESC`,
+      []
+    );
+
+    return res.json({
+      data: result.rows || [],
+      success: true
+    });
+  } catch (err) {
+    console.error('Error fetching manual positions:', err.message);
+    return res.status(500).json({ error: err.message, success: false });
+  }
+});
+
+// Get a specific manual position
+router.get("/manual-positions/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await query(
+      `SELECT id, symbol, quantity, entry_price, created_at, updated_at
+       FROM manual_positions
+       WHERE id = $1`,
+      [id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Position not found", success: false });
+    }
+
+    return res.json({
+      data: result.rows[0],
+      success: true
+    });
+  } catch (err) {
+    console.error('Error fetching manual position:', err.message);
+    return res.status(500).json({ error: err.message, success: false });
+  }
+});
+
+// Create a manual position
+router.post("/manual-positions", async (req, res) => {
+  try {
+    const { symbol, quantity, entry_price } = req.body;
+
+    if (!symbol || !quantity) {
+      return res.status(400).json({ error: "symbol and quantity are required", success: false });
+    }
+
+    const result = await query(
+      `INSERT INTO manual_positions (symbol, quantity, entry_price)
+       VALUES ($1, $2, $3)
+       RETURNING id, symbol, quantity, entry_price, created_at, updated_at`,
+      [symbol, quantity, entry_price]
+    );
+
+    return res.status(201).json({
+      data: result.rows[0],
+      success: true
+    });
+  } catch (err) {
+    console.error('Error creating manual position:', err.message);
+    return res.status(500).json({ error: err.message, success: false });
+  }
 });
 
 // ============================================================================
