@@ -13,16 +13,16 @@ router.get("/", (req, res) => {
       description: "Earnings data API - financial metrics and estimates",
       available_routes: [
         {
+          path: "/data",
+          method: "GET",
+          description: "Get all earnings history data",
+          query_params: ["symbol", "limit", "page"]
+        },
+        {
           path: "/calendar",
           method: "GET",
           description: "Calendar view of earnings with reported status",
           query_params: ["period", "startDate", "endDate", "symbol", "limit"]
-        },
-        {
-          path: "/info",
-          method: "GET",
-          description: "Combined earnings info - estimates, history, and surprises ranked by magnitude",
-          query_params: ["symbol", "limit", "minSurprise"]
         }
       ]
     },
@@ -154,127 +154,6 @@ router.get("/calendar", async (req, res) => {
     console.error("Error fetching earnings calendar:", error);
     res.status(500).json({
       error: "Failed to fetch earnings calendar",
-      success: false
-    });
-  }
-});
-
-// GET /api/earnings/info - Combined earnings info (history + surprises)
-router.get("/info", async (req, res) => {
-  try {
-    const { symbol, limit = 50 } = req.query;
-
-    console.log(`\n📊 /api/earnings/info request:`);
-    console.log(`   symbol: "${symbol}"`);
-    console.log(`   limit: ${limit}`);
-
-    // Fetch history
-    let historyQuery = `
-      SELECT
-        eh.symbol,
-        eh.quarter,
-        eh.eps_actual,
-        eh.eps_estimate,
-        eh.eps_difference,
-        eh.surprise_percent,
-        eh.created_at,
-        cp.short_name as company_name,
-        cp.sector
-      FROM earnings_history eh
-      LEFT JOIN company_profile cp ON eh.symbol = cp.ticker
-      WHERE 1=1
-    `;
-    const historyParams = [];
-
-    if (symbol) {
-      historyQuery += ` AND eh.symbol = $${historyParams.length + 1}`;
-      historyParams.push(symbol.toUpperCase());
-    }
-
-    historyQuery += ` ORDER BY eh.symbol ASC, eh.quarter DESC LIMIT $${historyParams.length + 1}`;
-    historyParams.push(Math.min(parseInt(limit) || 50, 500));
-
-    console.log(`   History Query:`, historyQuery.replace(/\n/g, ' '));
-
-    // Fetch surprises
-    let surpriseQuery = `
-      SELECT
-        eh.symbol,
-        eh.quarter as date,
-        EXTRACT(QUARTER FROM eh.quarter) as quarter,
-        EXTRACT(YEAR FROM eh.quarter) as year,
-        eh.eps_actual,
-        eh.eps_estimate,
-        eh.surprise_percent,
-        cp.short_name as company_name,
-        cp.sector
-      FROM earnings_history eh
-      LEFT JOIN company_profile cp ON eh.symbol = cp.ticker
-      WHERE eh.eps_actual IS NOT NULL
-        AND eh.surprise_percent IS NOT NULL
-        AND ABS(eh.surprise_percent) >= $1
-    `;
-
-    const surpriseParams = [parseFloat(req.query.minSurprise || 0)];
-
-    if (symbol) {
-      surpriseQuery += ` AND eh.symbol = $${surpriseParams.length + 1}`;
-      surpriseParams.push(symbol.toUpperCase());
-    }
-
-    surpriseQuery += ` ORDER BY ABS(eh.surprise_percent) DESC LIMIT $${surpriseParams.length + 1}`;
-    surpriseParams.push(Math.min(parseInt(limit) || 50, 500));
-
-    console.log(`   Surprise Query:`, surpriseQuery.replace(/\n/g, ' '));
-
-    const [historyResult, surpriseResult] = await Promise.all([
-      query(historyQuery, historyParams),
-      query(surpriseQuery, surpriseParams)
-    ]);
-
-    console.log(`   History returned: ${historyResult.rows.length}`);
-    console.log(`   Surprises returned: ${surpriseResult.rows.length}`);
-
-    // Format history
-    const history = (historyResult.rows || []).map(row => ({
-      symbol: row.symbol,
-      company_name: row.company_name || row.symbol,
-      sector: row.sector,
-      quarter: row.quarter,
-      eps_actual: row.eps_actual ? parseFloat(row.eps_actual) : null,
-      eps_estimate: row.eps_estimate ? parseFloat(row.eps_estimate) : null,
-      eps_difference: row.eps_difference ? parseFloat(row.eps_difference) : null,
-      surprise_percent: row.surprise_percent ? parseFloat(row.surprise_percent) : null,
-      fetched_at: row.created_at
-    }));
-
-    // Format surprises
-    const surprises = (surpriseResult.rows || []).map(row => ({
-      symbol: row.symbol,
-      company_name: row.company_name || row.symbol,
-      sector: row.sector,
-      date: row.date,
-      quarter: parseInt(row.quarter),
-      year: parseInt(row.year),
-      earnings: {
-        actual: row.eps_actual ? parseFloat(row.eps_actual) : null,
-        estimate: row.eps_estimate ? parseFloat(row.eps_estimate) : null,
-        surprise_percent: row.surprise_percent ? parseFloat(row.surprise_percent) : null
-      }
-    }));
-
-    res.json({
-      data: {
-        estimates: [],
-        history,
-        surprises
-      },
-      success: true
-    });
-  } catch (error) {
-    console.error("Error fetching combined earnings data:", error);
-    res.status(500).json({
-      error: "Failed to fetch earnings data",
       success: false
     });
   }

@@ -11,6 +11,7 @@ import logging
 import json
 import os
 import gc
+from pathlib import Path
 try:
     import resource
     HAS_RESOURCE = True
@@ -18,12 +19,18 @@ except ImportError:
     HAS_RESOURCE = False
 import signal
 
+from dotenv import load_dotenv
 import psycopg2
 from psycopg2.extras import execute_values
 from datetime import datetime
 
 import boto3
 import yfinance as yf
+
+# Load environment variables from .env.local if it exists
+env_file = Path(__file__).parent / '.env.local'
+if env_file.exists():
+    load_dotenv(env_file)
 
 # Timeout handler for yfinance API calls
 class TimeoutException(Exception):
