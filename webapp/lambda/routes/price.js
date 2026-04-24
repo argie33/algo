@@ -92,7 +92,12 @@ router.get("/daily", async (req, res) => {
     }
 
     if (days) {
-      sql += ` AND date >= CURRENT_DATE - INTERVAL '${days} days'`;
+      const daysInt = parseInt(days);
+      if (!isNaN(daysInt) && daysInt > 0) {
+        sql += ` AND date >= CURRENT_DATE - INTERVAL '1 day' * $${paramIndex}`;
+        params.push(daysInt);
+        paramIndex++;
+      }
     }
 
     const countResult = await query(

@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS company_profile (
 
 -- Key metrics table (required by most loaders)
 CREATE TABLE IF NOT EXISTS key_metrics (
-    ticker VARCHAR(20) PRIMARY KEY,
+    symbol VARCHAR(20) PRIMARY KEY,
     market_cap BIGINT,
     employees INTEGER,
     sector VARCHAR(100),

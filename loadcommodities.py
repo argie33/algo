@@ -17,6 +17,7 @@ import requests
 from typing import Dict, List, Any
 import xml.etree.ElementTree as ET
 from io import StringIO
+from pathlib import Path
 
 # Timeout handler for yfinance API calls
 class TimeoutException(Exception):

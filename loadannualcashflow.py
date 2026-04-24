@@ -5,6 +5,8 @@ import logging
 import json
 import os
 import gc
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 try:
     import resource
@@ -12,7 +14,7 @@ try:
 except ImportError:
     HAS_RESOURCE = False
 from datetime import datetime, date
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 
 from dotenv import load_dotenv
 import psycopg2
@@ -219,32 +221,43 @@ def process_cash_flow_data(symbol: str, cash_flow: pd.DataFrame) -> List[Tuple]:
     return processed_data
 
 def load_annual_cash_flow(symbols: List[str], cur, conn) -> Tuple[int, int, List[str]]:
-    """Load annual cash flow data for given symbols"""
+    """Load annual cash flow data for given symbols with parallelization"""
     total = len(symbols)
-    logging.info(f"Loading annual cash flow for {total} symbols")
-    processed, failed = 0, []
-    CHUNK_SIZE, PAUSE = 10, 0  # Fast mode - no static pauses
-    batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
+    logging.info(f"Loading annual cash flow for {total} symbols with ThreadPoolExecutor parallelization")
 
-    for batch_idx in range(batches):
-        batch = symbols[batch_idx*CHUNK_SIZE:(batch_idx+1)*CHUNK_SIZE]
-        logging.info(f"Processing batch {batch_idx+1}/{batches}")
-        log_mem(f"Batch {batch_idx+1} start")
+    # Global rate limiter
+    rate_limiter = threading.Semaphore(20)
 
-        for symbol in batch:
-            success = False
+    # Get connection params for worker threads
+    connect_params = {
+        "host": cur.connection.get_dsn_parameters()['host'] if hasattr(cur.connection, 'get_dsn_parameters') else os.getenv('DB_HOST', 'localhost'),
+        "dbname": cur.connection.get_dsn_parameters()['dbname'] if hasattr(cur.connection, 'get_dsn_parameters') else os.getenv('DB_NAME', 'stocks'),
+        "user": cur.connection.get_dsn_parameters()['user'] if hasattr(cur.connection, 'get_dsn_parameters') else os.getenv('DB_USER', 'stocks'),
+        "password": os.getenv('DB_PASSWORD', '')
+    }
+
+    def process_symbol_worker(symbol: str) -> Tuple[str, bool]:
+        """Process a single symbol in a thread"""
+        try:
+            thread_conn = psycopg2.connect(**connect_params)
+            thread_conn.autocommit = False
+            thread_cur = thread_conn.cursor(cursor_factory=RealDictCursor)
+
             rate_limit_backoff_idx = 0
 
             while rate_limit_backoff_idx < len(RATE_LIMIT_BACKOFF):
                 try:
-                    # Clean symbol for yfinance (handle special characters)
                     yf_symbol = symbol.replace('.', '-').replace('$', '-P').upper()
-                    
-                    cash_flow = get_cash_flow_data(yf_symbol)
+
+                    rate_limiter.acquire()
+                    try:
+                        cash_flow = get_cash_flow_data(yf_symbol)
+                    finally:
+                        rate_limiter.release()
+
                     if cash_flow is None:
                         break
-                    
-                    # Process the data
+
                     cash_flow_data = process_cash_flow_data(symbol, cash_flow)
 
                     if cash_flow_data:
@@ -266,7 +279,7 @@ def load_annual_cash_flow(symbols: List[str], cur, conn) -> Tuple[int, int, List
                             insert_data.append((sym, date, fields.get('operating_cash_flow'), fields.get('capital_expenditure'), fields.get('free_cash_flow')))
 
                         if insert_data:
-                            execute_values(cur, """
+                            execute_values(thread_cur, """
                                 INSERT INTO annual_cash_flow (symbol, date, operating_cash_flow, capital_expenditure, free_cash_flow)
                                 VALUES %s
                                 ON CONFLICT (symbol, date) DO UPDATE SET
@@ -275,39 +288,63 @@ def load_annual_cash_flow(symbols: List[str], cur, conn) -> Tuple[int, int, List
                                     free_cash_flow = COALESCE(EXCLUDED.free_cash_flow, annual_cash_flow.free_cash_flow),
                                     updated_at = NOW()
                             """, insert_data)
-                            conn.commit()
-                            processed += 1
-                            logging.info(f"[OK] Successfully processed {symbol} ({len(insert_data)} records)")
-                            success = True
-                            break
+                            thread_conn.commit()
+                            logging.info(f"[OK] {symbol} ({len(insert_data)} records)")
+                            return (symbol, True)
                     else:
-                        logging.warning(f"[FAIL] No valid data found for {symbol} after processing")
+                        logging.warning(f"[FAIL] No valid data found for {symbol}")
                         break
-                        
+
                 except RateLimitError as e:
                     wait_time = RATE_LIMIT_BACKOFF[rate_limit_backoff_idx]
-                    logging.warning(f"Rate limited: {e}. Waiting {wait_time}s...")
+                    logging.warning(f"Rate limited for {symbol}: waiting {wait_time}s...")
                     time.sleep(wait_time)
                     rate_limit_backoff_idx += 1
                     continue
 
                 except Exception as e:
-                    logging.warning(f"Error: {e}")
-                    # CRITICAL: Rollback on error to prevent "transaction aborted" state
+                    logging.warning(f"Error processing {symbol}: {str(e)[:100]}")
                     try:
-                        conn.rollback()
-                        logging.debug(f"Transaction rolled back for {symbol}")
-                    except Exception as rb_error:
-                        logging.warning(f"Rollback failed: {rb_error}")
+                        thread_conn.rollback()
+                    except:
+                        pass
                     break
 
-            if not success:
-                failed.append(symbol)
-                
-        gc.collect()
-        log_mem(f"Batch {batch_idx+1} end")
-        time.sleep(PAUSE)
+            return (symbol, False)
 
+        except Exception as e:
+            logging.error(f"Worker thread error for {symbol}: {str(e)[:100]}")
+            return (symbol, False)
+
+        finally:
+            try:
+                thread_conn.close()
+            except:
+                pass
+
+    # Process symbols in parallel
+    processed, failed = 0, []
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {executor.submit(process_symbol_worker, symbol): symbol for symbol in symbols}
+
+        for i, future in enumerate(as_completed(futures)):
+            try:
+                symbol, success = future.result()
+                if success:
+                    processed += 1
+                else:
+                    failed.append(symbol)
+
+                if (i + 1) % 50 == 0:
+                    logging.info(f"Progress: {processed}/{total} processed - {len(failed)} failed")
+
+            except Exception as e:
+                symbol = futures[future]
+                logging.error(f"Exception in worker for {symbol}: {str(e)[:100]}")
+                failed.append(symbol)
+
+    gc.collect()
     return total, processed, failed
 
 def create_table(cur, conn):

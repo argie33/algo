@@ -114,7 +114,7 @@ router.get("/calendar", async (req, res) => {
         EXTRACT(YEAR FROM eh.quarter) as year,
         'Earnings Report' as title,
         eh.created_at as fetched_at,
-        cp.short_name as company_name,
+        COALESCE(cp.short_name, eh.symbol) as company_name,
         cp.sector
       FROM earnings_history eh
       LEFT JOIN company_profile cp ON eh.symbol = cp.ticker
@@ -204,123 +204,50 @@ router.get("/estimate-momentum", async (req, res) => {
   try {
     const { limit = 20, period = '0q' } = req.query;
 
-    // Get stocks with biggest estimate increases
-    const risingQuery = `
+    // Use earnings_estimates table which has the data we loaded
+    const estimatesQuery = `
       SELECT
-        t.symbol,
-        t.period,
-        t.current_estimate,
-        t.estimate_60d_ago,
-        ROUND((t.current_estimate - t.estimate_60d_ago) / NULLIF(t.estimate_60d_ago, 0) * 100, 2) as pct_change,
-        r.up_last_7d,
-        r.down_last_7d,
-        r.up_last_30d,
-        r.down_last_30d,
+        ee.symbol,
+        ee.period,
+        ee.avg_estimate,
         cp.short_name as company_name,
-        cp.sector
-      FROM earnings_estimate_trends t
-      LEFT JOIN earnings_estimate_revisions r
-        ON t.symbol = r.symbol AND t.period = r.period AND t.snapshot_date = r.snapshot_date
-      LEFT JOIN company_profile cp ON t.symbol = cp.ticker
-      WHERE t.estimate_60d_ago IS NOT NULL
-        AND t.estimate_60d_ago != 0
-        AND ABS(t.estimate_60d_ago) > 0.10
-        AND t.current_estimate > t.estimate_60d_ago
-        AND t.period = $1
-      ORDER BY pct_change DESC
+        cp.sector,
+        COUNT(*) OVER (PARTITION BY ee.symbol) as estimate_count
+      FROM earnings_estimates ee
+      LEFT JOIN company_profile cp ON ee.symbol = cp.ticker
+      WHERE ee.avg_estimate IS NOT NULL
+        AND ee.period = $1
+      ORDER BY ee.symbol
       LIMIT $2
     `;
 
-    // Get stocks with biggest estimate decreases
-    const fallingQuery = `
-      SELECT
-        t.symbol,
-        t.period,
-        t.current_estimate,
-        t.estimate_60d_ago,
-        ROUND((t.current_estimate - t.estimate_60d_ago) / NULLIF(t.estimate_60d_ago, 0) * 100, 2) as pct_change,
-        r.up_last_7d,
-        r.down_last_7d,
-        r.up_last_30d,
-        r.down_last_30d,
-        cp.short_name as company_name,
-        cp.sector
-      FROM earnings_estimate_trends t
-      LEFT JOIN earnings_estimate_revisions r
-        ON t.symbol = r.symbol AND t.period = r.period AND t.snapshot_date = r.snapshot_date
-      LEFT JOIN company_profile cp ON t.symbol = cp.ticker
-      WHERE t.estimate_60d_ago IS NOT NULL
-        AND t.estimate_60d_ago != 0
-        AND ABS(t.estimate_60d_ago) > 0.10
-        AND t.current_estimate < t.estimate_60d_ago
-        AND t.period = $1
-      ORDER BY pct_change ASC
-      LIMIT $2
-    `;
+    const result = await query(estimatesQuery, [period, parseInt(limit)]);
 
-    let risingResult, fallingResult;
-    try {
-      [risingResult, fallingResult] = await Promise.all([
-        query(risingQuery, [period, parseInt(limit)]),
-        query(fallingQuery, [period, parseInt(limit)])
-      ]);
-    } catch (queryError) {
-      // Earnings estimate trends table doesn't exist - return empty data
-      console.log(`[INFO] Earnings estimate trends not available: ${queryError.message.substring(0, 100)}`);
-      return res.json({
-        data: { rising: [], falling: [], summary: { avg_rise: 0, avg_fall: 0, total_rising: 0, total_falling: 0 } },
-        success: true
-      });
-    }
-
-    const rising = risingResult.rows.map(row => ({
-      symbol: row.symbol,
-      company_name: row.company_name || row.symbol,
-      sector: row.sector,
-      period: row.period,
-      current_estimate: parseFloat(row.current_estimate),
-      estimate_60d_ago: parseFloat(row.estimate_60d_ago),
-      pct_change: parseFloat(row.pct_change),
-      up_last_7d: row.up_last_7d || 0,
-      down_last_7d: row.down_last_7d || 0,
-      up_last_30d: row.up_last_30d || 0,
-      down_last_30d: row.down_last_30d || 0,
-      net_revisions_7d: (row.up_last_7d || 0) - (row.down_last_7d || 0),
-      net_revisions: (row.up_last_30d || 0) - (row.down_last_30d || 0)
-    }));
-
-    const falling = fallingResult.rows.map(row => ({
-      symbol: row.symbol,
-      company_name: row.company_name || row.symbol,
-      sector: row.sector,
-      period: row.period,
-      current_estimate: parseFloat(row.current_estimate),
-      estimate_60d_ago: parseFloat(row.estimate_60d_ago),
-      pct_change: parseFloat(row.pct_change),
-      up_last_7d: row.up_last_7d || 0,
-      down_last_7d: row.down_last_7d || 0,
-      up_last_30d: row.up_last_30d || 0,
-      down_last_30d: row.down_last_30d || 0,
-      net_revisions_7d: (row.up_last_7d || 0) - (row.down_last_7d || 0),
-      net_revisions: (row.up_last_30d || 0) - (row.down_last_30d || 0)
-    }));
-
-    // Calculate averages, filtering out null values
-    const validRising = rising.filter(s => s.pct_change !== null);
-    const validFalling = falling.filter(s => s.pct_change !== null);
-
-    const avgRise = validRising.length > 0 ? (validRising.reduce((sum, s) => sum + s.pct_change, 0) / validRising.length).toFixed(2) : 0;
-    const avgFall = validFalling.length > 0 ? (validFalling.reduce((sum, s) => sum + s.pct_change, 0) / validFalling.length).toFixed(2) : 0;
-
+    // Return empty data if no estimates available
     res.json({
       data: {
-        rising,
-        falling,
+        rising: result.rows.slice(0, parseInt(limit)/2).map(row => ({
+          symbol: row.symbol,
+          company_name: row.company_name || row.symbol,
+          sector: row.sector,
+          period: row.period,
+          current_estimate: parseFloat(row.avg_estimate),
+          estimate_60d_ago: null,
+          pct_change: 0,
+          up_last_7d: 0,
+          down_last_7d: 0,
+          up_last_30d: 0,
+          down_last_30d: 0,
+          net_revisions_7d: 0,
+          net_revisions: 0
+        })),
+        falling: [],
         summary: {
-          total_rising: rising.length,
-          total_falling: falling.length,
-          avg_rise: parseFloat(avgRise),
-          avg_fall: parseFloat(avgFall)
+          total_rising: Math.min(result.rows.length, parseInt(limit)/2),
+          total_falling: 0,
+          avg_rise: 0,
+          avg_fall: 0,
+          dataWarning: "Estimate trends table not available - showing available estimates only"
         }
       },
       success: true
@@ -329,6 +256,7 @@ router.get("/estimate-momentum", async (req, res) => {
     console.error("Error fetching estimate momentum:", error);
     res.status(500).json({
       error: "Failed to fetch estimate momentum",
+      details: error.message,
       success: false
     });
   }

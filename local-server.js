@@ -75,7 +75,7 @@ app.get('/api/prices-count', async (req, res) => {
 app.get('/api/key-metrics/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
-    const result = await pool.query('SELECT * FROM key_metrics WHERE ticker = $1', [symbol]);
+    const result = await pool.query('SELECT * FROM key_metrics WHERE symbol = $1', [symbol]);
     res.json(result.rows[0] || {});
   } catch (error) {
     res.status(500).json({ error: error.message });

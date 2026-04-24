@@ -122,7 +122,6 @@ let api = axios.create({
   timeout: currentConfig.isServerless ? 45000 : 30000, // Longer timeout for Lambda cold starts
   headers: {
     "Content-Type": "application/json",
-    Authorization: "Bearer dev-bypass-token", // Development authentication
   },
 });
 
