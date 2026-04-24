@@ -36,7 +36,7 @@ router.get("/upgrades", async (req, res) => {
       FROM analyst_upgrade_downgrade aud
       LEFT JOIN company_profile cp ON aud.symbol = cp.ticker
       WHERE aud.symbol IS NOT NULL
-      ORDER BY aud.date DESC
+      ORDER BY aud.action_date DESC
       LIMIT $1 OFFSET $2
     `;
     let countParams = [];
@@ -53,7 +53,7 @@ router.get("/upgrades", async (req, res) => {
         FROM analyst_upgrade_downgrade aud
         LEFT JOIN company_profile cp ON aud.symbol = cp.ticker
         WHERE aud.symbol = $1
-        ORDER BY aud.date DESC
+        ORDER BY aud.action_date DESC
         LIMIT $2 OFFSET $3
       `;
       params = [symbol.toUpperCase(), limitNum, offset];

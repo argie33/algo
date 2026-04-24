@@ -120,49 +120,21 @@ router.get("/stocks", async (req, res) => {
       paramIndex++;
     }
 
-    // Build actual columns - SELECT ALL REAL DATA THAT EXISTS IN DATABASE
-    const actualColumns = tableName === 'buy_sell_daily' ? `
+    // Build actual columns - only SELECT columns that exist in the actual schema
+    // buy_sell_* tables only have: id, symbol, timeframe, date, signal, signal_triggered_date, strength, created_at
+    const actualColumns = `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.signal_triggered_date,
-      bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
-      bsd.signal, bsd.buylevel, bsd.stoplevel, bsd.inposition,
-      bsd.strength as signal_strength,
-      bsd.signal_type, bsd.pivot_price, bsd.buy_zone_start, bsd.buy_zone_end,
-      bsd.exit_trigger_1_price, bsd.exit_trigger_2_price, bsd.exit_trigger_3_condition, bsd.exit_trigger_3_price,
-      bsd.exit_trigger_4_condition, bsd.exit_trigger_4_price,
-      bsd.initial_stop, bsd.trailing_stop,
-      bsd.base_type, bsd.base_length_days,
-      bsd.avg_volume_50d, bsd.volume_surge_pct,
-      bsd.rs_rating, bsd.breakout_quality,
-      bsd.risk_reward_ratio, bsd.current_gain_pct, bsd.days_in_position,
-      bsd.market_stage, bsd.stage_number, bsd.stage_confidence, bsd.substage,
-      bsd.entry_quality_score, bsd.risk_pct, bsd.position_size_recommendation,
-      bsd.profit_target_8pct, bsd.profit_target_20pct, bsd.profit_target_25pct,
-      bsd.sell_level,
-      bsd.mansfield_rs, bsd.sata_score,
-      bsd.rsi, bsd.adx, bsd.atr, bsd.sma_50, bsd.sma_200, bsd.ema_21,
-      bsd.pct_from_ema21, bsd.pct_from_sma50,
-      bsd.entry_price
-    ` : `
-      bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
-      bsd.signal_triggered_date,
-      bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
-      bsd.signal, bsd.buylevel, bsd.stoplevel, bsd.sell_level, bsd.inposition,
-      NULL as target_price, NULL as current_price,
-      bsd.market_stage, bsd.stage_number, bsd.stage_confidence, bsd.substage,
-      bsd.risk_reward_ratio, bsd.risk_pct,
-      bsd.position_size_recommendation, bsd.profit_target_20pct, bsd.profit_target_25pct,
-      bsd.mansfield_rs, bsd.sata_score,
-      bsd.entry_quality_score, bsd.entry_price,
-      bsd.signal_type, NULL as signal_strength, NULL as bull_percentage, NULL as close_price
+      bsd.signal, bsd.strength,
+      bsd.created_at
     `;
 
-    // Build query with conditional JOINs - skip JOINs for weekly/monthly to improve performance
-    // Daily queries can afford JOINs (54M rows), but weekly (4.6M) and monthly (1M) are slower
-    const signalsQuery = tableName === 'buy_sell_daily' ? `
+    // Build query with enriched data from other tables
+    // All timeframes benefit from company name and earnings info
+    const signalsQuery = `
       SELECT
         ${actualColumns},
         COALESCE(cp.short_name, ss.security_name) as company_name,
-        ss_scores.stability_score,
+        ss_scores.composite_score,
         eh.quarter as next_earnings_date,
         (eh.quarter - CURRENT_DATE)::INTEGER as days_to_earnings
       FROM ${tableName} bsd
@@ -175,17 +147,6 @@ router.get("/stocks", async (req, res) => {
         WHERE quarter >= CURRENT_DATE
         ORDER BY symbol, quarter ASC
       ) eh ON bsd.symbol = eh.symbol
-      ${whereClause}
-      ORDER BY bsd.date DESC, bsd.id DESC
-      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
-    ` : `
-      SELECT
-        ${actualColumns},
-        NULL as company_name,
-        NULL as stability_score,
-        NULL as next_earnings_date,
-        NULL as days_to_earnings
-      FROM ${tableName} bsd
       ${whereClause}
       ORDER BY bsd.date DESC, bsd.id DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
