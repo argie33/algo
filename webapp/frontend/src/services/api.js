@@ -39,11 +39,13 @@ export const getApiConfig = () => {
     console.log("🔧 [API CONFIG] URL Resolution:", {
       runtimeApiUrl,
       envApiUrl: import.meta.env && import.meta.env.VITE_API_URL,
+      isDev,
       finalApiUrl: apiUrl,
       windowConfig:
         typeof window !== "undefined" ? window.__CONFIG__ : "undefined",
       allEnvVars: import.meta.env || {},
     });
+    console.log("🔧 [API CONFIG] Will use baseURL:", apiUrl);
   }
 
   // Detect environment properly for both runtime and test contexts
