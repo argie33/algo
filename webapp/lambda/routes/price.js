@@ -48,7 +48,7 @@ router.get("/history/:symbol", async (req, res) => {
     );
 
     return res.json({
-      data: result.rows || [],
+      items: result.rows || [],
       pagination: { page, limit, total: result.rowCount },
       success: true
     });
@@ -100,7 +100,7 @@ router.get("/daily", async (req, res) => {
     );
 
     return res.json({
-      data: result.rows.map(row => ({
+      items: result.rows.map(row => ({
         ...row,
         open: safeFloat(row.open),
         high: safeFloat(row.high),
@@ -147,7 +147,7 @@ router.get("/weekly", async (req, res) => {
     );
 
     return res.json({
-      data: result.rows,
+      items: result.rows,
       pagination: { page, limit, total, hasMore: offset + limit < total },
       success: true
     });
@@ -187,7 +187,7 @@ router.get("/monthly", async (req, res) => {
     );
 
     return res.json({
-      data: result.rows,
+      items: result.rows,
       pagination: { page, limit, total, hasMore: offset + limit < total },
       success: true
     });
@@ -213,7 +213,7 @@ router.get("/daily/etf", async (req, res) => {
     );
 
     return res.json({
-      data: result.rows,
+      items: result.rows,
       pagination: { page, limit, total, hasMore: offset + limit < total },
       success: true
     });
@@ -239,7 +239,7 @@ router.get("/weekly/etf", async (req, res) => {
     );
 
     return res.json({
-      data: result.rows,
+      items: result.rows,
       pagination: { page, limit, total, hasMore: offset + limit < total },
       success: true
     });
@@ -265,7 +265,7 @@ router.get("/monthly/etf", async (req, res) => {
     );
 
     return res.json({
-      data: result.rows,
+      items: result.rows,
       pagination: { page, limit, total, hasMore: offset + limit < total },
       success: true
     });

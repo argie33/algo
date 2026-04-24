@@ -33,11 +33,7 @@ import json
 import logging
 import os
 try:
-    try:
     import resource
-    HAS_RESOURCE = True
-except ImportError:
-    HAS_RESOURCE = False
     HAS_RESOURCE = True
 except ImportError:
     HAS_RESOURCE = False

@@ -18,13 +18,14 @@ router.get("/", async (req, res) => {
     const total = parseInt(countResult.rows[0].total);
 
     res.json({
-      success: true,
-      data: result.rows,
+      items: result.rows,
       pagination: {
         limit,
         offset,
-        total
-      }
+        total,
+        page: Math.max(1, Math.ceil((offset / limit) + 1))
+      },
+      success: true
     });
   } catch (error) {
     console.error("Error fetching stocks:", error);

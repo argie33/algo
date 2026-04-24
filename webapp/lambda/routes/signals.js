@@ -37,8 +37,8 @@ router.get("/", (req, res) => {
   });
 });
 
-// Get all stock signals data - FRONTEND USES THIS
-router.get("/stocks", async (req, res) => {
+// Shared handler function for both /stocks and /list
+const getStocksSignals = async (req, res) => {
   try {
     console.log(`[DATA] Signals data requested (deployment refresh v3)`);
 
@@ -319,7 +319,11 @@ router.get("/stocks", async (req, res) => {
     console.error("Signals delegation error:", error);
     return res.status(500).json({ error: "Failed to fetch signals data", success: false });
   }
-});
+};
+
+// Register /stocks and /list routes with same handler
+router.get("/stocks", getStocksSignals);
+router.get("/list", getStocksSignals);
 
 // Get trading signals for ETFs - SAME STRUCTURE AS STOCKS
 router.get("/etf", async (req, res) => {
