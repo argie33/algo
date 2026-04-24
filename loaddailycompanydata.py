@@ -1046,11 +1046,11 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         cur,
                         """
                         INSERT INTO earnings_estimates (
-                            symbol, fiscal_year_ending, avg_estimate, low_estimate,
-                            high_estimate, year_ago_eps, number_of_analysts,
+                            symbol, quarter, avg_estimate, low_estimate,
+                            high_estimate, year_ago_eps, estimate_count,
                             growth, period
                         ) VALUES %s
-                        ON CONFLICT (symbol, fiscal_year_ending) DO UPDATE SET
+                        ON CONFLICT (symbol, quarter) DO UPDATE SET
                             avg_estimate = COALESCE(EXCLUDED.avg_estimate, earnings_estimates.avg_estimate),
                             low_estimate = COALESCE(EXCLUDED.low_estimate, earnings_estimates.low_estimate),
                             high_estimate = COALESCE(EXCLUDED.high_estimate, earnings_estimates.high_estimate)

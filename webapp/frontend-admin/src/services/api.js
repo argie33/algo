@@ -125,13 +125,22 @@ let api = axios.create({
   },
 });
 
-// Add request interceptor to track ongoing requests - test-safe
+// Add request interceptor to track ongoing requests and add auth token - test-safe
 try {
   if (api && api.interceptors) {
     api.interceptors.request.use(
       (config) => {
         // Add timestamp for request duration tracking
         config.metadata = { startTime: new Date() };
+
+        // Add JWT token from localStorage to Authorization header
+        if (typeof window !== "undefined") {
+          const token = localStorage.getItem("authToken") || localStorage.getItem("accessToken");
+          if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+          }
+        }
+
         return config;
       },
       (error) => {

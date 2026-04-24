@@ -6,6 +6,7 @@
 
 const express = require('express');
 const { query: dbQuery, safeFloat, safeInt } = require('../utils/database');
+const { authenticateToken } = require('../middleware/auth');
 const router = express.Router();
 
 // Alpaca API service
@@ -15,6 +16,9 @@ try {
 } catch (e) {
   console.warn('⚠️ AlpacaService not available:', e.message);
 }
+
+// Require authentication for all trades operations
+router.use(authenticateToken);
 
 /**
  * GET /api/trades

@@ -3,8 +3,12 @@
 const express = require('express');
 
 const { query: dbQuery } = require('../utils/database');
+const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Require authentication for all manual trades operations
+router.use(authenticateToken);
 
 /**
  * GET /manual-trades - List all manual trades

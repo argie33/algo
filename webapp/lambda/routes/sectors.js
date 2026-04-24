@@ -175,9 +175,16 @@ router.get("/sectors", async (req, res) => {
 /**
  * GET /sectors/trend/:sector
  * Get sector ranking trend (momentum/valuation changes) over time
+ * NOTE: /trend/sector/:sectorName is handled by a more specific route below
  */
-router.get("/trend/:sectorName", async (req, res) => {
+router.get("/trend/:sectorName", async (req, res, next) => {
   try {
+    // Skip if this is the "sector" placeholder from /trend/sector/:sectorName pattern
+    // That specific route is handled separately below
+    if (req.params.sectorName === "sector") {
+      return next();
+    }
+
     const dbError = checkDatabaseAvailable(res);
     if (dbError) return dbError;
 
@@ -191,20 +198,11 @@ router.get("/trend/:sectorName", async (req, res) => {
         DATE(date_recorded) as date,
         current_rank as rank,
         momentum_score as momentum,
-        trailing_pe,
-        pe_min,
-        pe_p25,
-        pe_median,
-        pe_p75,
-        pe_p90,
-        pe_max,
-        CASE
-          WHEN momentum_score > 20 THEN 'Strong Uptrend'
-          WHEN momentum_score > 10 THEN 'Uptrend'
-          WHEN momentum_score > -5 THEN 'Neutral'
-          WHEN momentum_score > -10 THEN 'Downtrend'
-          ELSE 'Strong Downtrend'
-        END as trend
+        trend,
+        daily_strength_score,
+        rank_1w_ago,
+        rank_4w_ago,
+        rank_12w_ago
       FROM sector_ranking
       WHERE LOWER(sector_name) = LOWER($1)
         AND date_recorded >= CURRENT_DATE - INTERVAL '${daysNum} days'
@@ -221,44 +219,15 @@ router.get("/trend/:sectorName", async (req, res) => {
       });
     }
 
-    // Helper function to calculate PE percentile
-    const calculatePEPercentile = (pe, min, p25, median, p75, p90, max) => {
-      if (!pe || !min || !max || p25 === null || median === null || p75 === null || p90 === null) return null;
-
-      const peVal = parseFloat(pe);
-      const minVal = parseFloat(min);
-      const p25Val = parseFloat(p25);
-      const medianVal = parseFloat(median);
-      const p75Val = parseFloat(p75);
-      const p90Val = parseFloat(p90);
-      const maxVal = parseFloat(max);
-
-      if (isNaN(peVal) || isNaN(minVal) || isNaN(maxVal)) return null;
-
-      if (peVal <= minVal) return 0;
-      if (peVal >= maxVal) return 100;
-      if (peVal <= p25Val) return Math.round((peVal - minVal) / (p25Val - minVal) * 25);
-      if (peVal <= medianVal) return Math.round(25 + (peVal - p25Val) / (medianVal - p25Val) * 25);
-      if (peVal <= p75Val) return Math.round(50 + (peVal - medianVal) / (p75Val - medianVal) * 25);
-      if (peVal <= p90Val) return Math.round(75 + (peVal - p75Val) / (p90Val - p75Val) * 15);
-      return Math.round(90 + (peVal - p90Val) / (maxVal - p90Val) * 10);
-    };
-
     const trendData = result.rows.reverse().map(row => ({
       date: row.date,
       rank: safeInt(row.rank),
       momentum: safeFloat(row.momentum),
       trend: row.trend,
-      trailing_pe: safeFloat(row.trailing_pe),
-      pe_percentile: calculatePEPercentile(
-        row.trailing_pe,
-        row.pe_min,
-        row.pe_p25,
-        row.pe_median,
-        row.pe_p75,
-        row.pe_p90,
-        row.pe_max
-      )
+      strength: safeFloat(row.daily_strength_score),
+      rank_1w: safeInt(row.rank_1w_ago),
+      rank_4w: safeInt(row.rank_4w_ago),
+      rank_12w: safeInt(row.rank_12w_ago)
     }));
 
     return res.json({

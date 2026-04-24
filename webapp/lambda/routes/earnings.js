@@ -14,6 +14,12 @@ router.get("/", (req, res) => {
       description: "Earnings data API - financial metrics and estimates",
       available_routes: [
         {
+          path: "/info",
+          method: "GET",
+          description: "Get earnings estimates data",
+          query_params: ["symbol", "limit", "page"]
+        },
+        {
           path: "/data",
           method: "GET",
           description: "Get all earnings history data",
@@ -34,6 +40,48 @@ router.get("/", (req, res) => {
 // ============================================================
 // Named endpoints (must come BEFORE /:symbol route)
 // ============================================================
+
+// GET /api/earnings/info - Get earnings estimates and history combined
+router.get("/info", async (req, res) => {
+  try {
+    const symbol = req.query.symbol;
+    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const offset = (page - 1) * limit;
+
+    let sql = "SELECT * FROM earnings_estimates";
+    const params = [];
+    let paramIndex = 1;
+
+    if (symbol) {
+      sql += ` WHERE symbol = $${paramIndex}`;
+      params.push(symbol);
+      paramIndex++;
+    }
+
+    const countResult = await query(
+      `SELECT COUNT(*) as count FROM (${sql}) t`,
+      params
+    );
+    const total = countResult.rows[0]?.count || 0;
+
+    const result = await query(
+      sql + ` ORDER BY symbol, period DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      [...params, limit, offset]
+    );
+
+    return res.json({
+      data: {
+        estimates: result.rows || [],
+        pagination: { page, limit, total, hasMore: offset + limit < total }
+      },
+      success: true
+    });
+  } catch (err) {
+    console.error("Earnings info error:", err.message);
+    return res.status(500).json({ error: err.message, success: false });
+  }
+});
 
 // GET /api/earnings/data - Get all earnings history data
 router.get("/data", async (req, res) => {
