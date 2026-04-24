@@ -62,7 +62,9 @@ import signal
 from datetime import date, datetime
 from typing import Dict, List, Optional
 from functools import wraps
+from pathlib import Path
 
+from dotenv import load_dotenv
 import boto3
 import pandas as pd
 import psycopg2
@@ -70,6 +72,11 @@ import psycopg2.extensions
 import numpy as np
 import yfinance as yf
 from psycopg2.extras import RealDictCursor, execute_values
+
+# Load environment variables from .env.local if it exists
+env_file = Path(__file__).parent / '.env.local'
+if env_file.exists():
+    load_dotenv(env_file)
 
 # Script metadata
 SCRIPT_NAME = "loaddailycompanydata.py"

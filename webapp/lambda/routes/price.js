@@ -30,8 +30,8 @@ router.get("/", (req, res) => {
   });
 });
 
-// Get price history for a specific symbol
-router.get("/history/:symbol", async (req, res) => {
+// Helper for price history fetching
+const getPriceHistoryHandler = async (req, res) => {
   try {
     const { symbol } = req.params;
     const limit = Math.min(parseInt(req.query.limit) || 100, 500);
@@ -56,7 +56,13 @@ router.get("/history/:symbol", async (req, res) => {
     console.error('Error fetching price history:', err.message);
     return res.status(500).json({ error: err.message, success: false });
   }
-});
+};
+
+// Get price history for a specific symbol
+router.get("/history/:symbol", getPriceHistoryHandler);
+
+// GET /api/price/chart/:symbol - Alias for /history
+router.get("/chart/:symbol", getPriceHistoryHandler);
 
 // Helper to safely parse float
 function safeFloat(value) {

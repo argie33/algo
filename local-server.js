@@ -208,6 +208,62 @@ app.get('/api/bottom-stocks', async (req, res) => {
   }
 });
 
+// Market overview / fresh data endpoint
+app.get('/api/market/fresh-data', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT symbol, composite_score as score FROM stock_scores
+       ORDER BY composite_score DESC LIMIT 20`
+    );
+    res.json({
+      success: true,
+      data: result.rows,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.json({ success: false, data: [], error: 'Market data unavailable' });
+  }
+});
+
+// Market summary endpoint
+app.get('/api/market/summary', async (req, res) => {
+  try {
+    const stocks = await pool.query('SELECT COUNT(*) as count FROM stock_symbols');
+    const prices = await pool.query('SELECT COUNT(*) as count FROM price_daily');
+    const scores = await pool.query('SELECT COUNT(*) as count FROM stock_scores');
+
+    res.json({
+      success: true,
+      totalStocks: stocks.rows[0].count,
+      totalPrices: prices.rows[0].count,
+      totalScores: scores.rows[0].count,
+      lastUpdated: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// AAII Sentiment endpoint (placeholder)
+app.get('/api/sentiment/aaii', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM sentiment_data WHERE source = $1 LIMIT 1', ['aaii']);
+    res.json(result.rows[0] || { message: 'No AAII data available' });
+  } catch (error) {
+    res.json({ message: 'No AAII data available' });
+  }
+});
+
+// Fear & Greed endpoint (placeholder)
+app.get('/api/sentiment/fear-greed', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM fear_greed_index ORDER BY date DESC LIMIT 1');
+    res.json(result.rows[0] || { message: 'No Fear & Greed data available' });
+  } catch (error) {
+    res.json({ message: 'No Fear & Greed data available' });
+  }
+});
+
 // SPA fallback - serve index.html for all non-API routes
 app.use((req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));

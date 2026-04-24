@@ -321,9 +321,10 @@ const getStocksSignals = async (req, res) => {
   }
 };
 
-// Register /stocks and /list routes with same handler
+// Register /stocks, /list, and /daily routes with same handler
 router.get("/stocks", getStocksSignals);
 router.get("/list", getStocksSignals);
+router.get("/daily", getStocksSignals);
 
 // Get trading signals for ETFs - SAME STRUCTURE AS STOCKS
 router.get("/etf", async (req, res) => {

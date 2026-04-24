@@ -37,6 +37,87 @@ router.get("/", async (req, res) => {
   }
 });
 
+// GET /api/stocks/list - Alias for root endpoint
+router.get("/list", async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 100, 1000);
+    const offset = parseInt(req.query.offset) || 0;
+
+    const result = await query(
+      "SELECT symbol, security_name as name, market_category as category, exchange FROM stock_symbols ORDER BY symbol LIMIT $1 OFFSET $2",
+      [limit, offset]
+    );
+
+    const countResult = await query("SELECT COUNT(*) as total FROM stock_symbols");
+    const total = parseInt(countResult.rows[0].total);
+
+    res.json({
+      items: result.rows,
+      pagination: {
+        limit,
+        offset,
+        total,
+        page: Math.max(1, Math.ceil((offset / limit) + 1))
+      },
+      success: true
+    });
+  } catch (error) {
+    console.error("Error fetching stocks:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch stocks",
+      message: error.message
+    });
+  }
+});
+
+// GET /api/stocks/search - Search stocks by symbol or name
+router.get("/search", async (req, res) => {
+  try {
+    const q = req.query.q || req.query.symbol || '';
+    const limit = Math.min(parseInt(req.query.limit) || 100, 1000);
+    const offset = parseInt(req.query.offset) || 0;
+
+    if (!q) {
+      return res.json({
+        items: [],
+        pagination: { limit, offset, total: 0, page: 1 },
+        success: true
+      });
+    }
+
+    const searchTerm = `%${q.toUpperCase()}%`;
+    const result = await query(
+      "SELECT symbol, security_name as name, market_category as category, exchange FROM stock_symbols WHERE symbol ILIKE $1 OR security_name ILIKE $1 ORDER BY symbol LIMIT $2 OFFSET $3",
+      [searchTerm, limit, offset]
+    );
+
+    const countResult = await query(
+      "SELECT COUNT(*) as total FROM stock_symbols WHERE symbol ILIKE $1 OR security_name ILIKE $1",
+      [searchTerm]
+    );
+    const total = parseInt(countResult.rows[0].total);
+
+    res.json({
+      items: result.rows,
+      pagination: {
+        limit,
+        offset,
+        total,
+        page: Math.max(1, Math.ceil((offset / limit) + 1))
+      },
+      success: true
+    });
+  } catch (error) {
+    console.error("Error searching stocks:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to search stocks",
+      message: error.message
+    });
+  }
+});
+
 // GET /api/stocks/deep-value - Get deep value stock picks (high value, low composite)
 router.get("/deep-value", async (req, res) => {
   try {

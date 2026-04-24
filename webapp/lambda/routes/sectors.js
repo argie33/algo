@@ -1224,4 +1224,112 @@ router.get("/sectors-with-history/performance", async (req, res) => {
 });
 
 // Rankings Endpoints - Return current rankings with daily strength scores
+router.get("/ranking", async (req, res) => {
+  try {
+    const result = await query(`
+      SELECT DISTINCT ON (sector_name)
+        sector_name,
+        current_rank,
+        rank_1w_ago,
+        rank_4w_ago,
+        rank_12w_ago,
+        daily_strength_score,
+        momentum_score,
+        trend,
+        date_recorded
+      FROM sector_ranking
+      WHERE sector_name IS NOT NULL
+      ORDER BY sector_name, date_recorded DESC
+    `);
+
+    res.json({
+      data: result.rows || [],
+      success: true
+    });
+  } catch (error) {
+    console.error("Sector ranking error:", error.message);
+    res.status(500).json({ error: "Failed to fetch sector rankings", success: false });
+  }
+});
+
+router.get("/performance", async (req, res) => {
+  try {
+    const result = await query(`
+      SELECT DISTINCT ON (sector)
+        sector,
+        date,
+        performance_1d,
+        performance_5d,
+        performance_20d,
+        performance_ytd
+      FROM sector_performance
+      WHERE sector IS NOT NULL
+      ORDER BY sector, date DESC
+    `);
+
+    res.json({
+      data: result.rows || [],
+      success: true
+    });
+  } catch (error) {
+    console.error("Sector performance error:", error.message);
+    res.status(500).json({ error: "Failed to fetch sector performance", success: false });
+  }
+});
+
+// Industry endpoints
+router.get("/industries/ranking", async (req, res) => {
+  try {
+    const result = await query(`
+      SELECT DISTINCT ON (industry)
+        industry,
+        current_rank,
+        rank_1w_ago,
+        rank_4w_ago,
+        rank_12w_ago,
+        daily_strength_score,
+        momentum_score,
+        stock_count,
+        trend,
+        date_recorded
+      FROM industry_ranking
+      WHERE industry IS NOT NULL
+      ORDER BY industry, date_recorded DESC
+    `);
+
+    res.json({
+      data: result.rows || [],
+      success: true
+    });
+  } catch (error) {
+    console.error("Industry ranking error:", error.message);
+    res.status(500).json({ error: "Failed to fetch industry rankings", success: false });
+  }
+});
+
+router.get("/industries/performance", async (req, res) => {
+  try {
+    const result = await query(`
+      SELECT DISTINCT ON (industry)
+        industry,
+        date,
+        performance_1d,
+        performance_5d,
+        performance_20d,
+        performance_ytd
+      FROM industry_performance
+      WHERE industry IS NOT NULL
+      ORDER BY industry, date DESC
+    `);
+
+    res.json({
+      data: result.rows || [],
+      success: true
+    });
+  } catch (error) {
+    console.error("Industry performance error:", error.message);
+    res.status(500).json({ error: "Failed to fetch industry performance", success: false });
+  }
+});
+
 module.exports = router;

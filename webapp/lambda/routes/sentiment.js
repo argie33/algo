@@ -298,4 +298,33 @@ router.get("/divergence", async (req, res) => {
   }
 });
 
+// GET /api/sentiment/aaii - AAII sentiment (alias for /current)
+router.get("/aaii", async (req, res) => {
+  try {
+    let aaii = null;
+
+    try {
+      const aaiiResult = await query(
+        `SELECT bullish, neutral, bearish, date FROM aaii_sentiment ORDER BY date DESC LIMIT 1`
+      );
+      aaii = aaiiResult.rows[0] || null;
+    } catch (e) {
+      console.warn("aaii_sentiment table not available:", e.message);
+    }
+
+    return res.json({
+      data: aaii,
+      timestamp: new Date().toISOString(),
+      success: true
+    });
+  } catch (error) {
+    console.error("AAII sentiment error:", error);
+    return res.json({
+      data: null,
+      timestamp: new Date().toISOString(),
+      success: true
+    });
+  }
+});
+
 module.exports = router;

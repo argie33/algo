@@ -5,6 +5,7 @@ import logging
 import json
 import os
 import gc
+from pathlib import Path
 try:
     import resource
     HAS_RESOURCE = True
@@ -13,11 +14,17 @@ except ImportError:
 from datetime import datetime, date
 from typing import List, Tuple, Optional
 
+from dotenv import load_dotenv
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
 import boto3
 import yfinance as yf
 import pandas as pd
+
+# Load environment variables from .env.local if it exists
+env_file = Path(__file__).parent / '.env.local'
+if env_file.exists():
+    load_dotenv(env_file)
 
 SCRIPT_NAME = "loadannualcashflow.py"
 logging.basicConfig(
@@ -141,7 +148,7 @@ def get_cash_flow_data(symbol: str) -> Optional[pd.DataFrame]:
                     cash_flow = getattr(ticker, method_name)
                     
                     if cash_flow is not None and not cash_flow.empty:
-                        logging.info(f"✓ Successfully got data using {method_name} for {symbol}")
+                        logging.info(f"[OK] Successfully got data using {method_name} for {symbol}")
                         break
                     else:
                         logging.warning(f"{method_name} returned empty data for {symbol}")
@@ -270,11 +277,11 @@ def load_annual_cash_flow(symbols: List[str], cur, conn) -> Tuple[int, int, List
                             """, insert_data)
                             conn.commit()
                             processed += 1
-                            logging.info(f"✓ Successfully processed {symbol} ({len(insert_data)} records)")
+                            logging.info(f"[OK] Successfully processed {symbol} ({len(insert_data)} records)")
                             success = True
                             break
                     else:
-                        logging.warning(f"✗ No valid data found for {symbol} after processing")
+                        logging.warning(f"[FAIL] No valid data found for {symbol} after processing")
                         break
                         
                 except RateLimitError as e:

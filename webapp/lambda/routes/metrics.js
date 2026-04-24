@@ -227,4 +227,52 @@ router.get("/stability", async (req, res) => {
   }
 });
 
+// GET /api/metrics/fundamental - Combination of quality + growth metrics for fundamental analysis
+router.get("/fundamental", async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const offset = (page - 1) * limit;
+    const symbol = req.query.symbol;
+
+    let whereClause = "";
+    let params = [];
+    let paramIndex = 1;
+
+    if (symbol) {
+      whereClause = ` WHERE symbol = $${paramIndex}`;
+      params.push(symbol);
+      paramIndex++;
+    }
+
+    // Combine quality metrics (only select columns that exist)
+    const sql = `
+      SELECT DISTINCT ON (q.symbol)
+        q.symbol,
+        q.return_on_equity_pct, q.return_on_assets_pct, q.gross_margin_pct,
+        q.operating_margin_pct, q.profit_margin_pct, q.debt_to_equity,
+        q.current_ratio, q.quick_ratio
+      FROM quality_metrics q
+      ${whereClause}
+      ORDER BY q.symbol, q.date DESC
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+
+    const countSql = `SELECT COUNT(DISTINCT symbol) as count FROM quality_metrics${whereClause}`;
+    const countResult = await query(countSql, params);
+    const total = countResult.rows[0]?.count || 0;
+
+    const result = await query(sql, [...params, limit, offset]);
+
+    return res.json({
+      data: result.rows || [],
+      pagination: { page, limit, total, hasMore: offset + limit < total },
+      success: true
+    });
+  } catch (err) {
+    console.error("Fundamental metrics error:", err.message);
+    return res.status(500).json({ error: err.message, success: false });
+  }
+});
+
 module.exports = router;
