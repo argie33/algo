@@ -38,8 +38,7 @@ router.get("/", (req, res) => {
 });
 
 // Get all stock signals data - FRONTEND USES THIS
-// Handles both /stocks and /list (backward compatibility) endpoints
-async function handleStocksRequest(req, res) {
+router.get("/stocks", async (req, res) => {
   try {
     console.log(`[DATA] Signals data requested (deployment refresh v3)`);
 
