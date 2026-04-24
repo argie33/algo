@@ -2300,7 +2300,7 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
             }
 
             # Calculate metrics using all available financial data
-            metrics = calculate_growth_metrics(ticker_dict, financial_growth, quarterly_growth, earnings_history_growth)
+            metrics = calculate_growth_metrics(ticker_dict, financial_growth, quarterly_growth, earnings_history_growth, cursor, symbol)
             growth_rows.append([
                 symbol,
                 date.today(),
