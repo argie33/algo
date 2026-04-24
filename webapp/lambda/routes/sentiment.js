@@ -206,7 +206,7 @@ router.get("/current", async (req, res) => {
 
     try {
       const fearGreedResult = await query(
-        `SELECT index_value as value, rating, date FROM fear_greed_index ORDER BY date DESC LIMIT 1`
+        `SELECT fear_greed_value as value, date FROM fear_greed_index ORDER BY date DESC LIMIT 1`
       );
       fearGreed = fearGreedResult.rows[0] || null;
     } catch (e) {
