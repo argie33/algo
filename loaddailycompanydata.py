@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 2026-01-28 - CRITICAL DATA LOSS FIX DEPLOYED - Rerun required immediately
 """
-# CRITICAL: 2026-01-28 - DROP TABLE vulnerability patched - data now safely preserved
 Daily Company Data Loader - Enhanced Positioning Analytics
 Consolidates daily-update loaders into single efficient loader
 
@@ -60,6 +58,8 @@ import sys
 import time
 import signal
 import argparse
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime
 from typing import Dict, List, Optional
 from functools import wraps
@@ -266,16 +266,6 @@ def safe_float(value, default=None, max_val=None, min_val=None):
         return default
 
 
-def calculate_ad_rating(inst_ownership, insider_ownership, short_interest, cur, symbol):
-    """
-    Placeholder for A/D Rating calculation.
-
-    IBD A/D Rating is calculated separately in batch after all data is loaded.
-    Uses volume analysis over 13 weeks to generate A-E grades.
-
-    This function returns None during load phase.
-    """
-    return None
 
 
 def safe_int(value, default=None, max_val=None, min_val=None):
@@ -980,7 +970,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             # institutional_holders and major_holders DataFrames are NOT used
             # because summing individual holders' percentages causes > 100% values
 
-            ad_rating = calculate_ad_rating(inst_own, insider_own, short_pct, cur, symbol)
+            ad_rating = None  # A/D Rating calculated separately in batch mode
 
             # Use ON CONFLICT to ensure atomic updates - REAL DATA ONLY, NO DEFAULTS
             try:
@@ -1038,18 +1028,16 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     fiscal_year = str(period) if period else None
                     if not fiscal_year:
                         continue
-                    # Only add if fiscal_year is available (required field)
-                        if fiscal_year:
-                            earnings_data.append((
-                                symbol, fiscal_year,  # fiscal_year is DATE or NULL
-                                safe_float(row.get("avg"), max_val=1000000, min_val=-1000000),
-                                safe_float(row.get("low"), max_val=1000000, min_val=-1000000),
-                                safe_float(row.get("high"), max_val=1000000, min_val=-1000000),
-                                safe_float(row.get("yearAgoEps"), max_val=1000000, min_val=-1000000),
-                                safe_int(row.get("numberOfAnalysts"), max_val=10000, min_val=0),
-                                safe_float(row.get("growth"), max_val=10000, min_val=-10000),
-                                str(period),
-                            ))
+                    earnings_data.append((
+                        symbol, fiscal_year,
+                        safe_float(row.get("avg"), max_val=1000000, min_val=-1000000),
+                        safe_float(row.get("low"), max_val=1000000, min_val=-1000000),
+                        safe_float(row.get("high"), max_val=1000000, min_val=-1000000),
+                        safe_float(row.get("yearAgoEps"), max_val=1000000, min_val=-1000000),
+                        safe_int(row.get("numberOfAnalysts"), max_val=10000, min_val=0),
+                        safe_float(row.get("growth"), max_val=10000, min_val=-10000),
+                        str(period),
+                    ))
 
                 if earnings_data:
                     # Delete existing earnings estimates for this symbol to avoid conflicts
@@ -1346,103 +1334,155 @@ if __name__ == "__main__":
     start_time = time.time()
     rate_limit_consecutive = 0
 
+    # Global rate limiter for yfinance (max 20 concurrent HTTP requests)
+    rate_limiter = threading.Semaphore(20)
+
+    def process_symbol_worker(symbol: str, attempt_num: int, connect_params: Dict) -> tuple:
+        """Process a single symbol in a thread. Returns (symbol, stats, success, error_msg)"""
+        symbol_start = time.time()
+        stats = None
+        error_msg = None
+
+        try:
+            # Get thread-local database connection
+            thread_conn = psycopg2.connect(**connect_params)
+            thread_conn.autocommit = False
+            thread_cur = thread_conn.cursor(cursor_factory=RealDictCursor)
+
+            # Acquire rate limiter
+            rate_limiter.acquire()
+            try:
+                stats = load_all_realtime_data(symbol, thread_cur, thread_conn)
+            finally:
+                rate_limiter.release()
+
+            elapsed_ms = int((time.time() - symbol_start) * 1000)
+
+            if stats:
+                # Track success
+                try:
+                    thread_cur.execute("""
+                        INSERT INTO loader_run_progress (run_id, loader_name, symbol, completed_at, status, elapsed_ms)
+                        VALUES (%s, %s, %s, NOW(), %s, %s)
+                        ON CONFLICT (run_id, loader_name, symbol) DO UPDATE SET
+                            completed_at = NOW(), status = 'success', elapsed_ms = %s
+                    """, (run_id, 'loaddailycompanydata', symbol, 'success', elapsed_ms, elapsed_ms))
+                    thread_conn.commit()
+                except Exception as track_err:
+                    logging.debug(f"Could not track progress for {symbol}: {track_err}")
+
+                return (symbol, stats, True, None)
+            else:
+                error_msg = "No stats returned"
+                # Track failure
+                try:
+                    thread_cur.execute("""
+                        INSERT INTO loader_run_progress (run_id, loader_name, symbol, completed_at, status, error_msg)
+                        VALUES (%s, %s, %s, NOW(), %s, %s)
+                        ON CONFLICT (run_id, loader_name, symbol) DO UPDATE SET
+                            completed_at = NOW(), status = 'failed', error_msg = %s
+                    """, (run_id, 'loaddailycompanydata', symbol, 'failed', error_msg, error_msg))
+                    thread_conn.commit()
+                except Exception as track_err:
+                    logging.debug(f"Could not track failure for {symbol}: {track_err}")
+
+                return (symbol, None, False, error_msg)
+
+        except Exception as e:
+            elapsed_ms = int((time.time() - symbol_start) * 1000)
+            error_msg = str(e)[:200]
+            error_str = error_msg.lower()
+
+            if '500' in error_str or 'http error' in error_str:
+                api_error_symbols[symbol] = api_error_symbols.get(symbol, 0) + 1
+                logging.warning(f"  {symbol}: yfinance API error (attempt {api_error_symbols[symbol]}): {str(e)[:100]}")
+            else:
+                logging.error(f" CRITICAL: {symbol}: {error_msg}")
+
+            # Track failure
+            try:
+                thread_conn = psycopg2.connect(**connect_params)
+                thread_conn.autocommit = False
+                thread_cur = thread_conn.cursor(cursor_factory=RealDictCursor)
+                thread_cur.execute("""
+                    INSERT INTO loader_run_progress (run_id, loader_name, symbol, completed_at, status, error_msg, elapsed_ms)
+                    VALUES (%s, %s, %s, NOW(), %s, %s, %s)
+                    ON CONFLICT (run_id, loader_name, symbol) DO UPDATE SET
+                        completed_at = NOW(), status = 'failed', error_msg = %s, elapsed_ms = %s
+                """, (run_id, 'loaddailycompanydata', symbol, 'failed', error_msg, elapsed_ms, error_msg, elapsed_ms))
+                thread_conn.commit()
+                thread_conn.close()
+            except Exception as track_err:
+                logging.debug(f"Could not track error for {symbol}: {track_err}")
+
+            return (symbol, None, False, error_msg)
+
+        finally:
+            try:
+                thread_conn.close()
+            except:
+                pass
+
     # MAIN LOOP: Process all symbols with automatic retries for failures
-    logging.info(f" Starting RESILIENT data load with automatic retries for {len(symbols)} symbols")
+    logging.info(f" Starting PARALLELIZED data load with automatic retries for {len(symbols)} symbols")
+    logging.info(f" Using ThreadPoolExecutor (max_workers=5) with global rate limiter (max 20 concurrent requests)")
 
     # Try each symbol up to 4 times (initial + 3 retries)
     attempt = 1
     max_attempts = 4
-    symbols_to_process = symbols[:]  # Copy list for retry attempts
+    symbols_to_process = symbols[:]
+
+    # Build connection params for worker threads
+    worker_connect_params = connect_params.copy()
 
     while symbols_to_process and attempt <= max_attempts:
         if attempt > 1:
-            logging.info(f" Retry pass {attempt}/{max_attempts}: Retrying {len(symbols_to_process)} failed symbols (with longer delays)...")
+            logging.info(f" Retry pass {attempt}/{max_attempts}: Retrying {len(symbols_to_process)} failed symbols...")
 
         failed_this_pass = []
+        processed_this_pass = 0
 
-        for i, symbol in enumerate(symbols_to_process):
-            symbol_start = time.time()
-            try:
-                stats = load_all_realtime_data(symbol, cur, conn)
-                elapsed_ms = int((time.time() - symbol_start) * 1000)
-                if stats:
-                    for key in total_stats:
-                        total_stats[key] += stats.get(key, 0)
-                    processed += 1
-                    rate_limit_consecutive = 0  # Reset rate limit counter on success
-                    logging.info(f" {symbol}: {stats}")
-                    # Track progress
-                    try:
-                        cur.execute("""
-                            INSERT INTO loader_run_progress (run_id, loader_name, symbol, completed_at, status, elapsed_ms)
-                            VALUES (%s, %s, %s, NOW(), %s, %s)
-                            ON CONFLICT (run_id, loader_name, symbol) DO UPDATE SET
-                                completed_at = NOW(), status = 'success', elapsed_ms = %s
-                        """, (run_id, 'loaddailycompanydata', symbol, 'success', elapsed_ms, elapsed_ms))
-                        conn.commit()
-                    except Exception as track_err:
-                        logging.debug(f"Could not track progress for {symbol}: {track_err}")
-                else:
+        # Process symbols in parallel
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = {
+                executor.submit(process_symbol_worker, symbol, attempt, worker_connect_params): symbol
+                for symbol in symbols_to_process
+            }
+
+            for i, future in enumerate(as_completed(futures)):
+                symbol = futures[future]
+                try:
+                    symbol_result, stats, success, error_msg = future.result()
+
+                    if success and stats:
+                        for key in total_stats:
+                            total_stats[key] += stats.get(key, 0)
+                        processed += 1
+                        processed_this_pass += 1
+                        logging.info(f" {symbol}: {stats}")
+                    else:
+                        failed_this_pass.append(symbol)
+                        if error_msg:
+                            logging.warning(f"  {symbol}: {error_msg}")
+                        else:
+                            logging.warning(f"  {symbol}: No stats returned")
+
+                    # Progress indicator every 50 symbols
+                    if (i + 1) % 50 == 0:
+                        elapsed_min = round((time.time() - start_time) / 60, 1)
+                        logging.info(f"Progress: {processed}/{len(symbols)} loaded - Elapsed: {elapsed_min}min (Attempt {attempt})")
+
+                except Exception as e:
+                    logging.error(f"Exception in worker thread for {symbol}: {str(e)[:200]}")
                     failed_this_pass.append(symbol)
-                    logging.warning(f"  {symbol}: No stats returned")
-                    # Track failure
-                    try:
-                        cur.execute("""
-                            INSERT INTO loader_run_progress (run_id, loader_name, symbol, completed_at, status, error_msg)
-                            VALUES (%s, %s, %s, NOW(), %s, %s)
-                            ON CONFLICT (run_id, loader_name, symbol) DO UPDATE SET
-                                completed_at = NOW(), status = 'failed', error_msg = 'No stats returned'
-                        """, (run_id, 'loaddailycompanydata', symbol, 'failed', 'No stats returned'))
-                        conn.commit()
-                    except Exception as track_err:
-                        logging.debug(f"Could not track failure for {symbol}: {track_err}")
-
-            except Exception as e:
-                error_str = str(e).lower()
-                # Check for rate limit errors
-                if 'rate limit' in error_str or '429' in error_str:
-                    rate_limit_consecutive += 1
-                    logging.warning(f" RATE LIMITED on {symbol} (consecutive: {rate_limit_consecutive}). Increasing delay...")
-                else:
-                    # Track HTTP 500 errors for this symbol
-                    if '500' in error_str or 'http error' in error_str:
-                        api_error_symbols[symbol] = api_error_symbols.get(symbol, 0) + 1
-                        logging.warning(f"  {symbol}: yfinance API error (attempt {api_error_symbols[symbol]}): {str(e)[:100]}")
-                    else:
-                        logging.error(f" CRITICAL: Complete failure for {symbol}: {str(e)[:200]}")
-                    rate_limit_consecutive = 0  # Reset on non-rate-limit errors
-                failed_this_pass.append(symbol)
-                # Don't rollback - error is logged
-
-            finally:
-                # Delay between requests to respect yfinance rate limits
-                # RESILIENT: Longer delays to reduce HTTP 500 errors
-                if rate_limit_consecutive > 0:
-                    # Exponential backoff after rate limit hits: 10s, 15s, 20s, 25s, 30s...
-                    delay = 10.0 + (5.0 * (rate_limit_consecutive - 1))
-                    delay = min(delay, 60.0)  # Cap at 60 seconds
-                    logging.info(f"Rate limit backoff: {delay}s (consecutive hits: {rate_limit_consecutive})")
-                else:
-                    # IMPROVED: Longer delays reduce HTTP 500 errors and rate limits
-                    if attempt == 1:
-                        delay = 2.0  # Initial pass: 2 seconds between requests (plus 6s from property delays = 8s total)
-                    else:
-                        delay = 3.0  # Retry passes: 3 seconds between requests (be gentler on API)
-
-                time.sleep(delay)
-
-                # Progress indicator every 50 symbols
-                if (i + 1) % 50 == 0:
-                    elapsed_min = round((time.time() - start_time) / 60, 1)
-                    logging.info(f"Progress: {processed}/{len(symbols)} loaded - Elapsed: {elapsed_min}min (Attempt {attempt})")
 
         # Update symbols to retry for next attempt
         symbols_to_process = failed_this_pass
         if not symbols_to_process:
             logging.info(f" All symbols loaded successfully on attempt {attempt}!")
             break
-        elif len(symbols_to_process) < len(symbols_to_process if attempt > 1 else symbols):
-            logging.info(f" Progress: Fixed {len(symbols_to_process) if attempt == 1 else 'some'} symbols, retrying {len(symbols_to_process)} on next pass")
+        else:
+            logging.info(f" Processed {processed_this_pass} this pass, {len(symbols_to_process)} still failing, will retry...")
 
         attempt += 1
 

@@ -139,7 +139,7 @@ router.get("/deep-value", async (req, res) => {
         ROUND(CAST(sc.momentum_score AS NUMERIC), 2) as momentum_score,
         ROUND(CAST(sc.stability_score AS NUMERIC), 2) as stability_score,
         ROUND(CAST(sc.positioning_score AS NUMERIC), 2) as positioning_score,
-        sc.last_updated
+        sc.created_at as last_updated
       FROM stock_scores sc
       JOIN stock_symbols ss ON ss.symbol = sc.symbol
       WHERE sc.composite_score IS NOT NULL

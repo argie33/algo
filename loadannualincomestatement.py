@@ -5,6 +5,8 @@ import logging
 import json
 import os
 import gc
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 try:
     import resource
@@ -12,7 +14,7 @@ try:
 except ImportError:
     HAS_RESOURCE = False
 from datetime import datetime, date
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 
 from dotenv import load_dotenv
 import psycopg2

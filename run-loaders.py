@@ -81,7 +81,28 @@ LOADERS = [
         "critical": False,
         "description": "Load annual cash flow",
     },
-    # Phase 5: Technical/Sentiment (depends on prices)
+    # Phase 4.5: Factor Metrics (depends on financial statements + prices)
+    {
+        "name": "Factor Metrics",
+        "script": "loadfactormetrics.py",
+        "critical": False,
+        "description": "Load quality, growth, momentum, stability, value, positioning metrics",
+    },
+    # Phase 5: Stock Scores (depends on factor metrics)
+    {
+        "name": "Stock Scores",
+        "script": "loadstockscores.py",
+        "critical": False,
+        "description": "Calculate composite stock scores from factor metrics",
+    },
+    # Phase 6: Sectors & Industries (depends on stock symbols)
+    {
+        "name": "Sector Rankings",
+        "script": "loadsectors.py",
+        "critical": False,
+        "description": "Load sector and industry rankings and technical data",
+    },
+    # Phase 7: Technical/Sentiment (depends on prices)
     {
         "name": "Technical Indicators",
         "script": "loadtechnicalindicators.py",
@@ -118,7 +139,7 @@ LOADERS = [
         "critical": False,
         "description": "Load NAAIM Manager Exposure Index",
     },
-    # Phase 6: Buy/Sell Signals (depends on prices + technicals)
+    # Phase 8: Buy/Sell Signals (depends on prices + technicals)
     {
         "name": "Buy/Sell Daily",
         "script": "loadbuyselldaily.py",

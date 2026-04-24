@@ -7,23 +7,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Serve static frontend files with index.html fallback
 const frontendPath = path.join(__dirname, 'webapp/frontend-admin/dist-admin');
-app.use(express.static(frontendPath, {
-  index: 'index.html',
-  setHeaders: (res, path) => {
-    if (path.endsWith('.html')) {
-      res.setHeader('Cache-Control', 'no-cache');
-    }
-  }
-}));
 
 // Database connection
 const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
   port: process.env.DB_PORT || 5432,
   user: process.env.DB_USER || 'stocks',
-  password: process.env.DB_PASSWORD || 'bed0elAn',
+  password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'stocks',
   ssl: false
 });
@@ -246,6 +237,118 @@ app.get('/api/sentiment/fear-greed', async (req, res) => {
     res.json({ message: 'No Fear & Greed data available' });
   }
 });
+
+// Commodity endpoints
+app.get('/api/commodities/categories', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM commodity_categories ORDER BY category, symbol');
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/commodities/prices', async (req, res) => {
+  try {
+    const limit = req.query.limit || 100;
+    const result = await pool.query(
+      'SELECT * FROM commodity_prices ORDER BY updated_at DESC LIMIT $1',
+      [limit]
+    );
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/commodities/market-summary', async (req, res) => {
+  try {
+    const prices = await pool.query('SELECT COUNT(*) as count FROM commodity_prices');
+    const history = await pool.query('SELECT COUNT(*) as count FROM commodity_price_history');
+    const correlations = await pool.query('SELECT COUNT(*) as count FROM commodity_correlations');
+
+    res.json({
+      success: true,
+      data: {
+        totalCommodities: prices.rows[0].count,
+        totalHistoricalRecords: history.rows[0].count,
+        totalCorrelations: correlations.rows[0].count,
+        lastUpdated: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/commodities/correlations', async (req, res) => {
+  try {
+    const minCorrelation = parseFloat(req.query.minCorrelation) || 0.5;
+    const result = await pool.query(
+      `SELECT * FROM commodity_correlations
+       WHERE ABS(correlation_30d) >= $1 OR ABS(correlation_90d) >= $1 OR ABS(correlation_1y) >= $1
+       ORDER BY correlation_1y DESC`,
+      [minCorrelation]
+    );
+    res.json({
+      success: true,
+      data: {
+        minCorrelation,
+        correlations: result.rows
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/commodities/cot/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const result = await pool.query(
+      'SELECT * FROM cot_data WHERE symbol = $1 ORDER BY report_date DESC LIMIT 10',
+      [symbol]
+    );
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/commodities/seasonality/:symbol', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const result = await pool.query(
+      'SELECT * FROM commodity_seasonality WHERE symbol = $1 ORDER BY month',
+      [symbol]
+    );
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Serve static frontend files - must be after API routes
+app.use(express.static(frontendPath, {
+  index: 'index.html',
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+  }
+}));
 
 // SPA fallback - serve index.html for all non-API routes
 app.use((req, res) => {
