@@ -76,14 +76,11 @@ const { query } = require('./utils/database');
     r = await query('SELECT COUNT(*) as count FROM buy_sell_daily_etf');
     console.log(`   OK: ${r.rows[0].count} rows\n`);
 
-    // 12. sentiment tables
-    console.log('[12/12] fear_greed_index & naaim...');
-    await query(`INSERT INTO fear_greed_index (date, fear_greed_value, created_at) SELECT CURRENT_DATE - (RANDOM() * 365)::int, RANDOM() * 100, CURRENT_TIMESTAMP FROM generate_series(1, 150) ON CONFLICT DO NOTHING`);
-    await query(`INSERT INTO naaim (date, bullish_pct, neutral_pct, bearish_pct, created_at) SELECT CURRENT_DATE - (RANDOM() * 365)::int, RANDOM() * 100, RANDOM() * 100, RANDOM() * 100, CURRENT_TIMESTAMP FROM generate_series(1, 200) ON CONFLICT DO NOTHING`);
-    r = await query('SELECT COUNT(*) as count FROM fear_greed_index');
-    console.log(`   OK: fear_greed_index ${r.rows[0].count}`);
+    // 12. naaim
+    console.log('[12/12] naaim...');
+    await query(`INSERT INTO naaim (date, naaim_number_mean, bearish, bullish, quart1, quart2, quart3, deviation, fetched_at) SELECT CURRENT_DATE - (RANDOM() * 365)::int, ROUND((RANDOM() * 50 + 25)::numeric, 2), ROUND((RANDOM() * 100)::numeric, 2), ROUND((RANDOM() * 100)::numeric, 2), ROUND((RANDOM() * 100)::numeric, 2), ROUND((RANDOM() * 100)::numeric, 2), ROUND((RANDOM() * 100)::numeric, 2), ROUND((RANDOM() * 10)::numeric, 2), CURRENT_TIMESTAMP FROM generate_series(1, 200) ON CONFLICT DO NOTHING`);
     r = await query('SELECT COUNT(*) as count FROM naaim');
-    console.log(`   OK: naaim ${r.rows[0].count}\n`);
+    console.log(`   OK: ${r.rows[0].count} rows\n`);
 
     console.log('='.repeat(60));
     console.log('ALL TABLES NOW FULLY POPULATED');

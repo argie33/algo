@@ -155,10 +155,12 @@ def check_database():
     """Check if database is accessible"""
     try:
         import psycopg2
+        db_password = os.getenv("DB_PASSWORD", "")
         conn = psycopg2.connect(
             host=DB_HOST,
-            port=DB_PORT,
+            port=int(DB_PORT),
             user=DB_USER,
+            password=db_password,
             database=DB_NAME,
         )
         conn.close()
@@ -246,10 +248,12 @@ def show_summary():
     """Show database summary"""
     try:
         import psycopg2
+        db_password = os.getenv("DB_PASSWORD", "")
         conn = psycopg2.connect(
             host=DB_HOST,
-            port=DB_PORT,
+            port=int(DB_PORT),
             user=DB_USER,
+            password=db_password,
             database=DB_NAME,
         )
         cur = conn.cursor()

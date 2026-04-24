@@ -59,10 +59,12 @@ except ImportError:
 import sys
 import time
 import signal
+import argparse
 from datetime import date, datetime
 from typing import Dict, List, Optional
 from functools import wraps
 from pathlib import Path
+import uuid
 
 from dotenv import load_dotenv
 import boto3
@@ -1178,6 +1180,13 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
 if __name__ == "__main__":
     log_mem("startup")
 
+    # Parse CLI arguments for parallel execution
+    parser = argparse.ArgumentParser(description='Load daily company data for stock symbols')
+    parser.add_argument('--offset', type=int, default=0, help='Symbol offset for parallel execution')
+    parser.add_argument('--limit', type=int, default=None, help='Symbol limit for parallel execution')
+    parser.add_argument('--run-id', type=str, default=str(uuid.uuid4()), help='Run ID for tracking progress')
+    args = parser.parse_args()
+
     cfg = get_db_config()
 
     # Build connection parameters, handling both socket and TCP connections
@@ -1202,6 +1211,23 @@ if __name__ == "__main__":
     # Schema migrations - create missing tables first
     logging.info("Running schema migrations...")
     try:
+        # Create loader progress table for tracking
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS loader_run_progress (
+                run_id UUID,
+                loader_name VARCHAR(100),
+                symbol VARCHAR(20),
+                started_at TIMESTAMP DEFAULT NOW(),
+                completed_at TIMESTAMP,
+                status VARCHAR(20),
+                error_msg TEXT,
+                elapsed_ms INTEGER,
+                PRIMARY KEY (run_id, loader_name, symbol)
+            );
+            CREATE INDEX IF NOT EXISTS idx_loader_run_progress_run ON loader_run_progress(run_id);
+            CREATE INDEX IF NOT EXISTS idx_loader_run_progress_symbol ON loader_run_progress(symbol);
+        """)
+
         # Create institutional_positioning table if not exists
         cur.execute("""
             CREATE TABLE IF NOT EXISTS institutional_positioning (
@@ -1290,11 +1316,19 @@ if __name__ == "__main__":
         logging.error(f" CRITICAL: Schema migration failed - this blocks ALL data loading: {str(e)[:200]}")
         # Don't rollback to allow partial schema fixes, but this is critical
 
-    # Get symbols - load all non-ETF symbols (LIMIT removed to load all 5,476 stocks)
-    cur.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y') ORDER BY symbol;")
+    # Get symbols - load all non-ETF symbols with optional OFFSET/LIMIT for parallel execution
+    limit_clause = ""
+    if args.limit:
+        limit_clause = f" LIMIT {args.limit} OFFSET {args.offset}"
+    elif args.offset > 0:
+        logging.warning(f"Offset {args.offset} specified but no limit; loading all remaining symbols")
+        limit_clause = f" OFFSET {args.offset}"
+
+    cur.execute(f"SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y') ORDER BY symbol{limit_clause};")
     symbols = [r["symbol"] for r in cur.fetchall()]
 
-    logging.info(f"Loading real-time data for {len(symbols)} symbols")
+    run_id = args.run_id
+    logging.info(f"[Run {run_id}] Loading real-time data for {len(symbols)} symbols (offset={args.offset}, limit={args.limit})")
 
     total_stats = {
         'info': 0, 'institutional': 0, 'mutualfund': 0,
