@@ -92,11 +92,15 @@ CREATE TABLE IF NOT EXISTS key_metrics (
 -- Ensure stock_symbols table exists
 CREATE TABLE IF NOT EXISTS stock_symbols (
     symbol VARCHAR(20) PRIMARY KEY,
-    name VARCHAR(255),
     exchange VARCHAR(50),
+    security_name VARCHAR(255),
+    cqs_symbol VARCHAR(20),
+    market_category VARCHAR(50),
+    test_issue VARCHAR(10),
+    financial_status VARCHAR(50),
+    round_lot_size INTEGER,
     etf CHAR(1),
-    country VARCHAR(50),
-    currency VARCHAR(10),
+    secondary_symbol VARCHAR(20),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -364,7 +368,7 @@ CREATE TABLE IF NOT EXISTS analyst_upgrade_downgrade (
 
 -- Other required tables
 CREATE TABLE IF NOT EXISTS last_updated (
-    loader_name VARCHAR(100) PRIMARY KEY,
+    script_name VARCHAR(100) PRIMARY KEY,
     last_run TIMESTAMP,
     status VARCHAR(50),
     record_count INTEGER
