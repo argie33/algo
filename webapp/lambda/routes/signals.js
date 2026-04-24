@@ -37,15 +37,9 @@ router.get("/", (req, res) => {
   });
 });
 
-// Alias for /stocks - backward compatibility
-router.get("/list", (req, res, next) => {
-  // Forward to /stocks handler
-  req.url = "/stocks";
-  return next();
-});
-
 // Get all stock signals data - FRONTEND USES THIS
-router.get("/stocks", async (req, res) => {
+// Handles both /stocks and /list (backward compatibility) endpoints
+async function handleStocksRequest(req, res) {
   try {
     console.log(`[DATA] Signals data requested (deployment refresh v3)`);
 

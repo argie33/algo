@@ -37,47 +37,47 @@ router.get("/", (req, res) => {
 // GET /api/earnings/calendar - Earnings calendar view with filters
 router.get("/calendar", async (req, res) => {
   try {
-    const { period = "upcoming", startDate, endDate, symbol, limit = 100 } = req.query;
+    const { period = "past", startDate, endDate, symbol, limit = 100 } = req.query;
 
     // Determine date range based on period
     let dateCondition = "";
     const params = [];
 
     if (period === "past") {
-      dateCondition = " AND ce.start_date <= CURRENT_DATE ";
+      dateCondition = " AND eh.quarter <= CURRENT_DATE ";
     } else if (period === "upcoming") {
-      dateCondition = " AND ce.start_date > CURRENT_DATE ";
+      dateCondition = " AND eh.quarter > CURRENT_DATE ";
     } else if (startDate || endDate) {
       if (startDate) {
-        dateCondition += ` AND ce.start_date >= $${params.length + 1}`;
+        dateCondition += ` AND eh.quarter >= $${params.length + 1}`;
         params.push(startDate);
       }
       if (endDate) {
-        dateCondition += ` AND ce.start_date <= $${params.length + 1}`;
+        dateCondition += ` AND eh.quarter <= $${params.length + 1}`;
         params.push(endDate);
       }
     }
 
     if (symbol) {
-      dateCondition += ` AND ce.symbol = $${params.length + 1}`;
+      dateCondition += ` AND eh.symbol = $${params.length + 1}`;
       params.push(symbol.toUpperCase());
     }
 
     const query_str = `
-      SELECT DISTINCT ON (ce.symbol, ce.start_date)
-        ce.symbol,
-        ce.start_date as date,
-        EXTRACT(QUARTER FROM ce.start_date) as quarter,
-        EXTRACT(YEAR FROM ce.start_date) as year,
-        ce.title,
-        ce.fetched_at,
+      SELECT DISTINCT ON (eh.symbol, eh.quarter)
+        eh.symbol,
+        eh.quarter as date,
+        EXTRACT(QUARTER FROM eh.quarter) as quarter,
+        EXTRACT(YEAR FROM eh.quarter) as year,
+        'Earnings Report' as title,
+        eh.created_at as fetched_at,
         cp.short_name as company_name,
         cp.sector
-      FROM calendar_events ce
-      LEFT JOIN company_profile cp ON ce.symbol = cp.ticker
-      WHERE ce.event_type = 'earnings'
+      FROM earnings_history eh
+      LEFT JOIN company_profile cp ON eh.symbol = cp.ticker
+      WHERE eh.quarter IS NOT NULL
       ${dateCondition}
-      ORDER BY ce.symbol ASC, ce.start_date DESC, ce.fetched_at DESC
+      ORDER BY eh.symbol ASC, eh.quarter DESC, eh.created_at DESC
       LIMIT $${params.length + 1}
     `;
     params.push(Math.min(parseInt(limit) || 100, 1000));
@@ -120,7 +120,7 @@ router.get("/calendar", async (req, res) => {
   }
 });
 
-// GET /api/earnings/info - Combined earnings info (estimates + history + surprises)
+// GET /api/earnings/info - Combined earnings info (history + surprises)
 router.get("/info", async (req, res) => {
   try {
     const { symbol, limit = 50 } = req.query;
@@ -129,52 +129,33 @@ router.get("/info", async (req, res) => {
     console.log(`   symbol: "${symbol}"`);
     console.log(`   limit: ${limit}`);
 
-    // Fetch estimates
-    let estimateQuery = `
-      SELECT
-        ee.symbol,
-        ee.period,
-        ee.avg_estimate,
-        ee.low_estimate,
-        ee.high_estimate,
-        ee.year_ago_eps,
-        ee.growth,
-        ee.number_of_analysts,
-        cp.short_name as company_name,
-        cp.sector
-      FROM earnings_estimates ee
-      LEFT JOIN company_profile cp ON ee.symbol = cp.ticker
-      WHERE 1=1
-    `;
-    const estimateParams = [];
-
-    if (symbol) {
-      estimateQuery += ` AND ee.symbol = $${estimateParams.length + 1}`;
-      estimateParams.push(symbol.toUpperCase());
-    }
-
-    estimateQuery += ` ORDER BY ee.symbol ASC, ee.period DESC LIMIT $${estimateParams.length + 1}`;
-    estimateParams.push(Math.min(parseInt(limit) || 50, 500));
-
-    console.log(`   Estimate Query (${estimateParams.length} params):`, estimateQuery.replace(/\n/g, ' '));
-    console.log(`   Estimate Params:`, estimateParams);
-
     // Fetch history
     let historyQuery = `
-      SELECT symbol, quarter, eps_actual, eps_estimate, eps_difference, surprise_percent, fetched_at FROM earnings_history
+      SELECT
+        eh.symbol,
+        eh.quarter,
+        eh.eps_actual,
+        eh.eps_estimate,
+        eh.eps_difference,
+        eh.surprise_percent,
+        eh.created_at,
+        cp.short_name as company_name,
+        cp.sector
+      FROM earnings_history eh
+      LEFT JOIN company_profile cp ON eh.symbol = cp.ticker
+      WHERE 1=1
     `;
     const historyParams = [];
 
     if (symbol) {
-      historyQuery += ` WHERE symbol = $${historyParams.length + 1}`;
+      historyQuery += ` AND eh.symbol = $${historyParams.length + 1}`;
       historyParams.push(symbol.toUpperCase());
     }
 
-    historyQuery += ` ORDER BY quarter DESC LIMIT $${historyParams.length + 1}`;
+    historyQuery += ` ORDER BY eh.symbol ASC, eh.quarter DESC LIMIT $${historyParams.length + 1}`;
     historyParams.push(Math.min(parseInt(limit) || 50, 500));
 
-    console.log(`   History Query (${historyParams.length} params):`, historyQuery.replace(/\n/g, ' '));
-    console.log(`   History Params:`, historyParams);
+    console.log(`   History Query:`, historyQuery.replace(/\n/g, ' '));
 
     // Fetch surprises
     let surpriseQuery = `
@@ -205,44 +186,27 @@ router.get("/info", async (req, res) => {
     surpriseQuery += ` ORDER BY ABS(eh.surprise_percent) DESC LIMIT $${surpriseParams.length + 1}`;
     surpriseParams.push(Math.min(parseInt(limit) || 50, 500));
 
-    console.log(`   Surprise Query (${surpriseParams.length} params):`, surpriseQuery.replace(/\n/g, ' '));
-    console.log(`   Surprise Params:`, surpriseParams);
+    console.log(`   Surprise Query:`, surpriseQuery.replace(/\n/g, ' '));
 
-    const [estimatesResult, historyResult, surpriseResult] = await Promise.all([
-      query(estimateQuery, estimateParams),
+    const [historyResult, surpriseResult] = await Promise.all([
       query(historyQuery, historyParams),
       query(surpriseQuery, surpriseParams)
     ]);
 
-    console.log(`   Estimates returned: ${estimatesResult.rows.length}`);
     console.log(`   History returned: ${historyResult.rows.length}`);
     console.log(`   Surprises returned: ${surpriseResult.rows.length}`);
-
-    // Format estimates
-    const estimates = (estimatesResult.rows || []).map(row => ({
-      symbol: row.symbol,
-      company_name: row.company_name || row.symbol,
-      sector: row.sector,
-      period: row.period,
-      eps: {
-        average_estimate: row.avg_estimate ? parseFloat(row.avg_estimate) : null,
-        low_estimate: row.low_estimate ? parseFloat(row.low_estimate) : null,
-        high_estimate: row.high_estimate ? parseFloat(row.high_estimate) : null,
-        year_ago: row.year_ago_eps ? parseFloat(row.year_ago_eps) : null,
-        growth_percent: row.growth ? parseFloat(row.growth) : null
-      },
-      number_of_analysts: row.number_of_analysts
-    }));
 
     // Format history
     const history = (historyResult.rows || []).map(row => ({
       symbol: row.symbol,
+      company_name: row.company_name || row.symbol,
+      sector: row.sector,
       quarter: row.quarter,
       eps_actual: row.eps_actual ? parseFloat(row.eps_actual) : null,
       eps_estimate: row.eps_estimate ? parseFloat(row.eps_estimate) : null,
       eps_difference: row.eps_difference ? parseFloat(row.eps_difference) : null,
       surprise_percent: row.surprise_percent ? parseFloat(row.surprise_percent) : null,
-      fetched_at: row.fetched_at
+      fetched_at: row.created_at
     }));
 
     // Format surprises
@@ -262,7 +226,7 @@ router.get("/info", async (req, res) => {
 
     res.json({
       data: {
-        estimates,
+        estimates: [],
         history,
         surprises
       },
