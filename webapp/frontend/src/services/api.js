@@ -249,16 +249,20 @@ try {
 export { api };
 
 // Helper function to standardize API response parsing
-// Handles various response formats: {data: ...}, {items: ...}, {history: ...}, raw array, etc.
+// All endpoints now return consistent format: { items: [...], pagination: {...}, success: true }
+// This extracts the items array from axios response structure
 export const extractDataFromResponse = (response, fallbackArray = []) => {
   if (!response) return fallbackArray;
 
+  // axios wraps response in response.data
   const data = response.data || response;
 
-  // Try to extract array-like data in order of precedence
+  // Standard format: { items: [...], pagination: {...}, success: true }
+  if (Array.isArray(data?.items)) return data.items;
+
+  // Fallback for legacy formats or single objects
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.data)) return data.data;
-  if (Array.isArray(data?.items)) return data.items;
   if (Array.isArray(data?.history)) return data.history;
   if (Array.isArray(data?.stocks)) return data.stocks;
   if (Array.isArray(data?.rows)) return data.rows;
