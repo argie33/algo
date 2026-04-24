@@ -72,59 +72,6 @@ function safeFloat(value) {
 }
 
 // Get daily prices
-// Get latest prices for all symbols
-router.get("/latest", async (req, res) => {
-  try {
-    const symbol = req.query.symbol;
-    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const offset = (page - 1) * limit;
-
-    let sql = `
-      SELECT DISTINCT ON (symbol)
-        symbol, open, high, low, close, volume, date
-      FROM price_daily
-      WHERE volume > 0
-    `;
-    const params = [];
-    let paramIndex = 1;
-
-    if (symbol) {
-      sql += ` AND symbol = $${paramIndex}`;
-      params.push(symbol);
-      paramIndex++;
-    }
-
-    sql += ` ORDER BY symbol, date DESC`;
-
-    const countResult = await query(
-      `SELECT COUNT(DISTINCT symbol) as count FROM price_daily WHERE volume > 0`,
-      []
-    );
-    const total = countResult.rows[0]?.count || 0;
-
-    const result = await query(
-      sql + ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
-      [...params, limit, offset]
-    );
-
-    return res.json({
-      items: result.rows.map(row => ({
-        ...row,
-        open: safeFloat(row.open),
-        high: safeFloat(row.high),
-        low: safeFloat(row.low),
-        close: safeFloat(row.close),
-        volume: parseInt(row.volume) || 0
-      })),
-      pagination: { page, limit, total, hasMore: offset + limit < total },
-      success: true
-    });
-  } catch (err) {
-    console.error("Price latest error:", err.message);
-    return res.status(500).json({ error: err.message, success: false });
-  }
-});
 
 router.get("/daily", async (req, res) => {
   try {

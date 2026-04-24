@@ -418,15 +418,10 @@ def populate_sector_performance(conn):
 
         query = """
         WITH dedup_prices AS (
-            SELECT symbol, date, close
+            SELECT DISTINCT ON (symbol, date) symbol, date, close
             FROM price_daily pd
             WHERE close > 0 AND close < 10000
-              AND id IN (
-                SELECT MAX(id)
-                FROM price_daily
-                WHERE close > 0 AND close < 10000
-                GROUP BY symbol, date
-              )
+            ORDER BY symbol, date
         ),
         stock_returns AS (
             SELECT
@@ -549,15 +544,10 @@ def populate_industry_performance(conn):
 
         query = """
         WITH dedup_prices AS (
-            SELECT symbol, date, close
+            SELECT DISTINCT ON (symbol, date) symbol, date, close
             FROM price_daily pd
             WHERE close > 0 AND close < 10000
-              AND id IN (
-                SELECT MAX(id)
-                FROM price_daily
-                WHERE close > 0 AND close < 10000
-                GROUP BY symbol, date
-              )
+            ORDER BY symbol, date
         ),
         stock_returns AS (
             SELECT

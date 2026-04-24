@@ -808,28 +808,6 @@ router.get("/list", async (req, res) => {
   }
 });
 
-// GET /api/scores/all - Get all stock scores (alias for /stockscores)
-router.get("/all", async (req, res) => {
-  try {
-    const result = await queryScores({
-      limit: req.query.limit,
-      offset: req.query.offset,
-      search: req.query.search,
-      sortBy: req.query.sortBy,
-      sortOrder: req.query.sortOrder
-    });
-    const page = Math.floor(result.offset / result.limit) + 1;
-    const totalPages = Math.ceil(result.total / result.limit);
-    const hasNext = page < totalPages;
-    const hasPrev = page > 1;
-    const cleanedStocks = removeNullValues(result.stocks);
-    res.json({ items: cleanedStocks, pagination: { page, limit: result.limit, total: result.total, totalPages, hasNext, hasPrev }, success: true });
-  } catch (error) {
-    console.error("Error fetching stock scores:", error);
-    const statusCode = error.statusCode || 500;
-    res.status(statusCode).json({ error: error.message || "Failed to fetch stock scores", success: false });
-  }
-});
 
 // REMOVED: /top endpoint (duplicate of /stockscores with hardcoded filter)
 // REMOVED: /leaders and /stability-leaders endpoints (consolidated into /stockscores)

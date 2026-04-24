@@ -208,23 +208,6 @@ app.get('/api/bottom-stocks', async (req, res) => {
   }
 });
 
-// Market overview / fresh data endpoint
-app.get('/api/market/fresh-data', async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT symbol, composite_score as score FROM stock_scores
-       ORDER BY composite_score DESC LIMIT 20`
-    );
-    res.json({
-      success: true,
-      data: result.rows,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.json({ success: false, data: [], error: 'Market data unavailable' });
-  }
-});
-
 // Market summary endpoint
 app.get('/api/market/summary', async (req, res) => {
   try {
