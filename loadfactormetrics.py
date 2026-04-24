@@ -369,10 +369,10 @@ def get_quarterly_statement_growth(cursor, symbol: str) -> Dict:
     try:
         # Get recent 8 quarters of revenue and earnings
         cursor.execute("""
-            SELECT date, revenue, net_income, operating_income
+            SELECT fiscal_year, revenue, net_income, operating_income
             FROM quarterly_income_statement
-            WHERE symbol = %s AND date IS NOT NULL
-            ORDER BY date DESC
+            WHERE symbol = %s AND revenue IS NOT NULL
+            ORDER BY fiscal_year DESC, fiscal_quarter DESC
             LIMIT 8
         """, (symbol,))
 
@@ -478,10 +478,10 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
     try:
         # Get annual income statement data (most recent 4 years)
         cursor.execute("""
-            SELECT date, revenue, operating_income, net_income
+            SELECT fiscal_year, revenue, operating_income, net_income
             FROM annual_income_statement
-            WHERE symbol = %s AND date IS NOT NULL
-            ORDER BY date DESC
+            WHERE symbol = %s AND revenue IS NOT NULL
+            ORDER BY fiscal_year DESC
             LIMIT 4
         """, (symbol,))
 
@@ -557,10 +557,10 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
 
         # Get annual cashflow data for FCF growth (4 years available, use first 2)
         cursor.execute("""
-            SELECT date, free_cash_flow
+            SELECT fiscal_year, free_cash_flow
             FROM annual_cash_flow
-            WHERE symbol = %s AND date IS NOT NULL
-            ORDER BY date DESC
+            WHERE symbol = %s AND free_cash_flow IS NOT NULL
+            ORDER BY fiscal_year DESC
             LIMIT 4
         """, (symbol,))
 
@@ -581,10 +581,10 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
 
         # Get annual cashflow data for OCF growth
         cursor.execute("""
-            SELECT date, operating_cash_flow
+            SELECT fiscal_year, operating_cash_flow
             FROM annual_cash_flow
-            WHERE symbol = %s AND date IS NOT NULL
-            ORDER BY date DESC
+            WHERE symbol = %s AND operating_cash_flow IS NOT NULL
+            ORDER BY fiscal_year DESC
             LIMIT 4
         """, (symbol,))
 
@@ -606,10 +606,10 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
         # Get annual balance sheet data for asset growth
         try:
             cursor.execute("""
-                SELECT date, total_assets
+                SELECT fiscal_year, total_assets
                 FROM annual_balance_sheet
-                WHERE symbol = %s AND date IS NOT NULL
-                ORDER BY date DESC
+                WHERE symbol = %s AND total_assets IS NOT NULL
+                ORDER BY fiscal_year DESC
                 LIMIT 2
             """, (symbol,))
 
@@ -1113,10 +1113,10 @@ def calculate_growth_metrics(ticker_data: Dict, financial_growth: Dict = None, q
             # Query for gross profit data (may not always be available)
             if cursor and symbol:
                 cursor.execute("""
-                SELECT date, revenue, (revenue - cost_of_revenue) as gross_profit, operating_income, net_income
+                SELECT fiscal_year, revenue, (revenue - cost_of_revenue) as gross_profit, operating_income, net_income
                 FROM annual_income_statement
                 WHERE symbol = %s AND revenue IS NOT NULL
-                ORDER BY date DESC
+                ORDER BY fiscal_year DESC
                 LIMIT 2
             """, (symbol,))
 
@@ -1140,10 +1140,10 @@ def calculate_growth_metrics(ticker_data: Dict, financial_growth: Dict = None, q
         if "operating_margin_trend" not in metrics or metrics["operating_margin_trend"] is None:
             # Query operating income data
             cursor.execute("""
-                SELECT date, revenue, operating_income
+                SELECT fiscal_year, revenue, operating_income
                 FROM annual_income_statement
                 WHERE symbol = %s AND revenue IS NOT NULL AND operating_income IS NOT NULL
-                ORDER BY date DESC
+                ORDER BY fiscal_year DESC
                 LIMIT 2
             """, (symbol,))
 
@@ -1167,10 +1167,10 @@ def calculate_growth_metrics(ticker_data: Dict, financial_growth: Dict = None, q
         if "net_margin_trend" not in metrics or metrics["net_margin_trend"] is None:
             # Query net income data
             cursor.execute("""
-                SELECT date, revenue, net_income
+                SELECT fiscal_year, revenue, net_income
                 FROM annual_income_statement
                 WHERE symbol = %s AND revenue IS NOT NULL AND net_income IS NOT NULL
-                ORDER BY date DESC
+                ORDER BY fiscal_year DESC
                 LIMIT 2
             """, (symbol,))
 
