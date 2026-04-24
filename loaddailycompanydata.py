@@ -498,7 +498,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         info.get("maxAge"), info.get("language"), info.get("region"),
                         info.get("financialCurrency"), info.get("currency"),
                         info.get("market"), info.get("quoteSourceName"),
-                        info.get("customPriceAlertConfidence"), info.get("address1"),
+                        safe_float(info.get("customPriceAlertConfidence")), info.get("address1"),
                         info.get("city"), info.get("state"), info.get("zip"),
                         info.get("country"), info.get("phone"), info.get("website"),
                         info.get("irWebsite"), info.get("messageBoardId"),
