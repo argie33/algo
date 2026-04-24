@@ -636,11 +636,18 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
 
 
 def get_earnings_surprise_metrics(cursor, symbol: str) -> Dict:
-    """Calculate earnings surprise from quarterly actual vs estimated EPS"""
+    """Calculate earnings surprise from quarterly actual vs estimated EPS
+
+    NOTE: Disabled until earnings_history table is properly integrated.
+    EPS data is in earnings_history, not quarterly_income_statement.
+    """
     metrics = {
         "earnings_surprise_avg": None,
         "eps_growth_stability": None,
     }
+
+    # TEMPORARY: Return None for all metrics while we refactor EPS queries
+    return metrics
 
     try:
         # Get actual quarterly EPS from income statement
