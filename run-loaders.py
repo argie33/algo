@@ -20,6 +20,11 @@ from pathlib import Path
 from datetime import datetime
 from dotenv import load_dotenv
 
+# Fix Windows encoding issues
+if sys.platform == 'win32':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
 # Load environment
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -88,6 +93,30 @@ LOADERS = [
         "script": "loadsentiment.py",
         "critical": False,
         "description": "Load sentiment analysis",
+    },
+    {
+        "name": "Analyst Sentiment",
+        "script": "loadanalystsentiment.py",
+        "critical": False,
+        "description": "Load analyst sentiment ratings",
+    },
+    {
+        "name": "Fear & Greed Index",
+        "script": "loadfeargreed.py",
+        "critical": False,
+        "description": "Load CNN Fear & Greed Index",
+    },
+    {
+        "name": "AAII Sentiment",
+        "script": "loadaaiidata.py",
+        "critical": False,
+        "description": "Load AAII Sentiment Survey data",
+    },
+    {
+        "name": "NAAIM Exposure",
+        "script": "loadnaaim.py",
+        "critical": False,
+        "description": "Load NAAIM Manager Exposure Index",
     },
     # Phase 6: Buy/Sell Signals (depends on prices + technicals)
     {

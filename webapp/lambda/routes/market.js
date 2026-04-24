@@ -1,4 +1,5 @@
 const express = require("express");
+const { getMarketDataPath } = require("../utils/market-data-path");
 
 let query;
 try {
@@ -2311,7 +2312,7 @@ router.get("/internals", async (req, res) => {
 router.get("/aaii", async (req, res) => {
   try {
     const fs = require("fs");
-    const comprehensivePath = "/tmp/comprehensive_market_data.json";
+    const comprehensivePath = getMarketDataPath();
     const { range = "30d" } = req.query;
 
     // Try to get AAII data from comprehensive market data file first
@@ -2437,7 +2438,7 @@ router.get("/fear-greed", async (req, res) => {
 router.get("/naaim", async (req, res) => {
   try {
     const fs = require("fs");
-    const comprehensivePath = "/tmp/comprehensive_market_data.json";
+    const comprehensivePath = getMarketDataPath();
     const { range = "30d" } = req.query;
 
     // Try to get NAAIM data from comprehensive market data file first
@@ -3091,7 +3092,7 @@ router.get("/comprehensive-fresh", async (req, res) => {
   try {
     const fs = require("fs");
 
-    const comprehensivePath = "/tmp/comprehensive_market_data.json";
+    const comprehensivePath = getMarketDataPath();
 
     if (fs.existsSync(comprehensivePath)) {
       const comprehensiveData = JSON.parse(fs.readFileSync(comprehensivePath, "utf-8"));

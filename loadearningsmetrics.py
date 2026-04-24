@@ -29,6 +29,14 @@ except ImportError:
 import sys
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Tuple
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Load environment variables from .env.local if it exists
+env_path = Path(__file__).parent / '.env.local'
+if env_path.exists():
+    load_dotenv(env_path)
 
 import boto3
 import pandas as pd

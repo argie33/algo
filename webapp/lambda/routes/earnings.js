@@ -2,6 +2,7 @@ const express = require("express");
 
 const { query } = require("../utils/database");
 const { authenticateToken } = require("../middleware/auth");
+const { getMarketDataPath } = require("../utils/market-data-path");
 
 const router = express.Router();
 
@@ -465,7 +466,7 @@ router.get("/fresh-data", async (req, res) => {
   try {
     const fs = require("fs");
 
-    const comprehensivePath = "/tmp/comprehensive_market_data.json";
+    const comprehensivePath = getMarketDataPath();
 
     if (fs.existsSync(comprehensivePath)) {
       const comprehensiveData = JSON.parse(fs.readFileSync(comprehensivePath, "utf-8"));

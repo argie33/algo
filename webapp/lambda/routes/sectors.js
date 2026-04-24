@@ -20,6 +20,7 @@ const express = require("express");
 
 let query, safeFloat, safeInt, safeFixed;
 let databaseInitError = null;
+const { getMarketDataPath } = require("../utils/market-data-path");
 
 try {
   ({ query, safeFloat, safeInt, safeFixed } = require("../utils/database"));
@@ -118,7 +119,7 @@ router.get("/sectors", async (req, res) => {
     // Use fresh-data from JSON file - ensures all pages have up-to-date data
     const fs = require("fs");
     const { limit = 20 } = req.query;
-    const comprehensivePath = "/tmp/comprehensive_market_data.json";
+    const comprehensivePath = getMarketDataPath();
 
     if (fs.existsSync(comprehensivePath)) {
       const data = JSON.parse(fs.readFileSync(comprehensivePath, "utf-8"));
