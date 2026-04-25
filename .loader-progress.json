@@ -1,7 +1,10 @@
 {
   "completed": [
     "loadstocksymbols.py",
-    "loadpricedaily.py"
+    "loadpricedaily.py",
+    "loadannualincomestatement.py"
   ],
-  "failed": []
+  "failed": [
+    "loaddailycompanydata.py"
+  ]
 }

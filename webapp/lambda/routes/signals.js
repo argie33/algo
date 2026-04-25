@@ -346,28 +346,10 @@ router.get("/etf", async (req, res) => {
       paramIndex++;
     }
 
-    // For ETF signals, use same real data columns
+    // For ETF signals, use same essential columns
     const actualColumns = `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.signal_triggered_date,
-      bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
-      bsd.signal, bsd.buylevel, bsd.stoplevel, bsd.inposition,
-      bsd.strength, bsd.signal_strength,
-      bsd.signal_type, bsd.pivot_price, bsd.buy_zone_start, bsd.buy_zone_end,
-      bsd.exit_trigger_1_price, bsd.exit_trigger_2_price, bsd.exit_trigger_3_condition, bsd.exit_trigger_3_price,
-      bsd.exit_trigger_4_condition, bsd.exit_trigger_4_price,
-      bsd.initial_stop, bsd.trailing_stop,
-      bsd.base_type, bsd.base_length_days,
-      bsd.avg_volume_50d, bsd.volume_surge_pct,
-      bsd.rs_rating, bsd.breakout_quality,
-      bsd.risk_reward_ratio, bsd.current_gain_pct, bsd.days_in_position,
-      bsd.market_stage, bsd.stage_number, bsd.stage_confidence, bsd.substage,
-      bsd.entry_quality_score, bsd.risk_pct, bsd.position_size_recommendation,
-      bsd.profit_target_8pct, bsd.profit_target_20pct, bsd.profit_target_25pct,
-      bsd.sell_level,
-      bsd.mansfield_rs, bsd.sata_score,
-      bsd.rsi, bsd.adx, bsd.atr, bsd.sma_50, bsd.sma_200, bsd.ema_21,
-      bsd.pct_from_ema21, bsd.pct_from_sma50,
-      bsd.entry_price
+      bsd.signal, bsd.strength
     `;
 
     // Add limit and offset parameters
