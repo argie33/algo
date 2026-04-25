@@ -1701,12 +1701,9 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
 
     # First: Get all key_metrics data in one query
     cursor.execute(
-        "SELECT ticker, return_on_equity_pct, return_on_assets_pct, "
-        "gross_margin_pct, operating_margin_pct, profit_margin_pct, "
-        "free_cashflow, net_income, operating_cashflow, debt_to_equity, "
-        "current_ratio, quick_ratio, payout_ratio, ebitda, total_debt, total_cash, "
-        "total_revenue "
-        "FROM key_metrics WHERE symbol = ANY(%s)",
+        "SELECT ticker, market_cap, trailing_pe, forward_pe, price_to_book, "
+        "price_to_sales_ttm, peg_ratio, dividend_yield, beta "
+        "FROM key_metrics WHERE ticker = ANY(%s)",
         (symbols,)
     )
 

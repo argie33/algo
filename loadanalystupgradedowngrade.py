@@ -25,7 +25,6 @@ from datetime import datetime
 
 import boto3
 import yfinance as yf
-from lib.db import get_connection, get_db_config
 
 # Load environment variables from .env.local
 env_file = Path(__file__).parent / '.env.local'
@@ -57,11 +56,61 @@ def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
 
+def get_db_config():
+    """Get database configuration from AWS Secrets Manager or environment variables."""
+    aws_region = os.environ.get("AWS_REGION")
+    db_secret_arn = os.environ.get("DB_SECRET_ARN")
+
+    # Try AWS Secrets Manager first
+    if aws_region and db_secret_arn:
+        try:
+            secret_str = boto3.client("secretsmanager", region_name=aws_region).get_secret_value(
+                SecretId=db_secret_arn
+            )["SecretString"]
+            sec = json.loads(secret_str)
+            logging.info(f"Loaded database credentials from AWS Secrets Manager: {db_secret_arn}")
+            return {
+                "host": sec["host"],
+                "port": int(sec.get("port", 5432)),
+                "user": sec["username"],
+                "password": sec["password"],
+                "dbname": sec["dbname"]
+            }
+        except Exception as e:
+            logging.warning(f"Failed to load from Secrets Manager: {e}")
+
+    # Fallback to environment variables with sensible defaults for local development
+    db_host = os.environ.get("DB_HOST", "localhost")
+    db_port = os.environ.get("DB_PORT", "5432")
+    db_user = os.environ.get("DB_USER", "stocks")
+    db_password = os.environ.get("DB_PASSWORD", "")
+    db_name = os.environ.get("DB_NAME", "stocks")
+
+    logging.info(f"Using database credentials from environment: {db_user}@{db_host}/{db_name}")
+    return {
+        "host": db_host,
+        "port": int(db_port),
+        "user": db_user,
+        "password": db_password,
+        "dbname": db_name
+    }
+
+
 def get_db_connection(script_name):
-    """Get database connection using lib.db utilities"""
+    """Get database connection from environment or AWS Secrets Manager"""
     try:
         cfg = get_db_config()
-        conn = get_connection(cfg)
+        conn_params = {
+            "dbname": cfg["dbname"],
+            "user": cfg["user"],
+        }
+        if cfg.get("host"):
+            conn_params["host"] = cfg["host"]
+            conn_params["port"] = cfg.get("port", 5432)
+        if cfg.get("password"):
+            conn_params["password"] = cfg["password"]
+
+        conn = psycopg2.connect(**conn_params, connect_timeout=30)
         return conn
     except Exception as e:
         logging.error(f"Failed to connect to database: {e}")
@@ -140,13 +189,14 @@ def load_analyst_actions(symbols, cur, conn):
                 action,
                 from_grade,
                 to_grade,
-                dt.date() if hasattr(dt, 'date') else dt
+                dt.date() if hasattr(dt, 'date') else dt,
+                details
             ])
         if not rows:
             continue
         sql = """
             INSERT INTO analyst_upgrade_downgrade
-            (symbol, firm, action, old_rating, new_rating, action_date)
+            (symbol, firm, action, from_grade, to_grade, date, details)
             VALUES %s
             ON CONFLICT DO NOTHING
         """

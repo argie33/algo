@@ -57,11 +57,7 @@ router.get("/:symbol/balance-sheet", async (req, res) => {
     });
   } catch (error) {
     console.error("Balance sheet error:", error);
-    return sendSuccess(res, {
-      symbol: upperSymbol,
-      period: period,
-      financialData: []
-    });
+    return sendError(res, `Failed to fetch balance sheet: ${error.message}`, 500);
   }
 });
 
@@ -98,11 +94,7 @@ router.get("/:symbol/income-statement", async (req, res) => {
     });
   } catch (error) {
     console.error("Income statement error:", error);
-    return sendSuccess(res, {
-      symbol: upperSymbol,
-      period: period,
-      financialData: []
-    });
+    return sendError(res, `Failed to fetch income statement: ${error.message}`, 500);
   }
 });
 

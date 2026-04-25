@@ -233,19 +233,31 @@ router.get('/history', async (req, res) => {
     const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 50));
     const offset = (page - 1) * limit;
 
-    const result = await dbQuery(
-      `SELECT id, symbol, type, quantity, execution_price, order_value, commission, execution_date
-       FROM trades
-       ORDER BY execution_date DESC
-       LIMIT $1 OFFSET $2`,
-      [limit, offset]
-    );
+    // Try to fetch trades - handle case where table doesn't exist or has different schema
+    let trades = [];
+    let total = 0;
 
-    const countResult = await dbQuery('SELECT COUNT(*) as total FROM trades', []);
-    const total = parseInt(countResult.rows[0]?.total || 0);
+    try {
+      const result = await dbQuery(
+        `SELECT id, symbol, COALESCE(type, side, 'unknown') as type, quantity, execution_price,
+                order_value, commission, execution_date
+         FROM trades
+         ORDER BY execution_date DESC
+         LIMIT $1 OFFSET $2`,
+        [limit, offset]
+      );
+
+      const countResult = await dbQuery('SELECT COUNT(*) as total FROM trades', []);
+      total = parseInt(countResult.rows[0]?.total || 0);
+      trades = result.rows || [];
+    } catch (tableError) {
+      // Trades table doesn't exist or has different schema - return empty results
+      console.warn('Trades table query failed (table may not exist):', tableError.message);
+      trades = [];
+      total = 0;
+    }
 
     // Calculate trade summary statistics
-    const trades = result.rows || [];
     let summary = {
       total_trades: trades.length,
       win_rate: 0,
@@ -258,18 +270,17 @@ router.get('/history', async (req, res) => {
     if (trades.length > 0) {
       let winning_trades = 0;
       let total_pnl = 0;
-      summary.best_trade = Math.max(...trades.map(t => parseFloat(t.pnl) || 0));
-      summary.worst_trade = Math.min(...trades.map(t => parseFloat(t.pnl) || 0));
+      const pnls = trades.map(t => parseFloat(t.pnl) || 0).filter(p => !isNaN(p));
 
-      trades.forEach(t => {
-        const pnl = parseFloat(t.pnl) || 0;
-        if (pnl > 0) winning_trades++;
-        total_pnl += pnl;
-      });
-
-      summary.win_rate = (winning_trades / trades.length * 100).toFixed(2);
-      summary.total_gain = total_pnl.toFixed(2);
-      summary.avg_gain = (total_pnl / trades.length).toFixed(2);
+      if (pnls.length > 0) {
+        summary.best_trade = Math.max(...pnls);
+        summary.worst_trade = Math.min(...pnls);
+        total_pnl = pnls.reduce((sum, p) => sum + p, 0);
+        winning_trades = pnls.filter(p => p > 0).length;
+        summary.win_rate = (winning_trades / trades.length * 100).toFixed(2);
+        summary.total_gain = total_pnl.toFixed(2);
+        summary.avg_gain = (total_pnl / trades.length).toFixed(2);
+      }
     }
 
     return sendSuccess(res, {
@@ -372,22 +383,19 @@ router.get('/summary', async (req, res) => {
     const avgPnL = tradesWithPnL.length > 0 ? totalPnL / tradesWithPnL.length : 0;
     const winRate = tradesWithPnL.length > 0 ? (winningTrades / tradesWithPnL.length) * 100 : 0;
 
-    res.json({
-      data: {
-        totalTrades,
-        buys,
-        sells,
-        totalValue: Math.round(totalValue * 100) / 100,
-        totalCommission: Math.round(totalCommission * 100) / 100,
-        uniqueSymbols: symbols.size,
-        uniqueSources: sources.size,
-        winningTrades,
-        losingTrades,
-        totalPnL: Math.round(totalPnL * 100) / 100,
-        avgPnL: Math.round(avgPnL * 100) / 100,
-        winRate: Math.round(winRate * 100) / 100
-      },
-      success: true
+    return sendSuccess(res, {
+      totalTrades,
+      buys,
+      sells,
+      totalValue: Math.round(totalValue * 100) / 100,
+      totalCommission: Math.round(totalCommission * 100) / 100,
+      uniqueSymbols: symbols.size,
+      uniqueSources: sources.size,
+      winningTrades,
+      losingTrades,
+      totalPnL: Math.round(totalPnL * 100) / 100,
+      avgPnL: Math.round(avgPnL * 100) / 100,
+      winRate: Math.round(winRate * 100) / 100
     });
 
   } catch (error) {

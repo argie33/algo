@@ -19,23 +19,20 @@ router.get("/", async (req, res) => {
   try {
     // Basic health check without database (for quick status)
     if (req.query.quick === "true") {
-      return res.json({
-        data: {
-          status: "healthy",
-          healthy: true,
-          service: "Financial Dashboard API",
-          environment: process.env.NODE_ENV || "development",
-          memory: process.memoryUsage(),
-          uptime: process.uptime(),
+      return sendSuccess(res, {
+        status: "healthy",
+        healthy: true,
+        service: "Financial Dashboard API",
+        environment: process.env.NODE_ENV || "development",
+        memory: process.memoryUsage(),
+        uptime: process.uptime(),
+        version: "1.0.0",
+        note: "Quick health check - database not tested",
+        database: { status: "not_tested" },
+        api: {
           version: "1.0.0",
-          note: "Quick health check - database not tested",
-          database: { status: "not_tested" },
-          api: {
-            version: "1.0.0",
-            environment: process.env.NODE_ENV || "development",
-          },
+          environment: process.env.NODE_ENV || "development",
         },
-        success: true
       });
     }
     // Full health check with database
@@ -70,31 +67,28 @@ router.get("/", async (req, res) => {
       if (typeof healthCheck === "function") {
         try {
           const dbHealth = await healthCheck();
-          return res.json({
-            data: {
-              status: "healthy",
-              healthy: true,
-              service: "Financial Dashboard API",
-              environment: process.env.NODE_ENV || "development",
-              version: "1.0.0",
-              database: {
-                status: dbHealth.status || "connected",
-                responseTime: dbHealth.responseTime || 0,
-                tables: dbHealth.tables || {
-                  portfolio_holdings: true,
-                  company_profile: true,
-                  price_daily: true,
-                  trading_alerts: true,
-                },
+          return sendSuccess(res, {
+            status: "healthy",
+            healthy: true,
+            service: "Financial Dashboard API",
+            environment: process.env.NODE_ENV || "development",
+            version: "1.0.0",
+            database: {
+              status: dbHealth.status || "connected",
+              responseTime: dbHealth.responseTime || 0,
+              tables: dbHealth.tables || {
+                portfolio_holdings: true,
+                company_profile: true,
+                price_daily: true,
+                trading_alerts: true,
               },
-              api: {
-                version: "1.0.0",
-                environment: process.env.NODE_ENV || "development",
-              },
-              memory: process.memoryUsage(),
-              uptime: process.uptime(),
             },
-            success: true
+            api: {
+              version: "1.0.0",
+              environment: process.env.NODE_ENV || "development",
+            },
+            memory: process.memoryUsage(),
+            uptime: process.uptime(),
           });
         } catch (testDbError) {
           console.log("Test database error:", testDbError.message);
@@ -114,31 +108,28 @@ router.get("/", async (req, res) => {
           const _result = await query("SELECT 1 as ok");
           if (_result && (_result.rows || _result.length >= 0)) {
             const dbTime = Date.now() - Date.now();
-            return res.json({
-              data: {
-                status: "healthy",
-                healthy: true,
-                service: "Financial Dashboard API",
-                environment: process.env.NODE_ENV || "development",
-                version: "1.0.0",
-                database: {
-                  status: "connected",
-                  responseTime: dbTime,
-                  tables: {
-                    portfolio_holdings: true,
-                    company_profile: true,
-                    price_daily: true,
-                    trading_alerts: true,
-                  },
+            return sendSuccess(res, {
+              status: "healthy",
+              healthy: true,
+              service: "Financial Dashboard API",
+              environment: process.env.NODE_ENV || "development",
+              version: "1.0.0",
+              database: {
+                status: "connected",
+                responseTime: dbTime,
+                tables: {
+                  portfolio_holdings: true,
+                  company_profile: true,
+                  price_daily: true,
+                  trading_alerts: true,
                 },
-                api: {
-                  version: "1.0.0",
-                  environment: process.env.NODE_ENV || "development",
-                },
-                memory: process.memoryUsage(),
-                uptime: process.uptime(),
               },
-              success: true
+              api: {
+                version: "1.0.0",
+                environment: process.env.NODE_ENV || "development",
+              },
+              memory: process.memoryUsage(),
+              uptime: process.uptime(),
             });
           }
         } catch (testDbError) {

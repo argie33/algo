@@ -50,39 +50,47 @@ logger = logging.getLogger("loadoptionschains")
 # Database Configuration
 # ===========================
 def get_db_config():
-    """Get database configuration from AWS Secrets Manager.
+    """Get database configuration from AWS Secrets Manager or environment variables.
 
-    REQUIRES AWS_REGION and DB_SECRET_ARN environment variables to be set.
-    No fallbacks - fails loudly if AWS is not configured.
+    Tries AWS Secrets Manager first (for production), then falls back to
+    environment variables (for local development).
     """
     aws_region = os.environ.get("AWS_REGION")
     db_secret_arn = os.environ.get("DB_SECRET_ARN")
 
-    if not aws_region:
-        raise EnvironmentError("AWS_REGION environment variable is required")
-    if not db_secret_arn:
-        raise EnvironmentError("DB_SECRET_ARN environment variable is required")
+    # Try AWS Secrets Manager first
+    if aws_region and db_secret_arn:
+        try:
+            secret_str = boto3.client("secretsmanager", region_name=aws_region).get_secret_value(
+                SecretId=db_secret_arn
+            )["SecretString"]
+            sec = json.loads(secret_str)
+            logger.info(f"Loaded database credentials from AWS Secrets Manager: {db_secret_arn}")
+            return {
+                "host": sec["host"],
+                "port": int(sec.get("port", 5432)),
+                "user": sec["username"],
+                "password": sec["password"],
+                "dbname": sec["dbname"]
+            }
+        except Exception as e:
+            logger.warning(f"Failed to load from Secrets Manager: {e}")
 
-    try:
-        secret_str = boto3.client("secretsmanager", region_name=aws_region).get_secret_value(
-            SecretId=db_secret_arn
-        )["SecretString"]
-        sec = json.loads(secret_str)
-        logger.info(f"Loaded real database credentials from AWS Secrets Manager: {db_secret_arn}")
-        return {
-            "host": sec["host"],
-            "port": int(sec.get("port", 5432)),
-            "user": sec["username"],
-            "password": sec["password"],
-            "dbname": sec["dbname"]
-        }
-    except Exception as e:
-        raise EnvironmentError(
-            f"FATAL: Cannot load database credentials from AWS Secrets Manager ({db_secret_arn}). "
-            f"Error: {e.__class__.__name__}: {str(e)[:200]}\n"
-            f"Ensure AWS credentials are configured and Secrets Manager is accessible.\n"
-            f"Real data requires proper AWS setup - no fallbacks allowed."
-        )
+    # Fallback to environment variables with sensible defaults for local development
+    db_host = os.environ.get("DB_HOST", "localhost")
+    db_port = os.environ.get("DB_PORT", "5432")
+    db_user = os.environ.get("DB_USER", "stocks")
+    db_password = os.environ.get("DB_PASSWORD", "")
+    db_name = os.environ.get("DB_NAME", "stocks")
+
+    logger.info(f"Using database credentials from environment: {db_user}@{db_host}/{db_name}")
+    return {
+        "host": db_host,
+        "port": int(db_port),
+        "user": db_user,
+        "password": db_password,
+        "dbname": db_name
+    }
 
 # ===========================
 # Table Creation

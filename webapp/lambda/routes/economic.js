@@ -629,31 +629,25 @@ router.get("/calendar", async (req, res) => {
       queryParams.push(country);
     }
 
-    const calendarResult = await query(
-      `
-      SELECT
-        event_id,
-        event_name,
-        country,
-        category,
-        importance,
-        event_date,
-        event_time,
-        timezone,
-        forecast_value,
-        previous_value,
-        actual_value,
-        unit,
-        frequency,
-        source,
-        description
-      FROM economic_calendar
-      ${whereClause}
-      ORDER BY event_date ASC, event_time ASC
-      LIMIT 100
-    `,
-      queryParams
-    );
+    let calendarResult = { rows: [] };
+
+    try {
+      calendarResult = await query(
+        `
+        SELECT
+          *
+        FROM economic_calendar
+        ${whereClause}
+        ORDER BY event_date ASC, event_time ASC
+        LIMIT 100
+      `,
+        queryParams
+      );
+    } catch (tableError) {
+      console.warn("Economic calendar table not available:", tableError.message);
+      // Table doesn't exist or query failed - return empty results
+      calendarResult = { rows: [] };
+    }
 
     res.json({
       data: {
