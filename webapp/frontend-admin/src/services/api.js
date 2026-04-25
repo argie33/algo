@@ -3619,3 +3619,34 @@ export const getTradesFifoAnalysis = async () => {
 
 // Export api as default for backwards compatibility
 export default api;
+
+export const getDeepValueStocks = async (limit = 5000, offset = 0) => {
+  try {
+    const response = await api.get(`/api/stocks/deep-value?limit=${limit}&offset=${offset}`);
+    return { success: true, data: extractResponseData(response), pagination: response.data?.pagination };
+  } catch (error) {
+    console.error("Error fetching deep value stocks:", error);
+    return { success: false, data: [] };
+  }
+};
+
+export const getContactSubmissions = async (page = 1, limit = 50) => {
+  try {
+    const response = await api.get(`/api/contact/submissions?page=${page}&limit=${limit}`);
+    return { success: true, data: extractResponseData(response), pagination: response.data?.pagination };
+  } catch (error) {
+    console.error("Error fetching contact submissions:", error);
+    return { success: false, data: [] };
+  }
+};
+
+export const getPortfolioData = async () => {
+  try {
+    const response = await api.get(`/api/portfolio/metrics`);
+    const apiData = response.data?.data || response.data;
+    return { success: true, data: apiData };
+  } catch (error) {
+    console.error("Error fetching portfolio data:", error);
+    return { success: false, data: null };
+  }
+};
