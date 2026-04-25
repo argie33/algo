@@ -718,8 +718,8 @@ export default function EconomicDashboard() {
       // Fetch economic calendar data (optional - use empty defaults if fails)
       try {
         const response = await api.get("/api/economic/calendar");
-        // responseFormatter wraps response in { success, data: {...}, timestamp }
-        const rawData = response?.data?.data || response?.data || {};
+        // Unified format: { success: true, data: {...}, timestamp: ... }
+        const rawData = response.data.data || {};
         economicCalendarData = rawData?.events || (Array.isArray(rawData) ? rawData : []);
         console.log("✅ Economic Calendar Data Fetched:", {
           count: economicCalendarData?.length || 0,
