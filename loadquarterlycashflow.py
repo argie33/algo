@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+"""Quarterly Cash Flow Loader"""
+
+import sys
+import logging
+import os
+from typing import Optional
+
+import psycopg2
+import yfinance as yf
+import pandas as pd
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", stream=sys.stdout)
+
+def get_db_connection():
+    try:
+        return psycopg2.connect(
+            host=os.environ.get("DB_HOST", "localhost"),
+            port=os.environ.get("DB_PORT", "5432"),
+            user=os.environ.get("DB_USER", "stocks"),
+            password=os.environ.get("DB_PASSWORD", ""),
+            dbname=os.environ.get("DB_NAME", "stocks"),
+            connect_timeout=10
+        )
+    except Exception as e:
+        logging.error(f"DB connection failed: {e}")
+        return None
+
+def safe_float(value) -> Optional[float]:
+    if pd.isna(value) or value is None:
+        return None
+    try:
+        if isinstance(value, str):
+            value = value.replace(',', '').replace('$', '').strip()
+            if not value or value == '-':
+                return None
+        return float(value)
+    except:
+        return None
+
+def main():
+    logging.info("Starting loadquarterlycashflow.py")
+    conn = get_db_connection()
+    if not conn:
+        return False
+
+    conn.autocommit = True
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS quarterly_cash_flow (
+                id SERIAL PRIMARY KEY,
+                symbol VARCHAR(20) NOT NULL,
+                fiscal_year INT NOT NULL,
+                fiscal_quarter INT NOT NULL,
+                date DATE,
+                operating_cash_flow DECIMAL(16,2),
+                investing_cash_flow DECIMAL(16,2),
+                financing_cash_flow DECIMAL(16,2),
+                capital_expenditures DECIMAL(16,2),
+                free_cash_flow DECIMAL(16,2),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(symbol, fiscal_year, fiscal_quarter)
+            )
+        """)
+
+        cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol LIMIT 100")
+        symbols = [row[0] for row in cur.fetchall()]
+
+        logging.info(f"Loading quarterly cash flows for {len(symbols)} stocks...")
+        total_rows = 0
+
+        for i, symbol in enumerate(symbols):
+            try:
+                yf_symbol = symbol.replace(".", "-").upper()
+                ticker = yf.Ticker(yf_symbol)
+                try:
+                    cf = ticker.quarterly_cashflow
+                    if cf is None or cf.empty:
+                        continue
+                except:
+                    continue
+
+                for date_col in cf.columns:
+                    try:
+                        fiscal_date = pd.to_datetime(date_col)
+                        fiscal_year = fiscal_date.year
+                        fiscal_quarter = (fiscal_date.month - 1) // 3 + 1
+                        row_data = cf[date_col]
+
+                        operating = safe_float(row_data.get('Operating Cash Flow'))
+                        if operating is None:
+                            continue
+
+                        cur.execute("""
+                            INSERT INTO quarterly_cash_flow
+                            (symbol, fiscal_year, fiscal_quarter, date, operating_cash_flow,
+                             investing_cash_flow, financing_cash_flow, capital_expenditures,
+                             free_cash_flow, updated_at)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                            ON CONFLICT (symbol, fiscal_year, fiscal_quarter) DO UPDATE SET
+                            operating_cash_flow = EXCLUDED.operating_cash_flow,
+                            updated_at = NOW()
+                        """, (symbol, fiscal_year, fiscal_quarter, fiscal_date.date() if fiscal_date else None,
+                              operating,
+                              safe_float(row_data.get('Investing Cash Flow')),
+                              safe_float(row_data.get('Financing Cash Flow')),
+                              safe_float(row_data.get('Capital Expenditure')),
+                              safe_float(row_data.get('Free Cash Flow'))))
+                        total_rows += 1
+                    except:
+                        continue
+            except:
+                continue
+            if (i + 1) % 10 == 0:
+                conn.commit()
+
+        conn.commit()
+        logging.info(f"✓ Completed: {total_rows} rows")
+        return True
+    except Exception as e:
+        logging.error(f"Error: {e}")
+        return False
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+if __name__ == "__main__":
+    sys.exit(0 if main() else 1)
