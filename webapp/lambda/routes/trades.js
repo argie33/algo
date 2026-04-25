@@ -247,12 +247,39 @@ router.get('/history', async (req, res) => {
     const countResult = await dbQuery('SELECT COUNT(*) as total FROM trades', []);
     const total = parseInt(countResult.rows[0]?.total || 0);
 
-    return res.json({
-      data: {
-        trades: result.rows || []
-      },
+    // Calculate trade summary statistics
+    const trades = result.rows || [];
+    let summary = {
+      total_trades: trades.length,
+      win_rate: 0,
+      avg_gain: 0,
+      total_gain: 0,
+      best_trade: 0,
+      worst_trade: 0
+    };
+
+    if (trades.length > 0) {
+      let winning_trades = 0;
+      let total_pnl = 0;
+      summary.best_trade = Math.max(...trades.map(t => parseFloat(t.pnl) || 0));
+      summary.worst_trade = Math.min(...trades.map(t => parseFloat(t.pnl) || 0));
+
+      trades.forEach(t => {
+        const pnl = parseFloat(t.pnl) || 0;
+        if (pnl > 0) winning_trades++;
+        total_pnl += pnl;
+      });
+
+      summary.win_rate = (winning_trades / trades.length * 100).toFixed(2);
+      summary.total_gain = total_pnl.toFixed(2);
+      summary.avg_gain = (total_pnl / trades.length).toFixed(2);
+    }
+
+    return sendSuccess(res, {
+      trades,
+      summary,
       pagination: { page, limit, total, pages: Math.ceil(total / limit) },
-      success: true
+      metadata: { last_updated: new Date().toISOString() }
     });
   } catch (err) {
     console.error('Error fetching trade history:', err.message);

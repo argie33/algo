@@ -130,26 +130,16 @@ def load_comprehensive_metrics(conn):
     df = pd.DataFrame(index=symbols)
     df.index.name = 'symbol'
 
-    # ===== QUALITY METRICS (20+ inputs) =====
+    # ===== QUALITY METRICS =====
     logger.info("Loading quality metrics...")
     cur.execute("""
-        SELECT symbol,
-            return_on_equity_pct, return_on_assets_pct, return_on_invested_capital_pct,
-            gross_margin_pct, operating_margin_pct, profit_margin_pct,
-            fcf_to_net_income, operating_cf_to_net_income,
-            debt_to_equity, current_ratio, quick_ratio,
-            earnings_surprise_avg, eps_growth_stability, payout_ratio,
-            earnings_beat_rate, consecutive_positive_quarters, surprise_consistency
-        FROM quality_metrics qm
-        WHERE date = (SELECT MAX(date) FROM quality_metrics WHERE symbol = qm.symbol)
+        SELECT symbol, roe, roa
+        FROM quality_metrics
     """)
     quality_data = cur.fetchall()
     if quality_data:
         quality_df = pd.DataFrame(quality_data, columns=[
-            'symbol', 'roe', 'roa', 'roic', 'gross_margin', 'op_margin', 'net_margin',
-            'fcf_to_ni', 'ocf_to_ni', 'debt_to_equity', 'current_ratio', 'quick_ratio',
-            'earnings_surprise', 'eps_stability', 'payout_ratio', 'beat_rate',
-            'pos_quarters', 'surprise_consistency'
+            'symbol', 'roe', 'roa'
         ]).set_index('symbol')
         df = df.join(quality_df, how='left')
         logger.info(f"  Loaded quality metrics for {quality_df.shape[0]} stocks")

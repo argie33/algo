@@ -18,23 +18,15 @@ async function fetchStocksList(req, res) {
     const countResult = await query("SELECT COUNT(*) as total FROM stock_symbols");
     const total = parseInt(countResult.rows[0].total);
 
-    return res.json({
-      items: result.rows,
-      pagination: {
-        limit,
-        offset,
-        total,
-        page: Math.max(1, Math.ceil((offset / limit) + 1))
-      },
-      success: true
+    return sendPaginated(res, result.rows, {
+      limit,
+      offset,
+      total,
+      page: Math.max(1, Math.ceil((offset / limit) + 1))
     });
   } catch (error) {
     console.error("Error fetching stocks:", error);
-    return res.status(500).json({
-      success: false,
-      error: "Failed to fetch stocks",
-      message: error.message
-    });
+    return sendError(res, `Failed to fetch stocks: ${error.message}`, 500);
   }
 }
 
@@ -49,11 +41,7 @@ router.get("/search", async (req, res) => {
     const offset = parseInt(req.query.offset) || 0;
 
     if (!q) {
-      return res.json({
-        items: [],
-        pagination: { limit, offset, total: 0, page: 1 },
-        success: true
-      });
+      return sendPaginated(res, [], { limit, offset, total: 0, page: 1 });
     }
 
     const searchTerm = `%${q.toUpperCase()}%`;
@@ -68,23 +56,15 @@ router.get("/search", async (req, res) => {
     );
     const total = parseInt(countResult.rows[0].total);
 
-    res.json({
-      items: result.rows,
-      pagination: {
-        limit,
-        offset,
-        total,
-        page: Math.max(1, Math.ceil((offset / limit) + 1))
-      },
-      success: true
+    return sendPaginated(res, result.rows, {
+      limit,
+      offset,
+      total,
+      page: Math.max(1, Math.ceil((offset / limit) + 1))
     });
   } catch (error) {
     console.error("Error searching stocks:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to search stocks",
-      message: error.message
-    });
+    return sendError(res, `Failed to search stocks: ${error.message}`, 500);
   }
 });
 
@@ -127,9 +107,8 @@ router.get("/deep-value", async (req, res) => {
     );
     const total = parseInt(countResult.rows[0].total);
 
-    res.json({
-      success: true,
-      data: result.rows,
+    return sendSuccess(res, {
+      stocks: result.rows,
       pagination: {
         limit,
         offset,
@@ -138,15 +117,15 @@ router.get("/deep-value", async (req, res) => {
       criteria: {
         description: "Deep value stocks: High value scores with low composite scores (undervalued opportunities)",
         sortOrder: "Value-Composite spread (descending) → Value Score (descending) → Composite Score (ascending)"
+      },
+      metadata: {
+        total_stocks: result.rows.length,
+        last_updated: new Date().toISOString()
       }
     });
   } catch (error) {
     console.error("Error fetching deep value stocks:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch deep value stocks",
-      message: error.message
-    });
+    return sendError(res, `Failed to fetch deep value stocks: ${error.message}`, 500);
   }
 });
 
@@ -178,15 +157,11 @@ router.get("/quick/overview", async (req, res) => {
       params
     );
 
-    return res.json({
-      items: result.rows,
-      pagination: {
-        limit,
-        offset,
-        total,
-        page: Math.max(1, Math.ceil((offset / limit) + 1))
-      },
-      success: true
+    return sendPaginated(res, result.rows, {
+      limit,
+      offset,
+      total,
+      page: Math.max(1, Math.ceil((offset / limit) + 1))
     });
   } catch (error) {
     console.error("Error fetching quick overview:", error);
@@ -245,15 +220,11 @@ router.get("/full/data", async (req, res) => {
       params
     );
 
-    return res.json({
-      items: result.rows,
-      pagination: {
-        limit,
-        offset,
-        total,
-        page: Math.max(1, Math.ceil((offset / limit) + 1))
-      },
-      success: true
+    return sendPaginated(res, result.rows, {
+      limit,
+      offset,
+      total,
+      page: Math.max(1, Math.ceil((offset / limit) + 1))
     });
   } catch (error) {
     console.error("Error fetching full data:", error);
