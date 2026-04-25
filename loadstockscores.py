@@ -265,7 +265,7 @@ def main():
 
     # ===== QUALITY SCORE (17+ metrics) =====
     logger.info("Calculating QUALITY scores (profitability, cash flow, financial health)...")
-    quality_metrics = ['roe', 'roa', 'roic', 'gross_margin', 'op_margin', 'net_margin',
+    all_quality_metrics = ['roe', 'roa', 'roic', 'gross_margin', 'op_margin', 'net_margin',
                       'fcf_to_ni', 'ocf_to_ni', 'eps_stability', 'beat_rate', 'pos_quarters']
     quality_weights = {
         'roe': 2.0, 'roa': 1.5, 'roic': 2.0,
@@ -273,19 +273,33 @@ def main():
         'fcf_to_ni': 1.5, 'ocf_to_ni': 1.0, 'eps_stability': 1.0,
         'beat_rate': 1.5, 'pos_quarters': 1.0
     }
-    df['quality_z'] = calculate_weighted_score(df, quality_metrics, quality_weights)
-    df['quality_score'] = df['quality_z'].apply(zscore_to_percentile)
+    # Filter to only available metrics
+    quality_metrics = [m for m in all_quality_metrics if m in df.columns]
+    if quality_metrics:
+        df['quality_z'] = calculate_weighted_score(df, quality_metrics, quality_weights)
+        df['quality_score'] = df['quality_z'].apply(zscore_to_percentile)
+    else:
+        logger.warning("  No quality metrics available - using NaN for quality score")
+        df['quality_z'] = np.nan
+        df['quality_score'] = np.nan
 
     # ===== GROWTH SCORE (9+ metrics) =====
     logger.info("Calculating GROWTH scores (revenue expansion, earnings growth)...")
-    growth_metrics = ['rev_3y_cagr', 'eps_3y_cagr', 'op_income_yoy', 'sustainable_growth',
+    all_growth_metrics = ['rev_3y_cagr', 'eps_3y_cagr', 'op_income_yoy', 'sustainable_growth',
                      'fcf_growth', 'ocf_growth', 'ni_growth', 'rev_growth']
     growth_weights = {
         'rev_3y_cagr': 1.5, 'eps_3y_cagr': 2.0, 'op_income_yoy': 1.5, 'sustainable_growth': 1.5,
         'fcf_growth': 1.5, 'ocf_growth': 1.0, 'ni_growth': 2.0, 'rev_growth': 1.0
     }
-    df['growth_z'] = calculate_weighted_score(df, growth_metrics, growth_weights)
-    df['growth_score'] = df['growth_z'].apply(zscore_to_percentile)
+    # Filter to only available metrics
+    growth_metrics = [m for m in all_growth_metrics if m in df.columns]
+    if growth_metrics:
+        df['growth_z'] = calculate_weighted_score(df, growth_metrics, growth_weights)
+        df['growth_score'] = df['growth_z'].apply(zscore_to_percentile)
+    else:
+        logger.warning("  No growth metrics available - using NaN for growth score")
+        df['growth_z'] = np.nan
+        df['growth_score'] = np.nan
 
     # ===== STABILITY SCORE (8 metrics) =====
     logger.info("Calculating STABILITY scores (low volatility, low drawdown, beta, consistency)...")

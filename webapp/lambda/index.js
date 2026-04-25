@@ -367,6 +367,7 @@ app.use(async (req, res, next) => {
 
     // For other endpoints, return service unavailable instead of forbidden
     res.status(503).json({
+      success: false,
       error: "Service temporarily unavailable - database connection failed",
       message: "The database is currently unavailable. Please try again later.",
       timestamp: new Date().toISOString(),
