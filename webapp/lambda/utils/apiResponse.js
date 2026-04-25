@@ -22,7 +22,9 @@ module.exports = {
   sendPaginated: (res, items, pagination) => {
     res.status(200).json({
       success: true,
-      data: items,
+      data: {
+        items: items
+      },
       pagination: pagination,
       timestamp: new Date().toISOString()
     });

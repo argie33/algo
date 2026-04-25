@@ -260,7 +260,7 @@ function TradingSignals() {
   });
 
   // Ensure we have a valid response object, default to empty items
-  const validSignalsData = signalsData || { items: [] };
+  const validSignalsData = signalsData?.data || { items: [] };
   const hasNoSignals = !signalsLoading && (!validSignalsData?.items || validSignalsData.items.length === 0);
 
   // Show 0 when empty

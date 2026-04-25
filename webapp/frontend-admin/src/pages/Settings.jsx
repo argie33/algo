@@ -55,7 +55,16 @@ import {
   Add,
   Delete,
 } from "@mui/icons-material";
-import api, { getApiConfig } from "../services/api";
+import api, {
+  getApiConfig,
+  getUserProfile,
+  getSettingsPreferences,
+  changePassword,
+  setTwoFactorAuth,
+  getRecoveryCodes,
+  revokeAllSessions,
+  deleteAccount
+} from "../services/api";
 import { createComponentLogger } from "../utils/errorLogger";
 
 function TabPanel({ children, value, index, ...other }) {
@@ -212,46 +221,16 @@ const Settings = () => {
         // Don't fail the entire settings load if API keys fail
       }
 
-      // Load notification preferences
+      // Load preferences (notifications and theme) - single call instead of double-fetch
       try {
-        const notifResponse = await fetch(
-          `${apiUrl}/api/settings/preferences`,
-          {
-            headers: {
-              Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
-            },
-          }
-        );
-        if (notifResponse.ok) {
-          const notifData = await notifResponse.json();
-          setNotifications((prev) => ({ ...prev, ...notifData.preferences }));
-        } else if (notifResponse.status === 404) {
-          // Endpoint doesn't exist - stop trying, use defaults
-          console.log("Notifications endpoint not implemented, using defaults");
+        const prefResult = await getSettingsPreferences();
+        if (prefResult.success && prefResult.data) {
+          const prefs = prefResult.data.preferences || prefResult.data;
+          setNotifications((prev) => ({ ...prev, ...prefs }));
+          setThemeSettings((prev) => ({ ...prev, ...prefs }));
         }
       } catch (error) {
-        console.log("Failed to load notification preferences, using defaults");
-      }
-
-      // Load theme preferences
-      try {
-        const themeResponse = await fetch(
-          `${apiUrl}/api/settings/preferences`,
-          {
-            headers: {
-              Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
-            },
-          }
-        );
-        if (themeResponse.ok) {
-          const themeData = await themeResponse.json();
-          setThemeSettings((prev) => ({ ...prev, ...themeData.preferences }));
-        } else if (themeResponse.status === 404) {
-          // Endpoint doesn't exist - stop trying, use defaults
-          console.log("Theme endpoint not implemented, using defaults");
-        }
-      } catch (error) {
-        console.log("Failed to load theme preferences, using defaults");
+        console.log("Failed to load preferences, using defaults");
       }
     } catch (error) {
       if (import.meta.env && import.meta.env.DEV)

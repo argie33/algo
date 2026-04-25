@@ -248,7 +248,9 @@ router.get('/history', async (req, res) => {
     const total = parseInt(countResult.rows[0]?.total || 0);
 
     return res.json({
-      data: result.rows || [],
+      data: {
+        trades: result.rows || []
+      },
       pagination: { page, limit, total, pages: Math.ceil(total / limit) },
       success: true
     });

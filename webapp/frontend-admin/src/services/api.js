@@ -3995,6 +3995,94 @@ export const getTradesFifoAnalysis = async () => {
   }
 };
 
+// User Profile and Settings API
+export const getUserProfile = async () => {
+  try {
+    const response = await api.get("/api/user/profile");
+    return {
+      data: extractResponseData(response),
+      success: true
+    };
+  } catch (error) {
+    return createErrorResponse(error, "Failed to fetch user profile");
+  }
+};
+
+export const getSettingsPreferences = async () => {
+  try {
+    const response = await api.get("/api/settings/preferences");
+    return {
+      data: extractResponseData(response),
+      success: true
+    };
+  } catch (error) {
+    return createErrorResponse(error, "Failed to fetch preferences");
+  }
+};
+
+export const changePassword = async (oldPassword, newPassword) => {
+  try {
+    const response = await api.post("/api/user/change-password", {
+      old_password: oldPassword,
+      new_password: newPassword
+    });
+    return {
+      data: extractResponseData(response),
+      success: true
+    };
+  } catch (error) {
+    return createErrorResponse(error, "Failed to change password");
+  }
+};
+
+export const setTwoFactorAuth = async (action, details = {}) => {
+  try {
+    const response = await api.post(`/api/user/two-factor/${action}`, details);
+    return {
+      data: extractResponseData(response),
+      success: true
+    };
+  } catch (error) {
+    return createErrorResponse(error, `Failed to ${action} two-factor auth`);
+  }
+};
+
+export const getRecoveryCodes = async () => {
+  try {
+    const response = await api.get("/api/user/recovery-codes");
+    return {
+      data: extractResponseData(response),
+      success: true
+    };
+  } catch (error) {
+    return createErrorResponse(error, "Failed to fetch recovery codes");
+  }
+};
+
+export const revokeAllSessions = async () => {
+  try {
+    const response = await api.post("/api/user/revoke-sessions");
+    return {
+      data: extractResponseData(response),
+      success: true
+    };
+  } catch (error) {
+    return createErrorResponse(error, "Failed to revoke sessions");
+  }
+};
+
+export const deleteAccount = async (password) => {
+  try {
+    const response = await api.post("/api/user/delete-account", { password });
+    return {
+      data: extractResponseData(response),
+      success: true
+    };
+  } catch (error) {
+    return createErrorResponse(error, "Failed to delete account");
+  }
+};
+
 // Trade endpoints consolidated:
 // GET /api/trades - Get all trades with filtering/pagination (symbol, type, source, page, limit, sort)
 // GET /api/trades/summary - Get trade summary statistics
