@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import defaultApi, { api as axiosApi } from "../services/api.js";
+import { getTrades, getTradesSummary, getTradesFifoAnalysis } from "../services/api.js";
+import api from "../services/api.js";
 import {
   Box,
   Container,
@@ -92,7 +93,7 @@ const TradeHistory = () => {
   const { data: tradeData, isLoading: tradeLoading, refetch: refetchTrades } = useQuery({
     queryKey: ["tradeHistory", page, rowsPerPage],
     queryFn: async () => {
-      const result = await defaultApi.getTrades(page + 1, rowsPerPage);
+      const result = await getTrades(page + 1, rowsPerPage);
       return { data: { trades: result.data || [], pagination: result.pagination || {}, summary: {} } };
     },
     staleTime: 60000,
@@ -101,7 +102,7 @@ const TradeHistory = () => {
   const { data: summaryData, isLoading: summaryLoading } = useQuery({
     queryKey: ["tradeSummary"],
     queryFn: async () => {
-      const result = await defaultApi.getTradesSummary();
+      const result = await getTradesSummary();
       return { data: result.data };
     },
     staleTime: 60000,
@@ -244,7 +245,7 @@ const TradeHistory = () => {
         try {
           setMatchedPairsLoading(true);
           setMatchedPairsError(null);
-          const result = await defaultApi.getTradesFifoAnalysis();
+          const result = await getTradesFifoAnalysis();
 
           if (result.success && result.data) {
             const analysisData = result.data?.analysis || result.data;
@@ -283,7 +284,7 @@ const TradeHistory = () => {
 
   const handleExportTrades = async (format = "csv") => {
     try {
-      const response = await axiosApi.get(`/api/trades/export?format=${format}`, {
+      const response = await api.get(`/api/trades/export?format=${format}`, {
         responseType: 'blob'
       });
       const blob = response.data;

@@ -134,123 +134,6 @@ def get_symbols_from_db(limit=None, skip_completed=False):
         cur.close()
         conn.close()
 
-def create_buy_sell_table(cur, conn, table_name="buy_sell_daily"):
-    # CRITICAL: Do NOT drop table - preserve existing data for incremental loads
-    # cur.execute(f"DROP TABLE IF EXISTS {table_name};")
-    cur.execute(f"""
-      CREATE TABLE IF NOT EXISTS {table_name} (
-        id           SERIAL PRIMARY KEY,
-        symbol       VARCHAR(20)    NOT NULL,
-        timeframe    VARCHAR(10)    NOT NULL,
-        date         DATE           NOT NULL,
-        open         REAL,
-        high         REAL,
-        low          REAL,
-        close        REAL,
-        volume       BIGINT,
-        signal       VARCHAR(10),
-        signal_triggered_date DATE,
-        buylevel     REAL,
-        stoplevel    REAL,
-        inposition   BOOLEAN,
-        strength     REAL,
-        signal_strength REAL,
-        confirmed    BOOLEAN,
-        -- O'Neill methodology columns
-        signal_type  VARCHAR(50),
-        pivot_price  REAL,
-        buy_zone_start REAL,
-        buy_zone_end REAL,
-        exit_trigger_1_price REAL,     -- 20% profit target
-        exit_trigger_2_price REAL,     -- 25% profit target
-        exit_trigger_3_condition VARCHAR(50), -- '50_SMA_BREACH_WITH_VOLUME'
-        exit_trigger_3_price REAL,     -- Current 50-day SMA level
-        exit_trigger_4_condition VARCHAR(50), -- 'STOP_LOSS_HIT'
-        exit_trigger_4_price REAL,     -- Stop loss price
-        initial_stop REAL,
-        trailing_stop REAL,
-        base_type    VARCHAR(50),
-        base_length_days INTEGER,
-        avg_volume_50d BIGINT,
-        volume_surge_pct REAL,
-        rs_rating    INTEGER,
-        breakout_quality VARCHAR(20),
-        risk_reward_ratio REAL,
-        current_gain_pct REAL,
-        days_in_position INTEGER,
-        -- Market stage and quality fields
-        market_stage VARCHAR(100),
-        stage_number INTEGER,
-        stage_confidence REAL,
-        substage VARCHAR(100),
-        entry_quality_score REAL,
-        risk_pct REAL,
-        position_size_recommendation VARCHAR(100),
-        profit_target_8pct REAL,
-        profit_target_20pct REAL,
-        profit_target_25pct REAL,
-        sell_level REAL,
-        mansfield_rs REAL,
-        sata_score INTEGER,
-        -- Technical indicators
-        rsi REAL,
-        adx REAL,
-        atr REAL,
-        sma_50 REAL,
-        sma_200 REAL,
-        ema_21 REAL,
-        pct_from_ema21 REAL,
-        pct_from_sma50 REAL,
-        entry_price REAL,
-        UNIQUE(symbol, timeframe, date)
-      );
-    """)
-
-    # Ensure signal_triggered_date column exists (for existing tables that may lack it)
-    try:
-        cur.execute(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS signal_triggered_date DATE")
-        logging.info(f" {table_name}.signal_triggered_date column ready")
-    except Exception as e:
-        logging.warning(f"Could not add signal_triggered_date column to {table_name}: {e}")
-        # Try to catch if column already exists - this is expected for IF NOT EXISTS
-        if "already exists" not in str(e).lower():
-            raise
-
-    # Ensure UNIQUE constraint exists (for tables created before constraint was added)
-    # First, try to clean up any duplicate rows by keeping only the latest one per (symbol, timeframe, date)
-    # NOTE: Skip cleanup if table is very large - constraint will prevent new duplicates
-    try:
-        logging.info(f" Skipping duplicate cleanup for large table (will use UNIQUE constraint)...")
-        # Skip duplicate cleanup entirely - UNIQUE constraint prevents new duplicates
-        # Historical duplicates won't cause issues, and cleanup query is too slow on 22M+ record tables
-        logging.info(f" {table_name} will rely on UNIQUE constraint (symbol, timeframe, date)")
-        conn.commit()
-
-    except Exception as e:
-        logging.warning(f"Could not check duplicates in {table_name}: {e}")
-        try:
-            conn.rollback()
-        except Exception as rollback_err:
-            logging.warning(f"  Rollback failed: {rollback_err}")
-
-    # Now try to add the constraint
-    try:
-        # Try to add the constraint - if it already exists, this will fail gracefully
-        cur.execute(f"ALTER TABLE {table_name} ADD CONSTRAINT uq_{table_name}_symbol_timeframe_date UNIQUE (symbol, timeframe, date)")
-        logging.info(f" {table_name} UNIQUE constraint added")
-        conn.commit()
-    except psycopg2.Error as e:
-        error_str = str(e).lower()
-        if "already exists" in error_str or "duplicate key" in error_str or "constraint" in error_str:
-            logging.debug(f"ℹ {table_name} UNIQUE constraint already exists or conflicts detected")
-            conn.rollback()
-        else:
-            logging.warning(f"Could not add UNIQUE constraint to {table_name}: {e}")
-            conn.rollback()
-    except Exception as e:
-        logging.warning(f"Could not add UNIQUE constraint to {table_name}: {e}")
-        conn.rollback()
-
 def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell_daily"):
     """Insert symbol results with memory optimization - process in chunks"""
     # Free memory immediately - don't keep full dataframe
@@ -1943,14 +1826,7 @@ def main():
         cur.close()
         conn.close()
 
-    # Create tables
-    conn = get_db_connection()
-    conn.autocommit = True
-    cur = conn.cursor()
-    create_buy_sell_table(cur, conn, "buy_sell_daily")
-    cur.close()
-    conn.close()
-
+    # Tables are now created by init_database.py - not here
     # Process ONLY regular stocks (NO ETFs) - NOW ONLY INCOMPLETE ONES
     logging.info(f" Processing {len(symbols)} remaining regular stocks (excluding {len(country_symbols)} country symbols)")
 
