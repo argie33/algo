@@ -189,10 +189,7 @@ router.get("/alerts", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error("Alerts fetch error:", error);
-    return res.status(500).json({
-      error: "Failed to fetch alerts",
-      success: false
-    });
+    return sendError(res, "Failed to fetch alerts", 500);
   }
 });
 

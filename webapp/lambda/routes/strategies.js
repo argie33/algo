@@ -141,7 +141,7 @@ router.get("/covered-calls", async (req, res) => {
         cco.beta,
         cco.composite_score,
         cco.momentum_score,
-        cco.analyst_count,
+        cco.total_analysts,
         cco.analyst_price_target,
         cco.analyst_bullish_ratio,
         cco.vix_level,

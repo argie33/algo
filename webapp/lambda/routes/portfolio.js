@@ -1365,10 +1365,7 @@ router.post("/import/alpaca", authenticateToken, async (req, res) => {
 
   } catch (error) {
     console.error("Alpaca import error:", error);
-    return res.status(500).json({
-      error: "Failed to import portfolio from Alpaca",
-      success: false
-    });
+    return sendError(res, "Failed to import portfolio from Alpaca", 500);
   }
 });
 
@@ -1383,10 +1380,7 @@ router.get("/api-keys", authenticateToken, async (req, res) => {
   try {
     const userId = req.user?.sub || req.user?.id;
     if (!userId) {
-      return res.status(401).json({
-        error: "User ID not found in token",
-        success: false
-      });
+      return sendError(res, "User ID not found in token", 401);
     }
 
     // Query user_api_keys table (or alpaca_settings if using that table)
@@ -1397,16 +1391,11 @@ router.get("/api-keys", authenticateToken, async (req, res) => {
       [userId]
     );
 
-    return res.json({
-      data: result.rows || [],
-      success: true
-    });
+    return sendSuccess(res, {
+      data: result.rows || []}));
   } catch (error) {
     console.error("Error fetching API keys:", error);
-    return res.status(500).json({
-      error: "Failed to fetch API keys",
-      success: false
-    });
+    return sendError(res, "Failed to fetch API keys", 500);
   }
 });
 
@@ -1417,19 +1406,13 @@ router.post("/api-keys", authenticateToken, async (req, res) => {
   try {
     const userId = req.user?.sub || req.user?.id;
     if (!userId) {
-      return res.status(401).json({
-        error: "User ID not found in token",
-        success: false
-      });
+      return sendError(res, "User ID not found in token", 401);
     }
 
     const { broker, apiKey, secretKey } = req.body;
 
     if (!broker || !apiKey || !secretKey) {
-      return res.status(400).json({
-        error: "Missing required fields: broker, apiKey, secretKey",
-        success: false
-      });
+      return sendError(res, "Missing required fields: broker, apiKey, secretKey", 400);
     }
 
     // Insert new API key
@@ -1451,10 +1434,7 @@ router.post("/api-keys", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error("Error saving API key:", error);
-    return res.status(500).json({
-      error: "Failed to save API key",
-      success: false
-    });
+    return sendError(res, "Failed to save API key", 500);
   }
 });
 
@@ -1468,10 +1448,7 @@ router.put("/api-keys/:id", authenticateToken, async (req, res) => {
     const { apiKey, secretKey } = req.body;
 
     if (!userId) {
-      return res.status(401).json({
-        error: "User ID not found in token",
-        success: false
-      });
+      return sendError(res, "User ID not found in token", 401);
     }
 
     // Update API key
@@ -1484,10 +1461,7 @@ router.put("/api-keys/:id", authenticateToken, async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return res.status(404).json({
-        error: "API key not found or not owned by user",
-        success: false
-      });
+      return sendError(res, "API key not found or not owned by user", 404);
     }
 
     return res.json({
@@ -1501,10 +1475,7 @@ router.put("/api-keys/:id", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating API key:", error);
-    return res.status(500).json({
-      error: "Failed to update API key",
-      success: false
-    });
+    return sendError(res, "Failed to update API key", 500);
   }
 });
 
@@ -1517,10 +1488,7 @@ router.delete("/api-keys/:id", authenticateToken, async (req, res) => {
     const { id } = req.params;
 
     if (!userId) {
-      return res.status(401).json({
-        error: "User ID not found in token",
-        success: false
-      });
+      return sendError(res, "User ID not found in token", 401);
     }
 
     // Delete API key
@@ -1530,10 +1498,7 @@ router.delete("/api-keys/:id", authenticateToken, async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return res.status(404).json({
-        error: "API key not found or not owned by user",
-        success: false
-      });
+      return sendError(res, "API key not found or not owned by user", 404);
     }
 
     return res.json({
@@ -1542,10 +1507,7 @@ router.delete("/api-keys/:id", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error("Error deleting API key:", error);
-    return res.status(500).json({
-      error: "Failed to delete API key",
-      success: false
-    });
+    return sendError(res, "Failed to delete API key", 500);
   }
 });
 
@@ -1557,10 +1519,7 @@ router.post("/test-api-key", authenticateToken, async (req, res) => {
     const { broker, apiKey, secretKey } = req.body;
 
     if (!broker || !apiKey || !secretKey) {
-      return res.status(400).json({
-        error: "Missing required fields: broker, apiKey, secretKey",
-        success: false
-      });
+      return sendError(res, "Missing required fields: broker, apiKey, secretKey", 400);
     }
 
     // Test based on broker type
@@ -1606,10 +1565,7 @@ router.post("/test-api-key", authenticateToken, async (req, res) => {
     }
   } catch (error) {
     console.error("Error testing API key:", error);
-    return res.status(500).json({
-      error: "Failed to test API key",
-      success: false
-    });
+    return sendError(res, "Failed to test API key", 500);
   }
 });
 

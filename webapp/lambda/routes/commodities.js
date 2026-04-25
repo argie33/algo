@@ -42,10 +42,7 @@ try {
 function checkDatabaseAvailable(res) {
   if (databaseInitError) {
     console.error('⚠️ Database not available - returning error response');
-    return res.status(503).json({
-      error: "Database service unavailable - cannot retrieve commodities data",
-      success: false
-    });
+    return sendError(res, "Database service unavailable - cannot retrieve commodities data", 503);
   }
   return null;
 }
@@ -55,20 +52,17 @@ const router = express.Router();
 
 // Root endpoint - returns available sub-endpoints
 router.get("/", (req, res) => {
-  return res.json({
-    data: {
-      endpoint: "commodities",
-      description: "Commodities market data and COT analysis",
-      available_routes: [
-        "/categories - Commodity categories and performance",
-        "/prices - Current commodity prices with filtering",
-        "/market-summary - Market overview and leaders",
-        "/cot/:symbol - Commitment of Traders analysis",
-        "/seasonality/:symbol - Seasonal patterns by month",
-        "/correlations - Price correlations between commodities"
-      ]
-    },
-    success: true
+  return sendSuccess(res, {
+    endpoint: "commodities",
+    description: "Commodities market data and COT analysis",
+    available_routes: [
+      "/categories - Commodity categories and performance",
+      "/prices - Current commodity prices with filtering",
+      "/market-summary - Market overview and leaders",
+      "/cot/:symbol - Commitment of Traders analysis",
+      "/seasonality/:symbol - Seasonal patterns by month",
+      "/correlations - Price correlations between commodities"
+    ]
   });
 });
 
@@ -106,10 +100,7 @@ router.get("/categories", async (req, res) => {
     return sendSuccess(res, categories);
   } catch (error) {
     console.error("❌ Error fetching commodity categories:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch commodity categories",
-      success: false
-    });
+    return sendError(res, "Failed to fetch commodity categories", 500);
   }
 });
 
@@ -169,16 +160,10 @@ router.get("/prices", async (req, res) => {
       updatedAt: row.updated_at
     }));
 
-    return res.json({
-      data: prices,
-      success: true
-    });
+    return sendSuccess(res, prices);
   } catch (error) {
     console.error("❌ Error fetching commodity prices:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch commodity prices",
-      success: false
-    });
+    return sendError(res, "Failed to fetch commodity prices", 500);
   }
 });
 
@@ -237,34 +222,28 @@ router.get("/market-summary", async (req, res) => {
       trend: (parseFloat(row.avg_change_1d) || 0) >= 0 ? "up" : "down"
     }));
 
-    return res.json({
-      data: {
-        overview: {
-          activeContracts: prices.length,
-          totalVolume: safeInt(totalVolume.rows[0]?.total)
-        },
-        topGainers: gainers.map(p => ({
-          symbol: p.symbol,
-          name: p.name,
-          change: safeFixed(p.change_percent, 2),
-          price: safeFloat(p.price)
-        })),
-        topLosers: losers.map(p => ({
-          symbol: p.symbol,
-          name: p.name,
-          change: safeFixed(p.change_percent, 2),
-          price: safeFloat(p.price)
-        })),
-        sectors: sectors
+    return sendSuccess(res, {
+      overview: {
+        activeContracts: prices.length,
+        totalVolume: safeInt(totalVolume.rows[0]?.total)
       },
-      success: true
+      topGainers: gainers.map(p => ({
+        symbol: p.symbol,
+        name: p.name,
+        change: safeFixed(p.change_percent, 2),
+        price: safeFloat(p.price)
+      })),
+      topLosers: losers.map(p => ({
+        symbol: p.symbol,
+        name: p.name,
+        change: safeFixed(p.change_percent, 2),
+        price: safeFloat(p.price)
+      })),
+      sectors: sectors
     });
   } catch (error) {
     console.error("❌ Error fetching market summary:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch market summary",
-      success: false
-    });
+    return sendError(res, "Failed to fetch market summary", 500);
   }
 });
 
@@ -298,10 +277,7 @@ router.get("/cot/:symbol", async (req, res) => {
     `, [symbol]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
-        error: `No COT data available for symbol: ${symbol}`,
-        success: false
-      });
+      return sendError(res, `No COT data available for symbol: ${symbol}`, 404);
     }
 
     const cotHistory = result.rows
@@ -339,28 +315,22 @@ router.get("/cot/:symbol", async (req, res) => {
       [symbol]
     );
 
-    return res.json({
-      data: {
-        symbol: symbol,
-        commodityName: nameResult.rows[0]?.name || symbol,
-        latestReportDate: latest.report_date,
-        cotHistory: cotHistory,
-        analysis: {
-          commercialSentiment: commercialSentiment,
-          speculatorSentiment: speculatorSentiment,
-          divergence: divergence,
-          latestCommercialNet: safeInt(latest.commercial_net),
-          latestSpeculatorNet: safeInt(latest.non_commercial_net)
-        }
-      },
-      success: true
+    return sendSuccess(res, {
+      symbol: symbol,
+      commodityName: nameResult.rows[0]?.name || symbol,
+      latestReportDate: latest.report_date,
+      cotHistory: cotHistory,
+      analysis: {
+        commercialSentiment: commercialSentiment,
+        speculatorSentiment: speculatorSentiment,
+        divergence: divergence,
+        latestCommercialNet: safeInt(latest.commercial_net),
+        latestSpeculatorNet: safeInt(latest.non_commercial_net)
+      }
     });
   } catch (error) {
     console.error("❌ Error fetching COT data:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch COT data",
-      success: false
-    });
+    return sendError(res, "Failed to fetch COT data", 500);
   }
 });
 
@@ -389,10 +359,7 @@ router.get("/seasonality/:symbol", async (req, res) => {
     `, [symbol]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
-        error: `No seasonality data available for symbol: ${symbol}`,
-        success: false
-      });
+      return sendError(res, `No seasonality data available for symbol: ${symbol}`, 404);
     }
 
     const monthNames = [
@@ -415,20 +382,14 @@ router.get("/seasonality/:symbol", async (req, res) => {
       yearsData: safeInt(row.years_data)
     }));
 
-    return res.json({
-      data: {
-        symbol: symbol,
-        commodityName: nameResult.rows[0]?.name || symbol,
-        seasonality: seasonality
-      },
-      success: true
+    return sendSuccess(res, {
+      symbol: symbol,
+      commodityName: nameResult.rows[0]?.name || symbol,
+      seasonality: seasonality
     });
   } catch (error) {
     console.error("❌ Error fetching seasonality data:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch seasonality data",
-      success: false
-    });
+    return sendError(res, "Failed to fetch seasonality data", 500);
   }
 });
 
@@ -483,20 +444,14 @@ router.get("/correlations", async (req, res) => {
       };
     });
 
-    return res.json({
-      data: {
-        timeframe: timeframe,
-        minCorrelation: minCorrelation,
-        correlations: correlations
-      },
-      success: true
+    return sendSuccess(res, {
+      timeframe: timeframe,
+      minCorrelation: minCorrelation,
+      correlations: correlations
     });
   } catch (error) {
     console.error("❌ Error fetching correlations:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch correlations",
-      success: false
-    });
+    return sendError(res, "Failed to fetch correlations", 500);
   }
 });
 

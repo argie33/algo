@@ -42,7 +42,6 @@ router.get("/", async (req, res) => {
       { name: "value_metrics", query: "SELECT COUNT(*) as count FROM value_metrics" },
       { name: "quality_metrics", query: "SELECT COUNT(*) as count FROM quality_metrics" },
       { name: "earnings_history", query: "SELECT COUNT(*) as count FROM earnings_history" },
-      { name: "earnings_estimates", query: "SELECT COUNT(*) as count FROM earnings_estimates" },
       { name: "buy_sell_daily", query: "SELECT COUNT(*) as count FROM buy_sell_daily" },
       { name: "price_daily", query: "SELECT COUNT(*) as count FROM price_daily" },
       { name: "technical_data_daily", query: "SELECT COUNT(*) as count FROM technical_data_daily" }

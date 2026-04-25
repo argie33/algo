@@ -43,10 +43,7 @@ try {
 function checkDatabaseAvailable(res) {
   if (databaseInitError) {
     console.error('⚠️ Database not available - returning error response');
-    return res.status(503).json({
-      error: "Database service unavailable - cannot retrieve sector data",
-      success: false
-    });
+    return sendError(res, "Database service unavailable - cannot retrieve sector data", 503);
   }
   return null;
 }
@@ -114,10 +111,7 @@ router.use((req, res, next) => {
 router.get("/sectors", async (req, res) => {
   try {
     if (!query) {
-      return res.status(503).json({
-        error: "Database service unavailable",
-        success: false
-      });
+      return sendError(res, "Database service unavailable", 503);
     }
 
     const { limit = 500, page = 1 } = req.query;
@@ -140,15 +134,15 @@ router.get("/sectors", async (req, res) => {
         sr.momentum_score,
         sr.daily_strength_score,
         sr.trend,
-        sr.date as last_updated
+        sr.date_recorded as last_updated
       FROM (
         SELECT DISTINCT ON (sector_name)
           sector_name, current_rank, rank_1w_ago, rank_4w_ago, rank_12w_ago,
-          momentum_score, daily_strength_score, trend, date
+          momentum_score, daily_strength_score, trend, date_recorded
         FROM sector_ranking
         WHERE sector_name IS NOT NULL
           AND TRIM(sector_name) != ''
-        ORDER BY sector_name, date DESC
+        ORDER BY sector_name, date_recorded DESC
       ) sr
       ORDER BY sr.sector_name
       LIMIT $1 OFFSET $2
@@ -169,24 +163,17 @@ router.get("/sectors", async (req, res) => {
 
     const totalPages = Math.ceil(total / limitNum);
 
-    return res.json({
-      items: sectors,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total: total,
-        totalPages,
-        hasNext: pageNum < totalPages,
-        hasPrev: pageNum > 1
-      },
-      success: true
+    return sendPaginated(res, sectors, {
+      page: pageNum,
+      limit: limitNum,
+      total: total,
+      totalPages,
+      hasNext: pageNum < totalPages,
+      hasPrev: pageNum > 1
     });
   } catch (error) {
     console.error('❌ Error in /api/sectors/sectors:', error.message);
-    return res.status(500).json({
-      error: "Request failed",
-      success: false
-    });
+    return sendError(res, "Request failed", 500);
   }
 });
 
@@ -213,7 +200,7 @@ router.get("/trend/:sectorName", async (req, res, next) => {
     // Get historical ranking and momentum for the sector
     const trendQuery = `
       SELECT
-        DATE(date) as date,
+        DATE(date_recorded) as date,
         current_rank as rank,
         momentum_score as momentum,
         trend,
@@ -223,18 +210,15 @@ router.get("/trend/:sectorName", async (req, res, next) => {
         rank_12w_ago
       FROM sector_ranking
       WHERE LOWER(sector_name) = LOWER($1)
-        AND date >= CURRENT_DATE - INTERVAL '${daysNum} days'
-      ORDER BY date DESC
+        AND date_recorded >= CURRENT_DATE - INTERVAL '${daysNum} days'
+      ORDER BY date_recorded DESC
       LIMIT 365
     `;
 
     const result = await query(trendQuery, [sectorName]);
 
     if (!result?.rows || result.rows.length === 0) {
-      return res.status(404).json({
-        error: `No trend data found for sector: ${sectorName}`,
-        success: false
-      });
+      return sendError(res, `No trend data found for sector: ${sectorName}`, 404);
     }
 
     const trendData = result.rows.reverse().map(row => ({
@@ -248,18 +232,14 @@ router.get("/trend/:sectorName", async (req, res, next) => {
       rank_12w: safeInt(row.rank_12w_ago)
     }));
 
-    return res.json({
+    return sendSuccess(res, {
       sector: sectorName,
       current: trendData[trendData.length - 1],
-      history: trendData,
-      success: true
+      history: trendData
     });
   } catch (error) {
     console.error('❌ Error in /api/sectors/trend:', error.message);
-    return res.status(500).json({
-      error: "Failed to fetch trend data",
-      success: false
-    });
+    return sendError(res, "Failed to fetch trend data", 500);
   }
 });
 
@@ -291,30 +271,30 @@ router.get("/analysis", async (req, res) => {
         sp.performance_1d as performance_1d,
         sp.performance_5d as performance_5d,
         sp.performance_20d as performance_20d,
-        COALESCE(sp.date, sr.date) as last_updated
+        COALESCE(sp.date_recorded, sr.date_recorded) as last_updated
       FROM (
         SELECT DISTINCT ON (sector_name)
           sector_name, current_rank, rank_1w_ago, rank_4w_ago, rank_12w_ago,
-          momentum_score, date
+          momentum_score, date_recorded
         FROM sector_ranking
         WHERE sector_name IS NOT NULL
           AND TRIM(sector_name) != ''
           AND LOWER(sector_name) NOT IN ('index', 'unknown')
-        ORDER BY sector_name, date DESC
+        ORDER BY sector_name, date_recorded DESC
       ) sr
       LEFT JOIN (
         SELECT DISTINCT ON (sector_name)
           sector_name, momentum_score
         FROM sector_ranking
         WHERE sector_name IS NOT NULL AND momentum_score IS NOT NULL
-        ORDER BY sector_name, date DESC
+        ORDER BY sector_name, date_recorded DESC
       ) sm ON sr.sector_name = sm.sector_name
       LEFT JOIN (
         SELECT DISTINCT ON (sector)
-          sector, performance_1d, performance_5d, performance_20d, date
+          sector, performance_1d, performance_5d, performance_20d, date_recorded
         FROM sector_performance
         WHERE sector IS NOT NULL
-        ORDER BY sector, date DESC
+        ORDER BY sector, date_recorded DESC
       ) sp ON sr.sector_name = sp.sector
       LIMIT $1
     `;
@@ -600,26 +580,17 @@ router.get("/fresh-data", async (req, res) => {
 
       const sectors = Object.values(comprehensiveData.sectors || {});
 
-      return res.json({
+      return sendSuccess(res, {
         data: sectors,
         timestamp: comprehensiveData.timestamp,
         source: "fresh-sectors",
-        message: "Fresh sector performance data",
-        success: true
-      });
+        message: "Fresh sector performance data"}));
     }
 
-    return res.status(404).json({
-      error: "Fresh data not available",
-      success: false
-    });
+    return sendError(res, "Fresh data not available", 404);
   } catch (error) {
     console.error("Fresh sectors error:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch fresh sectors",
-      details: error.message,
-      success: false
-    });
+    return sendError(res, "Failed to fetch fresh sectors", 500);
   }
 });
 
@@ -631,10 +602,7 @@ router.get("/fresh-data", async (req, res) => {
 router.get("/sectors-with-history", async (req, res) => {
   try {
     if (databaseInitError || !query) {
-      return res.status(503).json({
-        error: "Database service unavailable",
-        success: false
-      });
+      return sendError(res, "Database service unavailable", 503);
     }
 
     console.log("📊 /api/sectors/sectors-with-history - Fetching sector data from database...");
@@ -656,11 +624,8 @@ router.get("/sectors-with-history", async (req, res) => {
     const result = await query(sectorQuery);
 
     if (!result || !result.rows) {
-      return res.json({
-        data: [],
-        success: true,
-        message: "No sector data available"
-      });
+      return sendSuccess(res, {
+        data: []}));
     }
 
     // Group by sector to get latest entry
@@ -680,18 +645,12 @@ router.get("/sectors-with-history", async (req, res) => {
 
     const sectors = Object.values(sectorMap);
 
-    return res.json({
+    return sendSuccess(res, {
       data: sectors,
-      count: sectors.length,
-      success: true
-    });
+      count: sectors.length}));
   } catch (error) {
     console.error("❌ Sectors with history error:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch sectors with history",
-      details: error.message,
-      success: false
-    });
+    return sendError(res, "Failed to fetch sectors with history", 500);
   }
 });
 
@@ -699,10 +658,7 @@ router.get("/sectors-with-history", async (req, res) => {
 router.get("/sectors-with-history/performance", async (req, res) => {
   try {
     if (databaseInitError || !query) {
-      return res.status(503).json({
-        error: "Database service unavailable",
-        success: false
-      });
+      return sendError(res, "Database service unavailable", 503);
     }
 
     console.log("📊 /api/sectors/sectors-with-history/performance - Fetching sector performance...");
@@ -721,11 +677,8 @@ router.get("/sectors-with-history/performance", async (req, res) => {
       const result = await query(performanceQuery);
 
       if (!result || !result.rows) {
-        return res.json({
-          data: [],
-          success: true,
-          message: "No performance data available"
-        });
+        return sendSuccess(res, {
+          data: []}));
       }
 
       const performanceData = result.rows.map(row => ({
@@ -733,27 +686,19 @@ router.get("/sectors-with-history/performance", async (req, res) => {
         date: row.performance_date
       }));
 
-      return res.json({
+      return sendSuccess(res, {
         data: performanceData,
-        count: performanceData.length,
-        success: true
-      });
+        count: performanceData.length}));
     } catch (queryError) {
       // If query fails, return empty data instead of error
       console.warn("⚠️ Sector performance query failed, returning empty data:", queryError.message);
-      return res.json({
-        data: [],
-        success: true,
-        message: "Performance data temporarily unavailable"
-      });
+      return sendSuccess(res, {
+        data: []}));
     }
   } catch (error) {
     console.error("❌ Sector performance error:", error.message);
-    return res.json({
-      data: [],
-      success: true,
-      message: "Performance data temporarily unavailable"
-    });
+    return sendSuccess(res, {
+      data: []}));
   }
 });
 
