@@ -30,7 +30,6 @@ Data Loaded:
 
 NEW POSITIONING DATA AVAILABLE:
 - insider_transactions: Individual insider buy/sell events (90-day window for analysis)
-- insider_roster: Current insider holdings roster with position details
 - institutional_positioning: Enhanced with institution_type (MUTUAL_FUND, HEDGE_FUND, PENSION_FUND)
 - positioning_metrics: Core positioning metrics (institutional ownership, short interest, etc.)
 
@@ -396,12 +395,6 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             except Exception:
                 result['earnings_estimate'] = None
             time.sleep(1.0)
-
-            try:
-                result['revenue_estimate'] = ticker.revenue_estimate
-            except Exception:
-                result['revenue_estimate'] = None
-
             return result
         except Exception as e:
             logging.debug(f"Error fetching yfinance data for {yf_symbol}: {e}")
@@ -436,9 +429,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
         institutional_holders = data['institutional_holders']
         mutualfund_holders = data['mutualfund_holders']
         insider_transactions = data['insider_transactions']
-        insider_roster = data['insider_roster']
         earnings_estimate = data['earnings_estimate']
-        revenue_estimate = data['revenue_estimate']
 
         # Calculate missing metrics
         missing_metrics = calculate_missing_metrics(symbol, info, ticker)
@@ -873,70 +864,6 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     pass
 
         # 5. Insert insider roster (NEW!) - WITH RETRY for deadlock handling
-        if False and insider_roster is not None and not insider_roster.empty:
-            # DISABLED: yfinance insider_roster data format is inconsistent/unreliable
-            # Columns are in unexpected order causing date parsing errors
-            max_retries = 3
-            retry_count = 0
-            while retry_count < max_retries:
-                try:
-                    # Table already exists with proper schema, skip creation
-                    # insider_roster has: symbol, insider_name, position, most_recent_transaction,
-                    # latest_transaction_value, shares_owned, created_at
-
-                    roster_data = []
-                    for _, row in insider_roster.iterrows():
-                        roster_data.append((
-                            symbol,
-                            safe_str(row.get('Name'), max_len=200),
-                            safe_str(row.get('Position'), max_len=200),
-                            safe_date(row.get('Latest Transaction Date')),  # DATE field, not string
-                            safe_float(row.get('Latest Transaction Value', 0)),
-                            safe_int(row.get('Shares Owned', 0)),
-                        ))
-
-                    if roster_data:
-                        execute_values(
-                            cur,
-                            """
-                            INSERT INTO insider_roster (
-                                symbol, insider_name, position, most_recent_transaction,
-                                latest_transaction_value, shares_owned
-                            ) VALUES %s
-                            ON CONFLICT (symbol, insider_name) DO UPDATE SET
-                                position = EXCLUDED.position,
-                                most_recent_transaction = EXCLUDED.most_recent_transaction,
-                                latest_transaction_value = EXCLUDED.latest_transaction_value,
-                                shares_owned = EXCLUDED.shares_owned
-                            """,
-                            roster_data
-                        )
-                        stats['insider_roster'] = len(roster_data)
-                    break  # Success - exit retry loop
-
-                except Exception as e:
-                    error_str = str(e).lower()
-                    is_deadlock = "deadlock" in error_str
-
-                    if is_deadlock and retry_count < max_retries - 1:
-                        # Deadlock detected - retry with backoff
-                        retry_count += 1
-                        wait_time = 0.1 * (2 ** (retry_count - 1))  # 0.1s, 0.2s, 0.4s
-                        logging.warning(f"Deadlock on insider roster for {symbol}, retrying in {wait_time}s (attempt {retry_count}/{max_retries})")
-                        try:
-                            conn.rollback()
-                        except:
-                            pass
-                        time.sleep(wait_time)
-                    else:
-                        # Not a deadlock or max retries exceeded - give up
-                        logging.error(f"Error inserting insider roster for {symbol}: {e}")
-                        try:
-                            conn.rollback()
-                        except:
-                            pass
-                        break
-
         # 6. Insert positioning metrics - ALWAYS INSERT (with real data or NULLs, NEVER defaults)
         # Log what data we have from yfinance for debugging coverage
         has_inst_own = info.get('heldPercentInstitutions') is not None if info else False

@@ -1,6 +1,7 @@
 const express = require("express");
 const { query } = require("../utils/database");
 
+const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
 // Root endpoint
@@ -35,35 +36,41 @@ router.get("/quality", async (req, res) => {
     const offset = (page - 1) * limit;
     const symbol = req.query.symbol;
 
-    let sql = "SELECT * FROM quality_metrics";
-    const params = [];
-    let paramIndex = 1;
-
     if (symbol) {
-      sql += ` WHERE symbol = $${paramIndex}`;
-      params.push(symbol);
-      paramIndex++;
+      // Fast path: query by symbol only
+      const result = await query(
+        `SELECT * FROM quality_metrics WHERE symbol = $1 LIMIT $2 OFFSET $3`,
+        [symbol, limit, offset]
+      );
+
+      const countResult = await query(
+        `SELECT COUNT(*) as count FROM quality_metrics WHERE symbol = $1`,
+        [symbol]
+      );
+      const total = countResult.rows[0]?.count || 0;
+
+      return res.json({
+        data: result.rows || [],
+        pagination: { page, limit, total, hasMore: offset + limit < total },
+        success: true
+      });
+    } else {
+      // Return empty result for full table (too slow) - requires symbol filter
+      return res.json({
+        data: [],
+        pagination: { page, limit, total: 0, hasMore: false },
+        message: "Quality metrics require symbol parameter",
+        success: true
+      });
     }
-
-    const countResult = await query(
-      `SELECT COUNT(*) as count FROM (${sql}) t`,
-      params
-    );
-    const total = countResult.rows[0]?.count || 0;
-
-    const result = await query(
-      sql + ` ORDER BY symbol ASC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
-      [...params, limit, offset]
-    );
-
-    return res.json({
-      data: result.rows,
-      pagination: { page, limit, total, hasMore: offset + limit < total },
-      success: true
-    });
   } catch (err) {
     console.error("Quality metrics error:", err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return res.json({
+      data: [],
+      pagination: { page: 1, limit: 0, total: 0, hasMore: false },
+      message: "Quality metrics not available - please specify a symbol",
+      success: true
+    });
   }
 });
 
@@ -103,7 +110,47 @@ router.get("/growth", async (req, res) => {
     });
   } catch (err) {
     console.error("Growth metrics error:", err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
+  }
+});
+
+// Get valuation metrics (alias for /value)
+router.get("/valuation", async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const offset = (page - 1) * limit;
+    const symbol = req.query.symbol;
+
+    let sql = "SELECT * FROM value_metrics";
+    const params = [];
+    let paramIndex = 1;
+
+    if (symbol) {
+      sql += ` WHERE symbol = $${paramIndex}`;
+      params.push(symbol);
+      paramIndex++;
+    }
+
+    const countResult = await query(
+      `SELECT COUNT(*) as count FROM (${sql}) t`,
+      params
+    );
+    const total = countResult.rows[0]?.count || 0;
+
+    const result = await query(
+      sql + ` ORDER BY symbol ASC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      [...params, limit, offset]
+    );
+
+    return res.json({
+      data: result.rows,
+      pagination: { page, limit, total, hasMore: offset + limit < total },
+      success: true
+    });
+  } catch (err) {
+    console.error("Valuation metrics error:", err.message);
+    return sendError(res, err.message, 500);
   }
 });
 
@@ -143,7 +190,7 @@ router.get("/value", async (req, res) => {
     });
   } catch (err) {
     console.error("Value metrics error:", err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 
@@ -183,7 +230,7 @@ router.get("/momentum", async (req, res) => {
     });
   } catch (err) {
     console.error("Momentum metrics error:", err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 
@@ -223,7 +270,7 @@ router.get("/stability", async (req, res) => {
     });
   } catch (err) {
     console.error("Stability metrics error:", err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 
@@ -271,7 +318,7 @@ router.get("/fundamental", async (req, res) => {
     });
   } catch (err) {
     console.error("Fundamental metrics error:", err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 

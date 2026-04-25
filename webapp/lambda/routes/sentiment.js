@@ -2,6 +2,7 @@ const express = require("express");
 
 const { query } = require("../utils/database");
 
+const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
 // Root endpoint - returns available sub-endpoints
@@ -149,7 +150,7 @@ router.get("/analyst", async (req, res) => {
     });
   } catch (error) {
     console.error("Analyst sentiment error:", error);
-    return res.status(500).json({ error: "Failed to fetch analyst sentiment data", success: false });
+    return sendError(res, "Failed to fetch analyst sentiment data", 500);
   }
 });
 

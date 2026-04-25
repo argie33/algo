@@ -4,6 +4,7 @@ const { query, safeFloat, safeInt } = require("../utils/database");
 const { authenticateToken } = require("../middleware/auth");
 const PortfolioAutoInit = require("../utils/portfolioAutoInit");
 
+const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
 // ============================================================================
@@ -283,7 +284,7 @@ router.get("/manual-positions", async (req, res) => {
     });
   } catch (err) {
     console.error('Error fetching manual positions:', err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 
@@ -299,7 +300,7 @@ router.get("/manual-positions/:id", async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ error: "Position not found", success: false });
+      return sendError(res, "Position not found", 404);
     }
 
     return res.json({
@@ -308,7 +309,7 @@ router.get("/manual-positions/:id", async (req, res) => {
     });
   } catch (err) {
     console.error('Error fetching manual position:', err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 
@@ -318,7 +319,7 @@ router.post("/manual-positions", async (req, res) => {
     const { symbol, quantity, entry_price } = req.body;
 
     if (!symbol || !quantity) {
-      return res.status(400).json({ error: "symbol and quantity are required", success: false });
+      return sendError(res, "symbol and quantity are required", 400);
     }
 
     const result = await query(
@@ -334,7 +335,7 @@ router.post("/manual-positions", async (req, res) => {
     });
   } catch (err) {
     console.error('Error creating manual position:', err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 

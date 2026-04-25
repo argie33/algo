@@ -9,8 +9,9 @@ const { validateJwtToken } = require("../utils/apiKeyService");
 // Enhanced authentication middleware with session management
 const authenticateToken = (req, res, next) => {
   // Development bypass for local testing - check for localhost or dev environment
+  // CRITICAL FIX: Only treat NODE_ENV === "development" as dev, not "!== production"
+  // The old logic accidentally enabled dev bypass for staging, test-prod, etc.
   const isDev = process.env.NODE_ENV === "development" ||
-                process.env.NODE_ENV !== "production" ||
                 req.hostname === "localhost" ||
                 req.hostname === "127.0.0.1";
 
@@ -201,10 +202,13 @@ const authenticateTokenAsync = async (req, res, next) => {
       if (process.env.NODE_ENV !== 'test') {
         console.log("🚨 Authentication required: No authorization header provided");
       }
-      return res.unauthorized("Authentication required", {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required",
         code: "MISSING_AUTHORIZATION",
         suggestion: "Include valid authorization in the Authorization header",
         requirements: "Authorization header must be present with format: Bearer <token>",
+        timestamp: new Date().toISOString(),
         steps: [
           "1. Log in to the application to obtain valid authentication",
           "2. Include the token in the Authorization header: 'Bearer your-token'",
@@ -224,11 +228,14 @@ const authenticateTokenAsync = async (req, res, next) => {
     const token = authHeader.split(" ")[1]; // Bearer TOKEN
 
     if (!token) {
-      return res.unauthorized("Authorization missing from request headers", {
+      return res.status(401).json({
+        success: false,
+        error: "Authorization missing from request headers",
         code: "MISSING_AUTHORIZATION",
         suggestion: "Include valid authorization in the Authorization header",
         requirements:
           "Authorization header must be present with format: Bearer <auth-data>",
+        timestamp: new Date().toISOString(),
         steps: [
           "1. Log in to the application to obtain valid authentication",
           "2. Include the credentials in the Authorization header: 'Bearer your-auth-data'",
@@ -282,38 +289,38 @@ const authenticateTokenAsync = async (req, res, next) => {
     if (!result.valid) {
       // Handle specific token error types
       if (result.error && result.error.includes("expired")) {
-        return res.unauthorized(
-          "Your session has expired. Please log in again.",
-          {
-            code: "SESSION_EXPIRED",
-            suggestion:
-              "Your authentication has expired and needs to be renewed",
-            requirements: "Active session with valid authentication",
-            steps: [
-              "1. Log out of the application completely",
-              "2. Log back in with your credentials",
-              "3. Try your request again with the new session",
-              "4. Consider enabling 'Keep me logged in' if available",
-            ],
-          }
-        );
+        return res.status(401).json({
+          success: false,
+          error: "Your session has expired. Please log in again.",
+          code: "SESSION_EXPIRED",
+          suggestion:
+            "Your authentication has expired and needs to be renewed",
+          requirements: "Active session with valid authentication",
+          timestamp: new Date().toISOString(),
+          steps: [
+            "1. Log out of the application completely",
+            "2. Log back in with your credentials",
+            "3. Try your request again with the new session",
+            "4. Consider enabling 'Keep me logged in' if available",
+          ],
+        });
       }
 
-      return res.unauthorized(
-        result.error || "Authentication credentials are invalid",
-        {
-          code: "INVALID_CREDENTIALS",
-          suggestion: "The provided authentication could not be validated",
-          requirements:
-            "Valid, properly formatted authentication from successful login",
-          steps: [
-            "1. Verify you're using the most recent credentials from login",
-            "2. Check that the data hasn't been corrupted during transmission",
-            "3. Log out and log back in to get fresh credentials",
-            "4. Ensure you're accessing the correct API environment",
-          ],
-        }
-      );
+      return res.status(401).json({
+        success: false,
+        error: result.error || "Authentication credentials are invalid",
+        code: "INVALID_CREDENTIALS",
+        suggestion: "The provided authentication could not be validated",
+        requirements:
+          "Valid, properly formatted authentication from successful login",
+        timestamp: new Date().toISOString(),
+        steps: [
+          "1. Verify you're using the most recent credentials from login",
+          "2. Check that the data hasn't been corrupted during transmission",
+          "3. Log out and log back in to get fresh credentials",
+          "4. Ensure you're accessing the correct API environment",
+        ],
+      });
     }
 
     const user = result.user;
@@ -347,31 +354,34 @@ const authenticateTokenAsync = async (req, res, next) => {
       error.name === "TokenExpiredError" ||
       error.message.includes("expired")
     ) {
-      return res.unauthorized(
-        "Your session has expired. Please log in again.",
-        {
-          code: "SESSION_EXPIRED",
-          suggestion: "Your authentication has expired and needs to be renewed",
-          requirements: "Active session with valid authentication",
-          steps: [
-            "1. Log out of the application completely",
-            "2. Log back in with your credentials",
-            "3. Try your request again with the new session",
-            "4. Consider enabling 'Keep me logged in' if available",
-          ],
-        }
-      );
+      return res.status(401).json({
+        success: false,
+        error: "Your session has expired. Please log in again.",
+        code: "SESSION_EXPIRED",
+        suggestion: "Your authentication has expired and needs to be renewed",
+        requirements: "Active session with valid authentication",
+        timestamp: new Date().toISOString(),
+        steps: [
+          "1. Log out of the application completely",
+          "2. Log back in with your credentials",
+          "3. Try your request again with the new session",
+          "4. Consider enabling 'Keep me logged in' if available",
+        ],
+      });
     }
 
     if (
       error.name === "JsonWebTokenError" ||
       error.message.includes("invalid")
     ) {
-      return res.unauthorized("The provided credentials are invalid.", {
+      return res.status(401).json({
+        success: false,
+        error: "The provided credentials are invalid.",
         code: "INVALID_CREDENTIALS",
         suggestion: "The authentication format is incorrect or corrupted",
         requirements:
           "Valid, properly formatted authentication from successful login",
+        timestamp: new Date().toISOString(),
         steps: [
           "1. Verify the data was copied correctly if manually entered",
           "2. Check that you're using the most recent credentials from login",
@@ -382,11 +392,14 @@ const authenticateTokenAsync = async (req, res, next) => {
     }
 
     // Generic authentication failure
-    return res.unauthorized("Could not verify authentication", {
+    return res.status(401).json({
+      success: false,
+      error: "Could not verify authentication",
       code: "AUTH_FAILED",
       suggestion:
         "Authentication verification failed due to an unexpected error",
       requirements: "Valid authentication and operational auth service",
+      timestamp: new Date().toISOString(),
       steps: [
         "1. Try logging out and back in to refresh your authentication",
         "2. Check your network connection and try again",
@@ -401,12 +414,12 @@ const authenticateTokenAsync = async (req, res, next) => {
 const requireRole = (roles) => {
   return (req, res, next) => {
     if (!req.user) {
-      return res.unauthorized(
-        "User must be authenticated to access this resource",
-        {
-          code: "AUTH_REQUIRED",
-        }
-      );
+      return res.status(401).json({
+        success: false,
+        error: "User must be authenticated to access this resource",
+        code: "AUTH_REQUIRED",
+        timestamp: new Date().toISOString(),
+      });
     }
 
     const userRole = req.user.role;
@@ -417,15 +430,15 @@ const requireRole = (roles) => {
     const hasGroup = roles.some((role) => userGroups.includes(role));
 
     if (!hasRole && !hasGroup) {
-      return res.forbidden(
-        `Access denied. Required roles: ${roles.join(", ")}`,
-        {
-          code: "INSUFFICIENT_PERMISSIONS",
-          userRole: userRole,
-          userGroups: userGroups,
-          requiredRoles: roles,
-        }
-      );
+      return res.status(403).json({
+        success: false,
+        error: `Access denied. Required roles: ${roles.join(", ")}`,
+        code: "INSUFFICIENT_PERMISSIONS",
+        userRole: userRole,
+        userGroups: userGroups,
+        requiredRoles: roles,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     next();

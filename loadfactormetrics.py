@@ -659,83 +659,10 @@ def get_earnings_surprise_metrics(cursor, symbol: str) -> Dict:
     NOTE: Disabled until earnings_history table is properly integrated.
     EPS data is in earnings_history, not quarterly_income_statement.
     """
-    metrics = {
+    return {
         "earnings_surprise_avg": None,
         "eps_growth_stability": None,
     }
-
-    # TEMPORARY: Return None for all metrics while we refactor EPS queries
-    return metrics
-
-    try:
-        # Get actual quarterly EPS from income statement
-        cursor.execute("""
-            SELECT
-                DATE_PART('YEAR', qis.date::date)::int as year,
-                DATE_PART('QUARTER', qis.date::date)::int as quarter,
-                qis.eps::float as actual_eps
-            FROM quarterly_income_statement qis
-            WHERE qis.symbol = %s
-            AND qis.eps IS NOT NULL
-            ORDER BY qis.date DESC
-            LIMIT 4
-        """, (symbol,))
-
-        actual_eps_data = cursor.fetchall()
-
-        if not actual_eps_data or len(actual_eps_data) < 2:
-            return metrics
-
-        # Calculate EPS growth stability from historical data
-        eps_values = [row[2] for row in actual_eps_data]
-
-        if len(eps_values) >= 2:
-            growth_rates = []
-            for i in range(len(eps_values) - 1):
-                if eps_values[i+1] != 0:
-                    try:
-                        growth = ((eps_values[i] - eps_values[i+1]) / abs(eps_values[i+1])) * 100
-                        growth_rates.append(growth)
-                    except (TypeError, ValueError) as e:
-                        track_calc_failure(symbol, "unknown_metric", e)
-
-            if growth_rates and len(growth_rates) >= 2:
-                try:
-                    mean_growth = float(np.mean(growth_rates))
-                    std_growth = float(np.std(growth_rates))
-
-                    if mean_growth != 0:
-                        metrics["eps_growth_stability"] = float(std_growth / abs(mean_growth))
-                    else:
-                        metrics["eps_growth_stability"] = float(std_growth)
-                except (TypeError, ValueError) as e:
-                    track_calc_failure(symbol, "eps_growth_stability", e)
-
-        # Calculate earnings surprise: (actual - estimate) / estimate
-        # Using historical average as estimate baseline
-        if len(eps_values) >= 2:
-            surprises = []
-            for i in range(len(eps_values) - 1):
-                actual = eps_values[i]
-                # Use previous quarters' average as estimate
-                estimate = float(np.mean(eps_values[i+1:]))
-                if estimate != 0:
-                    try:
-                        surprise = ((actual - estimate) / abs(estimate)) * 100
-                        surprises.append(surprise)
-                    except (TypeError, ValueError) as e:
-                        track_calc_failure(symbol, "unknown_metric", e)
-
-            if surprises:
-                try:
-                    metrics["earnings_surprise_avg"] = float(np.mean(surprises))
-                except (TypeError, ValueError) as e:
-                    track_calc_failure(symbol, "earnings_surprise_avg", e)
-
-    except Exception as e:
-        logging.debug(f"Could not calculate earnings surprise for {symbol}: {e}")
-
-    return metrics
 
 
 def get_earnings_beat_rate(cursor, symbol: str) -> Optional[float]:

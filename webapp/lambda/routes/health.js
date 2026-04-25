@@ -9,6 +9,7 @@ const {
   safeFloat,
 } = require("../utils/database");
 
+const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
 // Health endpoints - Updated 2025-10-01 - CloudWatch Logs integration for ECS tasks

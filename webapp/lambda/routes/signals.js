@@ -2,6 +2,7 @@ const express = require("express");
 
 const { query } = require("../utils/database");
 
+const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
 // Helper function to safely convert values to float
@@ -317,14 +318,12 @@ const getStocksSignals = async (req, res) => {
     });
   } catch (error) {
     console.error("Signals delegation error:", error);
-    return res.status(500).json({ error: "Failed to fetch signals data", success: false });
+    return sendError(res, "Failed to fetch signals data", 500);
   }
 };
 
-// Register /stocks, /list, and /daily routes with same handler
+// Canonical endpoint for stock signals (returns ALL signals from 2019 by default)
 router.get("/stocks", getStocksSignals);
-router.get("/list", getStocksSignals);
-router.get("/daily", getStocksSignals);
 
 // Get trading signals for ETFs - SAME STRUCTURE AS STOCKS
 router.get("/etf", async (req, res) => {
@@ -571,7 +570,7 @@ router.get("/etf", async (req, res) => {
     });
   } catch (error) {
     console.error("ETF signals error:", error);
-    return res.status(500).json({ error: "Failed to fetch signals data", success: false });
+    return sendError(res, "Failed to fetch signals data", 500);
   }
 });
 

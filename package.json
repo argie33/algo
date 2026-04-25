@@ -2,10 +2,10 @@
   "name": "algo-trading-system",
   "version": "1.0.0",
   "description": "Algorithmic trading system with stock analysis",
-  "main": "local-server.js",
+  "main": "webapp/lambda/index.js",
   "scripts": {
-    "start": "node local-server.js",
-    "dev": "node local-server.js",
+    "start": "node webapp/lambda/index.js",
+    "dev": "node webapp/lambda/index.js",
     "test": "playwright test"
   },
   "devDependencies": {

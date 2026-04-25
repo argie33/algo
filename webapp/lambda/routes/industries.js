@@ -19,6 +19,7 @@ try {
 
 const { authenticateToken } = require("../middleware/auth");
 
+const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
 // Root endpoint - returns available sub-endpoints

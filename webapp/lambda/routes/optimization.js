@@ -9,6 +9,7 @@ const taxOptimization = require("../utils/taxOptimization");
 const dividendIntegration = require("../utils/dividendIntegration");
 const swingTrader = require("../utils/swing-trading-optimizer");
 
+const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
 // Root endpoint - returns available sub-endpoints

@@ -7,6 +7,7 @@
 const express = require('express');
 const { query: dbQuery, safeFloat, safeInt } = require('../utils/database');
 const { authenticateToken } = require('../middleware/auth');
+const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
 // Alpaca API service
@@ -253,7 +254,7 @@ router.get('/history', async (req, res) => {
     });
   } catch (err) {
     console.error('Error fetching trade history:', err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 

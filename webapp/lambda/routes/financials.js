@@ -8,6 +8,7 @@ try {
   query = null;
 }
 
+const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
 // Root endpoint - provides overview of available financial endpoints
@@ -465,6 +466,76 @@ router.get("/:symbol/key-metrics", async (req, res) => {
     console.error("Key metrics error:", error);
     res.status(500).json({
       error: "Failed to fetch key metrics",
+      success: false
+    });
+  }
+});
+
+// GET /api/financials/all - Get all financial data for all stocks (bulk operation)
+router.get("/all", async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    const offset = parseInt(req.query.offset) || 0;
+    const symbol = req.query.symbol;
+
+    console.log(`📊 [FINANCIALS] Fetching all financials with limit=${limit}, offset=${offset}`);
+
+    let whereClause = "1=1";
+    const params = [];
+    let paramIndex = 1;
+
+    if (symbol) {
+      params.push(symbol.toUpperCase());
+      whereClause += ` AND symbol = $${paramIndex}`;
+    }
+
+    // Get company profile with financial data
+    const result = await query(`
+      SELECT
+        cp.ticker as symbol,
+        cp.short_name as name,
+        cp.sector,
+        cp.industry,
+        ab.total_assets as balance_sheet_assets,
+        ab.total_liabilities as balance_sheet_liabilities,
+        ab.shareholders_equity as balance_sheet_equity,
+        ai.revenue as income_revenue,
+        ai.net_income as income_net_income,
+        ai.operating_income as income_operating_income,
+        ac.operating_cash_flow as cash_operating,
+        ac.investing_cash_flow as cash_investing,
+        ac.financing_cash_flow as cash_financing
+      FROM company_profile cp
+      LEFT JOIN annual_balance_sheet ab ON cp.ticker = ab.symbol
+      LEFT JOIN annual_income_statement ai ON cp.ticker = ai.symbol
+      LEFT JOIN annual_cash_flow ac ON cp.ticker = ac.symbol
+      WHERE ${whereClause}
+      ORDER BY cp.ticker ASC
+      LIMIT $${paramIndex + 1} OFFSET $${paramIndex + 2}
+    `, [...params, limit, offset]);
+
+    // Get total count
+    const countResult = await query(
+      `SELECT COUNT(DISTINCT ticker) as total FROM company_profile WHERE ${whereClause}`,
+      params
+    );
+    const total = parseInt(countResult.rows[0]?.total || 0);
+
+    res.json({
+      data: result.rows || [],
+      pagination: {
+        limit,
+        offset,
+        total,
+        page: Math.max(1, Math.ceil((offset / limit) + 1))
+      },
+      success: true
+    });
+  } catch (error) {
+    console.error("All financials error:", error);
+    res.status(500).json({
+      error: "Failed to fetch financial data",
+      message: error.message,
       success: false
     });
   }

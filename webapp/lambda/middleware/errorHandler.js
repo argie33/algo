@@ -71,11 +71,11 @@ const errorHandler = (err, req, res, _next) => {
     status = 400;
     message = "Invalid reference";
     details = "Referenced record does not exist";
-  } else if (err.code === "42P01") {
-    // PostgreSQL table does not exist - always use PostgreSQL status, ignore custom status
-    status = 500;
-    message = "Database configuration error";
-    details = "Required database table not found";
+  } else if (err.code === "42P01" || err.message?.includes('relation') && err.message?.includes('does not exist')) {
+    // PostgreSQL table does not exist - return 503 Service Unavailable (feature not ready)
+    status = 503;
+    message = "Feature not yet available";
+    details = "This data feature is still being prepared";
   } else if (err.name === "ValidationError") {
     status = 400;
     message = "Validation Error";
@@ -86,11 +86,12 @@ const errorHandler = (err, req, res, _next) => {
     message = err.message;
   }
 
-  // Simple error response - matching RULES.md unified pattern
-  // {error: "message", success: false}
+  // Canonical error response - matching unified pattern
+  // { error: "message", success: false, timestamp: ISO }
   const response = {
     error: message,
-    success: false
+    success: false,
+    timestamp: new Date().toISOString()
   };
 
   // Add development details only in dev mode

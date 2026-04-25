@@ -1,6 +1,7 @@
 const express = require("express");
 const { query } = require("../utils/database");
 
+const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
 // Root endpoint - returns available sub-endpoints
@@ -54,7 +55,7 @@ const getPriceHistoryHandler = async (req, res) => {
     });
   } catch (err) {
     console.error('Error fetching price history:', err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 };
 
@@ -125,7 +126,7 @@ router.get("/daily", async (req, res) => {
     });
   } catch (err) {
     console.error("Price daily error:", err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 
@@ -165,7 +166,7 @@ router.get("/weekly", async (req, res) => {
     });
   } catch (err) {
     console.error("Price weekly error:", err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 
@@ -205,7 +206,7 @@ router.get("/monthly", async (req, res) => {
     });
   } catch (err) {
     console.error("Price monthly error:", err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 
@@ -231,7 +232,7 @@ router.get("/daily/etf", async (req, res) => {
     });
   } catch (err) {
     console.error("ETF price daily error:", err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 
@@ -257,7 +258,7 @@ router.get("/weekly/etf", async (req, res) => {
     });
   } catch (err) {
     console.error("ETF price weekly error:", err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 
@@ -283,7 +284,7 @@ router.get("/monthly/etf", async (req, res) => {
     });
   } catch (err) {
     console.error("ETF price monthly error:", err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 

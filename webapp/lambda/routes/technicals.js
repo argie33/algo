@@ -1,6 +1,7 @@
 const express = require("express");
 const { query } = require("../utils/database");
 
+const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
 // Root endpoint
@@ -74,7 +75,7 @@ router.get("/daily", async (req, res) => {
     });
   } catch (err) {
     console.error("Technical daily error:", err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 
@@ -114,7 +115,7 @@ router.get("/weekly", async (req, res) => {
     });
   } catch (err) {
     console.error("Technical weekly error:", err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 
@@ -154,7 +155,7 @@ router.get("/monthly", async (req, res) => {
     });
   } catch (err) {
     console.error("Technical monthly error:", err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 
@@ -215,7 +216,7 @@ router.get("/indicators", async (req, res) => {
     });
   } catch (err) {
     console.error("Technical indicators error:", err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 

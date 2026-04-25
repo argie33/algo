@@ -11,6 +11,7 @@ const {
 
 const { authenticateToken } = require("../middleware/auth");
 
+const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
 // Root endpoint - returns available sub-endpoints
@@ -229,7 +230,7 @@ router.post("/challenge", async (req, res) => {
     });
   } catch (error) {
     console.error("Challenge response error:", error);
-    return res.status(400).json({ error: "Challenge failed", success: false });
+    return sendError(res, "Challenge failed", 400);
   }
 });
 
@@ -277,11 +278,11 @@ router.post("/register", async (req, res) => {
     console.error("Registration error:", error);
 
     if (error.name === "UsernameExistsException") {
-      return res.status(400).json({ error: "Username exists", success: false });
+      return sendError(res, "Username exists", 400);
     }
 
     if (error.name === "InvalidParameterException") {
-      return res.status(400).json({ error: "Invalid parameters", success: false });
+      return sendError(res, "Invalid parameters", 400);
     }
 
     return res
@@ -317,7 +318,7 @@ router.post("/confirm", async (req, res) => {
         error.name = "CodeMismatchException";
         throw error;
       } else {
-        return res.status(400).json({ error: "Confirmation failed", success: false });
+        return sendError(res, "Confirmation failed", 400);
       }
     }
 
@@ -339,7 +340,7 @@ router.post("/confirm", async (req, res) => {
     console.error("Confirmation error:", error);
 
     if (error.name === "CodeMismatchException") {
-      return res.status(400).json({ error: "Invalid code", success: false });
+      return sendError(res, "Invalid code", 400);
     }
 
     return res
@@ -414,7 +415,7 @@ router.post("/reset-password", async (req, res) => {
           success: true
         });
       } else {
-        return res.status(400).json({ error: "Invalid confirmation code - Development mode: use code '123456'", success: false });
+        return sendError(res, "Invalid confirmation code - Development mode: use code '123456'", 400);
       }
     }
 

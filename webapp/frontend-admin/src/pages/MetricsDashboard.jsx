@@ -62,192 +62,123 @@ const MetricsDashboard = () => {
 
   useEffect(() => {
     fetchData();
-    
-  }, [
-    page,
-    searchTerm,
-    selectedSector,
-    minMetric,
-    maxMetric,
-    sortBy,
-    sortOrder,
-  ]);
+  }, []);
 
   useEffect(() => {
     if (activeTab === 0) {
-      fetchTopStocks();
-      fetchBottomStocks();
+      computeTopAndBottomStocks();
     }
-  }, [activeTab]);
+  }, [activeTab, stocks]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-
-      const params = new URLSearchParams({
-        limit: "50",
-        offset: "0",
-        search: searchTerm,
-        sortBy,
-        sortOrder,
-      });
-
-      // Use scores endpoint which provides stock metrics
-      const response = await api.get(`/api/scores/stockscores?${params}`);
-
-      if (!response || !response.data) {
-        throw new Error('No data received from scores API');
-      }
-
-      // Response structure: { items: [...], pagination: {...}, success: true }
-      const stocksArray = response.data?.items || [];
-
-      setStocks(stocksArray);
-      setTotalPages(Math.ceil((response.data?.pagination?.total || stocksArray.length) / 50) || 1);
       setError(null);
+      const response = await api.getScores({ limit: 500 });
+      const data = response.data || response.items || response;
+      setStocks(Array.isArray(data) ? data : []);
+      setTotalPages(1);
     } catch (err) {
-      if (import.meta.env && import.meta.env.DEV)
-        console.error("Error fetching metrics:", err);
-      setError(err.message);
+      setError(err.message || 'Failed to load metrics');
+      setStocks([]);
     } finally {
       setLoading(false);
     }
   };
 
+  const computeTopAndBottomStocks = () => {
+    if (!stocks || stocks.length === 0) return;
 
-  const fetchTopStocks = async () => {
-    try {
-      // Fetch all stocks sorted by composite score to build all three rankings
-      const response = await api.get(`/api/scores/stockscores?limit=50&sortBy=composite_score`);
+    // Create top stocks mappings
+    const topStocksData = {
+      composite: stocks
+        .filter(s => s.composite_score !== null && s.composite_score !== undefined)
+        .sort((a, b) => b.composite_score - a.composite_score)
+        .slice(0, 10)
+        .map(stock => ({
+          ...stock,
+          companyName: stock.company_name,
+          categoryMetric: stock.composite_score,
+          sector: stock.sector || "N/A"
+        })),
+      quality: stocks
+        .filter(s => s.quality_score !== null && s.quality_score !== undefined)
+        .sort((a, b) => b.quality_score - a.quality_score)
+        .slice(0, 10)
+        .map(stock => ({
+          ...stock,
+          companyName: stock.company_name,
+          categoryMetric: stock.quality_score,
+          sector: stock.sector || "N/A"
+        })),
+      value: stocks
+        .filter(s => s.value_score !== null && s.value_score !== undefined)
+        .sort((a, b) => b.value_score - a.value_score)
+        .slice(0, 10)
+        .map(stock => ({
+          ...stock,
+          companyName: stock.company_name,
+          categoryMetric: stock.value_score,
+          sector: stock.sector || "N/A"
+        })),
+    };
+    setTopStocks(topStocksData);
 
-      if (!response || !response.data) {
-        throw new Error('No data received from top stocks API');
-      }
+    // Create bottom stocks mappings (worst performers - ascending order)
+    const bottomStocksData = {
+      composite: stocks
+        .filter(s => s.composite_score !== null && s.composite_score !== undefined)
+        .sort((a, b) => a.composite_score - b.composite_score)
+        .slice(0, 10)
+        .map(stock => ({
+          ...stock,
+          companyName: stock.company_name || "N/A",
+          categoryMetric: stock.composite_score,
+          sector: stock.sector || "N/A"
+        })),
+      quality: stocks
+        .filter(s => s.quality_score !== null && s.quality_score !== undefined)
+        .sort((a, b) => a.quality_score - b.quality_score)
+        .slice(0, 10)
+        .map(stock => ({
+          ...stock,
+          companyName: stock.company_name || "N/A",
+          categoryMetric: stock.quality_score,
+          sector: stock.sector || "N/A"
+        })),
+      value: stocks
+        .filter(s => s.value_score !== null && s.value_score !== undefined)
+        .sort((a, b) => a.value_score - b.value_score)
+        .slice(0, 10)
+        .map(stock => ({
+          ...stock,
+          companyName: stock.company_name || "N/A",
+          categoryMetric: stock.value_score,
+          sector: stock.sector || "N/A"
+        })),
+      growth: stocks
+        .filter(s => s.growth_score !== null && s.growth_score !== undefined)
+        .sort((a, b) => a.growth_score - b.growth_score)
+        .slice(0, 10)
+        .map(stock => ({
+          ...stock,
+          companyName: stock.company_name || "N/A",
+          categoryMetric: stock.growth_score,
+          sector: stock.sector || "N/A"
+        })),
+      momentum: stocks
+        .filter(s => s.momentum_score !== null && s.momentum_score !== undefined)
+        .sort((a, b) => a.momentum_score - b.momentum_score)
+        .slice(0, 10)
+        .map(stock => ({
+          ...stock,
+          companyName: stock.company_name || "N/A",
+          categoryMetric: stock.momentum_score,
+          sector: stock.sector || "N/A"
+        }))
+    };
 
-      // Response structure: { items: [...], pagination: {...}, success: true }
-      const stocks = response.data?.items || [];
-
-      // Create mappings for each category with proper API field names
-      const topStocksData = {
-        composite: stocks
-          .filter(s => s.composite_score !== null && s.composite_score !== undefined)
-          .sort((a, b) => b.composite_score - a.composite_score)
-          .slice(0, 10)
-          .map(stock => ({
-            ...stock,
-            companyName: stock.company_name,
-            categoryMetric: stock.composite_score,
-            sector: stock.sector || "N/A"
-          })),
-        quality: stocks
-          .filter(s => s.quality_score !== null && s.quality_score !== undefined)
-          .sort((a, b) => b.quality_score - a.quality_score)
-          .slice(0, 10)
-          .map(stock => ({
-            ...stock,
-            companyName: stock.company_name,
-            categoryMetric: stock.quality_score,
-            sector: stock.sector || "N/A"
-          })),
-        value: stocks
-          .filter(s => s.value_score !== null && s.value_score !== undefined)
-          .sort((a, b) => b.value_score - a.value_score)
-          .slice(0, 10)
-          .map(stock => ({
-            ...stock,
-            companyName: stock.company_name,
-            categoryMetric: stock.value_score,
-            sector: stock.sector || "N/A"
-          })),
-      };
-
-      setTopStocks(topStocksData);
-    } catch (err) {
-      if (import.meta.env && import.meta.env.DEV)
-        console.error("Error fetching top stocks:", err);
-      setError(err.message);
-    }
-  };
-
-  const fetchBottomStocks = async () => {
-    try {
-      // Fetch large dataset to ensure we get enough bottom performers
-      // Note: We fetch a large limit and sort client-side to get bottom performers
-      const response = await api.get(`/api/scores/stockscores?limit=500&sortBy=composite_score`);
-
-      if (!response || !response.data) {
-        throw new Error('No data received from bottom stocks API');
-      }
-
-      // Response structure: { items: [...], pagination: {...}, success: true }
-      const stocks = response.data?.items || [];
-
-      if (!stocks || stocks.length === 0) {
-        console.warn("No stocks returned from API");
-        setBottomStocks({});
-        return;
-      }
-
-      // Create mappings for each category with proper API field names (ASCENDING order for worst performers)
-      const bottomStocksData = {
-        composite: stocks
-          .filter(s => s.composite_score !== null && s.composite_score !== undefined)
-          .sort((a, b) => a.composite_score - b.composite_score)
-          .slice(0, 10)
-          .map(stock => ({
-            ...stock,
-            companyName: stock.company_name || "N/A",
-            categoryMetric: stock.composite_score,
-            sector: stock.sector || "N/A"
-          })),
-        quality: stocks
-          .filter(s => s.quality_score !== null && s.quality_score !== undefined)
-          .sort((a, b) => a.quality_score - b.quality_score)
-          .slice(0, 10)
-          .map(stock => ({
-            ...stock,
-            companyName: stock.company_name || "N/A",
-            categoryMetric: stock.quality_score,
-            sector: stock.sector || "N/A"
-          })),
-        value: stocks
-          .filter(s => s.value_score !== null && s.value_score !== undefined)
-          .sort((a, b) => a.value_score - b.value_score)
-          .slice(0, 10)
-          .map(stock => ({
-            ...stock,
-            companyName: stock.company_name || "N/A",
-            categoryMetric: stock.value_score,
-            sector: stock.sector || "N/A"
-          })),
-        growth: stocks
-          .filter(s => s.growth_score !== null && s.growth_score !== undefined)
-          .sort((a, b) => a.growth_score - b.growth_score)
-          .slice(0, 10)
-          .map(stock => ({
-            ...stock,
-            companyName: stock.company_name || "N/A",
-            categoryMetric: stock.growth_score,
-            sector: stock.sector || "N/A"
-          })),
-        momentum: stocks
-          .filter(s => s.momentum_score !== null && s.momentum_score !== undefined)
-          .sort((a, b) => a.momentum_score - b.momentum_score)
-          .slice(0, 10)
-          .map(stock => ({
-            ...stock,
-            companyName: stock.company_name || "N/A",
-            categoryMetric: stock.momentum_score,
-            sector: stock.sector || "N/A"
-          })),
-      };
-
-      setBottomStocks(bottomStocksData);
-    } catch (err) {
-      console.error("Error fetching bottom stocks:", err);
-      setError(err.message);
-      setBottomStocks({});
-    }
+    setBottomStocks(bottomStocksData);
   };
 
   const getMetricColor = (metric) => {

@@ -50,6 +50,7 @@ function checkDatabaseAvailable(res) {
   return null;
 }
 
+const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
 // Root endpoint - returns available sub-endpoints

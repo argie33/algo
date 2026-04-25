@@ -62,6 +62,7 @@ function validateDbResponse(result, context = "database query") {
 
 const { authenticateToken } = require("../middleware/auth");
 
+const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
 // Root endpoint - returns available sub-endpoints
@@ -775,7 +776,7 @@ router.get("/ranking", async (req, res) => {
     });
   } catch (error) {
     console.error("Sector ranking error:", error.message);
-    res.status(500).json({ error: "Failed to fetch sector rankings", success: false });
+    sendError(res, "Failed to fetch sector rankings", 500);
   }
 });
 
@@ -800,7 +801,7 @@ router.get("/performance", async (req, res) => {
     });
   } catch (error) {
     console.error("Sector performance error:", error.message);
-    res.status(500).json({ error: "Failed to fetch sector performance", success: false });
+    sendError(res, "Failed to fetch sector performance", 500);
   }
 });
 
@@ -830,7 +831,7 @@ router.get("/industries/ranking", async (req, res) => {
     });
   } catch (error) {
     console.error("Industry ranking error:", error.message);
-    res.status(500).json({ error: "Failed to fetch industry rankings", success: false });
+    sendError(res, "Failed to fetch industry rankings", 500);
   }
 });
 
@@ -855,7 +856,7 @@ router.get("/industries/performance", async (req, res) => {
     });
   } catch (error) {
     console.error("Industry performance error:", error.message);
-    res.status(500).json({ error: "Failed to fetch industry performance", success: false });
+    sendError(res, "Failed to fetch industry performance", 500);
   }
 });
 

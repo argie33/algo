@@ -3,6 +3,7 @@ const express = require("express");
 const { query } = require("../utils/database");
 const { authenticateToken } = require("../middleware/auth");
 
+const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
 // Root endpoint - returns available sub-endpoints
@@ -53,7 +54,7 @@ router.get("/profile", authenticateToken, async (req, res) => {
     `, [userId]);
 
     if (!result.rows || result.rows.length === 0) {
-      return res.status(404).json({ error: "User not found", success: false });
+      return sendError(res, "User not found", 404);
     }
 
     return res.json({
@@ -65,7 +66,7 @@ router.get("/profile", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error("Profile fetch error:", error);
-    return res.status(500).json({ error: "Failed to fetch profile", success: false });
+    return sendError(res, "Failed to fetch profile", 500);
   }
 });
 
@@ -150,7 +151,7 @@ router.put("/settings", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error("Settings update error:", error);
-    return res.status(500).json({ error: "Failed to update settings", success: false });
+    return sendError(res, "Failed to update settings", 500);
   }
 });
 

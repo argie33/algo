@@ -9,6 +9,7 @@ try {
   query = null;
 }
 
+const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
 // Helper function to check if required tables exist
@@ -499,7 +500,7 @@ router.get("/status", (req, res) => {
     });
   } catch (err) {
     console.error('Error getting market status:', err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 
@@ -902,7 +903,7 @@ router.get("/volatility", async (req, res) => {
       responseData = {};
     }
 
-    res.json({ data: responseData, success: true });
+    sendSuccess(res, responseData);
   } catch (error) {
     console.error("Error fetching market volatility:", error);
     res.status(500).json({error: "Failed to fetch market volatility: ", success: false});
@@ -1423,7 +1424,7 @@ router.get("/seasonality", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching seasonality data:", error);
-    res.status(500).json({ error: "Failed to fetch seasonality data", success: false });
+    sendError(res, "Failed to fetch seasonality data", 500);
   }
 });
 

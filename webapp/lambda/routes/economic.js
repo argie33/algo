@@ -3,6 +3,7 @@ const express = require("express");
 const { query } = require("../utils/database");
 const { getMarketDataPath } = require("../utils/market-data-path");
 
+const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
 // Root endpoint - returns available sub-endpoints
@@ -53,7 +54,7 @@ router.get("/data", async (req, res) => {
     });
   } catch (err) {
     console.error("Economic data error:", err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 

@@ -1,6 +1,7 @@
 const express = require("express");
 const { query } = require("../utils/database");
 
+const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
 // Helper function to fetch stocks list
@@ -39,9 +40,6 @@ async function fetchStocksList(req, res) {
 
 // GET /api/stocks - List all stocks
 router.get("/", fetchStocksList);
-
-// GET /api/stocks/list - Alias for root endpoint
-router.get("/list", fetchStocksList);
 
 // GET /api/stocks/search - Search stocks by symbol or name
 router.get("/search", async (req, res) => {
@@ -147,6 +145,121 @@ router.get("/deep-value", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Failed to fetch deep value stocks",
+      message: error.message
+    });
+  }
+});
+
+// GET /api/stocks/quick/overview - Quick stock overview (limited data)
+router.get("/quick/overview", async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+    const offset = parseInt(req.query.offset) || 0;
+    const search = req.query.search || '';
+
+    let countSql = "SELECT COUNT(*) as total FROM stock_symbols WHERE 1=1";
+    let sql = "SELECT symbol, security_name as name, market_category as category, exchange FROM stock_symbols WHERE 1=1";
+    const params = [];
+    let paramIndex = 1;
+
+    if (search) {
+      params.push(`%${search.toUpperCase()}%`);
+      countSql += ` AND (symbol ILIKE $${paramIndex} OR security_name ILIKE $${paramIndex})`;
+      sql += ` AND (symbol ILIKE $${paramIndex} OR security_name ILIKE $${paramIndex})`;
+      paramIndex++;
+    }
+
+    const countResult = await query(countSql, params);
+    const total = parseInt(countResult.rows[0]?.total || 0);
+
+    params.push(limit, offset);
+    const result = await query(
+      sql + ` ORDER BY symbol ASC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      params
+    );
+
+    return res.json({
+      items: result.rows,
+      pagination: {
+        limit,
+        offset,
+        total,
+        page: Math.max(1, Math.ceil((offset / limit) + 1))
+      },
+      success: true
+    });
+  } catch (error) {
+    console.error("Error fetching quick overview:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch quick overview",
+      message: error.message
+    });
+  }
+});
+
+// GET /api/stocks/full/data - Full stock data with detailed metrics
+router.get("/full/data", async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    const offset = parseInt(req.query.offset) || 0;
+    const search = req.query.search || '';
+
+    let countSql = "SELECT COUNT(*) as total FROM stock_symbols WHERE 1=1";
+    let sql = `
+      SELECT
+        ss.symbol,
+        ss.security_name as name,
+        ss.market_category as category,
+        ss.exchange,
+        cp.sector,
+        cp.industry,
+        COALESCE(vm.pe_ratio, vm.price_to_book, vm.price_to_sales) as valuation,
+        COALESCE(gm.revenue_growth_yoy, gm.eps_growth_3y_cagr) as growth,
+        COALESCE(mm.momentum_1m, mm.momentum_3m) as momentum,
+        COALESCE(qm.roe, qm.roa) as quality
+      FROM stock_symbols ss
+      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+      LEFT JOIN value_metrics vm ON ss.symbol = vm.symbol
+      LEFT JOIN growth_metrics gm ON ss.symbol = gm.symbol
+      LEFT JOIN momentum_metrics mm ON ss.symbol = mm.symbol
+      LEFT JOIN quality_metrics qm ON ss.symbol = qm.symbol
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramIndex = 1;
+
+    if (search) {
+      params.push(`%${search.toUpperCase()}%`);
+      countSql += ` AND (symbol ILIKE $${paramIndex} OR security_name ILIKE $${paramIndex})`;
+      sql += ` AND (ss.symbol ILIKE $${paramIndex} OR ss.security_name ILIKE $${paramIndex})`;
+      paramIndex++;
+    }
+
+    const countResult = await query(countSql, params);
+    const total = parseInt(countResult.rows[0]?.total || 0);
+
+    params.push(limit, offset);
+    const result = await query(
+      sql + ` ORDER BY ss.symbol ASC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      params
+    );
+
+    return res.json({
+      items: result.rows,
+      pagination: {
+        limit,
+        offset,
+        total,
+        page: Math.max(1, Math.ceil((offset / limit) + 1))
+      },
+      success: true
+    });
+  } catch (error) {
+    console.error("Error fetching full data:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch full data",
       message: error.message
     });
   }

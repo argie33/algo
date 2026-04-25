@@ -4,6 +4,7 @@ const { query } = require("../utils/database");
 const { authenticateToken } = require("../middleware/auth");
 const { getMarketDataPath } = require("../utils/market-data-path");
 
+const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
 // Root endpoint - returns reference/documentation only
@@ -79,7 +80,7 @@ router.get("/info", async (req, res) => {
     });
   } catch (err) {
     console.error("Earnings info error:", err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 
@@ -119,7 +120,7 @@ router.get("/data", async (req, res) => {
     });
   } catch (err) {
     console.error("Earnings data error:", err.message);
-    return res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 
