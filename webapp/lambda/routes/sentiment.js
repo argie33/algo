@@ -117,7 +117,7 @@ router.get("/summary", async (req, res) => {
 
     try {
       const analystResult = await query(
-        `SELECT analyst_count, bullish_count, bearish_count, neutral_count, date as date FROM analyst_sentiment_analysis ORDER BY date DESC LIMIT 1`
+        `SELECT total_analysts as analyst_count, bullish_count, bearish_count, neutral_count, date_recorded as date FROM analyst_sentiment_analysis ORDER BY date_recorded DESC LIMIT 1`
       );
       analyst = analystResult.rows[0] || null;
     } catch (e) {
