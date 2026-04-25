@@ -179,4 +179,14 @@ router.get("/by-symbol/:symbol", async (req, res) => {
   }
 });
 
+// Alias: /list -> /upgrades for backward compatibility
+router.get("/list", (req, res) => {
+  res.redirect(301, '/api/analysts/upgrades');
+});
+
+// Alias: /:symbol -> /by-symbol/:symbol (redirect to actual endpoint)
+router.get("/:symbol", (req, res) => {
+  res.redirect(301, `/api/analysts/by-symbol/${req.params.symbol}`);
+});
+
 module.exports = router;

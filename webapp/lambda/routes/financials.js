@@ -11,119 +11,212 @@ try {
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
-// Root endpoint - provides overview of available financial endpoints
 router.get("/", async (req, res) => {
   return sendSuccess(res, {
     message: "Financials API - Ready",
     status: "operational",
     endpoints: [
-      "/:symbol/balance-sheet?period=annual|quarterly - Get balance sheet",
-      "/:symbol/income-statement?period=annual|quarterly - Get income statement",
-      "/:symbol/cash-flow?period=annual|quarterly - Get cash flow statement",
-      "/:symbol/key-metrics - Get key financial metrics",
+      "/:symbol/balance-sheet?period=annual|quarterly",
+      "/:symbol/income-statement?period=annual|quarterly",
+      "/:symbol/cash-flow?period=annual|quarterly",
+      "/:symbol/key-metrics"
     ],
   });
 });
 
-// GET /api/financials/:symbol/balance-sheet - Get balance sheet
 router.get("/:symbol/balance-sheet", async (req, res) => {
   const { symbol } = req.params;
   const { period = "annual" } = req.query;
   const upperSymbol = symbol.toUpperCase();
 
-  console.log(`📊 [FINANCIALS] Fetching balance sheet for ${upperSymbol} (${period})`);
+  try {
+    console.log(`📊 [FINANCIALS] Fetching balance sheet for ${upperSymbol} (${period})`);
+    const tableName = period === 'quarterly' ? 'quarterly_balance_sheet' : 'annual_balance_sheet';
+    const result = await query(`
+      SELECT symbol, fiscal_year, total_assets, total_liabilities, stockholders_equity
+      FROM ${tableName}
+      WHERE symbol = $1
+      ORDER BY fiscal_year DESC
+      LIMIT 20
+    `, [upperSymbol]);
 
-  // Financial statement tables not yet populated - return empty structure
-  return sendSuccess(res, {
-    symbol: upperSymbol,
-    period: period,
-    financialData: []
-  });
+    const transformedData = (result.rows || []).map(row => ({
+      symbol: row.symbol,
+      fiscal_year: row.fiscal_year,
+      total_assets: row.total_assets,
+      total_liabilities: row.total_liabilities,
+      stockholders_equity: row.stockholders_equity
+    }));
+
+    return sendSuccess(res, {
+      symbol: upperSymbol,
+      period: period,
+      financialData: transformedData
+    });
+  } catch (error) {
+    console.error("Balance sheet error:", error);
+    return sendSuccess(res, {
+      symbol: upperSymbol,
+      period: period,
+      financialData: []
+    });
+  }
 });
 
-// GET /api/financials/:symbol/income-statement - Get income statement
 router.get("/:symbol/income-statement", async (req, res) => {
   const { symbol } = req.params;
   const { period = "annual" } = req.query;
   const upperSymbol = symbol.toUpperCase();
 
-  console.log(`📊 [FINANCIALS] Fetching income statement for ${upperSymbol} (${period})`);
+  try {
+    console.log(`📊 [FINANCIALS] Fetching income statement for ${upperSymbol} (${period})`);
+    const tableName = period === 'quarterly' ? 'quarterly_income_statement' : 'annual_income_statement';
+    const result = await query(`
+      SELECT symbol, fiscal_year, revenue, cost_of_revenue, gross_profit,
+             operating_expenses, operating_income, net_income
+      FROM ${tableName}
+      WHERE symbol = $1
+      ORDER BY fiscal_year DESC
+      LIMIT 20
+    `, [upperSymbol]);
 
-  // Financial statement tables not yet populated - return empty structure
-  return sendSuccess(res, {
-    symbol: upperSymbol,
-    period: period,
-    financialData: []
-  });
+    const transformedData = (result.rows || []).map(row => ({
+      symbol: row.symbol,
+      fiscal_year: row.fiscal_year,
+      revenue: row.revenue,
+      cost_of_revenue: row.cost_of_revenue,
+      gross_profit: row.gross_profit,
+      operating_expenses: row.operating_expenses,
+      operating_income: row.operating_income,
+      net_income: row.net_income
+    }));
+
+    return sendSuccess(res, {
+      symbol: upperSymbol,
+      period: period,
+      financialData: transformedData
+    });
+  } catch (error) {
+    console.error("Income statement error:", error);
+    return sendSuccess(res, {
+      symbol: upperSymbol,
+      period: period,
+      financialData: []
+    });
+  }
 });
 
-// GET /api/financials/:symbol/cash-flow - Get cash flow statement
 router.get("/:symbol/cash-flow", async (req, res) => {
   const { symbol } = req.params;
   const { period = "annual" } = req.query;
   const upperSymbol = symbol.toUpperCase();
 
-  console.log(`📊 [FINANCIALS] Fetching cash flow for ${upperSymbol} (${period})`);
+  try {
+    console.log(`📊 [FINANCIALS] Fetching cash flow for ${upperSymbol} (${period})`);
+    const tableName = period === 'quarterly' ? 'quarterly_cash_flow' : 'annual_cash_flow';
+    const result = await query(`
+      SELECT symbol, fiscal_year, operating_cash_flow, capital_expenditures, free_cash_flow
+      FROM ${tableName}
+      WHERE symbol = $1
+      ORDER BY fiscal_year DESC
+      LIMIT 20
+    `, [upperSymbol]);
 
-  // Financial statement tables not yet populated - return empty structure
-  return sendSuccess(res, {
-    symbol: upperSymbol,
-    period: period,
-    financialData: []
-  });
+    const transformedData = (result.rows || []).map(row => ({
+      symbol: row.symbol,
+      fiscal_year: row.fiscal_year,
+      operating_cash_flow: row.operating_cash_flow,
+      capital_expenditures: row.capital_expenditures,
+      free_cash_flow: row.free_cash_flow
+    }));
+
+    return sendSuccess(res, {
+      symbol: upperSymbol,
+      period: period,
+      financialData: transformedData
+    });
+  } catch (error) {
+    console.error("Cash flow error:", error);
+    return sendSuccess(res, {
+      symbol: upperSymbol,
+      period: period,
+      financialData: []
+    });
+  }
 });
 
-// GET /api/financials/:symbol/key-metrics - Get key financial metrics
 router.get("/:symbol/key-metrics", async (req, res) => {
   const { symbol } = req.params;
   const upperSymbol = symbol.toUpperCase();
 
-  console.log(`📊 [FINANCIALS] Fetching key metrics for ${upperSymbol}`);
+  try {
+    console.log(`📊 [FINANCIALS] Fetching key metrics for ${upperSymbol}`);
+    const result = await query(`
+      SELECT ticker, short_name, long_name, sector, industry, market_cap,
+             employees, website, currency_code, exchange,
+             held_percent_insiders, held_percent_institutions
+      FROM key_metrics
+      WHERE ticker = $1
+      LIMIT 1
+    `, [upperSymbol]);
 
-  // Financial metrics tables not yet populated - return empty structure
-  return sendSuccess(res, {
-    symbol: upperSymbol,
-    metricsData: {}
-  });
+    const metricsData = {};
+    if (result.rows && result.rows.length > 0) {
+      const row = result.rows[0];
+      metricsData['Company Info'] = {
+        title: 'Company Information',
+        metrics: {
+          'Name': row.short_name,
+          'Full Name': row.long_name,
+          'Sector': row.sector,
+          'Industry': row.industry,
+          'Exchange': row.exchange,
+          'Website': row.website,
+          'Employees': row.employees,
+          'Currency': row.currency_code
+        }
+      };
+      metricsData['Valuation'] = {
+        title: 'Valuation Metrics',
+        metrics: {
+          'Market Cap': row.market_cap
+        }
+      };
+      metricsData['Ownership'] = {
+        title: 'Ownership',
+        metrics: {
+          'Insider Ownership %': row.held_percent_insiders,
+          'Institutional Ownership %': row.held_percent_institutions
+        }
+      };
+    }
+
+    return sendSuccess(res, {
+      symbol: upperSymbol,
+      metricsData: metricsData
+    });
+  } catch (error) {
+    console.error("Key metrics error:", error);
+    return sendSuccess(res, {
+      symbol: upperSymbol,
+      metricsData: {}
+    });
+  }
 });
 
-// GET /api/financials/all - Get all financial data for all stocks (bulk operation)
 router.get("/all", async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 50, 200);
     const offset = parseInt(req.query.offset) || 0;
-    const symbol = req.query.symbol;
 
-    console.log(`📊 [FINANCIALS] Fetching all financials with limit=${limit}, offset=${offset}`);
-
-    let whereClause = "1=1";
-    const params = [];
-    let paramIndex = 1;
-
-    if (symbol) {
-      params.push(symbol.toUpperCase());
-      whereClause += ` AND cp.ticker = $${paramIndex}`;
-      paramIndex++;
-    }
-
-    // Get company profile with financial data (simple version without JOINs due to schema complexity)
     const result = await query(`
-      SELECT
-        cp.ticker as symbol,
-        cp.short_name as name,
-        cp.sector,
-        cp.industry
-      FROM company_profile cp
-      WHERE ${whereClause}
-      ORDER BY cp.ticker ASC
-      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
-    `, [...params, limit, offset]);
+      SELECT ticker as symbol, short_name as name, sector, industry
+      FROM key_metrics
+      ORDER BY ticker ASC
+      LIMIT $1 OFFSET $2
+    `, [limit, offset]);
 
-    // Get total count
-    const countResult = await query(
-      `SELECT COUNT(DISTINCT ticker) as total FROM company_profile WHERE ${whereClause}`,
-      params
-    );
+    const countResult = await query(`SELECT COUNT(DISTINCT ticker) as total FROM key_metrics`);
     const total = parseInt(countResult.rows[0]?.total || 0);
 
     return sendPaginated(res, result.rows || [], {
@@ -134,7 +227,7 @@ router.get("/all", async (req, res) => {
     });
   } catch (error) {
     console.error("All financials error:", error);
-    return sendSuccess(res, { symbol: upperSymbol, data: [] });
+    return sendPaginated(res, [], { limit: 50, offset: 0, total: 0, page: 1 });
   }
 });
 

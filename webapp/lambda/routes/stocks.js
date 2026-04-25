@@ -107,21 +107,15 @@ router.get("/deep-value", async (req, res) => {
     );
     const total = parseInt(countResult.rows[0].total);
 
-    return sendSuccess(res, {
-      stocks: result.rows,
-      pagination: {
-        limit,
-        offset,
-        total
-      },
-      criteria: {
-        description: "Deep value stocks: High value scores with low composite scores (undervalued opportunities)",
-        sortOrder: "Value-Composite spread (descending) → Value Score (descending) → Composite Score (ascending)"
-      },
-      metadata: {
-        total_stocks: result.rows.length,
-        last_updated: new Date().toISOString()
-      }
+    // Use standard pagination format like all other list endpoints
+    return sendPaginated(res, result.rows, {
+      limit,
+      offset,
+      total,
+      page: Math.ceil((offset / limit) + 1),
+      totalPages: Math.ceil(total / limit),
+      hasNext: (offset + limit) < total,
+      hasPrev: offset > 0
     });
   } catch (error) {
     console.error("Error fetching deep value stocks:", error);

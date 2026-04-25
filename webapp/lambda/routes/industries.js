@@ -229,4 +229,9 @@ router.get("/fresh-data", async (req, res) => {
   }
 });
 
+// Alias: /list -> /industries for backward compatibility
+router.get("/list", (req, res) => {
+  res.redirect(301, '/api/industries/industries');
+});
+
 module.exports = router;

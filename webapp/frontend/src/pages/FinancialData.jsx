@@ -244,8 +244,8 @@ function FinancialData() {
       );
     }
 
-    // Access data from the { data: {...} } structure returned by API
-    const metricsData = data?.data || data;
+    // data is already unwrapped metricsData from the API call
+    const metricsData = data;
 
     if (!metricsData || typeof metricsData !== 'object' || Object.keys(metricsData).length === 0) {
       return (
@@ -378,17 +378,9 @@ function FinancialData() {
       );
     }
 
-    // Access data from the { data: [...] } structure returned by API
-    let actualData = data?.data || data;
+    // data is already unwrapped from API wrapper function
+    let actualData = Array.isArray(data) ? data : data?.data || [];
 
-    // If the data is wrapped in a 'success' or 'metadata' object, unwrap it
-    if (
-      actualData &&
-      typeof actualData === "object" &&
-      !Array.isArray(actualData)
-    ) {
-      if ("data" in actualData) actualData = actualData?.data;
-    }
     if (
       !actualData ||
       !Array.isArray(actualData) ||
@@ -413,8 +405,8 @@ function FinancialData() {
       );
     }
 
-    // Handle the new API structure (direct properties like totalAssets, currentAssets)
-    const hasDirectProperties = actualData.length > 0 && actualData[0].totalAssets !== undefined;
+    // Handle the new API structure (direct properties like totalAssets or total_assets)
+    const hasDirectProperties = actualData.length > 0 && (actualData[0].totalAssets !== undefined || actualData[0].total_assets !== undefined);
 
     if (hasDirectProperties) {
       // Use the new API structure directly
@@ -422,13 +414,13 @@ function FinancialData() {
         // Extract all numerical properties except metadata
         const items = {};
         Object.entries(item).forEach(([key, value]) => {
-          if (!['symbol', 'date', 'raw'].includes(key) && value !== undefined) {
+          if (!['symbol', 'date', 'fiscal_year', 'fiscal_quarter', 'raw'].includes(key) && value !== undefined) {
             items[key] = value;
           }
         });
 
         return {
-          date: item.date,
+          date: item.date || item.fiscal_year,
           items: items,
         };
       });

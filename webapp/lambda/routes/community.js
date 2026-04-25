@@ -4,6 +4,20 @@ const router = express.Router();
 const { query } = require("../utils/database");
 const { sendCommunityWelcomeEmail } = require("../utils/email");
 
+// GET /api/community - Root endpoint with available routes
+router.get("/", (req, res) => {
+  return res.json({
+    data: {
+      endpoint: "community",
+      available_routes: [
+        "POST /signup - Submit email to join community",
+        "GET /stats - Get community stats (Admin only)"
+      ]
+    },
+    success: true
+  });
+});
+
 // POST /api/community/signup - Submit email to join community
 router.post("/signup", async (req, res) => {
   try {

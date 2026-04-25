@@ -3154,12 +3154,14 @@ router.post("/execute", authenticateToken, async (req, res) => {
 
 // GET /optimization/recommendations - Alias for /swing-trading for backward compatibility
 router.get("/recommendations", authenticateToken, async (req, res) => {
-  console.log("📊 Recommendations endpoint called - forwarding to swing-trading analysis");
-  // Redirect to swing-trading endpoint internally
-  req.baseUrl = "/api/optimization";
-  req.url = "/swing-trading";
-  // Let Express re-route this internally
-  return router._router.handle(req, res);
+  console.log("📊 Recommendations endpoint called - providing swing trading recommendations");
+  // Simply redirect to swing-trading which has all the logic
+  return res.redirect(`/api/optimization/swing-trading`);
+});
+
+// Alias: /portfolio -> /analysis for backward compatibility
+router.get("/portfolio", authenticateToken, (req, res) => {
+  res.redirect(301, '/api/optimization/analysis');
 });
 
 module.exports = router;

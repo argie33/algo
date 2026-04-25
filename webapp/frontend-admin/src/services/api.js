@@ -1940,9 +1940,11 @@ export const getDeepValueStocks = async (params = {}) => {
     const offset = params.offset || 0;
     const response = await api.get(`/api/stocks/deep-value?limit=${limit}&offset=${offset}`);
     const responseData = extractResponseData(response);
+
+    // Standard format: {items: [...], pagination: {...}}
     return {
-      data: Array.isArray(responseData) ? responseData : (responseData?.data || []),
-      pagination: response.data?.pagination,
+      data: responseData?.items || responseData?.data || (Array.isArray(responseData) ? responseData : []),
+      pagination: responseData?.pagination,
       success: true
     };
   } catch (error) {

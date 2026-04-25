@@ -503,4 +503,9 @@ router.get("/correlations", async (req, res) => {
   }
 });
 
+// Alias: /list -> /categories for backward compatibility
+router.get("/list", (req, res) => {
+  res.redirect(301, '/api/commodities/categories');
+});
+
 module.exports = router;

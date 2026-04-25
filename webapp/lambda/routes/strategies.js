@@ -195,4 +195,9 @@ router.get("/covered-calls", async (req, res) => {
   }
 });
 
+// Alias: /list -> /covered-calls for backward compatibility
+router.get("/list", (req, res) => {
+  res.redirect(301, '/api/strategies/covered-calls');
+});
+
 module.exports = router;

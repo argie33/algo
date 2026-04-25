@@ -170,6 +170,11 @@ const getStocksSignals = async (req, res) => {
       });
       signalsResult = await query(signalsQuery, [...queryParams, limit, offset]);
       console.log(`[${timeframe.toUpperCase()}] Query succeeded, rows returned:`, signalsResult.rows?.length || 0);
+      if (signalsResult.rows && signalsResult.rows.length > 0) {
+        const sampleRow = signalsResult.rows[0];
+        console.log(`[${timeframe.toUpperCase()}] Sample row ALL keys:`, Object.keys(sampleRow));
+        console.log(`[${timeframe.toUpperCase()}] Technical values:`, { rsi: sampleRow.rsi, adx: sampleRow.adx, atr: sampleRow.atr, sma_50: sampleRow.sma_50 });
+      }
     } catch (queryError) {
       console.error(`[ERROR] Query failed for ${timeframe} signals:`, {
         message: queryError.message,
