@@ -32,7 +32,7 @@ router.get("/info", async (req, res) => {
         "SELECT * FROM earnings_history WHERE symbol = $1 ORDER BY quarter DESC LIMIT $2",
         [symbol.toUpperCase(), limitNum]
       );
-      return sendSuccess(res, { earnings: result.rows || [] });
+      return sendSuccess(res, { estimates: result.rows || [], history: result.rows || [] });
     }
 
     const result = await query(
@@ -40,7 +40,7 @@ router.get("/info", async (req, res) => {
        FROM earnings_history ORDER BY symbol, quarter DESC LIMIT $1`,
       [limitNum]
     );
-    return sendSuccess(res, { earnings: result.rows || [] });
+    return sendSuccess(res, { estimates: result.rows || [] });
   } catch (err) {
     return sendError(res, `Failed to fetch earnings: ${err.message}`, 500);
   }
