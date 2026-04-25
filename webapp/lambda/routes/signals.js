@@ -37,8 +37,6 @@ router.get("/", (req, res) => {
 // Shared handler function for both /stocks and /list
 const getStocksSignals = async (req, res) => {
   try {
-    console.log(`[DATA] Signals data requested (deployment refresh v3)`);
-
     const timeframe = req.query.timeframe || "daily";
     const signalType = req.query.signal_type;
     const symbolFilter = req.query.symbol;
@@ -116,9 +114,7 @@ const getStocksSignals = async (req, res) => {
 
     // Build dynamic SELECT based on what exists in each table
     let actualColumns;
-    console.log(`[DEBUG] Building query for timeframe: ${timeframe}`);
     if (timeframe === 'daily') {
-      console.log(`[DEBUG] Using DAILY columns`);
       actualColumns = `
         bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.date as signal_triggered_date,
         bsd.signal, bsd.buylevel as strength, bsd.buylevel as signal_strength,
@@ -129,7 +125,6 @@ const getStocksSignals = async (req, res) => {
         t.ema_12, t.ema_26
       `;
     } else {
-      console.log(`[DEBUG] Using WEEKLY/MONTHLY columns`);
       actualColumns = `
         bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.date as signal_triggered_date,
         bsd.signal, bsd.buylevel as strength, bsd.buylevel as signal_strength,

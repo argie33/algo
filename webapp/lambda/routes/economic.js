@@ -141,8 +141,6 @@ router.get("/leading-indicators", async (req, res) => {
     const historicalData = {}; // Store historical data for trends
     const seriesCount = {};
 
-    console.log(`[DATA] Leading indicators query returned ${result.rows?.length || 0} data points`);
-    console.log(`📅 Economic calendar events found: ${calendarResult?.rows?.length || 0}`);
 
     // Parse results - group by series and collect historical values
     // Data-driven limits based on frequency and available data:
@@ -660,10 +658,7 @@ router.get("/calendar", async (req, res) => {
     });
   } catch (error) {
     console.error("Economic calendar error:", error);
-    return res.status(500).json({
-      error: "Failed to fetch economic calendar data",
-      success: false
-    });
+    return sendError(res, "Failed to fetch economic calendar data", 500);
   }
 });
 
@@ -690,17 +685,10 @@ router.get("/fresh-data", async (req, res) => {
       });
     }
 
-    return res.status(404).json({
-      error: "Fresh data not available",
-      success: false
-    });
+    return sendError(res, "Fresh data not available", 404);
   } catch (error) {
     console.error("Fresh economic error:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch fresh economic data",
-      details: error.message,
-      success: false
-    });
+    return sendError(res, "Failed to fetch fresh economic data", 500);
   }
 });
 
