@@ -418,33 +418,17 @@ def insert_options_chains(conn, data):
     """Bulk insert options chains with conflict handling."""
     query = """
         INSERT INTO options_chains (
-            symbol, expiration_date, option_type, strike, contract_symbol,
-            last_price, bid, ask, change, percent_change,
-            volume, open_interest, implied_volatility,
-            in_the_money, contract_size, currency,
-            last_trade_date, data_date
+            symbol, expiration_date, option_type, strike,
+            last_price, bid, ask,
+            volume, open_interest, implied_volatility, data_date
         ) VALUES %s
-        ON CONFLICT (contract_symbol)
-        DO UPDATE SET
-            last_price = EXCLUDED.last_price,
-            bid = EXCLUDED.bid,
-            ask = EXCLUDED.ask,
-            change = EXCLUDED.change,
-            percent_change = EXCLUDED.percent_change,
-            volume = EXCLUDED.volume,
-            open_interest = EXCLUDED.open_interest,
-            implied_volatility = EXCLUDED.implied_volatility,
-            in_the_money = EXCLUDED.in_the_money,
-            last_trade_date = EXCLUDED.last_trade_date,
-            fetched_at = CURRENT_TIMESTAMP
+        ON CONFLICT DO NOTHING
     """
 
     values = [(
-        d['symbol'], d['expiration_date'], d['option_type'], d['strike'], d['contract_symbol'],
-        d['last_price'], d['bid'], d['ask'], d['change'], d['percent_change'],
-        d['volume'], d['open_interest'], d['implied_volatility'],
-        d['in_the_money'], d['contract_size'], d['currency'],
-        d['last_trade_date'], d['data_date']
+        d['symbol'], d['expiration_date'], d['option_type'], d['strike'],
+        d['last_price'], d['bid'], d['ask'],
+        d['volume'], d['open_interest'], d['implied_volatility'], d['data_date']
     ) for d in data]
 
     with conn.cursor() as cur:
