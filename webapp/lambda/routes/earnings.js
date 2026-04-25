@@ -42,41 +42,46 @@ router.get("/", (req, res) => {
 // Named endpoints (must come BEFORE /:symbol route)
 // ============================================================
 
-// GET /api/earnings/info - Get earnings estimates and history combined
+// GET /api/earnings/info - Get earnings estimates, history, AND surprises combined
 router.get("/info", async (req, res) => {
   try {
     const symbol = req.query.symbol;
-    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const offset = (page - 1) * limit;
-
-    let sql = "SELECT * FROM earnings_estimates";
-    const params = [];
-    let paramIndex = 1;
-
-    if (symbol) {
-      sql += ` WHERE symbol = $${paramIndex}`;
-      params.push(symbol);
-      paramIndex++;
+    if (!symbol) {
+      return sendError(res, "Symbol parameter required", 400);
     }
 
-    const countResult = await query(
-      `SELECT COUNT(*) as count FROM (${sql}) t`,
-      params
-    );
-    const total = countResult.rows[0]?.count || 0;
+    // Fetch all three datasets for the symbol
+    const estimatesResult = await query(
+      "SELECT * FROM earnings_estimates WHERE symbol = $1 ORDER BY period DESC LIMIT 20",
+      [symbol]
+    ).catch(() => ({ rows: [] }));
 
-    const result = await query(
-      sql + ` ORDER BY symbol, period DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
-      [...params, limit, offset]
-    );
+    const historyResult = await query(
+      "SELECT * FROM earnings_history WHERE symbol = $1 ORDER BY quarter DESC LIMIT 20",
+      [symbol]
+    ).catch(() => ({ rows: [] }));
 
-    return res.json({
-      data: {
-        estimates: result.rows || [],
-        pagination: { page, limit, total, hasMore: offset + limit < total }
-      },
-      success: true
+    // Get earnings surprises (difference between estimate and actual)
+    const surprisesResult = await query(
+      `SELECT
+        eh.symbol, eh.quarter, eh.eps_actual, ee.eps_estimate,
+        CASE
+          WHEN ee.eps_estimate IS NULL THEN NULL
+          ELSE ROUND(((eh.eps_actual - ee.eps_estimate) / ABS(ee.eps_estimate) * 100)::numeric, 2)
+        END as surprise_percent,
+        eh.eps_actual - COALESCE(ee.eps_estimate, 0) as surprise_amount
+      FROM earnings_history eh
+      LEFT JOIN earnings_estimates ee ON eh.symbol = ee.symbol AND eh.quarter = ee.period
+      WHERE eh.symbol = $1 AND eh.eps_actual IS NOT NULL
+      ORDER BY eh.quarter DESC
+      LIMIT 20`,
+      [symbol]
+    ).catch(() => ({ rows: [] }));
+
+    return sendSuccess(res, {
+      estimates: estimatesResult.rows || [],
+      history: historyResult.rows || [],
+      surprises: surprisesResult.rows || []
     });
   } catch (err) {
     console.error("Earnings info error:", err.message);

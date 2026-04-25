@@ -4008,6 +4008,18 @@ export const getUserProfile = async () => {
   }
 };
 
+export const updateUserProfile = async (profileData) => {
+  try {
+    const response = await api.put("/api/user/profile", profileData);
+    return {
+      data: extractResponseData(response),
+      success: true
+    };
+  } catch (error) {
+    return createErrorResponse(error, "Failed to update user profile");
+  }
+};
+
 export const getSettingsPreferences = async () => {
   try {
     const response = await api.get("/api/settings/preferences");

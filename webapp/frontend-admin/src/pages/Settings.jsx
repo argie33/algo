@@ -58,6 +58,7 @@ import {
 import api, {
   getApiConfig,
   getUserProfile,
+  updateUserProfile,
   getSettingsPreferences,
   changePassword,
   setTwoFactorAuth,
@@ -330,39 +331,26 @@ const Settings = () => {
     try {
       setLoading(true);
 
-      const response = await fetch(`${apiUrl}/api/user/profile`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
-        },
-        body: JSON.stringify(profileData),
-      });
+      const result = await updateUserProfile(profileData);
 
-      if (response.ok) {
-        const updatedUser = await response.json();
+      if (result.success) {
         showSnackbar("Profile updated successfully");
 
-        // Update the user context with new data
-        if (updatedUser.user) {
-          // This would typically update the auth context
-          // For now, just refresh the settings
+        // Update the user context with new data if available
+        if (result.data?.user) {
           await loadUserSettings();
         }
       } else {
-        const error = await response.json();
         logger.error(
           "Profile Update Failed",
-          new Error(`Profile update rejected: ${response.status}`),
+          new Error(result.error),
           {
             userId: user?.sub || user?.id,
             profileData,
-            responseStatus: response.status,
-            errorData: error,
             operation: "updateProfile",
           }
         );
-        showSnackbar(error.error || "Failed to update profile", "error");
+        showSnackbar(result.error || "Failed to update profile", "error");
       }
     } catch (error) {
       logger.error("Profile Save Error", error, {
@@ -582,19 +570,9 @@ const Settings = () => {
     try {
       setLoading(true);
 
-      const response = await fetch(`${apiUrl}/api/user/change-password`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
-        },
-        body: JSON.stringify({
-          currentPassword: passwordDialog.currentPassword,
-          newPassword: passwordDialog.newPassword,
-        }),
-      });
+      const result = await changePassword(passwordDialog.currentPassword, passwordDialog.newPassword);
 
-      if (response.ok) {
+      if (result.success) {
         showSnackbar("Password changed successfully", "success");
         setPasswordDialog({
           open: false,
@@ -604,17 +582,13 @@ const Settings = () => {
           errors: {},
         });
       } else {
-        const errorData = await response.json();
-        if (response.status === 401) {
+        if (result.error?.includes("401") || result.error?.includes("incorrect")) {
           setPasswordDialog((prev) => ({
             ...prev,
             errors: { currentPassword: "Current password is incorrect" },
           }));
         } else {
-          showSnackbar(
-            errorData.message || "Failed to change password",
-            "error"
-          );
+          showSnackbar(result.error || "Failed to change password", "error");
         }
       }
     } catch (error) {
@@ -639,15 +613,9 @@ const Settings = () => {
       setLoading(true);
 
       const action = user?.twoFactorEnabled ? "disable" : "enable";
-      const response = await fetch(`${apiUrl}/api/user/two-factor/${action}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
-        },
-      });
+      const result = await setTwoFactorAuth(action);
 
-      if (response.ok) {
-        const data = await response.json();
+      if (result.success) {
         showSnackbar(
           user?.twoFactorEnabled
             ? "Two-factor authentication disabled"
@@ -655,7 +623,7 @@ const Settings = () => {
         );
 
         // Show QR code or setup instructions if enabling
-        if (!user?.twoFactorEnabled && data.qrCode) {
+        if (!user?.twoFactorEnabled && result.data?.qrCode) {
           showSnackbar(
             "Please scan the QR code with your authenticator app",
             "info"
@@ -665,9 +633,8 @@ const Settings = () => {
         // Refresh user settings
         await loadUserSettings();
       } else {
-        const error = await response.json();
         showSnackbar(
-          error.error || "Failed to toggle two-factor authentication",
+          result.error || "Failed to toggle two-factor authentication",
           "error"
         );
       }
@@ -684,17 +651,11 @@ const Settings = () => {
     try {
       setLoading(true);
 
-      const response = await fetch(`${apiUrl}/api/user/recovery-codes`, {
-        headers: {
-          Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
-        },
-      });
+      const result = await getRecoveryCodes();
 
-      if (response.ok) {
-        const data = await response.json();
-
+      if (result.success && result.data?.codes) {
         // Create and download recovery codes file
-        const codesText = data.codes.join("\n");
+        const codesText = result.data.codes.join("\n");
         const blob = new Blob([codesText], { type: "text/plain" });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
@@ -705,9 +666,8 @@ const Settings = () => {
 
         showSnackbar("Recovery codes downloaded successfully", "success");
       } else {
-        const error = await response.json();
         showSnackbar(
-          error.error || "Failed to download recovery codes",
+          result.error || "Failed to download recovery codes",
           "error"
         );
       }
@@ -738,20 +698,14 @@ const Settings = () => {
           try {
             setLoading(true);
 
-            const response = await fetch(`${apiUrl}/api/user/delete-account`, {
-              method: "DELETE",
-              headers: {
-                Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
-              },
-            });
+            const result = await deleteAccount("");
 
-            if (response.ok) {
+            if (result.success) {
               showSnackbar("Account deleted successfully", "success");
               await logout();
               navigate("/");
             } else {
-              const error = await response.json();
-              showSnackbar(error.error || "Failed to delete account", "error");
+              showSnackbar(result.error || "Failed to delete account", "error");
             }
           } catch (error) {
             if (import.meta.env && import.meta.env.DEV)
@@ -774,18 +728,12 @@ const Settings = () => {
       try {
         setLoading(true);
 
-        const response = await fetch(`${apiUrl}/api/user/revoke-sessions`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${user?.tokens?.accessToken || "dev-token"}`,
-          },
-        });
+        const result = await revokeAllSessions();
 
-        if (response.ok) {
+        if (result.success) {
           showSnackbar("All other sessions have been revoked", "success");
         } else {
-          const error = await response.json();
-          showSnackbar(error.error || "Failed to revoke sessions", "error");
+          showSnackbar(result.error || "Failed to revoke sessions", "error");
         }
       } catch (error) {
         if (import.meta.env && import.meta.env.DEV)
