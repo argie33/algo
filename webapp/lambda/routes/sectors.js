@@ -114,53 +114,80 @@ router.use((req, res, next) => {
  */
 router.get("/sectors", async (req, res) => {
   try {
-    // Use fresh-data from JSON file - ensures all pages have up-to-date data
-    const fs = require("fs");
-    const { limit = 20, page = 1 } = req.query;
-    const comprehensivePath = getMarketDataPath();
-
-    if (fs.existsSync(comprehensivePath)) {
-      const data = JSON.parse(fs.readFileSync(comprehensivePath, "utf-8"));
-
-      // Convert fresh sector data to expected format
-      const sectorsData = data.sectors ? Object.values(data.sectors) : [];
-      const limitNum = Math.min(parseInt(limit, 10) || 20, 1000);
-      const pageNum = Math.max(parseInt(page, 10) || 1, 1);
-      const total = sectorsData.length;
-      const offset = (pageNum - 1) * limitNum;
-
-      const sectors = sectorsData.slice(offset, offset + limitNum).map(sector => ({
-        sector_name: sector.name,
-        symbol: sector.symbol,
-        price: sector.price,
-        change: sector.change,
-        changePercent: sector.changePercent,
-        performance: sector.performance,
-        date: sector.date,
-        timestamp: data.timestamp,
-        source: "fresh-data"
-      }));
-
-      return sendPaginated(res, sectors, {
-        page: pageNum,
-        limit: limitNum,
-        total: total,
-        offset: offset,
-        totalPages: Math.ceil(total / limitNum)
+    if (!query) {
+      return res.status(503).json({
+        error: "Database service unavailable",
+        success: false
       });
     }
 
-    // Fallback: return empty result if fresh-data not available
-    return sendPaginated(res, [], {
-      page: 1,
-      limit: parseInt(limit, 10) || 20,
-      total: 0,
-      offset: 0,
-      totalPages: 0
+    const { limit = 500, page = 1 } = req.query;
+    const limitNum = Math.min(parseInt(limit, 10) || 500, 1000);
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const offset = (pageNum - 1) * limitNum;
+
+    // Get total count
+    const countResult = await query(`SELECT COUNT(DISTINCT sector_name) as count FROM sector_ranking`);
+    const total = countResult?.rows[0]?.count || 0;
+
+    // Query from database directly - real data
+    const sectorsQuery = `
+      SELECT
+        sr.sector_name,
+        sr.current_rank,
+        sr.rank_1w_ago,
+        sr.rank_4w_ago,
+        sr.rank_12w_ago,
+        sr.momentum_score,
+        sr.daily_strength_score,
+        sr.trend,
+        sr.date_recorded as last_updated
+      FROM (
+        SELECT DISTINCT ON (sector_name)
+          sector_name, current_rank, rank_1w_ago, rank_4w_ago, rank_12w_ago,
+          momentum_score, daily_strength_score, trend, date_recorded
+        FROM sector_ranking
+        WHERE sector_name IS NOT NULL
+          AND TRIM(sector_name) != ''
+        ORDER BY sector_name, date_recorded DESC
+      ) sr
+      ORDER BY sr.sector_name
+      LIMIT $1 OFFSET $2
+    `;
+
+    const result = await query(sectorsQuery, [limitNum, offset]);
+    const sectors = (result?.rows || []).map(row => ({
+      sector_name: row.sector_name,
+      current_rank: row.current_rank,
+      rank_1w_ago: row.rank_1w_ago,
+      rank_4w_ago: row.rank_4w_ago,
+      rank_12w_ago: row.rank_12w_ago,
+      momentum_score: row.momentum_score !== null ? safeFloat(row.momentum_score) : null,
+      daily_strength_score: row.daily_strength_score !== null ? safeFloat(row.daily_strength_score) : null,
+      trend: row.trend,
+      last_updated: row.last_updated
+    }));
+
+    const totalPages = Math.ceil(total / limitNum);
+
+    return res.json({
+      items: sectors,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: total,
+        totalPages,
+        hasNext: pageNum < totalPages,
+        hasPrev: pageNum > 1
+      },
+      success: true
     });
   } catch (error) {
     console.error('❌ Error in /api/sectors/sectors:', error.message);
-    return sendError(res, "Request failed", 500);
+    return res.status(500).json({
+      error: "Request failed",
+      success: false
+    });
   }
 });
 

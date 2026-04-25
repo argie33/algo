@@ -65,7 +65,7 @@ router.get("/industries", async (req, res) => {
 
     const { limit = 500 } = req.query;
 
-    // Query from database directly - real data, not JSON file
+    // Query from database directly - real data
     const industriesQuery = `
       SELECT
         ir.industry,
@@ -75,13 +75,12 @@ router.get("/industries", async (req, res) => {
         ir.rank_12w_ago,
         ir.momentum_score,
         ir.daily_strength_score,
-        ir.stock_count,
         ir.trend,
         ir.date_recorded as last_updated
       FROM (
         SELECT DISTINCT ON (industry)
           industry, current_rank, rank_1w_ago, rank_4w_ago, rank_12w_ago,
-          momentum_score, daily_strength_score, stock_count, trend, date_recorded
+          momentum_score, daily_strength_score, trend, date_recorded
         FROM industry_ranking
         WHERE industry IS NOT NULL
           AND TRIM(industry) != ''
@@ -99,7 +98,6 @@ router.get("/industries", async (req, res) => {
       rank_12w_ago: row.rank_12w_ago,
       momentum_score: row.momentum_score !== null ? safeFloat(row.momentum_score) : null,
       daily_strength_score: row.daily_strength_score !== null ? safeFloat(row.daily_strength_score) : null,
-      stock_count: row.stock_count,
       trend: row.trend,
       last_updated: row.last_updated
     }));

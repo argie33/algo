@@ -110,11 +110,11 @@ const getStocksSignals = async (req, res) => {
       paramIndex++;
     }
 
-    // Build actual columns - select essential columns from buy_sell_* tables
-    // Only select columns that definitely exist in the buy_sell_* schema
+    // Build actual columns - select ONLY columns that exist in buy_sell_* schema
+    // These are the only columns available in the tables
     const actualColumns = `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.signal_triggered_date,
-      bsd.signal, bsd.strength
+      bsd.signal, bsd.strength, bsd.signal_strength
     `;
 
     // Query without JOINs for performance - symbol is in buy_sell table
@@ -154,103 +154,16 @@ const getStocksSignals = async (req, res) => {
       return sendPaginated(res, [], { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false });
     }
 
-    // Summary statistics are calculated on frontend from items array per RULES.md
-    const signalData = signalsResult.rows;
-
-    // Format the response data - ALL REAL DATA FROM DATABASE
+    // Format response with ONLY available columns from database
     const formattedData = signalsResult.rows.map(row => ({
-      // Basic signal info
       id: row.id,
       symbol: row.symbol,
       signal: row.signal,
-      signal_type: row.signal_type || null,
       date: row.date,
-      signal_triggered_date: row.signal_triggered_date || null,
+      signal_triggered_date: row.signal_triggered_date,
       timeframe: row.timeframe || timeframe,
-
-      // Price data
-      open: row.open !== null ? parseFloat(row.open) : null,
-      high: row.high !== null ? parseFloat(row.high) : null,
-      low: row.low !== null ? parseFloat(row.low) : null,
-      close: row.close !== null ? parseFloat(row.close) : null,
-      volume: row.volume,
-      daily_range_pct: (row.high && row.low) ? parseFloat(((row.high - row.low) / row.low * 100).toFixed(2)) : null,
-
-      // Entry/Exit levels
-      buylevel: row.buylevel !== null ? parseFloat(row.buylevel) : null,
-      stoplevel: row.stoplevel !== null ? parseFloat(row.stoplevel) : null,
-      sell_level: row.sell_level !== null ? parseFloat(row.sell_level) : null,
-      inposition: row.inposition || false,
-      initial_stop: row.initial_stop !== null ? parseFloat(row.initial_stop) : null,
-      trailing_stop: row.trailing_stop !== null ? parseFloat(row.trailing_stop) : null,
-      entry_price: row.entry_price !== null ? parseFloat(row.entry_price) : null,
-
-      // Signal quality
       strength: row.strength !== null ? parseFloat(row.strength) : null,
       signal_strength: row.signal_strength !== null ? parseFloat(row.signal_strength) : null,
-
-      // Technical indicators
-      rsi: row.rsi !== null ? parseFloat(row.rsi) : null,
-      adx: row.adx !== null ? parseFloat(row.adx) : null,
-      atr: row.atr !== null ? parseFloat(row.atr) : null,
-
-      // Moving averages
-      sma_50: row.sma_50 !== null ? parseFloat(row.sma_50) : null,
-      sma_200: row.sma_200 !== null ? parseFloat(row.sma_200) : null,
-      ema_21: row.ema_21 !== null ? parseFloat(row.ema_21) : null,
-      pct_from_ema21: row.pct_from_ema21 !== null ? parseFloat(row.pct_from_ema21) : null,
-      pct_from_sma50: row.pct_from_sma50 !== null ? parseFloat(row.pct_from_sma50) : null,
-
-      // O'Neill pattern info
-      signal_type: row.signal_type || null,
-      pivot_price: row.pivot_price !== null ? parseFloat(row.pivot_price) : null,
-      buy_zone_start: row.buy_zone_start !== null ? parseFloat(row.buy_zone_start) : null,
-      buy_zone_end: row.buy_zone_end !== null ? parseFloat(row.buy_zone_end) : null,
-
-      // Exit triggers
-      exit_trigger_1_price: row.exit_trigger_1_price !== null ? parseFloat(row.exit_trigger_1_price) : null,
-      exit_trigger_2_price: row.exit_trigger_2_price !== null ? parseFloat(row.exit_trigger_2_price) : null,
-      exit_trigger_3_price: row.exit_trigger_3_price !== null ? parseFloat(row.exit_trigger_3_price) : null,
-      exit_trigger_3_condition: row.exit_trigger_3_condition || null,
-      exit_trigger_4_price: row.exit_trigger_4_price !== null ? parseFloat(row.exit_trigger_4_price) : null,
-      exit_trigger_4_condition: row.exit_trigger_4_condition || null,
-
-      // Base pattern
-      base_type: row.base_type || null,
-      base_length_days: row.base_length_days,
-
-      // Volume analysis
-      avg_volume_50d: row.avg_volume_50d,
-      volume_surge_pct: row.volume_surge_pct !== null ? parseFloat(row.volume_surge_pct) : null,
-
-      // Risk and reward
-      risk_reward_ratio: row.risk_reward_ratio !== null ? parseFloat(row.risk_reward_ratio) : null,
-      risk_pct: row.risk_pct !== null ? parseFloat(row.risk_pct) : null,
-      current_gain_pct: row.current_gain_pct !== null ? parseFloat(row.current_gain_pct) : null,
-      days_in_position: row.days_in_position,
-
-      // Market stage
-      market_stage: row.market_stage || null,
-      stage_number: row.stage_number,
-      stage_confidence: row.stage_confidence !== null ? parseFloat(row.stage_confidence) : null,
-      substage: row.substage || null,
-
-      // Entry quality
-      entry_quality_score: row.entry_quality_score !== null ? parseFloat(row.entry_quality_score) : null,
-      breakout_quality: row.breakout_quality || null,
-
-      // Position sizing
-      position_size_recommendation: row.position_size_recommendation || null,
-
-      // Profit targets
-      profit_target_8pct: row.profit_target_8pct !== null ? parseFloat(row.profit_target_8pct) : null,
-      profit_target_20pct: row.profit_target_20pct !== null ? parseFloat(row.profit_target_20pct) : null,
-      profit_target_25pct: row.profit_target_25pct !== null ? parseFloat(row.profit_target_25pct) : null,
-
-      // Scores
-      mansfield_rs: row.mansfield_rs !== null ? parseFloat(row.mansfield_rs) : null,
-      rs_rating: row.rs_rating,
-      sata_score: row.sata_score,
     }));
 
     // Get total count of records for pagination
@@ -286,6 +199,9 @@ const getStocksSignals = async (req, res) => {
 
 // Canonical endpoint for stock signals (returns ALL signals from 2019 by default)
 router.get("/stocks", getStocksSignals);
+
+// Alias for backward compatibility with frontend
+router.get("/list", getStocksSignals);
 
 // Get trading signals for ETFs - SAME STRUCTURE AS STOCKS
 router.get("/etf", async (req, res) => {
