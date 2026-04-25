@@ -59,6 +59,7 @@ const tradesRoutes = require("./routes/trades");
 const userRoutes = require("./routes/user");
 const worldEtfsRoutes = require("./routes/world-etfs");
 const diagnosticsRoutes = require("./routes/diagnostics");
+const apiStatusRoutes = require("./routes/api-status");
 
 const app = express();
 
@@ -438,6 +439,7 @@ app.use("/api/trades/manual", manualTradesRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/world-etfs", worldEtfsRoutes);
 app.use("/api/diagnostics", diagnosticsRoutes);
+app.use("/api/status", apiStatusRoutes);
 
 // API info endpoint
 app.get("/api", (req, res) => {

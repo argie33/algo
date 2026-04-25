@@ -1898,11 +1898,7 @@ router.get("/indices", async (req, res) => {
 
     if (!priceResult?.rows || priceResult.rows.length === 0) {
       console.warn(`⚠️ No index price data found for ${latestDate}`);
-      return res.json({
-        data: [],
-        info: "No index data available for latest trading date",
-        success: true
-      });
+      return sendSuccess(res, { items: [], info: "No index data available for latest trading date" });
     }
 
     const indexNames = {
@@ -1956,20 +1952,15 @@ router.get("/indices", async (req, res) => {
     });
 
     const hasAnyPE = Object.keys(peDataMap).length > 0;
-    res.json({
-      data: indices,
+    sendSuccess(res, {
+      items: indices,
       count: indices.length,
       peAvailable: hasAnyPE,
-      message: hasAnyPE ? "P/E valuation data available for major indices" : "Index valuation data not yet available",
-      success: true
+      message: hasAnyPE ? "P/E valuation data available for major indices" : "Index valuation data not yet available"
     });
   } catch (error) {
     console.error("❌ Market indices error:", error.message);
-    res.status(500).json({
-      error: "Failed to fetch market indices",
-      details: error.message,
-      success: false,
-    });
+    sendError(res, error.message ? `Failed to fetch market indices: ${error.message}` : "Failed to fetch market indices", 500);
   }
 });
 
@@ -2169,21 +2160,20 @@ router.get("/internals", async (req, res) => {
       ? ((advancingPct - historicalBreadth.avg_advancing_pct) / historicalBreadth.stddev_advancing_pct).toFixed(2)
       : 0;
 
-    return res.json({
-      data: {
-        market_breadth: {
-          total_stocks: safeInt(breadth.total_stocks),
-          advancing: safeInt(breadth.advancing),
-          declining: safeInt(breadth.declining),
-          unchanged: safeInt(breadth.unchanged),
-          strong_up: safeInt(breadth.strong_up),
-          strong_down: safeInt(breadth.strong_down),
-          advancing_percent: parseFloat(advancingPct).toFixed(2),
-          decline_advance_ratio: breadth.declining > 0 ? parseFloat(breadth.declining / breadth.advancing).toFixed(2) : null,
-          avg_daily_change: safeFixed(breadth.avg_daily_change, 3),
-          total_volume: safeInt(breadth.total_volume)
-        },
-        moving_average_analysis: {
+    return sendSuccess(res, {
+      market_breadth: {
+        total_stocks: safeInt(breadth.total_stocks),
+        advancing: safeInt(breadth.advancing),
+        declining: safeInt(breadth.declining),
+        unchanged: safeInt(breadth.unchanged),
+        strong_up: safeInt(breadth.strong_up),
+        strong_down: safeInt(breadth.strong_down),
+        advancing_percent: parseFloat(advancingPct).toFixed(2),
+        decline_advance_ratio: breadth.declining > 0 ? parseFloat(breadth.declining / breadth.advancing).toFixed(2) : null,
+        avg_daily_change: safeFixed(breadth.avg_daily_change, 3),
+        total_volume: safeInt(breadth.total_volume)
+      },
+      moving_average_analysis: {
           above_sma20: {
             count: safeInt(maAnalysis.above_sma20),
             total: safeInt(maAnalysis.total_with_sma20),
@@ -2247,9 +2237,7 @@ router.get("/internals", async (req, res) => {
           historical_lookback: "90 days",
           positioning_lookback: "30 days"
         }
-      },
-      success: true
-    });
+      });
 
   } catch (error) {
     console.error("Error fetching market internals:", error);
@@ -2270,22 +2258,17 @@ router.get("/aaii", async (req, res) => {
       const aaii = data.sentiment?.aaii || [];
 
       if (aaii.length > 0) {
-        return res.json({
-          items: aaii,
-          pagination: {
-            total: aaii.length,
-            range: range,
-            count: aaii.length
-          },
-          source: "fresh-data",
-          success: true
+        return sendPaginated(res, aaii, {
+          total: aaii.length,
+          limit: aaii.length,
+          offset: 0
         });
       }
     }
 
     // Fallback to database
     if (!query) {
-      return res.json({items: [], pagination: {total: 0}, success: false});
+      return sendPaginated(res, [], { total: 0, limit: 0, offset: 0 });
     }
 
     let days = 30;
@@ -2310,19 +2293,15 @@ router.get("/aaii", async (req, res) => {
       bearish: parseFloat(row.bearish || 0)
     }));
 
-    return res.json({
-      items: data,
-      pagination: {
-        total: data.length,
-        range: range,
-        count: data.length
-      },
-      success: true
+    return sendPaginated(res, data, {
+      total: data.length,
+      limit: data.length,
+      offset: 0
     });
 
   } catch (error) {
     console.error("AAII sentiment error:", error);
-    return res.json({items: [], pagination: {total: 0}, success: false});
+    return sendPaginated(res, [], { total: 0, limit: 0, offset: 0 });
   }
 });
 
@@ -2356,11 +2335,7 @@ router.get("/fear-greed", async (req, res) => {
     `, [days]);
 
     if (!result || !result.rows) {
-      return res.json({
-        data: [],
-        range: range,
-        success: true
-      });
+      return sendSuccess(res, { items: [], range: range, count: 0 });
     }
 
     const data = result.rows.map(row => ({
@@ -2370,11 +2345,10 @@ router.get("/fear-greed", async (req, res) => {
       index_value: parseFloat(row.index_value) // Also include for backward compatibility
     }));
 
-    return res.json({
-      data: data,
+    return sendSuccess(res, {
+      items: data,
       range: range,
-      count: data.length,
-      success: true
+      count: data.length
     });
 
   } catch (error) {
@@ -2396,12 +2370,11 @@ router.get("/naaim", async (req, res) => {
       const naaim = data.sentiment?.naaim || [];
 
       if (naaim.length > 0) {
-        return res.json({
-          data: naaim,
+        return sendSuccess(res, {
+          items: naaim,
           range: range,
           count: naaim.length,
-          source: "fresh-data",
-          success: true
+          source: "fresh-data"
         });
       }
     }
@@ -2431,11 +2404,10 @@ router.get("/naaim", async (req, res) => {
       value: parseFloat(row.bullish || 0)
     }));
 
-    return res.json({
-      data: data.length > 0 ? data : [],
+    return sendSuccess(res, {
+      items: data.length > 0 ? data : [],
       range: range,
-      count: data.length,
-      success: true
+      count: data.length
     });
 
   } catch (error) {
@@ -2454,10 +2426,7 @@ router.get("/naaim", async (req, res) => {
 async function getMarketDataHandler(req, res) {
   try {
     if (!query) {
-      return res.status(500).json({
-        error: "Database connection not available",
-        success: false
-      });
+      return sendError(res, "Database connection not available", 500);
     }
 
     console.log("📊 /api/market/data - Fetching all market data...");
@@ -2645,18 +2614,11 @@ async function getMarketDataHandler(req, res) {
       fetch_time_ms: Date.now() - startTime
     };
 
-    return res.json({
-      data: consolidated,
-      success: true
-    });
+    return sendSuccess(res, consolidated);
 
   } catch (error) {
     console.error("Complete market data error:", error);
-    return res.status(500).json({
-      error: "Failed to fetch complete market data",
-      details: error.message,
-      success: false
-    });
+    return sendError(res, error.message ? `Failed to fetch complete market data: ${error.message}` : "Failed to fetch complete market data", 500);
   }
 }
 
@@ -2844,17 +2806,10 @@ router.get("/technicals", async (req, res) => {
       fetch_time_ms: Date.now() - startTime
     };
 
-    return res.json({
-      data: technicals,
-      success: true
-    });
+    return sendSuccess(res, technicals);
   } catch (error) {
     console.error("❌ [Market API] Technicals error:", error);
-    return res.status(500).json({
-      error: "Failed to fetch technicals",
-      details: error.message,
-      success: false
-    });
+    return sendError(res, error.message ? `Failed to fetch technicals: ${error.message}` : "Failed to fetch technicals", 500);
   }
 });
 
@@ -2936,17 +2891,10 @@ router.get("/sentiment", async (req, res) => {
       fetch_time_ms: Date.now() - startTime
     };
 
-    return res.json({
-      data: sentiment,
-      success: true
-    });
+    return sendSuccess(res, sentiment);
   } catch (error) {
     console.error("❌ [Market API] Sentiment error:", error);
-    return res.status(500).json({
-      error: "Failed to fetch sentiment",
-      details: error.message,
-      success: false
-    });
+    return sendError(res, error.message ? `Failed to fetch sentiment: ${error.message}` : "Failed to fetch sentiment", 500);
   }
 });
 
@@ -2970,25 +2918,16 @@ router.get("/fresh-data", async (req, res) => {
         sp500Metrics: freshData.sp500_metrics,
         timestamp: freshData.timestamp,
         source: "fresh-data",
-        message: "Real-time data from yfinance",
-        success: true
+        message: "Real-time data from yfinance"
       };
 
-      return res.json(formattedData);
+      return sendSuccess(res, formattedData);
     }
 
-    return res.status(404).json({
-      error: "Fresh data not available",
-      message: "Run get_latest_comprehensive_data.py to generate fresh data",
-      success: false
-    });
+    return sendNotFound(res, "Fresh data not available - Run get_latest_comprehensive_data.py to generate fresh data");
   } catch (error) {
     console.error("Fresh data endpoint error:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch fresh data",
-      details: error.message,
-      success: false
-    });
+    return sendError(res, error.message ? `Failed to fetch fresh data: ${error.message}` : "Failed to fetch fresh data", 500);
   }
 });
 
@@ -3002,7 +2941,7 @@ router.get("/comprehensive-fresh", async (req, res) => {
     if (fs.existsSync(comprehensivePath)) {
       const comprehensiveData = JSON.parse(fs.readFileSync(comprehensivePath, "utf-8"));
 
-      return res.json({
+      return sendSuccess(res, {
         indices: Object.values(comprehensiveData.indices || {}),
         sectors: Object.values(comprehensiveData.sectors || {}),
         industries: Object.values(comprehensiveData.industries || {}),
@@ -3012,22 +2951,14 @@ router.get("/comprehensive-fresh", async (req, res) => {
         marketBreadth: comprehensiveData.market_breadth,
         timestamp: comprehensiveData.timestamp,
         source: "comprehensive-fresh",
-        message: "Complete fresh market data from yfinance",
-        success: true
+        message: "Complete fresh market data from yfinance"
       });
     }
 
-    return res.status(404).json({
-      error: "Comprehensive data not available",
-      success: false
-    });
+    return sendNotFound(res, "Comprehensive data not available");
   } catch (error) {
     console.error("Comprehensive fresh data error:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch comprehensive data",
-      details: error.message,
-      success: false
-    });
+    return sendError(res, error.message ? `Failed to fetch comprehensive data: ${error.message}` : "Failed to fetch comprehensive data", 500);
   }
 });
 

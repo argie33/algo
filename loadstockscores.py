@@ -133,13 +133,15 @@ def load_comprehensive_metrics(conn):
     # ===== QUALITY METRICS =====
     logger.info("Loading quality metrics...")
     cur.execute("""
-        SELECT symbol, roe, roa
+        SELECT symbol, return_on_equity_pct, return_on_assets_pct, gross_margin_pct, operating_margin_pct, profit_margin_pct,
+               debt_to_equity, current_ratio, quick_ratio, return_on_invested_capital_pct
         FROM quality_metrics
     """)
     quality_data = cur.fetchall()
     if quality_data:
         quality_df = pd.DataFrame(quality_data, columns=[
-            'symbol', 'roe', 'roa'
+            'symbol', 'roe', 'roa', 'gross_margin', 'operating_margin', 'profit_margin',
+            'debt_to_equity', 'current_ratio', 'quick_ratio', 'roic'
         ]).set_index('symbol')
         df = df.join(quality_df, how='left')
         logger.info(f"  Loaded quality metrics for {quality_df.shape[0]} stocks")
@@ -148,8 +150,7 @@ def load_comprehensive_metrics(conn):
     logger.info("Loading growth metrics...")
     cur.execute("""
         SELECT symbol,
-            revenue_growth_3y_cagr, eps_growth_3y_cagr, operating_income_growth_yoy,
-            roe_trend, sustainable_growth_rate, fcf_growth_yoy, ocf_growth_yoy,
+            revenue_growth_3y_cagr, eps_growth_3y_cagr, fcf_growth_yoy, ocf_growth_yoy,
             net_income_growth_yoy, revenue_growth_yoy
         FROM growth_metrics
         ORDER BY symbol
@@ -157,8 +158,7 @@ def load_comprehensive_metrics(conn):
     growth_data = cur.fetchall()
     if growth_data:
         growth_df = pd.DataFrame(growth_data, columns=[
-            'symbol', 'rev_3y_cagr', 'eps_3y_cagr', 'op_income_yoy',
-            'roe_trend_g', 'sustainable_growth', 'fcf_growth', 'ocf_growth',
+            'symbol', 'rev_3y_cagr', 'eps_3y_cagr', 'fcf_growth', 'ocf_growth',
             'ni_growth', 'rev_growth'
         ]).set_index('symbol')
         df = df.join(growth_df, how='left')
@@ -167,24 +167,26 @@ def load_comprehensive_metrics(conn):
     # ===== STABILITY METRICS =====
     logger.info("Loading stability metrics...")
     cur.execute("""
-        SELECT symbol, beta
+        SELECT symbol, beta, volatility_12m, downside_volatility, max_drawdown_52w, volume_consistency
         FROM stability_metrics
     """)
     stability_data = cur.fetchall()
     if stability_data:
         stability_df = pd.DataFrame(stability_data, columns=[
-            'symbol', 'beta'
+            'symbol', 'beta', 'volatility_12m', 'downside_vol', 'max_drawdown', 'volume_consistency'
         ]).set_index('symbol')
         df = df.join(stability_df, how='left')
         logger.info(f"  Loaded stability metrics for {stability_df.shape[0]} stocks")
 
-    # ===== MOMENTUM METRICS (8 inputs - includes 1m intraweek) =====
+    # ===== MOMENTUM METRICS =====
     logger.info("Loading momentum metrics...")
     cur.execute("""
         SELECT symbol, current_price, momentum_1m, momentum_3m, momentum_6m, momentum_12m,
                price_vs_sma_50, price_vs_sma_200, price_vs_52w_high
-        FROM momentum_metrics mm
-        WHERE date = (SELECT MAX(date) FROM momentum_metrics WHERE symbol = mm.symbol)
+        FROM momentum_metrics
+        WHERE (symbol, date) IN (
+            SELECT symbol, MAX(date) FROM momentum_metrics GROUP BY symbol
+        )
     """)
     momentum_data = cur.fetchall()
     if momentum_data:
@@ -198,13 +200,13 @@ def load_comprehensive_metrics(conn):
     # ===== VALUE METRICS =====
     logger.info("Loading value metrics...")
     cur.execute("""
-        SELECT symbol, pe_ratio
+        SELECT symbol, COALESCE(trailing_pe, pe_ratio) as pe_ratio, price_to_book, price_to_sales_ttm, peg_ratio, dividend_yield
         FROM value_metrics
     """)
     value_data = cur.fetchall()
     if value_data:
         value_df = pd.DataFrame(value_data, columns=[
-            'symbol', 'pe_ratio'
+            'symbol', 'pe_ratio', 'pb_ratio', 'ps_ratio', 'peg_ratio', 'div_yield'
         ]).set_index('symbol')
         df = df.join(value_df, how='left')
         logger.info(f"  Loaded value metrics for {value_df.shape[0]} stocks")
@@ -245,23 +247,22 @@ def main():
         df[col] = pd.to_numeric(df[col], errors='coerce')
 
     # ===== QUALITY SCORE =====
-    logger.info("Calculating QUALITY scores (ROE and ROA based)...")
-    quality_metrics = [m for m in ['roe', 'roa'] if m in df.columns]
+    logger.info("Calculating QUALITY scores (ROE, ROA, margins, ratios based)...")
+    quality_metrics = [m for m in ['roe', 'roa', 'gross_margin', 'operating_margin', 'profit_margin', 'roic', 'current_ratio'] if m in df.columns]
     if quality_metrics:
-        df['quality_z'] = calculate_weighted_score(df, quality_metrics, {'roe': 2.0, 'roa': 1.5})
+        quality_weights = {'roe': 2.0, 'roa': 1.5, 'gross_margin': 1.0, 'operating_margin': 1.0, 'profit_margin': 1.5, 'roic': 1.5, 'current_ratio': 0.5}
+        df['quality_z'] = calculate_weighted_score(df, quality_metrics, quality_weights)
         df['quality_score'] = df['quality_z'].apply(zscore_to_percentile)
     else:
         logger.warning("  No quality metrics available - using NaN for quality score")
         df['quality_z'] = np.nan
         df['quality_score'] = np.nan
 
-    # ===== GROWTH SCORE (9+ metrics) =====
+    # ===== GROWTH SCORE (6 metrics) =====
     logger.info("Calculating GROWTH scores (revenue expansion, earnings growth)...")
-    all_growth_metrics = ['rev_3y_cagr', 'eps_3y_cagr', 'op_income_yoy', 'sustainable_growth',
-                     'fcf_growth', 'ocf_growth', 'ni_growth', 'rev_growth']
+    all_growth_metrics = ['rev_3y_cagr', 'eps_3y_cagr', 'fcf_growth', 'ocf_growth', 'ni_growth', 'rev_growth']
     growth_weights = {
-        'rev_3y_cagr': 1.5, 'eps_3y_cagr': 2.0, 'op_income_yoy': 1.5, 'sustainable_growth': 1.5,
-        'fcf_growth': 1.5, 'ocf_growth': 1.0, 'ni_growth': 2.0, 'rev_growth': 1.0
+        'rev_3y_cagr': 1.5, 'eps_3y_cagr': 2.0, 'fcf_growth': 1.5, 'ocf_growth': 1.0, 'ni_growth': 2.0, 'rev_growth': 1.0
     }
     # Filter to only available metrics
     growth_metrics = [m for m in all_growth_metrics if m in df.columns]
@@ -274,13 +275,22 @@ def main():
         df['growth_score'] = np.nan
 
     # ===== STABILITY SCORE =====
-    logger.info("Calculating STABILITY scores (beta based)...")
-    stability_metrics = [m for m in ['beta'] if m in df.columns]
+    logger.info("Calculating STABILITY scores (beta, volatility based)...")
+    all_stability_metrics = ['beta', 'volatility_12m', 'downside_vol', 'max_drawdown', 'volume_consistency']
+    stability_metrics = [m for m in all_stability_metrics if m in df.columns]
     if stability_metrics:
         stability_for_calc = df.copy()
+        # Invert metrics where lower is better
         if 'beta' in stability_for_calc.columns:
-            stability_for_calc['beta'] = -stability_for_calc['beta']  # Invert (lower beta = more stable)
-        df['stability_z'] = calculate_weighted_score(stability_for_calc, stability_metrics, {'beta': 1.0})
+            stability_for_calc['beta'] = -stability_for_calc['beta']
+        if 'volatility_12m' in stability_for_calc.columns:
+            stability_for_calc['volatility_12m'] = -stability_for_calc['volatility_12m']
+        if 'downside_vol' in stability_for_calc.columns:
+            stability_for_calc['downside_vol'] = -stability_for_calc['downside_vol']
+        if 'max_drawdown' in stability_for_calc.columns:
+            stability_for_calc['max_drawdown'] = -stability_for_calc['max_drawdown']
+        stability_weights = {'beta': 1.5, 'volatility_12m': 1.0, 'downside_vol': 1.0, 'max_drawdown': 1.5, 'volume_consistency': 0.5}
+        df['stability_z'] = calculate_weighted_score(stability_for_calc, stability_metrics, stability_weights)
         df['stability_score'] = df['stability_z'].apply(zscore_to_percentile)
     else:
         logger.warning("  No stability metrics available - using NaN for stability score")
@@ -305,13 +315,18 @@ def main():
         df['momentum_score'] = np.nan
 
     # ===== VALUE SCORE =====
-    logger.info("Calculating VALUE scores (P/E based)...")
-    value_metrics_available = [m for m in ['pe_ratio'] if m in df.columns]
+    logger.info("Calculating VALUE scores (P/E, P/B, PEG based)...")
+    all_value_metrics = ['pe_ratio', 'pb_ratio', 'ps_ratio', 'peg_ratio', 'div_yield']
+    value_metrics_available = [m for m in all_value_metrics if m in df.columns]
     if value_metrics_available:
         value_for_calc = df.copy()
-        if 'pe_ratio' in value_for_calc.columns:
-            value_for_calc['pe_ratio'] = -value_for_calc['pe_ratio']  # Invert (lower P/E = better)
-        df['value_z'] = calculate_weighted_score(value_for_calc, value_metrics_available, {'pe_ratio': 1.0})
+        # Invert metrics where lower is better
+        for metric in ['pe_ratio', 'pb_ratio', 'ps_ratio', 'peg_ratio']:
+            if metric in value_for_calc.columns:
+                value_for_calc[metric] = -value_for_calc[metric]
+        # Dividend yield: higher is better (don't invert)
+        value_weights = {'pe_ratio': 1.5, 'pb_ratio': 1.0, 'ps_ratio': 0.5, 'peg_ratio': 1.0, 'div_yield': 1.0}
+        df['value_z'] = calculate_weighted_score(value_for_calc, value_metrics_available, value_weights)
         df['value_score'] = df['value_z'].apply(zscore_to_percentile)
     else:
         logger.warning("  No value metrics available - using NaN for value score")

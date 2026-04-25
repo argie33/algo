@@ -92,7 +92,7 @@ const TradeHistory = () => {
   const { data: tradeData, isLoading: tradeLoading, refetch: refetchTrades } = useQuery({
     queryKey: ["tradeHistory", page, rowsPerPage],
     queryFn: async () => {
-      const result = await api.getTrades(page + 1, rowsPerPage);
+      const result = await defaultApi.getTrades(page + 1, rowsPerPage);
       return { data: { trades: result.data || [], pagination: result.pagination || {}, summary: {} } };
     },
     staleTime: 60000,
@@ -101,7 +101,7 @@ const TradeHistory = () => {
   const { data: summaryData, isLoading: summaryLoading } = useQuery({
     queryKey: ["tradeSummary"],
     queryFn: async () => {
-      const result = await api.getTradesSummary();
+      const result = await defaultApi.getTradesSummary();
       return { data: result.data };
     },
     staleTime: 60000,
@@ -244,7 +244,7 @@ const TradeHistory = () => {
         try {
           setMatchedPairsLoading(true);
           setMatchedPairsError(null);
-          const result = await api.getTradesFifoAnalysis();
+          const result = await defaultApi.getTradesFifoAnalysis();
 
           if (result.success && result.data) {
             const analysisData = result.data?.analysis || result.data;

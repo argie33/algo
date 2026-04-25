@@ -67,17 +67,14 @@ const router = express.Router();
 
 // Root endpoint - returns available sub-endpoints
 router.get("/", (req, res) => {
-  return res.json({
-    data: {
-      endpoint: "sectors",
-      available_routes: [
-        "/sectors - All sector data with rankings and performance",
-        "/trend/sector/:name - Sector trend data (251 data points)",
-        "/:sector/stocks - Get stocks in a specific sector",
-        "/:sector/details - Get details for a specific sector"
-      ]
-    },
-    success: true
+  return sendSuccess(res, {
+    endpoint: "sectors",
+    available_routes: [
+      "/sectors - All sector data with rankings and performance",
+      "/trend/sector/:name - Sector trend data (251 data points)",
+      "/:sector/stocks - Get stocks in a specific sector",
+      "/:sector/details - Get details for a specific sector"
+    ]
   });
 });
 
