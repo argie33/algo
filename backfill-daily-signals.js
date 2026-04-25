@@ -47,8 +47,7 @@ async function backfillDailySignals() {
           symbol,
           signal,
           date,
-          strength,
-          signal_strength
+          strength
         FROM buy_sell_weekly
         WHERE symbol IN (${placeholders})
           AND signal IN ('Buy', 'Sell')
@@ -70,7 +69,7 @@ async function backfillDailySignals() {
             row.date,
             row.date,
             row.strength || 50,
-            row.signal_strength || 50
+            50  // default signal_strength
           ]);
           inserted++;
         } catch (err) {
