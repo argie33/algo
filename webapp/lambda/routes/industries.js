@@ -76,15 +76,15 @@ router.get("/industries", async (req, res) => {
         ir.momentum_score,
         ir.daily_strength_score,
         ir.trend,
-        ir.date_recorded as last_updated
+        ir.date as last_updated
       FROM (
         SELECT DISTINCT ON (industry)
           industry, current_rank, rank_1w_ago, rank_4w_ago, rank_12w_ago,
-          momentum_score, daily_strength_score, trend, date_recorded
+          momentum_score, daily_strength_score, trend, date
         FROM industry_ranking
         WHERE industry IS NOT NULL
           AND TRIM(industry) != ''
-        ORDER BY industry, date_recorded DESC
+        ORDER BY industry, date DESC
       ) ir
       LIMIT $1
     `;
@@ -143,21 +143,21 @@ router.get("/trend/industry/:industryName", async (req, res) => {
 
     const { industryName } = req.params;
 
-    // Get recent historical rankings for this industry (last 1 year), ordered by date_recorded
+    // Get recent historical rankings for this industry (last 1 year), ordered by date
     // Calculate moving averages of momentum score directly in SQL
     const trendData = await query(
       `SELECT
-        ir.date_recorded as date,
+        ir.date as date,
         ir.current_rank as rank,
         ir.momentum_score as daily_strength_score,
         NULL as trend,
-        TO_CHAR(ir.date_recorded, 'MM/DD') as label,
-        ROUND(AVG(ir.momentum_score) OVER (ORDER BY ir.date_recorded ROWS BETWEEN 9 PRECEDING AND CURRENT ROW)::numeric, 4) as ma_10,
-        ROUND(AVG(ir.momentum_score) OVER (ORDER BY ir.date_recorded ROWS BETWEEN 19 PRECEDING AND CURRENT ROW)::numeric, 4) as ma_20
+        TO_CHAR(ir.date, 'MM/DD') as label,
+        ROUND(AVG(ir.momentum_score) OVER (ORDER BY ir.date ROWS BETWEEN 9 PRECEDING AND CURRENT ROW)::numeric, 4) as ma_10,
+        ROUND(AVG(ir.momentum_score) OVER (ORDER BY ir.date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW)::numeric, 4) as ma_20
       FROM industry_ranking ir
       WHERE LOWER(ir.industry) = LOWER($1)
-      AND ir.date_recorded >= CURRENT_DATE - INTERVAL '365 days'
-      ORDER BY ir.date_recorded ASC`,
+      AND ir.date >= CURRENT_DATE - INTERVAL '365 days'
+      ORDER BY ir.date ASC`,
       [industryName]
     );
 
