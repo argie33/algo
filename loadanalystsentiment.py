@@ -260,19 +260,37 @@ def load_analyst_sentiment(symbols, cur, conn):
         # Data is ready to insert - will be mapped in SQL section below
 
         # Insert analyst sentiment data (fresh load, no conflicts expected)
-        # Map to actual table columns: symbol, recommendation_key, rating_count, rating_score
-        recommendation_key = data["rating_name"] if data["rating_name"] else None
-        rating_count = data["analyst_count"]
-        rating_score = data["numeric_rating"]
+        # Map to actual table columns per schema: bullish_count, bearish_count, neutral_count, total_analysts
+        strong_buy, buy, hold, sell, strong_sell = calculate_rating_distribution(
+            data["numeric_rating"],
+            data["analyst_count"]
+        )
+        bullish_count = strong_buy + buy
+        bearish_count = sell + strong_sell
+        neutral_count = hold
 
         sql = """
             INSERT INTO analyst_sentiment_analysis
-            (symbol, recommendation_key, rating_count, rating_score)
-            VALUES (%s, %s, %s, %s)
+            (symbol, total_analysts, bullish_count, bearish_count, neutral_count, target_price, current_price, upside_downside_percent, date_recorded)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_DATE)
+            ON CONFLICT (symbol) DO UPDATE SET
+                total_analysts = EXCLUDED.total_analysts,
+                bullish_count = EXCLUDED.bullish_count,
+                bearish_count = EXCLUDED.bearish_count,
+                neutral_count = EXCLUDED.neutral_count
         """
 
         try:
-            cur.execute(sql, [symbol, recommendation_key, rating_count, rating_score])
+            cur.execute(sql, [
+                symbol,
+                data["analyst_count"],
+                bullish_count,
+                bearish_count,
+                neutral_count,
+                data["target_mean"],
+                current_price,
+                upside_downside_percent
+            ])
             conn.commit()
             inserted += 1
             if data["analyst_count"] is not None and data["analyst_count"] > 0:
