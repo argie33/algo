@@ -3,8 +3,8 @@ const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require("../utils/apiResponse");
 const router = express.Router();
 
-// GET / (root) - Get all industries
-router.get("/", async (req, res) => {
+// Helper function to get industries
+async function fetchIndustries(req, res) {
   try {
     const { limit = 500, page = 1 } = req.query;
     const limitNum = Math.min(parseInt(limit) || 500, 1000);
@@ -20,9 +20,15 @@ router.get("/", async (req, res) => {
     const totalPages = Math.ceil(total / limitNum);
     return sendPaginated(res, industries, {page: pageNum, limit: limitNum, total, totalPages, hasNext: pageNum < totalPages, hasPrev: pageNum > 1});
   } catch (error) {
-    console.error("Error in /industries:", error.message);
+    console.error("Error fetching industries:", error.message);
     return sendError(res, `Failed to fetch industries: ${error.message.substring(0, 100)}`, 500);
   }
-});
+}
+
+// GET / - Get all industries
+router.get("/", fetchIndustries);
+
+// GET /industries - Alias for backward compatibility
+router.get("/industries", fetchIndustries);
 
 module.exports = router;
