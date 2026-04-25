@@ -112,15 +112,11 @@ const _checkApiHealth = async () => {
   return apiHealthy;
 };
 
-// Warn if API URL is fallback (localhost) - skip in tests
-if (typeof process === "undefined" || process.env.NODE_ENV !== "test") {
-  if (!currentConfig.apiUrl || currentConfig.apiUrl.includes("localhost")) {
-    console.warn(
-      "[API CONFIG] Using fallback API URL:",
-      currentConfig.baseURL +
-        "\nSet window.__CONFIG__.API_URL at runtime or VITE_API_URL at build time to override."
-    );
-  }
+// Warn if API URL is fallback (localhost) - only in development
+if (currentConfig.apiUrl && currentConfig.apiUrl.includes("localhost")) {
+  debugWarn(
+    "[API CONFIG] Using localhost API URL - set window.__CONFIG__.API_URL or VITE_API_URL to override"
+  );
 }
 
 // Create API instance - test-safe
@@ -1515,7 +1511,7 @@ export const getMarketCorrelation = async (symbols = null, period = "1y") => {
 };
 
 export const getSeasonalityData = async () => {
-  console.log("📅 [API] Fetching seasonality data...");
+  debugLog("📅 [API] Fetching seasonality data...");
 
   try {
     // Try multiple endpoint variations
@@ -1526,15 +1522,14 @@ export const getSeasonalityData = async () => {
 
     for (const endpoint of endpoints) {
       try {
-        console.log(`📅 [API] Trying seasonality endpoint: ${endpoint}`);
+        debugLog(`📅 [API] Trying seasonality endpoint: ${endpoint}`);
         response = await api.get(endpoint);
-        console.log(
-          `📅 [API] SUCCESS with seasonality endpoint: ${endpoint}`,
-          response
+        debugLog(
+          `📅 [API] SUCCESS with seasonality endpoint: ${endpoint}`
         );
         break;
       } catch (err) {
-        console.log(
+        debugLog(
           `📅 [API] FAILED seasonality endpoint: ${endpoint}`,
           err.message
         );
@@ -1544,7 +1539,7 @@ export const getSeasonalityData = async () => {
     }
 
     if (!response) {
-      console.error("📅 [API] All seasonality endpoints failed:", {
+      debugError("📅 [API] All seasonality endpoints failed:", {
         message: lastError?.message || "Unknown error",
         status: lastError.response?.status,
         url: lastError.config?.url,
@@ -1554,10 +1549,6 @@ export const getSeasonalityData = async () => {
 
     // Always return { data: ... } structure for consistency
     if (response?.data && typeof response?.data === "object") {
-      console.log(
-        "📅 [API] Returning seasonality data structure:",
-        response?.data
-      );
       return response?.data; // Backend already returns { data: ..., success: ... }
     }
 
@@ -1567,7 +1558,6 @@ export const getSeasonalityData = async () => {
       success: response.data?.success ?? true,
       timestamp: response.data?.timestamp
     };
-    console.log("📅 [API] Seasonality fallback normalized result:", result);
     return result;
   } catch (error) {
     console.error("❌ [API] Seasonality error details:", {
