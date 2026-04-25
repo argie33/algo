@@ -494,9 +494,6 @@ async function queryScores(options = {}) {
   let queryParams = [];
   let paramIndex = 1;
 
-  // Filter to S&P 500 stocks only
-  whereConditions.push(`ss.symbol IN (SELECT symbol FROM stock_symbols WHERE is_sp500 = TRUE)`);
-
   // Add search filter
   if (search) {
     whereConditions.push(`ss.symbol ILIKE $${paramIndex}`);

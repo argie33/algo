@@ -3,8 +3,8 @@ const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require("../utils/apiResponse");
 const router = express.Router();
 
-// GET / (or /api/sectors) - Get all sectors with pagination
-router.get("/", async (req, res) => {
+// Helper function to get sectors
+async function fetchSectors(req, res) {
   try {
     const { limit = 500, page = 1 } = req.query;
     const limitNum = Math.min(parseInt(limit) || 500, 1000);
@@ -23,6 +23,12 @@ router.get("/", async (req, res) => {
     console.error("Error fetching sectors:", error.message);
     return sendError(res, `Failed to fetch sectors: ${error.message.substring(0, 100)}`, 500);
   }
-});
+}
+
+// GET / - Get all sectors
+router.get("/", fetchSectors);
+
+// GET /sectors - Alias for backward compatibility
+router.get("/sectors", fetchSectors);
 
 module.exports = router;
