@@ -391,8 +391,7 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
         neutral_count,
         target_price,
         current_price,
-        upside_downside_percent,
-        consensus
+        upside_downside_percent
       FROM analyst_sentiment_analysis
       WHERE symbol = $1
       ORDER BY date_recorded DESC
@@ -415,6 +414,15 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
     }
 
     const row = result.rows[0];
+    const bullish_pct = row.analyst_count > 0 ? ((row.bullish_count / row.analyst_count) * 100).toFixed(2) : 0;
+    const bearish_pct = row.analyst_count > 0 ? ((row.bearish_count / row.analyst_count) * 100).toFixed(2) : 0;
+    const neutral_pct = row.analyst_count > 0 ? ((row.neutral_count / row.analyst_count) * 100).toFixed(2) : 0;
+
+    // Determine consensus based on percentages
+    let consensus = 'hold';
+    if (bullish_pct > 50) consensus = 'buy';
+    else if (bearish_pct > 50) consensus = 'sell';
+
     return res.json({
       symbol: row.symbol,
       date: row.date,
@@ -422,13 +430,13 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
       bullish_count: row.bullish_count || 0,
       bearish_count: row.bearish_count || 0,
       neutral_count: row.neutral_count || 0,
-      bullish_percent: row.analyst_count > 0 ? ((row.bullish_count / row.analyst_count) * 100).toFixed(2) : 0,
-      bearish_percent: row.analyst_count > 0 ? ((row.bearish_count / row.analyst_count) * 100).toFixed(2) : 0,
-      neutral_percent: row.analyst_count > 0 ? ((row.neutral_count / row.analyst_count) * 100).toFixed(2) : 0,
+      bullish_percent: bullish_pct,
+      bearish_percent: bearish_pct,
+      neutral_percent: neutral_pct,
       target_price: row.target_price,
       current_price: row.current_price,
       upside_downside_percent: row.upside_downside_percent,
-      consensus: row.consensus || 'hold'
+      consensus: consensus
     });
   } catch (error) {
     console.error("Analyst insights error:", error);

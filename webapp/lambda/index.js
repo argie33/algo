@@ -29,6 +29,7 @@ const errorHandler = require("./middleware/errorHandler");
 const { cacheMiddleware } = require("./middleware/cache");
 const { initializeDatabase, query } = require("./utils/database");
 const { initializeAlpacaSync } = require("./utils/alpacaSyncScheduler");
+const responseNormalizer = require("./middleware/responseNormalizer");
 const analystsRoutes = require("./routes/analysts");
 const authRoutes = require("./routes/auth");
 const communityRoutes = require("./routes/community");
@@ -273,6 +274,9 @@ app.use(
 // Request parsing
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+// NORMALIZE ALL RESPONSES to unified format
+app.use(responseNormalizer);
 
 // JSON parsing error handler
 app.use((error, req, res, next) => {

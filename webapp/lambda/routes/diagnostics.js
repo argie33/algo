@@ -42,8 +42,8 @@ router.get("/", async (req, res) => {
       { name: "earnings_history", query: "SELECT COUNT(*) as count FROM earnings_history" },
       { name: "earnings_estimates", query: "SELECT COUNT(*) as count FROM earnings_estimates" },
       { name: "buy_sell_daily", query: "SELECT COUNT(*) as count FROM buy_sell_daily" },
-      { name: "price_history_daily", query: "SELECT COUNT(*) as count FROM price_history_daily" },
-      { name: "technicals_daily", query: "SELECT COUNT(*) as count FROM technicals_daily" }
+      { name: "price_daily", query: "SELECT COUNT(*) as count FROM price_daily" },
+      { name: "technical_data_daily", query: "SELECT COUNT(*) as count FROM technical_data_daily" }
     ];
 
     for (const table of tables) {
@@ -115,7 +115,11 @@ router.get("/", async (req, res) => {
     diagnostics.api_status = "degraded";
   }
 
-  res.json(diagnostics);
+  res.json({
+    success: diagnostics.api_status === "healthy",
+    data: diagnostics,
+    timestamp: new Date().toISOString()
+  });
 });
 
 // GET /api/diagnostics/slow-queries - Check for slow queries in database

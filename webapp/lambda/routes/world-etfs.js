@@ -92,18 +92,18 @@ router.get("/prices", async (req, res) => {
     let paramIndex = 1;
 
     // Determine which price table to use based on timeframe
-    let table = 'price_history_daily';
-    if (timeframe === 'weekly') table = 'price_history_weekly';
-    if (timeframe === 'monthly') table = 'price_history_monthly';
+    let table = 'price_daily';
+    if (timeframe === 'weekly') table = 'price_weekly';
+    if (timeframe === 'monthly') table = 'price_monthly';
 
     let sql = `
       SELECT
         symbol,
-        DATE(date) as date,
-        opening_price as open,
-        high_price as high,
-        low_price as low,
-        closing_price as close,
+        date,
+        open,
+        high,
+        low,
+        close,
         volume
       FROM ${table}
       WHERE symbol = ANY($${paramIndex}::text[])
@@ -165,15 +165,16 @@ router.get("/signals", async (req, res) => {
     const params = [];
     let paramIndex = 1;
 
-    // Query for signals from the signals table or return mock data
+    // Query for signals from the buy_sell_daily table
     const sql = `
       SELECT
         symbol,
-        signal_type as signal,
-        created_at as date
-      FROM signals
+        signal,
+        date
+      FROM buy_sell_daily
       WHERE symbol = ANY($${paramIndex}::text[])
-      ORDER BY symbol, created_at DESC
+        AND timeframe = 'daily'
+      ORDER BY symbol, date DESC
       LIMIT $${paramIndex + 1}
     `;
 

@@ -13,18 +13,15 @@ const router = express.Router();
 
 // Root endpoint - provides overview of available financial endpoints
 router.get("/", async (req, res) => {
-  res.json({
-    data: {
-      message: "Financials API - Ready",
-      status: "operational",
-      endpoints: [
-        "/:symbol/balance-sheet?period=annual|quarterly - Get balance sheet",
-        "/:symbol/income-statement?period=annual|quarterly - Get income statement",
-        "/:symbol/cash-flow?period=annual|quarterly - Get cash flow statement",
-        "/:symbol/key-metrics - Get key financial metrics",
-      ],
-    },
-    success: true
+  return sendSuccess(res, {
+    message: "Financials API - Ready",
+    status: "operational",
+    endpoints: [
+      "/:symbol/balance-sheet?period=annual|quarterly - Get balance sheet",
+      "/:symbol/income-statement?period=annual|quarterly - Get income statement",
+      "/:symbol/cash-flow?period=annual|quarterly - Get cash flow statement",
+      "/:symbol/key-metrics - Get key financial metrics",
+    ],
   });
 });
 
@@ -55,20 +52,14 @@ router.get("/:symbol/balance-sheet", async (req, res) => {
       total_equity: row.total_equity
     }));
 
-    res.json({
-      data: {
-        symbol: upperSymbol,
-        period: period,
-        financialData: transformedData
-      },
-      success: true
+    return sendSuccess(res, {
+      symbol: upperSymbol,
+      period: period,
+      financialData: transformedData
     });
   } catch (error) {
     console.error("Balance sheet error:", error);
-    res.status(500).json({
-      error: "Failed to fetch balance sheet",
-      success: false
-    });
+    return sendError(res, "Failed to fetch balance sheet", 500);
   }
 });
 
@@ -96,20 +87,14 @@ router.get("/:symbol/income-statement", async (req, res) => {
       return { symbol, date, ...metrics };
     });
 
-    res.json({
-      data: {
-        symbol: upperSymbol,
-        period: period,
-        financialData: transformedData
-      },
-      success: true
+    return sendSuccess(res, {
+      symbol: upperSymbol,
+      period: period,
+      financialData: transformedData
     });
   } catch (error) {
     console.error("Income statement error:", error);
-    res.status(500).json({
-      error: "Failed to fetch income statement",
-      success: false
-    });
+    return sendError(res, "Failed to fetch income statement", 500);
   }
 });
 
@@ -137,20 +122,14 @@ router.get("/:symbol/cash-flow", async (req, res) => {
       return { symbol, date, ...metrics };
     });
 
-    res.json({
-      data: {
-        symbol: upperSymbol,
-        period: period,
-        financialData: transformedData
-      },
-      success: true
+    return sendSuccess(res, {
+      symbol: upperSymbol,
+      period: period,
+      financialData: transformedData
     });
   } catch (error) {
     console.error("Cash flow error:", error);
-    res.status(500).json({
-      error: "Failed to fetch cash flow",
-      success: false
-    });
+    return sendError(res, "Failed to fetch cash flow", 500);
   }
 });
 
@@ -455,19 +434,13 @@ router.get("/:symbol/key-metrics", async (req, res) => {
       };
     }
 
-    res.json({
-      data: {
-        symbol: upperSymbol,
-        metricsData: metricsData
-      },
-      success: true
+    return sendSuccess(res, {
+      symbol: upperSymbol,
+      metricsData: metricsData
     });
   } catch (error) {
     console.error("Key metrics error:", error);
-    res.status(500).json({
-      error: "Failed to fetch key metrics",
-      success: false
-    });
+    return sendError(res, "Failed to fetch key metrics", 500);
   }
 });
 
@@ -486,7 +459,8 @@ router.get("/all", async (req, res) => {
 
     if (symbol) {
       params.push(symbol.toUpperCase());
-      whereClause += ` AND symbol = $${paramIndex}`;
+      whereClause += ` AND cp.ticker = $${paramIndex}`;
+      paramIndex++;
     }
 
     // Get company profile with financial data (simple version without JOINs due to schema complexity)
@@ -499,7 +473,7 @@ router.get("/all", async (req, res) => {
       FROM company_profile cp
       WHERE ${whereClause}
       ORDER BY cp.ticker ASC
-      LIMIT $${paramIndex + 1} OFFSET $${paramIndex + 2}
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `, [...params, limit, offset]);
 
     // Get total count
@@ -509,23 +483,15 @@ router.get("/all", async (req, res) => {
     );
     const total = parseInt(countResult.rows[0]?.total || 0);
 
-    res.json({
-      data: result.rows || [],
-      pagination: {
-        limit,
-        offset,
-        total,
-        page: Math.max(1, Math.ceil((offset / limit) + 1))
-      },
-      success: true
+    return sendPaginated(res, result.rows || [], {
+      limit,
+      offset,
+      total,
+      page: Math.max(1, Math.ceil((offset / limit) + 1))
     });
   } catch (error) {
     console.error("All financials error:", error);
-    res.status(500).json({
-      error: "Failed to fetch financial data",
-      message: error.message,
-      success: false
-    });
+    return sendError(res, "Failed to fetch financial data", 500);
   }
 });
 

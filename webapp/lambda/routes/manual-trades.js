@@ -96,7 +96,7 @@ router.post('/', async (req, res) => {
     }
 
     // Validate trade_type (must be 3 chars for DB: BUY/SEL)
-    const tradeType = trade_type.toLowerCase() === 'buy' ? 'BUY' : trade_type.toLowerCase() === 'sell' ? 'SEL' : null;
+    const tradeType = trade_type.toLowerCase() === 'buy' ? 'BUY' : trade_type.toLowerCase() === 'sell' ? 'SELL' : null;
     if (!tradeType) {
       return res.status(400).json({
         error: 'trade_type must be "buy" or "sell"',
@@ -163,7 +163,7 @@ router.post('/', async (req, res) => {
     const trade = result.rows[0];
 
     // Update portfolio_holdings with the new position (for buy/sell trades)
-    if (['BUY', 'SEL'].includes(tradeType)) {
+    if (['BUY', 'SELL'].includes(tradeType)) {
       try {
         await updatePortfolioHoldings(symbol.toUpperCase(), tradeType, qty, prc);
       } catch (holdingsErr) {
@@ -211,7 +211,7 @@ router.patch('/:id', async (req, res) => {
 
     // Prepare update values
     const newSymbol = symbol ? symbol.toUpperCase() : existing.symbol;
-    const newType = trade_type ? (trade_type.toLowerCase() === 'buy' ? 'BUY' : 'SEL') : existing.type;
+    const newType = trade_type ? (trade_type.toLowerCase() === 'buy' ? 'BUY' : 'SELL') : existing.type;
     const newQty = quantity !== undefined ? parseFloat(quantity) : existing.quantity;
     const newPrice = price !== undefined ? parseFloat(price) : existing.execution_price;
     const newComm = commission !== undefined ? parseFloat(commission) : null;
@@ -248,14 +248,14 @@ router.patch('/:id', async (req, res) => {
     }
 
     // Recompute portfolio holdings for the symbol
-    if (['BUY', 'SEL'].includes(existing.type)) {
+    if (['BUY', 'SELL'].includes(existing.type)) {
       try {
         await recomputeHoldings(existing.symbol);
       } catch (err) {
         console.warn('Warning: Failed to recompute holdings:', err.message);
       }
     }
-    if (['BUY', 'SEL'].includes(newType) && newSymbol !== existing.symbol) {
+    if (['BUY', 'SELL'].includes(newType) && newSymbol !== existing.symbol) {
       try {
         await recomputeHoldings(newSymbol);
       } catch (err) {
@@ -305,7 +305,7 @@ router.delete('/:id', async (req, res) => {
     );
 
     // Recompute holdings for that symbol
-    if (['BUY', 'SEL'].includes(trade.type)) {
+    if (['BUY', 'SELL'].includes(trade.type)) {
       try {
         await recomputeHoldings(trade.symbol);
       } catch (err) {
@@ -357,7 +357,7 @@ async function updatePortfolioHoldings(symbol, side, quantity, price) {
          updated_at = CURRENT_TIMESTAMP`,
       [userId, symbol, newQty, newAvgCost, price, newQty * price]
     );
-  } else if (side === 'SEL') {
+  } else if (side === 'SELL') {
     const currentResult = await dbQuery(
       'SELECT quantity FROM portfolio_holdings WHERE user_id = $1 AND symbol = $2',
       [userId, symbol]
@@ -397,7 +397,7 @@ async function recomputeHoldings(symbol) {
   const tradesResult = await dbQuery(
     `SELECT type, quantity, execution_price
      FROM trades
-     WHERE symbol = $1 AND type IN ('BUY', 'SEL')
+     WHERE symbol = $1 AND type IN ('BUY', 'SELL')
      ORDER BY execution_date ASC`,
     [symbol]
   );
