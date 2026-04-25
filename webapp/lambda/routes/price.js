@@ -6,28 +6,25 @@ const router = express.Router();
 
 // Root endpoint - returns available sub-endpoints
 router.get("/", (req, res) => {
-  return res.json({
-    data: {
-      endpoint: "price",
-      available_routes: [
-        "GET /history/:symbol - Get price history for a specific symbol",
-        "GET /daily - Get daily OHLCV prices",
-        "GET /weekly - Get weekly OHLCV prices",
-        "GET /monthly - Get monthly OHLCV prices",
-        "GET /daily/etf - Get daily ETF prices",
-        "GET /weekly/etf - Get weekly ETF prices",
-        "GET /monthly/etf - Get monthly ETF prices"
-      ],
-      query_params: {
-        symbol: "Filter by symbol (e.g., AAPL)",
-        limit: "Number of records (1-500, default 100)",
-        page: "Page number for pagination",
-        days: "Look back N days",
-        start_date: "Start date (YYYY-MM-DD)",
-        end_date: "End date (YYYY-MM-DD)"
-      }
-    },
-    success: true
+  return sendSuccess(res, {
+    endpoint: "price",
+    available_routes: [
+      "GET /history/:symbol - Get price history for a specific symbol",
+      "GET /daily - Get daily OHLCV prices",
+      "GET /weekly - Get weekly OHLCV prices",
+      "GET /monthly - Get monthly OHLCV prices",
+      "GET /daily/etf - Get daily ETF prices",
+      "GET /weekly/etf - Get weekly ETF prices",
+      "GET /monthly/etf - Get monthly ETF prices"
+    ],
+    query_params: {
+      symbol: "Filter by symbol (e.g., AAPL)",
+      limit: "Number of records (1-500, default 100)",
+      page: "Page number for pagination",
+      days: "Look back N days",
+      start_date: "Start date (YYYY-MM-DD)",
+      end_date: "End date (YYYY-MM-DD)"
+    }
   });
 });
 
@@ -39,6 +36,13 @@ const getPriceHistoryHandler = async (req, res) => {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const offset = (page - 1) * limit;
 
+    // Get total count for pagination
+    const countResult = await query(
+      `SELECT COUNT(*) as count FROM price_daily WHERE symbol = $1`,
+      [symbol.toUpperCase()]
+    );
+    const total = countResult.rows[0]?.count || 0;
+
     const result = await query(
       `SELECT symbol, date, open, high, low, close, adj_close, volume
        FROM price_daily
@@ -48,10 +52,15 @@ const getPriceHistoryHandler = async (req, res) => {
       [symbol.toUpperCase(), limit, offset]
     );
 
-    return res.json({
-      items: result.rows || [],
-      pagination: { page, limit, total: result.rowCount },
-      success: true
+    const totalPages = Math.ceil(total / limit) || 1;
+    return sendPaginated(res, result.rows || [], {
+      page,
+      limit,
+      offset,
+      total,
+      totalPages,
+      hasNext: offset + limit < total,
+      hasPrev: offset > 0
     });
   } catch (err) {
     console.error('Error fetching price history:', err.message);
@@ -70,7 +79,6 @@ function safeFloat(value) {
 }
 
 // Get daily prices
-
 router.get("/daily", async (req, res) => {
   try {
     const symbol = req.query.symbol;
@@ -109,17 +117,22 @@ router.get("/daily", async (req, res) => {
       [...params, limit, offset]
     );
 
-    return res.json({
-      items: result.rows.map(row => ({
-        ...row,
-        open: safeFloat(row.open),
-        high: safeFloat(row.high),
-        low: safeFloat(row.low),
-        close: safeFloat(row.close),
-        volume: parseInt(row.volume) || 0
-      })),
-      pagination: { page, limit, total, hasMore: offset + limit < total },
-      success: true
+    const totalPages = Math.ceil(total / limit) || 1;
+    return sendPaginated(res, result.rows.map(row => ({
+      ...row,
+      open: safeFloat(row.open),
+      high: safeFloat(row.high),
+      low: safeFloat(row.low),
+      close: safeFloat(row.close),
+      volume: parseInt(row.volume) || 0
+    })), {
+      page,
+      limit,
+      offset,
+      total,
+      totalPages,
+      hasNext: offset + limit < total,
+      hasPrev: offset > 0
     });
   } catch (err) {
     console.error("Price daily error:", err.message);
@@ -156,17 +169,22 @@ router.get("/weekly", async (req, res) => {
       [...params, limit, offset]
     );
 
-    return res.json({
-      items: result.rows.map(row => ({
-        ...row,
-        open: safeFloat(row.open),
-        high: safeFloat(row.high),
-        low: safeFloat(row.low),
-        close: safeFloat(row.close),
-        volume: parseInt(row.volume) || 0
-      })),
-      pagination: { page, limit, total, hasMore: offset + limit < total },
-      success: true
+    const totalPages = Math.ceil(total / limit) || 1;
+    return sendPaginated(res, result.rows.map(row => ({
+      ...row,
+      open: safeFloat(row.open),
+      high: safeFloat(row.high),
+      low: safeFloat(row.low),
+      close: safeFloat(row.close),
+      volume: parseInt(row.volume) || 0
+    })), {
+      page,
+      limit,
+      offset,
+      total,
+      totalPages,
+      hasNext: offset + limit < total,
+      hasPrev: offset > 0
     });
   } catch (err) {
     console.error("Price weekly error:", err.message);
@@ -203,17 +221,22 @@ router.get("/monthly", async (req, res) => {
       [...params, limit, offset]
     );
 
-    return res.json({
-      items: result.rows.map(row => ({
-        ...row,
-        open: safeFloat(row.open),
-        high: safeFloat(row.high),
-        low: safeFloat(row.low),
-        close: safeFloat(row.close),
-        volume: parseInt(row.volume) || 0
-      })),
-      pagination: { page, limit, total, hasMore: offset + limit < total },
-      success: true
+    const totalPages = Math.ceil(total / limit) || 1;
+    return sendPaginated(res, result.rows.map(row => ({
+      ...row,
+      open: safeFloat(row.open),
+      high: safeFloat(row.high),
+      low: safeFloat(row.low),
+      close: safeFloat(row.close),
+      volume: parseInt(row.volume) || 0
+    })), {
+      page,
+      limit,
+      offset,
+      total,
+      totalPages,
+      hasNext: offset + limit < total,
+      hasPrev: offset > 0
     });
   } catch (err) {
     console.error("Price monthly error:", err.message);
@@ -236,10 +259,15 @@ router.get("/daily/etf", async (req, res) => {
       [limit, offset]
     );
 
-    return res.json({
-      items: result.rows,
-      pagination: { page, limit, total, hasMore: offset + limit < total },
-      success: true
+    const totalPages = Math.ceil(total / limit) || 1;
+    return sendPaginated(res, result.rows, {
+      page,
+      limit,
+      offset,
+      total,
+      totalPages,
+      hasNext: offset + limit < total,
+      hasPrev: offset > 0
     });
   } catch (err) {
     console.error("ETF price daily error:", err.message);
@@ -262,10 +290,15 @@ router.get("/weekly/etf", async (req, res) => {
       [limit, offset]
     );
 
-    return res.json({
-      items: result.rows,
-      pagination: { page, limit, total, hasMore: offset + limit < total },
-      success: true
+    const totalPages = Math.ceil(total / limit) || 1;
+    return sendPaginated(res, result.rows, {
+      page,
+      limit,
+      offset,
+      total,
+      totalPages,
+      hasNext: offset + limit < total,
+      hasPrev: offset > 0
     });
   } catch (err) {
     console.error("ETF price weekly error:", err.message);
@@ -288,10 +321,15 @@ router.get("/monthly/etf", async (req, res) => {
       [limit, offset]
     );
 
-    return res.json({
-      items: result.rows,
-      pagination: { page, limit, total, hasMore: offset + limit < total },
-      success: true
+    const totalPages = Math.ceil(total / limit) || 1;
+    return sendPaginated(res, result.rows, {
+      page,
+      limit,
+      offset,
+      total,
+      totalPages,
+      hasNext: offset + limit < total,
+      hasPrev: offset > 0
     });
   } catch (err) {
     console.error("ETF price monthly error:", err.message);

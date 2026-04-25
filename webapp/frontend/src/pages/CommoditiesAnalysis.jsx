@@ -38,7 +38,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
-import api from "../services/api";
+import api, { extractData } from "../services/api";
 import { formatCurrency, formatPercentage, getChangeColor } from "../utils/formatters";
 
 function CommoditiesAnalysis() {

@@ -7,17 +7,14 @@ const router = express.Router();
 
 // Root endpoint - returns available sub-endpoints
 router.get("/", (req, res) => {
-  return res.json({
-    data: {
-      endpoint: "economic",
-      description: "Economic indicators and financial conditions data",
-      available_routes: [
-        "GET /leading-indicators - Comprehensive leading, lagging, and coincident economic indicators with 50+ data points",
-        "GET /yield-curve-full - Treasury yield curve (3M-30Y) AND credit spreads with 60-day historical data - consolidated endpoint",
-        "GET /calendar - Upcoming economic events with dates and forecasts"
-      ]
-    },
-    success: true
+  return sendSuccess(res, {
+    endpoint: "economic",
+    description: "Economic indicators and financial conditions data",
+    available_routes: [
+      "GET /leading-indicators - Comprehensive leading, lagging, and coincident economic indicators with 50+ data points",
+      "GET /yield-curve-full - Treasury yield curve (3M-30Y) AND credit spreads with 60-day historical data - consolidated endpoint",
+      "GET /calendar - Upcoming economic events with dates and forecasts"
+    ]
   });
 });
 
@@ -46,10 +43,13 @@ router.get("/data", async (req, res) => {
       [limit, offset]
     );
 
-    return res.json({
-      data: result.rows || [],
-      pagination: { page, limit, total, hasMore: offset + limit < total },
-      success: true
+    return sendPaginated(res, result.rows || [], {
+      page,
+      limit,
+      offset,
+      total,
+      totalPages: Math.ceil(total / limit),
+      hasMore: offset + limit < total
     });
   } catch (err) {
     console.error("Economic data error:", err.message);
@@ -222,9 +222,7 @@ router.get("/leading-indicators", async (req, res) => {
     const missingSeries = requiredSeries.filter(s => !indicators[s]);
     if (missingSeries.length > 0) {
       console.error(`[ERROR] MISSING REQUIRED SERIES: ${missingSeries.join(', ')}`);
-      return res.status(500).json({
-        error: "Missing required economic indicators from FRED database",
-        success: false,
+      return sendError(res, "Missing required economic indicators from FRED database", 500, {
         missing: missingSeries,
         message: "Please run loadecondata.py to load economic indicators",
         details: `Found ${result.rows.length} series, but missing ${missingSeries.length} critical indicators`
@@ -426,18 +424,12 @@ router.get("/leading-indicators", async (req, res) => {
         ].filter(ind => ind.rawValue !== null); // Filter out indicators with no data
 
     // Return in standard format with data wrapper and success field
-    res.json({
-      data: {
-        indicators: indicatorsArray
-      },
-      success: true
+    return sendSuccess(res, {
+      indicators: indicatorsArray
     });
   } catch (error) {
     console.error("Leading indicators error:", error);
-    res.status(500).json({
-      error: "Failed to fetch leading indicators",
-      success: false
-    });
+    return sendError(res, "Failed to fetch leading indicators", 500);
   }
 });
 
@@ -547,46 +539,40 @@ router.get("/yield-curve-full", async (req, res) => {
 
     console.log(`✅ Yield curve data: ${Object.keys(currentCurve).length} maturities, spreads: ${Object.keys(treasurySpreads).filter(k => treasurySpreads[k] !== null).length}, isInverted: ${isInverted}`);
 
-    res.json({
-      data: {
-        currentCurve,
-        spreads: treasurySpreads,
-        isInverted,
-        history: {
-          'DGS3MO': dataBySeriesAndDate['DGS3MO'] || [],
-          'DGS6MO': dataBySeriesAndDate['DGS6MO'] || [],
-          'DGS1': dataBySeriesAndDate['DGS1'] || [],
-          'DGS2': dataBySeriesAndDate['DGS2'] || [],
-          'DGS3': dataBySeriesAndDate['DGS3'] || [],
-          'DGS5': dataBySeriesAndDate['DGS5'] || [],
-          'DGS7': dataBySeriesAndDate['DGS7'] || [],
-          'DGS10': dataBySeriesAndDate['DGS10'] || [],
-          'DGS20': dataBySeriesAndDate['DGS20'] || [],
-          'DGS30': dataBySeriesAndDate['DGS30'] || [],
-          'T10Y2Y': dataBySeriesAndDate['T10Y2Y'] || [],
-          'T10Y3M': dataBySeriesAndDate['T10Y3M'] || [],
-        },
-        credit: {
-          currentSpreads: creditSpreads,
-          history: {
-            'BAMLH0A0HYM2': dataBySeriesAndDate['BAMLH0A0HYM2'] || [],
-            'BAMLH0A0IG': dataBySeriesAndDate['BAMLH0A0IG'] || [],
-            'BAMLH0A0PRI': dataBySeriesAndDate['BAMLH0A0PRI'] || [],
-            'BAA': dataBySeriesAndDate['BAA'] || [],
-            'AAA': dataBySeriesAndDate['AAA'] || [],
-            'VIXCLS': dataBySeriesAndDate['VIXCLS'] || [],
-          }
-        },
-        source: "Federal Reserve Economic Data (FRED)"
+    return sendSuccess(res, {
+      currentCurve,
+      spreads: treasurySpreads,
+      isInverted,
+      history: {
+        'DGS3MO': dataBySeriesAndDate['DGS3MO'] || [],
+        'DGS6MO': dataBySeriesAndDate['DGS6MO'] || [],
+        'DGS1': dataBySeriesAndDate['DGS1'] || [],
+        'DGS2': dataBySeriesAndDate['DGS2'] || [],
+        'DGS3': dataBySeriesAndDate['DGS3'] || [],
+        'DGS5': dataBySeriesAndDate['DGS5'] || [],
+        'DGS7': dataBySeriesAndDate['DGS7'] || [],
+        'DGS10': dataBySeriesAndDate['DGS10'] || [],
+        'DGS20': dataBySeriesAndDate['DGS20'] || [],
+        'DGS30': dataBySeriesAndDate['DGS30'] || [],
+        'T10Y2Y': dataBySeriesAndDate['T10Y2Y'] || [],
+        'T10Y3M': dataBySeriesAndDate['T10Y3M'] || [],
       },
-      success: true
+      credit: {
+        currentSpreads: creditSpreads,
+        history: {
+          'BAMLH0A0HYM2': dataBySeriesAndDate['BAMLH0A0HYM2'] || [],
+          'BAMLH0A0IG': dataBySeriesAndDate['BAMLH0A0IG'] || [],
+          'BAMLH0A0PRI': dataBySeriesAndDate['BAMLH0A0PRI'] || [],
+          'BAA': dataBySeriesAndDate['BAA'] || [],
+          'AAA': dataBySeriesAndDate['AAA'] || [],
+          'VIXCLS': dataBySeriesAndDate['VIXCLS'] || [],
+        }
+      },
+      source: "Federal Reserve Economic Data (FRED)"
     });
   } catch (error) {
     console.error("Yield curve error:", error);
-    res.status(500).json({
-      error: "Failed to fetch yield curve data",
-      success: false
-    });
+    return sendError(res, "Failed to fetch yield curve data", 500);
   }
 });
 
@@ -646,15 +632,12 @@ router.get("/calendar", async (req, res) => {
       calendarResult = { rows: [] };
     }
 
-    res.json({
-      data: {
-        events: calendarResult.rows || [],
-        period: {
-          start: start_date || "auto",
-          end: end_date || "auto"
-        }
-      },
-      success: true
+    return sendSuccess(res, {
+      events: calendarResult.rows || [],
+      period: {
+        start: start_date || "auto",
+        end: end_date || "auto"
+      }
     });
   } catch (error) {
     console.error("Economic calendar error:", error);
@@ -675,13 +658,12 @@ router.get("/fresh-data", async (req, res) => {
       const economicIndicators = Object.values(comprehensiveData.economic_indicators || {});
       const marketBreadth = comprehensiveData.market_breadth || {};
 
-      return res.json({
+      return sendSuccess(res, {
         indicators: economicIndicators,
         breadth: marketBreadth,
         timestamp: comprehensiveData.timestamp,
         source: "fresh-economic",
-        message: "Fresh economic indicators and market breadth",
-        success: true
+        message: "Fresh economic indicators and market breadth"
       });
     }
 

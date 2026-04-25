@@ -7,18 +7,15 @@ const router = express.Router();
 
 // Root endpoint
 router.get("/", (req, res) => {
-  return res.json({
-    data: {
-      endpoint: "metrics",
-      available_routes: [
-        "GET /quality - Get quality metrics (ROE, ROA, margins, profitability)",
-        "GET /growth - Get growth metrics (revenue growth, EPS growth, FCF growth)",
-        "GET /value - Get value metrics (P/E, P/B, P/S, dividend yield)",
-        "GET /momentum - Get momentum metrics (price momentum, technicals)",
-        "GET /stability - Get stability metrics (volatility, drawdown, beta)"
-      ]
-    },
-    success: true
+  return sendSuccess(res, {
+    endpoint: "metrics",
+    available_routes: [
+      "GET /quality - Get quality metrics (ROE, ROA, margins, profitability)",
+      "GET /growth - Get growth metrics (revenue growth, EPS growth, FCF growth)",
+      "GET /value - Get value metrics (P/E, P/B, P/S, dividend yield)",
+      "GET /momentum - Get momentum metrics (price momentum, technicals)",
+      "GET /stability - Get stability metrics (volatility, drawdown, beta)"
+    ]
   });
 });
 
@@ -50,27 +47,25 @@ router.get("/quality", async (req, res) => {
       );
       const total = countResult.rows[0]?.count || 0;
 
-      return res.json({
-        data: result.rows || [],
-        pagination: { page, limit, total, hasMore: offset + limit < total },
-        success: true
+      return sendPaginated(res, result.rows || [], {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        offset
       });
     } else {
       // Return empty result for full table (too slow) - requires symbol filter
-      return res.json({
-        data: [],
-        pagination: { page, limit, total: 0, hasMore: false },
-        message: "Quality metrics require symbol parameter",
-        success: true
+      return sendSuccess(res, {
+        items: [],
+        message: "Quality metrics require symbol parameter"
       });
     }
   } catch (err) {
     console.error("Quality metrics error:", err.message);
-    return res.json({
-      data: [],
-      pagination: { page: 1, limit: 0, total: 0, hasMore: false },
-      message: "Quality metrics not available - please specify a symbol",
-      success: true
+    return sendSuccess(res, {
+      items: [],
+      message: "Quality metrics not available - please specify a symbol"
     });
   }
 });
@@ -102,10 +97,12 @@ router.get("/growth", async (req, res) => {
       [...params, limit, offset]
     );
 
-    return res.json({
-      data: result.rows,
-      pagination: { page, limit, total, hasMore: offset + limit < total },
-      success: true
+    return sendPaginated(res, result.rows, {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+      offset
     });
   } catch (err) {
     console.error("Growth metrics error:", err.message);
@@ -142,10 +139,12 @@ router.get("/valuation", async (req, res) => {
       [...params, limit, offset]
     );
 
-    return res.json({
-      data: result.rows,
-      pagination: { page, limit, total, hasMore: offset + limit < total },
-      success: true
+    return sendPaginated(res, result.rows, {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+      offset
     });
   } catch (err) {
     console.error("Valuation metrics error:", err.message);
@@ -182,10 +181,12 @@ router.get("/value", async (req, res) => {
       [...params, limit, offset]
     );
 
-    return res.json({
-      data: result.rows,
-      pagination: { page, limit, total, hasMore: offset + limit < total },
-      success: true
+    return sendPaginated(res, result.rows, {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+      offset
     });
   } catch (err) {
     console.error("Value metrics error:", err.message);
@@ -222,10 +223,12 @@ router.get("/momentum", async (req, res) => {
       [...params, limit, offset]
     );
 
-    return res.json({
-      data: result.rows,
-      pagination: { page, limit, total, hasMore: offset + limit < total },
-      success: true
+    return sendPaginated(res, result.rows, {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+      offset
     });
   } catch (err) {
     console.error("Momentum metrics error:", err.message);
@@ -262,10 +265,12 @@ router.get("/stability", async (req, res) => {
       [...params, limit, offset]
     );
 
-    return res.json({
-      data: result.rows,
-      pagination: { page, limit, total, hasMore: offset + limit < total },
-      success: true
+    return sendPaginated(res, result.rows, {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+      offset
     });
   } catch (err) {
     console.error("Stability metrics error:", err.message);
@@ -310,10 +315,12 @@ router.get("/fundamental", async (req, res) => {
 
     const result = await query(sql, [...params, limit, offset]);
 
-    return res.json({
-      data: result.rows || [],
-      pagination: { page, limit, total, hasMore: offset + limit < total },
-      success: true
+    return sendPaginated(res, result.rows || [], {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+      offset
     });
   } catch (err) {
     console.error("Fundamental metrics error:", err.message);

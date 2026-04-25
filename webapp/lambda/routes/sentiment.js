@@ -27,14 +27,11 @@ router.get("/data", async (req, res) => {
     let queryStr = `
       SELECT
         symbol,
-        date as date,
-        analyst_count as analyst_count,
+        date,
+        analyst_count,
         bullish_count,
         bearish_count,
-        neutral_count,
-        target_price,
-        current_price,
-        upside_downside_percent
+        neutral_count
       FROM analyst_sentiment_analysis
       WHERE symbol IS NOT NULL
       ORDER BY date DESC, symbol ASC

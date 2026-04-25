@@ -31,4 +31,49 @@ router.get("/", fetchIndustries);
 // GET /industries - Alias for backward compatibility
 router.get("/industries", fetchIndustries);
 
+// GET /:industryName/trend - Get industry trend data (for charts)
+router.get("/:industryName/trend", async (req, res) => {
+  try {
+    const { industryName } = req.params;
+    const { days = 90 } = req.query;
+    const daysNum = Math.min(parseInt(days) || 90, 365);
+
+    // Get trend data from price_daily for stocks in this industry
+    const result = await query(`
+      SELECT
+        DATE(pd.date) as date,
+        AVG(pd.close) as avg_price,
+        COUNT(DISTINCT pd.symbol) as stock_count,
+        AVG((pd.close - LAG(pd.close) OVER (ORDER BY pd.date)) / LAG(pd.close) OVER (ORDER BY pd.date) * 100) as avg_change_pct
+      FROM price_daily pd
+      JOIN company_profile cp ON pd.symbol = cp.ticker
+      WHERE LOWER(cp.industry) = LOWER($1)
+      AND pd.date >= CURRENT_DATE - INTERVAL '${daysNum} days'
+      GROUP BY DATE(pd.date)
+      ORDER BY date ASC
+    `, [industryName]);
+
+    if (!result?.rows || result.rows.length === 0) {
+      return sendError(res, `No trend data found for industry: ${industryName}`, 404);
+    }
+
+    const trendData = result.rows.map(row => ({
+      date: row.date,
+      avgPrice: parseFloat(row.avg_price) || 0,
+      stockCount: parseInt(row.stock_count) || 0,
+      avgChangePct: parseFloat(row.avg_change_pct) || 0
+    }));
+
+    return res.json({
+      industry: industryName,
+      data: trendData,
+      success: true,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Error fetching industry trend:", error.message);
+    return sendError(res, `Failed to fetch industry trend: ${error.message.substring(0, 100)}`, 500);
+  }
+});
+
 module.exports = router;

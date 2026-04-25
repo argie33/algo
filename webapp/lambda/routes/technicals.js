@@ -6,22 +6,19 @@ const router = express.Router();
 
 // Root endpoint
 router.get("/", (req, res) => {
-  return res.json({
-    data: {
-      endpoint: "technicals",
-      available_routes: [
-        "GET /daily - Get daily technical indicators (RSI, MACD, Bollinger Bands, etc.)",
-        "GET /daily?symbol=AAPL - Get daily technicals for specific symbol",
-        "GET /:symbol - Shortcut for /daily?symbol=:symbol (alias)",
-        "GET /weekly - Get weekly technical indicators",
-        "GET /monthly - Get monthly technical indicators"
-      ],
-      indicators: [
-        "rsi", "macd", "signal", "histogram", "bollinger_upper", "bollinger_lower", "bollinger_middle",
-        "sma_20", "sma_50", "sma_200", "ema_12", "ema_26", "atr", "adx"
-      ]
-    },
-    success: true
+  return sendSuccess(res, {
+    endpoint: "technicals",
+    available_routes: [
+      "GET /daily - Get daily technical indicators (RSI, MACD, Bollinger Bands, etc.)",
+      "GET /daily?symbol=AAPL - Get daily technicals for specific symbol",
+      "GET /:symbol - Shortcut for /daily?symbol=:symbol (alias)",
+      "GET /weekly - Get weekly technical indicators",
+      "GET /monthly - Get monthly technical indicators"
+    ],
+    indicators: [
+      "rsi", "macd", "signal", "histogram", "bollinger_upper", "bollinger_lower", "bollinger_middle",
+      "sma_20", "sma_50", "sma_200", "ema_12", "ema_26", "atr", "adx"
+    ]
   });
 });
 
@@ -66,20 +63,17 @@ router.get("/monthly", async (req, res) => {
       [...params, limit, offset]
     );
 
-    return res.json({
-      data: result.rows.map(row => ({
-        ...row,
-        rsi: safeFloat(row.rsi),
-        macd: safeFloat(row.macd),
-        signal: safeFloat(row.signal),
-        histogram: safeFloat(row.histogram),
-        sma_20: safeFloat(row.sma_20),
-        sma_50: safeFloat(row.sma_50),
-        sma_200: safeFloat(row.sma_200)
-      })),
-      pagination: { page, limit, total, hasMore: offset + limit < total },
-      success: true
-    });
+    const totalPages = Math.ceil(total / limit);
+    return sendPaginated(res, result.rows.map(row => ({
+      ...row,
+      rsi: safeFloat(row.rsi),
+      macd: safeFloat(row.macd),
+      signal: safeFloat(row.signal),
+      histogram: safeFloat(row.histogram),
+      sma_20: safeFloat(row.sma_20),
+      sma_50: safeFloat(row.sma_50),
+      sma_200: safeFloat(row.sma_200)
+    })), { page, limit, offset, total, totalPages });
   } catch (err) {
     console.error("Technical monthly error:", err.message);
     return sendError(res, err.message, 500);
@@ -115,20 +109,17 @@ router.get("/daily", async (req, res) => {
       [...params, limit, offset]
     );
 
-    return res.json({
-      data: result.rows.map(row => ({
-        ...row,
-        rsi: safeFloat(row.rsi),
-        macd: safeFloat(row.macd),
-        signal: safeFloat(row.signal),
-        histogram: safeFloat(row.histogram),
-        sma_20: safeFloat(row.sma_20),
-        sma_50: safeFloat(row.sma_50),
-        sma_200: safeFloat(row.sma_200)
-      })),
-      pagination: { page, limit, total, hasMore: offset + limit < total },
-      success: true
-    });
+    const totalPages = Math.ceil(total / limit);
+    return sendPaginated(res, result.rows.map(row => ({
+      ...row,
+      rsi: safeFloat(row.rsi),
+      macd: safeFloat(row.macd),
+      signal: safeFloat(row.signal),
+      histogram: safeFloat(row.histogram),
+      sma_20: safeFloat(row.sma_20),
+      sma_50: safeFloat(row.sma_50),
+      sma_200: safeFloat(row.sma_200)
+    })), { page, limit, offset, total, totalPages });
   } catch (err) {
     console.error("Technical daily error:", err.message);
     return sendError(res, err.message, 500);
@@ -169,20 +160,17 @@ router.get("/weekly", async (req, res) => {
       [...params, limit, offset]
     );
 
-    return res.json({
-      data: result.rows.map(row => ({
-        ...row,
-        rsi: safeFloat(row.rsi),
-        macd: safeFloat(row.macd),
-        signal: safeFloat(row.signal),
-        histogram: safeFloat(row.histogram),
-        sma_20: safeFloat(row.sma_20),
-        sma_50: safeFloat(row.sma_50),
-        sma_200: safeFloat(row.sma_200)
-      })),
-      pagination: { page, limit, total, hasMore: offset + limit < total },
-      success: true
-    });
+    const totalPages = Math.ceil(total / limit);
+    return sendPaginated(res, result.rows.map(row => ({
+      ...row,
+      rsi: safeFloat(row.rsi),
+      macd: safeFloat(row.macd),
+      signal: safeFloat(row.signal),
+      histogram: safeFloat(row.histogram),
+      sma_20: safeFloat(row.sma_20),
+      sma_50: safeFloat(row.sma_50),
+      sma_200: safeFloat(row.sma_200)
+    })), { page, limit, offset, total, totalPages });
   } catch (err) {
     console.error("Technical weekly error:", err.message);
     return sendError(res, err.message, 500);
@@ -225,25 +213,22 @@ router.get("/indicators", async (req, res) => {
       [...params, limit, offset]
     );
 
-    return res.json({
-      items: (result.rows || []).map(row => ({
-        symbol: row.symbol,
-        date: row.date,
-        rsi: safeFloat(row.rsi),
-        macd: safeFloat(row.macd),
-        signal: safeFloat(row.signal),
-        histogram: safeFloat(row.histogram),
-        sma_20: safeFloat(row.sma_20),
-        sma_50: safeFloat(row.sma_50),
-        sma_200: safeFloat(row.sma_200),
-        ema_12: safeFloat(row.ema_12),
-        ema_26: safeFloat(row.ema_26),
-        atr: safeFloat(row.atr),
-        adx: safeFloat(row.adx)
-      })),
-      pagination: { page, limit, total, hasMore: offset + limit < total },
-      success: true
-    });
+    const totalPages = Math.ceil(total / limit);
+    return sendPaginated(res, (result.rows || []).map(row => ({
+      symbol: row.symbol,
+      date: row.date,
+      rsi: safeFloat(row.rsi),
+      macd: safeFloat(row.macd),
+      signal: safeFloat(row.signal),
+      histogram: safeFloat(row.histogram),
+      sma_20: safeFloat(row.sma_20),
+      sma_50: safeFloat(row.sma_50),
+      sma_200: safeFloat(row.sma_200),
+      ema_12: safeFloat(row.ema_12),
+      ema_26: safeFloat(row.ema_26),
+      atr: safeFloat(row.atr),
+      adx: safeFloat(row.adx)
+    })), { page, limit, offset, total, totalPages });
   } catch (err) {
     console.error("Technical indicators error:", err.message);
     return sendError(res, err.message, 500);
@@ -267,20 +252,17 @@ router.get("/:symbol", async (req, res) => {
       [symbol.toUpperCase(), limit, offset]
     );
 
-    return res.json({
-      data: result.rows.map(row => ({
-        ...row,
-        rsi: safeFloat(row.rsi),
-        macd: safeFloat(row.macd),
-        signal: safeFloat(row.signal),
-        histogram: safeFloat(row.histogram),
-        sma_20: safeFloat(row.sma_20),
-        sma_50: safeFloat(row.sma_50),
-        sma_200: safeFloat(row.sma_200)
-      })),
-      pagination: { page, limit, total, hasMore: offset + limit < total },
-      success: true
-    });
+    const totalPages = Math.ceil(total / limit);
+    return sendPaginated(res, result.rows.map(row => ({
+      ...row,
+      rsi: safeFloat(row.rsi),
+      macd: safeFloat(row.macd),
+      signal: safeFloat(row.signal),
+      histogram: safeFloat(row.histogram),
+      sma_20: safeFloat(row.sma_20),
+      sma_50: safeFloat(row.sma_50),
+      sma_200: safeFloat(row.sma_200)
+    })), { page, limit, offset, total, totalPages });
   } catch (err) {
     console.error(`Technical data error for ${symbol}:`, err.message);
     return sendError(res, err.message, 500);

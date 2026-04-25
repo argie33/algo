@@ -2,14 +2,14 @@ const express = require("express");
 
 const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
-const { getLimit, getOffset } = require('../config/pagination');
 const router = express.Router();
 
 // Helper function to fetch stocks list
 async function fetchStocksList(req, res) {
   try {
-    const limit = getLimit('stocks', req.query.limit);
-    const offset = getOffset(req.query.page, limit);
+    const limit = Math.min(parseInt(req.query.limit) || 100, 1000);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const offset = (page - 1) * limit;
 
     const result = await query(
       "SELECT symbol, security_name as name, market_category as category, exchange FROM stock_symbols ORDER BY symbol LIMIT $1 OFFSET $2",
@@ -26,16 +26,9 @@ async function fetchStocksList(req, res) {
       page: Math.max(1, Math.ceil((offset / limit) + 1))
     });
   } catch (error) {
-    console.error("❌ Error fetching stocks:", {
-      message: error.message,
-      code: error.code,
-      table: 'stock_symbols',
-      query: 'SELECT symbol, security_name as name...'
-    });
-    const userMessage = error.code === '42P01'
-      ? 'Stock symbols table not yet populated'
-      : `Failed to fetch stocks: ${error.message}`;
-    return sendError(res, userMessage, 500, { code: error.code, table: 'stock_symbols' });
+    const errorMsg = error && typeof error === 'object' ? (error.message || String(error)) : String(error);
+    console.error("❌ Error fetching stocks:", errorMsg);
+    return sendError(res, `Failed to fetch stocks: ${errorMsg}`, 500);
   }
 }
 
@@ -46,8 +39,9 @@ router.get("/", fetchStocksList);
 router.get("/search", async (req, res) => {
   try {
     const q = req.query.q || req.query.symbol || '';
-    const limit = getLimit('stocks', req.query.limit);
-    const offset = getOffset(req.query.page, limit);
+    const limit = Math.min(parseInt(req.query.limit) || 100, 1000);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const offset = (page - 1) * limit;
 
     if (!q) {
       return sendPaginated(res, [], { limit, offset, total: 0, page: 1 });
@@ -72,8 +66,9 @@ router.get("/search", async (req, res) => {
       page: Math.max(1, Math.ceil((offset / limit) + 1))
     });
   } catch (error) {
-    console.error("Error searching stocks:", error);
-    return sendError(res, `Failed to search stocks: ${error.message}`, 500);
+    const errorMsg = error && typeof error === 'object' ? (error.message || String(error)) : String(error);
+    console.error("❌ Error searching stocks:", errorMsg);
+    return sendError(res, `Failed to search stocks: ${errorMsg}`, 500);
   }
 });
 

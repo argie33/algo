@@ -1,20 +1,17 @@
 const express = require("express");
 
 const { query } = require("../utils/database");
-const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const { sendSuccess, sendError, sendPaginated, sendBadRequest, sendNotFound } = require('../utils/apiResponse');
 const router = express.Router();
 
 // Root endpoint - returns available sub-endpoints
 router.get("/", (req, res) => {
-  return res.json({
-    data: {
-      endpoint: "scores",
-      available_routes: [
-        "/stockscores - Get stock scores with filtering and sorting (comprehensive data with momentum, quality, value, growth, positioning, stability metrics)",
-        "/all - Alias for /stockscores (same endpoint)"
-      ]
-    },
-    success: true
+  return sendSuccess(res, {
+    endpoint: "scores",
+    available_routes: [
+      "/stockscores - Get stock scores with filtering and sorting (comprehensive data with momentum, quality, value, growth, positioning, stability metrics)",
+      "/all - Alias for /stockscores (same endpoint)"
+    ]
   });
 });
 
@@ -757,11 +754,11 @@ router.get("/stockscores", async (req, res) => {
     const hasNext = page < totalPages;
     const hasPrev = page > 1;
     const cleanedStocks = removeNullValues(result.stocks);
-    res.json({ items: cleanedStocks, pagination: { page, limit: result.limit, total: result.total, totalPages, hasNext, hasPrev }, success: true });
+    return sendPaginated(res, cleanedStocks, { page, limit: result.limit, total: result.total, totalPages, hasNext, hasPrev });
   } catch (error) {
     console.error("Error fetching stock scores:", error);
     const statusCode = error.statusCode || 500;
-    res.status(statusCode).json({ error: error.message || "Failed to fetch stock scores", success: false });
+    return sendError(res, error.message || "Failed to fetch stock scores", statusCode);
   }
 });
 
@@ -795,11 +792,11 @@ router.get("/all", async (req, res) => {
     const hasNext = page < totalPages;
     const hasPrev = page > 1;
     const cleanedStocks = removeNullValues(result.stocks);
-    res.json({ items: cleanedStocks, pagination: { page, limit: result.limit, total: result.total, totalPages, hasNext, hasPrev }, success: true });
+    return sendPaginated(res, cleanedStocks, { page, limit: result.limit, total: result.total, totalPages, hasNext, hasPrev });
   } catch (error) {
     console.error("Error fetching stock scores:", error);
     const statusCode = error.statusCode || 500;
-    res.status(statusCode).json({ error: error.message || "Failed to fetch stock scores", success: false });
+    return sendError(res, error.message || "Failed to fetch stock scores", statusCode);
   }
 });
 
