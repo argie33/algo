@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Unified API Server - All endpoints return consistent format
- * { success: true/false, data: [...], timestamp: "...", error?: "..." }
+ * Unified API Server - Single source of truth for all API endpoints
+ * All endpoints return: { success: true/false, data: [...], timestamp: "..." }
  */
 
 require('dotenv').config({ path: require('path').join(__dirname, '.env.local') });
@@ -17,7 +17,6 @@ app.use(express.json());
 
 const frontendPath = path.join(__dirname, 'webapp/frontend-admin/dist-admin');
 
-// Database pool - ENSURE ENV VARS ARE LOADED FIRST
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5432'),
@@ -36,10 +35,7 @@ pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err);
 });
 
-// ============================================================================
-// RESPONSE HELPERS
-// ============================================================================
-
+// Response helpers
 const sendSuccess = (res, data, statusCode = 200) => {
   res.status(statusCode).json({
     success: true,
@@ -49,7 +45,6 @@ const sendSuccess = (res, data, statusCode = 200) => {
 };
 
 const sendError = (res, error, statusCode = 500) => {
-  console.error('API Error:', error);
   res.status(statusCode).json({
     success: false,
     error: typeof error === 'string' ? error : (error.message || 'Unknown error'),
@@ -58,9 +53,10 @@ const sendError = (res, error, statusCode = 500) => {
 };
 
 // ============================================================================
-// HEALTH CHECK
+// API ROUTES - DEFINED BEFORE STATIC FILES
 // ============================================================================
 
+// Health check
 app.get('/health', async (req, res) => {
   try {
     const result = await pool.query('SELECT NOW() as timestamp');
@@ -74,10 +70,7 @@ app.get('/health', async (req, res) => {
   }
 });
 
-// ============================================================================
-// STOCKS ENDPOINTS
-// ============================================================================
-
+// Stock symbols
 app.get('/api/stocks', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM stock_symbols LIMIT 100');
@@ -109,32 +102,14 @@ app.get('/api/stocks-count', async (req, res) => {
   }
 });
 
-app.get('/api/prices-count', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT COUNT(*) as count FROM price_daily');
-    sendSuccess(res, result.rows[0]);
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-// ============================================================================
-// STOCK METRICS
-// ============================================================================
-
-app.get('/api/key-metrics/:symbol', async (req, res) => {
-  try {
-    const { symbol } = req.params;
-    const result = await pool.query('SELECT * FROM key_metrics WHERE symbol = $1', [symbol]);
-    sendSuccess(res, result.rows[0] || {});
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
+// Stock scores (rankings)
 app.get('/api/stock-scores', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM stock_scores ORDER BY composite_score DESC LIMIT 100');
+    const limit = parseInt(req.query.limit) || 100;
+    const result = await pool.query(
+      'SELECT symbol, company_name, composite_score, growth_score, momentum_score, created_at FROM stock_scores ORDER BY composite_score DESC LIMIT $1',
+      [limit]
+    );
     sendSuccess(res, result.rows);
   } catch (error) {
     sendError(res, error);
@@ -151,139 +126,61 @@ app.get('/api/stock-scores/:symbol', async (req, res) => {
   }
 });
 
-app.get('/api/quality-metrics/:symbol', async (req, res) => {
+// Key metrics
+app.get('/api/key-metrics/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
-    const result = await pool.query('SELECT * FROM quality_metrics WHERE symbol = $1', [symbol]);
+    const result = await pool.query('SELECT * FROM key_metrics WHERE symbol = $1', [symbol]);
     sendSuccess(res, result.rows[0] || {});
   } catch (error) {
     sendError(res, error);
   }
 });
 
-app.get('/api/growth-metrics/:symbol', async (req, res) => {
+// Sector/Industry data
+app.get('/api/sector-ranking', async (req, res) => {
   try {
-    const { symbol } = req.params;
-    const result = await pool.query('SELECT * FROM growth_metrics WHERE symbol = $1', [symbol]);
-    sendSuccess(res, result.rows[0] || {});
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-app.get('/api/value-metrics/:symbol', async (req, res) => {
-  try {
-    const { symbol } = req.params;
-    const result = await pool.query('SELECT * FROM value_metrics WHERE symbol = $1', [symbol]);
-    sendSuccess(res, result.rows[0] || {});
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-app.get('/api/stability-metrics/:symbol', async (req, res) => {
-  try {
-    const { symbol } = req.params;
-    const result = await pool.query('SELECT * FROM stability_metrics WHERE symbol = $1 ORDER BY date DESC LIMIT 1', [symbol]);
-    sendSuccess(res, result.rows[0] || {});
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-app.get('/api/momentum-metrics/:symbol', async (req, res) => {
-  try {
-    const { symbol } = req.params;
-    const result = await pool.query('SELECT * FROM momentum_metrics WHERE symbol = $1 ORDER BY date DESC LIMIT 1', [symbol]);
-    sendSuccess(res, result.rows[0] || {});
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-// ============================================================================
-// SIGNALS
-// ============================================================================
-
-app.get('/api/signals/:symbol', async (req, res) => {
-  try {
-    const { symbol } = req.params;
-    const result = await pool.query('SELECT * FROM buy_sell_daily WHERE symbol = $1 ORDER BY date DESC LIMIT 10', [symbol]);
+    const result = await pool.query(
+      'SELECT * FROM sector_ranking WHERE date_recorded = (SELECT MAX(date_recorded) FROM sector_ranking) ORDER BY current_rank'
+    );
     sendSuccess(res, result.rows);
   } catch (error) {
     sendError(res, error);
   }
 });
 
-app.get('/api/top-stocks', async (req, res) => {
+app.get('/api/industry-ranking', async (req, res) => {
   try {
-    const limit = req.query.limit || 50;
-    const result = await pool.query('SELECT * FROM stock_scores ORDER BY composite_score DESC LIMIT $1', [limit]);
+    const result = await pool.query(
+      'SELECT * FROM industry_ranking WHERE date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking) ORDER BY current_rank LIMIT 50'
+    );
     sendSuccess(res, result.rows);
   } catch (error) {
     sendError(res, error);
   }
 });
 
-app.get('/api/bottom-stocks', async (req, res) => {
-  try {
-    const limit = req.query.limit || 50;
-    const result = await pool.query('SELECT * FROM stock_scores ORDER BY composite_score ASC LIMIT $1', [limit]);
-    sendSuccess(res, result.rows);
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-// ============================================================================
-// MARKET SUMMARY
-// ============================================================================
-
+// Market summary
 app.get('/api/market/summary', async (req, res) => {
   try {
     const stocks = await pool.query('SELECT COUNT(*) as count FROM stock_symbols');
     const prices = await pool.query('SELECT COUNT(*) as count FROM price_daily');
-    const scores = await pool.query('SELECT COUNT(*) as count FROM stock_scores');
+    const scores = await pool.query('SELECT COUNT(*) as count FROM stock_scores WHERE composite_score IS NOT NULL');
 
     sendSuccess(res, {
-      totalStocks: stocks.rows[0].count,
-      totalPrices: prices.rows[0].count,
-      totalScores: scores.rows[0].count
+      totalStocks: parseInt(stocks.rows[0].count),
+      totalPriceRecords: parseInt(prices.rows[0].count),
+      stocksWithScores: parseInt(scores.rows[0].count)
     });
   } catch (error) {
     sendError(res, error);
   }
 });
 
-// ============================================================================
-// SENTIMENT
-// ============================================================================
-
-app.get('/api/sentiment/aaii', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM sentiment_data WHERE source = $1 LIMIT 1', ['aaii']);
-    sendSuccess(res, result.rows[0] || { message: 'No AAII data available' });
-  } catch (error) {
-    sendSuccess(res, { message: 'No AAII data available' });
-  }
-});
-
-app.get('/api/sentiment/fear-greed', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM fear_greed_index ORDER BY date DESC LIMIT 1');
-    sendSuccess(res, result.rows[0] || { message: 'No Fear & Greed data available' });
-  } catch (error) {
-    sendSuccess(res, { message: 'No Fear & Greed data available' });
-  }
-});
-
-// ============================================================================
-// COMMODITIES
-// ============================================================================
-
+// Commodities
 app.get('/api/commodities/categories', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM commodity_categories ORDER BY category, symbol');
+    const result = await pool.query('SELECT DISTINCT category FROM commodity_categories ORDER BY category');
     sendSuccess(res, result.rows);
   } catch (error) {
     sendError(res, error);
@@ -292,38 +189,10 @@ app.get('/api/commodities/categories', async (req, res) => {
 
 app.get('/api/commodities/prices', async (req, res) => {
   try {
-    const limit = req.query.limit || 100;
-    const result = await pool.query('SELECT * FROM commodity_prices ORDER BY updated_at DESC LIMIT $1', [limit]);
-    sendSuccess(res, result.rows);
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-app.get('/api/commodities/market-summary', async (req, res) => {
-  try {
-    const prices = await pool.query('SELECT COUNT(*) as count FROM commodity_prices');
-    const history = await pool.query('SELECT COUNT(*) as count FROM commodity_price_history');
-    const correlations = await pool.query('SELECT COUNT(*) as count FROM commodity_correlations');
-
-    sendSuccess(res, {
-      totalCommodities: prices.rows[0].count,
-      totalHistoricalRecords: history.rows[0].count,
-      totalCorrelations: correlations.rows[0].count
-    });
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-app.get('/api/commodities/correlations', async (req, res) => {
-  try {
-    const minCorrelation = parseFloat(req.query.minCorrelation) || 0.5;
+    const limit = req.query.limit || 50;
     const result = await pool.query(
-      `SELECT * FROM commodity_correlations
-       WHERE ABS(correlation_30d) >= $1 OR ABS(correlation_90d) >= $1 OR ABS(correlation_1y) >= $1
-       ORDER BY correlation_1y DESC`,
-      [minCorrelation]
+      'SELECT * FROM commodity_prices ORDER BY updated_at DESC LIMIT $1',
+      [limit]
     );
     sendSuccess(res, result.rows);
   } catch (error) {
@@ -331,20 +200,14 @@ app.get('/api/commodities/correlations', async (req, res) => {
   }
 });
 
-app.get('/api/commodities/cot/:symbol', async (req, res) => {
+// Earnings
+app.get('/api/earnings/history/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
-    const result = await pool.query('SELECT * FROM cot_data WHERE symbol = $1 ORDER BY report_date DESC LIMIT 10', [symbol]);
-    sendSuccess(res, result.rows);
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-app.get('/api/commodities/seasonality/:symbol', async (req, res) => {
-  try {
-    const { symbol } = req.params;
-    const result = await pool.query('SELECT * FROM commodity_seasonality WHERE symbol = $1 ORDER BY month', [symbol]);
+    const result = await pool.query(
+      'SELECT * FROM earnings_history WHERE symbol = $1 ORDER BY fiscal_date DESC LIMIT 10',
+      [symbol]
+    );
     sendSuccess(res, result.rows);
   } catch (error) {
     sendError(res, error);
@@ -352,11 +215,12 @@ app.get('/api/commodities/seasonality/:symbol', async (req, res) => {
 });
 
 // ============================================================================
-// STATIC FILES & SPA
+// STATIC FILES & SPA FALLBACK (AFTER API ROUTES)
 // ============================================================================
 
+// Serve static assets
 app.use(express.static(frontendPath, {
-  index: 'index.html',
+  index: false, // Don't auto-serve index.html
   setHeaders: (res, filePath) => {
     if (filePath.endsWith('.html')) {
       res.setHeader('Cache-Control', 'no-cache');
@@ -364,7 +228,13 @@ app.use(express.static(frontendPath, {
   }
 }));
 
+// SPA fallback - only for non-API routes
 app.use((req, res) => {
+  // Don't send SPA for API routes
+  if (req.path.startsWith('/api/') || req.path === '/health') {
+    return sendError(res, 'Not Found', 404);
+  }
+  // Send SPA for everything else
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
@@ -372,35 +242,30 @@ app.use((req, res) => {
 // START SERVER
 // ============================================================================
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 app.listen(PORT, () => {
   console.log(`
 ╔════════════════════════════════════════════════════════════╗
-║         🚀 API SERVER WITH UNIFIED RESPONSE FORMAT         ║
+║         🚀 UNIFIED API SERVER - READY TO USE               ║
 ╚════════════════════════════════════════════════════════════╝
 
   Server:    http://localhost:${PORT}
-  API:       http://localhost:${PORT}/api/
-  Frontend:  http://localhost:${PORT}/
+  API Base:  http://localhost:${PORT}/api/
   Health:    http://localhost:${PORT}/health
+  Frontend:  http://localhost:${PORT}/
 
   Database:  ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}
 
-  Response Format (ALL endpoints):
-    {
-      "success": true/false,
-      "data": [...],
-      "timestamp": "2026-04-25T00:00:00.000Z",
-      "error": "message" (only on failure)
-    }
+  All endpoints return consistent JSON:
+    { success: true/false, data: {...}, timestamp: "..." }
 
-  ✓ Stocks & Metrics
-  ✓ Commodities & COT Data
-  ✓ Unified Data Structure
-  ✓ Consistent Error Handling
+✓ Stock data & rankings
+✓ Financial metrics
+✓ Sector & Industry analysis
+✓ Commodities & Market data
+✓ Earnings history
 
+  Ready to serve requests!
 `);
 });
-
-module.exports = app;

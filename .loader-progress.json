@@ -3,5 +3,7 @@
     "loadstocksymbols.py",
     "loadpricedaily.py"
   ],
-  "failed": []
+  "failed": [
+    "loaddailycompanydata.py"
+  ]
 }

@@ -324,6 +324,15 @@ def pyval(val):
 def calculate_missing_metrics(symbol: str, info: dict, ticker) -> dict:
     """REAL DATA ONLY - Get metrics directly from yfinance, no calculations or fallbacks"""
 
+    # Safety check: if info is None, return empty metrics
+    if not info or not isinstance(info, dict):
+        return {
+            'earnings_growth': None,
+            'payout_ratio': None,
+            'debt_to_equity': None,
+            'de_source': None,
+        }
+
     metrics = {
         'earnings_growth': info.get('earningsGrowth'),
         'payout_ratio': info.get('payoutRatio'),
@@ -553,7 +562,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 cur.execute(
                     """
                     INSERT INTO key_metrics (
-                        symbol, trailing_pe, forward_pe, price_to_sales_ttm,
+                        ticker, trailing_pe, forward_pe, price_to_sales_ttm,
                         price_to_book, book_value, peg_ratio, enterprise_value,
                         ev_to_revenue, ev_to_ebitda, total_revenue, net_income,
                         ebitda, gross_profit, eps_trailing, eps_forward,
@@ -581,7 +590,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                              %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
                              %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
                              %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    ON CONFLICT (symbol) DO UPDATE SET
+                    ON CONFLICT (ticker) DO UPDATE SET
                         trailing_pe = EXCLUDED.trailing_pe,
                         forward_pe = EXCLUDED.forward_pe,
                         price_to_sales_ttm = EXCLUDED.price_to_sales_ttm,
@@ -726,7 +735,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
         # This is separate from company_profile to prevent rollback
         try:
             cur.execute(
-                "INSERT INTO key_metrics (symbol) VALUES (%s) ON CONFLICT (symbol) DO NOTHING",
+                "INSERT INTO key_metrics (ticker) VALUES (%s) ON CONFLICT (ticker) DO NOTHING",
                 (symbol,),
             )
             conn.commit()  # Commit immediately - DO NOT wait for final commit
