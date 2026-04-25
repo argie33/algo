@@ -300,79 +300,13 @@ router.get("/divergence", async (req, res) => {
 });
 
 // GET /api/sentiment/social/insights/:symbol - Social sentiment insights for a specific symbol
-router.get("/social/insights/:symbol", async (req, res) => {
-  try {
-    const { symbol } = req.params;
-
-    // Mock social sentiment data with realistic structure
-    const now = new Date();
-    const mockInsights = {
-      symbol: symbol.toUpperCase(),
-      metrics: {
-        reddit: {
-          sentiment_score: Math.random() * 2 - 1,
-          post_count: Math.floor(Math.random() * 1000) + 100,
-          comment_count: Math.floor(Math.random() * 5000) + 500,
-          trend: Math.random() > 0.5 ? "bullish" : "bearish"
-        },
-        twitter: {
-          sentiment_score: Math.random() * 2 - 1,
-          mention_count: Math.floor(Math.random() * 5000) + 500,
-          engagement_rate: (Math.random() * 100).toFixed(2),
-          trend: Math.random() > 0.5 ? "bullish" : "bearish"
-        },
-        stocktwits: {
-          sentiment_score: Math.random() * 2 - 1,
-          message_count: Math.floor(Math.random() * 2000) + 200,
-          bullish_percent: (Math.random() * 100).toFixed(2),
-          trend: Math.random() > 0.5 ? "bullish" : "bearish"
-        }
-      },
-      trends: {
-        week: Math.random() > 0.5 ? "up" : "down",
-        month: Math.random() > 0.5 ? "up" : "down",
-        sentiment_change: (Math.random() * 20 - 10).toFixed(2)
-      },
-      historical: [
-        {
-          date: new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString(),
-          sentiment: Math.random() * 2 - 1
-        },
-        {
-          date: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-          sentiment: Math.random() * 2 - 1
-        },
-        {
-          date: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-          sentiment: Math.random() * 2 - 1
-        },
-        {
-          date: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-          sentiment: Math.random() * 2 - 1
-        },
-        {
-          date: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-          sentiment: Math.random() * 2 - 1
-        },
-        {
-          date: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-          sentiment: Math.random() * 2 - 1
-        },
-        {
-          date: now.toISOString(),
-          sentiment: Math.random() * 2 - 1
-        }
-      ]
-    };
-
-    return res.json(mockInsights);
-  } catch (error) {
-    console.error("Social insights error:", error);
-    return res.status(500).json({
-      error: "Failed to fetch social insights",
-      success: false
-    });
-  }
+router.get("/social/insights/:symbol", (req, res) => {
+  const { symbol } = req.params;
+  res.status(404).json({
+    success: false,
+    error: "Social sentiment data not available",
+    symbol: symbol.toUpperCase()
+  });
 });
 
 // GET /api/sentiment/analyst/insights/:symbol - Analyst sentiment insights for a specific symbol

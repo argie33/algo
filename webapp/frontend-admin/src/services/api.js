@@ -2746,7 +2746,7 @@ export const getEconomicData = async (params = {}) => {
 export const getStockInfo = async (symbol) => {
   debugLog(`ℹ️ [API] Fetching stock info for ${symbol}...`);
   try {
-    const response = await api.get(`/stocks/info/${symbol}`);
+    const response = await api.get(`/api/stocks/${symbol}`);
     debugLog(`ℹ️ [API] Stock info response for ${symbol}:`, response);
     return normalizeResponse(response, false);
   } catch (error) {
@@ -2766,7 +2766,7 @@ export const getStockPrice = getStockProfile;
 export const getStockHistory = async (symbol) => {
   debugLog(`📊 [API] Fetching stock history for ${symbol}...`);
   try {
-    const response = await api.get(`/stocks/history/${symbol}`);
+    const response = await api.get(`/api/price/history/${symbol}`);
     debugLog(`📊 [API] Stock history response for ${symbol}:`, response);
     return normalizeResponse(response, true);
   } catch (error) {
@@ -2783,7 +2783,7 @@ export const searchStocks = async (query) => {
   debugLog(`🔍 [API] Searching stocks with query: ${query}...`);
   try {
     const response = await api.get(
-      `/stocks/search?q=${encodeURIComponent(query)}`
+      `/api/stocks/search?q=${encodeURIComponent(query)}`
     );
     debugLog(`🔍 [API] Stock search response:`, response);
     return normalizeResponse(response, true);
@@ -3394,7 +3394,7 @@ export const getMarketSentiment = async () => {
 export const getFinancialData = async (symbol) => {
   debugLog(`💰 [API] Fetching financial data for ${symbol}...`);
   try {
-    const response = await api.get(`/financials/data/${symbol}`);
+    const response = await api.get(`/api/financials/${symbol}/all`);
     debugLog(`💰 [API] Financial data response for ${symbol}:`, response);
     // Always return { data: ... } structure for consistency
     const result = {
@@ -3417,7 +3417,7 @@ export const getFinancialData = async (symbol) => {
 export const getEarningsData = async (symbol) => {
   debugLog(`📊 [API] Fetching earnings data for ${symbol}...`);
   try {
-    const response = await api.get(`/financials/earnings/${symbol}`);
+    const response = await api.get(`/api/earnings/data?symbol=${encodeURIComponent(symbol)}`);
     debugLog(`📊 [API] Earnings data response for ${symbol}:`, response);
     // Always return { data: ... } structure for consistency
     const result = {
@@ -3439,7 +3439,7 @@ export const getEarningsData = async (symbol) => {
 export const getCashFlow = async (symbol) => {
   debugLog(`💵 [API] Fetching cash flow for ${symbol}...`);
   try {
-    const response = await api.get(`/financials/cash-flow/${symbol}`);
+    const response = await api.get(`/api/financials/${symbol}/cash-flow`);
     debugLog(`💵 [API] Cash flow response for ${symbol}:`, response);
     // Always return { data: ... } structure for consistency
     const result = {
@@ -3765,6 +3765,18 @@ export const placeOrder = async (orderRequest) => {
 export const fetchPortfolioHoldings = getPortfolioHoldings;
 // fetchMarketOverview is exported from api.js, not apiPart2.js
 export const fetchStockData = getStock;
+
+// Portfolio performance metrics
+export const getPortfolioPerformance = async () => {
+  debugLog('📈 [API] Fetching portfolio performance...');
+  try {
+    const response = await api.get('/api/portfolio/performance');
+    return extractResponseData(response);
+  } catch (error) {
+    return createErrorResponse(error, 'Failed to fetch portfolio performance');
+  }
+};
+
 export const fetchPortfolioPerformance = getPortfolioPerformance;
 export const fetchMarketData = getMarketIndicators;
 export const fetchEarningsData = getEarningsData;

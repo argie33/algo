@@ -9,7 +9,7 @@ try {
   query = null;
 }
 
-const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const { sendSuccess, sendError, sendPaginated, sendNotFound, sendBadRequest } = require('../utils/apiResponse');
 const router = express.Router();
 
 // Helper function to check if required tables exist
@@ -586,10 +586,7 @@ router.get("/breadth", async (req, res) => {
       !result.rows[0].total_stocks ||
       result.rows[0].total_stocks == 0
     ) {
-      return res.status(404).json({
-        error: "No market breadth data found",
-        success: false
-      });
+      return sendNotFound(res, "No market breadth data found");
     }
 
     let breadth;
@@ -601,35 +598,26 @@ router.get("/breadth", async (req, res) => {
     }
 
     if (!breadth) {
-      return res.status(404).json({
-        error: "No market breadth data found",
-        success: false
-      });
+      return sendNotFound(res, "No market breadth data found");
     }
 
-    return res.json({
-      data: {
-        total_stocks: parseInt(breadth.total_stocks),
-        advancing: parseInt(breadth.advancing),
-        declining: parseInt(breadth.declining),
-        unchanged: parseInt(breadth.unchanged),
-        strong_advancing: parseInt(breadth.strong_advancing),
-        strong_declining: parseInt(breadth.strong_declining),
-        advance_decline_ratio:
-          breadth.declining > 0
-            ? (breadth.advancing / breadth.declining).toFixed(2)
-            : null,
-        avg_change: parseFloat(breadth.avg_change).toFixed(2),
-        avg_volume: parseInt(breadth.avg_volume)
-      },
-      success: true
+    return sendSuccess(res, {
+      total_stocks: parseInt(breadth.total_stocks),
+      advancing: parseInt(breadth.advancing),
+      declining: parseInt(breadth.declining),
+      unchanged: parseInt(breadth.unchanged),
+      strong_advancing: parseInt(breadth.strong_advancing),
+      strong_declining: parseInt(breadth.strong_declining),
+      advance_decline_ratio:
+        breadth.declining > 0
+          ? (breadth.advancing / breadth.declining).toFixed(2)
+          : null,
+      avg_change: parseFloat(breadth.avg_change).toFixed(2),
+      avg_volume: parseInt(breadth.avg_volume)
     });
   } catch (error) {
     console.error("Error fetching market breadth:", error);
-    return res.status(500).json({
-      error: "Market breadth service unavailable",
-      success: false,
-    });
+    return sendError(res, "Market breadth service unavailable", 500);
   }
 });
 
@@ -698,10 +686,7 @@ router.get("/mcclellan-oscillator", async (req, res) => {
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
       console.warn('⚠️ No price_daily data found for McClellan calculation');
-      return res.status(404).json({
-        error: "No price data available for McClellan Oscillator",
-        success: false,
-      });
+      return sendNotFound(res, "No price data available for McClellan Oscillator");
     }
 
     // Ensure we have minimum data points for EMA calculation
@@ -725,25 +710,19 @@ router.get("/mcclellan-oscillator", async (req, res) => {
       advance_decline_line: parseFloat(row.advance_decline_line)
     }));
 
-    return res.json({
-      data: {
-        current_value: mcOscillator !== null ? parseFloat(mcOscillator.toFixed(2)) : null,
-        ema_19: ema19 !== null ? parseFloat(ema19.toFixed(2)) : null,
-        ema_39: ema39 !== null ? parseFloat(ema39.toFixed(2)) : null,
-        interpretation: mcOscillator !== null ? (
-          mcOscillator > 0 ? "Bullish breadth" : "Bearish breadth"
-        ) : "Insufficient data",
-        recent_data: recentData,
-        data_points: adLineData.length
-      },
-      success: true
+    return sendSuccess(res, {
+      current_value: mcOscillator !== null ? parseFloat(mcOscillator.toFixed(2)) : null,
+      ema_19: ema19 !== null ? parseFloat(ema19.toFixed(2)) : null,
+      ema_39: ema39 !== null ? parseFloat(ema39.toFixed(2)) : null,
+      interpretation: mcOscillator !== null ? (
+        mcOscillator > 0 ? "Bullish breadth" : "Bearish breadth"
+      ) : "Insufficient data",
+      recent_data: recentData,
+      data_points: adLineData.length
     });
   } catch (error) {
     console.error("Error calculating McClellan Oscillator:", error);
-    return res.status(500).json({
-      error: "McClellan Oscillator calculation failed",
-      success: false,
-    });
+    return sendError(res, "McClellan Oscillator calculation failed", 500);
   }
 });
 
@@ -795,10 +774,7 @@ router.get("/distribution-days", async (req, res) => {
     const result = await query(distributionQuery);
 
     if (!result || !result.rows || result.rows.length === 0) {
-      return res.status(404).json({
-        error: "No distribution days data found",
-        success: false
-      });
+      return sendNotFound(res, "No distribution days data found");
     }
 
     // Format response with index names
@@ -834,16 +810,10 @@ router.get("/distribution-days", async (req, res) => {
     // If an index has no distribution days data, it simply won't be in the response
     // This follows RULES.md: "Return None Instead of Default Values"
 
-    return res.json({
-      data: distributionData,
-      success: true
-    });
+    return sendSuccess(res, distributionData);
   } catch (error) {
     console.error("Error fetching distribution days:", error);
-    return res.status(500).json({
-      error: "Distribution days service unavailable",
-      success: false,
-    });
+    return sendError(res, "Distribution days service unavailable", 500);
   }
 });
 
@@ -900,7 +870,7 @@ router.get("/volatility", async (req, res) => {
     sendSuccess(res, responseData);
   } catch (error) {
     console.error("Error fetching market volatility:", error);
-    res.status(500).json({error: "Failed to fetch market volatility: ", success: false});
+    sendError(res, "Failed to fetch market volatility: ", 500);
   }
 });
 
@@ -971,32 +941,26 @@ router.get("/indicators", async (req, res) => {
     }
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
-      return res.status(404).json({
-        error: "No data found for this query",
-        success: false
-      });
+      return sendNotFound(res, "No data found for this query");
     }
 
-    res.json({
-      data: {
-        indices: result.rows,
-        breadth: {
-          total_stocks: parseInt(breadth.total_stocks),
-          advancing: parseInt(breadth.advancing),
-          declining: parseInt(breadth.declining),
-          advance_decline_ratio:
-            breadth.declining > 0
-              ? (breadth.advancing / breadth.declining).toFixed(2)
-              : null,
-          avg_change: parseFloat(breadth.avg_change).toFixed(2),
-        },
-        sentiment: sentiment
+    sendSuccess(res, {
+      indices: result.rows,
+      breadth: {
+        total_stocks: parseInt(breadth.total_stocks),
+        advancing: parseInt(breadth.advancing),
+        declining: parseInt(breadth.declining),
+        advance_decline_ratio:
+          breadth.declining > 0
+            ? (breadth.advancing / breadth.declining).toFixed(2)
+            : null,
+        avg_change: parseFloat(breadth.avg_change).toFixed(2),
       },
-      success: true
+      sentiment: sentiment
     });
   } catch (error) {
     console.error("Error fetching market indicators:", error);
-    res.status(500).json({error: "Failed to fetch market indicators", success: false});
+    sendError(res, "Failed to fetch market indicators", 500);
   }
 });
 
@@ -1392,29 +1356,26 @@ router.get("/seasonality", async (req, res) => {
       seasonalScore: calculateSeasonalScore(currentDate),
     };
 
-    res.json({
-      data: {
-        currentYear,
-        currentYearReturn,
-        currentPosition,
-        presidentialCycle,
-        monthlySeasonality,
-        monthlySpPerformance,
-        quarterlySeasonality,
-        intradayPatterns,
-        dayOfWeekEffects: dowEffects,
-        sectorSeasonality,
-        holidayEffects,
-        seasonalAnomalies,
-        summary: {
-          favorableFactors: getFavorableFactors(currentDate),
-          unfavorableFactors: getUnfavorableFactors(currentDate),
-          overallSeasonalBias: getOverallBias(currentDate),
-          confidence: "Moderate",
-          recommendation: getSeasonalRecommendation(currentDate)
-        }
-      },
-      success: true
+    sendSuccess(res, {
+      currentYear,
+      currentYearReturn,
+      currentPosition,
+      presidentialCycle,
+      monthlySeasonality,
+      monthlySpPerformance,
+      quarterlySeasonality,
+      intradayPatterns,
+      dayOfWeekEffects: dowEffects,
+      sectorSeasonality,
+      holidayEffects,
+      seasonalAnomalies,
+      summary: {
+        favorableFactors: getFavorableFactors(currentDate),
+        unfavorableFactors: getUnfavorableFactors(currentDate),
+        overallSeasonalBias: getOverallBias(currentDate),
+        confidence: "Moderate",
+        recommendation: getSeasonalRecommendation(currentDate)
+      }
     });
   } catch (error) {
     console.error("Error fetching seasonality data:", error);
@@ -1831,18 +1792,15 @@ router.get("/correlation", async (req, res) => {
       },
     };
 
-    res.json({
-      data: {
-        correlations: correlationData.matrix,
-        statistics: correlationData.statistics,
-        analysis
-      },
-      success: true
+    sendSuccess(res, {
+      correlations: correlationData.matrix,
+      statistics: correlationData.statistics,
+      analysis
     });
   } catch (error) {
     console.error("Market correlation analysis error:", error);
 
-    res.status(500).json({error: "Failed to calculate market correlations", success: false});
+    sendError(res, "Failed to calculate market correlations", 500);
   }
 });
 
@@ -1877,11 +1835,7 @@ router.get("/indices", async (req, res) => {
 
     if (!latestDate) {
       console.warn("⚠️ No index price data found");
-      return res.json({
-        data: [],
-        info: "No market index data available",
-        success: true
-      });
+      return sendSuccess(res, { items: [], info: "No market index data available" });
     }
 
     // Get price data for indices
@@ -2990,50 +2944,6 @@ router.get("/sentiment", async (req, res) => {
     console.error("❌ [Market API] Sentiment error:", error);
     return res.status(500).json({
       error: "Failed to fetch sentiment",
-      details: error.message,
-      success: false
-    });
-  }
-});
-
-// GET /api/market/seasonality - Seasonality patterns
-router.get("/seasonality", async (req, res) => {
-  const startTime = Date.now();
-
-  try {
-    console.log("📅 [Market API] Fetching seasonality...");
-
-    const [seasonalityData] = await Promise.allSettled([
-      (async () => {
-        const result = await query(`
-          SELECT
-            current_year,
-            current_month,
-            current_year_return,
-            presidential_cycle_phase,
-            monthly_return_avg,
-            monthly_win_rate,
-            date
-          FROM seasonality_patterns
-          ORDER BY date DESC
-          LIMIT 1
-        `);
-        return result.rows[0] || {};
-      })()
-    ]);
-
-    const seasonality = seasonalityData.status === 'fulfilled'
-      ? seasonalityData.value
-      : { currentYear: null, currentYearReturn: null };
-
-    return res.json({
-      data: seasonality,
-      success: true
-    });
-  } catch (error) {
-    console.error("❌ [Market API] Seasonality error:", error);
-    return res.status(500).json({
-      error: "Failed to fetch seasonality",
       details: error.message,
       success: false
     });

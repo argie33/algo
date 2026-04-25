@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import api from "../services/api.js";
+import defaultApi, { api as axiosApi } from "../services/api.js";
 import {
   Box,
   Container,
@@ -283,7 +283,7 @@ const TradeHistory = () => {
 
   const handleExportTrades = async (format = "csv") => {
     try {
-      const response = await api.api.get(`/api/trades/export?format=${format}`, {
+      const response = await axiosApi.get(`/api/trades/export?format=${format}`, {
         responseType: 'blob'
       });
       const blob = response.data;

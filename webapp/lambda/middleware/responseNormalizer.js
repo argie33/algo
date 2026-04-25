@@ -14,26 +14,11 @@ module.exports = (req, res, next) => {
   res.json = function(body) {
     // If already normalized, just send it
     if (body?.success !== undefined && body?.timestamp) {
-      console.log(`✅ Response already normalized, passing through:`, {
-        path: req.path,
-        hasSuccess: body?.success !== undefined,
-        hasTimestamp: !!body?.timestamp,
-        hasItems: Array.isArray(body?.items),
-        hasPagination: !!body?.pagination
-      });
       return originalJson.call(this, body);
     }
 
     // Normalize the response
-    console.log(`🔄 Normalizing response for ${req.path}:`, {
-      receivedKeys: Object.keys(body || {}),
-      statusCode: res.statusCode
-    });
     const normalized = normalizeResponse(body, res.statusCode);
-    console.log(`📤 Normalized response:`, {
-      path: req.path,
-      resultKeys: Object.keys(normalized)
-    });
     return originalJson.call(this, normalized);
   };
 

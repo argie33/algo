@@ -176,7 +176,7 @@ router.get("/quick/overview", async (req, res) => {
 // GET /api/stocks/full/data - Full stock data with detailed metrics
 router.get("/full/data", async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    const limit = Math.min(parseInt(req.query.limit) || 50, 100);
     const offset = parseInt(req.query.offset) || 0;
     const search = req.query.search || '';
 
@@ -187,18 +187,13 @@ router.get("/full/data", async (req, res) => {
         ss.security_name as name,
         ss.market_category as category,
         ss.exchange,
-        cp.sector,
-        cp.industry,
-        COALESCE(vm.pe_ratio, vm.price_to_book, vm.price_to_sales) as valuation,
-        COALESCE(gm.revenue_growth_yoy, gm.eps_growth_3y_cagr) as growth,
-        COALESCE(mm.momentum_1m, mm.momentum_3m) as momentum,
-        COALESCE(qm.roe, qm.roa) as quality
+        COALESCE(vm.pe_ratio, 0) as valuation,
+        COALESCE(gm.revenue_growth_yoy, 0) as growth,
+        COALESCE(mm.momentum_1m, 0) as momentum
       FROM stock_symbols ss
-      LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
       LEFT JOIN value_metrics vm ON ss.symbol = vm.symbol
       LEFT JOIN growth_metrics gm ON ss.symbol = gm.symbol
       LEFT JOIN momentum_metrics mm ON ss.symbol = mm.symbol
-      LEFT JOIN quality_metrics qm ON ss.symbol = qm.symbol
       WHERE 1=1
     `;
     const params = [];
