@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 import os
 import sys
+import io
+
+# Fix Unicode encoding on Windows BEFORE any other imports
+if sys.platform == 'win32':
+    os.environ['PYTHONIOENCODING'] = 'utf-8'
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 import json
 import requests
 import pandas as pd
@@ -10,12 +18,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
 import logging
-import io
 from dotenv import load_dotenv
-
-# Fix Unicode encoding on Windows
-if sys.platform == 'win32':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 # Load environment from .env.local (cross-platform)
 from pathlib import Path

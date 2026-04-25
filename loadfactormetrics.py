@@ -28,26 +28,29 @@ Author: Financial Dashboard System
 Updated: 2026-02-08
 """
 
+import sys
+import os
+import io
+
+# Fix Unicode encoding on Windows BEFORE any other imports that use stdout/logging
+if sys.platform == 'win32':
+    os.environ['PYTHONIOENCODING'] = 'utf-8'
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 import gc
 import json
 import logging
-import os
-import io
 try:
     import resource
     HAS_RESOURCE = True
 except ImportError:
     HAS_RESOURCE = False
-import sys
 import signal
 import time
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
-
-# Fix Unicode encoding on Windows
-if sys.platform == 'win32':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 from dotenv import load_dotenv
 

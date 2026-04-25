@@ -11,9 +11,13 @@ import time
 from datetime import datetime, timedelta
 import io
 
-# Fix Unicode encoding on Windows - support emoji in logs
+# Fix Unicode encoding on Windows BEFORE any other imports
 if sys.platform == 'win32':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    # Set encoding for all streams
+    os.environ['PYTHONIOENCODING'] = 'utf-8'
+    # Wrap stdout to support UTF-8
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 import boto3
 import pandas as pd
@@ -31,8 +35,10 @@ from psycopg2.extras import execute_values
 
 # ─── Logging setup ───────────────────────────────────────────────────────────────
 # Send all INFO+ logs to stdout so awslogs picks them up
-logging.basicConfig(stream=sys.stdout, level=logging.INFO,
-                    format='[%(asctime)s] %(levelname)s %(name)s: %(message)s')
+# Use errors='replace' to skip unencodable characters instead of crashing
+handler = logging.StreamHandler(sys.stdout)
+handler.setFormatter(logging.Formatter('[%(asctime)s] %(levelname)s %(name)s: %(message)s'))
+logging.basicConfig(level=logging.INFO, handlers=[handler])
 logger = logging.getLogger()
 
 # ─── Environment variables ──────────────────────────────────────────────────────
