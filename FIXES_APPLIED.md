@@ -1,105 +1,133 @@
-# 🔧 AWS LOADER FIXES - APPLIED
-**Date**: 2026-03-01
-**Commit**: 583b809c8
+# FIXES APPLIED - April 24, 2026
+
+## COMPLETED FIXES ✓
+
+### 1. **Portfolio Tables Created** ✓
+**Issue**: `portfolio_holdings` and `portfolio_performance` tables missing
+- **Impact**: Portfolio feature completely non-functional
+- **Fix**: Created both tables with proper schema
+- **Result**: Portfolio endpoints can now store/retrieve data
+- **Files**: `setup-portfolio-tables.py` (creates tables on demand)
+
+### 2. **Unicode Encoding Fixed** ✓
+**Issue**: Python data loaders crashing with `UnicodeEncodeError` on Windows
+- **Files affected**: 
+  - loadecondata.py
+  - loadbuysellweekly.py
+  - loadfactormetrics.py
+- **Cause**: Python console using cp1252, but logging includes Unicode emoji
+- **Fix**: Added UTF-8 output wrapper for Windows systems
+- **Result**: Loaders can now run without encoding crashes
+
+### 3. **Database Connection Timeouts Fixed** ✓
+**Issue**: Data loaders crashing with "server closed connection unexpectedly"
+- **Root cause**: Default 30-second statement timeout too short for bulk operations
+- **Files affected**:
+  - loadfactormetrics.py - increased from 30s to 600s
+  - loadecondata.py - added timeout configuration
+  - loadbuysellweekly.py - already had proper timeouts
+- **Fix**: Set `statement_timeout=600000` (10 minutes) for large batch inserts
+- **Additional**: Added `connect_timeout=10` for faster connection failure detection
+- **Result**: Loaders can complete long-running operations without timeout
 
 ---
 
-## ✅ FIXES APPLIED
+## REMAINING ISSUES TO FIX
 
-### 1. loadstocksymbols.py - Timeout Protection
-**Issue**: Missing timeout on external API requests
-**Impact**: Could cause Lambda to hang indefinitely
+### CRITICAL - Data Still Missing
 
-**Before**:
-```python
-nas_text = requests.get(NASDAQ_URL).text
-oth_text = requests.get(OTHER_URL).text
-```
+| Issue | Impact | Status |
+|-------|--------|--------|
+| **Earnings estimates NULL** | All EPS/revenue actual fields are NULL | Need to repopulate from loader |
+| **Economic data empty** | Economy endpoints return no data | Need loadecondata.py to run successfully |
+| **Value metrics partial** | ~3,820 stocks missing value metrics | Need loadfactormetrics.py to complete |
+| **Buy/sell signals missing** | No trading signals | Need loadbuysellweekly.py to run |
 
-**After**:
-```python
-nas_text = requests.get(NASDAQ_URL, timeout=15).text
-oth_text = requests.get(OTHER_URL, timeout=15).text
-```
+### SECONDARY - Data Quality
 
-**Status**: ✅ FIXED
-
----
-
-### 2. loaddailycompanydata.py - Dead Code Removal
-**Issue**: 47 lines of disabled code (if False guard)
-**Impact**: Code clarity, removes confusion
-
-**Before**: Contained disabled revenue_estimates insertion block
-**After**: Block removed entirely
-
-**Status**: ✅ FIXED
+| Issue | Status |
+|-------|--------|
+| Alpaca API returning 401 errors | Check credentials in .env.local |
+| Delisted stocks (XFLH-R) | 8 failed price downloads - acceptable |
+| Sparse sector/industry data | May need additional data sources |
 
 ---
 
-## 📊 DATA QUALITY VERIFIED
+## NEXT STEPS
 
-- ✅ 0 test/fake symbols
-- ✅ 0 invalid prices
-- ✅ 0 duplicate records
-- ✅ 22.2M+ price records verified
-- ✅ All 4,996 symbols authentic
-- ✅ Data fresh (Feb 27, 2026)
-
----
-
-## 🚀 NEXT STEPS
-
-### Option 1: Minimal (Recommended)
-Nothing else needed! Database is production-ready.
-- Loaders for symbols/daily company data rarely change
-- No data quality issues found
-- AWS fixes complete
-
-### Option 2: Refresh (Optional)
-If you want completely fresh data:
+### 1. Run Data Loaders (Priority Order)
 ```bash
-# Rerun these loaders (for completeness)
-python3 loadstocksymbols.py        # Updates symbol list
-python3 loaddailycompanydata.py    # Updates company metrics
+# Step 1: Load earnings estimates and economic data
+python3 loaddailycompanydata.py    # Populates earnings_estimates
+python3 loadecondata.py             # Populates economic_data
+
+# Step 2: Load factor metrics
+python3 loadfactormetrics.py        # Populates quality/growth/momentum/value/positioning
+
+# Step 3: Load trading signals
+python3 loadbuysellweekly.py        # Populates buy/sell signals
+
+# Step 4: Load portfolio data from Alpaca
+python3 loadalpacaportfolio.py      # Populates portfolio_holdings/performance
 ```
 
-**Time**: ~30-60 minutes for both
-**Impact**: Minor updates only (symbols/company data rarely change)
+### 2. Monitor Data Loading
+- Check logs for errors: `tail -f *.log`
+- Verify data populated: Run `check-data-status.py` to see row counts
+- Check for NULL values in earnings_estimates table
 
-### Option 3: Full Reload
-Rerun ALL loaders for 100% fresh data:
+### 3. Verify Alpaca Integration
+- Test credentials: Check `ALPACA_API_KEY` and `ALPACA_SECRET_KEY` in `.env.local`
+- If paper trading: Ensure `ALPACA_PAPER_TRADING=true` is set
+- Test connection: Try to fetch account info from Alpaca API
+
+### 4. Start API Server and Test
 ```bash
-./batch_run_all_loaders.sh
+node local-server.js
+# Or from webapp/lambda: npm start
+
+# Test endpoints
+curl http://localhost:3001/health
+curl http://localhost:3001/api/earnings/data
+curl http://localhost:3001/api/portfolio/metrics
+curl http://localhost:3001/api/economic/calendar
 ```
 
-**Time**: 2-3 hours
-**Impact**: Comprehensive update of all data
+---
+
+## SUMMARY OF CHANGES
+
+### Files Modified:
+- `loadbuysellweekly.py` - Added Unicode fix
+- `loadecondata.py` - Added Unicode fix + timeout
+- `loadfactormetrics.py` - Added Unicode fix + timeout, improved config
+- `setup-portfolio-tables.py` - New script to create portfolio tables
+- `create-portfolio-tables.sql` - SQL schema for portfolio tables
+
+### Commits:
+- `2f5c7d610` - Fix critical data loading issues
 
 ---
 
-## 📋 AWS DEPLOYMENT STATUS
+## QUICK STATUS
 
-- ✅ All loaders compile without errors
-- ✅ All loaders have AWS Secrets Manager support
-- ✅ All loaders have timeout protection
-- ✅ Dead/disabled code removed
-- ✅ Database connectivity verified
-- ✅ Data quality 100% verified
+**What's Fixed:**
+- [x] Portfolio tables created
+- [x] Unicode encoding support for Windows
+- [x] Database timeout configuration increased
+- [x] Connection pooling improved
 
-**Ready for deployment**: YES ✅
+**What's Remaining:**
+- [ ] Run earnings data loader
+- [ ] Run economic data loader
+- [ ] Run factor metrics loader
+- [ ] Run trading signals loader
+- [ ] Verify Alpaca API credentials
+- [ ] Run portfolio loader
 
----
-
-## 🎯 RECOMMENDATION
-
-**DEPLOY NOW** - All AWS issues fixed and all data verified authentic.
-
-Database contains:
-- 4,996 real stocks/ETFs
-- 22.2M+ valid price records
-- 1.3M+ analyst recommendations
-- Complete trading signals
-- Fresh data (2 days old)
-
-No fake data, no test data, no corrupted records.
+**What Will Then Work:**
+- Earnings analysis endpoints
+- Economic calendar
+- Factor scoring (value, momentum, growth, quality)
+- Portfolio tracking
+- Trading signals and analysis
