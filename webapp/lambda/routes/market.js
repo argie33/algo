@@ -462,28 +462,25 @@ async function getFullSeasonalityData() {
 
 // Root endpoint for testing
 router.get("/", (req, res) => {
-  return res.json({
-    data: {
-      endpoint: "market",
-      available_routes: [
-        "/status - Current market status (open/closed/pre_market/after_hours)",
-        "/overview - Market quality, top stocks, market breadth",
-        "/breadth - Advance/decline ratios and market breadth indicators",
-        "/mcclellan-oscillator - Breadth momentum indicator (19/39-day EMA)",
-        "/distribution-days - IBD distribution days by index",
-        "/indices - Major market indices (S&P 500, NASDAQ, Dow, Russell 2000, VIX)",
-        "/volatility - Market volatility metrics and VIX data",
-        "/indicators - Technical indicators and market metrics",
-        "/correlation - Stock correlation matrix analysis",
-        "/aaii - AAII investor sentiment (bullish/neutral/bearish %)",
-        "/fear-greed - CNN Fear & Greed Index",
-        "/naaim - NAAIM manager exposure (bullish/bearish %)",
-        "/seasonality - Seasonal patterns and trading calendar",
-        "/internals - Market internals, breadth, moving averages, positioning"
-      ],
-      note: "Sector data has been moved to /api/sectors/sectors-with-history"
-    },
-    success: true
+  return sendSuccess(res, {
+    endpoint: "market",
+    available_routes: [
+      "/status - Current market status (open/closed/pre_market/after_hours)",
+      "/overview - Market quality, top stocks, market breadth",
+      "/breadth - Advance/decline ratios and market breadth indicators",
+      "/mcclellan-oscillator - Breadth momentum indicator (19/39-day EMA)",
+      "/distribution-days - IBD distribution days by index",
+      "/indices - Major market indices (S&P 500, NASDAQ, Dow, Russell 2000, VIX)",
+      "/volatility - Market volatility metrics and VIX data",
+      "/indicators - Technical indicators and market metrics",
+      "/correlation - Stock correlation matrix analysis",
+      "/aaii - AAII investor sentiment (bullish/neutral/bearish %)",
+      "/fear-greed - CNN Fear & Greed Index",
+      "/naaim - NAAIM manager exposure (bullish/bearish %)",
+      "/seasonality - Seasonal patterns and trading calendar",
+      "/internals - Market internals, breadth, moving averages, positioning"
+    ],
+    note: "Sector data has been moved to /api/sectors/sectors-with-history"
   });
 });
 
@@ -491,12 +488,9 @@ router.get("/", (req, res) => {
 router.get("/status", (req, res) => {
   try {
     const status = getMarketStatus();
-    return res.json({
-      data: {
-        status: status,
-        timestamp: new Date().toISOString()
-      },
-      success: true
+    return sendSuccess(res, {
+      status: status,
+      timestamp: new Date().toISOString()
     });
   } catch (err) {
     console.error('Error getting market status:', err.message);
@@ -2037,7 +2031,7 @@ router.get("/internals", async (req, res) => {
 
   try {
     if (!query) {
-      return res.status(500).json({error: "Database service unavailable", success: false, });
+      return sendError(res,  "Database service unavailable", success: false, });
     }
 
     // Run all queries in parallel
@@ -2492,7 +2486,7 @@ router.get("/naaim", async (req, res) => {
 
   } catch (error) {
     console.error("NAAIM sentiment error:", error);
-    return res.json({data: [], range: "30d", success: false});
+    return return sendSuccess(res, { [], range: "30d", success: false});
   }
 });
 
