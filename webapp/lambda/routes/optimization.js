@@ -87,7 +87,7 @@ router.get("/analysis", authenticateToken, async (req, res) => {
         (SELECT close FROM price_daily WHERE symbol = ss.symbol ORDER BY date DESC LIMIT 1) as current_price,
         COALESCE(asa.bullish_count, 0) as bullish_count,
         COALESCE(asa.bearish_count, 0) as bearish_count,
-        COALESCE(asa.total_analysts, 1) as total_analysts,
+        COALESCE(asa.analyst_count, 1) as analyst_count,
         -- MULTI-FACTOR INTELLIGENT SCORING:
         -- Score each candidate on multiple dimensions to fill specific portfolio gaps
         (
@@ -204,7 +204,7 @@ router.get("/analysis", authenticateToken, async (req, res) => {
       analyst_sentiment: {
         bullish_count: c.bullish_count,
         bearish_count: c.bearish_count,
-        total_analysts: c.total_analysts
+        analyst_count: c.analyst_count
       }
     }));
 
@@ -311,7 +311,7 @@ router.get("/analysis", authenticateToken, async (req, res) => {
         // Fetch analyst sentiment for this stock
         try {
           const sentResult = await query(
-            `SELECT bullish_count, bearish_count, neutral_count, total_analysts as total_analysts FROM analyst_sentiment_analysis WHERE symbol = $1 LIMIT 1`,
+            `SELECT bullish_count, bearish_count, neutral_count, analyst_count as analyst_count FROM analyst_sentiment_analysis WHERE symbol = $1 LIMIT 1`,
             [pos.symbol]
           );
           if (sentResult.rows?.[0] && qualityData[pos.symbol]) {
@@ -573,7 +573,7 @@ router.get("/analysis", authenticateToken, async (req, res) => {
 
         // Fetch analyst sentiment
         const sentimentQuery = `
-          SELECT bullish_count as bull_count, bearish_count as bear_count, neutral_count, total_analysts as total_analysts FROM analyst_sentiment_analysis WHERE symbol = $1 LIMIT 1
+          SELECT bullish_count as bull_count, bearish_count as bear_count, neutral_count, analyst_count as analyst_count FROM analyst_sentiment_analysis WHERE symbol = $1 LIMIT 1
         `;
         try {
           const sentResult = await withTimeout(query(sentimentQuery, [stock.symbol]), 1500);
@@ -704,7 +704,7 @@ router.get("/analysis", authenticateToken, async (req, res) => {
       // Apply analyst sentiment boost/penalty if available
       let sentimentBoost = 0;
       if (symbolData.analyst_sentiment) {
-        const total = symbolData.analyst_sentiment.total_analysts || 1;
+        const total = symbolData.analyst_sentiment.analyst_count || 1;
         const bullPct = (symbolData.analyst_sentiment.bull_count || 0) / total * 100;
         const bearPct = (symbolData.analyst_sentiment.bear_count || 0) / total * 100;
         // ±5% boost based on analyst consensus
@@ -1114,8 +1114,8 @@ router.get("/analysis", authenticateToken, async (req, res) => {
             boostFactor = 1.20; // +20% for good growth
           }
           // Analyst sentiment boost
-          else if (stock.analyst_sentiment && stock.analyst_sentiment.total_analysts > 3) {
-            const bullPct = (stock.analyst_sentiment.bullish_count / stock.analyst_sentiment.total_analysts) * 100;
+          else if (stock.analyst_sentiment && stock.analyst_sentiment.analyst_count > 3) {
+            const bullPct = (stock.analyst_sentiment.bullish_count / stock.analyst_sentiment.analyst_count) * 100;
             if (bullPct > 70) {
               boostFactor = 1.20; // +20% for strong analyst consensus
             } else if (bullPct > 60) {
@@ -1708,7 +1708,7 @@ router.get("/analysis", authenticateToken, async (req, res) => {
         // Factor 9: Analyst sentiment alignment (0-10 points)
         if (enriched.sentiment && enriched.sentiment.bull_count !== null && enriched.sentiment.bull_count !== undefined) {
           // ✅ REAL DATA ONLY: Use actual bull_count to calculate percentage
-          const total = enriched.sentiment.total_analysts || 1;
+          const total = enriched.sentiment.analyst_count || 1;
           const bullPct = (enriched.sentiment.bull_count || 0) / total * 100;
           let sentimentFactor = 0;
 
@@ -1835,12 +1835,12 @@ router.get("/analysis", authenticateToken, async (req, res) => {
 
         // Analyst sentiment
         // ✅ REAL DATA ONLY: Only include sentiment if data available
-        if (enriched.sentiment && enriched.sentiment.total_analysts > 5 && enriched.sentiment.bull_count !== null && enriched.sentiment.bull_count !== undefined) {
-          const total = enriched.sentiment.total_analysts || 1;
+        if (enriched.sentiment && enriched.sentiment.analyst_count > 5 && enriched.sentiment.bull_count !== null && enriched.sentiment.bull_count !== undefined) {
+          const total = enriched.sentiment.analyst_count || 1;
           const bullPct = (enriched.sentiment.bull_count || 0) / total * 100;
           const bearPct = (enriched.sentiment.bear_count || 0) / total * 100;
           if (bullPct > 65 && action === 'INCREASE') {
-            reasons.push(`👥 Analysts: ${bullPct.toFixed(0)}% bullish (${enriched.sentiment.bull_count}/${enriched.sentiment.total_analysts})`);
+            reasons.push(`👥 Analysts: ${bullPct.toFixed(0)}% bullish (${enriched.sentiment.bull_count}/${enriched.sentiment.analyst_count})`);
           } else if (bullPct < 35 && action === 'DECREASE') {
             reasons.push(`👥 Analysts: ${bearPct.toFixed(0)}% bearish - consensus agrees with reduction`);
           } else if (Math.abs(bullPct - 50) > 20) {
@@ -1899,10 +1899,10 @@ router.get("/analysis", authenticateToken, async (req, res) => {
           } : null,
 
           analystSentiment: enriched.sentiment ? {
-            bullPercentage: enriched.sentiment.bull_count && enriched.sentiment.total_analysts ? (enriched.sentiment.bull_count / enriched.sentiment.total_analysts * 100).toFixed(1) : null,
+            bullPercentage: enriched.sentiment.bull_count && enriched.sentiment.analyst_count ? (enriched.sentiment.bull_count / enriched.sentiment.analyst_count * 100).toFixed(1) : null,
             bullCount: enriched.sentiment.bull_count,
             bearCount: enriched.sentiment.bear_count,
-            totalAnalysts: enriched.sentiment.total_analysts
+            totalAnalysts: enriched.sentiment.analyst_count
           } : null,
 
           technicalIndicators: enriched.technicalContext ? {
@@ -2692,8 +2692,8 @@ router.get("/analysis", authenticateToken, async (req, res) => {
 
     // 4. TECHNICAL READINESS - Are candidates ready to buy?
     const readyCandidates = candidateStocksFormatted.filter(c => {
-      const bullPct = c.analyst_sentiment?.total_analysts > 0
-        ? (c.analyst_sentiment.bullish_count / c.analyst_sentiment.total_analysts) * 100
+      const bullPct = c.analyst_sentiment?.analyst_count > 0
+        ? (c.analyst_sentiment.bullish_count / c.analyst_sentiment.analyst_count) * 100
         : 0;
       return (
         c.quality_score > 60 &&
@@ -3016,7 +3016,11 @@ router.get("/analysis", authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error("Error generating portfolio optimization:", error.message, error.stack);
-    return sendError(res, "Portfolio optimization failed", 500);
+    return res.status(500).json({
+      error: "Portfolio optimization failed",
+      success: false,
+      details: error.message
+    });
   }
 });
 
@@ -3083,7 +3087,11 @@ router.get("/swing-trading", authenticateToken, async (req, res) => {
 
   } catch (error) {
     console.error("Error generating swing trading portfolio:", error.message, error.stack);
-    return sendError(res, "Swing trading portfolio generation failed", 500);
+    return res.status(500).json({
+      error: "Swing trading portfolio generation failed",
+      success: false,
+      details: error.message
+    });
   }
 });
 
@@ -3096,7 +3104,10 @@ router.post("/execute", authenticateToken, async (req, res) => {
 
   try {
     if (!recommendations || !Array.isArray(recommendations)) {
-      return sendError(res, "Invalid recommendations provided", 422);
+      return res.status(422).json({
+        error: "Invalid recommendations provided",
+        success: false
+      });
     }
 
     // Simulate execution of optimization recommendations - REAL DATA ONLY

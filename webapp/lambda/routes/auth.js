@@ -55,7 +55,10 @@ router.post("/login", async (req, res) => {
 
     // AWS Cognito is REQUIRED - no development fallbacks for real finance
     if (!process.env.COGNITO_CLIENT_ID) {
-      return sendError(res, "Service unavailable", 500);
+      return res.status(500).json({
+        error: "Service unavailable",
+        success: false
+      });
     }
 
     const command = new InitiateAuthCommand({
@@ -104,19 +107,31 @@ router.post("/login", async (req, res) => {
     console.error("Login error:", error);
 
     if (error.message === "Authentication timeout") {
-      return sendError(res, "Authentication timeout", 408);
+      return res.status(408).json({
+        error: "Authentication timeout",
+        success: false
+      });
     }
 
     if (error.name === "NotAuthorizedException") {
-      return sendError(res, "Invalid credentials", 401);
+      return res.status(401).json({
+        error: "Invalid credentials",
+        success: false
+      });
     }
 
     if (error.name === "UserNotConfirmedException") {
-      return sendError(res, "Account not confirmed", 401);
+      return res.status(401).json({
+        error: "Account not confirmed",
+        success: false
+      });
     }
 
     if (error.name === "TimeoutError" || error.code === "TimeoutError") {
-      return sendError(res, "Request timeout", 408);
+      return res.status(408).json({
+        error: "Request timeout",
+        success: false
+      });
     }
 
     return res
@@ -172,7 +187,10 @@ router.post("/challenge", async (req, res) => {
         });
       }
 
-      return sendError(res, "Invalid challenge response", 400);
+      return res.status(400).json({
+        error: "Invalid challenge response",
+        success: false
+      });
     }
 
     const { challengeName, challengeResponses, session } = req.body;
@@ -228,7 +246,10 @@ router.post("/register", async (req, res) => {
 
     // AWS Cognito is REQUIRED - no development fallbacks for real finance
     if (!process.env.COGNITO_CLIENT_ID) {
-      return sendError(res, "Service unavailable", 500);
+      return res.status(500).json({
+        error: "Service unavailable",
+        success: false
+      });
     }
 
     const command = new SignUpCommand({

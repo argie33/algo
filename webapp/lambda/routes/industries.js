@@ -57,7 +57,10 @@ router.use((req, res, next) => {
 router.get("/industries", async (req, res) => {
   try {
     if (!query) {
-      return sendError(res, "Database service unavailable", 503);
+      return res.status(503).json({
+        error: "Database service unavailable",
+        success: false
+      });
     }
 
     const { limit = 500 } = req.query;
@@ -118,7 +121,10 @@ router.get("/industries", async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Error in /api/industries/industries:', error.message);
-    return sendError(res, "Request failed", 500);
+    return res.status(500).json({
+      error: "Request failed",
+      success: false
+    });
   }
 });
 
@@ -129,7 +135,10 @@ router.get("/industries", async (req, res) => {
 router.get("/trend/industry/:industryName", async (req, res) => {
   try {
     if (!query) {
-      return sendError(res, "Database service unavailable", 500);
+      return res.status(500).json({
+        error: "Database service unavailable",
+        success: false
+      });
     }
 
     const { industryName } = req.params;
@@ -153,7 +162,10 @@ router.get("/trend/industry/:industryName", async (req, res) => {
     );
 
     if (!trendData.rows.length) {
-      return sendError(res, "Industry not found or no trend data available", 404);
+      return res.status(404).json({
+        error: "Industry not found or no trend data available",
+        success: false
+      });
     }
 
     res.json({
@@ -194,17 +206,26 @@ router.get("/fresh-data", async (req, res) => {
       const industries = Object.values(comprehensiveData.industries || {});
       const sorted = industries.sort((a, b) => b.changePercent - a.changePercent);
 
-      return sendSuccess(res, {
+      return res.json({
         data: sorted,
         timestamp: comprehensiveData.timestamp,
         source: "fresh-industries",
-        message: "Fresh industry ranking data"}));
+        message: "Fresh industry ranking data",
+        success: true
+      });
     }
 
-    return sendError(res, "Fresh data not available", 404);
+    return res.status(404).json({
+      error: "Fresh data not available",
+      success: false
+    });
   } catch (error) {
     console.error("Fresh industries error:", error.message);
-    return sendError(res, "Failed to fetch fresh industries", 500);
+    return res.status(500).json({
+      error: "Failed to fetch fresh industries",
+      details: error.message,
+      success: false
+    });
   }
 });
 

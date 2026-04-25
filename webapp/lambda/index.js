@@ -290,9 +290,6 @@ app.use((error, req, res, next) => {
   next(error);
 });
 
-// CRITICAL: Response normalizer - ensures all responses have consistent format
-app.use(responseNormalizer);
-
 // Note: API Gateway strips the /api prefix before sending to Lambda
 
 // Logging (simplified for Lambda)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Technical Indicators Loader - DAILY
+Technical Indicators Loader
 Calculates and populates technical_data_daily table with RSI, MACD, and other technical indicators.
 
 Data Calculated:
@@ -13,22 +13,17 @@ Data Sources:
 - price_daily table (OHLCV data)
 
 Author: Financial Dashboard System
-Updated: 2026-04-25
+Updated: 2026-02-09
 """
 
 import gc
 import logging
 import os
+import resource
 import sys
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
-
-try:
-    import resource
-    HAS_RESOURCE = True
-except ImportError:
-    HAS_RESOURCE = False
 
 import boto3
 import pandas as pd
@@ -44,7 +39,7 @@ import psycopg2.extensions
 from psycopg2.extras import RealDictCursor, execute_values
 
 # Script metadata
-SCRIPT_NAME = "loadtechnicalsdaily.py"
+SCRIPT_NAME = "loadtechnicalindicators.py"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -70,8 +65,6 @@ psycopg2.extensions.register_adapter(np.float32, adapt_numpy_float64)
 
 
 def get_rss_mb():
-    if not HAS_RESOURCE:
-        return 0
     usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     if sys.platform.startswith("linux"):
         return usage / 1024
@@ -217,7 +210,7 @@ def load_technical_indicators(cur, conn):
     """Load technical indicators from price data."""
 
     try:
-        logging.info("Loading price data for technical calculations (DAILY)...")
+        logging.info("Loading price data for technical calculations...")
 
         # Get list of symbols with recent price data
         cur.execute("""
@@ -228,7 +221,7 @@ def load_technical_indicators(cur, conn):
         """)
 
         symbols = [row['symbol'] for row in cur.fetchall()]
-        logging.info(f"Processing {len(symbols)} symbols with daily price data")
+        logging.info(f"Processing {len(symbols)} symbols with price data")
 
         indicators_data = []
         processed = 0
@@ -328,13 +321,13 @@ def load_technical_indicators(cur, conn):
                 page_size=1000
             )
             conn.commit()
-            logging.info(f"[OK] Inserted {len(indicators_data)} technical indicator records")
+            logging.info(f"✅ Inserted {len(indicators_data)} technical indicator records")
 
         return len(indicators_data)
 
     except Exception as e:
         error_msg = str(e) if str(e) else f"Unknown error (type: {type(e).__name__})"
-        logging.error(f"[ERROR] Failed to load technical indicators: {error_msg}")
+        logging.error(f"❌ Failed to load technical indicators: {error_msg}")
         logging.error(f"Exception type: {type(e).__name__}")
         import traceback
         logging.error(f"Traceback: {traceback.format_exc()}")
@@ -354,12 +347,12 @@ def main():
         conn = psycopg2.connect(**db_config)
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        logging.info(f"[OK] Connected to {db_config['dbname']} database")
+        logging.info(f"✅ Connected to {db_config['dbname']} database")
 
         # Load technical indicators
         count = load_technical_indicators(cur, conn)
 
-        logging.info(f"[OK] Technical indicators (DAILY) loaded successfully ({count} records)")
+        logging.info(f"✅ Technical indicators loaded successfully ({count} records)")
         log_mem("finished")
 
         cur.close()
@@ -369,7 +362,7 @@ def main():
 
     except Exception as e:
         error_msg = str(e) if str(e) else f"Unknown error (type: {type(e).__name__})"
-        logging.error(f"[ERROR] FATAL: {error_msg}")
+        logging.error(f"❌ FATAL: {error_msg}")
         logging.error(f"Exception type: {type(e).__name__}")
         import traceback
         logging.error(f"Full traceback:\n{traceback.format_exc()}")

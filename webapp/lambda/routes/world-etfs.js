@@ -69,7 +69,10 @@ router.get("/list", async (req, res) => {
     });
   } catch (err) {
     console.error("Error fetching ETF list:", err.message);
-    return sendError(res, "Failed to fetch ETF list", 500);
+    return res.status(500).json({
+      error: "Failed to fetch ETF list",
+      success: false
+    });
   }
 });
 
@@ -79,7 +82,10 @@ router.get("/prices", async (req, res) => {
     const { symbols, timeframe = 'daily', limit = 200 } = req.query;
 
     if (!symbols) {
-      return sendError(res, "symbols parameter required", 400);
+      return res.status(400).json({
+        error: "symbols parameter required",
+        success: false
+      });
     }
 
     const symbolList = symbols.split(',').map(s => s.trim().toUpperCase());
@@ -137,7 +143,10 @@ router.get("/prices", async (req, res) => {
     });
   } catch (err) {
     console.error("Error fetching prices:", err.message);
-    return sendError(res, "Failed to fetch prices", 500);
+    return res.status(500).json({
+      error: "Failed to fetch prices",
+      success: false
+    });
   }
 });
 
@@ -147,7 +156,10 @@ router.get("/signals", async (req, res) => {
     const { symbols, timeframe = 'daily', limit = 200 } = req.query;
 
     if (!symbols) {
-      return sendError(res, "symbols parameter required", 400);
+      return res.status(400).json({
+        error: "symbols parameter required",
+        success: false
+      });
     }
 
     const symbolList = symbols.split(',').map(s => s.trim().toUpperCase());
@@ -206,7 +218,10 @@ router.get("/signals", async (req, res) => {
     });
   } catch (err) {
     console.error("Error fetching signals:", err.message);
-    return sendError(res, "Failed to fetch signals", 500);
+    return res.status(500).json({
+      error: "Failed to fetch signals",
+      success: false
+    });
   }
 });
 

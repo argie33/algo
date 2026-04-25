@@ -950,17 +950,8 @@ export function extractResponseData(response) {
   }
 
   // Nested data response: {data: {...}, success: true}
-  if (data.data !== undefined) {
-    // If data is an array, wrap pagination
-    if (Array.isArray(data.data)) {
-      return { items: data.data, pagination: data.pagination || {} };
-    }
+  if (data.data !== undefined && data.success !== undefined) {
     return data.data;
-  }
-
-  // Top-level array response - wrap it
-  if (Array.isArray(data)) {
-    return { items: data, pagination: {} };
   }
 
   // Direct data response: {..., success: true}

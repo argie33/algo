@@ -26,12 +26,17 @@ router.get('/', async (req, res) => {
       []
     );
 
-    return sendSuccess(res, {
+    return res.json({
       data: result.rows || [],
-      count: result.rowCount || 0}));
+      count: result.rowCount || 0,
+      success: true
+    });
   } catch (err) {
     console.error('Error fetching manual trades:', err.message);
-    return sendError(res, 'Failed to fetch trades', 500);
+    return res.status(500).json({
+      error: 'Failed to fetch trades',
+      success: false
+    });
   }
 });
 
@@ -54,14 +59,22 @@ router.get('/:id', async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return sendError(res, 'Trade not found', 404);
+      return res.status(404).json({
+        error: 'Trade not found',
+        success: false
+      });
     }
 
-    return sendSuccess(res, {
-      data: result.rows[0]}));
+    return res.json({
+      data: result.rows[0],
+      success: true
+    });
   } catch (err) {
     console.error('Error fetching trade:', err.message);
-    return sendError(res, 'Failed to fetch trade', 500);
+    return res.status(500).json({
+      error: 'Failed to fetch trade',
+      success: false
+    });
   }
 });
 
@@ -75,13 +88,19 @@ router.post('/', async (req, res) => {
 
     // Validate required fields
     if (!symbol || !trade_type || quantity === undefined || price === undefined || !execution_date) {
-      return sendError(res, 'Missing required fields: symbol, trade_type, quantity, price, execution_date', 400);
+      return res.status(400).json({
+        error: 'Missing required fields: symbol, trade_type, quantity, price, execution_date',
+        success: false
+      });
     }
 
     // Validate trade_type (must be 3 chars for DB: BUY/SEL)
     const tradeType = trade_type.toLowerCase() === 'buy' ? 'BUY' : trade_type.toLowerCase() === 'sell' ? 'SELL' : null;
     if (!tradeType) {
-      return sendError(res, 'trade_type must be "buy" or "sell"', 400);
+      return res.status(400).json({
+        error: 'trade_type must be "buy" or "sell"',
+        success: false
+      });
     }
 
     // Validate numbers
@@ -91,20 +110,32 @@ router.post('/', async (req, res) => {
 
     // Validate commission if provided
     if (comm !== null && isNaN(comm)) {
-      return sendError(res, 'commission must be a valid number', 400);
+      return res.status(400).json({
+        error: 'commission must be a valid number',
+        success: false
+      });
     }
 
     if (isNaN(qty) || qty <= 0 || isNaN(prc) || prc <= 0) {
-      return sendError(res, 'quantity and price must be positive numbers', 400);
+      return res.status(400).json({
+        error: 'quantity and price must be positive numbers',
+        success: false
+      });
     }
 
     // Validate date
     const tradeDate = new Date(execution_date);
     if (isNaN(tradeDate.getTime())) {
-      return sendError(res, 'Invalid execution_date format', 400);
+      return res.status(400).json({
+        error: 'Invalid execution_date format',
+        success: false
+      });
     }
     if (tradeDate > new Date()) {
-      return sendError(res, 'execution_date cannot be in the future', 400);
+      return res.status(400).json({
+        error: 'execution_date cannot be in the future',
+        success: false
+      });
     }
 
     const orderValue = qty * prc;
@@ -122,7 +153,10 @@ router.post('/', async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return sendError(res, 'Failed to create trade', 500);
+      return res.status(500).json({
+        error: 'Failed to create trade',
+        success: false
+      });
     }
 
     const trade = result.rows[0];
@@ -143,7 +177,11 @@ router.post('/', async (req, res) => {
     });
   } catch (err) {
     console.error('Error creating trade:', err.message, err.stack);
-    return sendError(res, 'Failed to create trade', 500);
+    return res.status(500).json({
+      error: 'Failed to create trade',
+      details: err.message,
+      success: false
+    });
   }
 });
 
@@ -162,7 +200,10 @@ router.patch('/:id', async (req, res) => {
     );
 
     if (existingResult.rowCount === 0) {
-      return sendError(res, 'Trade not found', 404);
+      return res.status(404).json({
+        error: 'Trade not found',
+        success: false
+      });
     }
 
     const existing = existingResult.rows[0];
@@ -177,7 +218,10 @@ router.patch('/:id', async (req, res) => {
 
     // Validate
     if (newQty <= 0 || newPrice <= 0) {
-      return sendError(res, 'quantity and price must be positive numbers', 400);
+      return res.status(400).json({
+        error: 'quantity and price must be positive numbers',
+        success: false
+      });
     }
 
     const newOrderValue = newQty * newPrice;
@@ -196,7 +240,10 @@ router.patch('/:id', async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return sendError(res, 'Trade not found', 404);
+      return res.status(404).json({
+        error: 'Trade not found',
+        success: false
+      });
     }
 
     // Recompute portfolio holdings for the symbol
@@ -215,11 +262,16 @@ router.patch('/:id', async (req, res) => {
       }
     }
 
-    return sendSuccess(res, {
-      data: result.rows[0]}));
+    return res.json({
+      data: result.rows[0],
+      success: true
+    });
   } catch (err) {
     console.error('Error updating trade:', err.message);
-    return sendError(res, 'Failed to update trade', 500);
+    return res.status(500).json({
+      error: 'Failed to update trade',
+      success: false
+    });
   }
 });
 
@@ -237,7 +289,10 @@ router.delete('/:id', async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return sendError(res, 'Trade not found', 404);
+      return res.status(404).json({
+        error: 'Trade not found',
+        success: false
+      });
     }
 
     const trade = result.rows[0];
@@ -262,7 +317,10 @@ router.delete('/:id', async (req, res) => {
     });
   } catch (err) {
     console.error('Error deleting trade:', err.message);
-    return sendError(res, 'Failed to delete trade', 500);
+    return res.status(500).json({
+      error: 'Failed to delete trade',
+      success: false
+    });
   }
 });
 

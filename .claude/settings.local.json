@@ -34,9 +34,7 @@
       "Bash(grep -v grep echo \"---\" lsof -i :3000)",
       "Bash(node local-server.js)",
       "Bash(tail -50 C:\\\\\\\\Users\\\\\\\\arger\\\\\\\\.claude\\\\\\\\projects\\\\\\\\C--Users-arger-code-algo\\\\\\\\606604fd-20a0-4308-993a-a9249aeaffa3\\\\\\\\tool-results\\\\\\\\b5r2874l3.txt)",
-      "PowerShell($profile)",
-      "Bash(cat)",
-      "Read(//tmp/**)"
+      "PowerShell($profile)"
     ]
   }
 }

@@ -27,8 +27,8 @@ router.get("/data", async (req, res) => {
     let queryStr = `
       SELECT
         symbol,
-        date_recorded as date,
-        total_analysts,
+        date,
+        analyst_count,
         bullish_count,
         bearish_count,
         neutral_count,
@@ -37,7 +37,7 @@ router.get("/data", async (req, res) => {
         upside_downside_percent
       FROM analyst_sentiment_analysis
       WHERE symbol IS NOT NULL
-      ORDER BY date_recorded DESC, symbol ASC
+      ORDER BY date DESC, symbol ASC
       LIMIT $1 OFFSET $2
     `;
     let countParams = [];
@@ -50,7 +50,7 @@ router.get("/data", async (req, res) => {
         SELECT
           symbol,
           date as date,
-          total_analysts as total_analysts,
+          analyst_count as analyst_count,
           bullish_count,
           bearish_count,
           neutral_count,
@@ -117,7 +117,7 @@ router.get("/summary", async (req, res) => {
 
     try {
       const analystResult = await query(
-        `SELECT total_analysts, bullish_count, bearish_count, neutral_count, date_recorded as date FROM analyst_sentiment_analysis ORDER BY date_recorded DESC LIMIT 1`
+        `SELECT analyst_count, bullish_count, bearish_count, neutral_count, date as date FROM analyst_sentiment_analysis ORDER BY date DESC LIMIT 1`
       );
       analyst = analystResult.rows[0] || null;
     } catch (e) {
@@ -157,7 +157,7 @@ router.get("/analyst", async (req, res) => {
 
     let countQueryStr = `SELECT COUNT(*) as total FROM analyst_sentiment_analysis`;
     let queryStr = `
-      SELECT symbol, date_recorded as date, total_analysts as total_analysts, bullish_count, bearish_count, neutral_count FROM analyst_sentiment_analysis
+      SELECT symbol, date as date, analyst_count as analyst_count, bullish_count, bearish_count, neutral_count FROM analyst_sentiment_analysis
       ORDER BY date DESC
       LIMIT $1 OFFSET $2
     `;
@@ -168,7 +168,7 @@ router.get("/analyst", async (req, res) => {
       countQueryStr = `SELECT COUNT(*) as total FROM analyst_sentiment_analysis WHERE symbol = $1`;
       countParams = [symbol.toUpperCase()];
       queryStr = `
-        SELECT symbol, date_recorded as date, total_analysts as total_analysts, bullish_count, bearish_count, neutral_count FROM analyst_sentiment_analysis
+        SELECT symbol, date as date, analyst_count as analyst_count, bullish_count, bearish_count, neutral_count FROM analyst_sentiment_analysis
         WHERE symbol = $1
         ORDER BY date DESC
         LIMIT $2 OFFSET $3
@@ -209,7 +209,7 @@ router.get("/history", async (req, res) => {
     let queryStr = `
       SELECT
         date as date,
-        total_analysts as total_analysts,
+        analyst_count as analyst_count,
         bullish_count,
         bearish_count,
         neutral_count
@@ -220,20 +220,27 @@ router.get("/history", async (req, res) => {
 
     try {
       const result = await query(queryStr, [daysNum]);
-      return sendSuccess(res, {
+      return res.json({
         data: result.rows || [],
-        period_days: daysNum}));
+        period_days: daysNum,
+        success: true
+      });
     } catch (tableError) {
       // If analyst table doesn't exist, return empty history
       console.warn("Analyst sentiment table not available:", tableError.message);
-      return sendSuccess(res, {
+      return res.json({
         data: [],
         period_days: daysNum,
-        message: "Historical data not available"}));
+        message: "Historical data not available",
+        success: true
+      });
     }
   } catch (error) {
     console.error("Sentiment history error:", error);
-    return sendError(res, "Failed to fetch sentiment history", 500);
+    return res.status(500).json({
+      error: "Failed to fetch sentiment history",
+      success: false
+    });
   }
 });
 
@@ -302,13 +309,13 @@ router.get("/divergence", async (req, res) => {
       SELECT
         symbol,
         date,
-        total_analysts,
+        analyst_count,
         bullish_count,
         bearish_count,
         neutral_count,
-        ROUND((bullish_count::float / NULLIF(total_analysts, 0) * 100)::numeric, 2) as bull_percent,
-        ROUND((bearish_count::float / NULLIF(total_analysts, 0) * 100)::numeric, 2) as bear_percent,
-        ROUND((neutral_count::float / NULLIF(total_analysts, 0) * 100)::numeric, 2) as neutral_percent
+        ROUND((bullish_count::float / NULLIF(analyst_count, 0) * 100)::numeric, 2) as bull_percent,
+        ROUND((bearish_count::float / NULLIF(analyst_count, 0) * 100)::numeric, 2) as bear_percent,
+        ROUND((neutral_count::float / NULLIF(analyst_count, 0) * 100)::numeric, 2) as neutral_percent
       FROM analyst_sentiment_analysis
       WHERE date >= NOW() - INTERVAL '90 days'
     `;
@@ -324,11 +331,16 @@ router.get("/divergence", async (req, res) => {
 
     const result = await query(queryStr, params);
 
-    return sendSuccess(res, {
-      items: result.rows || []}));
+    return res.json({
+      items: result.rows || [],
+      success: true
+    });
   } catch (error) {
     console.error("Sentiment divergence error:", error);
-    return sendError(res, "Failed to fetch sentiment divergence", 500);
+    return res.status(500).json({
+      error: "Failed to fetch sentiment divergence",
+      success: false
+    });
   }
 });
 
@@ -352,7 +364,7 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
       `SELECT
         symbol,
         date as date,
-        total_analysts as total_analysts,
+        analyst_count as analyst_count,
         bullish_count,
         bearish_count,
         neutral_count,
@@ -369,7 +381,7 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
     if (result.rows.length === 0) {
       return res.json({
         symbol: symbol.toUpperCase(),
-        total_analysts: 0,
+        analyst_count: 0,
         bullish_count: 0,
         bearish_count: 0,
         neutral_count: 0,
@@ -381,9 +393,9 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
     }
 
     const row = result.rows[0];
-    const bullish_pct = row.total_analysts > 0 ? ((row.bullish_count / row.total_analysts) * 100).toFixed(2) : 0;
-    const bearish_pct = row.total_analysts > 0 ? ((row.bearish_count / row.total_analysts) * 100).toFixed(2) : 0;
-    const neutral_pct = row.total_analysts > 0 ? ((row.neutral_count / row.total_analysts) * 100).toFixed(2) : 0;
+    const bullish_pct = row.analyst_count > 0 ? ((row.bullish_count / row.analyst_count) * 100).toFixed(2) : 0;
+    const bearish_pct = row.analyst_count > 0 ? ((row.bearish_count / row.analyst_count) * 100).toFixed(2) : 0;
+    const neutral_pct = row.analyst_count > 0 ? ((row.neutral_count / row.analyst_count) * 100).toFixed(2) : 0;
 
     // Determine consensus based on percentages
     let consensus = 'hold';
@@ -393,7 +405,7 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
     return res.json({
       symbol: row.symbol,
       date: row.date,
-      total_analysts: row.total_analysts || 0,
+      analyst_count: row.analyst_count || 0,
       bullish_count: row.bullish_count || 0,
       bearish_count: row.bearish_count || 0,
       neutral_count: row.neutral_count || 0,
@@ -407,7 +419,10 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
     });
   } catch (error) {
     console.error("Analyst insights error:", error);
-    return sendError(res, "Failed to fetch analyst insights", 500);
+    return res.status(500).json({
+      error: "Failed to fetch analyst insights",
+      success: false
+    });
   }
 });
 
@@ -425,14 +440,18 @@ router.get("/aaii", async (req, res) => {
       console.warn("aaii_sentiment table not available:", e.message);
     }
 
-    return sendSuccess(res, {
+    return res.json({
       data: aaii,
-      timestamp: new Date().toISOString()}));
+      timestamp: new Date().toISOString(),
+      success: true
+    });
   } catch (error) {
     console.error("AAII sentiment error:", error);
-    return sendSuccess(res, {
+    return res.json({
       data: null,
-      timestamp: new Date().toISOString()}));
+      timestamp: new Date().toISOString(),
+      success: true
+    });
   }
 });
 
