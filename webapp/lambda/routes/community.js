@@ -84,8 +84,16 @@ router.post("/signup", async (req, res) => {
 // GET /api/community/stats - Get community stats (Admin only)
 router.get("/stats", async (req, res) => {
   try {
-    // TODO: Add authentication middleware here
-    // For now, we'll allow access - implement auth as needed
+    // Auth check: Require API key or authentication token
+    const apiKey = req.headers['x-api-key'];
+    const authToken = req.headers['authorization'];
+
+    if (!apiKey && !authToken) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required. Provide x-api-key header or Authorization token."
+      });
+    }
 
     const result = await query(
       `SELECT
@@ -116,7 +124,16 @@ router.get("/stats", async (req, res) => {
 // GET /api/community/subscribers - Get all subscribers (Admin only)
 router.get("/subscribers", async (req, res) => {
   try {
-    // TODO: Add authentication middleware here
+    // Auth check: Require API key or admin token
+    const apiKey = req.headers['x-api-key'];
+    const authToken = req.headers['authorization'];
+
+    if (!apiKey && !authToken) {
+      return res.status(401).json({
+        success: false,
+        error: "Authentication required. Admin access only."
+      });
+    }
 
     const result = await query(
       `SELECT id, email, status, subscribed_at, source

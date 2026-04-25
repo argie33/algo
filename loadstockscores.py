@@ -289,23 +289,30 @@ def main():
 
     # ===== STABILITY SCORE (8 metrics) =====
     logger.info("Calculating STABILITY scores (low volatility, low drawdown, beta, consistency)...")
-    stability_metrics = ['volatility', 'downside_vol', 'max_drawdown', 'beta', 'vol_consistency', 'spread']
+    all_stability_metrics = ['volatility', 'downside_vol', 'max_drawdown', 'beta', 'vol_consistency', 'spread']
     stability_weights = {
         'volatility': 2.0, 'downside_vol': 2.0, 'max_drawdown': 1.5, 'beta': 1.5,
         'vol_consistency': 1.0, 'spread': 0.5
     }
-    # Invert volatility and drawdown (lower is better)
-    stability_for_calc = df.copy()
-    if 'volatility' in stability_for_calc.columns:
-        stability_for_calc['volatility'] = -stability_for_calc['volatility']
-    if 'downside_vol' in stability_for_calc.columns:
-        stability_for_calc['downside_vol'] = -stability_for_calc['downside_vol']
-    if 'max_drawdown' in stability_for_calc.columns:
-        stability_for_calc['max_drawdown'] = -stability_for_calc['max_drawdown']
-    if 'beta' in stability_for_calc.columns:
-        stability_for_calc['beta'] = -stability_for_calc['beta']
-    df['stability_z'] = calculate_weighted_score(stability_for_calc, stability_metrics, stability_weights)
-    df['stability_score'] = df['stability_z'].apply(zscore_to_percentile)
+    # Filter to only available metrics
+    stability_metrics = [m for m in all_stability_metrics if m in df.columns]
+    if not stability_metrics:
+        logger.warning("  No stability metrics available - using NaN for stability score")
+        df['stability_z'] = np.nan
+        df['stability_score'] = np.nan
+    else:
+        # Invert volatility and drawdown (lower is better)
+        stability_for_calc = df.copy()
+        if 'volatility' in stability_for_calc.columns:
+            stability_for_calc['volatility'] = -stability_for_calc['volatility']
+        if 'downside_vol' in stability_for_calc.columns:
+            stability_for_calc['downside_vol'] = -stability_for_calc['downside_vol']
+        if 'max_drawdown' in stability_for_calc.columns:
+            stability_for_calc['max_drawdown'] = -stability_for_calc['max_drawdown']
+        if 'beta' in stability_for_calc.columns:
+            stability_for_calc['beta'] = -stability_for_calc['beta']
+        df['stability_z'] = calculate_weighted_score(stability_for_calc, stability_metrics, stability_weights)
+        df['stability_score'] = df['stability_z'].apply(zscore_to_percentile)
 
     # ===== MOMENTUM SCORE (8 metrics) =====
     logger.info("Calculating MOMENTUM scores (price trends, technical positioning)...")

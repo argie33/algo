@@ -20,10 +20,10 @@ import {
   Chip
 } from '@mui/material';
 import './TradeHistory.css';
-
-const API_BASE_URL = (import.meta.env && import.meta.env.VITE_API_URL) || (window.__CONFIG__ && window.__CONFIG__.API_URL) || "http://localhost:3000";
+import { getApiConfig } from '../services/api';
 
 const TradeHistory = () => {
+  const { apiUrl: API_BASE_URL } = getApiConfig();
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
   const [filters, setFilters] = useState({

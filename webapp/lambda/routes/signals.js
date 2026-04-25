@@ -433,14 +433,7 @@ router.get("/etf", async (req, res) => {
 
     let signalsResult;
     try {
-      console.log(`[ETF_SIGNALS_DEBUG] Executing query for ${timeframe}:`, {
-        tableName,
-        paramCount: queryParams.length,
-        params: queryParams,
-        queryPreview: signalsQuery.substring(0, 150)
-      });
       signalsResult = await query(signalsQuery, queryParams);
-      console.log(`[ETF_SIGNALS_DEBUG] Query successful, returned ${signalsResult?.rows?.length || 0} rows`);
     } catch (queryError) {
       // ETF tables don't exist - return empty data instead of error
       console.log(`[INFO] ETF signals not available for ${timeframe}: ${queryError.message.substring(0, 100)}`);
