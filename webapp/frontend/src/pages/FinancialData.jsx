@@ -291,7 +291,7 @@ function FinancialData() {
                     sx={{ display: "flex", alignItems: "center" }}
                   >
                     {/* We can add icons based on category later */}
-                    <Box sx={{ ml: 0 }}>{category.title || categoryKey}</Box>
+                    <Box sx={{ ml: 0 }}>{category?.title || categoryKey}</Box>
                   </Typography>
                   <Divider sx={{ mb: 2 }} />
                   <TableContainer>

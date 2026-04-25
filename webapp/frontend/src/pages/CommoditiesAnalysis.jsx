@@ -110,10 +110,11 @@ function CommoditiesAnalysis() {
 
   // Filter commodities by category
   const filteredCommodities = useMemo(() => {
-    if (!pricesQuery.data) return [];
-    if (filterCategory === "all") return pricesQuery.data;
+    const prices = Array.isArray(pricesQuery.data) ? pricesQuery.data : pricesQuery.data?.items || [];
+    if (!prices.length) return [];
+    if (filterCategory === "all") return prices;
 
-    return pricesQuery.data.filter(p => {
+    return prices.filter(p => {
       const cat = categoriesQuery.data?.find(c => c.symbol === p.symbol);
       return cat?.category === filterCategory;
     });
@@ -128,7 +129,8 @@ function CommoditiesAnalysis() {
 
   // Get selected commodity details
   const selectedCommodityData = useMemo(() => {
-    return pricesQuery.data?.find(c => c.symbol === selectedCommodity);
+    const prices = Array.isArray(pricesQuery.data) ? pricesQuery.data : pricesQuery.data?.items || [];
+    return prices?.find(c => c.symbol === selectedCommodity);
   }, [pricesQuery.data, selectedCommodity]);
 
   const selectedCommodityCategory = useMemo(() => {

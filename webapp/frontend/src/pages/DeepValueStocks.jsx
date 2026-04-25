@@ -56,24 +56,25 @@ const DeepValueStocks = () => {
       }
 
       const result = await response.json();
-      const stocksData = result.data || result;
+      let stocksData = result.data?.stocks || result.data || result.items || result;
 
-      if (Array.isArray(stocksData)) {
-        // Convert string scores to numbers
-        const normalizedStocks = stocksData.map(stock => ({
-          ...stock,
-          composite_score: parseFloat(stock.composite_score) || 0,
-          quality_score: parseFloat(stock.quality_score) || 0,
-          growth_score: parseFloat(stock.growth_score) || 0,
-          value_score: parseFloat(stock.value_score) || 0,
-          momentum_score: parseFloat(stock.momentum_score) || 0,
-          stability_score: parseFloat(stock.stability_score) || 0,
-          positioning_score: parseFloat(stock.positioning_score) || 0,
-        }));
-        setStocks(normalizedStocks);
-      } else {
-        throw new Error("Invalid response format");
+      // Ensure it's an array
+      if (!Array.isArray(stocksData)) {
+        stocksData = [];
       }
+
+      // Convert string scores to numbers
+      const normalizedStocks = stocksData.map(stock => ({
+        ...stock,
+        composite_score: parseFloat(stock.composite_score) || 0,
+        quality_score: parseFloat(stock.quality_score) || 0,
+        growth_score: parseFloat(stock.growth_score) || 0,
+        value_score: parseFloat(stock.value_score) || 0,
+        momentum_score: parseFloat(stock.momentum_score) || 0,
+        stability_score: parseFloat(stock.stability_score) || 0,
+        positioning_score: parseFloat(stock.positioning_score) || 0,
+      }));
+      setStocks(normalizedStocks);
     } catch (err) {
       console.error("Error fetching deep value stocks:", err);
       setError(err.message || "Failed to load deep value stocks");

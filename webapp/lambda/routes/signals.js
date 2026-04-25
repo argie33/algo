@@ -117,7 +117,9 @@ const getStocksSignals = async (req, res) => {
 
     // Build dynamic SELECT based on what exists in each table
     let actualColumns;
+    console.log(`[DEBUG] Building query for timeframe: ${timeframe}`);
     if (timeframe === 'daily') {
+      console.log(`[DEBUG] Using DAILY columns`);
       actualColumns = `
         bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.signal_triggered_date,
         bsd.signal, bsd.strength, bsd.signal_strength,
@@ -128,6 +130,7 @@ const getStocksSignals = async (req, res) => {
         NULL::float as ema_12, NULL::float as ema_26
       `;
     } else {
+      console.log(`[DEBUG] Using WEEKLY/MONTHLY columns (no bsd.signal_strength)`);
       // weekly/monthly don't have signal_strength column
       actualColumns = `
         bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.signal_triggered_date,
@@ -154,7 +157,9 @@ const getStocksSignals = async (req, res) => {
 
     let signalsResult;
     try {
-      console.log(`[${timeframe.toUpperCase()}] Executing signals query with params:`, {
+      console.log(`[${timeframe.toUpperCase()}] Executing signals query`);
+      console.log(`[${timeframe.toUpperCase()}] Query start:`, signalsQuery.substring(0, 150));
+      console.log(`[${timeframe.toUpperCase()}] Executing with params:`, {
         limit,
         offset,
         timeframe,
