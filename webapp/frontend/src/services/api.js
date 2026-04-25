@@ -2,75 +2,30 @@ import axios from "axios";
 
 // Get API configuration
 export const getApiConfig = () => {
-  // Dynamic API URL resolution: runtime > build-time > infer from location > fallback
-  let runtimeApiUrl =
-    typeof window !== "undefined" &&
-    window.__CONFIG__ &&
-    window.__CONFIG__.API_URL
-      ? window.__CONFIG__.API_URL
-      : null;
-
-  let apiUrl = runtimeApiUrl || (import.meta.env && import.meta.env.VITE_API_URL);
-
-  // In development mode, use relative paths so Vite proxy handles it
-  const isDev = import.meta.env && import.meta.env.DEV;
-
-  if (!apiUrl && isDev) {
-    // Use relative path in development - Vite proxy will forward to localhost:3000
-    apiUrl = "/";
-  } else if (!apiUrl && typeof window !== "undefined") {
-    const { hostname, origin, port, protocol } = window.location;
-    if (hostname === "localhost" || hostname === "127.0.0.1") {
-      apiUrl = "http://localhost:3000";
-    } else {
-      // AWS production - use Lambda API Gateway endpoint
-      // Default to AWS Lambda endpoint for serverless API
-      apiUrl = "https://qda42av7je.execute-api.us-east-1.amazonaws.com/dev";
-    }
+  // STRICT 3-LEVEL URL RESOLUTION - no hardcoded production URLs
+  // 1. Runtime injection (AWS deployment)
+  if (typeof window !== "undefined" && window.__CONFIG__?.API_URL) {
+    const apiUrl = window.__CONFIG__.API_URL;
+    return { baseURL: apiUrl, apiUrl, isServerless: !apiUrl.includes("localhost"), isDev: false, isDevelopment: false, isProduction: true };
   }
 
-  // Final fallback (shouldn't reach here)
-  if (!apiUrl) {
-    apiUrl = "/";
+  // 2. Build-time env var
+  if (import.meta.env?.VITE_API_URL) {
+    const apiUrl = import.meta.env.VITE_API_URL;
+    return { baseURL: apiUrl, apiUrl, isServerless: !apiUrl.includes("localhost"), isDev: false, isDevelopment: true, isProduction: false };
   }
 
-  // Only log in development, not in tests
-  if (typeof process === "undefined" || process.env.NODE_ENV !== "test") {
-    console.log("🔧 [API CONFIG] URL Resolution:", {
-      runtimeApiUrl,
-      envApiUrl: import.meta.env && import.meta.env.VITE_API_URL,
-      isDev,
-      finalApiUrl: apiUrl,
-      windowConfig:
-        typeof window !== "undefined" ? window.__CONFIG__ : "undefined",
-      allEnvVars: import.meta.env || {},
-    });
-    console.log("🔧 [API CONFIG] Will use baseURL:", apiUrl);
-  }
-
-  // Detect environment properly for both runtime and test contexts
-  const isTestEnv =
-    typeof process !== "undefined" && process.env.NODE_ENV === "test";
-  const environment = isTestEnv
-    ? "test"
-    : (import.meta.env && import.meta.env.MODE) || "development";
-  const isDevelopment = isTestEnv
-    ? true
-    : !!(import.meta.env && import.meta.env.DEV);
-  const isProduction = isTestEnv
-    ? false
-    : !!(import.meta.env && import.meta.env.PROD);
+  // 3. Dev: relative path, Vite proxy handles it
+  const isDev = import.meta.env?.DEV;
+  const apiUrl = "/";
 
   return {
     baseURL: apiUrl,
-    isServerless: !!apiUrl && !apiUrl.includes("localhost"),
     apiUrl: apiUrl,
-    isConfigured: !!apiUrl && !apiUrl.includes("localhost"),
-    environment: environment,
-    isDevelopment: isDevelopment,
-    isProduction: isProduction,
-    baseUrl: import.meta.env && import.meta.env.BASE_URL,
-    allEnvVars: import.meta.env || {},
+    isServerless: false,
+    isDev: isDev,
+    isDevelopment: isDev,
+    isProduction: false,
   };
 };
 
@@ -254,7 +209,24 @@ try {
 // Export the api instance for direct use
 export { api };
 
-// Helper function to standardize API response parsing
+// Extract response data with consistent pattern
+// Usage: extractResponseData(response) returns the data payload
+export const extractResponseData = (response) => {
+  if (!response?.data) return null;
+  const d = response.data;
+  // Paginated list: return whole object with { items, pagination }
+  if (d.items !== undefined && d.pagination !== undefined) {
+    return d;
+  }
+  // Single object: unwrap from { data: {...} }
+  if (d.data !== undefined && d.success !== undefined) {
+    return d.data;
+  }
+  // Fallback: return as-is
+  return d;
+};
+
+// Helper function to standardize API response parsing (legacy)
 // All endpoints now return consistent format: { items: [...], pagination: {...}, success: true }
 // This extracts the items array from axios response structure
 export const extractDataFromResponse = (response, fallbackArray = []) => {

@@ -11,16 +11,20 @@ export const useWebSocket = (url, options = {}) => {
       // Connect to real WebSocket server - resolve URL dynamically
       let wsUrl = url;
       if (!wsUrl) {
-        // Get API base URL and convert to WebSocket URL
+        // Get API base URL using 3-level resolution chain
         const apiUrl = window.__CONFIG__?.API_URL ||
-                      (import.meta.env?.VITE_API_URL) ||
-                      (window.location.hostname === 'localhost'
-                        ? 'http://localhost:3000'
-                        : 'https://qda42av7je.execute-api.us-east-1.amazonaws.com/dev');
-        // Convert http(s) to ws(s)
-        wsUrl = apiUrl
-          .replace(/^https:/, 'wss:')
-          .replace(/^http:/, 'ws:') + '/ws';
+                      import.meta.env?.VITE_API_URL ||
+                      '/';
+
+        // Convert http(s) to ws(s), or use relative path for dev
+        if (apiUrl === '/') {
+          wsUrl = (window.location.protocol === 'https:' ? 'wss:' : 'ws:')
+            + '//' + window.location.host + '/ws';
+        } else {
+          wsUrl = apiUrl
+            .replace(/^https:/, 'wss:')
+            .replace(/^http:/, 'ws:') + '/ws';
+        }
       }
       if (process.env.NODE_ENV === 'development') console.log("🔗 WebSocket connecting to:", wsUrl);
 
