@@ -142,7 +142,7 @@ router.get("/calendar", async (req, res) => {
       year: parseInt(row.year),
       title: row.title,
       fetched_at: row.fetched_at
-    });
+    }));
 
     return sendPaginated(res, calendar, {
       limit: limitNum,

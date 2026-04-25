@@ -222,14 +222,14 @@ router.get("/history", async (req, res) => {
       const result = await query(queryStr, [daysNum]);
       return sendSuccess(res, {
         data: result.rows || [],
-        period_days: daysNum});
+        period_days: daysNum}));
     } catch (tableError) {
       // If analyst table doesn't exist, return empty history
       console.warn("Analyst sentiment table not available:", tableError.message);
       return sendSuccess(res, {
         data: [],
         period_days: daysNum,
-        message: "Historical data not available"});
+        message: "Historical data not available"}));
     }
   } catch (error) {
     console.error("Sentiment history error:", error);
@@ -325,7 +325,7 @@ router.get("/divergence", async (req, res) => {
     const result = await query(queryStr, params);
 
     return sendSuccess(res, {
-      items: result.rows || []});
+      items: result.rows || []}));
   } catch (error) {
     console.error("Sentiment divergence error:", error);
     return sendError(res, "Failed to fetch sentiment divergence", 500);
@@ -427,12 +427,12 @@ router.get("/aaii", async (req, res) => {
 
     return sendSuccess(res, {
       data: aaii,
-      timestamp: new Date().toISOString()});
+      timestamp: new Date().toISOString()}));
   } catch (error) {
     console.error("AAII sentiment error:", error);
     return sendSuccess(res, {
       data: null,
-      timestamp: new Date().toISOString()});
+      timestamp: new Date().toISOString()}));
   }
 });
 
