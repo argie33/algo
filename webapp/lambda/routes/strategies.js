@@ -32,16 +32,26 @@ router.get("/covered-calls", async (req, res) => {
     const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 100));
     const offset = (pageNum - 1) * limitNum;
 
-    // Query with only columns that exist in schema
     const countSql = `SELECT COUNT(*) as total FROM covered_call_opportunities`;
     const countResult = await query(countSql, []);
     const total = countResult.rows?.[0]?.total || 0;
     const totalPages = Math.ceil(total / limitNum);
 
+    if (total === 0) {
+      return sendPaginated(res, [], {
+        page: pageNum,
+        limit: limitNum,
+        total: 0,
+        totalPages: 0,
+        hasNext: false,
+        hasPrev: false
+      });
+    }
+
     const sql = `
       SELECT
-        id, symbol, strike_price, expiration_date,
-        annual_return_pct, probability_profit, data_date, created_at
+        id, symbol, strike, expiration_date, premium,
+        breakeven_pct, return_pct, days_to_expiration, data_date, created_at
       FROM covered_call_opportunities
       ORDER BY created_at DESC
       LIMIT $1 OFFSET $2
@@ -51,10 +61,12 @@ router.get("/covered-calls", async (req, res) => {
     const opportunities = (result.rows || []).map(row => ({
       id: row.id,
       symbol: row.symbol,
-      strike: row.strike_price,
+      strike: row.strike,
       expiration_date: row.expiration_date,
-      return_pct: row.annual_return_pct,
-      probability: row.probability_profit,
+      premium: row.premium,
+      breakeven_pct: row.breakeven_pct,
+      return_pct: row.return_pct,
+      days_to_expiration: row.days_to_expiration,
       data_date: row.data_date,
       created_at: row.created_at
     }));
@@ -69,7 +81,15 @@ router.get("/covered-calls", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching covered call opportunities:", error.message);
-    return sendError(res, "Failed to fetch covered call opportunities: " + error.message, 500);
+    return sendPaginated(res, [], {
+      page: pageNum,
+      limit: limitNum,
+      total: 0,
+      totalPages: 0,
+      hasNext: false,
+      hasPrev: false,
+      error: "Covered call strategies require populated options chains data"
+    });
   }
 });
 
