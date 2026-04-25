@@ -5,6 +5,7 @@
  */
 
 const express = require('express');
+
 const { query: dbQuery, safeFloat, safeInt } = require('../utils/database');
 const { authenticateToken } = require('../middleware/auth');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');

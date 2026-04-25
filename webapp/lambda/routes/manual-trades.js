@@ -4,7 +4,6 @@ const express = require('express');
 
 const { query: dbQuery } = require('../utils/database');
 const { authenticateToken } = require('../middleware/auth');
-
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
@@ -196,7 +195,7 @@ router.patch('/:id', async (req, res) => {
 
     // Get existing trade first
     const existingResult = await dbQuery(
-      'SELECT symbol, type, quantity, execution_price FROM trades WHERE id = $1',
+      'SELECT symbol, side, quantity, execution_price FROM trades WHERE id = $1',
       [id]
     );
 
@@ -211,7 +210,7 @@ router.patch('/:id', async (req, res) => {
 
     // Prepare update values
     const newSymbol = symbol ? symbol.toUpperCase() : existing.symbol;
-    const newType = trade_type ? (trade_type.toLowerCase() === 'buy' ? 'BUY' : 'SELL') : existing.type;
+    const newType = trade_type ? (trade_type.toLowerCase() === 'buy' ? 'BUY' : 'SELL') : existing.side;
     const newQty = quantity !== undefined ? parseFloat(quantity) : existing.quantity;
     const newPrice = price !== undefined ? parseFloat(price) : existing.execution_price;
     const newComm = commission !== undefined ? parseFloat(commission) : null;

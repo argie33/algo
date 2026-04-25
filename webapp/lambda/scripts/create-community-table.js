@@ -1,13 +1,13 @@
-#!/usr/bin/env node
 
 /**
  * Script to create community_signups table
  * Run with: node scripts/create-community-table.js
  */
 
-const { initializeDatabase, query } = require('../utils/database');
 const fs = require('fs');
 const path = require('path');
+
+const { initializeDatabase, query } = require('../utils/database');
 
 async function createCommunityTable() {
   try {

@@ -133,6 +133,15 @@ def create_table(cur):
         );
     """)
 
+    # Add missing columns to existing tables (idempotent - safe to run multiple times)
+    try:
+        cur.execute("ALTER TABLE analyst_upgrade_downgrade ADD COLUMN IF NOT EXISTS from_grade VARCHAR(64)")
+        cur.execute("ALTER TABLE analyst_upgrade_downgrade ADD COLUMN IF NOT EXISTS to_grade VARCHAR(64)")
+        cur.execute("ALTER TABLE analyst_upgrade_downgrade ADD COLUMN IF NOT EXISTS action VARCHAR(32)")
+        logging.info(" Schema migration complete - all required columns ensured")
+    except Exception as e:
+        logging.warning(f" Schema migration warning: {e}")
+
 def fetch_analyst_actions(symbol):
     # yfinance: Use upgrades_downgrades for analyst rating changes
     # Convert ticker format for yfinance (e.g., BRK.B → BRK-B)
@@ -189,14 +198,13 @@ def load_analyst_actions(symbols, cur, conn):
                 action,
                 from_grade,
                 to_grade,
-                dt.date() if hasattr(dt, 'date') else dt,
-                details
+                dt.date() if hasattr(dt, 'date') else dt
             ])
         if not rows:
             continue
         sql = """
             INSERT INTO analyst_upgrade_downgrade
-            (symbol, firm, action, old_rating, new_rating, action_date, details)
+            (symbol, firm, action, old_rating, new_rating, action_date)
             VALUES %s
             ON CONFLICT DO NOTHING
         """
@@ -226,7 +234,7 @@ def lambda_handler(event, context):
     create_table(cur)
     conn.commit()
 
-    cur.execute("SELECT symbol FROM stock_symbols WHERE is_sp500 = true;")
+    cur.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y') ORDER BY symbol;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t, i, f = load_analyst_actions(stock_syms, cur, conn)
 

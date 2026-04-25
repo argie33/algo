@@ -33,9 +33,11 @@ const { query } = require('./utils/database');
       }
     }
     console.log('\n');
-    process.exit(0);
   } catch (err) {
     console.error('Error:', err.message);
-    process.exit(1);
+    throw err;
   }
-})();
+})().catch(e => {
+  console.error('Fatal error:', e);
+  process.exit(1);
+});

@@ -2,7 +2,6 @@ const express = require("express");
 
 const { query } = require("../utils/database");
 const { getMarketDataPath } = require("../utils/market-data-path");
-
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 

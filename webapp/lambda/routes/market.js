@@ -1,4 +1,5 @@
 const express = require("express");
+
 const { getMarketDataPath } = require("../utils/market-data-path");
 
 let query;

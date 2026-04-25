@@ -28,7 +28,7 @@ const mockData = {
 };
 
 module.exports = {
-  query: async (sql, params) => {
+  query: async (sql, _params) => {
     // Simple mock responses for common queries
     if (sql.includes("SELECT 1")) {
       return { rows: [{ "?column?": 1 }] };

@@ -61,7 +61,6 @@ function validateDbResponse(result, context = "database query") {
 }
 
 const { authenticateToken } = require("../middleware/auth");
-
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 

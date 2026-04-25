@@ -3,7 +3,6 @@ const express = require("express");
 const { query } = require("../utils/database");
 const { authenticateToken } = require("../middleware/auth");
 const { getMarketDataPath } = require("../utils/market-data-path");
-
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
@@ -57,7 +56,7 @@ router.get("/info", async (req, res) => {
 
       // Also try earnings_estimates as fallback
       const estimatesResult = await query(
-        "SELECT * FROM earnings_estimates WHERE symbol = $1 ORDER BY period DESC LIMIT 20",
+        "SELECT * FROM earnings_estimates WHERE symbol = $1 ORDER BY quarter DESC LIMIT 20",
         [symbol]
       ).catch(() => ({ rows: [] }));
 
@@ -71,7 +70,7 @@ router.get("/info", async (req, res) => {
           END as surprise_percent,
           eh.eps_actual - COALESCE(ee.eps_estimate, 0) as surprise_amount
         FROM earnings_history eh
-        LEFT JOIN earnings_estimates ee ON eh.symbol = ee.symbol AND eh.quarter = ee.period
+        LEFT JOIN earnings_estimates ee ON eh.symbol = ee.symbol AND eh.quarter = ee.quarter
         WHERE eh.symbol = $1 AND eh.eps_actual IS NOT NULL
         ORDER BY eh.quarter DESC
         LIMIT 20`,
@@ -85,11 +84,11 @@ router.get("/info", async (req, res) => {
         surprises: surprisesResult.rows || []
       });
     } else {
-      // No symbol: return list of recent earnings history (all quarters)
+      // No symbol: return list of recent earnings estimates (all quarters)
       const historyResult = await query(
         `SELECT DISTINCT ON (symbol)
-          symbol, quarter, eps_actual, eps_estimate, surprise_percent
-        FROM earnings_history
+          symbol, quarter, eps_actual, eps_estimate
+        FROM earnings_estimates
         WHERE quarter IS NOT NULL
         ORDER BY symbol, quarter DESC
         LIMIT $1`,

@@ -130,8 +130,6 @@ function sleep(ms) {
  * Supports rollback on failure
  */
 async function withTransaction(operationFn) {
-  const client = null; // Would be obtained from connection pool
-
   try {
     // In a real implementation, would start transaction here
     const result = await operationFn();

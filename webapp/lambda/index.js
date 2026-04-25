@@ -19,11 +19,15 @@ console.log(`🔧 Environment load result:`, {
 
 const cors = require("cors");
 const express = require("express");
+
 const { createServer } = require("http");
+
 const helmet = require("helmet");
 const morgan = require("morgan");
 
 // const responseFormatterMiddleware = require("./middleware/responseFormatter"); // DEPRECATED
+const serverlessHttp = require('serverless-http');
+
 const errorHandler = require("./middleware/errorHandler");
 const { initializeDatabase } = require("./utils/database");
 const { initializeAlpacaSync } = require("./utils/alpacaSyncScheduler");
@@ -275,7 +279,8 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // NORMALIZE ALL RESPONSES to unified format
-app.use(responseNormalizer);
+// DISABLED: all endpoints already use sendSuccess/sendError/sendPaginated helpers
+// app.use(responseNormalizer);
 
 // JSON parsing error handler
 app.use((error, req, res, next) => {
@@ -615,7 +620,6 @@ module.exports = app;
 
 // AWS Lambda handler - CRITICAL FOR LAMBDA TO WORK
 // This MUST be exported for Lambda to find the handler function
-const serverlessHttp = require('serverless-http');
 module.exports.handler = serverlessHttp(app);
 
 // Force redeploy Thu Oct  2 18:22:58 CDT 2025

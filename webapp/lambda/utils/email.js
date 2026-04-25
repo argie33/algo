@@ -4,6 +4,7 @@
  */
 
 const os = require('os');
+
 const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
 
 // Load environment variables from .env.local in development

@@ -1,6 +1,6 @@
 const express = require("express");
-const { query } = require("../utils/database");
 
+const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 

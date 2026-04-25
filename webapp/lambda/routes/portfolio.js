@@ -3,7 +3,6 @@ const express = require("express");
 const { query, safeFloat, safeInt } = require("../utils/database");
 const { authenticateToken } = require("../middleware/auth");
 const PortfolioAutoInit = require("../utils/portfolioAutoInit");
-
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 

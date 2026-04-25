@@ -10,7 +10,6 @@ const {
 } = require("@aws-sdk/client-cognito-identity-provider");
 
 const { authenticateToken } = require("../middleware/auth");
-
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 

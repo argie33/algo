@@ -8,7 +8,6 @@ const {
   safeInt,
   safeFloat,
 } = require("../utils/database");
-
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 

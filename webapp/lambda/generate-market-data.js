@@ -1,13 +1,13 @@
-#!/usr/bin/env node
 /**
  * Generate comprehensive market data from real database
  * Pulls sector/industry rankings and performance from actual data
  * Writes to /tmp/comprehensive_market_data.json for API consumption
  */
 
-const fs = require('fs');
-const path = require('path');
-const { query } = require('./utils/database');
+const fs = require("fs");
+const path = require("path");
+
+const { query } = require("./utils/database");
 
 const OUTPUT_PATH = process.platform === 'win32'
   ? path.join(process.env.TEMP || 'C:\\temp', 'comprehensive_market_data.json')

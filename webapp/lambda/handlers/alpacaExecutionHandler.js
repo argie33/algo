@@ -5,7 +5,7 @@
  * Handles both paper and live trading with proper validation and error handling
  */
 
-const { AlpacaTrader, initializeAlpacaTrader } = require("../utils/alpacaTrading");
+const { initializeAlpacaTrader } = require("../utils/alpacaTrading");
 const { query } = require("../utils/database");
 
 /**

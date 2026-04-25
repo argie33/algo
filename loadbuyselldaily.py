@@ -266,13 +266,19 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
     insert_q = f"""
       INSERT INTO {table_name} (
         symbol, timeframe, date,
-        signal, signal_triggered_date, strength, signal_strength
-      ) VALUES (%s,%s,%s,%s,%s,%s,%s)
+        open, high, low, close, volume,
+        signal, buylevel, stoplevel, inposition
+      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
       ON CONFLICT (symbol, timeframe, date) DO UPDATE SET
+        open = EXCLUDED.open,
+        high = EXCLUDED.high,
+        low = EXCLUDED.low,
+        close = EXCLUDED.close,
+        volume = EXCLUDED.volume,
         signal = EXCLUDED.signal,
-        signal_triggered_date = EXCLUDED.signal_triggered_date,
-        strength = EXCLUDED.strength,
-        signal_strength = EXCLUDED.signal_strength
+        buylevel = EXCLUDED.buylevel,
+        stoplevel = EXCLUDED.stoplevel,
+        inposition = EXCLUDED.inposition
       RETURNING xmax;
     """
     inserted = 0
@@ -591,16 +597,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
             insert_rows.append((
                 symbol, timeframe, date_val,
                 open_val, high_val, low_val, close_val, vol,
-                signal_val, signal_triggered_date, buyLevel_val, stopLevel_val, inPos_val, strength_val,
-                signal_type, pivot_price, buy_zone_start, buy_zone_end,
-                exit_1_price, exit_2_price, exit_3_cond, exit_3_price,
-                exit_4_cond, exit_4_price, initial_stop, trailing_stop,
-                base_type, base_length, avg_vol, vol_surge,
-                rs_rating, breakout_qual, risk_reward, current_gain, days_held,
-                market_stage_val, stage_num, stage_conf, substage_val, entry_quality,
-                risk_pct_val, pos_size_rec, profit_8pct, profit_20pct, profit_25pct, sell_lvl,
-                mansfield_rs, sata_score,
-                rsi_val, adx_val, atr_val, sma_50_val, sma_200_val, ema_21_val, pct_from_ema21_val, pct_from_sma50_val, entry_price_val
+                signal_val, buyLevel_val, stopLevel_val, inPos_val
             ))
             inserted += 1
 

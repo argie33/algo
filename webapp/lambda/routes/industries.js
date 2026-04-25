@@ -1,4 +1,5 @@
 const express = require("express");
+
 const { getMarketDataPath } = require("../utils/market-data-path");
 
 let query, safeFloat, safeInt, safeFixed;
@@ -18,7 +19,6 @@ try {
 }
 
 const { authenticateToken } = require("../middleware/auth");
-
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 

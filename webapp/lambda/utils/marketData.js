@@ -10,6 +10,7 @@
  */
 
 const axios = require('axios');
+
 const db = require('./database');
 
 // NO CACHING - Always fetch fresh market data for financial accuracy

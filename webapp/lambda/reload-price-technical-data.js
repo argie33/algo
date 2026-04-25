@@ -112,9 +112,11 @@ const { query } = require('./utils/database');
     console.log('='.repeat(60));
     console.log('PRICE & TECHNICAL DATA RELOADED SUCCESSFULLY');
     console.log('='.repeat(60));
-    process.exit(0);
   } catch (err) {
     console.error('[ERROR]', err.message);
-    process.exit(1);
+    throw err;
   }
-})();
+})().catch(e => {
+  console.error('Fatal error:', e);
+  process.exit(1);
+});
