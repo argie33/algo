@@ -46,43 +46,60 @@ router.get("/", (req, res) => {
 router.get("/info", async (req, res) => {
   try {
     const symbol = req.query.symbol;
-    if (!symbol) {
-      return sendError(res, "Symbol parameter required", 400);
+    const limit = Math.min(parseInt(req.query.limit) || 25, 500);
+
+    if (symbol) {
+      // Single symbol: return detailed estimates, history, and surprises
+      const estimatesResult = await query(
+        "SELECT * FROM earnings_estimates WHERE symbol = $1 ORDER BY period DESC LIMIT 20",
+        [symbol]
+      ).catch(() => ({ rows: [] }));
+
+      const historyResult = await query(
+        "SELECT * FROM earnings_history WHERE symbol = $1 ORDER BY quarter DESC LIMIT 20",
+        [symbol]
+      ).catch(() => ({ rows: [] }));
+
+      // Get earnings surprises (difference between estimate and actual)
+      const surprisesResult = await query(
+        `SELECT
+          eh.symbol, eh.quarter, eh.eps_actual, ee.eps_estimate,
+          CASE
+            WHEN ee.eps_estimate IS NULL THEN NULL
+            ELSE ROUND(((eh.eps_actual - ee.eps_estimate) / ABS(ee.eps_estimate) * 100)::numeric, 2)
+          END as surprise_percent,
+          eh.eps_actual - COALESCE(ee.eps_estimate, 0) as surprise_amount
+        FROM earnings_history eh
+        LEFT JOIN earnings_estimates ee ON eh.symbol = ee.symbol AND eh.quarter = ee.period
+        WHERE eh.symbol = $1 AND eh.eps_actual IS NOT NULL
+        ORDER BY eh.quarter DESC
+        LIMIT 20`,
+        [symbol]
+      ).catch(() => ({ rows: [] }));
+
+      return sendSuccess(res, {
+        estimates: estimatesResult.rows || [],
+        history: historyResult.rows || [],
+        surprises: surprisesResult.rows || []
+      });
+    } else {
+      // No symbol: return list of recent earnings estimates
+      const estimatesResult = await query(
+        `SELECT DISTINCT ON (symbol)
+          symbol, period, avg_estimate
+        FROM earnings_estimates
+        WHERE avg_estimate IS NOT NULL
+        ORDER BY symbol, period DESC
+        LIMIT $1`,
+        [limit]
+      ).catch(() => ({ rows: [] }));
+
+      return sendSuccess(res, {
+        estimates: estimatesResult.rows || [],
+        history: [],
+        surprises: []
+      });
     }
-
-    // Fetch all three datasets for the symbol
-    const estimatesResult = await query(
-      "SELECT * FROM earnings_estimates WHERE symbol = $1 ORDER BY period DESC LIMIT 20",
-      [symbol]
-    ).catch(() => ({ rows: [] }));
-
-    const historyResult = await query(
-      "SELECT * FROM earnings_history WHERE symbol = $1 ORDER BY quarter DESC LIMIT 20",
-      [symbol]
-    ).catch(() => ({ rows: [] }));
-
-    // Get earnings surprises (difference between estimate and actual)
-    const surprisesResult = await query(
-      `SELECT
-        eh.symbol, eh.quarter, eh.eps_actual, ee.eps_estimate,
-        CASE
-          WHEN ee.eps_estimate IS NULL THEN NULL
-          ELSE ROUND(((eh.eps_actual - ee.eps_estimate) / ABS(ee.eps_estimate) * 100)::numeric, 2)
-        END as surprise_percent,
-        eh.eps_actual - COALESCE(ee.eps_estimate, 0) as surprise_amount
-      FROM earnings_history eh
-      LEFT JOIN earnings_estimates ee ON eh.symbol = ee.symbol AND eh.quarter = ee.period
-      WHERE eh.symbol = $1 AND eh.eps_actual IS NOT NULL
-      ORDER BY eh.quarter DESC
-      LIMIT 20`,
-      [symbol]
-    ).catch(() => ({ rows: [] }));
-
-    return sendSuccess(res, {
-      estimates: estimatesResult.rows || [],
-      history: historyResult.rows || [],
-      surprises: surprisesResult.rows || []
-    });
   } catch (err) {
     console.error("Earnings info error:", err.message);
     return sendError(res, err.message, 500);

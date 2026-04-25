@@ -110,18 +110,20 @@ const getStocksSignals = async (req, res) => {
       paramIndex++;
     }
 
-    // Build actual columns - select ONLY columns that exist in buy_sell_* schema
-    // These are the only columns available in the tables
+    // Build columns - SELECT all available from buy_sell table + JOIN price data
     const actualColumns = `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.signal_triggered_date,
-      bsd.signal, bsd.strength, bsd.signal_strength
+      bsd.signal, bsd.strength, bsd.signal_strength,
+      pd.open, pd.high, pd.low, pd.close, pd.volume
     `;
 
-    // Query without JOINs for performance - symbol is in buy_sell table
+    // Query with price data JOIN for complete signals
     const signalsQuery = `
       SELECT
         ${actualColumns}
       FROM ${tableName} bsd
+      LEFT JOIN price_daily pd ON bsd.symbol = pd.symbol
+        AND DATE(pd.date) = DATE(bsd.date)
       ${whereClause}
       ORDER BY bsd.date DESC, bsd.id DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -154,7 +156,7 @@ const getStocksSignals = async (req, res) => {
       return sendPaginated(res, [], { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false });
     }
 
-    // Format response with ONLY available columns from database
+    // Format response with ALL available data from database + price JOINs
     const formattedData = signalsResult.rows.map(row => ({
       id: row.id,
       symbol: row.symbol,
@@ -164,6 +166,12 @@ const getStocksSignals = async (req, res) => {
       timeframe: row.timeframe || timeframe,
       strength: row.strength !== null ? parseFloat(row.strength) : null,
       signal_strength: row.signal_strength !== null ? parseFloat(row.signal_strength) : null,
+      // Price data from daily table
+      open: row.open !== null ? parseFloat(row.open) : null,
+      high: row.high !== null ? parseFloat(row.high) : null,
+      low: row.low !== null ? parseFloat(row.low) : null,
+      close: row.close !== null ? parseFloat(row.close) : null,
+      volume: row.volume !== null ? parseInt(row.volume) : null,
     }));
 
     // Get total count of records for pagination
