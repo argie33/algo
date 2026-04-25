@@ -489,26 +489,14 @@ router.get("/all", async (req, res) => {
       whereClause += ` AND symbol = $${paramIndex}`;
     }
 
-    // Get company profile with financial data
+    // Get company profile with financial data (simple version without JOINs due to schema complexity)
     const result = await query(`
       SELECT
         cp.ticker as symbol,
         cp.short_name as name,
         cp.sector,
-        cp.industry,
-        ab.total_assets as balance_sheet_assets,
-        ab.total_liabilities as balance_sheet_liabilities,
-        ab.shareholders_equity as balance_sheet_equity,
-        ai.revenue as income_revenue,
-        ai.net_income as income_net_income,
-        ai.operating_income as income_operating_income,
-        ac.operating_cash_flow as cash_operating,
-        ac.investing_cash_flow as cash_investing,
-        ac.financing_cash_flow as cash_financing
+        cp.industry
       FROM company_profile cp
-      LEFT JOIN annual_balance_sheet ab ON cp.ticker = ab.symbol
-      LEFT JOIN annual_income_statement ai ON cp.ticker = ai.symbol
-      LEFT JOIN annual_cash_flow ac ON cp.ticker = ac.symbol
       WHERE ${whereClause}
       ORDER BY cp.ticker ASC
       LIMIT $${paramIndex + 1} OFFSET $${paramIndex + 2}

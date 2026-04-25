@@ -123,7 +123,6 @@ let api = axios.create({
   timeout: currentConfig.isServerless ? 45000 : 30000, // Longer timeout for Lambda cold starts
   headers: {
     "Content-Type": "application/json",
-    Authorization: "Bearer dev-bypass-token", // Development authentication
   },
 });
 
@@ -134,6 +133,13 @@ try {
       (config) => {
         // Add timestamp for request duration tracking
         config.metadata = { startTime: new Date() };
+        // Add authorization token from localStorage if available
+        if (typeof window !== "undefined") {
+          const token = localStorage.getItem("authToken") || localStorage.getItem("accessToken");
+          if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+          }
+        }
         return config;
       },
       (error) => {

@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import api from "../services/api.js";
 import {
   Box,
   Container,
@@ -64,7 +65,6 @@ import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 
-const API_BASE_URL = (import.meta.env && import.meta.env.VITE_API_URL) || (window.__CONFIG__ && window.__CONFIG__.API_URL) || "http://localhost:3001";
 
 const TradeHistory = () => {
   // State management
@@ -92,14 +92,8 @@ const TradeHistory = () => {
   const { data: tradeData, isLoading: tradeLoading, refetch: refetchTrades } = useQuery({
     queryKey: ["tradeHistory", page, rowsPerPage],
     queryFn: async () => {
-      const params = new URLSearchParams({
-        page: (page + 1).toString(),
-        limit: rowsPerPage.toString(),
-      });
-      const response = await fetch(`${API_BASE_URL}/api/trades?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch trades');
-      const data = await response.json();
-      return { data: { trades: data.items || [], pagination: data.pagination || {}, summary: {} } };
+      const result = await api.getTrades(page + 1, rowsPerPage);
+      return { data: { trades: result.data || [], pagination: result.pagination || {}, summary: {} } };
     },
     staleTime: 60000,
   });
@@ -107,10 +101,8 @@ const TradeHistory = () => {
   const { data: summaryData, isLoading: summaryLoading } = useQuery({
     queryKey: ["tradeSummary"],
     queryFn: async () => {
-      const response = await fetch(`${API_BASE_URL}/api/trades/summary`);
-      if (!response.ok) throw new Error('Failed to fetch summary');
-      const data = await response.json();
-      return { data: data.data };
+      const result = await api.getTradesSummary();
+      return { data: result.data };
     },
     staleTime: 60000,
   });
@@ -252,14 +244,11 @@ const TradeHistory = () => {
         try {
           setMatchedPairsLoading(true);
           setMatchedPairsError(null);
-          const response = await fetch("/api/trades/fifo-analysis");
-          const data = await response.json();
+          const result = await api.getTradesFifoAnalysis();
 
-          if (data.success && data.data) {
-            // Handle nested structures: data.data.analysis or data.data directly
-            const analysisData = data.data?.analysis || null;
+          if (result.success && result.data) {
+            const analysisData = result.data?.analysis || result.data;
             const matchedPairsData = analysisData?.matchedPairs || null;
-            // Validate array before setting state
             const validMatchedPairs = Array.isArray(matchedPairsData) && matchedPairsData.length > 0 ? matchedPairsData : [];
             setMatchedPairs(validMatchedPairs);
           } else {
@@ -294,20 +283,20 @@ const TradeHistory = () => {
 
   const handleExportTrades = async (format = "csv") => {
     try {
-      const response = await fetch(`/api/trades/export?format=${format}`);
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `trades_${new Date().toISOString().split("T")[0]}.${format}`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      }
+      const response = await api.api.get(`/api/trades/export?format=${format}`, {
+        responseType: 'blob'
+      });
+      const blob = response.data;
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `trades_${new Date().toISOString().split("T")[0]}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Failed to export trades");
     }
   };
 

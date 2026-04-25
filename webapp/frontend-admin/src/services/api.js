@@ -62,10 +62,8 @@ export const getApiConfig = () => {
     if (hostname === "localhost" || hostname === "127.0.0.1") {
       apiUrl = "http://localhost:3001";
     } else {
-      // AWS or production - construct API URL with port 3001
-      // Handle both explicit ports (replace) and default ports (append)
-      const protocolHost = `${protocol}//${hostname}`;
-      apiUrl = `${protocolHost}:3001`;
+      // AWS production - fall back to API Gateway
+      apiUrl = "https://qda42av7je.execute-api.us-east-1.amazonaws.com/dev";
     }
   }
 
@@ -3926,6 +3924,60 @@ export const updateContactSubmissionStatus = async (id, status) => {
     };
   } catch (error) {
     return createErrorResponse(error, "Failed to update submission status");
+  }
+};
+
+// Trade History API
+export const getTrades = async (page = 1, limit = 50) => {
+  try {
+    const response = await api.get("/api/trades", {
+      params: { page, limit }
+    });
+    return {
+      data: response.data?.items || extractResponseData(response),
+      pagination: response.data?.pagination,
+      success: true
+    };
+  } catch (error) {
+    return createErrorResponse(error, "Failed to fetch trades");
+  }
+};
+
+export const getTradesSummary = async () => {
+  try {
+    const response = await api.get("/api/trades/summary");
+    return {
+      data: extractResponseData(response),
+      success: true
+    };
+  } catch (error) {
+    return createErrorResponse(error, "Failed to fetch trades summary");
+  }
+};
+
+export const getTradesExport = async (format = "csv") => {
+  try {
+    const response = await api.get("/api/trades/export", {
+      params: { format }
+    });
+    return {
+      data: response.data,
+      success: true
+    };
+  } catch (error) {
+    return createErrorResponse(error, "Failed to export trades");
+  }
+};
+
+export const getTradesFifoAnalysis = async () => {
+  try {
+    const response = await api.get("/api/trades/fifo-analysis");
+    return {
+      data: extractResponseData(response),
+      success: true
+    };
+  } catch (error) {
+    return createErrorResponse(error, "Failed to fetch FIFO analysis");
   }
 };
 

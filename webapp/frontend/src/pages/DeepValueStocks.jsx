@@ -29,8 +29,10 @@ import {
   Download as DownloadIcon,
   Info as InfoIcon,
 } from "@mui/icons-material";
+import { getApiConfig } from "../services/api";
 
 const DeepValueStocks = () => {
+  const { apiUrl: API_BASE } = getApiConfig();
   const [stocks, setStocks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
