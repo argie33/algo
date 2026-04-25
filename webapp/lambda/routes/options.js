@@ -42,7 +42,7 @@ router.get("/chains/:symbol", async (req, res) => {
       min_volume
     } = req.query;
 
-    let whereClause = "WHERE oc.symbol = $1 AND oc.data_date = CURRENT_DATE";
+    let whereClause = "WHERE oc.symbol = $1 AND oc.data_date = (SELECT MAX(data_date) FROM options_chains WHERE symbol = $1)";
     const params = [symbol.toUpperCase()];
     let paramIndex = 2;
 
@@ -115,7 +115,7 @@ router.get("/chains/:symbol", async (req, res) => {
     const expirationsResult = await query(
       `SELECT DISTINCT expiration_date
        FROM options_chains
-       WHERE symbol = $1 AND data_date = CURRENT_DATE
+       WHERE symbol = $1 AND data_date = (SELECT MAX(data_date) FROM options_chains WHERE symbol = $1)
        ORDER BY expiration_date`,
       [symbol.toUpperCase()]
     );
@@ -148,7 +148,7 @@ router.get("/greeks/:symbol", async (req, res) => {
     const { symbol } = req.params;
     const { expiration, option_type } = req.query;
 
-    let whereClause = "WHERE og.symbol = $1 AND og.data_date = CURRENT_DATE";
+    let whereClause = "WHERE og.symbol = $1 AND og.data_date = (SELECT MAX(data_date) FROM options_greeks WHERE symbol = $1)";
     const params = [symbol.toUpperCase()];
     let paramIndex = 2;
 

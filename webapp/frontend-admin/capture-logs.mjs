@@ -3,25 +3,15 @@ import puppeteer from 'puppeteer';
 async function capturePageErrors() {
   let browser;
   try {
-    console.log('🚀 Starting headless browser...\n');
-    
-    browser = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-
+    console.log('🚀 Starting headless browser...');
+    browser = await puppeteer.launch({headless: 'new'});
     const page = await browser.newPage();
     
-    // Capture console messages
     const consoleLogs = [];
     page.on('console', msg => {
-      consoleLogs.push({
-        type: msg.type(),
-        text: msg.text()
-      });
+      consoleLogs.push({type: msg.type(), text: msg.text()});
     });
 
-    // Capture network failures
     const networkErrors = [];
     page.on('response', response => {
       if (!response.ok()) {
@@ -32,36 +22,24 @@ async function capturePageErrors() {
       }
     });
 
-    console.log('📄 Loading http://localhost:5174/...');
-    try {
-      await page.goto('http://localhost:5174/', {
-        waitUntil: 'networkidle2',
-        timeout: 15000
-      });
-    } catch (e) {
-      console.log('Page load timeout (normal for dev server)');
-    }
+    console.log('📄 Loading frontend...');
+    await page.goto('http://localhost:5174/', {waitUntil: 'domcontentloaded'}).catch(e => console.log('Load timeout'));
+    
+    await new Promise(r => setTimeout(r, 2000));
 
-    console.log('⏳ Waiting for page...');
-    await page.waitForTimeout(2000);
-
-    console.log('\n=== CONSOLE LOGS ===');
-    if (consoleLogs.length > 0) {
-      consoleLogs.forEach(log => {
-        const prefix = log.type === 'error' ? '❌' : log.type === 'warn' ? '⚠️' : 'ℹ️';
-        if (log.text.includes('error') || log.text.includes('Error') || log.text.includes('failed') || log.type === 'error') {
-          console.log(`${prefix} ${log.text}`);
-        }
-      });
-    }
-
-    console.log('\n=== NETWORK 4xx/5xx ERRORS ===');
-    if (networkErrors.length > 0) {
-      networkErrors.forEach(err => {
-        console.log(`❌ ${err.status} - ${err.url}`);
-      });
+    console.log('\n=== CONSOLE ERRORS & WARNINGS ===');
+    const errors = consoleLogs.filter(l => l.type === 'error' || l.type === 'warn' || l.text.toLowerCase().includes('error'));
+    if (errors.length > 0) {
+      errors.forEach(log => console.log(`❌ ${log.type}: ${log.text}`));
     } else {
-      console.log('✅ All network requests successful');
+      console.log('✅ No console errors detected');
+    }
+
+    console.log('\n=== NETWORK FAILURES ===');
+    if (networkErrors.length > 0) {
+      networkErrors.slice(0, 10).forEach(err => console.log(`❌ ${err.status} ${err.url}`));
+    } else {
+      console.log('✅ All network requests OK');
     }
 
   } catch (error) {

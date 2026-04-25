@@ -477,24 +477,21 @@ router.get("/database", async (req, res) => {
         success: false
       });
     }
-    return res.status(200).json({
-      data: {
-        status: "ok",
-        healthy: true,
-        version: "1.0.0",
-        database: {
-          status: "connected",
-          tables: tables,
-          summary: summary,
-        },
-        api: {
-          version: "1.0.0",
-          environment: process.env.NODE_ENV || "development",
-        },
-        memory: process.memoryUsage(),
-        uptime: process.uptime(),
+    return sendSuccess(res, {
+      status: "ok",
+      healthy: true,
+      version: "1.0.0",
+      database: {
+        status: "connected",
+        tables: tables,
+        summary: summary,
       },
-      success: true
+      api: {
+        version: "1.0.0",
+        environment: process.env.NODE_ENV || "development",
+      },
+      memory: process.memoryUsage(),
+      uptime: process.uptime(),
     });
   } catch (error) {
     console.error("Error in database health check:", error);

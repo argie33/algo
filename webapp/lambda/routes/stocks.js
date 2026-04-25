@@ -236,23 +236,13 @@ router.get("/:symbol", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "Stock not found"
-      });
+      return sendError(res, "Stock not found", 404);
     }
 
-    res.json({
-      success: true,
-      data: result.rows[0]
-    });
+    return sendSuccess(res, result.rows[0]);
   } catch (error) {
     console.error("Error fetching stock:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch stock",
-      message: error.message
-    });
+    return sendError(res, error.message, 500);
   }
 });
 

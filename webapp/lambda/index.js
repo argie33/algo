@@ -416,6 +416,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/commodities", commoditiesRoutes);
 app.use("/api/community", communityRoutes);
 app.use("/api/contact", contactRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/earnings", earningsRoutes);
 app.use("/api/economic", economicRoutes);
 app.use("/api/financials", financialRoutes);

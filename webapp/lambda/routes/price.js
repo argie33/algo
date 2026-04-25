@@ -160,7 +160,14 @@ router.get("/weekly", async (req, res) => {
     );
 
     return res.json({
-      items: result.rows,
+      items: result.rows.map(row => ({
+        ...row,
+        open: safeFloat(row.open),
+        high: safeFloat(row.high),
+        low: safeFloat(row.low),
+        close: safeFloat(row.close),
+        volume: parseInt(row.volume) || 0
+      })),
       pagination: { page, limit, total, hasMore: offset + limit < total },
       success: true
     });
@@ -200,7 +207,14 @@ router.get("/monthly", async (req, res) => {
     );
 
     return res.json({
-      items: result.rows,
+      items: result.rows.map(row => ({
+        ...row,
+        open: safeFloat(row.open),
+        high: safeFloat(row.high),
+        low: safeFloat(row.low),
+        close: safeFloat(row.close),
+        volume: parseInt(row.volume) || 0
+      })),
       pagination: { page, limit, total, hasMore: offset + limit < total },
       success: true
     });

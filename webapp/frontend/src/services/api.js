@@ -1955,16 +1955,23 @@ export const getIncomeStatement = async (ticker, period = "annual") => {
     const wrappedData = response.data?.data || {};
     const result = wrappedData.financialData || wrappedData.data || [];
 
-    // Transform data to match frontend expectations (add items property)
+    // Transform data: convert snake_case to camelCase, convert strings to numbers
     const transformedData = Array.isArray(result)
-      ? result.map(period => ({
-          ...period,
-          items: Object.fromEntries(
-            Object.entries(period).filter(([key]) =>
-              !['symbol', 'date', 'raw'].includes(key)
-            )
-          )
-        }))
+      ? result.map(row => {
+          const items = {};
+          Object.entries(row).forEach(([key, value]) => {
+            if (!['symbol', 'date', 'fiscal_year', 'fiscal_quarter', 'raw'].includes(key)) {
+              // Convert snake_case to camelCase
+              const camelCaseKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+              // Convert string to number
+              items[camelCaseKey] = typeof value === 'string' ? parseFloat(value) : value;
+            }
+          });
+          return {
+            date: row.fiscal_year || row.date,
+            items: items
+          };
+        })
       : result;
 
     return transformedData;
@@ -1983,16 +1990,23 @@ export const getCashFlowStatement = async (ticker, period = "annual") => {
     const wrappedData = response.data?.data || {};
     const result = wrappedData.financialData || wrappedData.data || [];
 
-    // Transform data to match frontend expectations (add items property)
+    // Transform data: convert snake_case to camelCase, convert strings to numbers
     const transformedData = Array.isArray(result)
-      ? result.map(period => ({
-          ...period,
-          items: Object.fromEntries(
-            Object.entries(period).filter(([key]) =>
-              !['symbol', 'date', 'raw'].includes(key)
-            )
-          )
-        }))
+      ? result.map(row => {
+          const items = {};
+          Object.entries(row).forEach(([key, value]) => {
+            if (!['symbol', 'date', 'fiscal_year', 'fiscal_quarter', 'raw'].includes(key)) {
+              // Convert snake_case to camelCase
+              const camelCaseKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+              // Convert string to number
+              items[camelCaseKey] = typeof value === 'string' ? parseFloat(value) : value;
+            }
+          });
+          return {
+            date: row.fiscal_year || row.date,
+            items: items
+          };
+        })
       : result;
 
     return transformedData;
@@ -2011,16 +2025,23 @@ export const getBalanceSheet = async (ticker, period = "annual") => {
     const wrappedData = response.data?.data || {};
     const result = wrappedData.financialData || wrappedData.data || [];
 
-    // Transform data to match frontend expectations (add items property)
+    // Transform data: convert snake_case to camelCase, convert strings to numbers
     const transformedData = Array.isArray(result)
-      ? result.map(period => ({
-          ...period,
-          items: Object.fromEntries(
-            Object.entries(period).filter(([key]) =>
-              !['symbol', 'date', 'raw'].includes(key)
-            )
-          )
-        }))
+      ? result.map(row => {
+          const items = {};
+          Object.entries(row).forEach(([key, value]) => {
+            if (!['symbol', 'date', 'fiscal_year', 'fiscal_quarter', 'raw'].includes(key)) {
+              // Convert snake_case to camelCase
+              const camelCaseKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+              // Convert string to number
+              items[camelCaseKey] = typeof value === 'string' ? parseFloat(value) : value;
+            }
+          });
+          return {
+            date: row.fiscal_year || row.date,
+            items: items
+          };
+        })
       : result;
 
     return transformedData;

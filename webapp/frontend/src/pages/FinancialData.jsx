@@ -405,25 +405,8 @@ function FinancialData() {
       );
     }
 
-    // Handle the new API structure (direct properties like totalAssets or total_assets)
-    const hasDirectProperties = actualData.length > 0 && (actualData[0].totalAssets !== undefined || actualData[0].total_assets !== undefined);
-
-    if (hasDirectProperties) {
-      // Use the new API structure directly
-      const periods = actualData.map((item) => {
-        // Extract all numerical properties except metadata
-        const items = {};
-        Object.entries(item).forEach(([key, value]) => {
-          if (!['symbol', 'date', 'fiscal_year', 'fiscal_quarter', 'raw'].includes(key) && value !== undefined) {
-            items[key] = value;
-          }
-        });
-
-        return {
-          date: item.date || item.fiscal_year,
-          items: items,
-        };
-      });
+    // Data is already properly transformed by API wrapper: { date, items }
+    const periods = actualData;
 
       return (
         <Card>

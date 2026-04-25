@@ -33,20 +33,22 @@ router.get("/:symbol/balance-sheet", async (req, res) => {
     console.log(`📊 [FINANCIALS] Fetching balance sheet for ${upperSymbol} (${period})`);
     const tableName = period === 'quarterly' ? 'quarterly_balance_sheet' : 'annual_balance_sheet';
     const result = await query(`
-      SELECT symbol, fiscal_year, total_assets, total_liabilities, stockholders_equity
+      SELECT *
       FROM ${tableName}
       WHERE symbol = $1
       ORDER BY fiscal_year DESC
       LIMIT 20
     `, [upperSymbol]);
 
-    const transformedData = (result.rows || []).map(row => ({
-      symbol: row.symbol,
-      fiscal_year: row.fiscal_year,
-      total_assets: row.total_assets,
-      total_liabilities: row.total_liabilities,
-      stockholders_equity: row.stockholders_equity
-    }));
+    const transformedData = (result.rows || []).map(row => {
+      const data = { symbol: row.symbol, fiscal_year: row.fiscal_year };
+      Object.entries(row).forEach(([key, value]) => {
+        if (!['symbol', 'fiscal_year', 'fiscal_quarter'].includes(key)) {
+          data[key] = value;
+        }
+      });
+      return data;
+    });
 
     return sendSuccess(res, {
       symbol: upperSymbol,
@@ -72,24 +74,22 @@ router.get("/:symbol/income-statement", async (req, res) => {
     console.log(`📊 [FINANCIALS] Fetching income statement for ${upperSymbol} (${period})`);
     const tableName = period === 'quarterly' ? 'quarterly_income_statement' : 'annual_income_statement';
     const result = await query(`
-      SELECT symbol, fiscal_year, revenue, cost_of_revenue, gross_profit,
-             operating_expenses, operating_income, net_income
+      SELECT *
       FROM ${tableName}
       WHERE symbol = $1
       ORDER BY fiscal_year DESC
       LIMIT 20
     `, [upperSymbol]);
 
-    const transformedData = (result.rows || []).map(row => ({
-      symbol: row.symbol,
-      fiscal_year: row.fiscal_year,
-      revenue: row.revenue,
-      cost_of_revenue: row.cost_of_revenue,
-      gross_profit: row.gross_profit,
-      operating_expenses: row.operating_expenses,
-      operating_income: row.operating_income,
-      net_income: row.net_income
-    }));
+    const transformedData = (result.rows || []).map(row => {
+      const data = { symbol: row.symbol, fiscal_year: row.fiscal_year };
+      Object.entries(row).forEach(([key, value]) => {
+        if (!['symbol', 'fiscal_year', 'fiscal_quarter'].includes(key)) {
+          data[key] = value;
+        }
+      });
+      return data;
+    });
 
     return sendSuccess(res, {
       symbol: upperSymbol,
@@ -115,20 +115,22 @@ router.get("/:symbol/cash-flow", async (req, res) => {
     console.log(`📊 [FINANCIALS] Fetching cash flow for ${upperSymbol} (${period})`);
     const tableName = period === 'quarterly' ? 'quarterly_cash_flow' : 'annual_cash_flow';
     const result = await query(`
-      SELECT symbol, fiscal_year, operating_cash_flow, capital_expenditures, free_cash_flow
+      SELECT *
       FROM ${tableName}
       WHERE symbol = $1
       ORDER BY fiscal_year DESC
       LIMIT 20
     `, [upperSymbol]);
 
-    const transformedData = (result.rows || []).map(row => ({
-      symbol: row.symbol,
-      fiscal_year: row.fiscal_year,
-      operating_cash_flow: row.operating_cash_flow,
-      capital_expenditures: row.capital_expenditures,
-      free_cash_flow: row.free_cash_flow
-    }));
+    const transformedData = (result.rows || []).map(row => {
+      const data = { symbol: row.symbol, fiscal_year: row.fiscal_year };
+      Object.entries(row).forEach(([key, value]) => {
+        if (!['symbol', 'fiscal_year', 'fiscal_quarter'].includes(key)) {
+          data[key] = value;
+        }
+      });
+      return data;
+    });
 
     return sendSuccess(res, {
       symbol: upperSymbol,

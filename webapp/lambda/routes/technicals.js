@@ -160,52 +160,21 @@ router.get("/weekly", async (req, res) => {
     );
 
     return res.json({
-      data: result.rows,
+      data: result.rows.map(row => ({
+        ...row,
+        rsi: safeFloat(row.rsi),
+        macd: safeFloat(row.macd),
+        signal: safeFloat(row.signal),
+        histogram: safeFloat(row.histogram),
+        sma_20: safeFloat(row.sma_20),
+        sma_50: safeFloat(row.sma_50),
+        sma_200: safeFloat(row.sma_200)
+      })),
       pagination: { page, limit, total, hasMore: offset + limit < total },
       success: true
     });
   } catch (err) {
     console.error("Technical weekly error:", err.message);
-    return sendError(res, err.message, 500);
-  }
-});
-
-// Get monthly technicals
-router.get("/monthly", async (req, res) => {
-  try {
-    const symbol = req.query.symbol;
-    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const offset = (page - 1) * limit;
-
-    let sql = "SELECT * FROM technical_data_monthly";
-    const params = [];
-    let paramIndex = 1;
-
-    if (symbol) {
-      sql += ` WHERE symbol = $${paramIndex}`;
-      params.push(symbol);
-      paramIndex++;
-    }
-
-    const countResult = await query(
-      `SELECT COUNT(*) as count FROM (${sql}) t`,
-      params
-    );
-    const total = countResult.rows[0]?.count || 0;
-
-    const result = await query(
-      sql + ` ORDER BY date DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
-      [...params, limit, offset]
-    );
-
-    return res.json({
-      data: result.rows,
-      pagination: { page, limit, total, hasMore: offset + limit < total },
-      success: true
-    });
-  } catch (err) {
-    console.error("Technical monthly error:", err.message);
     return sendError(res, err.message, 500);
   }
 });

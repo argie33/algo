@@ -143,6 +143,11 @@ const getStocksSignals = async (req, res) => {
       `;
     }
 
+    // Determine technical table based on timeframe
+    const technicalTable = timeframe === 'daily' ? 'technical_data_daily' :
+                           timeframe === 'weekly' ? 'technical_data_weekly' :
+                           'technical_data_monthly';
+
     // Query with price JOIN for the matching timeframe and technical JOIN
     const signalsQuery = `
       SELECT
@@ -150,7 +155,7 @@ const getStocksSignals = async (req, res) => {
       FROM ${tableName} bsd
       LEFT JOIN ${priceTable} p ON bsd.symbol = p.symbol
         AND DATE(p.date) = DATE(bsd.date)
-      LEFT JOIN technical_data_daily t ON bsd.symbol = t.symbol
+      LEFT JOIN ${technicalTable} t ON bsd.symbol = t.symbol
         AND DATE(t.date) = DATE(bsd.date)
       ${whereClause}
       ORDER BY bsd.date DESC, bsd.id DESC

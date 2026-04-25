@@ -16,7 +16,9 @@ try:
 except ImportError:
     HAS_RESOURCE = False
 import math
+from pathlib import Path
 
+from dotenv import load_dotenv
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
 from datetime import datetime
@@ -24,6 +26,11 @@ from datetime import datetime
 import boto3
 import yfinance as yf
 from lib.db import get_connection, get_db_config
+
+# Load environment variables from .env.local
+env_file = Path(__file__).parent / '.env.local'
+if env_file.exists():
+    load_dotenv(env_file)
 
 SCRIPT_NAME = "loadanalystupgradedowngrade.py"
 logging.basicConfig(

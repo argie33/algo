@@ -29,6 +29,7 @@ import {
   ExpandMore,
   Stars,
   TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
   Business as BusinessIcon,
   Public as PublicIcon,
   ShowChart as ShowChartIcon,

@@ -30,9 +30,11 @@ import requests
 sys.path.insert(0, '/home/arger/algo/utils')
 try:
     from greeks_calculator import GreeksCalculator
+    HAS_GREEKS_CALCULATOR = True
 except ImportError as e:
-    print(f"Error importing greeks_calculator: {e}")
-    sys.exit(1)
+    print(f"Warning: greeks_calculator not available: {e}")
+    print("Options will be loaded without Greeks calculations")
+    HAS_GREEKS_CALCULATOR = False
 
 # ===========================
 # Logging Setup
@@ -280,8 +282,8 @@ def load_options_for_symbol(symbol, risk_free_rate, data_date, conn):
                         row, symbol, exp_date, 'call', data_date
                     ))
 
-                    # Calculate Greeks
-                    if pd.notna(row['impliedVolatility']) and row['impliedVolatility'] > 0:
+                    # Calculate Greeks if calculator available
+                    if HAS_GREEKS_CALCULATOR and pd.notna(row['impliedVolatility']) and row['impliedVolatility'] > 0:
                         greeks = GreeksCalculator.calculate_greeks(
                             S=stock_price,
                             K=float(row['strike']),
