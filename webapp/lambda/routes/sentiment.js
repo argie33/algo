@@ -67,28 +67,18 @@ router.get("/data", async (req, res) => {
 
     const countResult = await query(countQueryStr, countParams);
     const total = parseInt(countResult.rows[0]?.total || 0);
-    const totalPages = Math.ceil(total / limitNum);
 
     const result = await query(queryStr, params);
 
-    return res.json({
-      items: result.rows || [],
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total,
-        totalPages,
-        hasNext: pageNum < totalPages,
-        hasPrev: pageNum > 1
-      },
-      success: true
+    return sendPaginated(res, result.rows || [], {
+      limit: limitNum,
+      offset,
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum)
     });
   } catch (error) {
-    console.error("Sentiment data error:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch sentiment data",
-      success: false
-    });
+    return sendError(res, `Failed to fetch sentiment data: ${error.message}`, 500);
   }
 });
 
