@@ -46,7 +46,6 @@ import {
 } from "@mui/icons-material";
 
 // Admin-only page imports (Portfolio and Tools)
-import MetricsDashboard from "./pages/MetricsDashboard";
 import ServiceHealth from "./pages/ServiceHealth";
 import PortfolioDashboard from "./pages/PortfolioDashboard";
 import PortfolioOptimizerNew from "./pages/PortfolioOptimizerNew";
@@ -59,7 +58,6 @@ import AuthModal from "./components/auth/AuthModal";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
 import RootRedirect from "./components/RootRedirect";
-import AuthTest from "./pages/AuthTest";
 
 const drawerWidth = 240;
 
@@ -495,12 +493,10 @@ function App() {
             <Route path="/portfolio" element={<ProtectedRoute><PortfolioDashboard /></ProtectedRoute>} />
             <Route path="/trade-history" element={<ProtectedRoute><TradeHistory /></ProtectedRoute>} />
             <Route path="/optimizer" element={<ProtectedRoute><PortfolioOptimizerNew /></ProtectedRoute>} />
-            <Route path="/metrics" element={<MetricsDashboard />} />
             <Route path="/deep-value-stocks" element={<DeepValueStocks />} />
             <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
             <Route path="/service-health" element={<ServiceHealth />} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-            <Route path="/auth-test" element={<AuthTest />} />
           </Routes>
         </Container>
       </Box>

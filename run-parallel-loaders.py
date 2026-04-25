@@ -38,25 +38,25 @@ def run_loader_chunk(script, offset, limit, chunk_num):
     try:
         result = subprocess.run(cmd, timeout=1800, capture_output=True, text=True)
         if result.returncode == 0:
-            print(f"[✓] Chunk {chunk_num} completed successfully")
+            print(f"[OK] Chunk {chunk_num} completed successfully")
             return True
         else:
-            print(f"[✗] Chunk {chunk_num} failed with return code {result.returncode}")
+            print(f"[FAIL] Chunk {chunk_num} failed with return code {result.returncode}")
             if result.stderr:
                 print(f"    Error: {result.stderr[:200]}")
             return False
     except subprocess.TimeoutExpired:
-        print(f"[✗] Chunk {chunk_num} timed out after 30 minutes")
+        print(f"[FAIL] Chunk {chunk_num} timed out after 30 minutes")
         return False
     except Exception as e:
-        print(f"[✗] Chunk {chunk_num} error: {e}")
+        print(f"[FAIL] Chunk {chunk_num} error: {e}")
         return False
 
 def run_parallel_load(script):
     """Run a loader in parallel chunks"""
     print(f"\n{'='*60}")
     print(f"Running {script} in parallel ({PARALLEL_CHUNKS} chunks)")
-    print(f"{'='*60}")
+    print(f"{'='*60}\n")
 
     processes = []
     results = []
@@ -81,16 +81,16 @@ def run_parallel_load(script):
     print(f"Completed: {completed}/{PARALLEL_CHUNKS} chunks")
 
     for chunk_num, success in results:
-        status = "[✓] PASS" if success else "[✗] FAIL"
+        status = "[PASS]" if success else "[FAIL]"
         print(f"  Chunk {chunk_num}: {status}")
 
     return completed == PARALLEL_CHUNKS
 
 if __name__ == '__main__':
-    print("\n╔════════════════════════════════════════════════════════╗")
-    print("║  Parallel Loader Runner                              ║")
-    print("║  Loads data in parallel chunks to avoid timeouts     ║")
-    print("╚════════════════════════════════════════════════════════╝\n")
+    print("\n" + "="*60)
+    print("  Parallel Loader Runner")
+    print("  Loads data in parallel chunks to avoid timeouts")
+    print("="*60 + "\n")
 
     # Run each parallel-capable loader
     all_success = True
@@ -100,9 +100,9 @@ if __name__ == '__main__':
 
     print(f"\n{'='*60}")
     if all_success:
-        print("✓ All parallel loads completed successfully")
+        print("[OK] All parallel loads completed successfully")
     else:
-        print("✗ Some loads failed - check logs above")
+        print("[FAIL] Some loads failed - check logs above")
     print(f"{'='*60}\n")
 
     sys.exit(0 if all_success else 1)
