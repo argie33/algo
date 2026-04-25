@@ -99,7 +99,7 @@ router.get("/sentiment", async (req, res) => {
       SELECT *
       FROM analyst_sentiment_analysis
       WHERE symbol IS NOT NULL
-      ORDER BY date DESC
+      ORDER BY date_recorded DESC
       LIMIT $1 OFFSET $2
     `;
 
@@ -142,7 +142,7 @@ router.get("/by-symbol/:symbol", async (req, res) => {
       SELECT *
       FROM analyst_upgrade_downgrade
       WHERE symbol = $1
-      ORDER BY date DESC
+      ORDER BY action_date DESC
       LIMIT $2
     `;
 

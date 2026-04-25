@@ -253,18 +253,15 @@ async function getPortfolioHistory(userId) {
 
 // Root endpoint - help/info
 router.get("/", (req, res) => {
-  return res.json({
-    data: {
-      endpoint: "portfolio",
-      description: "Get complete portfolio data - holdings from Alpaca and manual trades, all metrics calculated",
-      primary_endpoint: "GET /metrics [AUTH] - Get all portfolio data (summary, positions, daily returns, metrics)",
-      available_routes: [
-        "GET /metrics [AUTH] - Get all portfolio data",
-        "GET /manual-positions - Get all manual positions",
-        "POST /manual-positions - Create a manual position"
-      ]
-    },
-    success: true
+  return sendSuccess(res, {
+    endpoint: "portfolio",
+    description: "Get complete portfolio data - holdings from Alpaca and manual trades, all metrics calculated",
+    primary_endpoint: "GET /metrics [AUTH] - Get all portfolio data (summary, positions, daily returns, metrics)",
+    available_routes: [
+      "GET /metrics [AUTH] - Get all portfolio data",
+      "GET /manual-positions - Get all manual positions",
+      "POST /manual-positions - Create a manual position"
+    ]
   });
 });
 
@@ -278,10 +275,7 @@ router.get("/manual-positions", async (req, res) => {
       []
     );
 
-    return res.json({
-      data: result.rows || [],
-      success: true
-    });
+    return sendSuccess(res, result.rows || []);
   } catch (err) {
     console.error('Error fetching manual positions:', err.message);
     return sendError(res, err.message, 500);
@@ -303,10 +297,7 @@ router.get("/manual-positions/:id", async (req, res) => {
       return sendError(res, "Position not found", 404);
     }
 
-    return res.json({
-      data: result.rows[0],
-      success: true
-    });
+    return sendSuccess(res, result.rows[0]);
   } catch (err) {
     console.error('Error fetching manual position:', err.message);
     return sendError(res, err.message, 500);
@@ -329,10 +320,7 @@ router.post("/manual-positions", async (req, res) => {
       [symbol, quantity, entry_price]
     );
 
-    return res.status(201).json({
-      data: result.rows[0],
-      success: true
-    });
+    return sendSuccess(res, result.rows[0], 201);
   } catch (err) {
     console.error('Error creating manual position:', err.message);
     return sendError(res, err.message, 500);
@@ -1240,33 +1228,26 @@ router.get("/metrics", authenticateToken, async (req, res) => {
       // Non-critical - continue without signals
     }
 
-    return res.json({
-      data: {
-        summary,
-        positions: positionsData,
-        daily_returns: dailyReturnsData,
-        signals: signalsData,
-        metadata: {
-          last_updated: new Date().toISOString(),
-          data_quality: {
-            validation_passed: validation.isValid,
-            warnings: validation.warnings,
-            issues: validation.issues,
-            quality_metrics: validation.dataQuality
-          }
+    return sendSuccess(res, {
+      summary,
+      positions: positionsData,
+      daily_returns: dailyReturnsData,
+      signals: signalsData,
+      metadata: {
+        last_updated: new Date().toISOString(),
+        data_quality: {
+          validation_passed: validation.isValid,
+          warnings: validation.warnings,
+          issues: validation.issues,
+          quality_metrics: validation.dataQuality
         }
-      },
-      success: true
+      }
     });
 
   } catch (error) {
     console.error("❌ Portfolio data error:", error.message);
     console.error("   Stack:", error.stack);
-    return res.status(500).json({
-      error: "Failed to fetch portfolio data",
-      details: error.message,
-      success: false
-    });
+    return sendError(res, "Failed to fetch portfolio data", 500);
   }
 });
 

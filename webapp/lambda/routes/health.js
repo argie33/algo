@@ -472,6 +472,7 @@ router.get("/database", async (req, res) => {
       status: "ok",
       healthy: true,
       version: "1.0.0",
+      codeVersion: "FIXED_V2",
       database: {
         status: "connected",
         tables: tables,

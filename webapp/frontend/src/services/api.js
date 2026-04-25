@@ -1960,7 +1960,7 @@ export const getIncomeStatement = async (ticker, period = "annual") => {
       ? result.map(row => {
           const items = {};
           Object.entries(row).forEach(([key, value]) => {
-            if (!['symbol', 'date', 'fiscal_year', 'fiscal_quarter', 'raw'].includes(key)) {
+            if (!['symbol', 'date', 'fiscal_year', 'fiscal_quarter', 'raw', 'id', 'created_at'].includes(key)) {
               // Convert snake_case to camelCase
               const camelCaseKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
               // Convert string to number
@@ -1995,7 +1995,7 @@ export const getCashFlowStatement = async (ticker, period = "annual") => {
       ? result.map(row => {
           const items = {};
           Object.entries(row).forEach(([key, value]) => {
-            if (!['symbol', 'date', 'fiscal_year', 'fiscal_quarter', 'raw'].includes(key)) {
+            if (!['symbol', 'date', 'fiscal_year', 'fiscal_quarter', 'raw', 'id', 'created_at'].includes(key)) {
               // Convert snake_case to camelCase
               const camelCaseKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
               // Convert string to number
@@ -2030,7 +2030,7 @@ export const getBalanceSheet = async (ticker, period = "annual") => {
       ? result.map(row => {
           const items = {};
           Object.entries(row).forEach(([key, value]) => {
-            if (!['symbol', 'date', 'fiscal_year', 'fiscal_quarter', 'raw'].includes(key)) {
+            if (!['symbol', 'date', 'fiscal_year', 'fiscal_quarter', 'raw', 'id', 'created_at'].includes(key)) {
               // Convert snake_case to camelCase
               const camelCaseKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
               // Convert string to number

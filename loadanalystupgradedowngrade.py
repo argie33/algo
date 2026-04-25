@@ -196,7 +196,7 @@ def load_analyst_actions(symbols, cur, conn):
             continue
         sql = """
             INSERT INTO analyst_upgrade_downgrade
-            (symbol, firm, action, from_grade, to_grade, date, details)
+            (symbol, firm, action, old_rating, new_rating, action_date, details)
             VALUES %s
             ON CONFLICT DO NOTHING
         """
@@ -226,7 +226,7 @@ def lambda_handler(event, context):
     create_table(cur)
     conn.commit()
 
-    cur.execute("SELECT symbol FROM stock_symbols;")
+    cur.execute("SELECT symbol FROM stock_symbols WHERE is_sp500 = true;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]
     t, i, f = load_analyst_actions(stock_syms, cur, conn)
 

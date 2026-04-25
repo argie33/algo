@@ -301,8 +301,8 @@ def lambda_handler(event, context):
     conn.autocommit = False
     cur = conn.cursor()
 
-    # Get all symbols
-    cur.execute("SELECT symbol FROM stock_symbols ORDER BY symbol;")
+    # Get S&P 500 symbols only
+    cur.execute("SELECT symbol FROM stock_symbols WHERE is_sp500 = true ORDER BY symbol;")
     symbols = [r[0] for r in cur.fetchall()]
 
     # Load analyst sentiment data

@@ -26,18 +26,8 @@ from psycopg2.extras import execute_values
 import boto3
 import requests
 
-# Import Greeks calculator
-sys.path.insert(0, '/home/arger/algo/utils')
-try:
-    from greeks_calculator import GreeksCalculator
-    HAS_GREEKS_CALCULATOR = True
-except ImportError as e:
-    print(f"Warning: greeks_calculator not available: {e}")
-    print("Options will be loaded without Greeks calculations")
-    HAS_GREEKS_CALCULATOR = False
-
 # ===========================
-# Logging Setup
+# Logging Setup (MUST come before logger.info calls)
 # ===========================
 logging.basicConfig(
     level=logging.INFO,
@@ -45,6 +35,26 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger("loadoptionschains")
+
+# Import Greeks calculator - optional dependency
+HAS_GREEKS_CALCULATOR = False
+try:
+    from greeks_calculator import GreeksCalculator
+    HAS_GREEKS_CALCULATOR = True
+except ImportError:
+    pass
+
+if not HAS_GREEKS_CALCULATOR:
+    try:
+        from utils.greeks_calculator import GreeksCalculator
+        HAS_GREEKS_CALCULATOR = True
+    except ImportError:
+        pass
+
+if HAS_GREEKS_CALCULATOR:
+    logger.info("Greeks calculator available - will calculate option Greeks")
+else:
+    logger.warning("Greeks calculator not available - options will be loaded without Greeks")
 
 # ===========================
 # Database Configuration

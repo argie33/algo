@@ -1203,7 +1203,7 @@ if __name__ == "__main__":
         logging.warning(f"Offset {args.offset} specified but no limit; loading all remaining symbols")
         limit_clause = f" OFFSET {args.offset}"
 
-    cur.execute(f"SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y') ORDER BY symbol{limit_clause};")
+    cur.execute(f"SELECT symbol FROM stock_symbols WHERE is_sp500 = true AND (etf IS NULL OR etf != 'Y') ORDER BY symbol{limit_clause};")
     symbols = [r["symbol"] for r in cur.fetchall()]
 
     run_id = args.run_id

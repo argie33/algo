@@ -143,7 +143,7 @@ router.get('/', async (req, res) => {
 
       const dataQuery = `
         SELECT
-          id, symbol, type as side, quantity, execution_price as price, execution_date as trade_date,
+          id, symbol, side, quantity, execution_price as price, execution_date as trade_date,
           order_value as total_amount, commission
         FROM trades
         ${whereClause}

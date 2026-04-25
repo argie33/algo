@@ -201,8 +201,10 @@ def check_database():
         return False
 
 def init_schema():
-    """Initialize database schema"""
-    print_header("INITIALIZING DATABASE SCHEMA")
+    """Initialize database schema using AUTHORITATIVE schema definition"""
+    print_header("INITIALIZING DATABASE SCHEMA (AUTHORITATIVE)")
+    print(f"Source: init_database.py (SCHEMA_DEFINITION.md)")
+    print(f"Status: ✅ Single source of truth")
     print(f"Running: python3 init_database.py")
 
     result = subprocess.run(
@@ -213,11 +215,24 @@ def init_schema():
     )
 
     if result.returncode == 0:
-        print("✓ Schema initialized")
+        print("✓ AUTHORITATIVE schema initialized successfully")
+        if result.stdout:
+            for line in result.stdout.split('\n')[-15:]:
+                if line.strip() and '✓' in line or '✗' in line or 'complete' in line.lower():
+                    print(f"  {line}")
         return True
     else:
         print("✗ Schema initialization failed")
-        print(result.stderr)
+        if result.stderr:
+            print("Error output:")
+            for line in result.stderr.split('\n')[-10:]:
+                if line.strip():
+                    print(f"  {line}")
+        if result.stdout:
+            print("Standard output:")
+            for line in result.stdout.split('\n')[-10:]:
+                if line.strip():
+                    print(f"  {line}")
         return False
 
 def run_loader_chunked(script, name, timeout_secs, chunks=4):
