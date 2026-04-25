@@ -11,7 +11,8 @@ router.get("/", (req, res) => {
     data: {
       endpoint: "scores",
       available_routes: [
-        "/stockscores - Get stock scores with filtering and sorting (comprehensive data with momentum, quality, value, growth, positioning, stability metrics)"
+        "/stockscores - Get stock scores with filtering and sorting (comprehensive data with momentum, quality, value, growth, positioning, stability metrics)",
+        "/all - Alias for /stockscores (same endpoint)"
       ]
     },
     success: true
@@ -788,5 +789,28 @@ router.get("/stockscores", async (req, res) => {
 // - Clearer API structure: /api/sectors/* for all sector/industry endpoints
 // - Avoids redundancy: Multiple endpoints for the same data removed
 // - Better RESTful design: Hierarchical path structure (sector → industry)
+
+// Alias: /all -> /stockscores for backward compatibility
+router.get("/all", async (req, res) => {
+  try {
+    const result = await queryScores({
+      limit: req.query.limit,
+      offset: req.query.offset,
+      search: req.query.search,
+      sortBy: req.query.sortBy,
+      sortOrder: req.query.sortOrder
+    });
+    const page = Math.floor(result.offset / result.limit) + 1;
+    const totalPages = Math.ceil(result.total / result.limit);
+    const hasNext = page < totalPages;
+    const hasPrev = page > 1;
+    const cleanedStocks = removeNullValues(result.stocks);
+    res.json({ items: cleanedStocks, pagination: { page, limit: result.limit, total: result.total, totalPages, hasNext, hasPrev }, success: true });
+  } catch (error) {
+    console.error("Error fetching stock scores:", error);
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({ error: error.message || "Failed to fetch stock scores", success: false });
+  }
+});
 
 module.exports = router;

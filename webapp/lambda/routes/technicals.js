@@ -11,6 +11,8 @@ router.get("/", (req, res) => {
       endpoint: "technicals",
       available_routes: [
         "GET /daily - Get daily technical indicators (RSI, MACD, Bollinger Bands, etc.)",
+        "GET /daily?symbol=AAPL - Get daily technicals for specific symbol",
+        "GET /:symbol - Shortcut for /daily?symbol=:symbol (alias)",
         "GET /weekly - Get weekly technical indicators",
         "GET /monthly - Get monthly technical indicators"
       ],
@@ -29,6 +31,55 @@ function safeFloat(value) {
   const num = parseFloat(value);
   return isNaN(num) ? null : num;
 }
+
+// Get monthly technicals
+router.get("/monthly", async (req, res) => {
+  try {
+    const symbol = req.query.symbol;
+    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const offset = (page - 1) * limit;
+
+    let sql = "SELECT * FROM technical_data_monthly";
+    const params = [];
+    let paramIndex = 1;
+
+    if (symbol) {
+      sql += ` WHERE symbol = $${paramIndex}`;
+      params.push(symbol);
+      paramIndex++;
+    }
+
+    const countResult = await query(
+      `SELECT COUNT(*) as count FROM (${sql}) t`,
+      params
+    );
+    const total = countResult.rows[0]?.count || 0;
+
+    const result = await query(
+      sql + ` ORDER BY date DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      [...params, limit, offset]
+    );
+
+    return res.json({
+      data: result.rows.map(row => ({
+        ...row,
+        rsi: safeFloat(row.rsi),
+        macd: safeFloat(row.macd),
+        signal: safeFloat(row.signal),
+        histogram: safeFloat(row.histogram),
+        sma_20: safeFloat(row.sma_20),
+        sma_50: safeFloat(row.sma_50),
+        sma_200: safeFloat(row.sma_200)
+      })),
+      pagination: { page, limit, total, hasMore: offset + limit < total },
+      success: true
+    });
+  } catch (err) {
+    console.error("Technical monthly error:", err.message);
+    return sendError(res, err.message, 500);
+  }
+});
 
 // Get daily technicals
 router.get("/daily", async (req, res) => {
@@ -216,6 +267,43 @@ router.get("/indicators", async (req, res) => {
     });
   } catch (err) {
     console.error("Technical indicators error:", err.message);
+    return sendError(res, err.message, 500);
+  }
+});
+
+// GET /api/technicals/:symbol - Shortcut for /daily?symbol=:symbol
+router.get("/:symbol", async (req, res) => {
+  const { symbol } = req.params;
+  const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const offset = (page - 1) * limit;
+
+  try {
+    const sql = `SELECT * FROM technical_data_daily WHERE symbol = $1 ORDER BY date DESC`;
+    const countResult = await query(`SELECT COUNT(*) as count FROM technical_data_daily WHERE symbol = $1`, [symbol.toUpperCase()]);
+    const total = countResult.rows[0]?.count || 0;
+
+    const result = await query(
+      sql + ` LIMIT $2 OFFSET $3`,
+      [symbol.toUpperCase(), limit, offset]
+    );
+
+    return res.json({
+      data: result.rows.map(row => ({
+        ...row,
+        rsi: safeFloat(row.rsi),
+        macd: safeFloat(row.macd),
+        signal: safeFloat(row.signal),
+        histogram: safeFloat(row.histogram),
+        sma_20: safeFloat(row.sma_20),
+        sma_50: safeFloat(row.sma_50),
+        sma_200: safeFloat(row.sma_200)
+      })),
+      pagination: { page, limit, total, hasMore: offset + limit < total },
+      success: true
+    });
+  } catch (err) {
+    console.error(`Technical data error for ${symbol}:`, err.message);
     return sendError(res, err.message, 500);
   }
 });

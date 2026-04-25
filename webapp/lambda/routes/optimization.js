@@ -20,6 +20,7 @@ router.get("/", authenticateToken, (req, res) => {
       available_routes: [
         "/analysis - Get portfolio optimization analysis (traditional approach)",
         "/swing-trading - Get swing trading portfolio recommendations (12-15 best stocks, risk-based sizing)",
+        "/recommendations - Alias for /swing-trading (backward compatibility)",
         "/execute - Execute optimization recommendations"
       ]
     },
@@ -3149,6 +3150,16 @@ router.post("/execute", authenticateToken, async (req, res) => {
       success: false
     });
   }
+});
+
+// GET /optimization/recommendations - Alias for /swing-trading for backward compatibility
+router.get("/recommendations", authenticateToken, async (req, res) => {
+  console.log("📊 Recommendations endpoint called - forwarding to swing-trading analysis");
+  // Redirect to swing-trading endpoint internally
+  req.baseUrl = "/api/optimization";
+  req.url = "/swing-trading";
+  // Let Express re-route this internally
+  return router._router.handle(req, res);
 });
 
 module.exports = router;

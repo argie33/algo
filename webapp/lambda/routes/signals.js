@@ -124,10 +124,10 @@ const getStocksSignals = async (req, res) => {
         bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.signal_triggered_date,
         bsd.signal, bsd.strength, bsd.signal_strength,
         p.open, p.high, p.low, p.close, p.volume,
-        NULL::float as rsi, NULL::float as adx, NULL::float as atr,
-        NULL::float as macd, NULL::float as signal_line,
-        NULL::float as sma_20, NULL::float as sma_50, NULL::float as sma_200,
-        NULL::float as ema_12, NULL::float as ema_26
+        t.rsi, t.adx, t.atr,
+        t.macd, t.signal as signal_line,
+        t.sma_20, t.sma_50, t.sma_200,
+        t.ema_12, t.ema_26
       `;
     } else {
       console.log(`[DEBUG] Using WEEKLY/MONTHLY columns (no bsd.signal_strength)`);
@@ -136,20 +136,22 @@ const getStocksSignals = async (req, res) => {
         bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.signal_triggered_date,
         bsd.signal, bsd.strength, NULL::float as signal_strength,
         p.open, p.high, p.low, p.close, p.volume,
-        NULL::float as rsi, NULL::float as adx, NULL::float as atr,
-        NULL::float as macd, NULL::float as signal_line,
-        NULL::float as sma_20, NULL::float as sma_50, NULL::float as sma_200,
-        NULL::float as ema_12, NULL::float as ema_26
+        t.rsi, t.adx, t.atr,
+        t.macd, t.signal as signal_line,
+        t.sma_20, t.sma_50, t.sma_200,
+        t.ema_12, t.ema_26
       `;
     }
 
-    // Query with price JOIN for the matching timeframe
+    // Query with price JOIN for the matching timeframe and technical JOIN
     const signalsQuery = `
       SELECT
         ${actualColumns}
       FROM ${tableName} bsd
       LEFT JOIN ${priceTable} p ON bsd.symbol = p.symbol
         AND DATE(p.date) = DATE(bsd.date)
+      LEFT JOIN technical_data_daily t ON bsd.symbol = t.symbol
+        AND DATE(t.date) = DATE(bsd.date)
       ${whereClause}
       ORDER BY bsd.date DESC, bsd.id DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -252,6 +254,12 @@ router.get("/stocks", getStocksSignals);
 
 // Alias for backward compatibility with frontend
 router.get("/list", getStocksSignals);
+
+// Alias for /stocks with timeframe=daily (backward compatibility)
+router.get("/daily", async (req, res) => {
+  req.query.timeframe = 'daily';
+  return getStocksSignals(req, res);
+});
 
 // Get trading signals for ETFs - SAME STRUCTURE AS STOCKS
 router.get("/etf", async (req, res) => {

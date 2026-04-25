@@ -11,6 +11,7 @@ router.get("/", (req, res) => {
     data: {
       endpoint: "sentiment",
       available_routes: [
+        "/summary - Consolidated sentiment summary (fear/greed, analyst, AAII, NAAIM)",
         "/analyst - Analyst sentiment data",
         "/current - Current sentiment readings",
         "/history - Historical sentiment data",
@@ -95,6 +96,68 @@ router.get("/data", async (req, res) => {
     return res.status(500).json({
       error: "Failed to fetch sentiment data",
       success: false
+    });
+  }
+});
+
+// GET /api/sentiment/summary - Consolidated sentiment summary
+router.get("/summary", async (req, res) => {
+  try {
+    // Fetch all sentiment data sources
+    let fearGreed = null, naaim = null, aaii = null, analyst = null;
+
+    try {
+      const fearGreedResult = await query(
+        `SELECT fear_greed_value as value, date FROM fear_greed_index ORDER BY date DESC LIMIT 1`
+      );
+      fearGreed = fearGreedResult.rows[0] || null;
+    } catch (e) {
+      console.warn("fear_greed_index not available:", e.message);
+    }
+
+    try {
+      const naaImResult = await query(
+        `SELECT naaim_number_mean, bullish, bearish, date FROM naaim ORDER BY date DESC LIMIT 1`
+      );
+      naaim = naaImResult.rows[0] || null;
+    } catch (e) {
+      console.warn("naaim not available:", e.message);
+    }
+
+    try {
+      const aaiiResult = await query(
+        `SELECT bullish, neutral, bearish, date FROM aaii_sentiment ORDER BY date DESC LIMIT 1`
+      );
+      aaii = aaiiResult.rows[0] || null;
+    } catch (e) {
+      console.warn("aaii_sentiment not available:", e.message);
+    }
+
+    try {
+      const analystResult = await query(
+        `SELECT total_analysts, bullish_count, bearish_count, neutral_count, date_recorded as date FROM analyst_sentiment_analysis ORDER BY date_recorded DESC LIMIT 1`
+      );
+      analyst = analystResult.rows[0] || null;
+    } catch (e) {
+      console.warn("analyst_sentiment_analysis not available:", e.message);
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        fear_greed: fearGreed,
+        naaim: naaim,
+        aaii: aaii,
+        analyst: analyst,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error("Sentiment summary error:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to fetch sentiment summary",
+      timestamp: new Date().toISOString()
     });
   }
 });

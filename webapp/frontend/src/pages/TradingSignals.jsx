@@ -110,8 +110,8 @@ function TradingSignals() {
     if (!signal) return false;
     if (!signal.symbol) return false; // Must have a symbol
     if (!signal.signal) return false; // Must have a signal type (Buy/Sell)
-    // Signal strength validates signal quality
-    if (signal.strength === null || signal.strength === undefined) return false;
+    // Signal is valid if it has a symbol and signal type
+    // Don't filter on strength since weekly/monthly don't have it
     return true;
   };
 
@@ -254,7 +254,7 @@ function TradingSignals() {
   });
 
   // Ensure we have a valid response object, default to empty items
-  const validSignalsData = signalsData?.data || { items: [] };
+  const validSignalsData = signalsData || { items: [] };
   const hasNoSignals = !signalsLoading && (!validSignalsData?.items || validSignalsData.items.length === 0);
 
   // Show 0 when empty
