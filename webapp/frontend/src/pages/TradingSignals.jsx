@@ -110,9 +110,8 @@ function TradingSignals() {
     if (!signal) return false;
     if (!signal.symbol) return false; // Must have a symbol
     if (!signal.signal) return false; // Must have a signal type (Buy/Sell)
-    if (!signal.close && signal.close !== 0) return false; // Must have price data
-    // If it has symbol, signal, and price - it's real data from the API
-    // Don't filter out signals just because some optional fields are null
+    // Signal strength validates signal quality - buy_sell tables don't have OHLC prices
+    if (signal.strength === null && signal.strength === undefined) return false;
     return true;
   };
 
