@@ -6,24 +6,21 @@ const router = express.Router();
 
 // Root endpoint - documentation
 router.get("/", (req, res) => {
-  return res.json({
-    data: {
-      endpoint: "strategies",
-      documentation: "Options strategies and opportunity analysis",
-      available_routes: [
-        "GET /covered-calls - Get covered call opportunities with filters and pagination",
-        "  Query params: symbol={ticker}, min_score={0-100}, min_premium_pct={num}, max_days_to_exp={num}",
-        "                trend={uptrend|sideways|downtrend}, min_iv_rank={0-100}, sort_by={score|premium|max_profit|iv_rank|expiration}",
-        "                limit={1-200, default 100}, page={1,2,3...}"
-      ],
-      examples: [
-        "GET /api/strategies/covered-calls",
-        "GET /api/strategies/covered-calls?symbol=AAPL&min_score=70",
-        "GET /api/strategies/covered-calls?trend=uptrend&min_premium_pct=1.5&sort_by=score",
-        "GET /api/strategies/covered-calls?symbol=AAPL&limit=50&page=1"
-      ]
-    },
-    success: true
+  return sendSuccess(res, {
+    endpoint: "strategies",
+    documentation: "Options strategies and opportunity analysis",
+    available_routes: [
+      "GET /covered-calls - Get covered call opportunities with filters and pagination",
+      "  Query params: symbol={ticker}, min_score={0-100}, min_premium_pct={num}, max_days_to_exp={num}",
+      "                trend={uptrend|sideways|downtrend}, min_iv_rank={0-100}, sort_by={score|premium|max_profit|iv_rank|expiration}",
+      "                limit={1-200, default 100}, page={1,2,3...}"
+    ],
+    examples: [
+      "GET /api/strategies/covered-calls",
+      "GET /api/strategies/covered-calls?symbol=AAPL&min_score=70",
+      "GET /api/strategies/covered-calls?trend=uptrend&min_premium_pct=1.5&sort_by=score",
+      "GET /api/strategies/covered-calls?symbol=AAPL&limit=50&page=1"
+    ]
   });
 });
 
@@ -170,27 +167,19 @@ router.get("/covered-calls", async (req, res) => {
 
     const result = await query(sql, params);
 
-    return res.json({
-      items: result.rows,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total,
-        totalPages,
-        hasNext: pageNum < totalPages,
-        hasPrev: pageNum > 1
-      },
-      success: true
+    return sendPaginated(res, result.rows, {
+      page: pageNum,
+      limit: limitNum,
+      total,
+      totalPages,
+      hasNext: pageNum < totalPages,
+      hasPrev: pageNum > 1
     });
 
   } catch (error) {
     console.error("Error fetching covered call opportunities:", error.message);
     console.error("Full error:", error);
-    return res.status(500).json({
-      error: "Failed to fetch covered call opportunities",
-      details: error.message,
-      success: false
-    });
+    return sendError(res, "Failed to fetch covered call opportunities: " + error.message, 500);
   }
 });
 

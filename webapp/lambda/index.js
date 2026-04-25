@@ -25,7 +25,6 @@ const { createServer } = require("http");
 const helmet = require("helmet");
 const morgan = require("morgan");
 
-// const responseFormatterMiddleware = require("./middleware/responseFormatter"); // DEPRECATED
 const serverlessHttp = require('serverless-http');
 
 const errorHandler = require("./middleware/errorHandler");
@@ -278,9 +277,6 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// NORMALIZE ALL RESPONSES to unified format
-// DISABLED: all endpoints already use sendSuccess/sendError/sendPaginated helpers
-// app.use(responseNormalizer);
 
 // JSON parsing error handler
 app.use((error, req, res, next) => {
@@ -621,10 +617,3 @@ module.exports = app;
 // AWS Lambda handler - CRITICAL FOR LAMBDA TO WORK
 // This MUST be exported for Lambda to find the handler function
 module.exports.handler = serverlessHttp(app);
-
-// Force redeploy Thu Oct  2 18:22:58 CDT 2025
-// Emergency fix 1759448244
-// Trigger Lambda deployment - test schema fixes
-// Fixed: Added serverless-http handler export 2025-10-28 17:04 UTC
-// Fixed: Restored stocks.js route handler (HTTP 404 fix)
-// Trigger: Rebuild Lambda with fixed routes - 2026-01-03

@@ -62,9 +62,6 @@ const getPriceHistoryHandler = async (req, res) => {
 // Get price history for a specific symbol
 router.get("/history/:symbol", getPriceHistoryHandler);
 
-// GET /api/price/chart/:symbol - Alias for /history
-router.get("/chart/:symbol", getPriceHistoryHandler);
-
 // Helper to safely parse float
 function safeFloat(value) {
   if (value === null || value === undefined) return null;

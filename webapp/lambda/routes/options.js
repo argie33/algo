@@ -6,26 +6,23 @@ const router = express.Router();
 
 // Root endpoint - documentation
 router.get("/", (req, res) => {
-  return res.json({
-    data: {
-      endpoint: "options",
-      documentation: "Options chains and Greeks data API",
-      available_routes: [
-        "GET /chains/:symbol - Get options chain for symbol (calls + puts)",
-        "  Query params: expiration={YYYY-MM-DD}, option_type={call|put}, min_strike={price}, max_strike={price}, min_volume={num}",
-        "GET /greeks/:symbol - Get calculated Greeks data",
-        "  Query params: expiration={YYYY-MM-DD}, option_type={call|put}",
-        "GET /iv-history/:symbol - Get IV history for percentile calculation",
-        "  Query params: days={1-730} (default: 365)"
-      ],
-      examples: [
-        "GET /api/options/chains/AAPL",
-        "GET /api/options/chains/AAPL?option_type=call&min_strike=170",
-        "GET /api/options/greeks/AAPL?expiration=2025-02-21",
-        "GET /api/options/iv-history/AAPL?days=252"
-      ]
-    },
-    success: true
+  return sendSuccess(res, {
+    endpoint: "options",
+    documentation: "Options chains and Greeks data API",
+    available_routes: [
+      "GET /chains/:symbol - Get options chain for symbol (calls + puts)",
+      "  Query params: expiration={YYYY-MM-DD}, option_type={call|put}, min_strike={price}, max_strike={price}, min_volume={num}",
+      "GET /greeks/:symbol - Get calculated Greeks data",
+      "  Query params: expiration={YYYY-MM-DD}, option_type={call|put}",
+      "GET /iv-history/:symbol - Get IV history for percentile calculation",
+      "  Query params: days={1-730} (default: 365)"
+    ],
+    examples: [
+      "GET /api/options/chains/AAPL",
+      "GET /api/options/chains/AAPL?option_type=call&min_strike=170",
+      "GET /api/options/greeks/AAPL?expiration=2025-02-21",
+      "GET /api/options/iv-history/AAPL?days=252"
+    ]
   });
 });
 
@@ -121,23 +118,17 @@ router.get("/chains/:symbol", async (req, res) => {
 
     const expirations = expirationsResult.rows.map(r => r.expiration_date);
 
-    return res.json({
-      data: {
-        symbol: symbol.toUpperCase(),
-        options: result.rows,
-        expirations,
-        count: result.rows.length,
-        lastUpdated: new Date().toISOString()
-      },
-      success: true
+    return sendSuccess(res, {
+      symbol: symbol.toUpperCase(),
+      options: result.rows,
+      expirations,
+      count: result.rows.length,
+      lastUpdated: new Date().toISOString()
     });
 
   } catch (error) {
     console.error("Error fetching options chain:", error);
-    return res.status(500).json({
-      error: "Failed to fetch options chain",
-      success: false
-    });
+    return sendError(res, "Failed to fetch options chain", 500);
   }
 });
 
@@ -198,21 +189,15 @@ router.get("/greeks/:symbol", async (req, res) => {
 
     const result = await query(sql, params);
 
-    return res.json({
-      data: {
-        symbol: symbol.toUpperCase(),
-        greeks: result.rows,
-        count: result.rows.length
-      },
-      success: true
+    return sendSuccess(res, {
+      symbol: symbol.toUpperCase(),
+      greeks: result.rows,
+      count: result.rows.length
     });
 
   } catch (error) {
     console.error("Error fetching Greeks:", error);
-    return res.status(500).json({
-      error: "Failed to fetch Greeks data",
-      success: false
-    });
+    return sendError(res, "Failed to fetch Greeks data", 500);
   }
 });
 
@@ -239,22 +224,16 @@ router.get("/iv-history/:symbol", async (req, res) => {
 
     const result = await query(sql, [symbol.toUpperCase(), days]);
 
-    return res.json({
-      data: {
-        symbol: symbol.toUpperCase(),
-        days,
-        history: result.rows,
-        count: result.rows.length
-      },
-      success: true
+    return sendSuccess(res, {
+      symbol: symbol.toUpperCase(),
+      days,
+      history: result.rows,
+      count: result.rows.length
     });
 
   } catch (error) {
     console.error("Error fetching IV history:", error);
-    return res.status(500).json({
-      error: "Failed to fetch IV history",
-      success: false
-    });
+    return sendError(res, "Failed to fetch IV history", 500);
   }
 });
 

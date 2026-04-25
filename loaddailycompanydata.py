@@ -1156,6 +1156,44 @@ if __name__ == "__main__":
 
         cur.execute("CREATE INDEX IF NOT EXISTS idx_pos_metrics_date ON positioning_metrics(date DESC)")
 
+        # Create key_metrics table if it doesn't exist (MUST exist before ALTER TABLE)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS key_metrics (
+                ticker VARCHAR(20) PRIMARY KEY,
+                market_cap BIGINT,
+                employees INTEGER,
+                sector VARCHAR(100),
+                industry VARCHAR(100),
+                website VARCHAR(255),
+                currency_code VARCHAR(10),
+                quote_type VARCHAR(50),
+                exchange VARCHAR(20),
+                short_name VARCHAR(255),
+                long_name VARCHAR(255),
+                trailing_pe DECIMAL(10,2),
+                forward_pe DECIMAL(10,2),
+                price_to_sales_ttm DECIMAL(10,2),
+                price_to_book DECIMAL(10,2),
+                peg_ratio DECIMAL(10,2),
+                dividend_yield DECIMAL(8,6),
+                beta DECIMAL(10,4),
+                earnings_growth DECIMAL(10,2),
+                held_percent_insiders DECIMAL(8,6),
+                held_percent_institutions DECIMAL(8,6),
+                shares_short BIGINT,
+                shares_short_prior_month BIGINT,
+                short_ratio DECIMAL(10,4),
+                short_percent_of_float DECIMAL(8,6),
+                implied_shares_outstanding BIGINT,
+                float_shares BIGINT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_key_metrics_ticker ON key_metrics(ticker)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_key_metrics_sector ON key_metrics(sector)")
+
         # Add missing columns to existing tables (separate statements)
         cur.execute("ALTER TABLE key_metrics ADD COLUMN IF NOT EXISTS held_percent_insiders DECIMAL(8,6)")
         cur.execute("ALTER TABLE key_metrics ADD COLUMN IF NOT EXISTS held_percent_institutions DECIMAL(8,6)")

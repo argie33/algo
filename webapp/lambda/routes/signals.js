@@ -260,9 +260,6 @@ const getStocksSignals = async (req, res) => {
 // Canonical endpoint for stock signals (returns ALL signals from 2019 by default)
 router.get("/stocks", getStocksSignals);
 
-// Alias for backward compatibility with frontend
-router.get("/list", getStocksSignals);
-
 // Alias for /stocks with timeframe=daily (backward compatibility)
 router.get("/daily", async (req, res) => {
   req.query.timeframe = 'daily';
@@ -280,10 +277,12 @@ router.get("/etf", async (req, res) => {
     const offset = (page - 1) * limit;
 
     // Safely map timeframes to table names to prevent SQL injection
+    // NOTE: ETF signals are in the SAME tables as stocks (buy_sell_daily/weekly/monthly)
+    // Filtered by ETF symbol list below
     const timeframeMap = {
-      daily: "buy_sell_daily_etf",
-      weekly: "buy_sell_weekly_etf",
-      monthly: "buy_sell_monthly_etf"
+      daily: "buy_sell_daily",
+      weekly: "buy_sell_weekly",
+      monthly: "buy_sell_monthly"
     };
 
     const tableName = timeframeMap[timeframe];
@@ -364,95 +363,14 @@ router.get("/etf", async (req, res) => {
       return sendPaginated(res, [], { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false });
     }
 
-    const signalData = signalsResult.rows;
-
-    // Format the response data - ONLY include fields that exist in database
+    // Format response - only map fields actually selected in the query (6 columns from ETF signals + company_name)
     const formattedData = signalsResult.rows.map(row => ({
-      // Basic signal info - REAL DATA
       id: row.id,
       symbol: row.symbol,
       signal: row.signal,
       date: row.date,
       signal_triggered_date: row.signal_triggered_date || null,
       timeframe: row.timeframe || timeframe,
-
-      // Price data - REAL DATA
-      open: row.open !== null && row.open !== undefined ? parseFloat(row.open) : null,
-      high: row.high !== null && row.high !== undefined ? parseFloat(row.high) : null,
-      low: row.low !== null && row.low !== undefined ? parseFloat(row.low) : null,
-      close: row.close !== null && row.close !== undefined ? parseFloat(row.close) : null,
-      volume: row.volume !== null && row.volume !== undefined ? row.volume : null,
-
-      // Entry/Exit levels - REAL DATA
-      buylevel: row.buylevel !== null && row.buylevel !== undefined ? parseFloat(row.buylevel) : null,
-      stoplevel: row.stoplevel !== null && row.stoplevel !== undefined ? parseFloat(row.stoplevel) : null,
-      sell_level: row.sell_level !== null && row.sell_level !== undefined ? parseFloat(row.sell_level) : null,
-      inposition: row.inposition || false,
-
-      // Risk management - REAL DATA
-      risk_reward_ratio: row.risk_reward_ratio !== null && row.risk_reward_ratio !== undefined ? parseFloat(row.risk_reward_ratio) : null,
-      risk_pct: row.risk_pct !== null && row.risk_pct !== undefined ? parseFloat(row.risk_pct) : null,
-      position_size_recommendation: row.position_size_recommendation !== null && row.position_size_recommendation !== undefined ? parseFloat(row.position_size_recommendation) : null,
-
-      // Market stage and quality - REAL DATA
-      market_stage: row.market_stage || null,
-      stage_confidence: row.stage_confidence !== null && row.stage_confidence !== undefined ? parseFloat(row.stage_confidence) : null,
-      substage: row.substage || null,
-      sata_score: row.sata_score !== null && row.sata_score !== undefined ? parseInt(row.sata_score) : null,
-      stage_number: row.stage_number !== null && row.stage_number !== undefined ? parseInt(row.stage_number) : null,
-      mansfield_rs: row.mansfield_rs !== null && row.mansfield_rs !== undefined ? parseFloat(row.mansfield_rs) : null,
-      rs_rating: row.rs_rating !== null && row.rs_rating !== undefined ? parseInt(row.rs_rating) : null,
-      strength: row.strength !== null && row.strength !== undefined ? parseFloat(row.strength) : null,
-
-      // Setup fundamentals - REAL DATA
-      pivot_price: row.pivot_price !== null && row.pivot_price !== undefined ? parseFloat(row.pivot_price) : null,
-      buy_zone_start: row.buy_zone_start !== null && row.buy_zone_start !== undefined ? parseFloat(row.buy_zone_start) : null,
-      buy_zone_end: row.buy_zone_end !== null && row.buy_zone_end !== undefined ? parseFloat(row.buy_zone_end) : null,
-      initial_stop: row.initial_stop !== null && row.initial_stop !== undefined ? parseFloat(row.initial_stop) : null,
-      trailing_stop: row.trailing_stop !== null && row.trailing_stop !== undefined ? parseFloat(row.trailing_stop) : null,
-      base_type: row.base_type || null,
-      base_length_days: row.base_length_days !== null && row.base_length_days !== undefined ? parseInt(row.base_length_days) : null,
-
-      // Exit triggers - REAL DATA
-      exit_trigger_1_price: row.exit_trigger_1_price !== null && row.exit_trigger_1_price !== undefined ? parseFloat(row.exit_trigger_1_price) : null,
-      exit_trigger_2_price: row.exit_trigger_2_price !== null && row.exit_trigger_2_price !== undefined ? parseFloat(row.exit_trigger_2_price) : null,
-      exit_trigger_3_price: row.exit_trigger_3_price !== null && row.exit_trigger_3_price !== undefined ? parseFloat(row.exit_trigger_3_price) : null,
-      exit_trigger_3_condition: row.exit_trigger_3_condition || null,
-      exit_trigger_4_price: row.exit_trigger_4_price !== null && row.exit_trigger_4_price !== undefined ? parseFloat(row.exit_trigger_4_price) : null,
-      exit_trigger_4_condition: row.exit_trigger_4_condition || null,
-
-      // Entry price and daily range
-      entry_price: row.entry_price !== null && row.entry_price !== undefined ? parseFloat(row.entry_price) : null,
-      daily_range_pct: (row.high && row.low) ? parseFloat(((row.high - row.low) / row.low * 100).toFixed(2)) : null,
-
-      // Quality metrics - REAL DATA
-      entry_quality_score: row.entry_quality_score !== null && row.entry_quality_score !== undefined ? parseInt(row.entry_quality_score) : null,
-      breakout_quality: row.breakout_quality || null,
-      signal_type: row.signal_type || null,
-
-      // Technical indicators - REAL DATA
-      rsi: row.rsi !== null && row.rsi !== undefined ? parseFloat(row.rsi) : null,
-      adx: row.adx !== null && row.adx !== undefined ? parseFloat(row.adx) : null,
-      atr: row.atr !== null && row.atr !== undefined ? parseFloat(row.atr) : null,
-      sma_50: row.sma_50 !== null && row.sma_50 !== undefined ? parseFloat(row.sma_50) : null,
-      sma_200: row.sma_200 !== null && row.sma_200 !== undefined ? parseFloat(row.sma_200) : null,
-      ema_21: row.ema_21 !== null && row.ema_21 !== undefined ? parseFloat(row.ema_21) : null,
-      pct_from_ema21: row.pct_from_ema21 !== null && row.pct_from_ema21 !== undefined ? parseFloat(row.pct_from_ema21) : null,
-      pct_from_sma50: row.pct_from_sma50 !== null && row.pct_from_sma50 !== undefined ? parseFloat(row.pct_from_sma50) : null,
-
-      // Signal strength - REAL DATA
-      signal_strength: row.signal_strength !== null && row.signal_strength !== undefined ? parseFloat(row.signal_strength) : null,
-
-      // Volume analysis - REAL DATA
-      avg_volume_50d: row.avg_volume_50d !== null && row.avg_volume_50d !== undefined ? row.avg_volume_50d : null,
-      volume_surge_pct: row.volume_surge_pct !== null && row.volume_surge_pct !== undefined ? parseFloat(row.volume_surge_pct) : null,
-
-      // Profit targets - REAL DATA
-      profit_target_8pct: row.profit_target_8pct !== null && row.profit_target_8pct !== undefined ? parseFloat(row.profit_target_8pct) : null,
-      profit_target_20pct: row.profit_target_20pct !== null && row.profit_target_20pct !== undefined ? parseFloat(row.profit_target_20pct) : null,
-      profit_target_25pct: row.profit_target_25pct !== null && row.profit_target_25pct !== undefined ? parseFloat(row.profit_target_25pct) : null,
-
-      // ETF information
       company_name: row.company_name || null,
     }));
 
