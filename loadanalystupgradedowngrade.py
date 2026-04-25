@@ -117,31 +117,6 @@ def get_db_connection(script_name):
         return None
 
 
-def create_table(cur):
-    logging.info("Ensuring analyst_upgrade_downgrade table…")
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS analyst_upgrade_downgrade (
-            id           SERIAL PRIMARY KEY,
-            symbol       VARCHAR(20) NOT NULL,
-            firm         VARCHAR(128),
-            action       VARCHAR(32),
-            from_grade   VARCHAR(64),
-            to_grade     VARCHAR(64),
-            date         DATE NOT NULL,
-            details      TEXT,
-            fetched_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
-
-    # Add missing columns to existing tables (idempotent - safe to run multiple times)
-    try:
-        cur.execute("ALTER TABLE analyst_upgrade_downgrade ADD COLUMN IF NOT EXISTS from_grade VARCHAR(64)")
-        cur.execute("ALTER TABLE analyst_upgrade_downgrade ADD COLUMN IF NOT EXISTS to_grade VARCHAR(64)")
-        cur.execute("ALTER TABLE analyst_upgrade_downgrade ADD COLUMN IF NOT EXISTS action VARCHAR(32)")
-        logging.info(" Schema migration complete - all required columns ensured")
-    except Exception as e:
-        logging.warning(f" Schema migration warning: {e}")
-
 def fetch_analyst_actions(symbol):
     # yfinance: Use upgrades_downgrades for analyst rating changes
     # Convert ticker format for yfinance (e.g., BRK.B → BRK-B)
@@ -231,8 +206,7 @@ def lambda_handler(event, context):
     conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    create_table(cur)
-    conn.commit()
+    # Note: Schema tables are now created by init_database.py - not here
 
     cur.execute("SELECT symbol FROM stock_symbols WHERE (etf IS NULL OR etf != 'Y') ORDER BY symbol;")
     stock_syms = [r["symbol"] for r in cur.fetchall()]

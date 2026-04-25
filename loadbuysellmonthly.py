@@ -123,76 +123,6 @@ def get_symbols_from_db(limit=None, skip_completed=False):
         cur.close()
         conn.close()
 
-def create_buy_sell_table(cur, table_name="buy_sell_monthly"):
-    # CRITICAL: Do NOT drop table - preserve existing data for incremental loads
-    # cur.execute(f"DROP TABLE IF EXISTS {table_name};")
-    cur.execute(f"""
-      CREATE TABLE IF NOT EXISTS {table_name} (
-        id                  SERIAL PRIMARY KEY,
-        symbol              VARCHAR(20)    NOT NULL,
-        timeframe           VARCHAR(10)    NOT NULL,
-        date                DATE           NOT NULL,
-        open                REAL,
-        high                REAL,
-        low                 REAL,
-        close               REAL,
-        volume              BIGINT,
-        signal              VARCHAR(10),
-        signal_triggered_date DATE,
-        buylevel            REAL,
-        stoplevel           REAL,
-        inposition          BOOLEAN,
-        strength            REAL,
-        signal_strength REAL,
-        confirmed    BOOLEAN,
-        -- O'Neill methodology columns
-        signal_type  VARCHAR(50),
-        pivot_price  REAL,
-        buy_zone_start REAL,
-        buy_zone_end REAL,
-        exit_trigger_1_price REAL,
-        exit_trigger_2_price REAL,
-        exit_trigger_3_condition VARCHAR(50),
-        exit_trigger_3_price REAL,
-        exit_trigger_4_condition VARCHAR(50),
-        exit_trigger_4_price REAL,
-        initial_stop REAL,
-        trailing_stop REAL,
-        base_type    VARCHAR(50),
-        base_length_days INTEGER,
-        avg_volume_50d BIGINT,
-        volume_surge_pct REAL,
-        rs_rating    INTEGER,
-        breakout_quality VARCHAR(20),
-        risk_reward_ratio REAL,
-        profit_target_8pct REAL,
-        profit_target_20pct REAL,
-        profit_target_25pct REAL,
-        risk_pct REAL,
-        entry_quality_score REAL,
-        market_stage VARCHAR(50),
-        stage_number INTEGER,
-        stage_confidence REAL,
-        substage VARCHAR(50),
-        position_size_recommendation REAL,
-        current_gain_pct REAL,
-        days_in_position INTEGER,
-        sell_level REAL,
-        mansfield_rs REAL,
-        sata_score INTEGER,
-        rsi REAL,
-        adx REAL,
-        atr REAL,
-        sma_50 REAL,
-        sma_200 REAL,
-        ema_21 REAL,
-        pct_from_ema21 REAL,
-        pct_from_sma50 REAL,
-        entry_price REAL,
-        UNIQUE(symbol, timeframe, date)
-      );
-    """)
-
 def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_monthly"):
     # DEBUG: Check if pivot_price exists in DataFrame
     if 'pivot_price' in df.columns:
@@ -1871,7 +1801,7 @@ def main():
 
     conn = get_db_connection()
     cur  = conn.cursor()
-    create_buy_sell_table(cur, "buy_sell_monthly")
+    # Tables are now created by init_database.py - not here
     conn.commit()
 
     results = {'Daily':{'rets':[],'durs':[]},

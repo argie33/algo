@@ -27,8 +27,8 @@ router.get("/data", async (req, res) => {
     let queryStr = `
       SELECT
         symbol,
-        date,
-        analyst_count,
+        date_recorded as date,
+        total_analysts as analyst_count,
         bullish_count,
         bearish_count,
         neutral_count,
@@ -37,7 +37,7 @@ router.get("/data", async (req, res) => {
         upside_downside_percent
       FROM analyst_sentiment_analysis
       WHERE symbol IS NOT NULL
-      ORDER BY date DESC, symbol ASC
+      ORDER BY date_recorded DESC, symbol ASC
       LIMIT $1 OFFSET $2
     `;
     let countParams = [];
@@ -49,8 +49,8 @@ router.get("/data", async (req, res) => {
       queryStr = `
         SELECT
           symbol,
-          date as date,
-          analyst_count as analyst_count,
+          date_recorded as date,
+          total_analysts as analyst_count,
           bullish_count,
           bearish_count,
           neutral_count,
@@ -59,7 +59,7 @@ router.get("/data", async (req, res) => {
           upside_downside_percent
         FROM analyst_sentiment_analysis
         WHERE symbol = $1
-        ORDER BY date DESC
+        ORDER BY date_recorded DESC
         LIMIT $2 OFFSET $3
       `;
       params = [symbol.toUpperCase(), limitNum, offset];

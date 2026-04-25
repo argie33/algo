@@ -111,7 +111,7 @@ router.use((req, res, next) => {
  * Get current sector data with historical rankings for display
  * Used by SectorAnalysis frontend component
  */
-router.get("/sectors", async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     if (!query) {
       return res.status(503).json({
@@ -131,62 +131,41 @@ router.get("/sectors", async (req, res) => {
 
     // Query from database directly - real data
     const sectorsQuery = `
-      SELECT
-        sr.sector_name,
-        sr.current_rank,
-        sr.rank_1w_ago,
-        sr.rank_4w_ago,
-        sr.rank_12w_ago,
-        sr.momentum_score,
-        sr.daily_strength_score,
-        sr.trend,
-        sr.date as last_updated
-      FROM (
-        SELECT DISTINCT ON (sector_name)
-          sector_name, current_rank, rank_1w_ago, rank_4w_ago, rank_12w_ago,
-          momentum_score, daily_strength_score, trend, date
-        FROM sector_ranking
-        WHERE sector_name IS NOT NULL
-          AND TRIM(sector_name) != ''
-        ORDER BY sector_name, date DESC
-      ) sr
-      ORDER BY sr.sector_name
+      SELECT DISTINCT ON (sector_name)
+        sector_name,
+        rank,
+        price_change,
+        volume,
+        date as last_updated
+      FROM sector_ranking
+      WHERE sector_name IS NOT NULL
+        AND TRIM(sector_name) != ''
+      ORDER BY sector_name, date DESC
       LIMIT $1 OFFSET $2
     `;
 
     const result = await query(sectorsQuery, [limitNum, offset]);
     const sectors = (result?.rows || []).map(row => ({
       sector_name: row.sector_name,
-      current_rank: row.current_rank,
-      rank_1w_ago: row.rank_1w_ago,
-      rank_4w_ago: row.rank_4w_ago,
-      rank_12w_ago: row.rank_12w_ago,
-      momentum_score: row.momentum_score !== null ? safeFloat(row.momentum_score) : null,
-      daily_strength_score: row.daily_strength_score !== null ? safeFloat(row.daily_strength_score) : null,
-      trend: row.trend,
+      rank: row.rank,
+      price_change: row.price_change !== null ? safeFloat(row.price_change) : null,
+      volume: row.volume !== null ? safeInt(row.volume) : null,
       last_updated: row.last_updated
     }));
 
     const totalPages = Math.ceil(total / limitNum);
 
-    return res.json({
-      items: sectors,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total: total,
-        totalPages,
-        hasNext: pageNum < totalPages,
-        hasPrev: pageNum > 1
-      },
-      success: true
+    return sendPaginated(res, sectors, {
+      page: pageNum,
+      limit: limitNum,
+      total,
+      totalPages,
+      hasNext: pageNum < totalPages,
+      hasPrev: pageNum > 1
     });
   } catch (error) {
-    console.error('❌ Error in /api/sectors/sectors:', error.message);
-    return res.status(500).json({
-      error: "Request failed",
-      success: false
-    });
+    console.error('❌ Error in /api/sectors/sectors:', error.message, error.stack);
+    return sendError(res, `Failed to fetch sectors: ${error.message.substring(0, 100)}`, 500);
   }
 });
 

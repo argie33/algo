@@ -22,13 +22,13 @@ const { authenticateToken } = require("../middleware/auth");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
-// Root endpoint - returns available sub-endpoints
-router.get("/", (req, res) => {
+// Info endpoint - returns API details
+router.get("/info", (req, res) => {
   return res.json({
     data: {
       endpoint: "industries",
       available_routes: [
-        "/industries - All industry data with rankings and performance",
+        "/ - All industry data with rankings and performance",
         "/trend/industry/:name - Industry trend data (251 data points)"
       ]
     },
@@ -50,11 +50,11 @@ router.use((req, res, next) => {
 });
 
 /**
- * GET /industries
+ * GET / (root)
  * Get current industry data with historical rankings for display
  * Used by SectorAnalysis frontend component
  */
-router.get("/industries", async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     if (!query) {
       return res.status(503).json({
