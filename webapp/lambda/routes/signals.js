@@ -54,15 +54,7 @@ const getStocksSignals = async (req, res) => {
     // Prevent extremely large offsets that cause poor performance
     const MAX_PAGE = Math.ceil(1000000 / limit);
     if (page > MAX_PAGE) {
-      return res.json({
-        items: [],
-        pagination: {
-          page,
-          limit,
-          hasMore: false
-        },
-        success: true
-      });
+      return sendPaginated(res, [], { page, limit, total: 0, totalPages: MAX_PAGE, hasNext: false, hasPrev: true });
     }
 
     const offset = (page - 1) * limit;
@@ -160,11 +152,7 @@ const getStocksSignals = async (req, res) => {
     }
 
     if (!signalsResult || !signalsResult.rows || signalsResult.rows.length === 0) {
-      return res.json({
-        items: [],
-        pagination: { page, limit, hasMore: false },
-        success: true
-      });
+      return sendPaginated(res, [], { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false });
     }
 
     // Summary statistics are calculated on frontend from items array per RULES.md
@@ -290,11 +278,7 @@ const getStocksSignals = async (req, res) => {
     const hasNext = page < totalPages;
     const hasPrev = page > 1;
 
-    return res.json({
-      items: formattedData,
-      pagination: { page, limit, total: totalCount, totalPages, hasNext, hasPrev },
-      success: true
-    });
+    return sendPaginated(res, formattedData, { page, limit, total: totalCount, totalPages, hasNext, hasPrev });
   } catch (error) {
     console.error("Signals delegation error:", error);
     return sendError(res, "Failed to fetch signals data", 500);
@@ -410,19 +394,11 @@ router.get("/etf", async (req, res) => {
     } catch (queryError) {
       // ETF tables don't exist - return empty data instead of error
       console.log(`[INFO] ETF signals not available for ${timeframe}: ${queryError.message.substring(0, 100)}`);
-      return res.json({
-        items: [],
-        pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false },
-        success: true
-      });
+      return sendPaginated(res, [], { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false });
     }
 
     if (!signalsResult || !signalsResult.rows || signalsResult.rows.length === 0) {
-      return res.json({
-        items: [],
-        pagination: { page, limit, hasMore: false },
-        success: true
-      });
+      return sendPaginated(res, [], { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false });
     }
 
     const signalData = signalsResult.rows;
@@ -535,11 +511,7 @@ router.get("/etf", async (req, res) => {
     const hasNext = page < totalPages;
     const hasPrev = page > 1;
 
-    return res.json({
-      items: formattedData,
-      pagination: { page, limit, total: totalCount, totalPages, hasNext, hasPrev },
-      success: true
-    });
+    return sendPaginated(res, formattedData, { page, limit, total: totalCount, totalPages, hasNext, hasPrev });
   } catch (error) {
     console.error("ETF signals error:", error);
     return sendError(res, "Failed to fetch signals data", 500);

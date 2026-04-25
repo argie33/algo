@@ -657,7 +657,7 @@ router.get("/mcclellan-oscillator", async (req, res) => {
     );
 
     if (!tableExists.rows[0].exists) {
-      return res.status(500).json({error: "McClellan Oscillator service unavailable", success: false});
+      return sendError(res, "McClellan Oscillator service unavailable", 500);
     }
 
     // Helper function to calculate EMA
@@ -771,7 +771,7 @@ router.get("/distribution-days", async (req, res) => {
     );
 
     if (!tableExists.rows[0].exists) {
-      return res.status(500).json({error: "Distribution days service unavailable", success: false});
+      return sendError(res, "Distribution days service unavailable", 500);
     }
 
     // Get distribution days for major indices
@@ -2305,7 +2305,7 @@ router.get("/internals", async (req, res) => {
 
   } catch (error) {
     console.error("Error fetching market internals:", error);
-    return res.status(500).json({error: "Market internals calculation failed", success: false});
+    return sendError(res, "Market internals calculation failed", 500);
   }
 });
 
@@ -2382,7 +2382,7 @@ router.get("/aaii", async (req, res) => {
 router.get("/fear-greed", async (req, res) => {
   try {
     if (!query) {
-      return res.status(500).json({error: "Database service unavailable", success: false});
+      return sendError(res, "Database service unavailable", 500);
     }
 
     const { range = "30d" } = req.query;
@@ -2431,7 +2431,7 @@ router.get("/fear-greed", async (req, res) => {
 
   } catch (error) {
     console.error("Fear & Greed index error:", error);
-    return res.status(500).json({error: "Failed to fetch Fear & Greed index data", success: false});
+    return sendError(res, "Failed to fetch Fear & Greed index data", 500);
   }
 });
 
@@ -2460,7 +2460,7 @@ router.get("/naaim", async (req, res) => {
 
     // Fallback to database
     if (!query) {
-      return res.status(500).json({error: "Database service unavailable", success: false});
+      return sendError(res, "Database service unavailable", 500);
     }
 
     let days = 30;

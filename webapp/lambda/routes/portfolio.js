@@ -520,14 +520,11 @@ router.get("/metrics", authenticateToken, async (req, res) => {
         console.warn(`⚠️ No portfolio data available - Alpaca failed and database is empty`);
 
         // No data available - return empty portfolio as valid state (not an error condition)
-        return res.json({
-          data: {
-            summary: {},
-            positions: [],
-            daily_returns: [],
-            metadata: { last_updated: new Date().toISOString() }
-          },
-          success: true
+        return sendSuccess(res, {
+          summary: {},
+          positions: [],
+          daily_returns: [],
+          metadata: { last_updated: new Date().toISOString() }
         });
       }
 
