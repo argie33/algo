@@ -546,30 +546,6 @@ function normalizeResponse(response, expectArray = false) {
   return data;
 }
 
-// Helper to safely extract data from API response, handling all RULES.md formats
-function extractResponseData(response) {
-  if (!response || !response.data) return null;
-  const data = response.data;
-
-  // Paginated list response: {items: [...], pagination: {...}, success: true}
-  if (data.items !== undefined && data.pagination !== undefined) {
-    return { items: data.items, pagination: data.pagination };
-  }
-
-  // Nested data response: {data: {...}, success: true}
-  if (data.data !== undefined && data.success !== undefined) {
-    return data.data;
-  }
-
-  // Direct data response: {..., success: true}
-  if (data.success !== undefined) {
-    return data;
-  }
-
-  // Fallback: return data as-is
-  return data;
-}
-
 // NOTE: Removed duplicate normalizeApiResponse - using exported version from top of file
 
 // Keep this function for internal use if needed (not exported)

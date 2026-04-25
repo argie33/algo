@@ -46,8 +46,8 @@ router.get("/", fetchStocksList);
 router.get("/search", async (req, res) => {
   try {
     const q = req.query.q || req.query.symbol || '';
-    const limit = Math.min(parseInt(req.query.limit) || 100, 1000);
-    const offset = parseInt(req.query.offset) || 0;
+    const limit = getLimit('stocks', req.query.limit);
+    const offset = getOffset(req.query.page, limit);
 
     if (!q) {
       return sendPaginated(res, [], { limit, offset, total: 0, page: 1 });
