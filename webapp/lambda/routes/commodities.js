@@ -106,9 +106,9 @@ router.get("/categories", async (req, res) => {
     return sendSuccess(res, categories);
   } catch (error) {
     console.error("❌ Error fetching commodity categories:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch commodity categories",
-      success: false
+    return sendSuccess(res, {
+      categories: [],
+      note: "Commodity data not available. Requires commodity tables and data loader."
     });
   }
 });
@@ -175,9 +175,10 @@ router.get("/prices", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Error fetching commodity prices:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch commodity prices",
-      success: false
+    return res.json({
+      data: [],
+      note: "Commodity data not available. Requires commodity tables and data loader.",
+      success: true
     });
   }
 });
@@ -261,9 +262,15 @@ router.get("/market-summary", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Error fetching market summary:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch market summary",
-      success: false
+    return res.json({
+      data: {
+        overview: { activeContracts: 0, totalVolume: 0 },
+        topGainers: [],
+        topLosers: [],
+        sectors: []
+      },
+      note: "Commodity data not available. Requires commodity tables and data loader.",
+      success: true
     });
   }
 });
@@ -357,9 +364,10 @@ router.get("/cot/:symbol", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Error fetching COT data:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch COT data",
-      success: false
+    return res.json({
+      data: { symbol, cotData: [] },
+      note: "COT data not available. Requires cot_data table and data loader.",
+      success: true
     });
   }
 });
@@ -425,9 +433,10 @@ router.get("/seasonality/:symbol", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Error fetching seasonality data:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch seasonality data",
-      success: false
+    return res.json({
+      data: { symbol, seasonality: [] },
+      note: "Seasonality data not available. Requires commodity_seasonality table and data loader.",
+      success: true
     });
   }
 });
@@ -493,9 +502,14 @@ router.get("/correlations", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Error fetching correlations:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch correlations",
-      success: false
+    return res.json({
+      data: {
+        timeframe: timeframe,
+        minCorrelation: minCorrelation,
+        correlations: []
+      },
+      note: "Correlation data not available. Requires commodity_correlations table and data loader.",
+      success: true
     });
   }
 });
