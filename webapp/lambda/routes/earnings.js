@@ -49,14 +49,15 @@ router.get("/info", async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 25, 500);
 
     if (symbol) {
-      // Single symbol: return detailed estimates, history, and surprises
-      const estimatesResult = await query(
-        "SELECT * FROM earnings_estimates WHERE symbol = $1 ORDER BY period DESC LIMIT 20",
+      // Single symbol: return detailed history (primary source)
+      const historyResult = await query(
+        "SELECT * FROM earnings_history WHERE symbol = $1 ORDER BY quarter DESC LIMIT 50",
         [symbol]
       ).catch(() => ({ rows: [] }));
 
-      const historyResult = await query(
-        "SELECT * FROM earnings_history WHERE symbol = $1 ORDER BY quarter DESC LIMIT 20",
+      // Also try earnings_estimates as fallback
+      const estimatesResult = await query(
+        "SELECT * FROM earnings_estimates WHERE symbol = $1 ORDER BY period DESC LIMIT 20",
         [symbol]
       ).catch(() => ({ rows: [] }));
 
@@ -77,8 +78,9 @@ router.get("/info", async (req, res) => {
         [symbol]
       ).catch(() => ({ rows: [] }));
 
+      // Return history as estimates so component displays them
       return sendSuccess(res, {
-        estimates: estimatesResult.rows || [],
+        estimates: historyResult.rows.length > 0 ? historyResult.rows : estimatesResult.rows,
         history: historyResult.rows || [],
         surprises: surprisesResult.rows || []
       });

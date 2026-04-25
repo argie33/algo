@@ -110,17 +110,35 @@ const getStocksSignals = async (req, res) => {
       paramIndex++;
     }
 
-    // Build columns - SELECT all available from buy_sell table
-    // JOIN with appropriate price table based on timeframe
+    // Build columns - SELECT all available with consistent NULL handling
     const priceTable = timeframe === 'daily' ? 'price_daily' :
                        timeframe === 'weekly' ? 'price_weekly' :
                        'price_monthly';
 
-    const actualColumns = `
-      bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.signal_triggered_date,
-      bsd.signal, bsd.strength, bsd.signal_strength,
-      p.open, p.high, p.low, p.close, p.volume
-    `;
+    // Build dynamic SELECT based on what exists in each table
+    let actualColumns;
+    if (timeframe === 'daily') {
+      actualColumns = `
+        bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.signal_triggered_date,
+        bsd.signal, bsd.strength, bsd.signal_strength,
+        p.open, p.high, p.low, p.close, p.volume,
+        NULL::float as rsi, NULL::float as adx, NULL::float as atr,
+        NULL::float as macd, NULL::float as signal_line,
+        NULL::float as sma_20, NULL::float as sma_50, NULL::float as sma_200,
+        NULL::float as ema_12, NULL::float as ema_26
+      `;
+    } else {
+      // weekly/monthly don't have signal_strength column
+      actualColumns = `
+        bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.signal_triggered_date,
+        bsd.signal, bsd.strength, NULL::float as signal_strength,
+        p.open, p.high, p.low, p.close, p.volume,
+        NULL::float as rsi, NULL::float as adx, NULL::float as atr,
+        NULL::float as macd, NULL::float as signal_line,
+        NULL::float as sma_20, NULL::float as sma_50, NULL::float as sma_200,
+        NULL::float as ema_12, NULL::float as ema_26
+      `;
+    }
 
     // Query with price JOIN for the matching timeframe
     const signalsQuery = `

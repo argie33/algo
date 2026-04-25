@@ -368,15 +368,13 @@ function EarningsCalendar() {
   }, [pastCalendarData]);
 
   // Format earnings data for table
-  // API response: { data: [...], success: true }
+  // API returns estimates array directly
   const estimatesArray = earningsData?.data || [];
 
-  // Filter to show only current year estimates (0y) to avoid duplicates
-  const primaryEstimates = estimatesArray.filter(e => e.period === "0y");
-
-  const sortedEstimates = primaryEstimates.sort((a, b) => {
+  // No filtering needed - just use the data as-is
+  const sortedEstimates = (estimatesArray || []).sort((a, b) => {
     // Sort by symbol alphabetically
-    return a.symbol.localeCompare(b.symbol);
+    return (a.symbol || "").localeCompare(b.symbol || "");
   });
 
   // Client-side pagination

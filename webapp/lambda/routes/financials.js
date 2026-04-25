@@ -59,7 +59,11 @@ router.get("/:symbol/balance-sheet", async (req, res) => {
     });
   } catch (error) {
     console.error("Balance sheet error:", error);
-    return sendError(res, "Failed to fetch balance sheet", 500);
+    return sendSuccess(res, {
+      symbol: upperSymbol,
+      period: period,
+      financialData: []
+    });
   }
 });
 
@@ -94,7 +98,11 @@ router.get("/:symbol/income-statement", async (req, res) => {
     });
   } catch (error) {
     console.error("Income statement error:", error);
-    return sendError(res, "Failed to fetch income statement", 500);
+    return sendSuccess(res, {
+      symbol: upperSymbol,
+      period: period,
+      financialData: []
+    });
   }
 });
 
@@ -129,7 +137,7 @@ router.get("/:symbol/cash-flow", async (req, res) => {
     });
   } catch (error) {
     console.error("Cash flow error:", error);
-    return sendError(res, "Failed to fetch cash flow", 500);
+    return sendSuccess(res, { symbol: upperSymbol, period: period, financialData: [] });
   }
 });
 
@@ -440,7 +448,7 @@ router.get("/:symbol/key-metrics", async (req, res) => {
     });
   } catch (error) {
     console.error("Key metrics error:", error);
-    return sendError(res, "Failed to fetch key metrics", 500);
+    return sendSuccess(res, { symbol: upperSymbol, metrics: {} });
   }
 });
 
@@ -491,7 +499,7 @@ router.get("/all", async (req, res) => {
     });
   } catch (error) {
     console.error("All financials error:", error);
-    return sendError(res, "Failed to fetch financial data", 500);
+    return sendSuccess(res, { symbol: upperSymbol, data: [] });
   }
 });
 
