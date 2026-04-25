@@ -10,7 +10,12 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
 import logging
+import io
 from dotenv import load_dotenv
+
+# Fix Unicode encoding on Windows
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 # Load environment from .env.local (cross-platform)
 from pathlib import Path

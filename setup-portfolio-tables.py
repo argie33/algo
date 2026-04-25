@@ -10,6 +10,10 @@ import io
 if sys.platform == 'win32':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
+# Load environment variables
+from dotenv import load_dotenv
+load_dotenv('.env.local')
+
 # Database config
 db_config = {
     'host': os.getenv('DB_HOST', 'localhost'),

@@ -9,6 +9,11 @@ import logging
 import requests
 import time
 from datetime import datetime, timedelta
+import io
+
+# Fix Unicode encoding on Windows - support emoji in logs
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 import boto3
 import pandas as pd
@@ -42,13 +47,14 @@ def get_db_creds():
     2. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
     """
     # Try AWS Secrets Manager first
+    creds = {}
     if DB_SECRET_ARN:
         try:
             sm = boto3.client("secretsmanager")
             resp = sm.get_secret_value(SecretId=DB_SECRET_ARN)
             sec = json.loads(resp["SecretString"])
             logger.info("Using AWS Secrets Manager for database config")
-            return {
+            creds = {
                 "user": sec["username"],
                 "password": sec["password"],
                 "host": sec["host"],
@@ -59,16 +65,23 @@ def get_db_creds():
         except Exception as e:
             logger.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
 
-    # Fall back to environment variables
-    logger.info("Using environment variables for database config")
-    return {
-        "user": os.environ.get("DB_USER", "stocks"),
-        "password": os.environ.get("DB_PASSWORD", ""),
-        "host": os.environ.get("DB_HOST", "localhost"),
-        "port": int(os.environ.get("DB_PORT", 5432)),
-        "dbname": os.environ.get("DB_NAME", "stocks"),
-        "sslmode": "disable"
-    }
+    # Fall back to environment variables if not set from Secrets Manager
+    if not creds:
+        logger.info("Using environment variables for database config")
+        creds = {
+            "user": os.environ.get("DB_USER", "stocks"),
+            "password": os.environ.get("DB_PASSWORD", ""),
+            "host": os.environ.get("DB_HOST", "localhost"),
+            "port": int(os.environ.get("DB_PORT", 5432)),
+            "dbname": os.environ.get("DB_NAME", "stocks"),
+            "sslmode": "disable"
+        }
+
+    # Add timeout options for long-running operations
+    creds['options'] = '-c statement_timeout=600000'
+    creds['connect_timeout'] = 10
+
+    return creds
 
 def get_economic_calendar_data():
     """Fetch economic calendar events - tries FRED API first, falls back to scheduled events."""

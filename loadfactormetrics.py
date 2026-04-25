@@ -32,6 +32,7 @@ import gc
 import json
 import logging
 import os
+import io
 try:
     import resource
     HAS_RESOURCE = True
@@ -43,6 +44,10 @@ import time
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
+
+# Fix Unicode encoding on Windows
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 from dotenv import load_dotenv
 
@@ -157,6 +162,7 @@ def get_db_config():
     """
     db_secret_arn = os.environ.get("DB_SECRET_ARN")
 
+    base_config = {}
     if db_secret_arn:
         try:
             secret_str = boto3.client("secretsmanager").get_secret_value(
@@ -164,7 +170,7 @@ def get_db_config():
             )["SecretString"]
             sec = json.loads(secret_str)
             logging.info("Using AWS Secrets Manager for database config")
-            return {
+            base_config = {
                 "host": sec["host"],
                 "port": int(sec.get("port", 5432)),
                 "user": sec["username"],
@@ -174,15 +180,24 @@ def get_db_config():
         except Exception as e:
             logging.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
 
-    # Fall back to environment variables
-    logging.info("Using environment variables for database config")
-    return {
-        "host": os.environ.get("DB_HOST", "localhost"),
-        "port": int(os.environ.get("DB_PORT", 5432)),
-        "user": os.environ.get("DB_USER", "stocks"),
-        "password": os.environ.get("DB_PASSWORD", ""),
-        "database": os.environ.get("DB_NAME", "stocks"),
-    }
+    # Fall back to environment variables if not set from Secrets Manager
+    if not base_config:
+        logging.info("Using environment variables for database config")
+        base_config = {
+            "host": os.environ.get("DB_HOST", "localhost"),
+            "port": int(os.environ.get("DB_PORT", 5432)),
+            "user": os.environ.get("DB_USER", "stocks"),
+            "password": os.environ.get("DB_PASSWORD", ""),
+            "database": os.environ.get("DB_NAME", "stocks"),
+        }
+
+    # Add timeout options to prevent connection timeouts during large batch operations
+    # statement_timeout: 10 minutes (600 seconds) for long-running inserts/updates
+    # connect_timeout: 10 seconds for initial connection
+    base_config['options'] = '-c statement_timeout=600000'
+    base_config['connect_timeout'] = 10
+
+    return base_config
 
 
 def get_all_symbols(cursor) -> List[str]:
