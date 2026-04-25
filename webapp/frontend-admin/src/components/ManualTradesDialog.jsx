@@ -24,6 +24,7 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
+import api from '../services/api';
 
 const TRADE_TYPES = ['buy', 'sell'];
 const STATUSES = ['filled', 'pending', 'cancelled'];
@@ -55,8 +56,8 @@ export default function ManualTradesDialog() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/trades/manual');
-      const data = await response.json();
+      const response = await api.get('/api/trades/manual');
+      const data = response.data;
       if (data.success) {
         // Handle different response structures
         const tradesData = data.data || [];

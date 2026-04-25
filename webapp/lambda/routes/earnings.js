@@ -160,7 +160,7 @@ router.get("/sp500-trend", async (req, res) => {
   try {
     const result = await query(
       `SELECT COUNT(DISTINCT symbol) as stock_count FROM earnings_history
-       WHERE date >= CURRENT_DATE - INTERVAL '3 months'`
+       WHERE quarter >= CURRENT_DATE - INTERVAL '3 months'`
     );
     return sendSuccess(res, {
       stocks_reporting: result.rows[0]?.stock_count || 0,
