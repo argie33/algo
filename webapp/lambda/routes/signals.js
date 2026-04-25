@@ -15,26 +15,23 @@ function safeFloat(value) {
 
 // Root endpoint - returns available sub-endpoints
 router.get("/", (req, res) => {
-  return res.json({
-    data: {
-      endpoint: "signals",
-      documentation: "Trading signals API",
-      available_routes: [
-        "GET /stocks - Get all stock trading signals with flexible filtering",
-        "  Query parameters: timeframe={daily|weekly|monthly}, symbol={SYMBOL}, limit={1-500}, page={1+}, days={days}, signal_type={Buy|Sell}",
-        "GET /list - Alias for /stocks (backward compatibility)",
-        "GET /etf - Get all ETF trading signals",
-        "  Query parameters: timeframe={daily|weekly|monthly}, symbols={SYMBOL,SYMBOL2}, limit={1-100}"
-      ],
-      examples: [
-        "GET /api/signals/stocks?timeframe=daily&limit=100",
-        "GET /api/signals/stocks?symbol=GOOGL&timeframe=weekly",
-        "GET /api/signals/stocks?timeframe=monthly&signal_type=Buy&limit=50",
-        "GET /api/signals/etf?timeframe=daily",
-        "GET /api/signals/etf?timeframe=daily&symbols=SPY,QQQ"
-      ]
-    },
-    success: true
+  return sendSuccess(res, {
+    endpoint: "signals",
+    documentation: "Trading signals API",
+    available_routes: [
+      "GET /stocks - Get all stock trading signals with flexible filtering",
+      "  Query parameters: timeframe={daily|weekly|monthly}, symbol={SYMBOL}, limit={1-500}, page={1+}, days={days}, signal_type={Buy|Sell}",
+      "GET /list - Alias for /stocks (backward compatibility)",
+      "GET /etf - Get all ETF trading signals",
+      "  Query parameters: timeframe={daily|weekly|monthly}, symbols={SYMBOL,SYMBOL2}, limit={1-100}"
+    ],
+    examples: [
+      "GET /api/signals/stocks?timeframe=daily&limit=100",
+      "GET /api/signals/stocks?symbol=GOOGL&timeframe=weekly",
+      "GET /api/signals/stocks?timeframe=monthly&signal_type=Buy&limit=50",
+      "GET /api/signals/etf?timeframe=daily",
+      "GET /api/signals/etf?timeframe=daily&symbols=SPY,QQQ"
+    ]
   });
 });
 
@@ -79,7 +76,7 @@ const getStocksSignals = async (req, res) => {
 
     const tableName = timeframeMap[timeframe];
     if (!tableName) {
-      return res.status(400).json({ error: "Invalid timeframe. Must be daily, weekly, or monthly", success: false });
+      return sendError(res, "Invalid timeframe. Must be daily, weekly, or monthly", 400);
     }
 
     // Build WHERE clause based on filters
@@ -159,11 +156,7 @@ const getStocksSignals = async (req, res) => {
         table: tableName,
         query: signalsQuery.substring(0, 200) + '...'
       });
-      return res.status(500).json({
-        error: "Failed to fetch signals data",
-        debug: !process.env.NODE_ENV || process.env.NODE_ENV === 'development' ? queryError.message : undefined,
-        success: false
-      });
+      return sendError(res, `Failed to fetch signals data: ${queryError.message}`, 500);
     }
 
     if (!signalsResult || !signalsResult.rows || signalsResult.rows.length === 0) {
@@ -330,7 +323,7 @@ router.get("/etf", async (req, res) => {
 
     const tableName = timeframeMap[timeframe];
     if (!tableName) {
-      return res.status(400).json({ error: "Invalid timeframe. Must be daily, weekly, or monthly", success: false });
+      return sendError(res, "Invalid timeframe. Must be daily, weekly, or monthly", 400);
     }
 
     // Build WHERE clause based on filters

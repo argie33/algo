@@ -55,21 +55,22 @@ export const getApiConfig = () => {
   const isDev = import.meta.env && import.meta.env.DEV;
 
   if (!apiUrl && isDev) {
-    // Use relative path in development - Vite proxy will forward to localhost:3001
+    // In development, must be configured via environment or window config
+    // Default to relative path for Vite proxy if available
     apiUrl = "/";
   } else if (!apiUrl && typeof window !== "undefined") {
-    const { hostname, origin, port, protocol } = window.location;
-    if (hostname === "localhost" || hostname === "127.0.0.1") {
-      apiUrl = "http://localhost:3001";
-    } else {
-      // AWS production - fall back to API Gateway
-      apiUrl = "https://qda42av7je.execute-api.us-east-1.amazonaws.com/dev";
-    }
+    // Production: API_URL must be set via environment or window.__CONFIG__
+    // Do NOT guess from window.location - this is unreliable
+    // Fail with clear message if not configured
+    console.error(
+      "❌ CRITICAL: API_URL not configured. Set VITE_API_URL env var or window.__CONFIG__.API_URL at build time"
+    );
+    apiUrl = "/"; // Last resort - will likely fail
   }
 
-  // Final fallback (shouldn't reach here)
-  if (!apiUrl) {
-    apiUrl = "/";
+  // Validate that we have a real API URL for production
+  if (!isDev && apiUrl === "/") {
+    console.warn("⚠️ API_URL is relative path in production - this may cause failures");
   }
 
   // Only log in development

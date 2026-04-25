@@ -153,8 +153,20 @@ app.options('*', (req, res) => {
 
   // Ensure CORS headers are explicitly set for AWS API Gateway compatibility
   const origin = req.headers.origin;
-  const defaultCloudFront = process.env.CLOUDFRONT_DOMAIN || "https://d1copuy2oqlazx.cloudfront.net";
-  const allowedOrigin = origin && (origin.includes(".cloudfront.net") || origin.includes("localhost")) ? origin : defaultCloudFront;
+  const cloudFrontDomain = process.env.CLOUDFRONT_DOMAIN;
+
+  // If origin is CloudFront or localhost, allow it; otherwise use configured domain or deny
+  let allowedOrigin = false;
+  if (origin && (origin.includes(".cloudfront.net") || origin.includes("localhost"))) {
+    allowedOrigin = origin;
+  } else if (cloudFrontDomain && origin === cloudFrontDomain) {
+    allowedOrigin = origin;
+  }
+
+  if (!allowedOrigin && process.env.NODE_ENV === "development") {
+    // In development, allow more origins for testing
+    allowedOrigin = origin || false;
+  }
 
   res.header("Access-Control-Allow-Origin", allowedOrigin);
   res.header("Access-Control-Allow-Credentials", "true");
@@ -182,10 +194,13 @@ app.use(
       const isTestEnv = process.env.NODE_ENV === "test";
 
       // Specific allowed origins
+      const cloudFrontDomain = process.env.CLOUDFRONT_DOMAIN;
+      const apiGatewayUrl = process.env.API_GATEWAY_URL;
+
       const allowedOrigins = [
-        // CloudFront & AWS Endpoints
-        process.env.CLOUDFRONT_DOMAIN || "https://d1copuy2oqlazx.cloudfront.net",
-        process.env.API_GATEWAY_URL || "https://qda42av7je.execute-api.us-east-1.amazonaws.com",
+        // CloudFront & AWS Endpoints - must be set via environment variables
+        ...(cloudFrontDomain ? [cloudFrontDomain] : []),
+        ...(apiGatewayUrl ? [apiGatewayUrl] : []),
 
         // Production domains - update these with your actual domains
         "https://example.com",           // Site A - Markets & Stocks (public)

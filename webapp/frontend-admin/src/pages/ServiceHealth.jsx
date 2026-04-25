@@ -109,8 +109,11 @@ function ServiceHealth() {
     queryKey: ["ecsTasks"],
     queryFn: async () => {
       try {
-        // Always use AWS production URL for ECS tasks monitoring
-        const awsApiUrl = "https://qda42av7je.execute-api.us-east-1.amazonaws.com/dev";
+        // Use configured API URL from environment or window.__CONFIG__
+        const awsApiUrl = _currentBaseURL || (window.__CONFIG__?.API_URL) || "/";
+        if (!awsApiUrl || awsApiUrl === "/") {
+          throw new Error("API_URL not configured");
+        }
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
