@@ -354,9 +354,8 @@ router.get("/etf", async (req, res) => {
     try {
       signalsResult = await query(signalsQuery, queryParams);
     } catch (queryError) {
-      // ETF tables don't exist - return empty data instead of error
-      console.log(`[INFO] ETF signals not available for ${timeframe}: ${queryError.message.substring(0, 100)}`);
-      return sendPaginated(res, [], { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false });
+      console.error(`[ERROR] ETF signals query failed for ${timeframe}: ${queryError.message}`);
+      return sendError(res, `Failed to fetch ETF signals: ${queryError.message.substring(0, 100)}`, 500);
     }
 
     if (!signalsResult || !signalsResult.rows || signalsResult.rows.length === 0) {

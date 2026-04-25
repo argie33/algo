@@ -6,34 +6,15 @@ const { getMarketDataPath } = require("../utils/market-data-path");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
-// Root endpoint - returns reference/documentation only
 router.get("/", (req, res) => {
-  res.json({
-    data: {
-      endpoint: "earnings",
-      description: "Earnings data API - financial metrics and estimates",
-      available_routes: [
-        {
-          path: "/info",
-          method: "GET",
-          description: "Get earnings estimates data",
-          query_params: ["symbol", "limit", "page"]
-        },
-        {
-          path: "/data",
-          method: "GET",
-          description: "Get all earnings history data",
-          query_params: ["symbol", "limit", "page"]
-        },
-        {
-          path: "/calendar",
-          method: "GET",
-          description: "Calendar view of earnings with reported status",
-          query_params: ["period", "startDate", "endDate", "symbol", "limit"]
-        }
-      ]
-    },
-    success: true
+  return sendSuccess(res, {
+    endpoint: "earnings",
+    description: "Earnings data API - historical earnings and surprises",
+    available_routes: [
+      { path: "/info", method: "GET", params: ["symbol", "limit", "page"] },
+      { path: "/data", method: "GET", params: ["symbol", "limit", "page"] },
+      { path: "/calendar", method: "GET", params: ["period", "startDate", "endDate", "symbol"] }
+    ]
   });
 });
 
@@ -41,109 +22,64 @@ router.get("/", (req, res) => {
 // Named endpoints (must come BEFORE /:symbol route)
 // ============================================================
 
-// GET /api/earnings/info - Get earnings estimates, history, AND surprises combined
 router.get("/info", async (req, res) => {
   try {
-    const symbol = req.query.symbol;
-    const limit = Math.min(parseInt(req.query.limit) || 25, 500);
+    const { symbol, limit = 50 } = req.query;
+    const limitNum = Math.min(parseInt(limit), 500);
 
     if (symbol) {
-      // Single symbol: return detailed history (primary source)
-      const historyResult = await query(
-        "SELECT * FROM earnings_history WHERE symbol = $1 ORDER BY quarter DESC LIMIT 50",
-        [symbol]
-      ).catch(() => ({ rows: [] }));
-
-      // Also try earnings_estimates as fallback
-      const estimatesResult = await query(
-        "SELECT * FROM earnings_estimates WHERE symbol = $1 ORDER BY quarter DESC LIMIT 20",
-        [symbol]
-      ).catch(() => ({ rows: [] }));
-
-      // Get earnings surprises (difference between estimate and actual)
-      const surprisesResult = await query(
-        `SELECT
-          eh.symbol, eh.quarter, eh.eps_actual, ee.eps_estimate,
-          CASE
-            WHEN ee.eps_estimate IS NULL THEN NULL
-            ELSE ROUND(((eh.eps_actual - ee.eps_estimate) / ABS(ee.eps_estimate) * 100)::numeric, 2)
-          END as surprise_percent,
-          eh.eps_actual - COALESCE(ee.eps_estimate, 0) as surprise_amount
-        FROM earnings_history eh
-        LEFT JOIN earnings_estimates ee ON eh.symbol = ee.symbol AND eh.quarter = ee.quarter
-        WHERE eh.symbol = $1 AND eh.eps_actual IS NOT NULL
-        ORDER BY eh.quarter DESC
-        LIMIT 20`,
-        [symbol]
-      ).catch(() => ({ rows: [] }));
-
-      // Return history as estimates so component displays them
-      return sendSuccess(res, {
-        estimates: historyResult.rows.length > 0 ? historyResult.rows : estimatesResult.rows,
-        history: historyResult.rows || [],
-        surprises: surprisesResult.rows || []
-      });
-    } else {
-      // No symbol: return list of recent earnings estimates (all quarters)
-      const historyResult = await query(
-        `SELECT DISTINCT ON (symbol)
-          symbol, quarter, eps_actual, eps_estimate
-        FROM earnings_estimates
-        WHERE quarter IS NOT NULL
-        ORDER BY symbol, quarter DESC
-        LIMIT $1`,
-        [limit]
-      ).catch(() => ({ rows: [] }));
-
-      return sendSuccess(res, {
-        estimates: historyResult.rows || [],
-        history: [],
-        surprises: []
-      });
+      const result = await query(
+        "SELECT * FROM earnings_history WHERE symbol = $1 ORDER BY quarter DESC LIMIT $2",
+        [symbol.toUpperCase(), limitNum]
+      );
+      return sendSuccess(res, { earnings: result.rows || [] });
     }
+
+    const result = await query(
+      `SELECT DISTINCT ON (symbol) symbol, quarter, eps_actual, eps_estimate
+       FROM earnings_history ORDER BY symbol, quarter DESC LIMIT $1`,
+      [limitNum]
+    );
+    return sendSuccess(res, { earnings: result.rows || [] });
   } catch (err) {
-    console.error("Earnings info error:", err.message);
-    return sendError(res, err.message, 500);
+    return sendError(res, `Failed to fetch earnings: ${err.message}`, 500);
   }
 });
 
-// GET /api/earnings/data - Get all earnings history data
 router.get("/data", async (req, res) => {
   try {
-    const symbol = req.query.symbol;
-    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const offset = (page - 1) * limit;
+    const { symbol, limit = 100, page = 1 } = req.query;
+    const limitNum = Math.min(parseInt(limit), 500);
+    const pageNum = Math.max(1, parseInt(page));
+    const offset = (pageNum - 1) * limitNum;
 
     let sql = "SELECT * FROM earnings_history";
+    let countSql = "SELECT COUNT(*) as count FROM earnings_history";
     const params = [];
-    let paramIndex = 1;
 
     if (symbol) {
-      sql += ` WHERE symbol = $${paramIndex}`;
-      params.push(symbol);
-      paramIndex++;
+      sql += ` WHERE symbol = $1`;
+      countSql += ` WHERE symbol = $1`;
+      params.push(symbol.toUpperCase());
     }
 
-    const countResult = await query(
-      `SELECT COUNT(*) as count FROM (${sql}) t`,
-      params
-    );
+    const countResult = await query(countSql, symbol ? [params[0]] : []);
     const total = countResult.rows[0]?.count || 0;
 
     const result = await query(
-      sql + ` ORDER BY symbol, quarter DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
-      [...params, limit, offset]
+      sql + ` ORDER BY symbol, quarter DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limitNum, offset]
     );
 
-    return res.json({
-      data: result.rows || [],
-      pagination: { page, limit, total, hasMore: offset + limit < total },
-      success: true
+    return sendPaginated(res, result.rows || [], {
+      limit: limitNum,
+      offset,
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum)
     });
   } catch (err) {
-    console.error("Earnings data error:", err.message);
-    return sendError(res, err.message, 500);
+    return sendError(res, `Failed to fetch earnings data: ${err.message}`, 500);
   }
 });
 
