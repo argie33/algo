@@ -108,10 +108,7 @@ router.get("/", async (req, res) => {
               "DEGRADED"
     };
 
-    return res.json({
-      data: status,
-      success: true
-    });
+    return sendSuccess(res, status);
   } catch (err) {
     console.error("API status check error:", err);
     return sendError(res, "Status check failed: " + err.message, 500);

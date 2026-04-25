@@ -1,21 +1,19 @@
 const express = require("express");
 
 const { query } = require("../utils/database");
+const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 
 const router = express.Router();
 
 // Root endpoint - returns available sub-endpoints
 router.get("/", (req, res) => {
-  return res.json({
-    data: {
-      endpoint: "analysts",
-      available_routes: [
-        "/upgrades - Analyst upgrades and downgrades",
-        "/sentiment - Analyst sentiment summary",
-        "/by-symbol/:symbol - Analyst data for a specific stock"
-      ]
-    },
-    success: true
+  return sendSuccess(res, {
+    endpoint: "analysts",
+    available_routes: [
+      "/upgrades - Analyst upgrades and downgrades",
+      "/sentiment - Analyst sentiment summary",
+      "/by-symbol/:symbol - Analyst data for a specific stock"
+    ]
   });
 });
 
@@ -65,25 +63,17 @@ router.get("/upgrades", async (req, res) => {
 
     const result = await query(queryStr, params);
 
-    return res.json({
-      data: result.rows || [],
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total,
-        totalPages,
-        hasNext: pageNum < totalPages,
-        hasPrev: pageNum > 1
-      },
-      success: true
+    return sendPaginated(res, result.rows || [], {
+      page: pageNum,
+      limit: limitNum,
+      total,
+      totalPages,
+      hasNext: pageNum < totalPages,
+      hasPrev: pageNum > 1
     });
   } catch (error) {
     console.error("Analyst upgrades error:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch analyst upgrades",
-      details: error.message,
-      success: false
-    });
+    return sendError(res, "Failed to fetch analyst upgrades: " + error.message, 500);
   }
 });
 
@@ -110,24 +100,17 @@ router.get("/sentiment", async (req, res) => {
 
     const result = await query(queryStr, [limitNum, offset]);
 
-    return res.json({
-      data: result.rows || [],
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total,
-        totalPages,
-        hasNext: pageNum < totalPages,
-        hasPrev: pageNum > 1
-      },
-      success: true
+    return sendPaginated(res, result.rows || [], {
+      page: pageNum,
+      limit: limitNum,
+      total,
+      totalPages,
+      hasNext: pageNum < totalPages,
+      hasPrev: pageNum > 1
     });
   } catch (error) {
     console.error("Analyst sentiment error:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch analyst sentiment data",
-      success: false
-    });
+    return sendError(res, "Failed to fetch analyst sentiment data", 500);
   }
 });
 
@@ -161,20 +144,14 @@ router.get("/by-symbol/:symbol", async (req, res) => {
       query(sentimentQuery, [symbol])
     ]);
 
-    return res.json({
-      data: {
-        symbol,
-        upgrades: upgradesResult.rows || [],
-        sentiment: sentimentResult.rows[0] || null
-      },
-      success: true
+    return sendSuccess(res, {
+      symbol,
+      upgrades: upgradesResult.rows || [],
+      sentiment: sentimentResult.rows[0] || null
     });
   } catch (error) {
     console.error("Analyst data error:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch analyst data",
-      success: false
-    });
+    return sendError(res, "Failed to fetch analyst data", 500);
   }
 });
 

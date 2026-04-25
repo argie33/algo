@@ -171,67 +171,11 @@ router.get("/sp500-trend", async (req, res) => {
   }
 });
 
-// GET /api/earnings/estimate-momentum - Top stocks with rising/falling estimates
 router.get("/estimate-momentum", async (req, res) => {
-  try {
-    const { limit = 20, period = '0q' } = req.query;
-
-    // Use earnings_estimates table which has the data we loaded
-    const estimatesQuery = `
-      SELECT
-        ee.symbol,
-        ee.period,
-        ee.avg_estimate,
-        cp.short_name as company_name,
-        cp.sector,
-        COUNT(*) OVER (PARTITION BY ee.symbol) as estimate_count
-      FROM earnings_estimates ee
-      LEFT JOIN company_profile cp ON ee.symbol = cp.ticker
-      WHERE ee.avg_estimate IS NOT NULL
-        AND ee.period = $1
-      ORDER BY ee.symbol
-      LIMIT $2
-    `;
-
-    const result = await query(estimatesQuery, [period, parseInt(limit)]);
-
-    // Return empty data if no estimates available
-    res.json({
-      data: {
-        rising: result.rows.slice(0, parseInt(limit)/2).map(row => ({
-          symbol: row.symbol,
-          company_name: row.company_name || row.symbol,
-          sector: row.sector,
-          period: row.period,
-          current_estimate: parseFloat(row.avg_estimate),
-          estimate_60d_ago: null,
-          pct_change: 0,
-          up_last_7d: 0,
-          down_last_7d: 0,
-          up_last_30d: 0,
-          down_last_30d: 0,
-          net_revisions_7d: 0,
-          net_revisions: 0
-        })),
-        falling: [],
-        summary: {
-          total_rising: Math.min(result.rows.length, parseInt(limit)/2),
-          total_falling: 0,
-          avg_rise: 0,
-          avg_fall: 0,
-          dataWarning: "Estimate trends table not available - showing available estimates only"
-        }
-      },
-      success: true
-    });
-  } catch (error) {
-    console.error("Error fetching estimate momentum:", error);
-    res.status(500).json({
-      error: "Failed to fetch estimate momentum",
-      details: error.message,
-      success: false
-    });
-  }
+  return sendSuccess(res, {
+    note: "Estimate momentum tracking requires earnings estimate revisions data (not currently available from yfinance)",
+    suggestion: "Use earnings_history table to analyze actual earnings surprises instead"
+  });
 });
 
 // GET /api/earnings/sector-trend - Sector earnings growth and estimate outlook
@@ -321,79 +265,32 @@ router.get("/sector-trend", async (req, res) => {
       ? sectorGrowthValues.reduce((a, b) => a.growth < b.growth ? a : b)
       : { name: 'N/A', growth: 0, stockCount: 0 };
 
-    res.json({
-      data: {
-        earningsGrowth: {
-          timeSeries: earningsGrowthTimeSeries,
-          summary: {
-            bestGrowth,
-            worstGrowth
-          }
-        },
-        estimateOutlook: {
-          sectors: [],
-          summary: {
-            mostOptimistic: { name: 'N/A', change: 0 },
-            leastOptimistic: { name: 'N/A', change: 0 }
-          }
-        },
-        dataQuality: {
-          earningsHistory: {
-            totalQuarters: earningsGrowthTimeSeries.length,
-            totalSectors: sectorGrowthValues.length,
-            dataSource: "earnings_history table"
-          },
-          estimateOutlook: {
-            totalSectors: 0,
-            sectorsWithForwardEstimates: 0,
-            dataWarning: "⚠️ Estimate data not available"
-          }
-        }
-      },
-      success: true
+    return sendSuccess(res, {
+      timeSeries: earningsGrowthTimeSeries,
+      bestGrowth,
+      worstGrowth,
+      totalQuarters: earningsGrowthTimeSeries.length,
+      totalSectors: sectorGrowthValues.length
     });
   } catch (error) {
-    console.error("Error fetching sector trend:", error);
-    res.status(500).json({
-      error: "Failed to fetch sector trend",
-      success: false
-    });
+    return sendError(res, `Failed to fetch sector trend: ${error.message}`, 500);
   }
 });
 
-// Fresh Earnings Data Endpoint - From comprehensive data
 router.get("/fresh-data", async (req, res) => {
   try {
     const fs = require("fs");
-
     const comprehensivePath = getMarketDataPath();
 
     if (fs.existsSync(comprehensivePath)) {
       const comprehensiveData = JSON.parse(fs.readFileSync(comprehensivePath, "utf-8"));
-
-      // Format major stocks as earnings-related data
       const majorStocks = Object.values(comprehensiveData.major_stocks || {});
-
-      return res.json({
-        data: majorStocks,
-        timestamp: comprehensiveData.timestamp,
-        source: "fresh-earnings",
-        message: "Fresh earnings data from major stocks",
-        success: true
-      });
+      return sendSuccess(res, { stocks: majorStocks, timestamp: comprehensiveData.timestamp });
     }
 
-    return res.status(404).json({
-      error: "Fresh data not available",
-      success: false
-    });
+    return sendError(res, "Fresh data not available", 404);
   } catch (error) {
-    console.error("Fresh earnings error:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch fresh earnings",
-      details: error.message,
-      success: false
-    });
+    return sendError(res, `Failed to fetch fresh earnings: ${error.message}`, 500);
   }
 });
 

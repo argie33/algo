@@ -6,6 +6,7 @@
 const express = require("express");
 
 const { query } = require("../utils/database");
+const { sendSuccess, sendError } = require('../utils/apiResponse');
 const router = express.Router();
 
 // GET /api/diagnostics - Full system health check
@@ -116,11 +117,7 @@ router.get("/", async (req, res) => {
     diagnostics.api_status = "degraded";
   }
 
-  res.json({
-    success: diagnostics.api_status === "healthy",
-    data: diagnostics,
-    timestamp: new Date().toISOString()
-  });
+  return sendSuccess(res, diagnostics);
 });
 
 // GET /api/diagnostics/slow-queries - Check for slow queries in database
@@ -134,16 +131,14 @@ router.get("/slow-queries", async (req, res) => {
       LIMIT 20
     `).catch(() => ({ rows: [] }));
 
-    res.json({
+    return sendSuccess(res, {
       slow_queries: result.rows || [],
-      message: "Queries taking >100ms. Run EXPLAIN ANALYZE on slow queries.",
-      success: true
+      message: "Queries taking >100ms. Run EXPLAIN ANALYZE on slow queries."
     });
   } catch (err) {
-    res.json({
+    return sendSuccess(res, {
       slow_queries: [],
-      message: "pg_stat_statements extension may not be installed",
-      success: true
+      message: "pg_stat_statements extension may not be installed"
     });
   }
 });
@@ -152,14 +147,13 @@ router.get("/slow-queries", async (req, res) => {
 router.get("/cache-stats", (req, res) => {
   try {
     // Note: This would need to be implemented in the optimization middleware
-    res.json({
+    return sendSuccess(res, {
       cache_status: "Cache middleware active",
       ttl_seconds: 300,
-      message: "Enable debug logging in queryOptimization.js for detailed cache stats",
-      success: true
+      message: "Enable debug logging in queryOptimization.js for detailed cache stats"
     });
   } catch (err) {
-    res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 
@@ -185,13 +179,12 @@ router.get("/database-size", async (req, res) => {
       LIMIT 20
     `);
 
-    res.json({
+    return sendSuccess(res, {
       database_size: dbSize.rows[0],
-      largest_tables: tableSize.rows || [],
-      success: true
+      largest_tables: tableSize.rows || []
     });
   } catch (err) {
-    res.status(500).json({ error: err.message, success: false });
+    return sendError(res, err.message, 500);
   }
 });
 

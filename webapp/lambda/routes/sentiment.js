@@ -4,20 +4,13 @@ const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
-// Root endpoint - returns available sub-endpoints
 router.get("/", (req, res) => {
-  return res.json({
-    data: {
-      endpoint: "sentiment",
-      available_routes: [
-        "/summary - Consolidated sentiment summary (fear/greed, analyst, AAII, NAAIM)",
-        "/analyst - Analyst sentiment data",
-        "/current - Current sentiment readings",
-        "/history - Historical sentiment data",
-        "/divergence - Sentiment divergence analysis"
-      ]
-    },
-    success: true
+  return sendSuccess(res, {
+    endpoint: "sentiment",
+    available_routes: [
+      "/data - Analyst sentiment data",
+      "/summary - Consolidated sentiment (fear/greed, analyst, AAII, NAAIM)"
+    ]
   });
 });
 
