@@ -24,6 +24,7 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
+import api from '../services/api';
 
 const BROKERS = [
   'Interactive Brokers',

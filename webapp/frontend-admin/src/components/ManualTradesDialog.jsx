@@ -101,10 +101,8 @@ export default function ManualTradesDialog() {
   const handleDeleteTrade = async (id) => {
     if (window.confirm('Are you sure you want to delete this trade?')) {
       try {
-        const response = await fetch(`/api/trades/manual/${id}`, {
-          method: 'DELETE',
-        });
-        const data = await response.json();
+        const response = await api.delete(`/api/trades/manual/${id}`);
+        const data = response.data;
         if (data.success) {
           setTrades(trades.filter(t => t.id !== id));
           setError(null);
@@ -123,7 +121,6 @@ export default function ManualTradesDialog() {
       const url = editingId
         ? `/api/trades/manual/${editingId}`
         : '/api/trades/manual';
-      const method = editingId ? 'PATCH' : 'POST';
 
       const payload = {
         ...formData,
@@ -131,13 +128,11 @@ export default function ManualTradesDialog() {
         price: parseFloat(formData.price),
       };
 
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      const response = editingId
+        ? await api.patch(url, payload)
+        : await api.post(url, payload);
 
-      const data = await response.json();
+      const data = response.data;
       if (data.success) {
         setIsFormOpen(false);
         fetchTrades();
