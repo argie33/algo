@@ -311,7 +311,7 @@ router.get("/analysis", authenticateToken, async (req, res) => {
         // Fetch analyst sentiment for this stock
         try {
           const sentResult = await query(
-            `SELECT bullish_count, bearish_count, neutral_count, total_analysts as analyst_count FROM analyst_sentiment_analysis WHERE symbol = $1 LIMIT 1`,
+            `SELECT bullish_count, bearish_count, neutral_count, analyst_count as analyst_count FROM analyst_sentiment_analysis WHERE symbol = $1 LIMIT 1`,
             [pos.symbol]
           );
           if (sentResult.rows?.[0] && qualityData[pos.symbol]) {
@@ -573,7 +573,7 @@ router.get("/analysis", authenticateToken, async (req, res) => {
 
         // Fetch analyst sentiment
         const sentimentQuery = `
-          SELECT bullish_count as bull_count, bearish_count as bear_count, neutral_count, total_analysts as analyst_count FROM analyst_sentiment_analysis WHERE symbol = $1 LIMIT 1
+          SELECT bullish_count as bull_count, bearish_count as bear_count, neutral_count, analyst_count as analyst_count FROM analyst_sentiment_analysis WHERE symbol = $1 LIMIT 1
         `;
         try {
           const sentResult = await withTimeout(query(sentimentQuery, [stock.symbol]), 1500);

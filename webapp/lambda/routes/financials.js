@@ -31,7 +31,13 @@ router.get("/:symbol/balance-sheet", async (req, res) => {
 
   try {
     console.log(`📊 [FINANCIALS] Fetching balance sheet for ${upperSymbol} (${period})`);
-    const tableName = period === 'quarterly' ? 'quarterly_balance_sheet' : 'annual_balance_sheet';
+
+    const validTables = {
+      'annual': 'annual_balance_sheet',
+      'quarterly': 'quarterly_balance_sheet'
+    };
+    const tableName = validTables[period] || validTables['annual'];
+
     const result = await query(`
       SELECT *
       FROM ${tableName}
@@ -68,7 +74,11 @@ router.get("/:symbol/income-statement", async (req, res) => {
 
   try {
     console.log(`📊 [FINANCIALS] Fetching income statement for ${upperSymbol} (${period})`);
-    const tableName = period === 'quarterly' ? 'quarterly_income_statement' : 'annual_income_statement';
+    const validTables = {
+      'annual': 'annual_income_statement',
+      'quarterly': 'quarterly_income_statement'
+    };
+    const tableName = validTables[period] || validTables['annual'];
     const result = await query(`
       SELECT *
       FROM ${tableName}
@@ -105,7 +115,11 @@ router.get("/:symbol/cash-flow", async (req, res) => {
 
   try {
     console.log(`📊 [FINANCIALS] Fetching cash flow for ${upperSymbol} (${period})`);
-    const tableName = period === 'quarterly' ? 'quarterly_cash_flow' : 'annual_cash_flow';
+    const validTables = {
+      'annual': 'annual_cash_flow',
+      'quarterly': 'quarterly_cash_flow'
+    };
+    const tableName = validTables[period] || validTables['annual'];
     const result = await query(`
       SELECT *
       FROM ${tableName}

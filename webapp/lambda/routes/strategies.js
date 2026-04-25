@@ -24,77 +24,42 @@ router.get("/", (req, res) => {
   });
 });
 
-// Get covered call opportunities with NEW METHODOLOGY filtering
+// Get covered call opportunities
 router.get("/covered-calls", async (req, res) => {
   try {
-    const {
-      symbol,
-      min_return_pct = 0,
-      sort_by = "return_pct",
-      limit = 100,
-      page = 1
-    } = req.query;
-
-    // Validate pagination parameters
+    const { limit = 100, page = 1 } = req.query;
     const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 100));
     const offset = (pageNum - 1) * limitNum;
 
-    // Build WHERE clause
-    let whereClause = `WHERE cco.data_date = (SELECT MAX(data_date) FROM covered_call_opportunities)`;
-    const params = [];
-    let paramIndex = 1;
+    // Query with only columns that exist in schema
+    const countSql = `SELECT COUNT(*) as total FROM covered_call_opportunities`;
+    const countResult = await query(countSql, []);
+    const total = countResult.rows?.[0]?.total || 0;
+    const totalPages = Math.ceil(total / limitNum);
 
-    // Filter by minimum return %
-    if (min_return_pct && parseFloat(min_return_pct) > 0) {
-      whereClause += ` AND cco.return_pct >= $${paramIndex}`;
-      params.push(parseFloat(min_return_pct));
-      paramIndex++;
-    }
-
-    // Optional: Filter by specific symbol
-    if (symbol) {
-      whereClause += ` AND cco.symbol = $${paramIndex}`;
-      params.push(symbol.toUpperCase());
-      paramIndex++;
-    }
-
-    // Sort options based on available columns
-    const validSortColumns = ['return_pct', 'premium', 'breakeven_pct', 'expiration_date', 'created_at'];
-    const sortColumn = validSortColumns.includes(sort_by) ? sort_by : 'return_pct';
-    const sortOrder = sort_by === 'expiration_date' ? 'ASC' : 'DESC';
-
-    // Get total count for pagination
-    const countSql = `SELECT COUNT(*) as total FROM covered_call_opportunities cco ${whereClause}`;
-
-    const countResult = await query(countSql, params);
-    const total = countResult.rows && countResult.rows[0] ? parseInt(countResult.rows[0].total) : 0;
-    const totalPages = total > 0 ? Math.ceil(total / limitNum) : 0;
-
-    // Get paginated results - only select columns that exist in the table
     const sql = `
       SELECT
-        cco.id,
-        cco.symbol,
-        cco.expiration_date,
-        cco.strike,
-        cco.premium,
-        cco.breakeven_pct,
-        cco.return_pct,
-        cco.days_to_expiration,
-        cco.data_date,
-        cco.created_at
-      FROM covered_call_opportunities cco
-      ${whereClause}
-      ORDER BY cco.${sortColumn} ${sortOrder}
-      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+        id, symbol, strike_price, expiration_date,
+        annual_return_pct, probability_profit, data_date, created_at
+      FROM covered_call_opportunities
+      ORDER BY created_at DESC
+      LIMIT $1 OFFSET $2
     `;
 
-    params.push(limitNum, offset);
+    const result = await query(sql, [limitNum, offset]);
+    const opportunities = (result.rows || []).map(row => ({
+      id: row.id,
+      symbol: row.symbol,
+      strike: row.strike_price,
+      expiration_date: row.expiration_date,
+      return_pct: row.annual_return_pct,
+      probability: row.probability_profit,
+      data_date: row.data_date,
+      created_at: row.created_at
+    }));
 
-    const result = await query(sql, params);
-
-    return sendPaginated(res, result.rows, {
+    return sendPaginated(res, opportunities, {
       page: pageNum,
       limit: limitNum,
       total,
@@ -102,10 +67,8 @@ router.get("/covered-calls", async (req, res) => {
       hasNext: pageNum < totalPages,
       hasPrev: pageNum > 1
     });
-
   } catch (error) {
     console.error("Error fetching covered call opportunities:", error.message);
-    console.error("Full error:", error);
     return sendError(res, "Failed to fetch covered call opportunities: " + error.message, 500);
   }
 });
