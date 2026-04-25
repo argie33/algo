@@ -83,19 +83,19 @@ router.get("/info", async (req, res) => {
         surprises: surprisesResult.rows || []
       });
     } else {
-      // No symbol: return list of recent earnings estimates
-      const estimatesResult = await query(
+      // No symbol: return list of recent earnings history (all quarters)
+      const historyResult = await query(
         `SELECT DISTINCT ON (symbol)
-          symbol, period, avg_estimate
-        FROM earnings_estimates
-        WHERE avg_estimate IS NOT NULL
-        ORDER BY symbol, period DESC
+          symbol, quarter, eps_actual, eps_estimate, surprise_percent
+        FROM earnings_history
+        WHERE quarter IS NOT NULL
+        ORDER BY symbol, quarter DESC
         LIMIT $1`,
         [limit]
       ).catch(() => ({ rows: [] }));
 
       return sendSuccess(res, {
-        estimates: estimatesResult.rows || [],
+        estimates: historyResult.rows || [],
         history: [],
         surprises: []
       });

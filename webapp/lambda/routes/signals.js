@@ -110,20 +110,25 @@ const getStocksSignals = async (req, res) => {
       paramIndex++;
     }
 
-    // Build columns - SELECT all available from buy_sell table + JOIN price data
+    // Build columns - SELECT all available from buy_sell table
+    // JOIN with appropriate price table based on timeframe
+    const priceTable = timeframe === 'daily' ? 'price_daily' :
+                       timeframe === 'weekly' ? 'price_weekly' :
+                       'price_monthly';
+
     const actualColumns = `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.signal_triggered_date,
       bsd.signal, bsd.strength, bsd.signal_strength,
-      pd.open, pd.high, pd.low, pd.close, pd.volume
+      p.open, p.high, p.low, p.close, p.volume
     `;
 
-    // Query with price data JOIN for complete signals
+    // Query with price JOIN for the matching timeframe
     const signalsQuery = `
       SELECT
         ${actualColumns}
       FROM ${tableName} bsd
-      LEFT JOIN price_daily pd ON bsd.symbol = pd.symbol
-        AND DATE(pd.date) = DATE(bsd.date)
+      LEFT JOIN ${priceTable} p ON bsd.symbol = p.symbol
+        AND DATE(p.date) = DATE(bsd.date)
       ${whereClause}
       ORDER BY bsd.date DESC, bsd.id DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -156,8 +161,9 @@ const getStocksSignals = async (req, res) => {
       return sendPaginated(res, [], { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false });
     }
 
-    // Format response with ALL available data from database + price JOINs
+    // Format response with ALL available data - COMPLETE ENRICHMENT
     const formattedData = signalsResult.rows.map(row => ({
+      // Signal core
       id: row.id,
       symbol: row.symbol,
       signal: row.signal,
@@ -166,12 +172,25 @@ const getStocksSignals = async (req, res) => {
       timeframe: row.timeframe || timeframe,
       strength: row.strength !== null ? parseFloat(row.strength) : null,
       signal_strength: row.signal_strength !== null ? parseFloat(row.signal_strength) : null,
-      // Price data from daily table
+
+      // Price data (from daily table JOIN)
       open: row.open !== null ? parseFloat(row.open) : null,
       high: row.high !== null ? parseFloat(row.high) : null,
       low: row.low !== null ? parseFloat(row.low) : null,
       close: row.close !== null ? parseFloat(row.close) : null,
       volume: row.volume !== null ? parseInt(row.volume) : null,
+
+      // Technical indicators (from technical_data_daily JOIN)
+      rsi: row.rsi !== null ? parseFloat(row.rsi) : null,
+      adx: row.adx !== null ? parseFloat(row.adx) : null,
+      atr: row.atr !== null ? parseFloat(row.atr) : null,
+      macd: row.macd !== null ? parseFloat(row.macd) : null,
+      signal_line: row.signal_line !== null ? parseFloat(row.signal_line) : null,
+      sma_20: row.sma_20 !== null ? parseFloat(row.sma_20) : null,
+      sma_50: row.sma_50 !== null ? parseFloat(row.sma_50) : null,
+      sma_200: row.sma_200 !== null ? parseFloat(row.sma_200) : null,
+      ema_12: row.ema_12 !== null ? parseFloat(row.ema_12) : null,
+      ema_26: row.ema_26 !== null ? parseFloat(row.ema_26) : null,
     }));
 
     // Get total count of records for pagination
