@@ -28,7 +28,8 @@ const morgan = require("morgan");
 const serverlessHttp = require('serverless-http');
 
 const errorHandler = require("./middleware/errorHandler");
-const { initializeDatabase } = require("./utils/database");
+const requestLogger = require("./middleware/requestLogger");
+const { initializeDatabase, query } = require("./utils/database");
 const { initializeAlpacaSync } = require("./utils/alpacaSyncScheduler");
 const responseNormalizer = require("./middleware/responseNormalizer");
 const analystsRoutes = require("./routes/analysts");
@@ -277,6 +278,8 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
+// Response normalizer - ensures all responses follow standard format
+app.use(responseNormalizer);
 
 // JSON parsing error handler
 app.use((error, req, res, next) => {
@@ -299,6 +302,9 @@ const isProduction = nodeEnv === "production" || nodeEnv === "prod";
 if (!isProduction && nodeEnv !== 'test') {
   app.use(morgan("combined"));
 }
+
+// Request/response logging middleware for debugging all API calls
+app.use(requestLogger);
 
 // DISABLED: No caching for finance data - must always be fresh
 // app.use(cacheMiddleware(5 * 60 * 1000));
@@ -407,6 +413,51 @@ app.use(async (req, res, next) => {
 // TEST endpoint to verify API routing works
 app.get("/api/test", (req, res) => {
   res.json({ message: "API test endpoint works!", success: true });
+});
+
+// DEBUG endpoint - shows current error context (dev mode only)
+app.get("/api/debug/test-error", (req, res) => {
+  if (process.env.NODE_ENV !== 'development') {
+    return res.status(403).json({
+      success: false,
+      error: "Debug endpoints only available in development mode",
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  try {
+    // Try to run a problematic query to see the exact error
+    const tableName = req.query.table || 'stock_scores';
+    const testQuery = `SELECT COUNT(*) FROM ${tableName}`;
+
+    query(testQuery).then(() => {
+      res.json({
+        success: true,
+        message: `Table "${tableName}" is accessible`,
+        timestamp: new Date().toISOString()
+      });
+    }).catch((err) => {
+      res.status(500).json({
+        success: false,
+        error: err.message,
+        code: err.code,
+        detail: err.detail,
+        hint: err.hint,
+        query: testQuery,
+        table: tableName,
+        timestamp: new Date().toISOString(),
+        recommendation: err.code === '42P01'
+          ? `Table "${tableName}" does not exist - needs to be created`
+          : 'Check database logs for details'
+      });
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // Canonical API Routes - all under /api prefix

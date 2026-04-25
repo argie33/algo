@@ -11,14 +11,21 @@ module.exports = {
     });
   },
 
-  // Standard error response
-  sendError: (res, error, statusCode = 500) => {
+  // Standard error response with optional detailed context
+  sendError: (res, error, statusCode = 500, details = null) => {
     const errorMsg = typeof error === 'string' ? error : (error?.message || 'Internal server error');
-    res.status(statusCode).json({
+    const response = {
       success: false,
       error: errorMsg,
       timestamp: new Date().toISOString()
-    });
+    };
+
+    // Include detailed error context in development mode
+    if (process.env.NODE_ENV === 'development' && details) {
+      response.details = details;
+    }
+
+    res.status(statusCode).json(response);
   },
 
   // Paginated list response - UNIFIED FORMAT

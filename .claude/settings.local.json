@@ -38,7 +38,8 @@
       "Bash(awk '{print $9, $5}')",
       "Bash(awk '{print \"File size:\", $5}')",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(awk '{print $5, $9}')"
     ]
   }
 }

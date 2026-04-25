@@ -2,14 +2,13 @@ const express = require("express");
 
 const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
-const { getLimit, getOffset } = require('../config/pagination');
 const router = express.Router();
 
 // Helper function to fetch stocks list
 async function fetchStocksList(req, res) {
   try {
-    const limit = getLimit('stocks', req.query.limit);
-    const offset = getOffset(req.query.page, limit);
+    const limit = Math.min(parseInt(req.query.limit) || 100, 1000);
+    const offset = parseInt(req.query.offset) || 0;
 
     const result = await query(
       "SELECT symbol, security_name as name, market_category as category, exchange FROM stock_symbols ORDER BY symbol LIMIT $1 OFFSET $2",

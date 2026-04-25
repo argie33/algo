@@ -46,17 +46,20 @@ const DeepValueStocks = () => {
       setLoading(true);
       setError(null);
 
-      const result = await getDeepValueStocks({ limit: 5000 });
+      const result = await getDeepValueStocks(5000, 0);
       console.log("Deep value stocks result:", result);
 
       if (result.success && result.data) {
         setStocks(result.data);
+      } else if (result.error) {
+        throw new Error(result.error);
       } else {
         throw new Error(`Invalid response format: ${JSON.stringify(result)}`);
       }
     } catch (err) {
-      console.error("Error fetching deep value stocks:", err);
-      setError(err.message || "Failed to load deep value stocks");
+      const errorMsg = err?.response?.data?.error || err?.message || "Failed to load deep value stocks";
+      console.error("❌ Error fetching deep value stocks:", errorMsg, err);
+      setError(errorMsg);
       setStocks([]);
     } finally {
       setLoading(false);

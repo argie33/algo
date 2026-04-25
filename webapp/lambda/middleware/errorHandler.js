@@ -17,7 +17,7 @@ const errorHandler = (err, req, res, _next) => {
     remainingTimeInMillis: req.context?.getRemainingTimeInMillis?.()
   };
 
-  console.error('AWS Lambda Error:', JSON.stringify(errorDetails, null, 2));
+  console.error('❌ API ERROR:', JSON.stringify(errorDetails, null, 2));
 
   // Default error response
   let status = 500;

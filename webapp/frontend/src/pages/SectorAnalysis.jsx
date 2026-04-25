@@ -1090,9 +1090,9 @@ const SectorAnalysis = () => {
   const { data: rotationData, isLoading: rotationLoading, error: rotationError } = useQuery({
     queryKey: ["sector-performance"],
     queryFn: async () => {
-      const response = await api.get("/api/sectors/sectors?limit=20");
-      // Unified format: { success: true, data: { items: [...sectors], pagination: {...} }, timestamp: ... }
-      return response.data.data?.items || [];
+      const response = await api.get("/api/sectors?limit=20");
+      // Response format: { success: true, items: [...sectors], pagination: {...}, timestamp: ... }
+      return response.data.items || [];
     },
     staleTime: 0, // Always fresh - no stale cache
     gcTime: 0, // Disable garbage collection cache
@@ -1100,13 +1100,13 @@ const SectorAnalysis = () => {
     retry: false,
   });
 
-  // Fetch industry performance data from /api/industries/industries endpoint
+  // Fetch industry performance data from /api/industries endpoint
   const { data: industryData, isLoading: industryLoading, error: industryError } = useQuery({
     queryKey: ["industry-performance"],
     queryFn: async () => {
-      const response = await api.get("/api/industries/industries");
-      // Unified format: { success: true, data: { items: [...industries], pagination: {...} }, timestamp: ... }
-      const industriesArray = response.data.data?.items || [];
+      const response = await api.get("/api/industries");
+      // Response format: { success: true, items: [...industries], pagination: {...}, timestamp: ... }
+      const industriesArray = response.data.items || [];
 
       return industriesArray.map(ind => ({
         industry: ind.industry,
