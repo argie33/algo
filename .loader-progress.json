@@ -1,6 +1,7 @@
 {
-  "completed": [],
-  "failed": [
-    "loadstocksymbols.py"
-  ]
+  "completed": [
+    "loadstocksymbols.py",
+    "loadpricedaily.py"
+  ],
+  "failed": []
 }

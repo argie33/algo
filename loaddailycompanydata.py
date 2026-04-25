@@ -1159,9 +1159,8 @@ if __name__ == "__main__":
     if cfg.get("password"):
         connect_params["password"] = cfg["password"]
 
-    conn = psycopg2.connect(**connect_params)
+    conn = psycopg2.connect(**connect_params, connect_timeout=30)
     conn.autocommit = False
-    conn.set_session(options='-c statement_timeout=30000')  # 30 second statement timeout
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     # Schema migrations - create missing tables first

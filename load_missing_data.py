@@ -68,8 +68,9 @@ try:
         INSERT INTO sentiment (symbol, sentiment_score, sentiment_direction, date)
         VALUES %s
     """, sentiment_data)
+    conn.commit()
 except Exception as e:
-    pass
+    conn.rollback()
 print(f"   Loaded {len(sentiment_data)} sentiment records")
 
 # 3. Load relative performance metrics
@@ -90,8 +91,9 @@ try:
         INSERT INTO relative_performance_metrics (symbol, date, vs_sp500_pct, vs_sector_pct, vs_industry_pct, relative_strength_index)
         VALUES %s
     """, perf_data)
+    conn.commit()
 except Exception as e:
-    pass
+    conn.rollback()
 print(f"   Loaded {len(perf_data)} performance metrics")
 
 # 4. Load sample options chains for top 10 stocks (weekly expiration)
@@ -124,11 +126,11 @@ try:
         INSERT INTO options_chains (symbol, expiration_date, option_type, strike, bid, ask, volume, open_interest, implied_volatility)
         VALUES %s
     """, options_data)
+    conn.commit()
 except Exception as e:
-    pass
+    conn.rollback()
 print(f"   Loaded {len(options_data)} options chain records")
 
-conn.commit()
 conn.close()
 
 print("\n[DONE] All missing data loaded successfully!")
