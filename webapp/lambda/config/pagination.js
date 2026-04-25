@@ -3,7 +3,7 @@
  * Single source of truth for all API limits and pagination settings
  */
 
-module.exports = {
+const config = {
   // Default pagination limit when not specified
   DEFAULT_LIMIT: 50,
 
@@ -75,9 +75,9 @@ module.exports = {
 
   // Helper function to get safe limit
   getLimit: function(resource, requestedLimit) {
-    const config = this.LIMITS[resource] || { default: this.DEFAULT_LIMIT, max: this.MAX_LIMIT_LARGE };
-    const limit = parseInt(requestedLimit) || config.default;
-    return Math.min(limit, config.max);
+    const resourceConfig = config.LIMITS[resource] || { default: config.DEFAULT_LIMIT, max: config.MAX_LIMIT_LARGE };
+    const limit = parseInt(requestedLimit) || resourceConfig.default;
+    return Math.min(limit, resourceConfig.max);
   },
 
   // Helper function to get safe offset
@@ -101,3 +101,8 @@ module.exports = {
     };
   }
 };
+
+module.exports = config;
+module.exports.getLimit = config.getLimit.bind(config);
+module.exports.getOffset = config.getOffset.bind(config);
+module.exports.getPaginationMetadata = config.getPaginationMetadata.bind(config);

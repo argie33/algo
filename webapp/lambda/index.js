@@ -61,6 +61,7 @@ const tradesRoutes = require("./routes/trades");
 const userRoutes = require("./routes/user");
 const worldEtfsRoutes = require("./routes/world-etfs");
 const diagnosticsRoutes = require("./routes/diagnostics");
+const dashboardRoutes = require("./routes/dashboard");
 const apiStatusRoutes = require("./routes/api-status");
 
 const app = express();
@@ -489,6 +490,7 @@ app.use("/api/trades/manual", manualTradesRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/world-etfs", worldEtfsRoutes);
 app.use("/api/diagnostics", diagnosticsRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/status", apiStatusRoutes);
 
 // API info endpoint
@@ -548,6 +550,18 @@ app.get("/", (req, res) => {
 // Create HTTP server (WebSocket removed)
 const server = createServer(app);
 
+
+// DEBUG endpoint for stock_scores table
+app.get("/api/debug/stock-scores-count", async (req, res) => {
+  try {
+    const { query: dbQuery } = require("./utils/database");
+    const result = await dbQuery("SELECT COUNT(*) as count FROM stock_scores");
+    const count = result?.rows[0]?.count || 0;
+    return res.json({ success: true, stock_scores_count: count, rows_sample: 0 });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 // Error handling middleware (should be last)
 app.use(errorHandler);

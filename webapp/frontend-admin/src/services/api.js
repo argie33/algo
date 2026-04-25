@@ -3405,6 +3405,211 @@ export const getTopPositioningMovers = async (limit = 20) => {
 // See TradeHistory.jsx which calls these endpoints directly
 
 // ==============================================================
+
+// ============================================================================
+// MISSING API FUNCTIONS
+// ============================================================================
+
+export const getPortfolioData = async () => {
+  try {
+    const response = await api.get(`/api/portfolio/metrics`);
+    const apiData = response.data?.data || response.data;
+    return { success: true, data: apiData };
+  } catch (error) {
+    return handleApiError(error, "fetch portfolio data");
+  }
+};
+
+export const getContactSubmissions = async (page = 1, limit = 50) => {
+  try {
+    const response = await api.get(`/api/contact/submissions?page=${page}&limit=${limit}`);
+    return {
+      success: true,
+      data: extractResponseData(response),
+      pagination: response.data?.pagination,
+    };
+  } catch (error) {
+    return handleApiError(error, "fetch contact submissions");
+  }
+};
+
+export const getTrades = async (page = 1, limit = 50, filters = {}) => {
+  try {
+    const params = new URLSearchParams({ page, limit, ...filters });
+    const response = await api.get(`/api/trades?${params}`);
+    return {
+      success: true,
+      data: response.data?.data?.trades || response.data?.trades || [],
+      pagination: response.data?.pagination || response.data?.data?.pagination,
+    };
+  } catch (error) {
+    return handleApiError(error, "fetch trades");
+  }
+};
+
+export const getTradesSummary = async () => {
+  try {
+    const response = await api.get(`/api/trades/summary`);
+    const apiData = response.data?.data || response.data;
+    return { success: true, data: apiData };
+  } catch (error) {
+    return handleApiError(error, "fetch trades summary");
+  }
+};
+
+export const getTradesFifoAnalysis = async () => {
+  try {
+    const response = await api.get(`/api/trades/fifo-analysis`);
+    const apiData = response.data?.data || response.data;
+    return { success: true, data: apiData };
+  } catch (error) {
+    return handleApiError(error, "fetch FIFO analysis");
+  }
+};
+
+export const getDeepValueStocks = async (limit = 5000, offset = 0) => {
+  try {
+    const response = await api.get(`/api/stocks/deep-value?limit=${limit}&offset=${offset}`);
+    return {
+      success: true,
+      data: extractResponseData(response),
+      pagination: response.data?.pagination,
+    };
+  } catch (error) {
+    return handleApiError(error, "fetch deep value stocks");
+  }
+};
+
+export const getUserProfile = async () => {
+  try {
+    const response = await api.get(`/api/user/profile`);
+    return { success: true, data: response.data?.data || response.data };
+  } catch (error) {
+    console.error("Error fetching user profile:", error);
+    return { success: false, data: null };
+  }
+};
+
+export const updateUserProfile = async (profileData) => {
+  try {
+    const response = await api.put(`/api/user/profile`, profileData);
+    return { success: true, data: response.data?.data || response.data };
+  } catch (error) {
+    console.error("Error updating user profile:", error);
+    return { success: false };
+  }
+};
+
+export const getSettingsPreferences = async () => {
+  try {
+    const response = await api.get(`/api/user/preferences`);
+    return { success: true, data: response.data?.data || response.data };
+  } catch (error) {
+    console.error("Error fetching preferences:", error);
+    return { success: false, data: null };
+  }
+};
+
+export const changePassword = async (currentPassword, newPassword) => {
+  try {
+    const response = await api.post(`/api/user/change-password`, { currentPassword, newPassword });
+    return { success: true, data: response.data?.data || response.data };
+  } catch (error) {
+    console.error("Error changing password:", error);
+    return { success: false };
+  }
+};
+
+export const setTwoFactorAuth = async (enabled) => {
+  try {
+    const response = await api.post(`/api/user/2fa`, { enabled });
+    return { success: true, data: response.data?.data || response.data };
+  } catch (error) {
+    console.error("Error setting 2FA:", error);
+    return { success: false };
+  }
+};
+
+export const getRecoveryCodes = async () => {
+  try {
+    const response = await api.get(`/api/user/recovery-codes`);
+    return { success: true, data: response.data?.data || response.data };
+  } catch (error) {
+    console.error("Error fetching recovery codes:", error);
+    return { success: false, data: null };
+  }
+};
+
+export const revokeAllSessions = async () => {
+  try {
+    const response = await api.post(`/api/user/revoke-sessions`);
+    return { success: true, data: response.data?.data || response.data };
+  } catch (error) {
+    console.error("Error revoking sessions:", error);
+    return { success: false };
+  }
+};
+
+export const deleteAccount = async (password) => {
+  try {
+    const response = await api.delete(`/api/user/account`, { data: { password } });
+    return { success: true, data: response.data?.data || response.data };
+  } catch (error) {
+    console.error("Error deleting account:", error);
+    return { success: false };
+  }
+};
+
+export const deleteApiKey = async (keyId) => {
+  try {
+    const response = await api.delete(`/api/portfolio/api-keys/${keyId}`);
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error("Error deleting API key:", error);
+    return { success: false };
+  }
+};
+
+export const getApiKeys = async (userId) => {
+  try {
+    const response = await api.get(`/api/portfolio/api-keys?userId=${userId}`);
+    return { success: true, data: extractResponseData(response) };
+  } catch (error) {
+    console.error("Error fetching API keys:", error);
+    return { success: false, data: [] };
+  }
+};
+
+export const getTrades = async (page = 1, limit = 50, filters = {}) => {
+  try {
+    const params = new URLSearchParams({ page, limit, ...filters });
+    const response = await api.get(`/api/trades?${params}`);
+    return { success: true, data: extractResponseData(response), pagination: response.data?.pagination };
+  } catch (error) {
+    console.error("Error fetching trades:", error);
+    return { success: false, data: [] };
+  }
+};
+
+export const getTradesSummary = async () => {
+  try {
+    const response = await api.get(`/api/trades/summary`);
+    return { success: true, data: extractResponseData(response) };
+  } catch (error) {
+    console.error("Error fetching trades summary:", error);
+    return { success: false, data: null };
+  }
+};
+
+export const getTradesFifoAnalysis = async () => {
+  try {
+    const response = await api.get(`/api/trades/fifo-analysis`);
+    return { success: true, data: extractResponseData(response) };
+  } catch (error) {
+    console.error("Error fetching FIFO analysis:", error);
+    return { success: false, data: null };
+  }
+};
 // All functions are exported via named exports above.
 // This split was necessary because the monolithic 4367-line file
 // was causing memory issues during build. By splitting at line 1637,

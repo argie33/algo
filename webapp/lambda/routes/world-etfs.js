@@ -1,36 +1,33 @@
 const express = require("express");
 
 const { query } = require("../utils/database");
-const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const { sendSuccess, sendError, sendPaginated, sendBadRequest } = require('../utils/apiResponse');
 const router = express.Router();
 
 // Root endpoint - documentation
 router.get("/", (req, res) => {
-  res.json({
-    data: {
-      endpoint: "world-etfs",
-      description: "World ETF data and analysis",
-      available_routes: [
-        {
-          path: "/list",
-          method: "GET",
-          description: "Get list of world ETFs by region"
-        },
-        {
-          path: "/prices",
-          method: "GET",
-          description: "Get price data for ETFs",
-          query_params: ["symbols", "timeframe", "limit"]
-        },
-        {
-          path: "/signals",
-          method: "GET",
-          description: "Get trading signals for ETFs",
-          query_params: ["symbols", "timeframe", "limit"]
-        }
-      ]
-    },
-    success: true
+  return sendSuccess(res, {
+    endpoint: "world-etfs",
+    description: "World ETF data and analysis",
+    available_routes: [
+      {
+        path: "/list",
+        method: "GET",
+        description: "Get list of world ETFs by region"
+      },
+      {
+        path: "/prices",
+        method: "GET",
+        description: "Get price data for ETFs",
+        query_params: ["symbols", "timeframe", "limit"]
+      },
+      {
+        path: "/signals",
+        method: "GET",
+        description: "Get trading signals for ETFs",
+        query_params: ["symbols", "timeframe", "limit"]
+      }
+    ]
   });
 });
 
@@ -54,25 +51,19 @@ router.get("/list", async (req, res) => {
 
     const regions = Array.from(new Set(result.rows.map(r => r.region))).filter(Boolean);
 
-    return res.json({
-      data: {
-        all_etfs: result.rows.map(row => ({
-          symbol: row.symbol,
-          name: row.name,
-          region: row.region || 'Global',
-          type: row.type
-        })),
-        regions: regions.length > 0 ? regions : ['North America', 'Europe', 'Asia Pacific', 'Emerging Markets'],
-        total: result.rows.length
-      },
-      success: true
+    return sendSuccess(res, {
+      all_etfs: result.rows.map(row => ({
+        symbol: row.symbol,
+        name: row.name,
+        region: row.region || 'Global',
+        type: row.type
+      })),
+      regions: regions.length > 0 ? regions : ['North America', 'Europe', 'Asia Pacific', 'Emerging Markets'],
+      total: result.rows.length
     });
   } catch (err) {
     console.error("Error fetching ETF list:", err.message);
-    return res.status(500).json({
-      error: "Failed to fetch ETF list",
-      success: false
-    });
+    return sendError(res, `Failed to fetch ETF list: ${err.message}`, 500);
   }
 });
 
@@ -82,10 +73,7 @@ router.get("/prices", async (req, res) => {
     const { symbols, timeframe = 'daily', limit = 200 } = req.query;
 
     if (!symbols) {
-      return res.status(400).json({
-        error: "symbols parameter required",
-        success: false
-      });
+      return sendBadRequest(res, "symbols parameter required");
     }
 
     const symbolList = symbols.split(',').map(s => s.trim().toUpperCase());
@@ -133,20 +121,14 @@ router.get("/prices", async (req, res) => {
       });
     });
 
-    return res.json({
-      data: {
-        prices_by_symbol: pricesBySymbol,
-        timeframe,
-        total_symbols: Object.keys(pricesBySymbol).length
-      },
-      success: true
+    return sendSuccess(res, {
+      prices_by_symbol: pricesBySymbol,
+      timeframe,
+      total_symbols: Object.keys(pricesBySymbol).length
     });
   } catch (err) {
     console.error("Error fetching prices:", err.message);
-    return res.status(500).json({
-      error: "Failed to fetch prices",
-      success: false
-    });
+    return sendError(res, `Failed to fetch prices: ${err.message}`, 500);
   }
 });
 
@@ -156,10 +138,7 @@ router.get("/signals", async (req, res) => {
     const { symbols, timeframe = 'daily', limit = 200 } = req.query;
 
     if (!symbols) {
-      return res.status(400).json({
-        error: "symbols parameter required",
-        success: false
-      });
+      return sendBadRequest(res, "symbols parameter required");
     }
 
     const symbolList = symbols.split(',').map(s => s.trim().toUpperCase());
@@ -208,20 +187,14 @@ router.get("/signals", async (req, res) => {
       }
     });
 
-    return res.json({
-      data: {
-        signals_by_symbol: signalsBySymbol,
-        timeframe,
-        total_symbols: Object.keys(signalsBySymbol).length
-      },
-      success: true
+    return sendSuccess(res, {
+      signals_by_symbol: signalsBySymbol,
+      timeframe,
+      total_symbols: Object.keys(signalsBySymbol).length
     });
   } catch (err) {
     console.error("Error fetching signals:", err.message);
-    return res.status(500).json({
-      error: "Failed to fetch signals",
-      success: false
-    });
+    return sendError(res, `Failed to fetch signals: ${err.message}`, 500);
   }
 });
 

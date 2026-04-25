@@ -39,7 +39,9 @@
       "Bash(awk '{print \"File size:\", $5}')",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(awk '{print $5, $9}')"
+      "Bash(awk '{print $5, $9}')",
+      "Bash(git reset *)",
+      "Bash(git commit -m 'Architectural cleanup complete: fix response patterns, centralize configs *)"
     ]
   }
 }

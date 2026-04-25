@@ -17,6 +17,12 @@ module.exports = (req, res, next) => {
       return originalJson.call(this, body);
     }
 
+    // Already has success flag but no timestamp — add timestamp and normalize
+    if (body?.success !== undefined && !body?.timestamp) {
+      const normalized = normalizeSuccessResponse(body);
+      return originalJson.call(this, normalized);
+    }
+
     // Normalize the response
     const normalized = normalizeResponse(body, res.statusCode);
     return originalJson.call(this, normalized);
@@ -24,6 +30,59 @@ module.exports = (req, res, next) => {
 
   next();
 };
+
+/**
+ * Normalize responses that already have success flag but are missing timestamp
+ */
+function normalizeSuccessResponse(body) {
+  const timestamp = new Date().toISOString();
+
+  // Error response (success: false)
+  if (body.success === false) {
+    return {
+      success: false,
+      error: body.error || body.message || 'Request failed',
+      timestamp
+    };
+  }
+
+  // Paginated list with items key
+  if (Array.isArray(body?.items)) {
+    return {
+      success: true,
+      items: body.items,
+      pagination: body.pagination || normalizePagination(body),
+      timestamp
+    };
+  }
+
+  // Paginated list with data key (convert to items)
+  if (body?.pagination && !body?.items) {
+    const items = body.data || body.results || [];
+    return {
+      success: true,
+      items: Array.isArray(items) ? items : [items],
+      pagination: body.pagination,
+      timestamp
+    };
+  }
+
+  // Single object response
+  if (body.data !== undefined) {
+    return {
+      success: true,
+      data: body.data,
+      timestamp
+    };
+  }
+
+  // Fallback: wrap entire body as data (shouldn't happen with well-formed routes)
+  return {
+    success: true,
+    data: body,
+    timestamp
+  };
+}
 
 /**
  * Normalize any response format to our standard

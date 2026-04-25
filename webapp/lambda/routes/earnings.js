@@ -86,70 +86,31 @@ router.get("/data", async (req, res) => {
 // GET /api/earnings/calendar - Earnings calendar view with filters
 router.get("/calendar", async (req, res) => {
   try {
-    const { period = "past", startDate, endDate, symbol, limit = 100 } = req.query;
+    const { period = "past", limit = 50 } = req.query;
+    const limitNum = Math.min(parseInt(limit), 500);
 
-    const params = [];
-    let whereClause = " WHERE eh.quarter IS NOT NULL ";
+    // Use earnings_history since earnings_calendar table is empty
+    let sql = `SELECT symbol, quarter, fiscal_quarter, fiscal_year,
+              eps_actual, eps_estimate, eps_surprise_pct, created_at
+              FROM earnings_history
+              WHERE quarter IS NOT NULL`;
 
     if (period === "past") {
-      whereClause += " AND eh.quarter <= CURRENT_DATE ";
+      sql += ` ORDER BY quarter DESC LIMIT $1`;
     } else if (period === "upcoming") {
-      whereClause += " AND eh.quarter > CURRENT_DATE ";
-    } else if (startDate || endDate) {
-      if (startDate) {
-        params.push(startDate);
-        whereClause += ` AND eh.quarter >= $${params.length} `;
-      }
-      if (endDate) {
-        params.push(endDate);
-        whereClause += ` AND eh.quarter <= $${params.length} `;
-      }
+      sql += ` AND quarter > CURRENT_DATE ORDER BY quarter ASC LIMIT $1`;
+    } else {
+      sql += ` ORDER BY quarter DESC LIMIT $1`;
     }
 
-    if (symbol) {
-      params.push(symbol.toUpperCase());
-      whereClause += ` AND eh.symbol = $${params.length} `;
-    }
+    const result = await query(sql, [limitNum]);
 
-    const limitNum = Math.min(parseInt(limit) || 100, 1000);
-    params.push(limitNum);
-
-    const query_str = `
-      SELECT DISTINCT ON (eh.symbol, eh.quarter)
-        eh.symbol,
-        eh.quarter as date,
-        EXTRACT(QUARTER FROM eh.quarter) as quarter,
-        EXTRACT(YEAR FROM eh.quarter) as year,
-        'Earnings Report' as title,
-        eh.created_at as fetched_at,
-        COALESCE(cp.short_name, eh.symbol) as company_name,
-        cp.sector
-      FROM earnings_history eh
-      LEFT JOIN company_profile cp ON eh.symbol = cp.ticker
-      ${whereClause}
-      ORDER BY eh.symbol ASC, eh.quarter DESC, eh.created_at DESC
-      LIMIT $${params.length}
-    `;
-
-    const result = await query(query_str, params);
-
-    const calendar = result.rows.map(row => ({
-      symbol: row.symbol,
-      company_name: row.company_name || row.symbol,
-      sector: row.sector,
-      date: row.date,
-      quarter: parseInt(row.quarter),
-      year: parseInt(row.year),
-      title: row.title,
-      fetched_at: row.fetched_at
-    }));
-
-    return sendPaginated(res, calendar, {
+    return sendPaginated(res, result.rows || [], {
       limit: limitNum,
       offset: 0,
-      total: calendar.length,
+      total: result.rows?.length || 0,
       page: 1,
-      totalPages: Math.ceil(calendar.length / limitNum)
+      totalPages: 1
     });
   } catch (error) {
     return sendError(res, `Failed to fetch earnings calendar: ${error.message}`, 500);

@@ -111,28 +111,22 @@ def ensure_tables(cur, conn):
     logger.info("Creating options tables if they don't exist...")
 
     # 1. Options chains table - raw data from yfinance
+    # Schema from authoritative init_database.py - DO NOT MODIFY
     cur.execute("""
         CREATE TABLE IF NOT EXISTS options_chains (
             id SERIAL PRIMARY KEY,
             symbol VARCHAR(20) NOT NULL,
-            expiration_date DATE NOT NULL,
-            option_type VARCHAR(4) NOT NULL CHECK (option_type IN ('call', 'put')),
-            strike REAL NOT NULL,
-            contract_symbol VARCHAR(50) NOT NULL UNIQUE,
-            last_price REAL,
-            bid REAL,
-            ask REAL,
-            change REAL,
-            percent_change REAL,
+            contract_symbol VARCHAR(50),
+            option_type VARCHAR(10),
+            expiration_date DATE,
+            strike_price DECIMAL(12, 4),
+            bid DECIMAL(12, 4),
+            ask DECIMAL(12, 4),
+            last_price DECIMAL(12, 4),
             volume BIGINT,
             open_interest BIGINT,
-            implied_volatility REAL,
-            in_the_money BOOLEAN,
-            contract_size VARCHAR(20),
-            currency VARCHAR(10) DEFAULT 'USD',
-            last_trade_date TIMESTAMP,
-            fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            data_date DATE NOT NULL
+            data_date DATE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
 
