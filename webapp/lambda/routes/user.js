@@ -27,7 +27,7 @@ router.get("/profile", authenticateToken, async (req, res) => {
     const userId = req.user?.id || req.query.user_id;
 
     if (!userId) {
-      return sendError(res,  "User ID required" , success: false});
+      return sendError(res, "User ID required", 400);
     }
 
     // In development, return mock profile for dev_user
@@ -76,7 +76,7 @@ router.get("/settings", authenticateToken, async (req, res) => {
     const userId = req.user?.id || req.query.user_id;
 
     if (!userId) {
-      return sendError(res,  "User ID required" , success: false});
+      return sendError(res, "User ID required", 400);
     }
 
     // In development, return default settings for dev_user
@@ -128,7 +128,7 @@ router.put("/settings", authenticateToken, async (req, res) => {
     const { theme, notifications, preferences } = req.body;
 
     if (!userId) {
-      return sendError(res,  "User ID required" , success: false});
+      return sendError(res, "User ID required", 400);
     }
 
     // Try update, fallback to insert
@@ -162,7 +162,7 @@ router.get("/alerts", authenticateToken, async (req, res) => {
     const { limit = "50" } = req.query;
 
     if (!userId) {
-      return sendError(res,  "User ID required" , success: false});
+      return sendError(res, "User ID required", 400);
     }
 
     // In development, return empty alerts for dev_user

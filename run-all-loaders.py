@@ -16,6 +16,9 @@ if sys.platform == 'win32':
 loaders = [
     ('loaddailycompanydata.py', 'Earnings Estimates'),
     ('loadecondata.py', 'Economic Data'),
+    ('loadannualincomestatement.py', 'Annual Income Statements'),
+    ('loadquarterlyincomestatement.py', 'Quarterly Income Statements'),
+    ('loadttmincomestatement.py', 'TTM Income Statements'),
     ('loadfactormetrics.py', 'Factor Metrics'),
     ('loadbuysellweekly.py', 'Buy/Sell Signals'),
 ]

@@ -2031,7 +2031,7 @@ router.get("/internals", async (req, res) => {
 
   try {
     if (!query) {
-      return sendError(res,  "Database service unavailable", success: false, });
+      return sendError(res, "Database service unavailable", 500);
     }
 
     // Run all queries in parallel
@@ -2486,7 +2486,7 @@ router.get("/naaim", async (req, res) => {
 
   } catch (error) {
     console.error("NAAIM sentiment error:", error);
-    return return sendSuccess(res, { [], range: "30d", success: false});
+    return sendError(res, "Failed to fetch NAAIM sentiment", 500);
   }
 });
 

@@ -280,7 +280,8 @@ function FinancialData() {
         </Typography>
 
         <Grid container spacing={3}>
-          {Object.entries(metricsData).map(([categoryKey, category]) => (
+          {metricsData && Object.entries(metricsData).map(([categoryKey, category]) => (
+            !category ? null : (
             <Grid item xs={12} md={6} lg={4} key={categoryKey}>
               <Card>
                 <CardContent>
@@ -290,7 +291,7 @@ function FinancialData() {
                     sx={{ display: "flex", alignItems: "center" }}
                   >
                     {/* We can add icons based on category later */}
-                    <Box sx={{ ml: 0 }}>{category.title}</Box>
+                    <Box sx={{ ml: 0 }}>{category.title || categoryKey}</Box>
                   </Typography>
                   <Divider sx={{ mb: 2 }} />
                   <TableContainer>
@@ -349,6 +350,7 @@ function FinancialData() {
                 </CardContent>
               </Card>
             </Grid>
+            )
           ))}
         </Grid>
       </Box>

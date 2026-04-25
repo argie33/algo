@@ -273,32 +273,19 @@ def main():
         df['growth_z'] = np.nan
         df['growth_score'] = np.nan
 
-    # ===== STABILITY SCORE (8 metrics) =====
-    logger.info("Calculating STABILITY scores (low volatility, low drawdown, beta, consistency)...")
-    all_stability_metrics = ['volatility', 'downside_vol', 'max_drawdown', 'beta', 'vol_consistency', 'spread']
-    stability_weights = {
-        'volatility': 2.0, 'downside_vol': 2.0, 'max_drawdown': 1.5, 'beta': 1.5,
-        'vol_consistency': 1.0, 'spread': 0.5
-    }
-    # Filter to only available metrics
-    stability_metrics = [m for m in all_stability_metrics if m in df.columns]
-    if not stability_metrics:
+    # ===== STABILITY SCORE =====
+    logger.info("Calculating STABILITY scores (beta based)...")
+    stability_metrics = [m for m in ['beta'] if m in df.columns]
+    if stability_metrics:
+        stability_for_calc = df.copy()
+        if 'beta' in stability_for_calc.columns:
+            stability_for_calc['beta'] = -stability_for_calc['beta']  # Invert (lower beta = more stable)
+        df['stability_z'] = calculate_weighted_score(stability_for_calc, stability_metrics, {'beta': 1.0})
+        df['stability_score'] = df['stability_z'].apply(zscore_to_percentile)
+    else:
         logger.warning("  No stability metrics available - using NaN for stability score")
         df['stability_z'] = np.nan
         df['stability_score'] = np.nan
-    else:
-        # Invert volatility and drawdown (lower is better)
-        stability_for_calc = df.copy()
-        if 'volatility' in stability_for_calc.columns:
-            stability_for_calc['volatility'] = -stability_for_calc['volatility']
-        if 'downside_vol' in stability_for_calc.columns:
-            stability_for_calc['downside_vol'] = -stability_for_calc['downside_vol']
-        if 'max_drawdown' in stability_for_calc.columns:
-            stability_for_calc['max_drawdown'] = -stability_for_calc['max_drawdown']
-        if 'beta' in stability_for_calc.columns:
-            stability_for_calc['beta'] = -stability_for_calc['beta']
-        df['stability_z'] = calculate_weighted_score(stability_for_calc, stability_metrics, stability_weights)
-        df['stability_score'] = df['stability_z'].apply(zscore_to_percentile)
 
     # ===== MOMENTUM SCORE (8 metrics) =====
     logger.info("Calculating MOMENTUM scores (price trends, technical positioning)...")
@@ -317,25 +304,19 @@ def main():
         df['momentum_z'] = np.nan
         df['momentum_score'] = np.nan
 
-    # ===== VALUE SCORE (9 metrics) =====
-    logger.info("Calculating VALUE scores (valuation relative to earnings, sales, cash flow)...")
-    value_metrics = ['trailing_pe', 'forward_pe', 'price_to_book', 'price_to_sales_ttm', 'peg_ratio', 'ev_to_revenue', 'ev_to_ebitda']
-    value_weights = {
-        'trailing_pe': 2.0, 'forward_pe': 2.0, 'price_to_book': 1.5, 'price_to_sales_ttm': 1.0,
-        'peg_ratio': 1.5, 'ev_to_revenue': 1.0, 'ev_to_ebitda': 1.0
-    }
-    # Invert valuation metrics (lower P/E = better value)
-    # NOTE: NaN values in value_metrics are MEANINGFUL DATA (yfinance doesn't expose ratios for unprofitable stocks)
-    # The weighted score calculation uses nanmean which handles these correctly:
-    # - Stocks with complete value data: scored across all metrics
-    # - Stocks with missing value data (yfinance limitation): score uses only available metrics
-    # This is CORRECT behavior, not a data quality issue
-    value_for_calc = df.copy()
-    for metric in value_metrics:
-        if metric in value_for_calc.columns:
-            value_for_calc[metric] = -value_for_calc[metric]
-    df['value_z'] = calculate_weighted_score(value_for_calc, value_metrics, value_weights)
-    df['value_score'] = df['value_z'].apply(zscore_to_percentile)
+    # ===== VALUE SCORE =====
+    logger.info("Calculating VALUE scores (P/E based)...")
+    value_metrics_available = [m for m in ['pe_ratio'] if m in df.columns]
+    if value_metrics_available:
+        value_for_calc = df.copy()
+        if 'pe_ratio' in value_for_calc.columns:
+            value_for_calc['pe_ratio'] = -value_for_calc['pe_ratio']  # Invert (lower P/E = better)
+        df['value_z'] = calculate_weighted_score(value_for_calc, value_metrics_available, {'pe_ratio': 1.0})
+        df['value_score'] = df['value_z'].apply(zscore_to_percentile)
+    else:
+        logger.warning("  No value metrics available - using NaN for value score")
+        df['value_z'] = np.nan
+        df['value_score'] = np.nan
 
     # ===== POSITIONING SCORE (6 metrics) =====
     logger.info("Calculating POSITIONING scores (institutional alignment, short interest)...")

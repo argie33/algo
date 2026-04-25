@@ -536,7 +536,7 @@ function formatRankingResponse(rankingsByPeriod, type) {
 router.get("/trend/sector/:sectorName", async (req, res) => {
   try {
     if (!query) {
-      return sendError(res,  "Database service unavailable" , success: false});
+      return sendError(res, "Database service unavailable", 400);
     }
 
     const { sectorName } = req.params;
