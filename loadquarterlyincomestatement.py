@@ -243,33 +243,29 @@ def load_quarterly_income_statement(symbols: List[str], cur, conn) -> Tuple[int,
                         # Transform pivot data to denormalized format
                         grouped = {}
                         for sym, date, item_name, value in income_statement_data:
-                            key = (sym, date)
+                            fiscal_year = date.year if date else None
+                            fiscal_quarter = (date.month - 1) // 3 + 1 if date else None
+                            key = (sym, fiscal_year, fiscal_quarter)
                             if key not in grouped:
                                 grouped[key] = {}
                             item_lower = str(item_name).lower()
-                            if 'revenue' in item_lower:
+                            if 'revenue' in item_lower and 'cost' not in item_lower:
                                 grouped[key]['revenue'] = value
-                            elif 'operating income' in item_lower:
-                                grouped[key]['operating_income'] = value
                             elif 'net income' in item_lower and 'noncontrolling' not in item_lower:
                                 grouped[key]['net_income'] = value
-                            elif 'eps' in item_lower or 'diluted eps' in item_lower:
-                                grouped[key]['eps'] = value
 
                         insert_data = []
-                        for (sym, date), fields in grouped.items():
-                            insert_data.append((sym, date, fields.get('revenue'), fields.get('operating_income'), fields.get('net_income'), fields.get('eps')))
+                        for (sym, fiscal_year, fiscal_quarter), fields in grouped.items():
+                            if fiscal_year and fiscal_quarter:
+                                insert_data.append((sym, fiscal_year, fiscal_quarter, fields.get('revenue'), fields.get('net_income')))
 
                         if insert_data:
                             execute_values(cur, """
-                                INSERT INTO quarterly_income_statement (symbol, date, revenue, operating_income, net_income, eps)
+                                INSERT INTO quarterly_income_statement (symbol, fiscal_year, fiscal_quarter, revenue, net_income)
                                 VALUES %s
-                                ON CONFLICT (symbol, date) DO UPDATE SET
+                                ON CONFLICT (symbol, fiscal_year, fiscal_quarter) DO UPDATE SET
                                     revenue = COALESCE(EXCLUDED.revenue, quarterly_income_statement.revenue),
-                                    operating_income = COALESCE(EXCLUDED.operating_income, quarterly_income_statement.operating_income),
-                                    net_income = COALESCE(EXCLUDED.net_income, quarterly_income_statement.net_income),
-                                    eps = COALESCE(EXCLUDED.eps, quarterly_income_statement.eps),
-                                    updated_at = NOW()
+                                    net_income = COALESCE(EXCLUDED.net_income, quarterly_income_statement.net_income)
                             """, insert_data)
                             conn.commit()
                             processed += 1
@@ -307,34 +303,22 @@ def load_quarterly_income_statement(symbols: List[str], cur, conn) -> Tuple[int,
     return total, processed, failed
 
 def create_table(cur, conn):
-    """Create the quarterly income statement table"""
-    logging.info("Creating quarterly income statement table...")
+    """Verify quarterly income statement table exists (table created externally)"""
+    logging.info("Verifying quarterly income statement table...")
     try:
-        create_table_sql = """
-            CREATE TABLE IF NOT EXISTS quarterly_income_statement (
-                symbol VARCHAR(20) NOT NULL,
-                date DATE NOT NULL,
-                revenue DOUBLE PRECISION,
-                operating_income DOUBLE PRECISION,
-                net_income DOUBLE PRECISION,
-                created_at TIMESTAMP DEFAULT NOW(),
-                updated_at TIMESTAMP DEFAULT NOW(),
-                PRIMARY KEY(symbol, date)
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_quarterly_income_statement_symbol ON quarterly_income_statement(symbol);
-            CREATE INDEX IF NOT EXISTS idx_quarterly_income_statement_date ON quarterly_income_statement(date);
-        """
-        cur.execute(create_table_sql)
-        conn.commit()
-        logging.info("Created quarterly income statement table")
+        cur.execute("""
+            SELECT 1 FROM information_schema.tables
+            WHERE table_name = 'quarterly_income_statement'
+        """)
+        if cur.fetchone():
+            logging.info("Quarterly income statement table exists - ready to load")
+        else:
+            logging.error("Quarterly income statement table not found!")
+            return False
+        return True
     except Exception as e:
-        logging.info(f"Table likely exists: {e}")
-        # Rollback to prevent transaction abort state
-        try:
-            conn.rollback()
-        except Exception as rb_error:
-            logging.warning(f"Rollback failed: {rb_error}")
+        logging.error(f"Error checking table: {e}")
+        return False
 
 if __name__ == "__main__":
     log_mem("startup")

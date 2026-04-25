@@ -18,7 +18,6 @@ loaders = [
     ('loadecondata.py', 'Economic Data'),
     ('loadannualincomestatement.py', 'Annual Income Statements'),
     ('loadquarterlyincomestatement.py', 'Quarterly Income Statements'),
-    ('loadttmincomestatement.py', 'TTM Income Statements'),
     ('loadfactormetrics.py', 'Factor Metrics'),
     ('loadbuysellweekly.py', 'Buy/Sell Signals'),
 ]

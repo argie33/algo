@@ -267,45 +267,50 @@ def load_annual_income_statement(symbols: List[str], cur, conn) -> Tuple[int, in
                         # Transform pivot data to denormalized format
                         grouped = {}
                         for sym, date, item_name, value in income_statement_data:
-                            key = (sym, date)
+                            fiscal_year = date.year if date else None
+                            key = (sym, fiscal_year)
                             if key not in grouped:
                                 grouped[key] = {}
                             item_lower = str(item_name).lower()
-                            if 'revenue' in item_lower:
+                            if 'revenue' in item_lower and 'cost' not in item_lower:
                                 grouped[key]['revenue'] = value
+                            elif 'cost of revenue' in item_lower or 'cost of goods' in item_lower:
+                                grouped[key]['cost_of_revenue'] = value
+                            elif 'gross profit' in item_lower:
+                                grouped[key]['gross_profit'] = value
+                            elif 'operating expense' in item_lower:
+                                grouped[key]['operating_expenses'] = value
                             elif 'operating income' in item_lower:
                                 grouped[key]['operating_income'] = value
-                            elif 'pretax income' in item_lower or 'income before' in item_lower:
-                                grouped[key]['pretax_income'] = value
                             elif 'net income' in item_lower and 'noncontrolling' not in item_lower:
                                 grouped[key]['net_income'] = value
-                            elif 'eps' in item_lower or 'diluted eps' in item_lower:
-                                grouped[key]['eps'] = value
 
                         # Convert to insert tuples
                         insert_data = []
-                        for (sym, date), fields in grouped.items():
-                            insert_data.append((
-                                sym,
-                                date,
-                                fields.get('revenue'),
-                                fields.get('operating_income'),
-                                fields.get('pretax_income'),
-                                fields.get('net_income'),
-                                fields.get('eps')
-                            ))
+                        for (sym, fiscal_year), fields in grouped.items():
+                            if fiscal_year:
+                                insert_data.append((
+                                    sym,
+                                    fiscal_year,
+                                    fields.get('revenue'),
+                                    fields.get('cost_of_revenue'),
+                                    fields.get('gross_profit'),
+                                    fields.get('operating_expenses'),
+                                    fields.get('operating_income'),
+                                    fields.get('net_income')
+                                ))
 
                         if insert_data:
                             execute_values(thread_cur, """
-                                INSERT INTO annual_income_statement (symbol, date, revenue, operating_income, pretax_income, net_income, eps)
+                                INSERT INTO annual_income_statement (symbol, fiscal_year, revenue, cost_of_revenue, gross_profit, operating_expenses, operating_income, net_income)
                                 VALUES %s
-                                ON CONFLICT (symbol, date) DO UPDATE SET
+                                ON CONFLICT (symbol, fiscal_year) DO UPDATE SET
                                     revenue = COALESCE(EXCLUDED.revenue, annual_income_statement.revenue),
+                                    cost_of_revenue = COALESCE(EXCLUDED.cost_of_revenue, annual_income_statement.cost_of_revenue),
+                                    gross_profit = COALESCE(EXCLUDED.gross_profit, annual_income_statement.gross_profit),
+                                    operating_expenses = COALESCE(EXCLUDED.operating_expenses, annual_income_statement.operating_expenses),
                                     operating_income = COALESCE(EXCLUDED.operating_income, annual_income_statement.operating_income),
-                                    pretax_income = COALESCE(EXCLUDED.pretax_income, annual_income_statement.pretax_income),
-                                    net_income = COALESCE(EXCLUDED.net_income, annual_income_statement.net_income),
-                                    eps = COALESCE(EXCLUDED.eps, annual_income_statement.eps),
-                                    updated_at = NOW()
+                                    net_income = COALESCE(EXCLUDED.net_income, annual_income_statement.net_income)
                             """, insert_data)
                             thread_conn.commit()
                             logging.info(f"[OK] {symbol} ({len(insert_data)} records)")
@@ -367,36 +372,22 @@ def load_annual_income_statement(symbols: List[str], cur, conn) -> Tuple[int, in
     return total, processed, failed
 
 def create_table(cur, conn):
-    """Create the annual income statement table if it doesn't exist"""
-    logging.info("Creating annual income statement table if needed...")
+    """Verify annual income statement table exists (table created externally)"""
+    logging.info("Verifying annual income statement table...")
     try:
-        create_table_sql = """
-            CREATE TABLE IF NOT EXISTS annual_income_statement (
-                symbol VARCHAR(20) NOT NULL,
-                date DATE NOT NULL,
-                revenue DOUBLE PRECISION,
-                operating_income DOUBLE PRECISION,
-                pretax_income DOUBLE PRECISION,
-                net_income DOUBLE PRECISION,
-                eps DOUBLE PRECISION,
-                created_at TIMESTAMP DEFAULT NOW(),
-                updated_at TIMESTAMP DEFAULT NOW(),
-                PRIMARY KEY(symbol, date)
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_annual_income_statement_symbol ON annual_income_statement(symbol);
-            CREATE INDEX IF NOT EXISTS idx_annual_income_statement_date ON annual_income_statement(date);
-        """
-        cur.execute(create_table_sql)
-        conn.commit()
-        logging.info("Created annual income statement table")
+        cur.execute("""
+            SELECT 1 FROM information_schema.tables
+            WHERE table_name = 'annual_income_statement'
+        """)
+        if cur.fetchone():
+            logging.info("Annual income statement table exists - ready to load")
+        else:
+            logging.error("Annual income statement table not found!")
+            return False
+        return True
     except Exception as e:
-        logging.info(f"Table likely exists: {e}")
-        # Rollback to prevent transaction abort state
-        try:
-            conn.rollback()
-        except Exception as rb_error:
-            logging.warning(f"Rollback failed: {rb_error}")
+        logging.error(f"Error checking table: {e}")
+        return False
 
 if __name__ == "__main__":
     log_mem("startup")
