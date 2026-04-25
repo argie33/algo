@@ -105,7 +105,6 @@ export const getApiConfig = () => {
     isDevelopment: isDevelopment,
     isProduction: isProduction,
     baseUrl: import.meta.env && import.meta.env.BASE_URL,
-    allEnvVars: import.meta.env || {},
   };
 };
 
@@ -115,7 +114,7 @@ let currentConfig = getApiConfig();
 // API health check state
 let apiHealthy = true;
 let lastHealthCheck = 0;
-const HEALTH_CHECK_INTERVAL = 10000; // 10 seconds for faster failure detection
+const HEALTH_CHECK_INTERVAL = 5000; // 5 seconds for fast failure detection
 
 // Simple health check function
 const _checkApiHealth = async () => {
@@ -422,18 +421,6 @@ export const importPortfolioFromBroker = async (broker) => {
       data: null,
       success: false,
       error: error?.response?.data?.error || error?.message || 'Failed to import portfolio'
-    };
-  }
-};
-
-
-    };
-  } catch (error) {
-    console.error("❌ Benchmark data fetch error:", error);
-    return {
-      data: null,
-      success: false,
-      error: error?.response?.data?.error || error?.message || 'Failed to fetch benchmark data'
     };
   }
 };
