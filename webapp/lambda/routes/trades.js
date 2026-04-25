@@ -342,7 +342,7 @@ router.get('/summary', async (req, res) => {
     try {
       const result = await dbQuery(`
         SELECT
-          symbol, type as side, quantity, execution_price as price, order_value as total_amount, commission
+          symbol, side, quantity, execution_price as price, order_value as total_amount, commission
         FROM trades
         ORDER BY execution_date DESC
       `);

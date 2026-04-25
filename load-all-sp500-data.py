@@ -210,10 +210,9 @@ def load_earnings_estimates(conn, symbols):
             if 'epsTrailingTwelveMonths' in info and info['epsTrailingTwelveMonths']:
                 data_list.append((
                     symbol,
-                    float(info.get('epsTrailingTwelveMonths', 0)) if info.get('epsTrailingTwelveMonths') else None,
                     float(info.get('epsCurrentYear', 0)) if info.get('epsCurrentYear') else None,
                     float(info.get('epsForward', 0)) if info.get('epsForward') else None,
-                    datetime.now().date()
+                    datetime.now().strftime('%Y-Q') + str((datetime.now().month - 1) // 3 + 1)
                 ))
                 success_count += 1
 
@@ -225,10 +224,10 @@ def load_earnings_estimates(conn, symbols):
 
     if data_list:
         query = """
-            INSERT INTO earnings_estimates (symbol, eps_actual, eps_estimate, eps_forward, period)
+            INSERT INTO earnings_estimates (symbol, eps_estimate, eps_forward, period)
             VALUES %s
             ON CONFLICT (symbol, period) DO UPDATE SET
-                eps_actual = EXCLUDED.eps_actual
+                eps_estimate = EXCLUDED.eps_estimate
         """
         execute_values(cur, query, data_list)
         conn.commit()
@@ -254,21 +253,28 @@ def load_analyst_sentiment(conn, symbols):
 
             # Extract analyst data
             if 'recommendationKey' in info and info['recommendationKey']:
-                rating_map = {
-                    'strong_buy': 5,
-                    'buy': 4,
-                    'hold': 3,
-                    'sell': 2,
-                    'strong_sell': 1
-                }
-                rating_value = rating_map.get(info.get('recommendationKey', 'hold'), 3)
-
+                rating_key = info.get('recommendationKey', 'hold').lower()
                 target_price = float(info.get('targetMeanPrice', 0)) if info.get('targetMeanPrice') else None
+                analyst_count = int(info.get('numberOfAnalysts', 0)) if info.get('numberOfAnalysts') else 0
+
+                # Map recommendation to sentiment counts
+                bullish = 0
+                neutral = 0
+                bearish = 0
+
+                if rating_key in ['strong_buy', 'buy']:
+                    bullish = analyst_count
+                elif rating_key == 'hold':
+                    neutral = analyst_count
+                else:  # sell, strong_sell
+                    bearish = analyst_count
 
                 data_list.append((
                     symbol,
-                    rating_value,
-                    int(info.get('numberOfAnalysts', 0)) if info.get('numberOfAnalysts') else 0,
+                    analyst_count,
+                    bullish,
+                    bearish,
+                    neutral,
                     target_price,
                     datetime.now().date()
                 ))
@@ -282,10 +288,10 @@ def load_analyst_sentiment(conn, symbols):
 
     if data_list:
         query = """
-            INSERT INTO analyst_sentiment_analysis (symbol, rating, count, target_price, date)
+            INSERT INTO analyst_sentiment_analysis (symbol, total_analysts, bullish_count, bearish_count, neutral_count, target_price, date_recorded)
             VALUES %s
             ON CONFLICT (symbol) DO UPDATE SET
-                rating = EXCLUDED.rating, count = EXCLUDED.count
+                total_analysts = EXCLUDED.total_analysts, bullish_count = EXCLUDED.bullish_count
         """
         execute_values(cur, query, data_list)
         conn.commit()

@@ -11,13 +11,13 @@ import logging
 import json
 import os
 import gc
+import threading
 from pathlib import Path
 try:
     import resource
     HAS_RESOURCE = True
 except ImportError:
     HAS_RESOURCE = False
-import signal
 
 from dotenv import load_dotenv
 import psycopg2
@@ -32,29 +32,27 @@ env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
 
-# Timeout handler for yfinance API calls
-class TimeoutException(Exception):
-    pass
-
-def timeout_handler(signum, frame):
-    raise TimeoutException("API call timed out")
-
+# Threading-based timeout that works on all platforms (including Windows)
 def get_ticker_info_with_timeout(ticker, timeout_sec=15):
-    """Safely get ticker.info with timeout protection."""
-    try:
-        signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(timeout_sec)
-        info = ticker.info
-        signal.alarm(0)  # Cancel alarm
-        return info
-    except TimeoutException:
-        logging.warning(f"ticker.info call timed out after {timeout_sec}s")
-        signal.alarm(0)
+    """Safely get ticker.info with timeout protection using threading."""
+    result = {}
+
+    def fetch_info():
+        try:
+            result['data'] = ticker.info
+        except Exception as e:
+            logging.debug(f"Error fetching ticker.info: {str(e)[:50]}")
+            result['data'] = {}
+
+    thread = threading.Thread(target=fetch_info, daemon=True)
+    thread.start()
+    thread.join(timeout=timeout_sec)
+
+    if thread.is_alive():
+        logging.debug(f"ticker.info call timed out after {timeout_sec}s")
         return {}
-    except Exception as e:
-        signal.alarm(0)
-        logging.warning(f"Error fetching ticker.info: {str(e)[:50]}")
-        return {}
+
+    return result.get('data', {})
 
 SCRIPT_NAME = "loadanalystsentiment.py"
 logging.basicConfig(
