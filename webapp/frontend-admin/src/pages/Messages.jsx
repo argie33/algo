@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import api from "../services/api.js";
 import {
   Box,
   Card,
@@ -36,15 +37,14 @@ const Messages = () => {
     const fetchMessages = async () => {
       try {
         setLoading(true);
-        const response = await fetch('/api/contact/submissions');
-        const result = await response.json();
+        const result = await api.getContactSubmissions();
 
-        if (!response.ok) {
-          throw new Error(result.error || 'Failed to fetch messages');
+        if (result.success && result.data) {
+          setMessages(result.data);
+          setError(null);
+        } else {
+          throw new Error('Failed to fetch messages');
         }
-
-        setMessages(result.data.submissions || []);
-        setError(null);
       } catch (err) {
         console.error('Error fetching messages:', err);
         setError(err.message);
@@ -68,25 +68,19 @@ const Messages = () => {
 
   const handleStatusChange = async (id, newStatus) => {
     try {
-      const response = await fetch(`/api/contact/submissions/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
-      });
+      const result = await api.updateContactSubmissionStatus(id, newStatus);
 
-      const result = await response.json();
+      if (result.success) {
+        // Update local state
+        setMessages(messages.map(msg =>
+          msg.id === id ? { ...msg, status: newStatus, reviewed_at: new Date() } : msg
+        ));
 
-      if (!response.ok) {
-        throw new Error(result.error);
-      }
-
-      // Update local state
-      setMessages(messages.map(msg => 
-        msg.id === id ? { ...msg, status: newStatus, reviewed_at: new Date() } : msg
-      ));
-
-      if (selectedMessage?.id === id) {
-        setSelectedMessage({ ...selectedMessage, status: newStatus });
+        if (selectedMessage?.id === id) {
+          setSelectedMessage({ ...selectedMessage, status: newStatus });
+        }
+      } else {
+        throw new Error('Failed to update submission');
       }
     } catch (err) {
       console.error('Error updating message:', err);

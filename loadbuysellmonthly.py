@@ -575,18 +575,6 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
     df['mansfield_rs'] = (close / high_52w * 100).round(2)
     df.loc[(high_52w.isna()) | (high_52w <= 0) | (close.isna()), 'mansfield_rs'] = None
     # Note: sata_score is already calculated above with df.apply(calculate_sata, axis=1)
-    # Previous code that queried non-existent column is commented out:
-    # try:
-    #     stock_scores_q = "SELECT date, mansfield_rs FROM stock_scores WHERE symbol = %s"
-    #     cur.execute(stock_scores_q, (symbol,))
-    #     scores_rows = cur.fetchall()
-    #     if scores_rows:
-    #         rs_by_date = {row[0]: row[1] for row in scores_rows if row[1] is not None}
-    #         df['mansfield_rs'] = df['date'].apply(
-    #             lambda d: rs_by_date.get(d.date() if hasattr(d, 'date') else d)
-    #         )
-    # except Exception as e:
-    #     logging.debug(f"Could not fetch mansfield_rs for {symbol}: {e}")
 
     # === CALCULATE SATA SCORE (0-10 scale) ===
     # SATA = Stage Analysis Technical Attributes
