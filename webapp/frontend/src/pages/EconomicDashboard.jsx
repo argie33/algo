@@ -675,9 +675,8 @@ export default function EconomicDashboard() {
 
       try {
         const response = await api.get("/api/economic/leading-indicators");
-        // responseFormatter wraps response in { success, data: {...}, timestamp }
-        // Extract the inner data property
-        leadingIndicators = response?.data?.data || response?.data || {};
+        // Unified format: { success: true, data: {...}, timestamp: ... }
+        leadingIndicators = response.data.data || {};
       } catch (err) {
         console.warn("⚠️ Failed to fetch leading indicators:", err?.message || err);
         // Use empty array as fallback - UI will show appropriate message
@@ -687,8 +686,8 @@ export default function EconomicDashboard() {
       // Fetch yield curve data
       try {
         const response = await api.get("/api/economic/yield-curve-full");
-        // responseFormatter wraps response in { success, data: {...}, timestamp }
-        const rawData = response?.data?.data || response?.data || null;
+        // Unified format: { success: true, data: {...}, timestamp: ... }
+        const rawData = response.data.data || null;
 
         // Map the response data to the expected format
         if (rawData) {

@@ -1776,7 +1776,7 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
         "free_cashflow, net_income, operating_cashflow, debt_to_equity, "
         "current_ratio, quick_ratio, payout_ratio, ebitda, total_debt, total_cash, "
         "total_revenue "
-        "FROM key_metrics WHERE ticker = ANY(%s)",
+        "FROM key_metrics WHERE symbol = ANY(%s)",
         (symbols,)
     )
 
@@ -2128,7 +2128,7 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                    eps_trailing,
                    eps_forward
             FROM key_metrics
-            WHERE ticker = ANY(%s)
+            WHERE symbol = ANY(%s)
             """,
             (symbols,)
         )

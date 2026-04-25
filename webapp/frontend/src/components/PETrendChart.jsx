@@ -12,7 +12,7 @@ export default function PETrendChart({ sectorName, industryName }) {
     queryFn: async () => {
       // Request max available data (limited to ~752 days = ~2 years in database)
       const response = await api.get(`/api/${endpoint}?days=3650`);
-      return response?.data;
+      return response.data.data;
     },
     enabled: !!name,
   });

@@ -1091,11 +1091,8 @@ const SectorAnalysis = () => {
     queryKey: ["sector-performance"],
     queryFn: async () => {
       const response = await api.get("/api/sectors/sectors?limit=20");
-      // Axios wraps response in { data: {...}, status, ... }
-      // Backend returns: { items: [...sectors], pagination: {...}, success: true }
-      // So response.data = { items: [...sectors], pagination: {...}, success: true }
-      // Extract the array with response.data.items (new format)
-      return response?.data?.items || [];
+      // Unified format: { success: true, data: { items: [...sectors], pagination: {...} }, timestamp: ... }
+      return response.data.data?.items || [];
     },
     staleTime: 0, // Always fresh - no stale cache
     gcTime: 0, // Disable garbage collection cache
@@ -1108,11 +1105,8 @@ const SectorAnalysis = () => {
     queryKey: ["industry-performance"],
     queryFn: async () => {
       const response = await api.get("/api/industries/industries");
-      // Axios wraps response in { data: {...}, status, ... }
-      // Backend returns: { items: [...industries], pagination: {...}, success: true }
-      // So response.data = { items: [...industries], pagination: {...}, success: true }
-      // Extract the array with response.data.items (new format)
-      const industriesArray = response?.data?.items || [];
+      // Unified format: { success: true, data: { items: [...industries], pagination: {...} }, timestamp: ... }
+      const industriesArray = response.data.data?.items || [];
 
       return industriesArray.map(ind => ({
         industry: ind.industry,

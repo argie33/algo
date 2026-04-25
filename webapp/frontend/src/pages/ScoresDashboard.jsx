@@ -367,17 +367,17 @@ const ScoresDashboard = () => {
       );
 
       // Check if API response is valid
-      // Response structure from API: { items: [...], pagination: {...}, success: true }
-      // axios wraps it, so response.data contains the above structure
-      const validStocksArray = response.data?.items || [];
+      // Unified response format: { success: true, data: { items: [...], pagination: {...} }, timestamp: ... }
+      const responseData = response.data.data || {};
+      const validStocksArray = responseData.items || [];
 
       if (validStocksArray.length > 0) {
         const transformedStocks = validStocksArray.map(transformStockData);
         setScores(transformedStocks);
 
         // Extract pagination info from response
-        const totalRecords = response.data?.pagination?.total || validStocksArray.length;
-        const pageSize = response.data?.pagination?.limit || displayLimit;
+        const totalRecords = responseData.pagination?.total || validStocksArray.length;
+        const pageSize = responseData.pagination?.limit || displayLimit;
         const totalPages = Math.ceil(totalRecords / pageSize);
 
         setTotalRecords(totalRecords);
@@ -386,7 +386,7 @@ const ScoresDashboard = () => {
           totalRecords: totalRecords,
           totalPages: totalPages,
           pageSize: pageSize,
-          offset: response.data?.pagination?.offset || 0
+          offset: responseData.pagination?.offset || 0
         });
         setCurrentPage(page);
       } else {

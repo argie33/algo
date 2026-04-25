@@ -11,6 +11,34 @@ const debugError = (...args) => {
   console.error(...args);
 };
 
+// ============================================================================
+// STANDARDIZED RESPONSE WRAPPER - Ensures all endpoints return same format
+// ============================================================================
+// All endpoints should return: {data: T, success: boolean, error?: string, timestamp: string}
+export const createSuccessResponse = (data, timestamp = new Date().toISOString()) => ({
+  data,
+  success: true,
+  timestamp,
+});
+
+export const createErrorResponse = (error, message, timestamp = new Date().toISOString()) => ({
+  data: null,
+  success: false,
+  error: message || error?.message || "An error occurred",
+  timestamp,
+});
+
+// Wraps async API calls with standard error handling
+export const withErrorHandler = async (asyncFn, context = "API call") => {
+  try {
+    return await asyncFn();
+  } catch (error) {
+    const errorMessage = error?.response?.data?.error || error?.message || "Unknown error";
+    debugError(`❌ ${context} failed:`, errorMessage);
+    return createErrorResponse(error, `${context}: ${errorMessage}`);
+  }
+};
+
 // Get API configuration - exported for ServiceHealth
 export const getApiConfig = () => {
   // Dynamic API URL resolution: runtime > build-time > infer from location > fallback
