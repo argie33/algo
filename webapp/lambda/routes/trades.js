@@ -144,8 +144,8 @@ router.get('/', async (req, res) => {
 
       const dataQuery = `
         SELECT
-          id, symbol, side, quantity, execution_price as price, execution_date as trade_date,
-          order_value as total_amount, commission
+          id, symbol, side, quantity, execution_price, execution_date,
+          order_value, commission
         FROM trades
         ${whereClause}
         ORDER BY execution_date DESC
@@ -157,16 +157,16 @@ router.get('/', async (req, res) => {
       console.log('📋 Params:', params);
 
       result.rows.forEach(row => {
-        console.log(`📝 Processing trade: ${row.symbol} ${row.side} ${row.quantity}@${row.price}`);
+        console.log(`📝 Processing trade: ${row.symbol} ${row.side} ${row.quantity}@${row.execution_price}`);
 
         allTrades.push({
           id: row.id,
           symbol: row.symbol,
           type: (row.side || 'buy').toLowerCase(),
           quantity: parseFloat(row.quantity),
-          price: parseFloat(row.price),
-          executionDate: row.trade_date,
-          orderValue: row.total_amount ? parseFloat(row.total_amount) : null,
+          execution_price: parseFloat(row.execution_price),
+          execution_date: row.execution_date,
+          order_value: row.order_value ? parseFloat(row.order_value) : null,
           commission: row.commission ? parseFloat(row.commission) : 0,
           source: 'manual',
           orderId: row.id,
@@ -343,7 +343,7 @@ router.get('/summary', async (req, res) => {
     try {
       const result = await dbQuery(`
         SELECT
-          symbol, side, quantity, execution_price as price, order_value as total_amount, commission
+          symbol, side, quantity, execution_price, order_value, commission
         FROM trades
         ORDER BY execution_date DESC
       `);
@@ -354,8 +354,8 @@ router.get('/summary', async (req, res) => {
           symbol: row.symbol,
           type: (row.side || 'buy').toLowerCase(),
           quantity: parseFloat(row.quantity),
-          price: parseFloat(row.price),
-          orderValue: row.total_amount ? parseFloat(row.total_amount) : 0,
+          price: parseFloat(row.execution_price),
+          orderValue: row.order_value ? parseFloat(row.order_value) : 0,
           commission: row.commission ? parseFloat(row.commission) : 0,
           pnlAmount: null,
           source: 'manual'

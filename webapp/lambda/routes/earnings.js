@@ -160,11 +160,11 @@ router.get("/sp500-trend", async (req, res) => {
   try {
     const result = await query(
       `SELECT COUNT(DISTINCT symbol) as stock_count FROM earnings_history
-       WHERE quarter >= CURRENT_DATE - INTERVAL '3 months'`
+       WHERE quarter::date >= (CURRENT_DATE - INTERVAL '3 months')::date`
     );
     return sendSuccess(res, {
-      stocks_reporting: result.rows[0]?.stock_count || 0,
-      note: "Use earnings history table for detailed trends"
+      stocks_reporting: parseInt(result.rows[0]?.stock_count || 0),
+      note: "Stocks with earnings reports in last 3 months"
     });
   } catch (error) {
     return sendError(res, `Failed to fetch earnings summary: ${error.message}`, 500);

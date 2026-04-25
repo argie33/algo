@@ -259,10 +259,10 @@ export default function PortfolioDashboard() {
   // Signals (if available)
   const signals = portfolioData?.data?.signals || [];
   const performanceChartData = useMemo(() => {
-    return metricsData?.data?.daily_returns?.slice(-252).map((val, idx) => ({
-      date: idx,
-      return: val,
-      cumulative: val,
+    return metricsData?.data?.daily_returns?.slice(-252).map((item) => ({
+      date: item.date || new Date().toISOString(),
+      return: item.pnl_percent || 0,
+      cumulative: item.pnl_percent || 0,
     })) || [];
   }, [metricsData]);
 

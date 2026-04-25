@@ -29,10 +29,8 @@ router.get("/covered-calls", async (req, res) => {
   try {
     const {
       symbol,
-      min_probability = 0,  // Default: show all opportunities
-      min_premium_pct = 0,  // Default: show all opportunities
-      trend = "all",  // Default: show all trends
-      sort_by = "premium_pct",  // Sort by premium % by default
+      min_return_pct = 0,
+      sort_by = "return_pct",
       limit = 100,
       page = 1
     } = req.query;
@@ -42,23 +40,15 @@ router.get("/covered-calls", async (req, res) => {
     const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 100));
     const offset = (pageNum - 1) * limitNum;
 
-    // Build WHERE clause - with flexible filtering
-    let whereClause = `
-      WHERE cco.data_date = (SELECT MAX(data_date) FROM covered_call_opportunities)
-      AND cco.probability_of_profit >= $1
-      AND cco.premium_pct >= $2
-      AND (cco.expiration_date - CURRENT_DATE) BETWEEN 30 AND 60
-    `;
-    const params = [
-      parseFloat(min_probability),
-      parseFloat(min_premium_pct)
-    ];
-    let paramIndex = 3;
+    // Build WHERE clause
+    let whereClause = `WHERE cco.data_date = (SELECT MAX(data_date) FROM covered_call_opportunities)`;
+    const params = [];
+    let paramIndex = 1;
 
-    // Optional: Filter by trend
-    if (trend && trend !== 'all' && ['uptrend', 'sideways', 'downtrend'].includes(trend.toLowerCase())) {
-      whereClause += ` AND cco.trend = $${paramIndex}`;
-      params.push(trend.toLowerCase());
+    // Filter by minimum return %
+    if (min_return_pct && parseFloat(min_return_pct) > 0) {
+      whereClause += ` AND cco.return_pct >= $${paramIndex}`;
+      params.push(parseFloat(min_return_pct));
       paramIndex++;
     }
 
@@ -69,94 +59,31 @@ router.get("/covered-calls", async (req, res) => {
       paramIndex++;
     }
 
-    // NEW: Better sort options focused on actionable metrics
-    const validSortColumns = [
-      'premium_pct',       // Income opportunity
-      'probability_of_profit',  // Safety
-      'expected_annual_return', // Annualized return
-      'expiration_date',        // Time to expiration
-      'max_profit_pct',    // Max profit potential
-      'rsi'               // Momentum
-    ];
-    const sortColumn = validSortColumns.includes(sort_by) ? sort_by : 'premium_pct';
+    // Sort options based on available columns
+    const validSortColumns = ['return_pct', 'premium', 'breakeven_pct', 'expiration_date', 'created_at'];
+    const sortColumn = validSortColumns.includes(sort_by) ? sort_by : 'return_pct';
     const sortOrder = sort_by === 'expiration_date' ? 'ASC' : 'DESC';
 
     // Get total count for pagination
-    const countSql = `
-      SELECT COUNT(*) as total
-      FROM covered_call_opportunities cco
-      ${whereClause}
-    `;
+    const countSql = `SELECT COUNT(*) as total FROM covered_call_opportunities cco ${whereClause}`;
 
     const countResult = await query(countSql, params);
     const total = countResult.rows && countResult.rows[0] ? parseInt(countResult.rows[0].total) : 0;
     const totalPages = total > 0 ? Math.ceil(total / limitNum) : 0;
 
-    // Get paginated results - ALL DETAILED DATA FOR COMPREHENSIVE ANALYSIS
+    // Get paginated results - only select columns that exist in the table
     const sql = `
       SELECT
         cco.id,
         cco.symbol,
-        cco.stock_price,
+        cco.expiration_date,
         cco.strike,
         cco.premium,
-        cco.premium_pct,
-        cco.breakeven_price,
-        cco.expiration_date,
-        (cco.expiration_date - CURRENT_DATE)::INTEGER as days_to_expiration,
-        cco.probability_of_profit,
-        cco.expected_annual_return,
-        cco.max_profit,
-        cco.max_profit_pct,
-        cco.max_loss_amount,
-        cco.max_loss_pct,
-        cco.risk_reward_ratio,
-        cco.rsi,
-        cco.sma_50,
-        cco.sma_200,
-        cco.trend,
-        cco.resistance_level,
-        cco.distance_to_resistance_pct,
-        cco.delta,
-        cco.theta,
-        cco.iv_rank,
-        cco.liquidity_score,
-        cco.entry_signal,
-        cco.entry_confidence,
-        cco.recommended_strike,
-        cco.secondary_strike,
-        cco.conservative_strike,
-        cco.aggressive_strike,
-        cco.management_strategy,
-        cco.stop_loss_level,
-        cco.take_profit_25_target,
-        cco.take_profit_50_target,
-        cco.take_profit_75_target,
-        cco.days_to_earnings,
-        cco.days_profit_available,
-        cco.avg_daily_premium,
-        cco.low_liquidity_warning,
-        cco.high_beta_warning,
-        cco.opportunity_score,
-        cco.beta,
-        cco.composite_score,
-        cco.momentum_score,
-        cco.analyst_count,
-        cco.analyst_price_target,
-        cco.analyst_bullish_ratio,
-        cco.vix_level,
-        cco.market_sentiment,
-        cco.implied_volatility,
-        cco.bid_ask_spread_pct,
-        cco.open_interest_rank,
-        cco.timing_score,
-        cco.market_regime_score,
-        cco.vol_regime_score,
-        cco.earnings_risk_score,
-        cco.sell_now_score,
-        cco.strike_quality_score,
-        cco.execution_score,
-        cco.risk_adjusted_return
+        cco.breakeven_pct,
+        cco.return_pct,
+        cco.days_to_expiration,
+        cco.data_date,
+        cco.created_at
       FROM covered_call_opportunities cco
       ${whereClause}
       ORDER BY cco.${sortColumn} ${sortOrder}

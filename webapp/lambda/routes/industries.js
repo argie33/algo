@@ -3,18 +3,8 @@ const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
-// Root endpoint
-router.get("/", (req, res) => {
-  return sendSuccess(res, {
-    endpoint: "industries",
-    available_routes: [
-      "/industries - All industries from company data"
-    ]
-  });
-});
-
-// GET /industries - Get all industries
-router.get("/industries", async (req, res) => {
+// GET / (root) - Get all industries
+router.get("/", async (req, res) => {
   try {
     const { limit = 500, page = 1 } = req.query;
     const limitNum = Math.min(parseInt(limit) || 500, 1000);

@@ -66,8 +66,8 @@ export default function ManualPositionsDialog() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/portfolio/manual-positions');
-      const data = await response.json();
+      const response = await api.get('/api/portfolio/manual-positions');
+      const data = response.data;
       if (data.success) {
         // Handle different response structures
         const positionsData = data.data || [];
@@ -115,10 +115,8 @@ export default function ManualPositionsDialog() {
   const handleDeletePosition = async (id) => {
     if (window.confirm('Are you sure you want to delete this position?')) {
       try {
-        const response = await fetch(`/api/portfolio/manual-positions/${id}`, {
-          method: 'DELETE',
-        });
-        const data = await response.json();
+        const response = await api.delete(`/api/portfolio/manual-positions/${id}`);
+        const data = response.data;
         if (data.success) {
           setPositions(positions.filter(p => p.id !== id));
           setError(null);
@@ -137,7 +135,6 @@ export default function ManualPositionsDialog() {
       const url = editingId
         ? `/api/portfolio/manual-positions/${editingId}`
         : '/api/portfolio/manual-positions';
-      const method = editingId ? 'PATCH' : 'POST';
 
       const payload = {
         ...formData,
@@ -146,13 +143,11 @@ export default function ManualPositionsDialog() {
         current_price: formData.current_price ? parseFloat(formData.current_price) : null,
       };
 
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      const response = editingId
+        ? await api.patch(url, payload)
+        : await api.post(url, payload);
 
-      const data = await response.json();
+      const data = response.data;
       if (data.success) {
         setIsFormOpen(false);
         fetchPositions();
