@@ -3800,6 +3800,19 @@ export const importPortfolioFromAlpaca = async () => {
   }
 };
 
+// Sync and consolidate portfolio from all sources (Alpaca, Manual, Trades)
+export const syncPortfolioFromAllSources = async () => {
+  try {
+    const response = await api.post("/api/portfolio/sync");
+    return {
+      data: response.data?.data || extractResponseData(response),
+      success: response.data?.success ?? true
+    };
+  } catch (error) {
+    return createErrorResponse(error, "Failed to sync portfolio");
+  }
+};
+
 // Market Commentary functions
 export const getMarketCommentary = async (
   category = "all",

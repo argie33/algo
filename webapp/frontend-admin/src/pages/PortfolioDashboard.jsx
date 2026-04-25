@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import api from "../services/api.js";
 import { useAuth } from "../contexts/AuthContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import {
@@ -231,28 +232,12 @@ export default function PortfolioDashboard() {
     try {
       // First import from Alpaca
       console.log("📡 Step 1: Importing from Alpaca...");
-      const alpacaResponse = await fetch("/api/portfolio/import/alpaca", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer dev-bypass-token"
-        },
-      });
-
-      const alpacaResult = await alpacaResponse.json();
+      const alpacaResult = await api.importPortfolioFromAlpaca();
       console.log("✅ Alpaca import complete:", alpacaResult);
 
       // Then consolidate all data sources (Alpaca + Manual + Trades)
       console.log("🔄 Step 2: Consolidating from all sources...");
-      const consolidateResponse = await fetch("/api/portfolio/sync", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer dev-bypass-token"
-        },
-      });
-
-      const consolidateResult = await consolidateResponse.json();
+      const consolidateResult = await api.syncPortfolioFromAllSources();
       console.log("✅ Portfolio consolidated:", consolidateResult);
 
       if (consolidateResult.success) {
@@ -262,7 +247,7 @@ export default function PortfolioDashboard() {
         // Refetch all queries to show updated data
         refetchMetrics();
       } else {
-        setSyncStatus({ type: "error", message: `❌ Sync failed: ${consolidateResult.error}` });
+        setSyncStatus({ type: "error", message: `❌ Sync failed: ${consolidateResult.data?.error || "Unknown error"}` });
       }
     } catch (error) {
       setSyncStatus({ type: "error", message: `❌ Sync error: ${error.message}` });

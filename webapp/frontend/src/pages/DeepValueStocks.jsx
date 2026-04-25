@@ -49,7 +49,7 @@ const DeepValueStocks = () => {
       setLoading(true);
       setError(null);
 
-      const response = await fetch("/api/stocks/deep-value?limit=5000");
+      const response = await fetch(`${API_BASE}/api/stocks/deep-value?limit=5000`);
 
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);

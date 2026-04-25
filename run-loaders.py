@@ -48,6 +48,7 @@ LOADERS = [
         "critical": True,
         "description": "Load NASDAQ/NYSE symbol list",
         "timeout": 600,
+        "skip_if_table_has_data": "stock_symbols",  # Skip if already loaded
     },
     # Phase 2: Price Data (depends on symbols) - SLOW, takes 30-90 min on fresh data
     {
