@@ -1161,29 +1161,55 @@ if __name__ == "__main__":
 
     conn = psycopg2.connect(**connect_params)
     conn.autocommit = False
+    conn.set_session(options='-c statement_timeout=30000')  # 30 second statement timeout
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     # Schema migrations - create missing tables first
     logging.info("Running schema migrations...")
     try:
-        # Create loader progress table for tracking
+        # Check if loader_run_progress table exists first (avoid timeout on expensive operations)
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS loader_run_progress (
-                run_id UUID,
-                loader_name VARCHAR(100),
-                symbol VARCHAR(20),
-                started_at TIMESTAMP DEFAULT NOW(),
-                completed_at TIMESTAMP,
-                status VARCHAR(20),
-                error_msg TEXT,
-                elapsed_ms INTEGER,
-                PRIMARY KEY (run_id, loader_name, symbol)
-            );
-            CREATE INDEX IF NOT EXISTS idx_loader_run_progress_run ON loader_run_progress(run_id);
-            CREATE INDEX IF NOT EXISTS idx_loader_run_progress_symbol ON loader_run_progress(symbol);
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_schema = 'public'
+                AND table_name = 'loader_run_progress'
+            ) as exists
         """)
+        table_exists = cur.fetchone()['exists']
 
-        # Create institutional_positioning table if not exists
+        if not table_exists:
+            logging.info("Creating missing tables...")
+            # Create loader progress table for tracking (split into multiple statements)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS loader_run_progress (
+                    run_id UUID,
+                    loader_name VARCHAR(100),
+                    symbol VARCHAR(20),
+                    started_at TIMESTAMP DEFAULT NOW(),
+                    completed_at TIMESTAMP,
+                    status VARCHAR(20),
+                    error_msg TEXT,
+                    elapsed_ms INTEGER,
+                    PRIMARY KEY (run_id, loader_name, symbol)
+                )
+            """)
+            conn.commit()
+
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_loader_run_progress_run
+                ON loader_run_progress(run_id)
+            """)
+            conn.commit()
+
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_loader_run_progress_symbol
+                ON loader_run_progress(symbol)
+            """)
+            conn.commit()
+        else:
+            logging.info("Schema tables already exist, skipping migrations")
+
+        # Create institutional_positioning table if not exists (split statements to avoid timeout)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS institutional_positioning (
                 id SERIAL PRIMARY KEY,
@@ -1197,13 +1223,17 @@ if __name__ == "__main__":
                 quarter VARCHAR(10),
                 created_at TIMESTAMP DEFAULT NOW(),
                 UNIQUE(symbol, institution_name, filing_date)
-            );
-            CREATE INDEX IF NOT EXISTS idx_inst_pos_symbol ON institutional_positioning(symbol);
-            CREATE INDEX IF NOT EXISTS idx_inst_pos_date ON institutional_positioning(filing_date DESC);
+            )
         """)
+        conn.commit()
+
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_inst_pos_symbol ON institutional_positioning(symbol)")
+        conn.commit()
+
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_inst_pos_date ON institutional_positioning(filing_date DESC)")
+        conn.commit()
 
         # Create positioning_metrics table if not exists
-        # Note: shares_short fields belong in key_metrics, not here
         cur.execute("""
             CREATE TABLE IF NOT EXISTS positioning_metrics (
                 id SERIAL PRIMARY KEY,
@@ -1219,33 +1249,52 @@ if __name__ == "__main__":
                 created_at TIMESTAMP DEFAULT NOW(),
                 updated_at TIMESTAMP DEFAULT NOW(),
                 UNIQUE(symbol, date)
-            );
-            CREATE INDEX IF NOT EXISTS idx_pos_metrics_symbol ON positioning_metrics(symbol);
-            CREATE INDEX IF NOT EXISTS idx_pos_metrics_date ON positioning_metrics(date DESC);
+            )
         """)
+        conn.commit()
 
-        # Add missing columns to existing tables
-        cur.execute("""
-            ALTER TABLE key_metrics
-            ADD COLUMN IF NOT EXISTS held_percent_insiders DECIMAL(8,6),
-            ADD COLUMN IF NOT EXISTS held_percent_institutions DECIMAL(8,6),
-            ADD COLUMN IF NOT EXISTS shares_short BIGINT,
-            ADD COLUMN IF NOT EXISTS shares_short_prior_month BIGINT,
-            ADD COLUMN IF NOT EXISTS short_ratio DECIMAL(8,2),
-            ADD COLUMN IF NOT EXISTS short_percent_of_float DECIMAL(8,6),
-            ADD COLUMN IF NOT EXISTS implied_shares_outstanding BIGINT,
-            ADD COLUMN IF NOT EXISTS float_shares BIGINT;
-        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_pos_metrics_symbol ON positioning_metrics(symbol)")
+        conn.commit()
 
-        # Ensure positioning_metrics has all required columns (in case table was created without them)
-        cur.execute("""
-            ALTER TABLE positioning_metrics
-            ADD COLUMN IF NOT EXISTS date DATE,
-            ADD COLUMN IF NOT EXISTS short_percent_of_float DECIMAL(8,6),
-            ADD COLUMN IF NOT EXISTS ad_rating DECIMAL(5,2);
-        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_pos_metrics_date ON positioning_metrics(date DESC)")
+        conn.commit()
 
-        # Create insider_transactions with correct schema (CREATE IF NOT EXISTS - avoids DROP hang)
+        # Add missing columns to existing tables (separate statements)
+        cur.execute("ALTER TABLE key_metrics ADD COLUMN IF NOT EXISTS held_percent_insiders DECIMAL(8,6)")
+        conn.commit()
+
+        cur.execute("ALTER TABLE key_metrics ADD COLUMN IF NOT EXISTS held_percent_institutions DECIMAL(8,6)")
+        conn.commit()
+
+        cur.execute("ALTER TABLE key_metrics ADD COLUMN IF NOT EXISTS shares_short BIGINT")
+        conn.commit()
+
+        cur.execute("ALTER TABLE key_metrics ADD COLUMN IF NOT EXISTS shares_short_prior_month BIGINT")
+        conn.commit()
+
+        cur.execute("ALTER TABLE key_metrics ADD COLUMN IF NOT EXISTS short_ratio DECIMAL(8,2)")
+        conn.commit()
+
+        cur.execute("ALTER TABLE key_metrics ADD COLUMN IF NOT EXISTS short_percent_of_float DECIMAL(8,6)")
+        conn.commit()
+
+        cur.execute("ALTER TABLE key_metrics ADD COLUMN IF NOT EXISTS implied_shares_outstanding BIGINT")
+        conn.commit()
+
+        cur.execute("ALTER TABLE key_metrics ADD COLUMN IF NOT EXISTS float_shares BIGINT")
+        conn.commit()
+
+        # Ensure positioning_metrics has all required columns
+        cur.execute("ALTER TABLE positioning_metrics ADD COLUMN IF NOT EXISTS date DATE")
+        conn.commit()
+
+        cur.execute("ALTER TABLE positioning_metrics ADD COLUMN IF NOT EXISTS short_percent_of_float DECIMAL(8,6)")
+        conn.commit()
+
+        cur.execute("ALTER TABLE positioning_metrics ADD COLUMN IF NOT EXISTS ad_rating DECIMAL(5,2)")
+        conn.commit()
+
+        # Create insider_transactions table
         cur.execute("""
             CREATE TABLE IF NOT EXISTS insider_transactions (
                 id SERIAL PRIMARY KEY,
@@ -1260,12 +1309,16 @@ if __name__ == "__main__":
                 transaction_text TEXT,
                 url TEXT,
                 created_at TIMESTAMP DEFAULT NOW()
-            );
-            CREATE INDEX IF NOT EXISTS idx_insider_txns_symbol ON insider_transactions(symbol);
-            CREATE INDEX IF NOT EXISTS idx_insider_txns_date ON insider_transactions(transaction_date DESC);
+            )
         """)
-
         conn.commit()
+
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_insider_txns_symbol ON insider_transactions(symbol)")
+        conn.commit()
+
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_insider_txns_date ON insider_transactions(transaction_date DESC)")
+        conn.commit()
+
         logging.info(" Schema migrations complete")
     except Exception as e:
         logging.error(f" CRITICAL: Schema migration failed - this blocks ALL data loading: {str(e)}")

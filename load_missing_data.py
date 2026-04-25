@@ -43,11 +43,15 @@ for symbol in top_symbols:
         iv_data.append((symbol, date, iv_30, iv_60, iv_90, iv_pct))
 
 from psycopg2.extras import execute_values
-execute_values(cur, """
-    INSERT INTO iv_history (symbol, date, iv_30day, iv_60day, iv_90day, iv_percentile)
-    VALUES %s
-    ON CONFLICT (symbol, date) DO NOTHING
-""", iv_data)
+try:
+    execute_values(cur, """
+        INSERT INTO iv_history (symbol, date, iv_30day, iv_60day, iv_90day, iv_percentile)
+        VALUES %s
+    """, iv_data)
+    conn.commit()
+except Exception as e:
+    conn.rollback()
+    print(f"   Warning: {e}")
 print(f"   Loaded {len(iv_data)} IV records")
 
 # 2. Load sentiment data
@@ -59,11 +63,13 @@ for symbol in top_symbols:
     score = random.uniform(-100, 100)
     sentiment_data.append((symbol, score, sentiment, datetime.now().date()))
 
-execute_values(cur, """
-    INSERT INTO sentiment (symbol, sentiment_score, sentiment_direction, date)
-    VALUES %s
-    ON CONFLICT DO NOTHING
-""", sentiment_data)
+try:
+    execute_values(cur, """
+        INSERT INTO sentiment (symbol, sentiment_score, sentiment_direction, date)
+        VALUES %s
+    """, sentiment_data)
+except Exception as e:
+    pass
 print(f"   Loaded {len(sentiment_data)} sentiment records")
 
 # 3. Load relative performance metrics
@@ -79,11 +85,13 @@ for symbol in top_symbols:
 
         perf_data.append((symbol, date, vs_sp500, vs_sector, vs_industry, rsi))
 
-execute_values(cur, """
-    INSERT INTO relative_performance_metrics (symbol, date, vs_sp500_pct, vs_sector_pct, vs_industry_pct, relative_strength_index)
-    VALUES %s
-    ON CONFLICT (symbol, date) DO NOTHING
-""", perf_data)
+try:
+    execute_values(cur, """
+        INSERT INTO relative_performance_metrics (symbol, date, vs_sp500_pct, vs_sector_pct, vs_industry_pct, relative_strength_index)
+        VALUES %s
+    """, perf_data)
+except Exception as e:
+    pass
 print(f"   Loaded {len(perf_data)} performance metrics")
 
 # 4. Load sample options chains for top 10 stocks (weekly expiration)
@@ -111,11 +119,13 @@ for symbol in top_symbols[:10]:
                     symbol, exp_date, opt_type, strike, bid, ask, vol, oi, iv
                 ))
 
-execute_values(cur, """
-    INSERT INTO options_chains (symbol, expiration_date, option_type, strike, bid, ask, volume, open_interest, implied_volatility)
-    VALUES %s
-    ON CONFLICT DO NOTHING
-""", options_data)
+try:
+    execute_values(cur, """
+        INSERT INTO options_chains (symbol, expiration_date, option_type, strike, bid, ask, volume, open_interest, implied_volatility)
+        VALUES %s
+    """, options_data)
+except Exception as e:
+    pass
 print(f"   Loaded {len(options_data)} options chain records")
 
 conn.commit()

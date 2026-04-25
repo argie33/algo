@@ -1,7 +1,7 @@
 const express = require("express");
 const { query } = require("../utils/database");
-
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const { validatePagination, withCache } = require('../middleware/queryOptimization');
 const router = express.Router();
 
 // Root endpoint
@@ -77,9 +77,7 @@ router.get("/quality", async (req, res) => {
 // Get growth metrics
 router.get("/growth", async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const offset = (page - 1) * limit;
+    const { limit, offset, page } = validatePagination(req.query);
     const symbol = req.query.symbol;
 
     let sql = "SELECT * FROM growth_metrics";
