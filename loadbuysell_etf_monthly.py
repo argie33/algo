@@ -545,21 +545,8 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
 
     # === GET MANSFIELD RS FROM STOCK_SCORES ===
     # DISABLED: mansfield_rs column was moved out of stock_scores table
-    # This query was causing loader to crash. Keeping fields as None for now.
     df['mansfield_rs'] = None
     df['sata_score'] = None
-    # Previous code that queried non-existent column is commented out:
-    # try:
-    #     stock_scores_q = "SELECT date, mansfield_rs FROM stock_scores WHERE symbol = %s"
-    #     cur.execute(stock_scores_q, (symbol,))
-    #     scores_rows = cur.fetchall()
-    #     if scores_rows:
-    #         rs_by_date = {row[0]: row[1] for row in scores_rows if row[1] is not None}
-    #         df['mansfield_rs'] = df['date'].apply(
-    #             lambda d: rs_by_date.get(d.date() if hasattr(d, 'date') else d)
-    #         )
-    # except Exception as e:
-    #     logging.debug(f"Could not fetch mansfield_rs for {symbol}: {e}")
 
     # === CALCULATE SATA SCORE (0-10 scale) ===
     # SATA = Stage Analysis Technical Attributes

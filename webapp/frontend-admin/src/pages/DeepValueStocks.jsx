@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import api from "../services/api.js";
 import {
   Box,
   Paper,
@@ -45,22 +46,12 @@ const DeepValueStocks = () => {
       setLoading(true);
       setError(null);
 
-      // Fetch from API - deep value = high value score + low composite score
-      const response = await fetch("/api/stocks/deep-value?limit=5000");
+      const result = await api.getDeepValueStocks({ limit: 5000 });
 
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      // Check if response has data property (success response) or is array directly
-      const stocksData = result.data || result;
-
-      if (Array.isArray(stocksData)) {
-        setStocks(stocksData);
+      if (result.success && result.data) {
+        setStocks(result.data);
       } else {
-        throw new Error("Invalid response format");
+        throw new Error("Failed to load deep value stocks");
       }
     } catch (err) {
       console.error("Error fetching deep value stocks:", err);

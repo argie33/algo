@@ -1935,6 +1935,23 @@ export const getStocksFull = async (params = {}) => {
   }
 };
 
+export const getDeepValueStocks = async (params = {}) => {
+  try {
+    const limit = params.limit || 5000;
+    const offset = params.offset || 0;
+    const response = await api.get(`/api/stocks/deep-value?limit=${limit}&offset=${offset}`);
+    const responseData = extractResponseData(response);
+    return {
+      data: Array.isArray(responseData) ? responseData : (responseData?.data || []),
+      pagination: response.data?.pagination,
+      success: true
+    };
+  } catch (error) {
+    const errorMessage = handleApiError(error, "get deep value stocks");
+    return createErrorResponse(error, "API request failed");
+  }
+};
+
 export const getStock = async (ticker) => {
   debugLog("🚀 getStock: Starting API call for ticker:", ticker);
   try {
@@ -3883,6 +3900,32 @@ export const getTopPositioningMovers = async (limit = 20) => {
     return extractResponseData(response);
   } catch (error) {
     return createErrorResponse(error, "API request failed");
+  }
+};
+
+// Contact/Messages API
+export const getContactSubmissions = async () => {
+  try {
+    const response = await api.get("/api/contact/submissions");
+    const responseData = extractResponseData(response);
+    return {
+      data: responseData?.submissions || responseData || [],
+      success: true
+    };
+  } catch (error) {
+    return createErrorResponse(error, "Failed to fetch contact submissions");
+  }
+};
+
+export const updateContactSubmissionStatus = async (id, status) => {
+  try {
+    const response = await api.patch(`/api/contact/submissions/${id}`, { status });
+    return {
+      data: extractResponseData(response),
+      success: true
+    };
+  } catch (error) {
+    return createErrorResponse(error, "Failed to update submission status");
   }
 };
 

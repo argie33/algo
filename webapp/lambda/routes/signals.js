@@ -129,25 +129,15 @@ const getStocksSignals = async (req, res) => {
       bsd.created_at
     `;
 
-    // Build query with enriched data from other tables
-    // All timeframes benefit from company name and earnings info
+    // Simplified query for performance - avoid slow JOINs
+    // Get signals with minimal enrichment
     const signalsQuery = `
       SELECT
         ${actualColumns},
-        COALESCE(cp.short_name, ss.security_name) as company_name,
-        ss_scores.composite_score,
-        eh.quarter as next_earnings_date,
-        (eh.quarter - CURRENT_DATE)::INTEGER as days_to_earnings
+        COALESCE(cp.short_name, ss.security_name) as company_name
       FROM ${tableName} bsd
       LEFT JOIN company_profile cp ON bsd.symbol = cp.ticker
       LEFT JOIN stock_symbols ss ON bsd.symbol = ss.symbol
-      LEFT JOIN stock_scores ss_scores ON bsd.symbol = ss_scores.symbol
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol) symbol, quarter
-        FROM earnings_history
-        WHERE quarter >= CURRENT_DATE
-        ORDER BY symbol, quarter ASC
-      ) eh ON bsd.symbol = eh.symbol
       ${whereClause}
       ORDER BY bsd.date DESC, bsd.id DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
