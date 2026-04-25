@@ -2328,8 +2328,7 @@ router.get("/fear-greed", async (req, res) => {
     const result = await query(`
       SELECT
         date,
-        index_value,
-        rating
+        fear_greed_value
       FROM fear_greed_index
       WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
       ORDER BY date ASC
@@ -2341,9 +2340,8 @@ router.get("/fear-greed", async (req, res) => {
 
     const data = result.rows.map(row => ({
       date: row.date,
-      value: parseFloat(row.index_value),
-      rating: row.rating,
-      index_value: parseFloat(row.index_value) // Also include for backward compatibility
+      value: parseInt(row.fear_greed_value),
+      fear_greed_value: parseInt(row.fear_greed_value)
     }));
 
     return sendSuccess(res, {
