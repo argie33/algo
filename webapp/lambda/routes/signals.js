@@ -330,8 +330,8 @@ router.get("/etf", async (req, res) => {
 
     // For ETF signals, use same essential columns
     const actualColumns = `
-      bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.signal_triggered_date,
-      bsd.signal
+      bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.date as signal_triggered_date,
+      bsd.signal, bsd.buylevel as strength, bsd.buylevel as signal_strength
     `;
 
     // Add limit and offset parameters
