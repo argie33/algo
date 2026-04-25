@@ -1223,11 +1223,29 @@ router.get("/metrics", authenticateToken, async (req, res) => {
       console.log(`   Last: ${dailyReturnsData[dailyReturnsData.length-1].date} - $${dailyReturnsData[dailyReturnsData.length-1].portfolio_value} (${dailyReturnsData[dailyReturnsData.length-1].pnl_percent}%)`);
     }
 
+    // Fetch trading signals for the user's holdings (if any)
+    let signalsData = [];
+    try {
+      if (positionsData && positionsData.length > 0) {
+        const symbols = positionsData.map(p => p.symbol);
+        const signalsResult = await query(
+          `SELECT symbol, date, signal, strength FROM buy_sell_daily
+           WHERE symbol = ANY($1) ORDER BY date DESC LIMIT 50`,
+          [symbols]
+        ).catch(() => ({ rows: [] }));
+        signalsData = signalsResult.rows || [];
+      }
+    } catch (e) {
+      console.warn("Could not fetch trading signals:", e.message);
+      // Non-critical - continue without signals
+    }
+
     return res.json({
       data: {
         summary,
         positions: positionsData,
         daily_returns: dailyReturnsData,
+        signals: signalsData,
         metadata: {
           last_updated: new Date().toISOString(),
           data_quality: {

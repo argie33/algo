@@ -111,11 +111,10 @@ const getStocksSignals = async (req, res) => {
     }
 
     // Build actual columns - select essential columns from buy_sell_* tables
-    // Include OHLC and key signal fields
+    // Only select columns that definitely exist in the buy_sell_* schema
     const actualColumns = `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.signal_triggered_date,
-      bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
-      bsd.signal, bsd.strength, bsd.created_at
+      bsd.signal, bsd.strength
     `;
 
     // Query without JOINs for performance - symbol is in buy_sell table
