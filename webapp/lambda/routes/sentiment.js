@@ -327,12 +327,12 @@ router.get("/divergence", async (req, res) => {
         symbol,
         date,
         analyst_count,
-        bull_count,
-        bear_count,
-        hold_count,
-        ROUND((bull_count::float / NULLIF(analyst_count, 0) * 100)::numeric, 2) as bull_percent,
-        ROUND((bear_count::float / NULLIF(analyst_count, 0) * 100)::numeric, 2) as bear_percent,
-        ROUND((hold_count::float / NULLIF(analyst_count, 0) * 100)::numeric, 2) as hold_percent
+        bullish_count,
+        bearish_count,
+        neutral_count,
+        ROUND((bullish_count::float / NULLIF(analyst_count, 0) * 100)::numeric, 2) as bull_percent,
+        ROUND((bearish_count::float / NULLIF(analyst_count, 0) * 100)::numeric, 2) as bear_percent,
+        ROUND((neutral_count::float / NULLIF(analyst_count, 0) * 100)::numeric, 2) as neutral_percent
       FROM analyst_sentiment_analysis
       WHERE date >= NOW() - INTERVAL '90 days'
     `;

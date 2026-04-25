@@ -47,11 +47,12 @@ const DeepValueStocks = () => {
       setError(null);
 
       const result = await api.getDeepValueStocks({ limit: 5000 });
+      console.log("Deep value stocks result:", result);
 
       if (result.success && result.data) {
         setStocks(result.data);
       } else {
-        throw new Error("Failed to load deep value stocks");
+        throw new Error(`Invalid response format: ${JSON.stringify(result)}`);
       }
     } catch (err) {
       console.error("Error fetching deep value stocks:", err);
