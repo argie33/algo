@@ -1,237 +1,60 @@
 const express = require("express");
-
-const { getMarketDataPath } = require("../utils/market-data-path");
-
-let query, safeFloat, safeInt, safeFixed;
-try {
-  ({ query, safeFloat, safeInt, safeFixed } = require("../utils/database"));
-} catch (error) {
-  console.log("Database service not available in industries routes:", error.message);
-  query = null;
-  // Provide fallback functions if database module fails
-  safeFloat = (val) => val !== null && val !== undefined ? parseFloat(val) : null;
-  safeInt = (val) => val !== null && val !== undefined ? parseInt(val) : null;
-  safeFixed = (val, decimals) => {
-    if (val === null || val === undefined) return null;
-    const num = parseFloat(val);
-    return isNaN(num) ? null : num.toFixed(decimals || 2);
-  };
-}
-
-const { authenticateToken } = require("../middleware/auth");
+const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
-// Info endpoint - returns API details
-router.get("/info", (req, res) => {
-  return res.json({
-    data: {
-      endpoint: "industries",
-      available_routes: [
-        "/ - All industry data with rankings and performance",
-        "/trend/industry/:name - Industry trend data (251 data points)"
-      ]
-    },
-    success: true
+// Root endpoint
+router.get("/", (req, res) => {
+  return sendSuccess(res, {
+    endpoint: "industries",
+    available_routes: [
+      "/industries - All industries from company data"
+    ]
   });
 });
 
-// Apply authentication to all routes except health and root
-router.use((req, res, next) => {
-  // Skip auth for public endpoints - industries are PUBLIC DATA
-  const publicEndpoints = ["/", "/industries"];
-  const trendPattern = /^\/trend\//;
-
-  if (publicEndpoints.includes(req.path) || trendPattern.test(req.path)) {
-    return next();
-  }
-  // Apply auth to all other routes
-  return authenticateToken(req, res, next);
-});
-
-/**
- * GET / (root)
- * Get current industry data with historical rankings for display
- * Used by SectorAnalysis frontend component
- */
-router.get("/", async (req, res) => {
+// GET /industries - Get all industries
+router.get("/industries", async (req, res) => {
   try {
-    if (!query) {
-      return res.status(503).json({
-        error: "Database service unavailable",
-        success: false
-      });
-    }
+    const { limit = 500, page = 1 } = req.query;
+    const limitNum = Math.min(parseInt(limit) || 500, 1000);
+    const pageNum = Math.max(parseInt(page) || 1, 1);
+    const offset = (pageNum - 1) * limitNum;
 
-    const { limit = 500 } = req.query;
+    // Get count of distinct industries
+    const countResult = await query(`
+      SELECT COUNT(DISTINCT industry) as count
+      FROM company_profile
+      WHERE industry IS NOT NULL
+    `);
+    const total = parseInt(countResult?.rows[0]?.count || 0);
 
-    // Query from database directly - real data
-    const industriesQuery = `
-      SELECT
-        ir.industry,
-        ir.current_rank,
-        ir.rank_1w_ago,
-        ir.rank_4w_ago,
-        ir.rank_12w_ago,
-        ir.momentum_score,
-        ir.daily_strength_score,
-        ir.trend,
-        ir.date as last_updated
-      FROM (
-        SELECT DISTINCT ON (industry)
-          industry, current_rank, rank_1w_ago, rank_4w_ago, rank_12w_ago,
-          momentum_score, daily_strength_score, trend, date
-        FROM industry_ranking
-        WHERE industry IS NOT NULL
-          AND TRIM(industry) != ''
-        ORDER BY industry, date DESC
-      ) ir
-      LIMIT $1
-    `;
+    // Get industries
+    const result = await query(`
+      SELECT DISTINCT industry as industry_name
+      FROM company_profile
+      WHERE industry IS NOT NULL AND TRIM(industry) != ''
+      ORDER BY industry
+      LIMIT $1 OFFSET $2
+    `, [limitNum, offset]);
 
-    const result = await query(industriesQuery, [Math.min(parseInt(limit) || 500, 1000)]);
     const industries = (result?.rows || []).map(row => ({
-      industry: row.industry,
-      current_rank: row.current_rank,
-      rank_1w_ago: row.rank_1w_ago,
-      rank_4w_ago: row.rank_4w_ago,
-      rank_12w_ago: row.rank_12w_ago,
-      momentum_score: row.momentum_score !== null ? safeFloat(row.momentum_score) : null,
-      daily_strength_score: row.daily_strength_score !== null ? safeFloat(row.daily_strength_score) : null,
-      trend: row.trend,
-      last_updated: row.last_updated
+      industry_name: row.industry_name
     }));
 
-    const total = industries.length;
-    const limitNum = Math.min(parseInt(limit, 10) || 500, 1000);
-    const pageNum = 1;
     const totalPages = Math.ceil(total / limitNum);
-
-    return res.json({
-      items: industries,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total: total,
-        totalPages,
-        hasNext: false,
-        hasPrev: false
-      },
-      success: true
+    return sendPaginated(res, industries, {
+      page: pageNum,
+      limit: limitNum,
+      total,
+      totalPages,
+      hasNext: pageNum < totalPages,
+      hasPrev: pageNum > 1
     });
   } catch (error) {
-    console.error('❌ Error in /api/industries/industries:', error.message);
-    return res.status(500).json({
-      error: "Request failed",
-      success: false
-    });
+    console.error('Error in /industries:', error.message);
+    return sendError(res, `Failed to fetch industries: ${error.message.substring(0, 100)}`, 500);
   }
-});
-
-/**
- * GET /trend/industry/:industryName
- * Get historical ranking progression for industries to identify trends
- */
-router.get("/trend/industry/:industryName", async (req, res) => {
-  try {
-    if (!query) {
-      return res.status(500).json({
-        error: "Database service unavailable",
-        success: false
-      });
-    }
-
-    const { industryName } = req.params;
-
-    // Get recent historical rankings for this industry (last 1 year), ordered by date
-    // Calculate moving averages of momentum score directly in SQL
-    const trendData = await query(
-      `SELECT
-        ir.date as date,
-        ir.current_rank as rank,
-        ir.momentum_score as daily_strength_score,
-        NULL as trend,
-        TO_CHAR(ir.date, 'MM/DD') as label,
-        ROUND(AVG(ir.momentum_score) OVER (ORDER BY ir.date ROWS BETWEEN 9 PRECEDING AND CURRENT ROW)::numeric, 4) as ma_10,
-        ROUND(AVG(ir.momentum_score) OVER (ORDER BY ir.date ROWS BETWEEN 19 PRECEDING AND CURRENT ROW)::numeric, 4) as ma_20
-      FROM industry_ranking ir
-      WHERE LOWER(ir.industry) = LOWER($1)
-      AND ir.date >= CURRENT_DATE - INTERVAL '365 days'
-      ORDER BY ir.date ASC`,
-      [industryName]
-    );
-
-    if (!trendData.rows.length) {
-      return res.status(404).json({
-        error: "Industry not found or no trend data available",
-        success: false
-      });
-    }
-
-    res.json({
-      data: {
-        industry: industryName,
-        trendData: trendData.rows.map(row => ({
-          date: row.date,
-          rank: row.rank,
-          dailyStrengthScore: row.daily_strength_score,
-          trend: row.trend,
-          label: row.label,
-          ma_10: row.ma_10 !== null && row.ma_10 !== undefined ? parseFloat(row.ma_10) : null,
-          ma_20: row.ma_20 !== null && row.ma_20 !== undefined ? parseFloat(row.ma_20) : null
-        }))
-      },
-      success: true
-    });
-  } catch (error) {
-    console.error("Industry trend endpoint error:", error.message);
-    res.status(500).json({
-      error: "Failed to fetch industry trend data",
-      success: false,
-      details: error.message
-    });
-  }
-});
-
-// Fresh Industries Data Endpoint - From comprehensive data
-router.get("/fresh-data", async (req, res) => {
-  try {
-    const fs = require("fs");
-
-    const comprehensivePath = getMarketDataPath();
-
-    if (fs.existsSync(comprehensivePath)) {
-      const comprehensiveData = JSON.parse(fs.readFileSync(comprehensivePath, "utf-8"));
-
-      const industries = Object.values(comprehensiveData.industries || {});
-      const sorted = industries.sort((a, b) => b.changePercent - a.changePercent);
-
-      return res.json({
-        data: sorted,
-        timestamp: comprehensiveData.timestamp,
-        source: "fresh-industries",
-        message: "Fresh industry ranking data",
-        success: true
-      });
-    }
-
-    return res.status(404).json({
-      error: "Fresh data not available",
-      success: false
-    });
-  } catch (error) {
-    console.error("Fresh industries error:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch fresh industries",
-      details: error.message,
-      success: false
-    });
-  }
-});
-
-// Alias: /list -> /industries for backward compatibility
-router.get("/list", (req, res) => {
-  res.redirect(301, '/api/industries/industries');
 });
 
 module.exports = router;

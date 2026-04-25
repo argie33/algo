@@ -20,7 +20,7 @@ export const useSectors = (options = {}) => {
   return useQuery({
     queryKey: ['sectors'],
     queryFn: async () => {
-      const response = await api.get('/api/sectors/sectors?limit=20');
+      const response = await api.get('/api/sectors?limit=20');
       // API returns: { items: [...sectors], pagination: {...}, success: true }
       return {
         sectors: response.data?.items || [],
@@ -41,7 +41,7 @@ export const useIndustries = (options = {}) => {
   return useQuery({
     queryKey: ['industries'],
     queryFn: async () => {
-      const response = await api.get('/api/industries/industries');
+      const response = await api.get('/api/industries');
       // API returns: { items: [...industries], pagination: {...}, success: true }
       return {
         items: response.data?.items || [],

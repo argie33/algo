@@ -64,7 +64,12 @@ import api, {
   setTwoFactorAuth,
   getRecoveryCodes,
   revokeAllSessions,
-  deleteAccount
+  deleteAccount,
+  getApiKeys,
+  saveApiKey,
+  deleteApiKey,
+  testApiKey,
+  updateSettings
 } from "../services/api";
 import { createComponentLogger } from "../utils/errorLogger";
 
@@ -159,9 +164,9 @@ const Settings = () => {
   // Define loadApiKeys first since it's referenced in loadUserSettings
   const loadApiKeys = useCallback(async () => {
     try {
-      const response = await api.getApiKeys();
+      const response = await getApiKeys(user?.sub || user?.id);
 
-      if (response && response.ok) {
+      if (response && response.success) {
         // Convert object to array format that the component expects
         const apiKeysData = response.data || {};
         const apiKeysArray = Object.entries(apiKeysData).map(([brokerName, keyData]) => ({
@@ -173,11 +178,11 @@ const Settings = () => {
       } else {
         if (import.meta.env && import.meta.env.DEV)
           console.error(
-            "API keys endpoint returned non-OK status:",
-            response?.status || "unknown"
+            "API keys endpoint returned error:",
+            response?.error || "unknown"
           );
         throw new Error(
-          `API keys endpoint failed: ${response?.status || "unknown"}`
+          `API keys endpoint failed: ${response?.error || "unknown"}`
         );
       }
     } catch (error) {
@@ -369,9 +374,9 @@ const Settings = () => {
     try {
       setLoading(true);
 
-      const response = await api.saveApiKey(newApiKey);
+      const response = await saveApiKey(user?.sub || user?.id, newApiKey);
 
-      if (response && response.ok) {
+      if (response && response.success) {
         showSnackbar("API key added successfully");
         setAddApiKeyDialog(false);
         setNewApiKey({
@@ -382,8 +387,7 @@ const Settings = () => {
         });
         await loadApiKeys();
       } else {
-        const error = await response.json();
-        showSnackbar(error.error || "Failed to add API key", "error");
+        showSnackbar(response?.error || "Failed to add API key", "error");
       }
     } catch (error) {
       if (import.meta.env && import.meta.env.DEV)
@@ -394,11 +398,15 @@ const Settings = () => {
     }
   };
 
-  const _deleteApiKey = async (brokerName) => {
+  const _deleteApiKey = async (keyId) => {
     try {
-      await api.deleteApiKey(brokerName);
-      showSnackbar("API key deleted successfully");
-      await loadApiKeys();
+      const response = await deleteApiKey(keyId);
+      if (response?.success) {
+        showSnackbar("API key deleted successfully");
+        await loadApiKeys();
+      } else {
+        showSnackbar(response?.error || "Failed to delete API key", "error");
+      }
     } catch (error) {
       if (import.meta.env && import.meta.env.DEV)
         console.error("Error deleting API key:", error);
@@ -410,20 +418,20 @@ const Settings = () => {
     try {
       setLoading(true);
 
-      const response = await api.testApiKey({
+      const response = await testApiKey({
         provider: brokerName,
         keyId: newApiKey.keyId || newApiKey.key,
         secret: newApiKey.secret
       });
 
-      if (response.ok && response.isValid) {
+      if (response?.success && response?.data?.isValid) {
         showSnackbar(
           `✅ Connection successful! API key is valid.`,
           "success"
         );
       } else {
         showSnackbar(
-          `❌ Connection failed: ${response.error || "Invalid API key"}`,
+          `❌ Connection failed: ${response?.data?.error || response?.error || "Invalid API key"}`,
           "error"
         );
       }
@@ -440,13 +448,13 @@ const Settings = () => {
     try {
       setLoading(true);
 
-      const response = await api.saveApiKey({
+      const response = await saveApiKey(user?.sub || user?.id, {
         provider: newApiKey.brokerName,
         keyId: newApiKey.keyId || newApiKey.key,
         secret: newApiKey.secret
       });
 
-      if (response.ok) {
+      if (response?.success) {
         showSnackbar(
           `✅ API key saved successfully!`,
           "success"
@@ -454,11 +462,11 @@ const Settings = () => {
 
         // Refresh API keys list
         await loadApiKeys();
-        
+
         // Reset form
         setNewApiKey({ provider: "", keyId: "", secret: "" });
       } else {
-        showSnackbar(response.error || "Failed to save API key", "error");
+        showSnackbar(response?.error || "Failed to save API key", "error");
       }
     } catch (error) {
       if (import.meta.env && import.meta.env.DEV)
@@ -473,15 +481,15 @@ const Settings = () => {
     try {
       setLoading(true);
 
-      const response = await api.updateSettings({ 
-        preferences: { ...themeSettings, ...notifications } 
+      const response = await updateSettings({
+        preferences: { ...themeSettings, ...notifications }
       });
 
-      if (response.ok) {
+      if (response?.success) {
         showSnackbar("Notification preferences updated successfully");
       } else {
         showSnackbar(
-          response.error || "Failed to update notification preferences",
+          response?.error || "Failed to update notification preferences",
           "error"
         );
       }
@@ -498,15 +506,15 @@ const Settings = () => {
     try {
       setLoading(true);
 
-      const response = await api.updateSettings({ 
-        preferences: { ...themeSettings, ...notifications } 
+      const response = await updateSettings({
+        preferences: { ...themeSettings, ...notifications }
       });
 
-      if (response.ok) {
+      if (response?.success) {
         showSnackbar("Theme preferences updated successfully");
       } else {
         showSnackbar(
-          response.error || "Failed to update theme preferences",
+          response?.error || "Failed to update theme preferences",
           "error"
         );
       }

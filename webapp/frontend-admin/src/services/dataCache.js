@@ -238,7 +238,7 @@ class DataCacheService {
       const commonEndpoints = [
         { endpoint: "/api/market/overview", cacheType: "marketData" },
         { endpoint: "/api/sectors/sectors-with-history", cacheType: "sectorData" },
-        { endpoint: "/api/sentiment/current", cacheType: "sentiment" },
+        { endpoint: "/api/sentiment/history", cacheType: "sentiment" },
       ];
 
       // Stagger requests to avoid spike

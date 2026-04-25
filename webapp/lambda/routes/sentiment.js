@@ -308,7 +308,7 @@ router.get("/divergence", async (req, res) => {
     let queryStr = `
       SELECT
         symbol,
-        date,
+        date_recorded as date,
         analyst_count,
         bullish_count,
         bearish_count,
@@ -317,7 +317,7 @@ router.get("/divergence", async (req, res) => {
         ROUND((bearish_count::float / NULLIF(analyst_count, 0) * 100)::numeric, 2) as bear_percent,
         ROUND((neutral_count::float / NULLIF(analyst_count, 0) * 100)::numeric, 2) as neutral_percent
       FROM analyst_sentiment_analysis
-      WHERE date >= NOW() - INTERVAL '90 days'
+      WHERE date_recorded >= NOW() - INTERVAL '90 days'
     `;
 
     const params = [];
@@ -327,7 +327,7 @@ router.get("/divergence", async (req, res) => {
       params.push(symbol.toUpperCase());
     }
 
-    queryStr += ` ORDER BY date DESC LIMIT 100`;
+    queryStr += ` ORDER BY date_recorded DESC LIMIT 100`;
 
     const result = await query(queryStr, params);
 
@@ -363,7 +363,7 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
     const result = await query(
       `SELECT
         symbol,
-        date as date,
+        date_recorded as date,
         analyst_count as analyst_count,
         bullish_count,
         bearish_count,
