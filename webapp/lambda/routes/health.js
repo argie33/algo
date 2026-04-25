@@ -47,15 +47,15 @@ router.get("/", async (req, res) => {
         console.error("Failed to initialize database:", dbInitError.message);
         // In test mode, return 200 with error details for graceful handling
         const statusCode = process.env.NODE_ENV === "test" ? 200 : 503;
-        return res.status(statusCode).json(sendError(res, {
+        return res.status(statusCode).json({
           error: "Database initialization failed",
           success: false
-        });
+        }));
       }
     }
     // Check if database error was passed from middleware
     if (req.dbError) {
-      return res.status(500).json(sendError(res, {
+      return res.status(500).json({
         error: "Database unavailable",
         success: false
       });
@@ -94,7 +94,7 @@ router.get("/", async (req, res) => {
           // Return unhealthy status when database query fails in test
           // In test mode, return 200 with error details for graceful handling
           const statusCode = process.env.NODE_ENV === "test" ? 200 : 503;
-          return res.status(statusCode).json(sendError(res, {
+          return res.status(statusCode).json({
             error: "Database disconnected",
             success: false
           });
@@ -136,7 +136,7 @@ router.get("/", async (req, res) => {
           // Return unhealthy status when database query fails in test
           // In test mode, return 200 with error details for graceful handling
           const statusCode = process.env.NODE_ENV === "test" ? 200 : 503;
-          return res.status(statusCode).json(sendError(res, {
+          return res.status(statusCode).json({
             error: "Database disconnected",
             success: false
           });
@@ -144,7 +144,7 @@ router.get("/", async (req, res) => {
       }
 
       // Return error - don't mask database connectivity issues
-      return res.status(503).json(sendError(res, {
+      return res.status(503).json({
         error: "Database not available",
         success: false
       });
@@ -169,15 +169,15 @@ router.get("/", async (req, res) => {
         console.warn(
           "Database query returned invalid result - database not available"
         );
-        return res.status(500).json(sendError(res, {
+        return res.status(500).json({
           error: "Database not available",
           success: false
-        });
+        }));
       }
     } catch (dbError) {
       // Enhanced error logging
       console.error("Database health check query failed:", dbError);
-      return res.status(500).json(sendError(res, {
+      return res.status(500).json({
         error: "Database health check failed",
         success: false
       });
@@ -187,7 +187,7 @@ router.get("/", async (req, res) => {
       await query("SELECT COUNT(*) FROM stock_symbols");
     } catch (tableError) {
       console.error("Table query failed:", tableError);
-      return res.status(500).json(sendError(res, {
+      return res.status(500).json({
         error: "Table query failed",
         success: false
       });
@@ -208,7 +208,7 @@ router.get("/", async (req, res) => {
             'quarterly_balance_sheet', 'quarterly_income_statement', 'quarterly_cash_flow',
             'ttm_income_statement', 'ttm_cash_flow',
             'company_profile', 'market_data', 'key_metrics',
-            'earnings_history', 'calendar_events',
+            'earnings_history', 'earnings_estimates', 'revenue_estimates', 'calendar_events', 'earnings_metrics',
             'fear_greed_index', 'aaii_sentiment', 'naaim', 'economic_data', 'analyst_upgrade_downgrade',
             'portfolio_holdings', 'portfolio_performance', 'trading_alerts',
             'buy_sell_daily', 'buy_sell_weekly', 'buy_sell_monthly',
@@ -268,7 +268,7 @@ router.get("/", async (req, res) => {
         tableResults.forEach((result) => {
           tables[result.table] =
             result.count !== null ? result.count : `Error: ${result.error}`;
-        });
+        }));
       }
       // Add missing tables as "not_found" - comprehensive list
       [
@@ -294,7 +294,10 @@ router.get("/", async (req, res) => {
         "market_data",
         "key_metrics",
         "earnings_history",
+        "earnings_estimates",
+        "revenue_estimates",
         "calendar_events",
+        "earnings_metrics",
         "fear_greed_index",
         "aaii_sentiment",
         "naaim",
@@ -347,7 +350,7 @@ router.get("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Health check failed:", error);
-    return res.status(500).json(sendError(res, {
+    return res.status(500).json({
       error: "Health check failed",
       success: false
     });
@@ -369,10 +372,10 @@ router.get("/database", async (req, res) => {
         console.error("Failed to initialize database:", dbInitError.message);
         // In test mode, return 200 with error details for graceful handling
         const statusCode = process.env.NODE_ENV === "test" ? 200 : 503;
-        return res.status(statusCode).json(sendError(res, {
+        return res.status(statusCode).json({
           error: "Database initialization failed",
           success: false
-        });
+        }));
       }
     }
     // Query actual database tables for health information
@@ -459,7 +462,7 @@ router.get("/database", async (req, res) => {
       }
     } catch (err) {
       console.error("Error querying database tables:", err.message);
-      return res.status(500).json(sendError(res, {
+      return res.status(500).json({
         error: "Database tables query failed",
         success: false
       });
@@ -483,7 +486,7 @@ router.get("/database", async (req, res) => {
     });
   } catch (error) {
     console.error("Error in database health check:", error);
-    return res.status(500).json(sendError(res, {
+    return res.status(500).json({
       error: "Database health check failed",
       success: false
     });
@@ -499,7 +502,7 @@ router.get("/ecs-tasks", async (req, res) => {
   const isAWS = process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.DB_SECRET_ARN;
   if (process.env.NODE_ENV === "development" && !isAWS) {
     console.log("Running in local development - ECS task monitoring not available");
-    return res.status(200).json(sendError(res, {
+    return res.status(200).json({
       data: {
         environment: "local",
         message: "ECS task monitoring only available in AWS environment",
@@ -601,7 +604,7 @@ router.get("/ecs-tasks", async (req, res) => {
           orderBy: "LastEventTime",
           descending: true,
           limit: 5
-        });
+        }));
 
         const streamsResponse = await logsClient.send(describeStreamsCmd);
         const logStreams = streamsResponse.logStreams || [];
@@ -623,7 +626,7 @@ router.get("/ecs-tasks", async (req, res) => {
           logStreamName: streamName,
           limit: 100,
           startFromHead: false
-        });
+        }));
 
         const logsResponse = await logsClient.send(getLogsCmd);
         const events = logsResponse.events || [];
@@ -723,7 +726,7 @@ router.get("/ecs-tasks", async (req, res) => {
       taskData[check.name] = check.result;
     }
 
-    return res.status(200).json(sendError(res, {
+    return res.status(200).json({
       success: true,
       data: {
         tasks: taskData
@@ -733,7 +736,7 @@ router.get("/ecs-tasks", async (req, res) => {
 
   } catch (error) {
     console.error("Error in ECS tasks monitoring:", error);
-    return res.status(500).json(sendError(res, {
+    return res.status(500).json({
       error: "ECS tasks monitoring failed",
       success: false
     });
@@ -809,7 +812,7 @@ router.get("/api-endpoints", async (req, res) => {
       }
     }
 
-    return res.status(200).json(sendError(res, {
+    return res.status(200).json({
       success: true,
       data: {
         summary: {
@@ -824,7 +827,7 @@ router.get("/api-endpoints", async (req, res) => {
 
   } catch (error) {
     console.error("Error in API endpoints health check:", error);
-    return res.status(500).json(sendError(res, {
+    return res.status(500).json({
       error: "API endpoints health check failed",
       success: false
     });
