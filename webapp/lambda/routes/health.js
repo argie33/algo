@@ -50,7 +50,7 @@ router.get("/", async (req, res) => {
         return res.status(statusCode).json({
           error: "Database initialization failed",
           success: false
-        }));
+        });
       }
     }
     // Check if database error was passed from middleware
@@ -172,7 +172,7 @@ router.get("/", async (req, res) => {
         return res.status(500).json({
           error: "Database not available",
           success: false
-        }));
+        });
       }
     } catch (dbError) {
       // Enhanced error logging
@@ -268,7 +268,7 @@ router.get("/", async (req, res) => {
         tableResults.forEach((result) => {
           tables[result.table] =
             result.count !== null ? result.count : `Error: ${result.error}`;
-        }));
+        });
       }
       // Add missing tables as "not_found" - comprehensive list
       [
@@ -375,7 +375,7 @@ router.get("/database", async (req, res) => {
         return res.status(statusCode).json({
           error: "Database initialization failed",
           success: false
-        }));
+        });
       }
     }
     // Query actual database tables for health information
@@ -604,7 +604,7 @@ router.get("/ecs-tasks", async (req, res) => {
           orderBy: "LastEventTime",
           descending: true,
           limit: 5
-        }));
+        });
 
         const streamsResponse = await logsClient.send(describeStreamsCmd);
         const logStreams = streamsResponse.logStreams || [];
@@ -626,7 +626,7 @@ router.get("/ecs-tasks", async (req, res) => {
           logStreamName: streamName,
           limit: 100,
           startFromHead: false
-        }));
+        });
 
         const logsResponse = await logsClient.send(getLogsCmd);
         const events = logsResponse.events || [];

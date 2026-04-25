@@ -148,7 +148,7 @@ router.get("/sectors", async (req, res) => {
         FROM sector_ranking
         WHERE sector_name IS NOT NULL
           AND TRIM(sector_name) != ''
-        ORDER BY sector_name, date DESC
+        ORDER BY sector_name, date_recorded DESC
       ) sr
       ORDER BY sr.sector_name
       LIMIT $1 OFFSET $2
@@ -223,8 +223,8 @@ router.get("/trend/:sectorName", async (req, res, next) => {
         rank_12w_ago
       FROM sector_ranking
       WHERE LOWER(sector_name) = LOWER($1)
-        AND date >= CURRENT_DATE - INTERVAL '${daysNum} days'
-      ORDER BY date DESC
+        AND date_recorded >= CURRENT_DATE - INTERVAL '${daysNum} days'
+      ORDER BY date_recorded_recorded DESC
       LIMIT 365
     `;
 
@@ -300,21 +300,21 @@ router.get("/analysis", async (req, res) => {
         WHERE sector_name IS NOT NULL
           AND TRIM(sector_name) != ''
           AND LOWER(sector_name) NOT IN ('index', 'unknown')
-        ORDER BY sector_name, date DESC
+        ORDER BY sector_name, date_recorded DESC
       ) sr
       LEFT JOIN (
         SELECT DISTINCT ON (sector_name)
           sector_name, momentum_score
         FROM sector_ranking
         WHERE sector_name IS NOT NULL AND momentum_score IS NOT NULL
-        ORDER BY sector_name, date DESC
+        ORDER BY sector_name, date_recorded DESC
       ) sm ON sr.sector_name = sm.sector_name
       LEFT JOIN (
         SELECT DISTINCT ON (sector)
           sector, performance_1d, performance_5d, performance_20d, date
         FROM sector_performance
         WHERE sector IS NOT NULL
-        ORDER BY sector, date DESC
+        ORDER BY sector, date_recorded DESC
       ) sp ON sr.sector_name = sp.sector
       LIMIT $1
     `;
@@ -376,7 +376,7 @@ function buildRankingHistoryQuery(type, specificItem = null) {
       FROM ${table}
       WHERE ${typeCol} = $1
         AND rank <= $2
-      ORDER BY date DESC, rank ASC
+      ORDER BY date_recorded_recorded DESC, rank ASC
       LIMIT $3
     `;
   }
@@ -393,7 +393,7 @@ function buildRankingHistoryQuery(type, specificItem = null) {
       avg_return
     FROM ${table}
     WHERE rank <= $1
-    ORDER BY date DESC, rank ASC
+    ORDER BY date_recorded_recorded DESC, rank ASC
     LIMIT $2
   `;
 }
@@ -650,7 +650,7 @@ router.get("/sectors-with-history", async (req, res) => {
         COUNT(*) OVER (PARTITION BY sector_name) as history_count
       FROM sector_ranking
       WHERE date >= CURRENT_DATE - INTERVAL '90 days'
-      ORDER BY sector_name, date DESC
+      ORDER BY sector_name, date_recorded DESC
     `;
 
     const result = await query(sectorQuery);
@@ -713,7 +713,7 @@ router.get("/sectors-with-history/performance", async (req, res) => {
         sector_name,
         date as performance_date
       FROM sector_performance
-      ORDER BY sector_name, date DESC
+      ORDER BY sector_name, date_recorded DESC
       LIMIT 20
     `;
 
@@ -773,7 +773,7 @@ router.get("/ranking", async (req, res) => {
         date
       FROM sector_ranking
       WHERE sector_name IS NOT NULL
-      ORDER BY sector_name, date DESC
+      ORDER BY sector_name, date_recorded DESC
     `);
 
     res.json({
@@ -798,7 +798,7 @@ router.get("/performance", async (req, res) => {
         performance_ytd
       FROM sector_performance
       WHERE sector IS NOT NULL
-      ORDER BY sector, date DESC
+      ORDER BY sector, date_recorded DESC
     `);
 
     res.json({
@@ -828,7 +828,7 @@ router.get("/industries/ranking", async (req, res) => {
         date
       FROM industry_ranking
       WHERE industry IS NOT NULL
-      ORDER BY industry, date DESC
+      ORDER BY industry, date_recorded DESC
     `);
 
     res.json({
@@ -853,7 +853,7 @@ router.get("/industries/performance", async (req, res) => {
         performance_ytd
       FROM industry_performance
       WHERE industry IS NOT NULL
-      ORDER BY industry, date DESC
+      ORDER BY industry, date_recorded DESC
     `);
 
     res.json({
