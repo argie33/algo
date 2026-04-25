@@ -103,10 +103,7 @@ router.get("/categories", async (req, res) => {
       lowestPrice: safeFloat(row.lowest_price)
     }));
 
-    return res.json({
-      data: categories,
-      success: true
-    });
+    return sendSuccess(res, categories);
   } catch (error) {
     console.error("❌ Error fetching commodity categories:", error.message);
     return res.status(500).json({

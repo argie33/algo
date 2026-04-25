@@ -65,7 +65,7 @@ LOADERS = [
         "script": "loaddailycompanydata.py",
         "critical": False,
         "description": "Load company info, positioning, earnings",
-        "timeout": 1800,  # 30 min
+        "timeout": 3600,  # 60 min per chunk (will run in 4 chunks, ~4 hours total)
     },
     # Phase 4: Financial Statements (depends on symbols)
     {
@@ -220,6 +220,69 @@ def init_schema():
         print(result.stderr)
         return False
 
+def run_loader_chunked(script, name, timeout_secs, chunks=4):
+    """Run a loader in parallel chunks (for loaddailycompanydata.py)"""
+    import psycopg2
+
+    print(f"  ℹ️  Running in {chunks} parallel chunks to avoid timeout")
+
+    try:
+        db_password = os.getenv("DB_PASSWORD", "")
+        conn = psycopg2.connect(
+            host=DB_HOST, port=int(DB_PORT),
+            user=DB_USER, password=db_password, database=DB_NAME,
+            connect_timeout=5
+        )
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE etf IS NULL OR etf != 'Y'")
+        total_symbols = cur.fetchone()[0]
+        conn.close()
+    except Exception as e:
+        print(f"  ✗ Could not count symbols: {e}")
+        return False
+
+    symbols_per_chunk = (total_symbols + chunks - 1) // chunks
+    all_success = True
+
+    for chunk_num in range(chunks):
+        offset = chunk_num * symbols_per_chunk
+        limit = symbols_per_chunk
+
+        print(f"  Chunk {chunk_num + 1}/{chunks}: offset={offset}, limit={limit}")
+        chunk_timeout = timeout_secs * 2  # Double timeout for chunks
+
+        try:
+            result = subprocess.run(
+                ["python3", script, "--offset", str(offset), "--limit", str(limit)],
+                cwd=Path(__file__).parent,
+                capture_output=True,
+                text=True,
+                timeout=chunk_timeout,
+            )
+
+            if result.returncode == 0:
+                print(f"    ✓ Chunk {chunk_num + 1} completed")
+            else:
+                print(f"    ✗ Chunk {chunk_num + 1} failed")
+                if result.stderr:
+                    for line in result.stderr.split('\n')[-5:]:
+                        if line.strip():
+                            print(f"      {line}")
+                all_success = False
+
+        except subprocess.TimeoutExpired:
+            print(f"    ✗ Chunk {chunk_num + 1} TIMEOUT after {chunk_timeout}s")
+            print(f"    This chunk is taking longer than expected")
+            print(f"    Check network/API availability and try again")
+            all_success = False
+        except Exception as e:
+            print(f"    ✗ Chunk {chunk_num + 1} error: {e}")
+            all_success = False
+
+        time.sleep(2)  # Rate limit between chunks
+
+    return all_success
+
 def run_loader(loader, progress):
     """Run a single loader"""
     script = loader["script"]
@@ -273,26 +336,78 @@ def run_loader(loader, progress):
     start_time = time.time()
     timeout_secs = loader.get("timeout", 3600)  # Default 1 hour
 
-    result = subprocess.run(
-        ["python3", script],
-        cwd=Path(__file__).parent,
-        capture_output=True,
-        text=True,
-        timeout=timeout_secs,
-    )
-    elapsed = time.time() - start_time
+    # Special handling for loaddailycompanydata.py - run in chunks
+    if script == "loaddailycompanydata.py":
+        print(f"  ⚠️  This loader processes ~5000 stocks and may take 2-4 hours")
+        success = run_loader_chunked(script, name, timeout_secs, chunks=4)
+        elapsed = time.time() - start_time
 
-    if result.returncode == 0:
-        print(f"  ✓ Completed in {elapsed:.1f}s")
-        progress["completed"].append(script)
+        if success:
+            print(f"  ✓ Completed in {elapsed:.1f}s ({elapsed/3600:.1f} hours)")
+            progress["completed"].append(script)
+            save_progress(progress)
+            return True
+        else:
+            print(f"  ✗ Failed after {elapsed:.1f}s ({elapsed/3600:.1f} hours)")
+            progress["failed"].append(script)
+            save_progress(progress)
+            print(f"  Non-critical - continuing with next loader")
+            return True
+
+    # Standard loader execution with timeout handling
+    try:
+        result = subprocess.run(
+            ["python3", script],
+            cwd=Path(__file__).parent,
+            capture_output=True,
+            text=True,
+            timeout=timeout_secs,
+        )
+        elapsed = time.time() - start_time
+
+        if result.returncode == 0:
+            print(f"  ✓ Completed in {elapsed:.1f}s")
+            progress["completed"].append(script)
+            save_progress(progress)
+            return True
+        else:
+            print(f"  ✗ Failed after {elapsed:.1f}s")
+            print(f"  Error output:")
+            for line in result.stderr.split('\n')[-10:]:
+                if line.strip():
+                    print(f"    {line}")
+            progress["failed"].append(script)
+            save_progress(progress)
+
+            if loader["critical"]:
+                print(f"  CRITICAL loader failed - aborting")
+                return False
+            else:
+                print(f"  Non-critical - continuing with next loader")
+                return True
+
+    except subprocess.TimeoutExpired:
+        elapsed = time.time() - start_time
+        print(f"  ✗ TIMEOUT after {elapsed:.1f}s ({timeout_secs}s limit)")
+        print(f"  This loader took longer than the {timeout_secs}s timeout")
+        print(f"  Possible causes:")
+        print(f"    • API rate limiting (too many requests)")
+        print(f"    • Network issues")
+        print(f"    • Database connection problems")
+        print(f"    • Timeout is too short for this dataset")
+
+        progress["failed"].append(script)
         save_progress(progress)
-        return True
-    else:
-        print(f"  ✗ Failed after {elapsed:.1f}s")
-        print(f"  Error output:")
-        for line in result.stderr.split('\n')[-10:]:
-            if line.strip():
-                print(f"    {line}")
+
+        if loader["critical"]:
+            print(f"  CRITICAL loader failed - aborting")
+            return False
+        else:
+            print(f"  Non-critical - continuing with next loader")
+            return True
+    except Exception as e:
+        elapsed = time.time() - start_time
+        print(f"  ✗ Error after {elapsed:.1f}s: {e}")
         progress["failed"].append(script)
         save_progress(progress)
 

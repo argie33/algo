@@ -17,17 +17,15 @@ console.log(`🔧 Environment load result:`, {
 // Financial Dashboard API - Lambda Function
 // Updated: 2025-10-26 - Fixed CORS configuration (CloudFront: https://d1copuy2oqlazx.cloudfront.net)
 
-const { createServer } = require("http");
-
 const cors = require("cors");
 const express = require("express");
+const { createServer } = require("http");
 const helmet = require("helmet");
 const morgan = require("morgan");
 
 // const responseFormatterMiddleware = require("./middleware/responseFormatter"); // DEPRECATED
 const errorHandler = require("./middleware/errorHandler");
-const { cacheMiddleware } = require("./middleware/cache");
-const { initializeDatabase, query } = require("./utils/database");
+const { initializeDatabase } = require("./utils/database");
 const { initializeAlpacaSync } = require("./utils/alpacaSyncScheduler");
 const responseNormalizer = require("./middleware/responseNormalizer");
 const analystsRoutes = require("./routes/analysts");
@@ -416,7 +414,6 @@ app.use("/api/auth", authRoutes);
 app.use("/api/commodities", commoditiesRoutes);
 app.use("/api/community", communityRoutes);
 app.use("/api/contact", contactRoutes);
-app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/earnings", earningsRoutes);
 app.use("/api/economic", economicRoutes);
 app.use("/api/financials", financialRoutes);

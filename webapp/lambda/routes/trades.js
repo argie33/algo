@@ -195,25 +195,22 @@ router.get('/', async (req, res) => {
     const total = allTrades.length;
     const paginatedTrades = allTrades.slice(offset, offset + pageSize);
 
-    res.json({
-      data: {
-        trades: paginatedTrades,
-        pagination: {
-          page: pageNum,
-          limit: pageSize,
-          total,
-          totalPages: Math.ceil(total / pageSize),
-          hasNext: pageNum < Math.ceil(total / pageSize),
-          hasPrev: pageNum > 1
-        },
-        filters: {
-          sources,
-          symbols,
-          types,
-          sort
-        }
+    return sendSuccess(res, {
+      trades: paginatedTrades,
+      pagination: {
+        page: pageNum,
+        limit: pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+        hasNext: pageNum < Math.ceil(total / pageSize),
+        hasPrev: pageNum > 1
       },
-      success: true
+      filters: {
+        sources,
+        symbols,
+        types,
+        sort
+      }
     });
 
   } catch (error) {

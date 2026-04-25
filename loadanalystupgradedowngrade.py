@@ -140,15 +140,15 @@ def load_analyst_actions(symbols, cur, conn):
                 action,
                 from_grade,
                 to_grade,
-                dt.date() if hasattr(dt, 'date') else dt,
-                details
+                dt.date() if hasattr(dt, 'date') else dt
             ])
         if not rows:
             continue
         sql = """
             INSERT INTO analyst_upgrade_downgrade
-            (symbol, firm, action, from_grade, to_grade, date, details)
+            (symbol, firm, action, old_rating, new_rating, action_date)
             VALUES %s
+            ON CONFLICT DO NOTHING
         """
         try:
             execute_values(cur, sql, rows)

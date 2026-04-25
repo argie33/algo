@@ -181,9 +181,9 @@ router.get("/full/data", async (req, res) => {
         ss.security_name as name,
         ss.market_category as category,
         ss.exchange,
-        COALESCE(vm.pe_ratio, 0) as valuation,
-        COALESCE(gm.revenue_growth_yoy, 0) as growth,
-        COALESCE(mm.momentum_1m, 0) as momentum
+        vm.pe_ratio as valuation,
+        gm.revenue_growth_yoy as growth,
+        mm.momentum_1m as momentum
       FROM stock_symbols ss
       LEFT JOIN value_metrics vm ON ss.symbol = vm.symbol
       LEFT JOIN growth_metrics gm ON ss.symbol = gm.symbol

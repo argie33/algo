@@ -321,7 +321,7 @@ def load_options_for_symbol(symbol, risk_free_rate, data_date, conn):
                         row, symbol, exp_date, 'put', data_date
                     ))
 
-                    if pd.notna(row['impliedVolatility']) and row['impliedVolatility'] > 0:
+                    if HAS_GREEKS_CALCULATOR and pd.notna(row['impliedVolatility']) and row['impliedVolatility'] > 0:
                         greeks = GreeksCalculator.calculate_greeks(
                             S=stock_price,
                             K=float(row['strike']),
