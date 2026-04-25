@@ -494,8 +494,8 @@ async function queryScores(options = {}) {
   let queryParams = [];
   let paramIndex = 1;
 
-  // Filter to S&P 500 stocks only
-  whereConditions.push(`EXISTS (SELECT 1 FROM stock_symbols ss2 WHERE ss2.symbol = ss.symbol AND ss2.is_sp500 = TRUE)`);
+  // NOTE: is_sp500 flag not populated by loader - removed filter to show all available stock scores
+  // The stock_scores table itself is populated only with S&P 500 stocks by loadstockscores.py
 
   // SPAC filtering disabled for performance (causing timeout on COUNT queries)
   // Stock scores table should not contain SPACs if loader is configured correctly
