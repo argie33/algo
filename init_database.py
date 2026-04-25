@@ -217,24 +217,24 @@ CREATE TABLE IF NOT EXISTS buy_sell_daily (
 CREATE TABLE IF NOT EXISTS buy_sell_weekly (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
-    week_ending DATE NOT NULL,
+    date DATE NOT NULL,
     signal VARCHAR(20),
     strength DECIMAL(8, 4),
     reason VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, week_ending)
+    UNIQUE(symbol, date)
 );
 
 -- Monthly buy/sell signals
 CREATE TABLE IF NOT EXISTS buy_sell_monthly (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
-    month_ending DATE NOT NULL,
+    date DATE NOT NULL,
     signal VARCHAR(20),
     strength DECIMAL(8, 4),
     reason VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, month_ending)
+    UNIQUE(symbol, date)
 );
 
 -- ════════════════════════════════════════════════════════════════════════════

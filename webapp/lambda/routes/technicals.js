@@ -32,7 +32,7 @@ function safeFloat(value) {
   return isNaN(num) ? null : num;
 }
 
-// Get monthly technicals
+// Get monthly technicals (aggregated from daily data)
 router.get("/monthly", async (req, res) => {
   try {
     const symbol = req.query.symbol;
@@ -40,7 +40,12 @@ router.get("/monthly", async (req, res) => {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const offset = (page - 1) * limit;
 
-    let sql = "SELECT * FROM technical_data_monthly";
+    // Use daily data, aggregate to month (take first trading day of each month)
+    let sql = `SELECT * FROM technical_data_daily
+               WHERE date IN (
+                 SELECT MAX(date) FROM technical_data_daily
+                 GROUP BY DATE_TRUNC('month', date)
+               )`;
     const params = [];
     let paramIndex = 1;
 
