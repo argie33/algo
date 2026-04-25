@@ -135,7 +135,7 @@ router.get("/daily", async (req, res) => {
   }
 });
 
-// Get weekly technicals
+// Get weekly technicals (aggregated from daily data)
 router.get("/weekly", async (req, res) => {
   try {
     const symbol = req.query.symbol;
@@ -143,7 +143,12 @@ router.get("/weekly", async (req, res) => {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const offset = (page - 1) * limit;
 
-    let sql = "SELECT * FROM technical_data_weekly";
+    // Use daily data, aggregate to week (take Friday or last trading day of week)
+    let sql = `SELECT * FROM technical_data_daily
+               WHERE date IN (
+                 SELECT MAX(date) FROM technical_data_daily
+                 GROUP BY DATE_TRUNC('week', date)
+               )`;
     const params = [];
     let paramIndex = 1;
 
