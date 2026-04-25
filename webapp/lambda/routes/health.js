@@ -543,10 +543,8 @@ router.get("/ecs-tasks", async (req, res) => {
       { name: "price_weekly", logGroup: "/ecs/priceweekly-loader" },
       { name: "price_monthly", logGroup: "/ecs/pricemonthly-loader" },
 
-      // Technical indicators - all timeframes
-      { name: "technicals_daily", logGroup: "/ecs/technicalsdaily-loader" },
-      { name: "technicals_weekly", logGroup: "/ecs/technicalsweekly-loader" },
-      { name: "technicals_monthly", logGroup: "/ecs/technicalsmonthly-loader" },
+      // Technical indicators - only daily is populated
+      { name: "technical_data_daily", logGroup: "/ecs/technicalsdaily-loader" },
 
       // Earnings data
       { name: "earnings_estimate", logGroup: "/ecs/earningsestimate-loader" },

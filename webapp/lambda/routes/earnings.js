@@ -144,66 +144,30 @@ router.get("/calendar", async (req, res) => {
       fetched_at: row.fetched_at
     }));
 
-    const pageNum = 1;
-    const totalPages = Math.ceil(calendar.length / limitNum);
-
-    res.json({
-      items: calendar,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total: calendar.length,
-        totalPages,
-        hasNext: false,
-        hasPrev: false
-      },
-      success: true
+    return sendPaginated(res, calendar, {
+      limit: limitNum,
+      offset: 0,
+      total: calendar.length,
+      page: 1,
+      totalPages: Math.ceil(calendar.length / limitNum)
     });
   } catch (error) {
-    console.error("Error fetching earnings calendar:", error);
-    res.status(500).json({
-      error: "Failed to fetch earnings calendar",
-      success: false
-    });
+    return sendError(res, `Failed to fetch earnings calendar: ${error.message}`, 500);
   }
 });
 
-// GET /api/earnings/sp500-trend - S&P 500 earnings trend over time
 router.get("/sp500-trend", async (req, res) => {
   try {
-    // Count stocks reporting in latest quarter from earnings_history
-    const stockCountQuery = `
-      SELECT COUNT(DISTINCT symbol) as stock_count
-      FROM earnings_history
-      WHERE quarter >= DATE_TRUNC('quarter', CURRENT_DATE - INTERVAL '1 month')
-        AND quarter <= DATE_TRUNC('quarter', CURRENT_DATE)
-    `;
-
-    const stockCountResult = await query(stockCountQuery);
-    const latestStockCount = stockCountResult.rows[0]?.stock_count || 0;
-
-    res.json({
-      data: {
-        timeSeries: [],
-        summary: {
-          trend: "neutral",
-          changePercent: "0.00",
-          latestEarnings: null,
-          latestDate: null,
-          latestStockCount,
-          forecastPeriods: 0,
-          isStale: false,
-          dataWarning: "⚠️ Economic data table not available - using earnings_history count only"
-        }
-      },
-      success: true
+    const result = await query(
+      `SELECT COUNT(DISTINCT symbol) as stock_count FROM earnings_history
+       WHERE quarter >= DATE_TRUNC('quarter', CURRENT_DATE - INTERVAL '1 quarter')`
+    );
+    return sendSuccess(res, {
+      stocks_reporting: result.rows[0]?.stock_count || 0,
+      note: "Use earnings history table for detailed trends"
     });
   } catch (error) {
-    console.error("Error fetching S&P 500 earnings trend:", error);
-    res.status(500).json({
-      error: "Failed to fetch S&P 500 earnings trend",
-      success: false
-    });
+    return sendError(res, `Failed to fetch earnings summary: ${error.message}`, 500);
   }
 });
 

@@ -1156,6 +1156,61 @@ if __name__ == "__main__":
 
         cur.execute("CREATE INDEX IF NOT EXISTS idx_pos_metrics_date ON positioning_metrics(date DESC)")
 
+        # Create company_profile table if it doesn't exist
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS company_profile (
+                ticker VARCHAR(20) PRIMARY KEY,
+                short_name VARCHAR(255),
+                long_name VARCHAR(255),
+                display_name VARCHAR(255),
+                quote_type VARCHAR(50),
+                symbol_type VARCHAR(50),
+                triggerable BOOLEAN,
+                has_pre_post_market_data BOOLEAN,
+                price_hint INTEGER,
+                max_age_sec INTEGER,
+                language VARCHAR(10),
+                region VARCHAR(10),
+                financial_currency VARCHAR(10),
+                currency VARCHAR(10),
+                market VARCHAR(50),
+                quote_source_name VARCHAR(100),
+                custom_price_alert_confidence DECIMAL(8,2),
+                address1 VARCHAR(255),
+                city VARCHAR(100),
+                state VARCHAR(100),
+                postal_code VARCHAR(20),
+                country VARCHAR(100),
+                phone_number VARCHAR(20),
+                website_url VARCHAR(500),
+                ir_website_url VARCHAR(500),
+                message_board_id VARCHAR(100),
+                corporate_actions TEXT,
+                sector VARCHAR(100),
+                sector_key VARCHAR(100),
+                sector_disp VARCHAR(100),
+                industry VARCHAR(100),
+                industry_key VARCHAR(100),
+                industry_disp VARCHAR(100),
+                business_summary TEXT,
+                employee_count INTEGER,
+                first_trade_date_ms BIGINT,
+                gmt_offset_ms BIGINT,
+                exchange VARCHAR(20),
+                full_exchange_name VARCHAR(100),
+                exchange_timezone_name VARCHAR(100),
+                exchange_timezone_short_name VARCHAR(10),
+                exchange_data_delayed_by_sec INTEGER,
+                post_market_time_ms BIGINT,
+                regular_market_time_ms BIGINT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_company_profile_sector ON company_profile(sector)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_company_profile_industry ON company_profile(industry)")
+
         # Create key_metrics table if it doesn't exist (MUST exist before ALTER TABLE)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS key_metrics (

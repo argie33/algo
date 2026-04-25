@@ -63,28 +63,28 @@ CREATE TABLE IF NOT EXISTS price_daily (
 CREATE TABLE IF NOT EXISTS price_weekly (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
-    week_ending DATE NOT NULL,
+    date DATE NOT NULL,
     open DECIMAL(12, 4),
     high DECIMAL(12, 4),
     low DECIMAL(12, 4),
     close DECIMAL(12, 4),
     volume BIGINT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, week_ending)
+    UNIQUE(symbol, date)
 );
 
 -- Monthly price data
 CREATE TABLE IF NOT EXISTS price_monthly (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(20) NOT NULL,
-    month_ending DATE NOT NULL,
+    date DATE NOT NULL,
     open DECIMAL(12, 4),
     high DECIMAL(12, 4),
     low DECIMAL(12, 4),
     close DECIMAL(12, 4),
     volume BIGINT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(symbol, month_ending)
+    UNIQUE(symbol, date)
 );
 
 -- ════════════════════════════════════════════════════════════════════════════
@@ -193,6 +193,46 @@ CREATE TABLE IF NOT EXISTS technical_data_daily (
     plus_di DECIMAL(8, 4),
     minus_di DECIMAL(8, 4),
     mansfield_rs DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- Weekly technical indicators
+CREATE TABLE IF NOT EXISTS technical_data_weekly (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    rsi DECIMAL(8, 4),
+    macd DECIMAL(12, 4),
+    macd_signal DECIMAL(12, 4),
+    macd_hist DECIMAL(12, 4),
+    sma_20 DECIMAL(12, 4),
+    sma_50 DECIMAL(12, 4),
+    sma_200 DECIMAL(12, 4),
+    ema_12 DECIMAL(12, 4),
+    ema_26 DECIMAL(12, 4),
+    atr DECIMAL(12, 4),
+    adx DECIMAL(8, 4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- Monthly technical indicators
+CREATE TABLE IF NOT EXISTS technical_data_monthly (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    rsi DECIMAL(8, 4),
+    macd DECIMAL(12, 4),
+    macd_signal DECIMAL(12, 4),
+    macd_hist DECIMAL(12, 4),
+    sma_20 DECIMAL(12, 4),
+    sma_50 DECIMAL(12, 4),
+    sma_200 DECIMAL(12, 4),
+    ema_12 DECIMAL(12, 4),
+    ema_26 DECIMAL(12, 4),
+    atr DECIMAL(12, 4),
+    adx DECIMAL(8, 4),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, date)
 );
