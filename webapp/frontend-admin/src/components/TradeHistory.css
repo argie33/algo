@@ -1,15 +1,17 @@
 .trade-history {
   padding: 2rem;
-  background: #f8f9fa;
-  border-radius: 8px;
+  background: transparent;
+  border-radius: 12px;
   margin: 1rem 0;
 }
 
 .trade-history h2 {
   margin-top: 0;
   margin-bottom: 1.5rem;
-  color: #1a1a1a;
-  font-size: 1.5rem;
+  color: #f1f5f9;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .trade-summary {
@@ -20,32 +22,42 @@
 }
 
 .summary-card {
-  background: white;
-  padding: 1rem;
-  border-radius: 6px;
-  border-left: 4px solid #007bff;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.05) 100%);
+  padding: 1.25rem;
+  border-radius: 10px;
+  border-left: 4px solid #3b82f6;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: all 0.3s ease-in-out;
+}
+
+.summary-card:hover {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(139, 92, 246, 0.1) 100%);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .summary-label {
-  font-size: 0.875rem;
-  color: #666;
+  font-size: 0.8rem;
+  color: #cbd5e1;
   margin-bottom: 0.5rem;
-  font-weight: 500;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .summary-value {
-  font-size: 1.5rem;
-  font-weight: bold;
-  color: #1a1a1a;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  letter-spacing: -0.01em;
 }
 
 .summary-value.positive {
-  color: #28a745;
+  color: #34d399;
 }
 
 .summary-value.negative {
-  color: #dc3545;
+  color: #f87171;
 }
 
 .trade-filters {
@@ -57,11 +69,13 @@
 
 .filter-input,
 .filter-select {
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
   font-size: 0.875rem;
-  background: white;
+  background: rgba(30, 41, 59, 0.8);
+  color: #f1f5f9;
+  transition: all 0.2s ease-in-out;
 }
 
 .filter-input {
@@ -76,15 +90,21 @@
 .filter-input:focus,
 .filter-select:focus {
   outline: none;
-  border-color: #007bff;
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+  border-color: #3b82f6;
+  background: rgba(30, 41, 59, 1);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.filter-input::placeholder {
+  color: rgba(148, 163, 184, 0.5);
 }
 
 .trade-table-container {
   overflow-x: auto;
-  background: white;
-  border-radius: 6px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(30, 41, 59, 0.6) 100%);
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .trade-table {
@@ -94,96 +114,105 @@
 }
 
 .trade-table thead {
-  background: #f8f9fa;
-  border-bottom: 2px solid #ddd;
+  background: rgba(15, 23, 42, 0.8);
+  border-bottom: 2px solid rgba(148, 163, 184, 0.12);
 }
 
 .trade-table th {
   padding: 1rem;
   text-align: left;
-  font-weight: 600;
-  color: #555;
+  font-weight: 700;
+  color: #f1f5f9;
   white-space: nowrap;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
 }
 
 .trade-table tbody tr {
-  border-bottom: 1px solid #eee;
-  transition: background-color 0.15s;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+  transition: all 0.15s ease-in-out;
 }
 
 .trade-table tbody tr:hover {
-  background: #f8f9fa;
+  background: rgba(59, 130, 246, 0.08);
 }
 
 .trade-table td {
-  padding: 0.75rem 1rem;
+  padding: 0.875rem 1rem;
+  color: #cbd5e1;
 }
 
 .trade-row.win {
-  border-left: 3px solid #28a745;
+  border-left: 3px solid #34d399;
 }
 
 .trade-row.loss {
-  border-left: 3px solid #dc3545;
+  border-left: 3px solid #f87171;
 }
 
 .symbol {
-  font-weight: 600;
-  color: #007bff;
+  font-weight: 700;
+  color: #60a5fa;
 }
 
 .type {
-  font-weight: 500;
+  font-weight: 600;
   text-transform: uppercase;
-  font-size: 0.75rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 3px;
+  font-size: 0.7rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 4px;
+  display: inline-block;
+  letter-spacing: 0.05em;
 }
 
 .type.buy {
-  background: #d4edda;
-  color: #155724;
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
 .type.sell {
-  background: #f8d7da;
-  color: #721c24;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
 .pnl {
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .pnl.positive {
-  color: #28a745;
+  color: #34d399;
 }
 
 .pnl.negative {
-  color: #dc3545;
+  color: #f87171;
 }
 
 .loading {
   text-align: center;
   padding: 2rem;
-  color: #666;
+  color: #cbd5e1;
   font-style: italic;
 }
 
 .error {
-  background: #f8d7da;
-  color: #721c24;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
   padding: 1rem;
-  border-radius: 4px;
-  border: 1px solid #f5c6cb;
+  border-radius: 8px;
+  border: 1px solid rgba(239, 68, 68, 0.3);
   margin-bottom: 1rem;
 }
 
 .empty-state {
   text-align: center;
   padding: 3rem 1rem;
-  background: white;
-  border-radius: 6px;
-  color: #666;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%);
+  border-radius: 10px;
+  color: #cbd5e1;
+  border: 1px solid rgba(148, 163, 184, 0.12);
 }
 
 .empty-state p {
@@ -192,7 +221,7 @@
 
 .empty-subtext {
   font-size: 0.875rem;
-  color: #999;
+  color: #94a3b8;
   font-style: italic;
 }
 

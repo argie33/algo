@@ -47,13 +47,16 @@ LOADERS = [
         "script": "loadstocksymbols.py",
         "critical": True,
         "description": "Load NASDAQ/NYSE symbol list",
+        "timeout": 600,
     },
-    # Phase 2: Price Data (depends on symbols)
+    # Phase 2: Price Data (depends on symbols) - SLOW, takes 30-90 min on fresh data
     {
         "name": "Price Daily",
         "script": "loadpricedaily.py",
         "critical": True,
         "description": "Load daily price data",
+        "timeout": 7200,  # 2 hours - yfinance is slow for 5000 symbols
+        "skip_if_table_has_data": "price_daily",  # Skip if already loaded
     },
     # Phase 3: Company Data (depends on symbols)
     {
@@ -61,6 +64,7 @@ LOADERS = [
         "script": "loaddailycompanydata.py",
         "critical": False,
         "description": "Load company info, positioning, earnings",
+        "timeout": 1800,  # 30 min
     },
     # Phase 4: Financial Statements (depends on symbols)
     {
@@ -68,18 +72,21 @@ LOADERS = [
         "script": "loadannualincomestatement.py",
         "critical": False,
         "description": "Load annual income statements",
+        "timeout": 1800,
     },
     {
         "name": "Annual Balance Sheet",
         "script": "loadannualbalancesheet.py",
         "critical": False,
         "description": "Load annual balance sheets",
+        "timeout": 1800,
     },
     {
         "name": "Annual Cash Flow",
         "script": "loadannualcashflow.py",
         "critical": False,
         "description": "Load annual cash flow",
+        "timeout": 1800,
     },
     # Phase 4.5: Factor Metrics (depends on financial statements + prices)
     {
@@ -87,6 +94,7 @@ LOADERS = [
         "script": "loadfactormetrics.py",
         "critical": False,
         "description": "Load quality, growth, momentum, stability, value, positioning metrics",
+        "timeout": 3600,  # 60 min - calculates 6 metric tables
     },
     # Phase 5: Stock Scores (depends on factor metrics)
     {
@@ -94,6 +102,7 @@ LOADERS = [
         "script": "loadstockscores.py",
         "critical": False,
         "description": "Calculate composite stock scores from factor metrics",
+        "timeout": 1800,
     },
     # Phase 6: Sectors & Industries (depends on stock symbols)
     {

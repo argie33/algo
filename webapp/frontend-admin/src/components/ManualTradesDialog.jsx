@@ -271,7 +271,7 @@ export default function ManualTradesDialog() {
                 <TableContainer component={Paper}>
                   <Table size="small">
                     <TableHead>
-                      <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                      <TableRow sx={{ backgroundColor: 'rgba(30, 41, 59, 0.6)' }}>
                         <TableCell>Date</TableCell>
                         <TableCell>Symbol</TableCell>
                         <TableCell>Type</TableCell>

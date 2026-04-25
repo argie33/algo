@@ -1,7 +1,11 @@
+require('dotenv').config({ path: require('path').join(__dirname, '.env.local') });
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { Pool } = require('pg');
+
+const earningsRouter = require('./webapp/lambda/routes/earnings');
 
 const app = express();
 app.use(cors());
@@ -345,6 +349,11 @@ app.get('/api/commodities/seasonality/:symbol', async (req, res) => {
     sendError(res, error);
   }
 });
+
+// ============================================================================
+// EARNINGS ENDPOINTS
+// ============================================================================
+app.use('/api/earnings', earningsRouter);
 
 // ============================================================================
 // STATIC FILES & SPA FALLBACK

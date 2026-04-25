@@ -299,7 +299,7 @@ export default function ManualPositionsDialog() {
                 <TableContainer component={Paper}>
                   <Table size="small">
                     <TableHead>
-                      <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                      <TableRow sx={{ backgroundColor: 'rgba(30, 41, 59, 0.6)' }}>
                         <TableCell>Symbol</TableCell>
                         <TableCell align="right">Quantity</TableCell>
                         <TableCell align="right">Avg Cost</TableCell>

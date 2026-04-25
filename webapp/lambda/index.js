@@ -253,58 +253,6 @@ app.use(
   })
 );
 
-// Enhanced CORS headers for AWS API Gateway compatibility
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-
-  // AWS Lambda/API Gateway environment detection
-  const isLambda = process.env.AWS_LAMBDA_FUNCTION_NAME;
-  const isAPIGateway = req.headers['x-forwarded-for'] || req.headers['x-amzn-requestid'];
-
-  // Always set CORS headers for all requests (crucial for AWS API Gateway)
-  const defaultCloudFront = process.env.CLOUDFRONT_DOMAIN || "https://d1copuy2oqlazx.cloudfront.net";
-  const allowedOrigin = origin && (origin.includes(".cloudfront.net") ||
-                                   origin.includes("localhost") ||
-                                   origin.includes("127.0.0.1")) ? origin :
-                       defaultCloudFront;
-
-  res.header("Access-Control-Allow-Origin", allowedOrigin);
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS,HEAD,PATCH");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Content-Type,Authorization,X-Requested-With,X-Api-Key,X-Amz-Date,X-Amz-Security-Token,X-Request-ID,Accept,Accept-Language,Cache-Control,Origin"
-  );
-  res.header("Access-Control-Max-Age", "86400"); // Cache preflight for 24 hours
-
-  // Additional headers for AWS environments
-  if (isLambda || isAPIGateway) {
-    res.header("Access-Control-Expose-Headers", "X-Request-ID,X-Amzn-RequestId");
-    res.header("Vary", "Origin,Access-Control-Request-Method,Access-Control-Request-Headers");
-  }
-
-  // CORS headers are now set above for all requests
-
-  // Add AWS-specific context to request for debugging
-  if (isLambda) {
-    req.context = {
-      awsRequestId: req.headers['x-amzn-requestid'],
-      functionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
-      functionVersion: process.env.AWS_LAMBDA_FUNCTION_VERSION,
-      remainingTimeInMillis: () => 30000 // Default to 30 seconds
-    };
-  }
-
-  // Handle preflight requests with enhanced AWS support
-  if (req.method === "OPTIONS") {
-    console.log(`🔄 CORS preflight request for: ${req.path}`);
-    res.status(200).end();
-    return;
-  }
-
-  next();
-});
-
 // Request parsing
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));

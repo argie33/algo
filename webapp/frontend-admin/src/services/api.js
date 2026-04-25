@@ -1,5 +1,16 @@
 import axios from "axios";
 
+// Debug logging - disable in production by setting to false
+const DEBUG_API = import.meta.env.DEV || typeof window !== "undefined" && window.__DEBUG_API__;
+
+// Helper to reduce console spam in production
+const debugLog = (...args) => DEBUG_API && console.log(...args);
+const debugWarn = (...args) => DEBUG_API && console.warn(...args);
+const debugError = (...args) => {
+  // Always log errors, even in production
+  console.error(...args);
+};
+
 // Get API configuration - exported for ServiceHealth
 export const getApiConfig = () => {
   // Dynamic API URL resolution: runtime > build-time > infer from location > fallback
@@ -35,17 +46,14 @@ export const getApiConfig = () => {
     apiUrl = "/";
   }
 
-  // Only log in development, not in tests
-  if (typeof process === "undefined" || process.env.NODE_ENV !== "test") {
-    console.log("🔧 [API CONFIG] URL Resolution:", {
-      runtimeApiUrl,
-      envApiUrl: import.meta.env && import.meta.env.VITE_API_URL,
-      finalApiUrl: apiUrl,
-      windowConfig:
-        typeof window !== "undefined" ? window.__CONFIG__ : "undefined",
-      allEnvVars: import.meta.env || {},
-    });
-  }
+  // Only log in development
+  debugLog("🔧 [API CONFIG] URL Resolution:", {
+    runtimeApiUrl,
+    envApiUrl: import.meta.env && import.meta.env.VITE_API_URL,
+    finalApiUrl: apiUrl,
+    windowConfig:
+      typeof window !== "undefined" ? window.__CONFIG__ : "undefined",
+  });
 
   // Detect environment properly for both runtime and test contexts
   const isTestEnv =
@@ -79,7 +87,7 @@ let currentConfig = getApiConfig();
 // API health check state
 let apiHealthy = true;
 let lastHealthCheck = 0;
-const HEALTH_CHECK_INTERVAL = 30000; // 30 seconds
+const HEALTH_CHECK_INTERVAL = 10000; // 10 seconds for faster failure detection
 
 // Simple health check function
 const _checkApiHealth = async () => {
@@ -130,8 +138,8 @@ try {
   if (api && api.interceptors) {
     api.interceptors.request.use(
       (config) => {
-        // Add timestamp for request duration tracking
-        config.metadata = { startTime: new Date() };
+        // Add timestamp for request duration tracking and retry info
+        config.metadata = { startTime: new Date(), retryCount: 0 };
 
         // Add JWT token from localStorage to Authorization header
         if (typeof window !== "undefined") {
@@ -174,7 +182,21 @@ try {
         }
         return response;
       },
-      (error) => {
+      async (error) => {
+        // Retry logic for transient failures (timeout, network, 5xx errors)
+        const retryCount = error.config?.metadata?.retryCount || 0;
+        const maxRetries = 2;
+        const isRetryable = (error.code === "ECONNABORTED" ||
+                            error.code === "ERR_NETWORK" ||
+                            error.response?.status >= 500);
+
+        if (isRetryable && retryCount < maxRetries) {
+          const delay = 1000 * Math.pow(2, retryCount); // 1s, 2s exponential backoff
+          error.config.metadata.retryCount = retryCount + 1;
+          await new Promise(r => setTimeout(r, delay));
+          return api(error.config);
+        }
+
         // Enhanced error handling with user-friendly messages
         let userMessage = "An unexpected error occurred";
 
@@ -255,8 +277,9 @@ try {
 // Export the api instance for direct use
 export { api };
 
-// Helper function to standardize API response parsing
-// Handles various response formats: {data: ...}, {items: ...}, {history: ...}, raw array, etc.
+// Helper function to standardize API response parsing - DEPRECATED
+// Use extractResponseData instead (defined below at line 954)
+// This function is kept for backwards compatibility only
 export const extractDataFromResponse = (response, fallbackArray = []) => {
   if (!response) return fallbackArray;
 
@@ -288,7 +311,7 @@ export const getPortfolioHoldings = async (userId) => {
       };
     }
 
-    const response = await api.get(`/api/portfolio/holdings?userId=${userId}`);
+    const response = await api.get(`/api/portfolio/manual-positions?userId=${userId}`);
     return {
       data: extractResponseData(response) || null,
       success: true
@@ -323,7 +346,7 @@ export const getFactorAnalysis = async (userId) => {
 
 export const addHolding = async (holding) => {
   try {
-    const response = await api.post("/api/portfolio/holdings", holding);
+    const response = await api.post("/api/portfolio/manual-positions", holding);
     const responseData = extractResponseData(response);
     return {
       data: responseData || null,
@@ -342,7 +365,7 @@ export const addHolding = async (holding) => {
 export const updateHolding = async (holdingId, holding) => {
   try {
     const response = await api.put(
-      `/api/portfolio/holdings/${holdingId}`,
+      `/api/portfolio/manual-positions/${holdingId}`,
       holding
     );
     const responseData = extractResponseData(response);
@@ -362,7 +385,7 @@ export const updateHolding = async (holdingId, holding) => {
 
 export const deleteHolding = async (holdingId) => {
   try {
-    const response = await api.delete(`/api/portfolio/holdings/${holdingId}`);
+    const response = await api.delete(`/api/portfolio/manual-positions/${holdingId}`);
     const responseData = extractResponseData(response);
     return {
       data: responseData || null,
@@ -907,8 +930,8 @@ try {
   }
 }
 
-// --- Add this utility for consistent error handling ---
-function handleApiError(error, context = "") {
+// Utility for consistent error handling - used by 20+ endpoints
+export function handleApiError(error, context = "") {
   let message = "An unexpected error occurred";
   if (error?.response?.data?.error) {
     message = error.response?.data.error;
@@ -951,7 +974,8 @@ function normalizeResponse(response, expectArray = false) {
 }
 
 // Helper to safely extract data from API response, handling all RULES.md formats
-function extractResponseData(response) {
+// IMPORTANT: This is THE function used throughout the codebase (90+ calls)
+export function extractResponseData(response) {
   if (!response || !response.data) return null;
   const data = response.data;
 
@@ -3534,7 +3558,7 @@ export const getDashboardPortfolioMetrics = async () => {
 export const getDashboardHoldings = async () => {
   console.log("📈 [API] Fetching dashboard holdings...");
   try {
-    const response = await api.get('/api/portfolio/holdings');
+    const response = await api.get('/api/portfolio/manual-positions');
     return extractResponseData(response);
   } catch (error) {
     console.error("❌ [API] Dashboard holdings error:", {

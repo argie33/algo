@@ -701,7 +701,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             conn.commit()  # Commit immediately - DO NOT wait for final commit
             stats['key_metrics'] = 1
         except Exception as e:
-            logging.error(f" CRITICAL: Failed to insert key_metrics for {symbol}: {str(e)[:200]}")
+            logging.error(f" CRITICAL: Failed to insert key_metrics for {symbol}: {str(e)}")
             try:
                 conn.rollback()
             except:
@@ -765,7 +765,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     stats['institutional'] = len(inst_data)
 
             except Exception as e:
-                logging.error(f" CRITICAL: Failed to insert institutional holders for {symbol}: {str(e)[:200]}")
+                logging.error(f" CRITICAL: Failed to insert institutional holders for {symbol}: {str(e)}")
                 stats['institutional_failed'] = 1
                 # Rollback failed transaction
                 try:
@@ -823,7 +823,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     stats['mutualfund'] = len(mf_data)
 
             except Exception as e:
-                logging.error(f" CRITICAL: Failed to insert mutual fund holders for {symbol}: {str(e)[:200]}")
+                logging.error(f" CRITICAL: Failed to insert mutual fund holders for {symbol}: {str(e)}")
                 stats['mutualfund_failed'] = 1
                 # Rollback failed transaction
                 try:
@@ -864,7 +864,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     stats['insider_txns'] = len(insider_txn_data)
 
             except Exception as e:
-                logging.error(f" CRITICAL: Failed to insert insider transactions for {symbol}: {str(e)[:200]}")
+                logging.error(f" CRITICAL: Failed to insert insider transactions for {symbol}: {str(e)}")
                 stats['insider_txns_failed'] = 1
                 # Rollback failed transaction
                 try:
@@ -1015,7 +1015,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 # Only skip this symbol's positioning, but keep other data
 
         except Exception as e:
-            logging.error(f" CRITICAL: Failed to calculate positioning metrics for {symbol}: {str(e)[:200]}")
+            logging.error(f" CRITICAL: Failed to calculate positioning metrics for {symbol}: {str(e)}")
             stats['positioning_failed'] = 1
             # DO NOT rollback here - it would undo company_profile and other inserts
             # Only skip this symbol's positioning, but keep other data
@@ -1060,7 +1060,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                     stats['earnings_est'] = len(earnings_data)
 
             except Exception as e:
-                logging.error(f" CRITICAL: Failed to insert earnings estimates for {symbol}: {str(e)[:200]}")
+                logging.error(f" CRITICAL: Failed to insert earnings estimates for {symbol}: {str(e)}")
                 stats['earnings_est_failed'] = 1
                 # Rollback failed transaction
                 try:
@@ -1161,7 +1161,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
         return stats
 
     except Exception as e:
-        logging.error(f" CRITICAL: Complete failure loading realtime data for {symbol}: {str(e)[:200]}")
+        logging.error(f" CRITICAL: Complete failure loading realtime data for {symbol}: {str(e)}")
         return None
 
 
@@ -1301,7 +1301,7 @@ if __name__ == "__main__":
         conn.commit()
         logging.info(" Schema migrations complete")
     except Exception as e:
-        logging.error(f" CRITICAL: Schema migration failed - this blocks ALL data loading: {str(e)[:200]}")
+        logging.error(f" CRITICAL: Schema migration failed - this blocks ALL data loading: {str(e)}")
         # Don't rollback to allow partial schema fixes, but this is critical
 
     # Get symbols - load all non-ETF symbols with optional OFFSET/LIMIT for parallel execution
@@ -1390,7 +1390,7 @@ if __name__ == "__main__":
 
         except Exception as e:
             elapsed_ms = int((time.time() - symbol_start) * 1000)
-            error_msg = str(e)[:200]
+            error_msg = str(e)
             error_str = error_msg.lower()
 
             if '500' in error_str or 'http error' in error_str:
@@ -1473,7 +1473,7 @@ if __name__ == "__main__":
                         logging.info(f"Progress: {processed}/{len(symbols)} loaded - Elapsed: {elapsed_min}min (Attempt {attempt})")
 
                 except Exception as e:
-                    logging.error(f"Exception in worker thread for {symbol}: {str(e)[:200]}")
+                    logging.error(f"Exception in worker thread for {symbol}: {str(e)}")
                     failed_this_pass.append(symbol)
 
         # Update symbols to retry for next attempt
