@@ -51,7 +51,7 @@ import {
 } from "@mui/icons-material";
 import { formatCurrency, formatPercentage } from "../utils/formatters";
 import { formatCellValue, getCellAlign, getDynamicColumns } from "../utils/signalTableHelpers";
-import { getApiConfig } from "../services/api";
+import api, { getApiConfig, extractResponseData } from "../services/api";
 import { ErrorDisplay, LoadingDisplay } from "../components/ui/ErrorBoundary";
 import ErrorBoundary from "../components/ErrorBoundary";
 import SignalCardAccordion from "../components/SignalCardAccordion";
@@ -178,18 +178,13 @@ function TradingSignals() {
 
         // Use correct endpoint based on asset type
         const endpoint = assetType === "etf" ? "etf" : "stocks";
-        const url = `${API_BASE}/api/signals/${endpoint}?${params}`;
+        const url = `/api/signals/${endpoint}?${params}`;
         const startTime = Date.now();
 
         logger.info(`📡 Fetching ${timeframe} signals: ${url}`);
 
-        const response = await fetch(url);
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`HTTP ${response.status}: ${errorText}`);
-        }
-
-        const data = await response.json();
+        const response = await api.get(url);
+        const data = extractResponseData(response);
         const duration = Date.now() - startTime;
         const itemCount = data?.items?.length || 0;
 
@@ -236,11 +231,10 @@ function TradingSignals() {
           params.append("_t", Date.now());
 
           const endpoint = assetType === "etf" ? "etf" : "stocks";
-          const url = `${API_BASE}/api/signals/${endpoint}?${params}`;
+          const url = `/api/signals/${endpoint}?${params}`;
 
-          const response = await fetch(url);
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          return await response.json();
+          const response = await api.get(url);
+          return extractResponseData(response);
         });
 
         const results = await Promise.all(requests);
@@ -417,11 +411,10 @@ function TradingSignals() {
       if (!selectedSymbol) return null;
       try {
         const endpoint = assetType === "etf" ? "etf" : "stocks";
-        const response = await fetch(
-          `${API_BASE}/api/signals/${endpoint}?symbol=${selectedSymbol}&timeframe=daily&limit=50`
+        const response = await api.get(
+          `/api/signals/${endpoint}?symbol=${selectedSymbol}&timeframe=daily&limit=50`
         );
-        if (!response.ok) throw new Error("Failed to fetch historical data");
-        return await response.json();
+        return extractResponseData(response);
       } catch (err) {
         logger.error("fetchHistoricalSignals", err, { symbol: selectedSymbol });
         throw err;

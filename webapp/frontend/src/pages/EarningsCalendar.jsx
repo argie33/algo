@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createComponentLogger } from "../utils/errorLogger";
+import api, { extractResponseData } from "../services/api";
 import {
   Box,
   Container,
@@ -93,8 +94,6 @@ function EarningsCalendar() {
   const [symbolFilter, setSymbolFilter] = useState("");
   const [expandedSymbol, setExpandedSymbol] = useState(null);
 
-  const API_BASE = (import.meta.env && import.meta.env.VITE_API_URL) || "";
-
   // Fetch S&P 500 earnings trend data
   const {
     data: sp500TrendData,
@@ -103,10 +102,8 @@ function EarningsCalendar() {
   } = useQuery({
     queryKey: ["sp500EarningsTrend"],
     queryFn: async () => {
-      const response = await fetch(`${API_BASE}/api/earnings/sp500-trend?years=10`);
-      if (!response.ok) throw new Error("Failed to fetch S&P 500 earnings trend");
-      const json = await response.json();
-      return json.data;
+      const response = await api.get('/api/earnings/sp500-trend?years=10');
+      return extractResponseData(response);
     },
     staleTime: 1000 * 60 * 60, // 1 hour
   });
@@ -119,10 +116,8 @@ function EarningsCalendar() {
   } = useQuery({
     queryKey: ["estimateMomentum"],
     queryFn: async () => {
-      const response = await fetch(`${API_BASE}/api/earnings/estimate-momentum?limit=500&period=0q`);
-      if (!response.ok) throw new Error("Failed to fetch estimate momentum");
-      const json = await response.json();
-      return json.data;
+      const response = await api.get('/api/earnings/estimate-momentum?limit=500&period=0q');
+      return extractResponseData(response);
     },
     staleTime: 1000 * 60 * 60, // 1 hour
   });
@@ -135,12 +130,8 @@ function EarningsCalendar() {
   } = useQuery({
     queryKey: ["sectorEarningsTrend"],
     queryFn: async () => {
-      const response = await fetch(
-        `${API_BASE}/api/earnings/sector-trend?period=0q&timeRange=90d&topSectors=8`
-      );
-      if (!response.ok) throw new Error("Failed to fetch sector earnings trend");
-      const json = await response.json();
-      return json.data;
+      const response = await api.get('/api/earnings/sector-trend?period=0q&timeRange=90d&topSectors=8');
+      return extractResponseData(response);
     },
     staleTime: 1000 * 60 * 60, // 1 hour cache
   });
@@ -153,25 +144,21 @@ function EarningsCalendar() {
   } = useQuery({
     queryKey: ["weeklyEarningsCalendar"],
     queryFn: async () => {
-      const response = await fetch(`${API_BASE}/api/earnings/calendar?period=upcoming&limit=50`);
-      if (!response.ok) {
-        const text = await response.text();
+      try {
+        const response = await api.get('/api/earnings/calendar?period=upcoming&limit=50');
+        const extracted = extractResponseData(response);
+        if (!extracted || !extracted.items) throw new Error('No earnings calendar items returned');
+        return {
+          data: extracted.items,
+          success: response.data.success
+        };
+      } catch (error) {
         logger.error("Weekly calendar fetch failed", {
-          status: response.status,
-          text,
+          status: error.response?.status,
+          message: error.message,
         });
-        throw new Error(
-          `Failed to fetch weekly calendar: ${response.status} ${text}`
-        );
+        throw error;
       }
-      const json = await response.json();
-      // Backend returns new format: { items: [...calendar items], pagination: {...}, success: true }
-      if (!json.items) throw new Error('No earnings calendar items returned');
-      // Transform to component format for consistent handling
-      return {
-        data: json.items,
-        success: json.success
-      };
     },
     refetchInterval: 300000,
   });
@@ -184,23 +171,21 @@ function EarningsCalendar() {
   } = useQuery({
     queryKey: ["pastEarningsCalendar"],
     queryFn: async () => {
-      const response = await fetch(`${API_BASE}/api/earnings/calendar?period=past&limit=50`);
-      if (!response.ok) {
-        const text = await response.text();
+      try {
+        const response = await api.get('/api/earnings/calendar?period=past&limit=50');
+        const extracted = extractResponseData(response);
+        if (!extracted || !extracted.items) throw new Error('No past earnings calendar items returned');
+        return {
+          data: extracted.items,
+          success: response.data.success
+        };
+      } catch (error) {
         logger.error("Past calendar fetch failed", {
-          status: response.status,
-          text,
+          status: error.response?.status,
+          message: error.message,
         });
-        throw new Error(
-          `Failed to fetch past calendar: ${response.status} ${text}`
-        );
+        throw error;
       }
-      const json = await response.json();
-      if (!json.items) throw new Error('No past earnings calendar items returned');
-      return {
-        data: json.items,
-        success: json.success
-      };
     },
     refetchInterval: 300000,
   });
@@ -218,16 +203,12 @@ function EarningsCalendar() {
       });
       if (symbolFilter) params.append("symbol", symbolFilter);
 
-      const response = await fetch(
-        `${API_BASE}/api/earnings/info?${params}`
-      );
-      if (!response.ok) throw new Error("Failed to fetch earnings data");
-      const json = await response.json();
-      // Transform data response to match expected format for estimates
-      if (!json.data?.estimates) throw new Error('No earnings estimates available');
+      const response = await api.get(`/api/earnings/info?${params}`);
+      const extracted = extractResponseData(response);
+      if (!extracted?.estimates) throw new Error('No earnings estimates available');
       return {
-        data: json.data.estimates,
-        success: json.success
+        data: extracted.estimates,
+        success: response.data.success
       };
     },
     refetchInterval: 300000,
@@ -246,33 +227,31 @@ function EarningsCalendar() {
       if (!expandedSymbol || expandedSymbol === "data" || expandedSymbol === "pagination") return null;
 
       logger.info(`Fetching earnings details for ${expandedSymbol}`);
-      const dataRes = await fetch(`${API_BASE}/api/earnings/info?symbol=${encodeURIComponent(expandedSymbol)}`).then((r) => {
-        if (!r.ok) throw new Error(`Failed to fetch earnings info: ${r.status}`);
-        return r.json();
-      });
+      const response = await api.get(`/api/earnings/info?symbol=${encodeURIComponent(expandedSymbol)}`);
+      const dataRes = extractResponseData(response);
 
       logger.info(`Received data for ${expandedSymbol}:`, {
-        hasEstimates: !!dataRes.data?.estimates,
-        hasHistory: !!dataRes.data?.history,
-        hasSuprises: !!dataRes.data?.surprises,
-        estimateCount: dataRes.data?.estimates?.length || 0,
-        historyCount: dataRes.data?.history?.length || 0,
-        surpriseCount: dataRes.data?.surprises?.length || 0
+        hasEstimates: !!dataRes?.estimates,
+        hasHistory: !!dataRes?.history,
+        hasSuprises: !!dataRes?.surprises,
+        estimateCount: dataRes?.estimates?.length || 0,
+        historyCount: dataRes?.history?.length || 0,
+        surpriseCount: dataRes?.surprises?.length || 0
       });
 
       // Debug: Log actual surprise data
-      if (dataRes.data?.surprises?.length > 0) {
-        console.log(`✅ SURPRISES FOUND for ${expandedSymbol}:`, dataRes.data.surprises);
+      if (dataRes?.surprises?.length > 0) {
+        console.log(`✅ SURPRISES FOUND for ${expandedSymbol}:`, dataRes.surprises);
       } else {
         console.log(`⚠️ NO SURPRISES for ${expandedSymbol}`, {
-          hasData: !!dataRes.data,
-          surprisesArray: dataRes.data?.surprises,
-          allDataKeys: dataRes.data ? Object.keys(dataRes.data) : 'no data'
+          hasData: !!dataRes,
+          surprisesArray: dataRes?.surprises,
+          allDataKeys: dataRes ? Object.keys(dataRes) : 'no data'
         });
       }
 
       // Transform estimates to flat structure for accordion display
-      const estimates = dataRes.data?.estimates || [];
+      const estimates = dataRes?.estimates || [];
 
       const transformedEstimates = estimates.map(e => ({
         period: e.period,
