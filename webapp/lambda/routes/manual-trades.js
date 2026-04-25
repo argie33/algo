@@ -284,7 +284,7 @@ router.delete('/:id', async (req, res) => {
 
     // Get trade before deleting
     const result = await dbQuery(
-      'SELECT symbol, type FROM trades WHERE id = $1',
+      'SELECT symbol, side FROM trades WHERE id = $1',
       [id]
     );
 

@@ -928,13 +928,13 @@ function FinancialData() {
                 >
                   <ToggleButton value="annual">Annual</ToggleButton>
                   <ToggleButton value="quarterly">Quarterly</ToggleButton>
-                  <ToggleButton value="ttm">TTM</ToggleButton>{" "}
+                  <ToggleButton value="ttm">TTM</ToggleButton>
                 </ToggleButtonGroup>
               </Grid>
             </Grid>
           </CardContent>
         </Card>
-        {/* Tabs */}{" "}
+        {/* Tabs */}
         <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
           <Tabs value={tabValue} onChange={handleTabChange}>
             <Tab value={0} label="Balance Sheet" icon={<AccountBalance />} />

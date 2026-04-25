@@ -140,15 +140,15 @@ router.get("/sectors", async (req, res) => {
         sr.momentum_score,
         sr.daily_strength_score,
         sr.trend,
-        sr.date_recorded as last_updated
+        sr.date as last_updated
       FROM (
         SELECT DISTINCT ON (sector_name)
           sector_name, current_rank, rank_1w_ago, rank_4w_ago, rank_12w_ago,
-          momentum_score, daily_strength_score, trend, date_recorded
+          momentum_score, daily_strength_score, trend, date
         FROM sector_ranking
         WHERE sector_name IS NOT NULL
           AND TRIM(sector_name) != ''
-        ORDER BY sector_name, date_recorded DESC
+        ORDER BY sector_name, date DESC
       ) sr
       ORDER BY sr.sector_name
       LIMIT $1 OFFSET $2
@@ -213,7 +213,7 @@ router.get("/trend/:sectorName", async (req, res, next) => {
     // Get historical ranking and momentum for the sector
     const trendQuery = `
       SELECT
-        DATE(date_recorded) as date,
+        DATE(date) as date,
         current_rank as rank,
         momentum_score as momentum,
         trend,
@@ -223,8 +223,8 @@ router.get("/trend/:sectorName", async (req, res, next) => {
         rank_12w_ago
       FROM sector_ranking
       WHERE LOWER(sector_name) = LOWER($1)
-        AND date_recorded >= CURRENT_DATE - INTERVAL '${daysNum} days'
-      ORDER BY date_recorded DESC
+        AND date >= CURRENT_DATE - INTERVAL '${daysNum} days'
+      ORDER BY date DESC
       LIMIT 365
     `;
 
@@ -291,23 +291,23 @@ router.get("/analysis", async (req, res) => {
         sp.performance_1d as performance_1d,
         sp.performance_5d as performance_5d,
         sp.performance_20d as performance_20d,
-        COALESCE(sp.date, sr.date_recorded) as last_updated
+        COALESCE(sp.date, sr.date) as last_updated
       FROM (
         SELECT DISTINCT ON (sector_name)
           sector_name, current_rank, rank_1w_ago, rank_4w_ago, rank_12w_ago,
-          momentum_score, date_recorded
+          momentum_score, date
         FROM sector_ranking
         WHERE sector_name IS NOT NULL
           AND TRIM(sector_name) != ''
           AND LOWER(sector_name) NOT IN ('index', 'unknown')
-        ORDER BY sector_name, date_recorded DESC
+        ORDER BY sector_name, date DESC
       ) sr
       LEFT JOIN (
         SELECT DISTINCT ON (sector_name)
           sector_name, momentum_score
         FROM sector_ranking
         WHERE sector_name IS NOT NULL AND momentum_score IS NOT NULL
-        ORDER BY sector_name, date_recorded DESC
+        ORDER BY sector_name, date DESC
       ) sm ON sr.sector_name = sm.sector_name
       LEFT JOIN (
         SELECT DISTINCT ON (sector)
@@ -646,11 +646,11 @@ router.get("/sectors-with-history", async (req, res) => {
         current_rank as rank,
         momentum_score,
         trailing_pe,
-        date_recorded,
+        date,
         COUNT(*) OVER (PARTITION BY sector_name) as history_count
       FROM sector_ranking
-      WHERE date_recorded >= CURRENT_DATE - INTERVAL '90 days'
-      ORDER BY sector_name, date_recorded DESC
+      WHERE date >= CURRENT_DATE - INTERVAL '90 days'
+      ORDER BY sector_name, date DESC
     `;
 
     const result = await query(sectorQuery);
@@ -672,7 +672,7 @@ router.get("/sectors-with-history", async (req, res) => {
           rank: row.rank,
           momentum_score: safeFloat(row.momentum_score),
           trailing_pe: safeFloat(row.trailing_pe),
-          date: row.date_recorded,
+          date: row.date,
           history_count: row.history_count
         };
       }
@@ -770,10 +770,10 @@ router.get("/ranking", async (req, res) => {
         daily_strength_score,
         momentum_score,
         trend,
-        date_recorded
+        date
       FROM sector_ranking
       WHERE sector_name IS NOT NULL
-      ORDER BY sector_name, date_recorded DESC
+      ORDER BY sector_name, date DESC
     `);
 
     res.json({
@@ -825,10 +825,10 @@ router.get("/industries/ranking", async (req, res) => {
         momentum_score,
         stock_count,
         trend,
-        date_recorded
+        date
       FROM industry_ranking
       WHERE industry IS NOT NULL
-      ORDER BY industry, date_recorded DESC
+      ORDER BY industry, date DESC
     `);
 
     res.json({

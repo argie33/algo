@@ -34,8 +34,8 @@ router.get("/data", async (req, res) => {
     let queryStr = `
       SELECT
         symbol,
-        date_recorded as date,
-        total_analysts as analyst_count,
+        date,
+        analyst_count,
         bullish_count,
         bearish_count,
         neutral_count,
@@ -44,7 +44,7 @@ router.get("/data", async (req, res) => {
         upside_downside_percent
       FROM analyst_sentiment_analysis
       WHERE symbol IS NOT NULL
-      ORDER BY date_recorded DESC, symbol ASC
+      ORDER BY date DESC, symbol ASC
       LIMIT $1 OFFSET $2
     `;
     let countParams = [];
@@ -56,8 +56,8 @@ router.get("/data", async (req, res) => {
       queryStr = `
         SELECT
           symbol,
-          date_recorded as date,
-          total_analysts as analyst_count,
+          date as date,
+          analyst_count as analyst_count,
           bullish_count,
           bearish_count,
           neutral_count,
@@ -66,7 +66,7 @@ router.get("/data", async (req, res) => {
           upside_downside_percent
         FROM analyst_sentiment_analysis
         WHERE symbol = $1
-        ORDER BY date_recorded DESC
+        ORDER BY date DESC
         LIMIT $2 OFFSET $3
       `;
       params = [symbol.toUpperCase(), limitNum, offset];
@@ -134,7 +134,7 @@ router.get("/summary", async (req, res) => {
 
     try {
       const analystResult = await query(
-        `SELECT total_analysts, bullish_count, bearish_count, neutral_count, date_recorded as date FROM analyst_sentiment_analysis ORDER BY date_recorded DESC LIMIT 1`
+        `SELECT analyst_count, bullish_count, bearish_count, neutral_count, date as date FROM analyst_sentiment_analysis ORDER BY date DESC LIMIT 1`
       );
       analyst = analystResult.rows[0] || null;
     } catch (e) {
@@ -174,8 +174,8 @@ router.get("/analyst", async (req, res) => {
 
     let countQueryStr = `SELECT COUNT(*) as total FROM analyst_sentiment_analysis`;
     let queryStr = `
-      SELECT symbol, date_recorded as date, total_analysts as analyst_count, bullish_count, bearish_count, neutral_count FROM analyst_sentiment_analysis
-      ORDER BY date_recorded DESC
+      SELECT symbol, date as date, analyst_count as analyst_count, bullish_count, bearish_count, neutral_count FROM analyst_sentiment_analysis
+      ORDER BY date DESC
       LIMIT $1 OFFSET $2
     `;
     let countParams = [];
@@ -185,9 +185,9 @@ router.get("/analyst", async (req, res) => {
       countQueryStr = `SELECT COUNT(*) as total FROM analyst_sentiment_analysis WHERE symbol = $1`;
       countParams = [symbol.toUpperCase()];
       queryStr = `
-        SELECT symbol, date_recorded as date, total_analysts as analyst_count, bullish_count, bearish_count, neutral_count FROM analyst_sentiment_analysis
+        SELECT symbol, date as date, analyst_count as analyst_count, bullish_count, bearish_count, neutral_count FROM analyst_sentiment_analysis
         WHERE symbol = $1
-        ORDER BY date_recorded DESC
+        ORDER BY date DESC
         LIMIT $2 OFFSET $3
       `;
       params = [symbol.toUpperCase(), limitNum, offset];
@@ -225,13 +225,13 @@ router.get("/history", async (req, res) => {
     // Try to fetch analyst sentiment history
     let queryStr = `
       SELECT
-        date_recorded as date,
-        total_analysts as analyst_count,
+        date as date,
+        analyst_count as analyst_count,
         bullish_count,
         bearish_count,
         neutral_count
       FROM analyst_sentiment_analysis
-      ORDER BY date_recorded DESC
+      ORDER BY date DESC
       LIMIT $1
     `;
 
@@ -380,8 +380,8 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
     const result = await query(
       `SELECT
         symbol,
-        date_recorded as date,
-        total_analysts as analyst_count,
+        date as date,
+        analyst_count as analyst_count,
         bullish_count,
         bearish_count,
         neutral_count,
@@ -390,7 +390,7 @@ router.get("/analyst/insights/:symbol", async (req, res) => {
         upside_downside_percent
       FROM analyst_sentiment_analysis
       WHERE symbol = $1
-      ORDER BY date_recorded DESC
+      ORDER BY date DESC
       LIMIT 1`,
       [symbol.toUpperCase()]
     );

@@ -3961,9 +3961,10 @@ export const getTrades = async (page = 1, limit = 50) => {
     const response = await api.get("/api/trades", {
       params: { page, limit }
     });
+    const extracted = extractResponseData(response);
     return {
-      data: response.data?.items || extractResponseData(response),
-      pagination: response.data?.pagination,
+      data: extracted?.trades || extracted?.items || extracted || [],
+      pagination: extracted?.pagination || response.data?.pagination,
       success: true
     };
   } catch (error) {

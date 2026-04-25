@@ -1,3 +1,4 @@
+/* eslint-disable no-process-exit */
 const { query } = require('./utils/database');
 
 (async () => {

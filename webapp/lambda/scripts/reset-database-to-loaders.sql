@@ -130,18 +130,122 @@ CREATE TABLE company_profile (
     regular_market_time_ms BIGINT
 );
 
--- Annual balance sheet (for financial data)
+-- Annual balance sheet (for financial data) - matches loadannualbalancesheet.py
 CREATE TABLE annual_balance_sheet (
     id SERIAL PRIMARY KEY,
-    ticker VARCHAR(10),
-    year INTEGER,
-    total_assets BIGINT,
-    total_liabilities BIGINT,
-    total_debt BIGINT,
-    revenue BIGINT,
-    net_income BIGINT,
+    symbol VARCHAR(20) NOT NULL,
+    fiscal_year INT NOT NULL,
+    date DATE,
+    total_assets DECIMAL(16,2),
+    current_assets DECIMAL(16,2),
+    total_liabilities DECIMAL(16,2),
+    current_liabilities DECIMAL(16,2),
+    stockholders_equity DECIMAL(16,2),
+    cash_and_equivalents DECIMAL(16,2),
+    accounts_receivable DECIMAL(16,2),
+    inventory DECIMAL(16,2),
+    accounts_payable DECIMAL(16,2),
+    long_term_debt DECIMAL(16,2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(ticker, year)
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, fiscal_year)
+);
+
+-- Quarterly balance sheet (for quarterly financial data)
+CREATE TABLE quarterly_balance_sheet (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    fiscal_year INT NOT NULL,
+    fiscal_quarter INT NOT NULL,
+    date DATE,
+    total_assets DECIMAL(16,2),
+    current_assets DECIMAL(16,2),
+    total_liabilities DECIMAL(16,2),
+    current_liabilities DECIMAL(16,2),
+    stockholders_equity DECIMAL(16,2),
+    cash_and_equivalents DECIMAL(16,2),
+    accounts_receivable DECIMAL(16,2),
+    inventory DECIMAL(16,2),
+    accounts_payable DECIMAL(16,2),
+    long_term_debt DECIMAL(16,2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, fiscal_year, fiscal_quarter)
+);
+
+-- Annual income statement (for financial data) - matches loadannualincomestatement.py
+CREATE TABLE annual_income_statement (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    fiscal_year INT NOT NULL,
+    date DATE,
+    revenue DECIMAL(16,2),
+    cost_of_revenue DECIMAL(16,2),
+    gross_profit DECIMAL(16,2),
+    operating_expenses DECIMAL(16,2),
+    operating_income DECIMAL(16,2),
+    net_income DECIMAL(16,2),
+    earnings_per_share DECIMAL(12,4),
+    tax_expense DECIMAL(16,2),
+    interest_expense DECIMAL(16,2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, fiscal_year)
+);
+
+-- Quarterly income statement (for quarterly financial data)
+CREATE TABLE quarterly_income_statement (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    fiscal_year INT NOT NULL,
+    fiscal_quarter INT NOT NULL,
+    date DATE,
+    revenue DECIMAL(16,2),
+    cost_of_revenue DECIMAL(16,2),
+    gross_profit DECIMAL(16,2),
+    operating_expenses DECIMAL(16,2),
+    operating_income DECIMAL(16,2),
+    net_income DECIMAL(16,2),
+    earnings_per_share DECIMAL(12,4),
+    tax_expense DECIMAL(16,2),
+    interest_expense DECIMAL(16,2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, fiscal_year, fiscal_quarter)
+);
+
+-- Annual cash flow (for cash flow data) - matches loadannualcashflow.py
+CREATE TABLE annual_cash_flow (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    fiscal_year INT NOT NULL,
+    date DATE,
+    operating_cash_flow DECIMAL(16,2),
+    investing_cash_flow DECIMAL(16,2),
+    financing_cash_flow DECIMAL(16,2),
+    capital_expenditures DECIMAL(16,2),
+    free_cash_flow DECIMAL(16,2),
+    dividends_paid DECIMAL(16,2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, fiscal_year)
+);
+
+-- Quarterly cash flow (for quarterly cash flow data) - matches loadquarterlycashflow.py
+CREATE TABLE quarterly_cash_flow (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    fiscal_year INT NOT NULL,
+    fiscal_quarter INT NOT NULL,
+    date DATE,
+    operating_cash_flow DECIMAL(16,2),
+    investing_cash_flow DECIMAL(16,2),
+    financing_cash_flow DECIMAL(16,2),
+    capital_expenditures DECIMAL(16,2),
+    free_cash_flow DECIMAL(16,2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, fiscal_year, fiscal_quarter)
 );
 
 -- Market data table (exact match to loadinfo.py)
@@ -373,14 +477,19 @@ CREATE TABLE IF NOT EXISTS quality_metrics (
 
 -- Positioning Metrics table (from loaddailycompanydata.py)
 CREATE TABLE IF NOT EXISTS positioning_metrics (
-    symbol VARCHAR(50),
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20),
     date DATE,
-    institutional_ownership_pct NUMERIC,
-    top_10_institutions_pct NUMERIC,
-    insider_ownership_pct NUMERIC,
-    short_ratio NUMERIC,
-    short_interest_pct NUMERIC,
-    PRIMARY KEY (symbol, date)
+    institutional_ownership_pct DECIMAL(8,6),
+    institutional_holders_count INTEGER,
+    insider_ownership_pct DECIMAL(8,6),
+    short_ratio DECIMAL(8,2),
+    short_interest_pct DECIMAL(8,6),
+    short_percent_of_float DECIMAL(8,6),
+    ad_rating DECIMAL(5,2),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(symbol, date)
 );
 
 -- Dashboard settings (for user preferences)
@@ -405,3 +514,9 @@ CREATE INDEX IF NOT EXISTS idx_growth_metrics_symbol_date ON growth_metrics(symb
 CREATE INDEX IF NOT EXISTS idx_momentum_metrics_symbol_date ON momentum_metrics(symbol, date);
 CREATE INDEX IF NOT EXISTS idx_quality_metrics_symbol_date ON quality_metrics(symbol, date);
 CREATE INDEX IF NOT EXISTS idx_positioning_metrics_symbol_date ON positioning_metrics(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_annual_balance_sheet_symbol_fiscal_year ON annual_balance_sheet(symbol, fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_quarterly_balance_sheet_symbol_fiscal_year ON quarterly_balance_sheet(symbol, fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_annual_income_statement_symbol_fiscal_year ON annual_income_statement(symbol, fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_quarterly_income_statement_symbol_fiscal_year ON quarterly_income_statement(symbol, fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_annual_cash_flow_symbol_fiscal_year ON annual_cash_flow(symbol, fiscal_year);
+CREATE INDEX IF NOT EXISTS idx_quarterly_cash_flow_symbol_fiscal_year ON quarterly_cash_flow(symbol, fiscal_year);

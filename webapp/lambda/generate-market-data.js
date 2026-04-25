@@ -1,3 +1,4 @@
+/* eslint-disable no-process-exit */
 /**
  * Generate comprehensive market data from real database
  * Pulls sector/industry rankings and performance from actual data

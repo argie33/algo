@@ -890,8 +890,11 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             # DO NOT rollback here - it would undo company_profile and other inserts
             # Only skip this symbol's positioning, but keep other data
 
-        # 7. Insert earnings estimates
-        if earnings_estimate is not None and not earnings_estimate.empty:
+        # 7. Insert earnings estimates - DISABLED 2026-04-25
+        # NOTE: earnings_estimate data (avg, low, high) doesn't match earnings_estimates table schema
+        # which expects (eps_estimate, revenue_estimate, eps_actual, revenue_actual).
+        # Use earnings_history table instead (loaded in section 8.5) which has actual earnings data.
+        if False and earnings_estimate is not None and not earnings_estimate.empty:
             try:
                 earnings_data = []
                 for period, row in earnings_estimate.iterrows():

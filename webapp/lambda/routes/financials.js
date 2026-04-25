@@ -146,11 +146,11 @@ router.get("/:symbol/key-metrics", async (req, res) => {
   try {
     console.log(`📊 [FINANCIALS] Fetching key metrics for ${upperSymbol}`);
     const result = await query(`
-      SELECT ticker, short_name, long_name, sector, industry, market_cap,
-             employees, website, currency_code, exchange,
-             held_percent_insiders, held_percent_institutions
-      FROM key_metrics
-      WHERE ticker = $1
+      SELECT cp.ticker, cp.short_name, cp.long_name, cp.sector, cp.industry,
+             cp.exchange, km.market_cap, km.held_percent_insiders, km.held_percent_institutions
+      FROM company_profile cp
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      WHERE cp.ticker = $1
       LIMIT 1
     `, [upperSymbol]);
 

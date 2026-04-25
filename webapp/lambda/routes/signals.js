@@ -120,8 +120,8 @@ const getStocksSignals = async (req, res) => {
     if (timeframe === 'daily') {
       console.log(`[DEBUG] Using DAILY columns`);
       actualColumns = `
-        bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.signal_triggered_date,
-        bsd.signal, bsd.strength, bsd.signal_strength,
+        bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.date as signal_triggered_date,
+        bsd.signal, bsd.buylevel as strength, bsd.buylevel as signal_strength,
         p.open, p.high, p.low, p.close, p.volume,
         t.rsi, t.adx, t.atr,
         t.macd, t.signal as signal_line,
@@ -129,11 +129,10 @@ const getStocksSignals = async (req, res) => {
         t.ema_12, t.ema_26
       `;
     } else {
-      console.log(`[DEBUG] Using WEEKLY/MONTHLY columns (no bsd.signal_strength)`);
-      // weekly/monthly don't have signal_strength column
+      console.log(`[DEBUG] Using WEEKLY/MONTHLY columns`);
       actualColumns = `
-        bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.signal_triggered_date,
-        bsd.signal, bsd.strength, NULL::float as signal_strength,
+        bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.date as signal_triggered_date,
+        bsd.signal, bsd.buylevel as strength, bsd.buylevel as signal_strength,
         p.open, p.high, p.low, p.close, p.volume,
         t.rsi, t.adx, t.atr,
         t.macd, t.signal as signal_line,

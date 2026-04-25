@@ -203,7 +203,7 @@ router.get("/", async (req, res) => {
           WHERE table_schema = 'public'
           AND table_name IN (
             'stock_symbols', 'etf_symbols', 'last_updated',
-            'price_daily', 'price_weekly', 'price_monthly', 'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly', 'price_data_montly',
+            'price_daily', 'price_weekly', 'price_monthly', 'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly',
             'annual_balance_sheet', 'annual_income_statement', 'annual_cash_flow',
             'quarterly_balance_sheet', 'quarterly_income_statement', 'quarterly_cash_flow',
             'ttm_income_statement', 'ttm_cash_flow',

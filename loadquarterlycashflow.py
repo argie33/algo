@@ -101,6 +101,10 @@ def main():
                             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
                             ON CONFLICT (symbol, fiscal_year, fiscal_quarter) DO UPDATE SET
                             operating_cash_flow = EXCLUDED.operating_cash_flow,
+                            investing_cash_flow = EXCLUDED.investing_cash_flow,
+                            financing_cash_flow = EXCLUDED.financing_cash_flow,
+                            capital_expenditures = EXCLUDED.capital_expenditures,
+                            free_cash_flow = EXCLUDED.free_cash_flow,
                             updated_at = NOW()
                         """, (symbol, fiscal_year, fiscal_quarter, fiscal_date.date() if fiscal_date else None,
                               operating,
