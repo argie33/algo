@@ -3159,47 +3159,40 @@ router.get("/technicals-fresh", async (req, res) => {
       : "N/A";
 
     // Return comprehensive market technicals
-    return res.json({
-      data: {
-        mcclellan_oscillator: mcclellan.map(m => ({
-          date: m.date,
-          advance_decline_line: m.advance_decline_line
-        })) || [],
-        breadth: {
-          total_stocks: parseInt(breadth.total_stocks) || 0,
-          advancing: parseInt(breadth.advancing) || 0,
-          declining: parseInt(breadth.declining) || 0,
-          unchanged: parseInt(breadth.unchanged) || 0,
-          advance_decline_ratio: advance_decline_ratio,
-          average_change_percent: parseFloat(breadth.avg_abs_change) || 0
-        },
-        distribution_days: distributionDays,
-        volatility: {
-          market_volatility: volatility.market_volatility ? parseFloat(volatility.market_volatility) : 0,
-          avg_daily_move: volatility.avg_daily_move ? parseFloat(volatility.avg_daily_move) : 0,
-          max_daily_move: volatility.max_daily_move ? parseFloat(volatility.max_daily_move) : 0
-        },
-        internals: {
-          total_stocks: parseInt(internals.total_stocks) || 0,
-          above_20_ma: parseInt(internals.above_20_ma) || 0,
-          above_50_ma: parseInt(internals.above_50_ma) || 0,
-          above_200_ma: parseInt(internals.above_200_ma) || 0,
-          pct_above_20_ma: parseFloat(internals.pct_above_20_ma) || 0,
-          pct_above_50_ma: parseFloat(internals.pct_above_50_ma) || 0,
-          pct_above_200_ma: parseFloat(internals.pct_above_200_ma) || 0
-        },
-        timestamp: new Date().toISOString(),
-        source: "database-fresh"
+    return sendSuccess(res, {
+      mcclellan_oscillator: mcclellan.map(m => ({
+        date: m.date,
+        advance_decline_line: m.advance_decline_line
+      })) || [],
+      breadth: {
+        total_stocks: parseInt(breadth.total_stocks) || 0,
+        advancing: parseInt(breadth.advancing) || 0,
+        declining: parseInt(breadth.declining) || 0,
+        unchanged: parseInt(breadth.unchanged) || 0,
+        advance_decline_ratio: advance_decline_ratio,
+        average_change_percent: parseFloat(breadth.avg_abs_change) || 0
       },
-      success: true
+      distribution_days: distributionDays,
+      volatility: {
+        market_volatility: volatility.market_volatility ? parseFloat(volatility.market_volatility) : 0,
+        avg_daily_move: volatility.avg_daily_move ? parseFloat(volatility.avg_daily_move) : 0,
+        max_daily_move: volatility.max_daily_move ? parseFloat(volatility.max_daily_move) : 0
+      },
+      internals: {
+        total_stocks: parseInt(internals.total_stocks) || 0,
+        above_20_ma: parseInt(internals.above_20_ma) || 0,
+        above_50_ma: parseInt(internals.above_50_ma) || 0,
+        above_200_ma: parseInt(internals.above_200_ma) || 0,
+        pct_above_20_ma: parseFloat(internals.pct_above_20_ma) || 0,
+        pct_above_50_ma: parseFloat(internals.pct_above_50_ma) || 0,
+        pct_above_200_ma: parseFloat(internals.pct_above_200_ma) || 0
+      },
+      timestamp: new Date().toISOString(),
+      source: "database-fresh"
     });
   } catch (error) {
     console.error("Market technicals fresh error:", error.message);
-    return res.status(500).json({
-      error: "Failed to fetch market technicals",
-      details: error.message,
-      success: false
-    });
+    return sendError(res, error.message ? `Failed to fetch market technicals: ${error.message}` : "Failed to fetch market technicals", 500);
   }
 });
 
@@ -3234,15 +3227,9 @@ router.get("/top-movers", async (req, res) => {
     const gainers = result.rows.slice(0, limitNum);
     const losers = result.rows.slice().reverse().slice(0, limitNum);
 
-    res.json({
-      data: { gainers, losers },
-      success: true
-    });
+    sendSuccess(res, { gainers, losers });
   } catch (error) {
-    res.json({
-      data: { gainers: [], losers: [] },
-      success: true
-    });
+    sendSuccess(res, { gainers: [], losers: [] });
   }
 });
 
@@ -3268,15 +3255,9 @@ router.get("/market-cap-distribution", async (req, res) => {
       SELECT * FROM distribution ORDER BY total_cap DESC;
     `);
 
-    res.json({
-      data: result.rows || [],
-      success: true
-    });
+    sendSuccess(res, result.rows || []);
   } catch (error) {
-    res.json({
-      data: [],
-      success: true
-    });
+    sendSuccess(res, []);
   }
 });
 

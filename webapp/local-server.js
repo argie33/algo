@@ -17,7 +17,7 @@ require("dotenv").config({ path: path.resolve(__dirname, "../.env.local") });
 const { handler } = require("./lambda/index.js");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 // CORS configuration
 app.use(
@@ -26,7 +26,7 @@ app.use(
       "http://localhost:5173",
       "http://localhost:5174",
       "http://localhost:5175",
-      "http://localhost:3000",
+      "http://localhost:3001",
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],

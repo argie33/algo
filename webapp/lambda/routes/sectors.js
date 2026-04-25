@@ -114,52 +114,70 @@ router.use((req, res, next) => {
  */
 router.get("/sectors", async (req, res) => {
   try {
-    // Use fresh-data from JSON file - ensures all pages have up-to-date data
-    const fs = require("fs");
-    const { limit = 20 } = req.query;
-    const comprehensivePath = getMarketDataPath();
-
-    if (fs.existsSync(comprehensivePath)) {
-      const data = JSON.parse(fs.readFileSync(comprehensivePath, "utf-8"));
-
-      // Convert fresh sector data to expected format
-      const sectorsData = data.sectors ? Object.values(data.sectors) : [];
-      const sectors = sectorsData.slice(0, parseInt(limit)).map(sector => ({
-        sector_name: sector.name,
-        symbol: sector.symbol,
-        price: sector.price,
-        change: sector.change,
-        changePercent: sector.changePercent,
-        performance: sector.performance,
-        date: sector.date,
-        timestamp: data.timestamp,
-        source: "fresh-data"
-      }));
-
-      const total = sectors.length;
-      const limitNum = Math.min(parseInt(limit, 10) || 500, 1000);
-      const pageNum = 1;
-      const totalPages = Math.ceil(total / limitNum);
-
-      return res.json({
-        items: sectors,
-        pagination: {
-          page: pageNum,
-          limit: limitNum,
-          total: total,
-          totalPages,
-          hasNext: false,
-          hasPrev: false
-        },
-        success: true
+    if (!query) {
+      return res.status(503).json({
+        error: "Database service unavailable",
+        success: false
       });
     }
 
-    // Fallback: return empty result if fresh-data not available
+    const { limit = 500 } = req.query;
+
+    // Query from database directly - real data, not JSON file
+    const sectorsQuery = `
+      SELECT
+        sr.sector_name,
+        sr.current_rank,
+        sr.rank_1w_ago,
+        sr.rank_4w_ago,
+        sr.rank_12w_ago,
+        sr.momentum_score,
+        sr.daily_strength_score,
+        sr.stock_count,
+        sr.trend,
+        sr.date_recorded as last_updated
+      FROM (
+        SELECT DISTINCT ON (sector_name)
+          sector_name, current_rank, rank_1w_ago, rank_4w_ago, rank_12w_ago,
+          momentum_score, daily_strength_score, stock_count, trend, date_recorded
+        FROM sector_ranking
+        WHERE sector_name IS NOT NULL
+          AND TRIM(sector_name) != ''
+        ORDER BY sector_name, date_recorded DESC
+      ) sr
+      LIMIT $1
+    `;
+
+    const result = await query(sectorsQuery, [Math.min(parseInt(limit) || 500, 1000)]);
+    const sectors = (result?.rows || []).map(row => ({
+      sector_name: row.sector_name,
+      current_rank: row.current_rank,
+      rank_1w_ago: row.rank_1w_ago,
+      rank_4w_ago: row.rank_4w_ago,
+      rank_12w_ago: row.rank_12w_ago,
+      momentum_score: row.momentum_score !== null ? safeFloat(row.momentum_score) : null,
+      daily_strength_score: row.daily_strength_score !== null ? safeFloat(row.daily_strength_score) : null,
+      stock_count: row.stock_count,
+      trend: row.trend,
+      last_updated: row.last_updated
+    }));
+
+    const total = sectors.length;
+    const limitNum = Math.min(parseInt(limit, 10) || 500, 1000);
+    const pageNum = 1;
+    const totalPages = Math.ceil(total / limitNum);
+
     return res.json({
-      items: [],
-      pagination: { page: 1, limit: parseInt(limit), total: 0, totalPages: 0, hasNext: false, hasPrev: false },
-      success: false
+      items: sectors,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: total,
+        totalPages,
+        hasNext: false,
+        hasPrev: false
+      },
+      success: true
     });
   } catch (error) {
     console.error('❌ Error in /api/sectors/sectors:', error.message);

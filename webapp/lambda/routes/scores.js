@@ -173,16 +173,14 @@ async function getFactorMetricsInBatch(symbols) {
             SELECT DISTINCT ON (symbol)
               symbol, return_on_equity_pct, return_on_assets_pct,
               return_on_invested_capital_pct, gross_margin_pct, operating_margin_pct,
-              profit_margin_pct, fcf_to_net_income, operating_cf_to_net_income,
-              debt_to_equity, current_ratio, quick_ratio, earnings_surprise_avg,
-              eps_growth_stability, payout_ratio,
+              profit_margin_pct, debt_to_equity, current_ratio, quick_ratio,
               earnings_beat_rate, estimate_revision_direction, consecutive_positive_quarters,
               surprise_consistency, earnings_growth_4q_avg, date
             FROM ${table}
             WHERE symbol IN (${placeholders})
               AND (return_on_equity_pct IS NOT NULL OR return_on_assets_pct IS NOT NULL
                    OR debt_to_equity IS NOT NULL OR current_ratio IS NOT NULL
-                   OR fcf_to_net_income IS NOT NULL OR operating_margin_pct IS NOT NULL
+                   OR operating_margin_pct IS NOT NULL
                    OR earnings_beat_rate IS NOT NULL OR estimate_revision_direction IS NOT NULL)
             ORDER BY symbol, date DESC
           `;
@@ -191,14 +189,10 @@ async function getFactorMetricsInBatch(symbols) {
           metricsQuery = `
             SELECT DISTINCT ON (symbol)
               symbol, revenue_growth_3y_cagr, eps_growth_3y_cagr,
-              operating_income_growth_yoy, roe_trend, sustainable_growth_rate,
-              fcf_growth_yoy, ocf_growth_yoy, net_income_growth_yoy, gross_margin_trend,
-              operating_margin_trend, net_margin_trend, quarterly_growth_momentum,
-              asset_growth_yoy, revenue_growth_yoy, date
+              fcf_growth_yoy, ocf_growth_yoy, net_income_growth_yoy, revenue_growth_yoy, date
             FROM ${table}
             WHERE symbol IN (${placeholders})
               AND (revenue_growth_3y_cagr IS NOT NULL OR eps_growth_3y_cagr IS NOT NULL
-                   OR operating_income_growth_yoy IS NOT NULL OR roe_trend IS NOT NULL
                    OR fcf_growth_yoy IS NOT NULL OR net_income_growth_yoy IS NOT NULL)
             ORDER BY symbol, date DESC
           `;
@@ -611,9 +605,9 @@ async function queryScores(options = {}) {
     // Map database field names to frontend-expected field names
     const metrics = metricsMap.data[row.symbol.toUpperCase()];
     if (metrics) {
-      // Combine ALL metrics into quality_inputs for comprehensive frontend display of ALL metrics
+      // ONLY put quality metrics in quality_inputs - don't mix other metric types
       stock.quality_inputs = {
-        // Core quality metrics from quality_metrics table
+        // Core quality metrics from quality_metrics table ONLY
         ...cleanMetrics(metrics.quality_metrics),
         // Add key financial metrics from row (key_metrics table)
         ebitda_margin_pct: row.ebitda_margin_pct,
@@ -623,26 +617,20 @@ async function queryScores(options = {}) {
         free_cashflow: row.free_cashflow,
         earnings_growth_pct: row.earnings_growth_pct,
         revenue_growth_pct: row.revenue_growth_pct,
-        cash_per_share: row.cash_per_share,
-        // Growth metrics
-        ...cleanMetrics(metrics.growth_metrics),
-        // Stability metrics
-        ...cleanMetrics(metrics.stability_metrics),
-        // Momentum metrics
-        ...cleanMetrics(metrics.momentum_metrics),
-        // Value metrics
-        ...cleanMetrics(metrics.value_metrics),
-        // Positioning metrics
-        ...cleanMetrics(metrics.positioning_metrics),
-        // Relative performance metrics
-        ...cleanMetrics(metrics.relative_performance_metrics)
+        cash_per_share: row.cash_per_share
       };
       // Use JSON columns from stock_scores if available, fall back to metrics tables
       // Note: stability_inputs already populated from stock_scores table with beta data
       if (!stock.growth_inputs && metrics.growth_metrics) {
         stock.growth_inputs = cleanMetrics(metrics.growth_metrics);
+      } else if (metrics.growth_metrics && !stock.growth_inputs) {
+        // Ensure growth_inputs is populated from growth_metrics table
+        stock.growth_inputs = cleanMetrics(metrics.growth_metrics);
       }
       if (!stock.stability_inputs && metrics.stability_metrics) {
+        stock.stability_inputs = cleanMetrics(metrics.stability_metrics);
+      } else if (metrics.stability_metrics && !stock.stability_inputs) {
+        // Ensure stability_inputs is populated from stability_metrics table
         stock.stability_inputs = cleanMetrics(metrics.stability_metrics);
       }
 

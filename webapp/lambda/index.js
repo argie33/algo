@@ -567,7 +567,7 @@ app.get('*', (req, res) => {
 });
 
 // AWS Lambda / EC2 handler - listen directly on existing server (supports both HTTP and WebSocket)
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 // Detect Lambda environment - don't call server.listen() in Lambda (serverless-http handles it)
 const isLambdaEnvironment = !!process.env.LAMBDA_TASK_ROOT || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
