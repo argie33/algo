@@ -89,38 +89,38 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 
-# Timeout handler for hanging yfinance calls (cross-platform)
+# Timeout handler for hanging yfinance calls (cross-platform using threading)
 class TimeoutException(Exception):
     pass
 
 def get_ticker_with_timeout(symbol_str):
-    """Get ticker object and info with timeout to prevent hanging on yfinance API."""
+    """Get ticker object and info with timeout to prevent hanging on yfinance API.
+
+    Uses threading-based timeout instead of signal.SIGALRM (which doesn't exist on Windows).
+    """
     try:
         yf_symbol = symbol_str.replace('.', '-').replace('$', '-').upper()
-        ticker = yf.Ticker(yf_symbol)
 
-        # On Unix/Linux, use signal-based timeout
-        if hasattr(signal, 'SIGALRM'):
+        # Threading-based timeout that works on all platforms
+        result = {'ticker': None}
+
+        def fetch_ticker():
             try:
-                signal.signal(signal.SIGALRM, lambda s, f: (_ for _ in ()).throw(TimeoutException()))
-                signal.alarm(TICKER_INFO_TIMEOUT)
-                _ = ticker.info
-                signal.alarm(0)
-            except TimeoutException:
-                logging.warning(f"Timeout fetching ticker info for {symbol_str} after {TICKER_INFO_TIMEOUT}s")
-                return None
-        else:
-            # On Windows, just try without timeout protection (yfinance usually works)
-            try:
-                _ = ticker.info
-            except Exception as info_err:
-                logging.warning(f"  Failed to fetch info for {symbol_str} (curl/network error): {str(info_err)[:100]}")
+                result['ticker'] = yf.Ticker(yf_symbol)
+                _ = result['ticker'].info  # Validate ticker works
+            except Exception as e:
+                logging.debug(f"Failed to fetch ticker for {symbol_str}: {e}")
 
-        return ticker
+        thread = threading.Thread(target=fetch_ticker, daemon=True)
+        thread.start()
+        thread.join(timeout=TICKER_INFO_TIMEOUT)
 
-    except TimeoutException:
-        logging.warning(f"Timeout fetching ticker info for {symbol_str} after {TICKER_INFO_TIMEOUT}s")
-        return None
+        if thread.is_alive():
+            logging.warning(f"Timeout fetching ticker info for {symbol_str} after {TICKER_INFO_TIMEOUT}s")
+            return None
+
+        return result['ticker']
+
     except Exception as e:
         logging.error(f"Error getting ticker for {symbol_str}: {e}")
         return None
@@ -344,57 +344,97 @@ def calculate_missing_metrics(symbol: str, info: dict, ticker) -> dict:
 def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
     """Load ALL daily data from single yfinance API call"""
 
-    @retry_with_backoff(max_retries=3, base_delay=2)  # Retry 3 times with 2s base delay for transient 500 errors
+    def fetch_with_timeout(func, timeout_sec=30):
+        """Execute a function with timeout using threading (cross-platform, no signal.SIGALRM)."""
+        result = {'value': None, 'error': None}
+
+        def wrapper():
+            try:
+                result['value'] = func()
+            except Exception as e:
+                result['error'] = e
+
+        thread = threading.Thread(target=wrapper, daemon=True)
+        thread.start()
+        thread.join(timeout=timeout_sec)
+
+        if thread.is_alive():
+            raise TimeoutException(f"Operation timed out after {timeout_sec}s")
+
+        if result['error']:
+            raise result['error']
+
+        return result['value']
+
+    @retry_with_backoff(max_retries=5, base_delay=2)  # Retry 5 times (tolerance for Windows yfinance issues)
     def fetch_yfinance_data(yf_symbol):
-        """Fetch yfinance data with delays between property accesses
+        """Fetch yfinance data with delays between property accesses and timeout protection.
 
         CRITICAL FIX: Each yfinance property access (ticker.info, ticker.institutional_holders, etc.)
-        makes a SEPARATE HTTP request. Accessing all 8 properties in rapid succession (~10ms apart)
-        causes yfinance to see them as a burst and returns 429 Rate Limited.
+        makes a SEPARATE HTTP request. Accessing all properties in rapid succession causes
+        yfinance to see them as a burst and returns 429 Rate Limited.
 
         Solution: Add 1.0s delay between each property access to spread requests over ~8 seconds.
         This prevents the burst detection while still completing in reasonable time.
+
+        WINDOWS FIX: Wrap operations in thread with timeout instead of using signal.SIGALRM
+        which doesn't exist on Windows.
         """
         try:
-            ticker = yf.Ticker(yf_symbol)
+            # Create ticker with timeout protection
+            def create_ticker():
+                return yf.Ticker(yf_symbol)
+
+            ticker = fetch_with_timeout(create_ticker, timeout_sec=15)
             result = {'ticker': ticker}
 
-            # Fetch properties with 1.0s delays between each to prevent burst rate limiting
+            # Fetch properties with 1.0s delays and timeout protection
             try:
-                result['info'] = ticker.info
-            except Exception:
+                result['info'] = fetch_with_timeout(lambda: ticker.info, timeout_sec=15)
+            except (TimeoutException, Exception):
                 result['info'] = None
             time.sleep(1.0)
 
             try:
-                result['institutional_holders'] = ticker.institutional_holders
-            except Exception:
+                result['institutional_holders'] = fetch_with_timeout(
+                    lambda: ticker.institutional_holders, timeout_sec=10
+                )
+            except (TimeoutException, Exception):
                 result['institutional_holders'] = None
             time.sleep(1.0)
 
             try:
-                result['mutualfund_holders'] = ticker.mutualfund_holders
-            except Exception:
+                result['mutualfund_holders'] = fetch_with_timeout(
+                    lambda: ticker.mutualfund_holders, timeout_sec=10
+                )
+            except (TimeoutException, Exception):
                 result['mutualfund_holders'] = None
             time.sleep(1.0)
 
             try:
-                result['insider_transactions'] = ticker.insider_transactions
-            except Exception:
+                result['insider_transactions'] = fetch_with_timeout(
+                    lambda: ticker.insider_transactions, timeout_sec=10
+                )
+            except (TimeoutException, Exception):
                 result['insider_transactions'] = None
             time.sleep(1.0)
 
             try:
-                result['insider_roster'] = ticker.insider_roster_holders
-            except Exception:
+                result['insider_roster'] = fetch_with_timeout(
+                    lambda: ticker.insider_roster_holders, timeout_sec=10
+                )
+            except (TimeoutException, Exception):
                 result['insider_roster'] = None
             time.sleep(1.0)
 
             try:
-                result['earnings_estimate'] = ticker.earnings_estimate
-            except Exception:
+                result['earnings_estimate'] = fetch_with_timeout(
+                    lambda: ticker.earnings_estimate, timeout_sec=10
+                )
+            except (TimeoutException, Exception):
                 result['earnings_estimate'] = None
             time.sleep(1.0)
+
             return result
         except Exception as e:
             logging.debug(f"Error fetching yfinance data for {yf_symbol}: {e}")

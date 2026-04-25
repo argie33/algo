@@ -330,13 +330,20 @@ def main():
 
     # ===== MOMENTUM SCORE (8 metrics) =====
     logger.info("Calculating MOMENTUM scores (price trends, technical positioning)...")
-    momentum_metrics = ['momentum_1m', 'momentum_3m', 'momentum_6m', 'momentum_12m', 'sma_50', 'sma_200']
+    all_momentum_metrics = ['momentum_1m', 'momentum_3m', 'momentum_6m', 'momentum_12m', 'sma_50', 'sma_200']
     momentum_weights = {
         'momentum_1m': 1.0, 'momentum_3m': 1.5, 'momentum_6m': 1.5, 'momentum_12m': 2.0,
         'sma_50': 1.0, 'sma_200': 1.0
     }
-    df['momentum_z'] = calculate_weighted_score(df, momentum_metrics, momentum_weights)
-    df['momentum_score'] = df['momentum_z'].apply(zscore_to_percentile)
+    # Filter to only available metrics
+    momentum_metrics = [m for m in all_momentum_metrics if m in df.columns]
+    if momentum_metrics:
+        df['momentum_z'] = calculate_weighted_score(df, momentum_metrics, momentum_weights)
+        df['momentum_score'] = df['momentum_z'].apply(zscore_to_percentile)
+    else:
+        logger.warning("  No momentum metrics available - using NaN for momentum score")
+        df['momentum_z'] = np.nan
+        df['momentum_score'] = np.nan
 
     # ===== VALUE SCORE (9 metrics) =====
     logger.info("Calculating VALUE scores (valuation relative to earnings, sales, cash flow)...")
