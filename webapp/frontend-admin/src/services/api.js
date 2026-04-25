@@ -322,23 +322,6 @@ export const getPortfolioHoldings = async (userId) => {
   }
 };
 
-export const getFactorAnalysis = async (userId) => {
-  try {
-    const response = await api.get(`/api/portfolio/factors?userId=${userId}`);
-    const responseData = extractResponseData(response);
-    return {
-      data: responseData || null,
-      success: true
-    };
-  } catch (error) {
-    console.error("❌ Factor analysis fetch error:", error);
-    return {
-      data: null,
-      success: false,
-      error: error?.response?.data?.error || error?.message || 'Failed to fetch factor analysis'
-    };
-  }
-};
 
 export const addHolding = async (holding) => {
   try {
@@ -415,35 +398,7 @@ export const importPortfolioFromBroker = async (broker) => {
   }
 };
 
-export const getPortfolioPerformance = async (timeframe = "1Y") => {
-  try {
-    const response = await api.get(
-      `/api/portfolio/performance?timeframe=${timeframe}`
-    );
-    const responseData = extractResponseData(response);
-    return {
-      data: responseData || null,
-      success: true
-    };
-  } catch (error) {
-    console.error("❌ Portfolio performance fetch error:", error);
-    return {
-      data: null,
-      success: false,
-      error: error?.response?.data?.error || error?.message || 'Failed to fetch portfolio performance'
-    };
-  }
-};
 
-export const getBenchmarkData = async (timeframe = "1Y") => {
-  try {
-    const response = await api.get(
-      `/api/portfolio/benchmark?timeframe=${timeframe}`
-    );
-    const responseData = extractResponseData(response);
-    return {
-      data: responseData || null,
-      success: true
     };
   } catch (error) {
     console.error("❌ Benchmark data fetch error:", error);

@@ -1376,4 +1376,245 @@ router.post("/import/alpaca", authenticateToken, async (req, res) => {
   }
 });
 
+// ============================================================================
+// API KEYS ENDPOINTS - Manage broker/exchange API credentials
+// ============================================================================
+
+/**
+ * GET /api-keys - List all saved API keys for the user
+ */
+router.get("/api-keys", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.sub || req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        error: "User ID not found in token",
+        success: false
+      });
+    }
+
+    // Query user_api_keys table (or alpaca_settings if using that table)
+    const result = await query(
+      `SELECT id, broker, created_at, updated_at FROM user_api_keys
+       WHERE user_id = $1
+       ORDER BY created_at DESC`,
+      [userId]
+    );
+
+    return res.json({
+      data: result.rows || [],
+      success: true
+    });
+  } catch (error) {
+    console.error("Error fetching API keys:", error);
+    return res.status(500).json({
+      error: "Failed to fetch API keys",
+      success: false
+    });
+  }
+});
+
+/**
+ * POST /api-keys - Save a new API key
+ */
+router.post("/api-keys", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.sub || req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        error: "User ID not found in token",
+        success: false
+      });
+    }
+
+    const { broker, apiKey, secretKey } = req.body;
+
+    if (!broker || !apiKey || !secretKey) {
+      return res.status(400).json({
+        error: "Missing required fields: broker, apiKey, secretKey",
+        success: false
+      });
+    }
+
+    // Insert new API key
+    const result = await query(
+      `INSERT INTO user_api_keys (user_id, broker, api_key_encrypted, secret_key_encrypted, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, NOW(), NOW())
+       RETURNING id, broker, created_at`,
+      [userId, broker, apiKey, secretKey]
+    );
+
+    return res.json({
+      data: {
+        id: result.rows[0]?.id,
+        broker: result.rows[0]?.broker,
+        message: "API key saved successfully",
+        created_at: result.rows[0]?.created_at
+      },
+      success: true
+    });
+  } catch (error) {
+    console.error("Error saving API key:", error);
+    return res.status(500).json({
+      error: "Failed to save API key",
+      success: false
+    });
+  }
+});
+
+/**
+ * PUT /api-keys/:id - Update an API key
+ */
+router.put("/api-keys/:id", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.sub || req.user?.id;
+    const { id } = req.params;
+    const { apiKey, secretKey } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({
+        error: "User ID not found in token",
+        success: false
+      });
+    }
+
+    // Update API key
+    const result = await query(
+      `UPDATE user_api_keys
+       SET api_key_encrypted = $1, secret_key_encrypted = $2, updated_at = NOW()
+       WHERE id = $3 AND user_id = $4
+       RETURNING id, broker, updated_at`,
+      [apiKey || undefined, secretKey || undefined, id, userId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        error: "API key not found or not owned by user",
+        success: false
+      });
+    }
+
+    return res.json({
+      data: {
+        id: result.rows[0]?.id,
+        broker: result.rows[0]?.broker,
+        message: "API key updated successfully",
+        updated_at: result.rows[0]?.updated_at
+      },
+      success: true
+    });
+  } catch (error) {
+    console.error("Error updating API key:", error);
+    return res.status(500).json({
+      error: "Failed to update API key",
+      success: false
+    });
+  }
+});
+
+/**
+ * DELETE /api-keys/:id - Delete an API key
+ */
+router.delete("/api-keys/:id", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.sub || req.user?.id;
+    const { id } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({
+        error: "User ID not found in token",
+        success: false
+      });
+    }
+
+    // Delete API key
+    const result = await query(
+      `DELETE FROM user_api_keys WHERE id = $1 AND user_id = $2`,
+      [id, userId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        error: "API key not found or not owned by user",
+        success: false
+      });
+    }
+
+    return res.json({
+      data: { message: "API key deleted successfully" },
+      success: true
+    });
+  } catch (error) {
+    console.error("Error deleting API key:", error);
+    return res.status(500).json({
+      error: "Failed to delete API key",
+      success: false
+    });
+  }
+});
+
+/**
+ * POST /test-api-key - Test if provided API key credentials work
+ */
+router.post("/test-api-key", authenticateToken, async (req, res) => {
+  try {
+    const { broker, apiKey, secretKey } = req.body;
+
+    if (!broker || !apiKey || !secretKey) {
+      return res.status(400).json({
+        error: "Missing required fields: broker, apiKey, secretKey",
+        success: false
+      });
+    }
+
+    // Test based on broker type
+    if (broker === "alpaca" || broker === "Alpaca") {
+      try {
+        // Simple test: try to fetch account info from Alpaca
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+
+        const response = await fetch("https://api.alpaca.markets/v2/account", {
+          headers: {
+            "APCA-API-KEY-ID": apiKey,
+            "APCA-API-SECRET-KEY": secretKey
+          },
+          signal: controller.signal
+        });
+
+        clearTimeout(timeout);
+
+        if (response.ok) {
+          return res.json({
+            data: { valid: true, broker, message: "API key is valid" },
+            success: true
+          });
+        } else {
+          return res.json({
+            data: { valid: false, broker, message: `Alpaca returned ${response.status}` },
+            success: false
+          });
+        }
+      } catch (error) {
+        return res.json({
+          data: { valid: false, broker, message: `Connection test failed: ${error.message}` },
+          success: false
+        });
+      }
+    } else {
+      // For other brokers, just return a "not implemented" response
+      return res.json({
+        data: { valid: false, broker, message: "Testing not implemented for this broker" },
+        success: false
+      });
+    }
+  } catch (error) {
+    console.error("Error testing API key:", error);
+    return res.status(500).json({
+      error: "Failed to test API key",
+      success: false
+    });
+  }
+});
+
 module.exports = router;

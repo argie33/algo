@@ -298,6 +298,146 @@ router.get("/divergence", async (req, res) => {
   }
 });
 
+// GET /api/sentiment/social/insights/:symbol - Social sentiment insights for a specific symbol
+router.get("/social/insights/:symbol", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+
+    // Mock social sentiment data with realistic structure
+    const now = new Date();
+    const mockInsights = {
+      symbol: symbol.toUpperCase(),
+      metrics: {
+        reddit: {
+          sentiment_score: Math.random() * 2 - 1,
+          post_count: Math.floor(Math.random() * 1000) + 100,
+          comment_count: Math.floor(Math.random() * 5000) + 500,
+          trend: Math.random() > 0.5 ? "bullish" : "bearish"
+        },
+        twitter: {
+          sentiment_score: Math.random() * 2 - 1,
+          mention_count: Math.floor(Math.random() * 5000) + 500,
+          engagement_rate: (Math.random() * 100).toFixed(2),
+          trend: Math.random() > 0.5 ? "bullish" : "bearish"
+        },
+        stocktwits: {
+          sentiment_score: Math.random() * 2 - 1,
+          message_count: Math.floor(Math.random() * 2000) + 200,
+          bullish_percent: (Math.random() * 100).toFixed(2),
+          trend: Math.random() > 0.5 ? "bullish" : "bearish"
+        }
+      },
+      trends: {
+        week: Math.random() > 0.5 ? "up" : "down",
+        month: Math.random() > 0.5 ? "up" : "down",
+        sentiment_change: (Math.random() * 20 - 10).toFixed(2)
+      },
+      historical: [
+        {
+          date: new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString(),
+          sentiment: Math.random() * 2 - 1
+        },
+        {
+          date: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+          sentiment: Math.random() * 2 - 1
+        },
+        {
+          date: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+          sentiment: Math.random() * 2 - 1
+        },
+        {
+          date: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+          sentiment: Math.random() * 2 - 1
+        },
+        {
+          date: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+          sentiment: Math.random() * 2 - 1
+        },
+        {
+          date: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+          sentiment: Math.random() * 2 - 1
+        },
+        {
+          date: now.toISOString(),
+          sentiment: Math.random() * 2 - 1
+        }
+      ]
+    };
+
+    return res.json(mockInsights);
+  } catch (error) {
+    console.error("Social insights error:", error);
+    return res.status(500).json({
+      error: "Failed to fetch social insights",
+      success: false
+    });
+  }
+});
+
+// GET /api/sentiment/analyst/insights/:symbol - Analyst sentiment insights for a specific symbol
+router.get("/analyst/insights/:symbol", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+
+    // Try to fetch analyst data from database
+    const result = await query(
+      `SELECT
+        symbol,
+        date_recorded as date,
+        total_analysts as analyst_count,
+        bullish_count,
+        bearish_count,
+        neutral_count,
+        target_price,
+        current_price,
+        upside_downside_percent,
+        consensus
+      FROM analyst_sentiment_analysis
+      WHERE symbol = $1
+      ORDER BY date_recorded DESC
+      LIMIT 1`,
+      [symbol.toUpperCase()]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({
+        symbol: symbol.toUpperCase(),
+        analyst_count: 0,
+        bullish_count: 0,
+        bearish_count: 0,
+        neutral_count: 0,
+        target_price: null,
+        current_price: null,
+        upside_downside_percent: null,
+        message: "No analyst data available"
+      });
+    }
+
+    const row = result.rows[0];
+    return res.json({
+      symbol: row.symbol,
+      date: row.date,
+      analyst_count: row.analyst_count || 0,
+      bullish_count: row.bullish_count || 0,
+      bearish_count: row.bearish_count || 0,
+      neutral_count: row.neutral_count || 0,
+      bullish_percent: row.analyst_count > 0 ? ((row.bullish_count / row.analyst_count) * 100).toFixed(2) : 0,
+      bearish_percent: row.analyst_count > 0 ? ((row.bearish_count / row.analyst_count) * 100).toFixed(2) : 0,
+      neutral_percent: row.analyst_count > 0 ? ((row.neutral_count / row.analyst_count) * 100).toFixed(2) : 0,
+      target_price: row.target_price,
+      current_price: row.current_price,
+      upside_downside_percent: row.upside_downside_percent,
+      consensus: row.consensus || 'hold'
+    });
+  } catch (error) {
+    console.error("Analyst insights error:", error);
+    return res.status(500).json({
+      error: "Failed to fetch analyst insights",
+      success: false
+    });
+  }
+});
+
 // GET /api/sentiment/aaii - AAII sentiment (alias for /current)
 router.get("/aaii", async (req, res) => {
   try {

@@ -164,7 +164,7 @@ router.get("/:symbol/key-metrics", async (req, res) => {
     // Query key_metrics for valuation and basic metrics
     const keyMetricsResult = await query(`
       SELECT
-        ticker,
+        symbol,
         trailing_pe, forward_pe, price_to_sales_ttm, price_to_book, peg_ratio,
         ev_to_revenue, ev_to_ebitda,
         profit_margin_pct, gross_margin_pct, ebitda_margin_pct, operating_margin_pct,
@@ -175,7 +175,7 @@ router.get("/:symbol/key-metrics", async (req, res) => {
         dividend_rate, dividend_yield, five_year_avg_dividend_yield, payout_ratio,
         held_percent_institutions, held_percent_insiders, float_shares
       FROM key_metrics
-      WHERE ticker = $1
+      WHERE symbol = $1
         AND (trailing_pe IS NOT NULL OR earnings_growth_pct IS NOT NULL)
       ORDER BY updated_at DESC, created_at DESC
       LIMIT 1

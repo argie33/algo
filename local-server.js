@@ -1,11 +1,13 @@
+#!/usr/bin/env node
+
+// Set development mode to enable auth bypass and dev-friendly behavior
+process.env.NODE_ENV = process.env.NODE_ENV || 'development';
+
 require('dotenv').config({ path: require('path').join(__dirname, '.env.local') });
 
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { Pool } = require('pg');
-
-const earningsRouter = require('./webapp/lambda/routes/earnings');
 
 const app = express();
 app.use(cors());
@@ -13,347 +15,108 @@ app.use(express.json());
 
 const frontendPath = path.join(__dirname, 'webapp/frontend-admin/dist-admin');
 
-// Database connection
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  user: process.env.DB_USER || 'stocks',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'stocks',
-  ssl: false
-});
-
-// ============================================================================
-// UNIFIED RESPONSE FORMAT
-// ============================================================================
-// ALL endpoints return: { success: true/false, data: [...], timestamp: "...", error?: "..." }
-// This ensures consistency across the entire API
-// ============================================================================
-
-const sendSuccess = (res, data, statusCode = 200) => {
-  res.status(statusCode).json({
-    success: true,
-    data: data,
-    timestamp: new Date().toISOString()
-  });
-};
-
-const sendError = (res, error, statusCode = 500) => {
-  res.status(statusCode).json({
-    success: false,
-    error: error.message || String(error),
-    timestamp: new Date().toISOString()
-  });
-};
+console.log('🚀 Starting Stock Analysis API Server');
+console.log(`📋 Environment: ${process.env.NODE_ENV}`);
+console.log(`📍 Frontend path: ${frontendPath}`);
 
 // ============================================================================
 // HEALTH CHECK
 // ============================================================================
-app.get('/health', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT NOW()');
-    sendSuccess(res, { status: 'ok', timestamp: result.rows[0].now });
-  } catch (error) {
-    sendError(res, error);
-  }
+app.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
+    nodeVersion: process.version
+  });
 });
 
 // ============================================================================
-// STOCKS ENDPOINTS
+// API ROUTES - Mount all modular routers
 // ============================================================================
-app.get('/api/stocks', async (req, res) => {
+
+const routeModules = [
+  ['earnings', 'earnings'],
+  ['health', 'health'],
+  ['auth', 'auth'],
+  ['user', 'user'],
+  ['stocks', 'stocks'],
+  ['portfolio', 'portfolio'],
+  ['trades', 'trades'],
+  ['manual-trades', 'manual-trades'],
+  ['commodities', 'commodities'],
+  ['market', 'market'],
+  ['contact', 'contact'],
+  ['community', 'community'],
+  ['financials', 'financials'],
+  ['optimization', 'optimization'],
+  ['options', 'options'],
+  ['strategies', 'strategies'],
+  ['analysts', 'analysts'],
+  ['signals', 'signals'],
+  ['technicals', 'technicals'],
+  ['metrics', 'metrics'],
+  ['sentiment', 'sentiment'],
+  ['industries', 'industries'],
+  ['economic', 'economic'],
+  ['scores', 'scores'],
+  ['price', 'price'],
+  ['sectors', 'sectors'],
+  ['world-etfs', 'world-etfs']
+];
+
+let loadedRoutes = 0;
+let failedRoutes = [];
+
+routeModules.forEach(([moduleName, pathName]) => {
   try {
-    const result = await pool.query('SELECT * FROM stock_symbols LIMIT 100');
-    sendSuccess(res, result.rows);
+    const router = require(`./webapp/lambda/routes/${moduleName}`);
+    app.use(`/api/${pathName}`, router);
+    console.log(`✅ Mounted /api/${pathName}`);
+    loadedRoutes++;
   } catch (error) {
-    sendError(res, error);
+    console.warn(`⚠️  Failed to load /api/${pathName}:`, error.message.split('\n')[0]);
+    failedRoutes.push(pathName);
   }
 });
 
-app.get('/api/stocks/:symbol', async (req, res) => {
-  try {
-    const { symbol } = req.params;
-    const result = await pool.query(
-      'SELECT * FROM price_daily WHERE symbol = $1 ORDER BY date DESC LIMIT 30',
-      [symbol]
-    );
-    sendSuccess(res, result.rows);
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-app.get('/api/stocks-count', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT COUNT(DISTINCT symbol) as count FROM price_daily');
-    sendSuccess(res, result.rows[0]);
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-app.get('/api/prices-count', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT COUNT(*) as count FROM price_daily');
-    sendSuccess(res, result.rows[0]);
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-// ============================================================================
-// METRICS ENDPOINTS
-// ============================================================================
-app.get('/api/key-metrics/:symbol', async (req, res) => {
-  try {
-    const { symbol } = req.params;
-    const result = await pool.query('SELECT * FROM key_metrics WHERE symbol = $1', [symbol]);
-    sendSuccess(res, result.rows[0] || {});
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-app.get('/api/stock-scores', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM stock_scores ORDER BY composite_score DESC LIMIT 100');
-    sendSuccess(res, result.rows);
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-app.get('/api/stock-scores/:symbol', async (req, res) => {
-  try {
-    const { symbol } = req.params;
-    const result = await pool.query('SELECT * FROM stock_scores WHERE symbol = $1', [symbol]);
-    sendSuccess(res, result.rows[0] || {});
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-app.get('/api/quality-metrics/:symbol', async (req, res) => {
-  try {
-    const { symbol } = req.params;
-    const result = await pool.query('SELECT * FROM quality_metrics WHERE symbol = $1', [symbol]);
-    sendSuccess(res, result.rows[0] || {});
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-app.get('/api/growth-metrics/:symbol', async (req, res) => {
-  try {
-    const { symbol } = req.params;
-    const result = await pool.query('SELECT * FROM growth_metrics WHERE symbol = $1', [symbol]);
-    sendSuccess(res, result.rows[0] || {});
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-app.get('/api/value-metrics/:symbol', async (req, res) => {
-  try {
-    const { symbol } = req.params;
-    const result = await pool.query('SELECT * FROM value_metrics WHERE symbol = $1', [symbol]);
-    sendSuccess(res, result.rows[0] || {});
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-app.get('/api/stability-metrics/:symbol', async (req, res) => {
-  try {
-    const { symbol } = req.params;
-    const result = await pool.query('SELECT * FROM stability_metrics WHERE symbol = $1 ORDER BY date DESC LIMIT 1', [symbol]);
-    sendSuccess(res, result.rows[0] || {});
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-app.get('/api/momentum-metrics/:symbol', async (req, res) => {
-  try {
-    const { symbol } = req.params;
-    const result = await pool.query('SELECT * FROM momentum_metrics WHERE symbol = $1 ORDER BY date DESC LIMIT 1', [symbol]);
-    sendSuccess(res, result.rows[0] || {});
-  } catch (error) {
-    sendError(res, error);
-  }
-});
+console.log(`\n✨ API Routes Summary: ${loadedRoutes}/${routeModules.length} mounted successfully`);
+if (failedRoutes.length > 0) {
+  console.warn(`⚠️  Failed routes: ${failedRoutes.join(', ')}`);
+}
 
 // ============================================================================
-// TRADING SIGNALS ENDPOINTS
+// FALLBACK - Index of available routes
 // ============================================================================
-app.get('/api/signals/:symbol', async (req, res) => {
-  try {
-    const { symbol } = req.params;
-    const result = await pool.query(
-      'SELECT * FROM buy_sell_daily WHERE symbol = $1 ORDER BY date DESC LIMIT 10',
-      [symbol]
-    );
-    sendSuccess(res, result.rows);
-  } catch (error) {
-    sendError(res, error);
-  }
+app.get('/api', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Stock Analysis API',
+    environment: process.env.NODE_ENV,
+    endpoints: {
+      health: '/health',
+      earnings: '/api/earnings',
+      stocks: '/api/stocks',
+      portfolio: '/api/portfolio',
+      trades: '/api/trades',
+      commodities: '/api/commodities',
+      market: '/api/market',
+      financials: '/api/financials',
+      optimization: '/api/optimization',
+      signals: '/api/signals',
+      sentiment: '/api/sentiment',
+      sectors: '/api/sectors',
+      industries: '/api/industries',
+      economic: '/api/economic',
+      scores: '/api/scores',
+      price: '/api/price',
+      metrics: '/api/metrics',
+      analysts: '/api/analysts'
+    },
+    timestamp: new Date().toISOString()
+  });
 });
-
-// ============================================================================
-// TOP/BOTTOM STOCKS
-// ============================================================================
-app.get('/api/top-stocks', async (req, res) => {
-  try {
-    const limit = req.query.limit || 50;
-    const result = await pool.query(
-      'SELECT * FROM stock_scores ORDER BY composite_score DESC LIMIT $1',
-      [limit]
-    );
-    sendSuccess(res, result.rows);
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-app.get('/api/bottom-stocks', async (req, res) => {
-  try {
-    const limit = req.query.limit || 50;
-    const result = await pool.query(
-      'SELECT * FROM stock_scores ORDER BY composite_score ASC LIMIT $1',
-      [limit]
-    );
-    sendSuccess(res, result.rows);
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-// ============================================================================
-// MARKET SUMMARY
-// ============================================================================
-app.get('/api/market/summary', async (req, res) => {
-  try {
-    const stocks = await pool.query('SELECT COUNT(*) as count FROM stock_symbols');
-    const prices = await pool.query('SELECT COUNT(*) as count FROM price_daily');
-    const scores = await pool.query('SELECT COUNT(*) as count FROM stock_scores');
-
-    sendSuccess(res, {
-      totalStocks: stocks.rows[0].count,
-      totalPrices: prices.rows[0].count,
-      totalScores: scores.rows[0].count
-    });
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-// ============================================================================
-// SENTIMENT ENDPOINTS
-// ============================================================================
-app.get('/api/sentiment/aaii', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM sentiment_data WHERE source = $1 LIMIT 1', ['aaii']);
-    sendSuccess(res, result.rows[0] || { message: 'No AAII data available' });
-  } catch (error) {
-    sendSuccess(res, { message: 'No AAII data available' });
-  }
-});
-
-app.get('/api/sentiment/fear-greed', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM fear_greed_index ORDER BY date DESC LIMIT 1');
-    sendSuccess(res, result.rows[0] || { message: 'No Fear & Greed data available' });
-  } catch (error) {
-    sendSuccess(res, { message: 'No Fear & Greed data available' });
-  }
-});
-
-// ============================================================================
-// COMMODITIES ENDPOINTS
-// ============================================================================
-app.get('/api/commodities/categories', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM commodity_categories ORDER BY category, symbol');
-    sendSuccess(res, result.rows);
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-app.get('/api/commodities/prices', async (req, res) => {
-  try {
-    const limit = req.query.limit || 100;
-    const result = await pool.query(
-      'SELECT * FROM commodity_prices ORDER BY updated_at DESC LIMIT $1',
-      [limit]
-    );
-    sendSuccess(res, result.rows);
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-app.get('/api/commodities/market-summary', async (req, res) => {
-  try {
-    const prices = await pool.query('SELECT COUNT(*) as count FROM commodity_prices');
-    const history = await pool.query('SELECT COUNT(*) as count FROM commodity_price_history');
-    const correlations = await pool.query('SELECT COUNT(*) as count FROM commodity_correlations');
-
-    sendSuccess(res, {
-      totalCommodities: prices.rows[0].count,
-      totalHistoricalRecords: history.rows[0].count,
-      totalCorrelations: correlations.rows[0].count
-    });
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-app.get('/api/commodities/correlations', async (req, res) => {
-  try {
-    const minCorrelation = parseFloat(req.query.minCorrelation) || 0.5;
-    const result = await pool.query(
-      `SELECT * FROM commodity_correlations
-       WHERE ABS(correlation_30d) >= $1 OR ABS(correlation_90d) >= $1 OR ABS(correlation_1y) >= $1
-       ORDER BY correlation_1y DESC`,
-      [minCorrelation]
-    );
-    sendSuccess(res, result.rows);
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-app.get('/api/commodities/cot/:symbol', async (req, res) => {
-  try {
-    const { symbol } = req.params;
-    const result = await pool.query(
-      'SELECT * FROM cot_data WHERE symbol = $1 ORDER BY report_date DESC LIMIT 10',
-      [symbol]
-    );
-    sendSuccess(res, result.rows);
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-app.get('/api/commodities/seasonality/:symbol', async (req, res) => {
-  try {
-    const { symbol } = req.params;
-    const result = await pool.query(
-      'SELECT * FROM commodity_seasonality WHERE symbol = $1 ORDER BY month',
-      [symbol]
-    );
-    sendSuccess(res, result.rows);
-  } catch (error) {
-    sendError(res, error);
-  }
-});
-
-// ============================================================================
-// EARNINGS ENDPOINTS
-// ============================================================================
-app.use('/api/earnings', earningsRouter);
 
 // ============================================================================
 // STATIC FILES & SPA FALLBACK
@@ -371,11 +134,45 @@ app.use((req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`✅ Server running on http://localhost:${PORT}`);
+// ============================================================================
+// ERROR HANDLING
+// ============================================================================
+app.use((err, req, res, next) => {
+  console.error('❌ Unhandled error:', err);
+  res.status(500).json({
+    success: false,
+    error: 'Internal server error',
+    message: process.env.NODE_ENV === 'development' ? err.message : undefined,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// ============================================================================
+// START SERVER
+// ============================================================================
+const PORT = process.env.PORT || 3001;
+const server = app.listen(PORT, () => {
+  console.log(`\n✅ Server running on http://localhost:${PORT}`);
   console.log(`📊 API: http://localhost:${PORT}/api/`);
   console.log(`🌐 Frontend: http://localhost:${PORT}/`);
-  console.log(`\nUNIFIED RESPONSE FORMAT:`);
-  console.log(`  All endpoints return: { success: true/false, data: [...], timestamp: "..." }`);
+  console.log(`💚 Health: http://localhost:${PORT}/health`);
+  console.log(`\n🔐 Development mode: Auth bypassed for localhost`);
+  console.log(`📝 All API responses include: { success, data/error, timestamp }\n`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('\nSIGINT received, shutting down gracefully...');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
 });

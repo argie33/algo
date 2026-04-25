@@ -1,6 +1,6 @@
 {
-  "completed": [
+  "completed": [],
+  "failed": [
     "loadstocksymbols.py"
-  ],
-  "failed": []
+  ]
 }

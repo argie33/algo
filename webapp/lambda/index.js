@@ -56,6 +56,7 @@ const strategiesRoutes = require("./routes/strategies");
 const technicalRoutes = require("./routes/technicals");
 const tradesRoutes = require("./routes/trades");
 const userRoutes = require("./routes/user");
+const worldEtfsRoutes = require("./routes/world-etfs");
 
 const app = express();
 
@@ -382,6 +383,11 @@ app.use(async (req, res, next) => {
 
 // API routes use standard Express response methods - see RULES.md for response pattern
 
+// TEST endpoint to verify API routing works
+app.get("/api/test", (req, res) => {
+  res.json({ message: "API test endpoint works!", success: true });
+});
+
 // Canonical API Routes - all under /api prefix
 app.use("/api/analysts", analystsRoutes);
 app.use("/api/auth", authRoutes);
@@ -409,6 +415,7 @@ app.use("/api/technicals", technicalRoutes);
 app.use("/api/trades", tradesRoutes);
 app.use("/api/trades/manual", manualTradesRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/world-etfs", worldEtfsRoutes);
 
 // API info endpoint
 app.get("/api", (req, res) => {
@@ -481,6 +488,21 @@ app.all("/api/*", (req, res) => {
   });
 });
 
+// CRITICAL: Block /api/* from reaching static file middleware
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    // Don't let /api/* requests fall through to static files
+    // If we reach here, the route wasn't handled, so return 404
+    return res.status(404).json({
+      error: "Not Found",
+      message: `API endpoint ${req.path} does not exist`,
+      success: false,
+      timestamp: new Date().toISOString()
+    });
+  }
+  next();
+});
+
 // Serve main frontend static files
 const mainBuildPath = path.join(__dirname, '../frontend/dist');
 app.use(express.static(mainBuildPath, {
@@ -498,6 +520,16 @@ app.use(express.static(adminBuildPath, {
 
 // SPA fallback for frontend routes (must be last - only applies to non-API paths)
 app.get('*', (req, res) => {
+  // CRITICAL: Do NOT serve SPA for /api/* paths - these should 404 via the handler above
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({
+      error: "Not Found",
+      message: `API endpoint ${req.path} does not exist`,
+      success: false,
+      timestamp: new Date().toISOString()
+    });
+  }
+
   const indexPath = path.join(mainBuildPath, 'index.html');
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);

@@ -3,8 +3,8 @@ const { query } = require("../utils/database");
 
 const router = express.Router();
 
-// GET /api/stocks - List all stocks
-router.get("/", async (req, res) => {
+// Helper function to fetch stocks list
+async function fetchStocksList(req, res) {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 100, 1000);
     const offset = parseInt(req.query.offset) || 0;
@@ -17,7 +17,7 @@ router.get("/", async (req, res) => {
     const countResult = await query("SELECT COUNT(*) as total FROM stock_symbols");
     const total = parseInt(countResult.rows[0].total);
 
-    res.json({
+    return res.json({
       items: result.rows,
       pagination: {
         limit,
@@ -29,47 +29,19 @@ router.get("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching stocks:", error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: "Failed to fetch stocks",
       message: error.message
     });
   }
-});
+}
+
+// GET /api/stocks - List all stocks
+router.get("/", fetchStocksList);
 
 // GET /api/stocks/list - Alias for root endpoint
-router.get("/list", async (req, res) => {
-  try {
-    const limit = Math.min(parseInt(req.query.limit) || 100, 1000);
-    const offset = parseInt(req.query.offset) || 0;
-
-    const result = await query(
-      "SELECT symbol, security_name as name, market_category as category, exchange FROM stock_symbols ORDER BY symbol LIMIT $1 OFFSET $2",
-      [limit, offset]
-    );
-
-    const countResult = await query("SELECT COUNT(*) as total FROM stock_symbols");
-    const total = parseInt(countResult.rows[0].total);
-
-    res.json({
-      items: result.rows,
-      pagination: {
-        limit,
-        offset,
-        total,
-        page: Math.max(1, Math.ceil((offset / limit) + 1))
-      },
-      success: true
-    });
-  } catch (error) {
-    console.error("Error fetching stocks:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch stocks",
-      message: error.message
-    });
-  }
-});
+router.get("/list", fetchStocksList);
 
 // GET /api/stocks/search - Search stocks by symbol or name
 router.get("/search", async (req, res) => {

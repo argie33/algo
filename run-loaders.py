@@ -226,7 +226,7 @@ def run_loader(loader, progress):
 
     # Check if already completed
     if script in progress["completed"]:
-        print(f"⊘ {name}: Already completed ✓")
+        print(f"⊘ {name}: Already completed")
         return True
 
     # Check if previously failed
@@ -239,17 +239,45 @@ def run_loader(loader, progress):
             print(f"   Non-critical - skipping")
             return True
 
+    # Check if should skip because table already has data
+    if "skip_if_table_has_data" in loader:
+        table_name = loader["skip_if_table_has_data"]
+        try:
+            import psycopg2
+            db_password = os.getenv("DB_PASSWORD", "")
+            conn = psycopg2.connect(
+                host=DB_HOST, port=int(DB_PORT),
+                user=DB_USER, password=db_password, database=DB_NAME,
+                connect_timeout=5
+            )
+            cur = conn.cursor()
+            cur.execute(f"SELECT COUNT(*) FROM {table_name}")
+            count = cur.fetchone()[0]
+            conn.close()
+
+            if count > 0:
+                print(f"\n▶ {name}")
+                print(f"  Description: {loader['description']}")
+                print(f"  ⊘ Skipping - {table_name} already has {count:,} rows")
+                progress["completed"].append(script)
+                save_progress(progress)
+                return True
+        except Exception as e:
+            print(f"  Warning: Could not check {table_name}, will run loader: {e}")
+
     print(f"\n▶ {name}")
     print(f"  Description: {loader['description']}")
     print(f"  Running: python3 {script}")
 
     start_time = time.time()
+    timeout_secs = loader.get("timeout", 3600)  # Default 1 hour
+
     result = subprocess.run(
         ["python3", script],
         cwd=Path(__file__).parent,
         capture_output=True,
         text=True,
-        timeout=3600,  # 1 hour timeout per loader
+        timeout=timeout_secs,
     )
     elapsed = time.time() - start_time
 
