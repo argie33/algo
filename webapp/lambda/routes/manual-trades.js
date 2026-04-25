@@ -195,7 +195,7 @@ router.patch('/:id', async (req, res) => {
 
     // Get existing trade first
     const existingResult = await dbQuery(
-      'SELECT symbol, side, quantity, execution_price FROM trades WHERE id = $1',
+      'SELECT symbol, type, quantity, execution_price FROM trades WHERE id = $1',
       [id]
     );
 
@@ -210,7 +210,7 @@ router.patch('/:id', async (req, res) => {
 
     // Prepare update values
     const newSymbol = symbol ? symbol.toUpperCase() : existing.symbol;
-    const newType = trade_type ? (trade_type.toLowerCase() === 'buy' ? 'BUY' : 'SELL') : existing.side;
+    const newType = trade_type ? (trade_type.toLowerCase() === 'buy' ? 'BUY' : 'SELL') : existing.type;
     const newQty = quantity !== undefined ? parseFloat(quantity) : existing.quantity;
     const newPrice = price !== undefined ? parseFloat(price) : existing.execution_price;
     const newComm = commission !== undefined ? parseFloat(commission) : null;
@@ -284,7 +284,7 @@ router.delete('/:id', async (req, res) => {
 
     // Get trade before deleting
     const result = await dbQuery(
-      'SELECT symbol, side FROM trades WHERE id = $1',
+      'SELECT symbol, type FROM trades WHERE id = $1',
       [id]
     );
 

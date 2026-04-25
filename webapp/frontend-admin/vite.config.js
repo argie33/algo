@@ -28,7 +28,7 @@ export default defineConfig(({ mode }) => {
       })
     ],
     build: {
-      outDir: "dist",
+      outDir: "dist-admin",
       sourcemap: true,
       chunkSizeWarningLimit: 1000,
       rollupOptions: {

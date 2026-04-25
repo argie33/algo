@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import api from "../services/api.js";
+import { getDeepValueStocks } from "../services/api.js";
 import {
   Box,
   Paper,
@@ -46,7 +46,7 @@ const DeepValueStocks = () => {
       setLoading(true);
       setError(null);
 
-      const result = await api.getDeepValueStocks({ limit: 5000 });
+      const result = await getDeepValueStocks({ limit: 5000 });
       console.log("Deep value stocks result:", result);
 
       if (result.success && result.data) {

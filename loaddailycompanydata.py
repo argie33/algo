@@ -890,56 +890,12 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             # DO NOT rollback here - it would undo company_profile and other inserts
             # Only skip this symbol's positioning, but keep other data
 
-        # 7. Insert earnings estimates - DISABLED 2026-04-25
-        # NOTE: earnings_estimate data (avg, low, high) doesn't match earnings_estimates table schema
+        # 7. Insert earnings estimates - SKIPPED
+        # NOTE: yfinance earnings_estimate data (avg, low, high) doesn't match earnings_estimates table schema
         # which expects (eps_estimate, revenue_estimate, eps_actual, revenue_actual).
-        # Use earnings_history table instead (loaded in section 8.5) which has actual earnings data.
-        if False and earnings_estimate is not None and not earnings_estimate.empty:
-            try:
-                earnings_data = []
-                for period, row in earnings_estimate.iterrows():
-                    fiscal_year = str(period) if period else None
-                    if not fiscal_year:
-                        continue
-                    earnings_data.append((
-                        symbol, fiscal_year,
-                        safe_float(row.get("avg"), max_val=1000000, min_val=-1000000),
-                        safe_float(row.get("low"), max_val=1000000, min_val=-1000000),
-                        safe_float(row.get("high"), max_val=1000000, min_val=-1000000),
-                        safe_float(row.get("yearAgoEps"), max_val=1000000, min_val=-1000000),
-                        safe_int(row.get("numberOfAnalysts"), max_val=10000, min_val=0),
-                        safe_float(row.get("growth"), max_val=10000, min_val=-10000),
-                        str(period),
-                    ))
-
-                if earnings_data:
-                    # Delete existing earnings estimates for this symbol to avoid conflicts
-                    cur.execute("DELETE FROM earnings_estimates WHERE symbol = %s", (symbol,))
-                    execute_values(
-                        cur,
-                        """
-                        INSERT INTO earnings_estimates (
-                            symbol, quarter, avg_estimate, low_estimate,
-                            high_estimate, year_ago_eps, estimate_count,
-                            growth, period
-                        ) VALUES %s
-                        ON CONFLICT (symbol, quarter) DO UPDATE SET
-                            avg_estimate = COALESCE(EXCLUDED.avg_estimate, earnings_estimates.avg_estimate),
-                            low_estimate = COALESCE(EXCLUDED.low_estimate, earnings_estimates.low_estimate),
-                            high_estimate = COALESCE(EXCLUDED.high_estimate, earnings_estimates.high_estimate)
-                        """,
-                        earnings_data
-                    )
-                    stats['earnings_est'] = len(earnings_data)
-
-            except Exception as e:
-                logging.error(f" CRITICAL: Failed to insert earnings estimates for {symbol}: {str(e)}")
-                stats['earnings_est_failed'] = 1
-                # Rollback failed transaction
-                try:
-                    conn.rollback()
-                except:
-                    pass
+        # Frontend uses earnings_history instead (loaded below in section 8.5) which has actual earnings data.
+        # To avoid schema mismatches, we skip earnings_estimate and rely on earnings_history for all earnings data.
+        stats['earnings_est'] = 0
 
         # 8.5. Insert earnings history (actual reported earnings - consolidated from loadearningshistory.py)
         try:

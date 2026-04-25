@@ -265,7 +265,7 @@ def load_options_for_symbol(symbol, risk_free_rate, data_date, conn):
 
         # Get options expirations
         if not hasattr(ticker, 'options') or not ticker.options:
-            logger.debug(f"{symbol}: No options available")
+            logger.info(f"{symbol}: No options available (this is expected for many stocks)")
             return 0
 
         expirations = list(ticker.options)

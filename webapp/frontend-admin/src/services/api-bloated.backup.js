@@ -965,6 +965,85 @@ export function extractResponseData(response) {
 
 // NOTE: Removed duplicate normalizeApiResponse - using exported version from top of file
 
+// Keep this function for internal use if needed (not exported)
+function normalizeApiResponseOld(response, expectArray = true) {
+  debugLog("🔍 normalizeApiResponse input:", {
+    hasResponse: !!response,
+    responseType: typeof response,
+    hasData: !!(response && response?.data !== undefined),
+    dataType: response?.data ? typeof response?.data : "undefined",
+    isArray: Array.isArray(response?.data),
+    expectArray,
+  });
+
+  // Handle axios response wrapper first
+  if (response && response?.data !== undefined) {
+    // Check if axios wrapped data
+    const potentialData = response.data;
+    // Only extract if the inner data is not another wrapper
+    if (
+      typeof potentialData === "object" &&
+      (potentialData?.success !== undefined || Array.isArray(potentialData))
+    ) {
+      response = potentialData;
+    }
+  }
+
+  // Handle backend API response format
+  if (response && typeof response === "object") {
+    // If response has 'success' property, check if it's successful
+    if (response?.success === false) {
+      console.error("❌ API request failed:", response?.error);
+      return null;
+    }
+
+    // If response contains an error, return null
+    if (response?.error) {
+      console.error("❌ API error:", response?.error);
+      return null;
+    }
+
+    // If response has a 'data' property AND it's not already extracted, use that
+    if (response?.data !== undefined && typeof response.data === "object") {
+      response = response.data;
+    }
+  }
+
+  // Ensure we return an array if expected
+  if (expectArray && !Array.isArray(response)) {
+    if (response && typeof response === "object") {
+      // Try to extract array from common response structures
+      if (Array.isArray(response?.data)) {
+        response = response?.data;
+      } else if (Array.isArray(response?.items)) {
+        response = response?.items;
+      } else if (Array.isArray(response?.results)) {
+        response = response?.results;
+      } else {
+        // Convert object to array if it has numeric keys
+        const keys = Object.keys(response);
+        if (keys.length > 0 && keys.every((key) => !isNaN(key))) {
+          response = Object.values(response);
+        } else {
+          // Single item, wrap in array
+          response = [response];
+        }
+      }
+    } else {
+      response = [];
+    }
+  }
+
+  debugLog("✅ normalizeApiResponse output:", {
+    resultType: typeof response,
+    isArray: Array.isArray(response),
+    length: Array.isArray(response) ? response?.length || 0 : "N/A",
+    sample:
+      Array.isArray(response) && response.length > 0 ? response[0] : response,
+  });
+  return response;
+}
+
 // --- PATCH: Log API config at startup ---
 console.log("🚀 [API STARTUP] Initializing API configuration...");
 console.log("🔧 [API CONFIG]", getApiConfig());

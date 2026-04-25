@@ -81,7 +81,7 @@
     "test:comprehensive": "npm run test:unit && npm run test:integration && npm run test:component",
     "test:ci": "npm run test:unit && npm run test:integration && npm run test:component",
     "test:critical": "npm run test:financial && npm run test:security",
-    "test:validation": "PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1 npx playwright test --config playwright.config.ci.js",
+    "test:validation": "PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1 npx playwright test --config playwright.config.js",
     "test:e2e": "PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1 npx playwright test",
     "test:e2e:critical": "PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1 npx playwright test critical-flows",
     "test:e2e:visual": "PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1 npx playwright test --project visual-desktop",

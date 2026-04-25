@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from "../services/api.js";
+import { getContactSubmissions } from "../services/api.js";
 import {
   Box,
   Card,
@@ -37,7 +37,7 @@ const Messages = () => {
     const fetchMessages = async () => {
       try {
         setLoading(true);
-        const result = await api.getContactSubmissions();
+        const result = await getContactSubmissions();
 
         if (result.success && result.data) {
           setMessages(result.data);

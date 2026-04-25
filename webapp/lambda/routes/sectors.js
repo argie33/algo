@@ -148,7 +148,7 @@ router.get("/sectors", async (req, res) => {
         FROM sector_ranking
         WHERE sector_name IS NOT NULL
           AND TRIM(sector_name) != ''
-        ORDER BY sector_name, date_recorded DESC
+        ORDER BY sector_name, date DESC
       ) sr
       ORDER BY sr.sector_name
       LIMIT $1 OFFSET $2

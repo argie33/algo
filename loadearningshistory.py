@@ -101,22 +101,6 @@ def get_db_config():
         "dbname": os.environ.get("DB_NAME", "stocks")
     }
 
-def create_tables(cur):
-    logging.info("Setting up earnings history table...")
-
-    # Create earnings_history table if not exists (INCREMENTAL, don't drop)
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS earnings_history (
-            symbol VARCHAR(20) NOT NULL,
-            quarter DATE NOT NULL,
-            eps_actual NUMERIC,
-            eps_estimate NUMERIC,
-            eps_difference NUMERIC,
-            surprise_percent NUMERIC,
-            fetched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (symbol, quarter)
-        );
-    """)
 
 def pyval(val):
     # Convert numpy types to native Python types
@@ -260,9 +244,6 @@ def lambda_handler(event, context):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         logging.info("Database connected successfully")
-
-        create_tables(cur)
-        conn.commit()
 
         cur.execute("SELECT symbol FROM stock_symbols;")
         stock_syms = [r["symbol"] for r in cur.fetchall()]

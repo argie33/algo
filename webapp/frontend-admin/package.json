@@ -57,8 +57,8 @@
     "vite": "^7.1.3"
   },
   "scripts": {
-    "dev": "vite --config vite.config.admin.js",
-    "build": "vite build --config vite.config.admin.js",
+    "dev": "vite",
+    "build": "vite build",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 10",
     "lint:strict": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint . --ext js,jsx --fix",
@@ -81,7 +81,7 @@
     "test:comprehensive": "npm run test:unit && npm run test:integration && npm run test:component",
     "test:ci": "npm run test:unit && npm run test:integration && npm run test:component",
     "test:critical": "npm run test:financial && npm run test:security",
-    "test:validation": "PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1 npx playwright test --config playwright.config.ci.js",
+    "test:validation": "PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1 npx playwright test --config playwright.config.js",
     "test:e2e": "PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1 npx playwright test",
     "test:e2e:critical": "PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1 npx playwright test critical-flows",
     "test:e2e:visual": "PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1 npx playwright test --project visual-desktop",
