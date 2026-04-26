@@ -12,6 +12,13 @@ function safeFloat(value) {
   return isNaN(num) ? null : num;
 }
 
+// Root endpoint - delegate to stocks by default
+router.get("/", async (req, res) => {
+  // Default to stock signals
+  req.url = "/stocks";
+  return getStocksSignals(req, res);
+});
+
 // Shared handler function for both /stocks and /list
 const getStocksSignals = async (req, res) => {
   try {
