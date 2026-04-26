@@ -18,8 +18,6 @@ import {
   getCurrentUser,
 } from "aws-amplify/auth";
 import { isCognitoConfigured } from "../config/amplify";
-import devAuth from "../services/devAuth";
-import sessionManager from "../services/sessionManager";
 import SessionWarningDialog from "../components/auth/SessionWarningDialog";
 
 // Initial auth state

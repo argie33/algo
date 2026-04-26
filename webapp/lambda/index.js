@@ -446,6 +446,7 @@ app.get("/api/debug/test-error", (req, res) => {
   }
 });
 
+app.use("/api/contact", contactRoutes);
 // Canonical API Routes - all under /api prefix
 app.use("/api/economic", economicRoutes);
 app.use("/api/financials", financialRoutes);
