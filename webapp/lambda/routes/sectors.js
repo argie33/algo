@@ -33,7 +33,6 @@ router.get("/sectors", fetchSectors);
 
 // GET /trend/sector/:sectorName - Get sector trend data (for SectorAnalysis charts)
 router.get("/trend/sector/:sectorName", async (req, res) => {
-  console.log(`[DEBUG] /trend/sector/:sectorName route matched! params:`, req.params);
   try {
     const { sectorName } = req.params;
     const { days = 90 } = req.query;
