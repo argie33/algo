@@ -31,4 +31,41 @@ router.get("/", fetchSectors);
 // GET /sectors - Alias for backward compatibility
 router.get("/sectors", fetchSectors);
 
+// GET /trend/sector/:sectorName - Get sector trend data (for SectorAnalysis charts)
+router.get("/trend/sector/:sectorName", async (req, res) => {
+  try {
+    const { sectorName } = req.params;
+    const { days = 90 } = req.query;
+    const daysNum = Math.min(parseInt(days) || 90, 365);
+
+    const result = await query(`
+      SELECT
+        DATE(pd.date) as date,
+        AVG(CAST(pd.close AS FLOAT)) as avg_price,
+        COUNT(DISTINCT pd.symbol) as stock_count
+      FROM price_daily pd
+      JOIN company_profile cp ON pd.symbol = cp.ticker
+      WHERE LOWER(TRIM(cp.sector)) = LOWER(TRIM($1))
+      AND pd.date >= CURRENT_DATE - INTERVAL '${daysNum} days'
+      GROUP BY DATE(pd.date)
+      ORDER BY date ASC
+    `, [sectorName]);
+
+    if (!result?.rows || result.rows.length === 0) {
+      return sendError(res, `No trend data found for sector: ${sectorName}`, 404);
+    }
+
+    const trendData = result.rows.map(row => ({
+      date: row.date,
+      avgPrice: parseFloat(row.avg_price) || 0,
+      stockCount: parseInt(row.stock_count) || 0
+    }));
+
+    return sendSuccess(res, { sector: sectorName, trendData });
+  } catch (error) {
+    console.error("Error fetching sector trend:", error.message);
+    return sendError(res, `Failed to fetch sector trend: ${error.message.substring(0, 100)}`, 500);
+  }
+});
+
 module.exports = router;
