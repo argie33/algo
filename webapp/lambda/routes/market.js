@@ -3209,7 +3209,7 @@ router.get("/top-movers", async (req, res) => {
 });
 
 // MARKET CAP DISTRIBUTION
-router.get("/market-cap-distribution", async (req, res) => {
+router.get("/cap-distribution", async (req, res) => {
   try {
     const result = await query(`
       WITH distribution AS (
@@ -3233,23 +3233,6 @@ router.get("/market-cap-distribution", async (req, res) => {
     sendSuccess(res, result.rows || []);
   } catch (error) {
     sendSuccess(res, []);
-  }
-});
-
-router.get("/fresh-data", async (req, res) => {
-  try {
-    const fs = require("fs");
-    const comprehensivePath = getMarketDataPath();
-
-    if (fs.existsSync(comprehensivePath)) {
-      const comprehensiveData = JSON.parse(fs.readFileSync(comprehensivePath, "utf-8"));
-      const majorStocks = Object.values(comprehensiveData.major_stocks || {});
-      return sendSuccess(res, { stocks: majorStocks, timestamp: comprehensiveData.timestamp });
-    }
-
-    return sendSuccess(res, { stocks: [], note: "Fresh market data file not available" });
-  } catch (error) {
-    return sendError(res, `Failed to fetch fresh market data: ${error.message}`, 500);
   }
 });
 
