@@ -62,7 +62,11 @@
       "Bash(curl -s http://localhost:3001/api/sectors)",
       "Bash(curl -s http://localhost:3001/api/signals/daily)",
       "Bash(curl -s http://localhost:3001/api/market/overview)",
-      "Bash(curl -s http://localhost:3001/api/portfolio/positions)"
+      "Bash(curl -s http://localhost:3001/api/portfolio/positions)",
+      "Bash(fuser -k 3001/tcp)",
+      "Bash(npm run *)",
+      "Bash(git commit -m 'Fix: Clean up AI slop - add missing route imports, remove deleted endpoint references, fix /portfolio/positions *)",
+      "Bash(git commit *)"
     ]
   }
 }

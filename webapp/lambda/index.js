@@ -1,36 +1,69 @@
 // Load environment variables ONCE at startup from .env.local (local dev only)
+const contactRoutes = require("./routes/contact");
 // Production: No .env file needed - uses AWS environment variables or Secrets Manager
+const contactRoutes = require("./routes/contact");
 const path = require("path");
+const contactRoutes = require("./routes/contact");
 const fs = require("fs");
+const contactRoutes = require("./routes/contact");
 
+const contactRoutes = require("./routes/contact");
 const envPath = path.resolve(__dirname, "../../.env.local");
+const contactRoutes = require("./routes/contact");
 console.log(`🔧 Loading environment from: ${envPath}`);
+const contactRoutes = require("./routes/contact");
 const envResult = require("dotenv").config({ path: envPath });
+const contactRoutes = require("./routes/contact");
 console.log(`🔧 Environment load result:`, {
+const contactRoutes = require("./routes/contact");
   path: envPath,
+const contactRoutes = require("./routes/contact");
   fileExists: require("fs").existsSync(envPath),
+const contactRoutes = require("./routes/contact");
   loaded: envResult.parsed ? Object.keys(envResult.parsed).length : 0,
+const contactRoutes = require("./routes/contact");
   keys: envResult.error ? `ERROR: ${envResult.error.message}` : "OK",
+const contactRoutes = require("./routes/contact");
   hasAlpacaKey: !!process.env.ALPACA_API_KEY
+const contactRoutes = require("./routes/contact");
 });
+const contactRoutes = require("./routes/contact");
 
+const contactRoutes = require("./routes/contact");
 // Financial Dashboard API - Lambda Function
+const contactRoutes = require("./routes/contact");
 // Updated: 2025-10-26 - Fixed CORS configuration (CloudFront: https://d1copuy2oqlazx.cloudfront.net)
+const contactRoutes = require("./routes/contact");
 
+const contactRoutes = require("./routes/contact");
 const cors = require("cors");
+const contactRoutes = require("./routes/contact");
 const express = require("express");
+const contactRoutes = require("./routes/contact");
 
+const contactRoutes = require("./routes/contact");
 const { createServer } = require("http");
+const contactRoutes = require("./routes/contact");
 
+const contactRoutes = require("./routes/contact");
 const helmet = require("helmet");
+const contactRoutes = require("./routes/contact");
 const morgan = require("morgan");
+const contactRoutes = require("./routes/contact");
 
+const contactRoutes = require("./routes/contact");
 const serverlessHttp = require('serverless-http');
+const contactRoutes = require("./routes/contact");
 
+const contactRoutes = require("./routes/contact");
 const errorHandler = require("./middleware/errorHandler");
+const contactRoutes = require("./routes/contact");
 const requestLogger = require("./middleware/requestLogger");
+const contactRoutes = require("./routes/contact");
 const { initializeDatabase, query } = require("./utils/database");
+const contactRoutes = require("./routes/contact");
 const { initializeAlpacaSync } = require("./utils/alpacaSyncScheduler");
+const contactRoutes = require("./routes/contact");
 const responseNormalizer = require("./middleware/responseNormalizer");
 const contactRoutes = require("./routes/contact");
 const economicRoutes = require("./routes/economic");
@@ -41,12 +74,8 @@ const marketRoutes = require("./routes/market");
 const portfolioRoutes = require("./routes/portfolio");
 const sectorsRoutes = require("./routes/sectors");
 const signalsRoutes = require("./routes/signals");
-const stocksRoutes = require("./routes/stocks");
 const tradesRoutes = require("./routes/trades");
 const diagnosticsRoutes = require("./routes/diagnostics");
-const earningsRoutes = require("./routes/earnings");
-const priceRoutes = require("./routes/price");
-const userRoutes = require("./routes/user");
 
 const app = express();
 
@@ -457,9 +486,6 @@ app.use("/api/stocks", stocksRoutes);
 app.use("/api/trades", tradesRoutes);
 app.use("/api/trades/manual", manualTradesRoutes);
 app.use("/api/diagnostics", diagnosticsRoutes);
-app.use("/api/earnings", earningsRoutes);
-app.use("/api/price", priceRoutes);
-app.use("/api/user", userRoutes);
 
 // API info endpoint
 app.get("/api", (req, res) => {
