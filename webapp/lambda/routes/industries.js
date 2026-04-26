@@ -11,15 +11,16 @@ async function fetchIndustries(req, res) {
     const pageNum = Math.max(parseInt(page) || 1, 1);
     const offset = (pageNum - 1) * limitNum;
 
-    // Get industry performance metrics
+    // Get industry performance metrics (real data only, no defaults)
     const result = await query(`
       SELECT
         cp.industry,
         cp.sector,
         COUNT(DISTINCT cp.ticker) as stock_count,
-        AVG(CAST(COALESCE(pd.close, 0) AS FLOAT)) as avg_price,
-        AVG(CAST(COALESCE(mm.momentum_score, 50) AS FLOAT)) as momentum_score,
-        AVG(CAST(COALESCE(vm.value_score, 50) AS FLOAT)) as value_score
+        AVG(CAST(pd.close AS FLOAT)) as avg_price,
+        AVG(CAST(mm.momentum_score AS FLOAT)) as momentum_score,
+        AVG(CAST(vm.value_score AS FLOAT)) as value_score,
+        COUNT(DISTINCT CASE WHEN mm.momentum_score IS NOT NULL THEN 1 END) as momentum_count
       FROM company_profile cp
       LEFT JOIN price_daily pd ON cp.ticker = pd.symbol
         AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = cp.ticker)
@@ -27,6 +28,7 @@ async function fetchIndustries(req, res) {
       LEFT JOIN value_metrics vm ON cp.ticker = vm.symbol
       WHERE cp.industry IS NOT NULL AND TRIM(cp.industry) != ''
       GROUP BY cp.industry, cp.sector
+      HAVING COUNT(DISTINCT CASE WHEN mm.momentum_score IS NOT NULL THEN 1 END) > 0
       ORDER BY momentum_score DESC
       LIMIT $1 OFFSET $2
     `, [limitNum, offset]);
@@ -34,15 +36,15 @@ async function fetchIndustries(req, res) {
     const countResult = await query(`SELECT COUNT(DISTINCT industry) as count FROM company_profile WHERE industry IS NOT NULL`);
     const total = parseInt(countResult?.rows[0]?.count || 0);
 
-    // Add rankings and expected fields
+    // Add rankings (real data only)
     const industries = (result?.rows || []).map((row, idx) => ({
       industry: row.industry,
       sector: row.sector,
       current_rank: idx + 1 + offset,
       overall_rank: idx + 1 + offset,
       stock_count: parseInt(row.stock_count || 0),
-      momentum_score: parseFloat(row.momentum_score || 50),
-      value_score: parseFloat(row.value_score || 50)
+      momentum_score: row.momentum_score !== null ? parseFloat(row.momentum_score) : null,
+      value_score: row.value_score !== null ? parseFloat(row.value_score) : null
     }));
 
     const totalPages = Math.ceil(total / limitNum);
