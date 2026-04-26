@@ -26,22 +26,21 @@ import {
   Grain as GrainIcon,
 } from "@mui/icons-material";
 
-// All real page imports (PUBLIC DATA ONLY)
+// Dashboard pages (only existing pages)
 import MarketOverview from "./pages/MarketOverview";
-import EarningsCalendar from "./pages/EarningsCalendar";
 import FinancialData from "./pages/FinancialData";
-import Sentiment from "./pages/Sentiment";
-import ScoresDashboard from "./pages/ScoresDashboard";
 import DeepValueStocks from "./pages/DeepValueStocks";
+import TradingSignals from "./pages/TradingSignals";
+import EconomicDashboard from "./pages/EconomicDashboard";
+import PortfolioDashboard from "./pages/PortfolioDashboard";
+import TradeHistory from "./pages/TradeHistory";
+import Messages from "./pages/Messages";
+import ServiceHealth from "./pages/ServiceHealth";
+import Settings from "./pages/Settings";
+
 import { useAuth } from "./contexts/AuthContext";
 import AuthModal from "./components/auth/AuthModal";
 import ErrorBoundary from "./components/ErrorBoundary";
-import SectorAnalysis from "./pages/SectorAnalysis";
-import CommoditiesAnalysis from "./pages/CommoditiesAnalysis";
-import TradingSignals from "./pages/TradingSignals";
-import ETFSignals from "./pages/ETFSignals";
-import EconomicDashboard from "./pages/EconomicDashboard";
-import HedgeHelper from "./pages/HedgeHelper";
 
 // Marketing pages - Only keep main pages and their dropdown pages
 import Home from "./pages/marketing/Home";
@@ -71,18 +70,6 @@ const menuItems = [
     category: "markets",
   },
   {
-    text: "Sector Analysis",
-    icon: <BusinessIcon />,
-    path: "/app/sectors",
-    category: "markets",
-  },
-  {
-    text: "Commodities",
-    icon: <GrainIcon />,
-    path: "/app/commodities",
-    category: "markets",
-  },
-  {
     text: "Economic Indicators",
     icon: <PublicIcon />,
     path: "/app/economic",
@@ -91,22 +78,9 @@ const menuItems = [
 
   // Stocks Section
   {
-    text: "Stock Scores",
-    icon: <Stars />,
-    path: "/app/scores",
-    category: "stocks",
-    premium: true,
-  },
-  {
-    text: "💎 Deep Value Picks",
+    text: "Deep Value Picks",
     icon: <Stars />,
     path: "/app/deep-value",
-    category: "stocks",
-  },
-  {
-    text: "Earnings Hub",
-    icon: <EventIcon />,
-    path: "/app/earnings",
     category: "stocks",
   },
   {
@@ -119,28 +93,6 @@ const menuItems = [
     text: "Trading Signals",
     icon: <TrendingUpIcon />,
     path: "/app/trading-signals",
-    category: "stocks",
-  },
-  {
-    text: "ETF Trading Signals",
-    icon: <PublicIcon />,
-    path: "/app/etf-trading-signals",
-    category: "stocks",
-  },
-
-  // Sentiment Analysis Section
-  {
-    text: "Sentiment Analysis",
-    icon: <PsychologyIcon />,
-    path: "/app/sentiment",
-    category: "stocks",
-  },
-
-  // Hedge Helper - Options Strategies
-  {
-    text: "Hedge Helper",
-    icon: <SwapHorizIcon />,
-    path: "/app/hedge-helper",
     category: "stocks",
   },
 
@@ -406,17 +358,10 @@ function App() {
       <AppLayout>
         <Routes>
           <Route path="/app/market" element={<MarketOverview />} />
-          <Route path="/app/scores" element={<ScoresDashboard />} />
           <Route path="/app/deep-value" element={<DeepValueStocks />} />
-          <Route path="/app/earnings" element={<EarningsCalendar />} />
           <Route path="/app/financial-data" element={<FinancialData />} />
-          <Route path="/app/sentiment" element={<Sentiment />} />
-          <Route path="/app/sectors" element={<SectorAnalysis />} />
-          <Route path="/app/commodities" element={<CommoditiesAnalysis />} />
           <Route path="/app/trading-signals" element={<TradingSignals />} />
-          <Route path="/app/etf-trading-signals" element={<ETFSignals />} />
           <Route path="/app/economic" element={<EconomicDashboard />} />
-          <Route path="/app/hedge-helper" element={<HedgeHelper />} />
         </Routes>
 
         {/* Authentication Modal */}
