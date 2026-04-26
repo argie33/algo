@@ -43,8 +43,6 @@ const signalsRoutes = require("./routes/signals");
 const stocksRoutes = require("./routes/stocks");
 const tradesRoutes = require("./routes/trades");
 const diagnosticsRoutes = require("./routes/diagnostics");
-const userRoutes = require("./routes/user");
-const sectorsRoutes = require("./routes/sectors");
 
 const app = express();
 
@@ -450,6 +448,7 @@ app.use("/api/financials", financialRoutes);
 app.use("/api/health", healthRoutes);
 app.use("/api/market", marketRoutes);
 app.use("/api/portfolio", portfolioRoutes);
+app.use("/api/sectors", sectorsRoutes);
 app.use("/api/signals", signalsRoutes);
 app.use("/api/stocks", stocksRoutes);
 app.use("/api/trades", tradesRoutes);

@@ -56,7 +56,13 @@
       "Read(//tmp/**)",
       "Bash(grep -roh '`/api/[^`]*`\\\\|\"/api/[^\"]*\"\\\\|'\"'\"'/api/[^'\"'\"']*'\"'\"'' /c/Users/arger/code/algo/webapp/frontend/src --include=\"*.jsx\" --include=\"*.js\")",
       "Bash(git commit -m 'Start Phase 1: Remove unused route files from codebase *)",
-      "Bash(git commit -m 'Complete architecture audit and planning for cleanup *)"
+      "Bash(git commit -m 'Complete architecture audit and planning for cleanup *)",
+      "Bash(curl -s http://localhost:3001/api/health)",
+      "Bash(curl -s http://localhost:3001/api/stocks)",
+      "Bash(curl -s http://localhost:3001/api/sectors)",
+      "Bash(curl -s http://localhost:3001/api/signals/daily)",
+      "Bash(curl -s http://localhost:3001/api/market/overview)",
+      "Bash(curl -s http://localhost:3001/api/portfolio/positions)"
     ]
   }
 }
