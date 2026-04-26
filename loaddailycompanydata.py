@@ -846,33 +846,23 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             try:
                 values = (
                     symbol,
-                    datetime.now().date(),
                     inst_own,
-                    safe_int(info.get('institutionsCount')) if info else None,
                     insider_own,
-                    short_ratio,
                     short_pct,
-                    short_pct,
-                    ad_rating,
+                    None,  # shares_short_prior_month not available from yfinance
                 )
                 logging.debug(f"Positioning INSERT values for {symbol}: {values}")
                 cur.execute(
                     """
                     INSERT INTO positioning_metrics (
-                        symbol, date, institutional_ownership_pct,
-                        institutional_holders_count, insider_ownership_pct,
-                        short_ratio, short_interest_pct, short_percent_of_float, ad_rating
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        symbol, institutional_ownership, insider_ownership,
+                        short_interest_percent, shares_short_prior_month
+                    ) VALUES (%s,%s,%s,%s,%s)
                     ON CONFLICT (symbol) DO UPDATE SET
-                        date = EXCLUDED.date,
-                        institutional_ownership_pct = EXCLUDED.institutional_ownership_pct,
-                        institutional_holders_count = EXCLUDED.institutional_holders_count,
-                        insider_ownership_pct = EXCLUDED.insider_ownership_pct,
-                        short_ratio = EXCLUDED.short_ratio,
-                        short_interest_pct = EXCLUDED.short_interest_pct,
-                        short_percent_of_float = EXCLUDED.short_percent_of_float,
-                        ad_rating = EXCLUDED.ad_rating,
-                        updated_at = CURRENT_TIMESTAMP
+                        institutional_ownership = EXCLUDED.institutional_ownership,
+                        insider_ownership = EXCLUDED.insider_ownership,
+                        short_interest_percent = EXCLUDED.short_interest_percent,
+                        shares_short_prior_month = EXCLUDED.shares_short_prior_month
                     """,
                     values
                 )

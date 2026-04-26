@@ -21,9 +21,7 @@ import {
   TrendingFlat as TrendingFlatIcon,
 } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
-import { getApiUrl } from "../../utils/apiUrl";
-
-const API_BASE = getApiUrl();
+// API base removed - using relative paths instead
 
 function CoveredCallOpportunities() {
   const theme = useTheme();

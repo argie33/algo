@@ -167,5 +167,62 @@ export const isResponseSuccess = (response) => {
  */
 export const extractResponseData = extractData;
 
+// ============================================
+// MARKET DATA FUNCTIONS (Stubs)
+// ============================================
+
+export const getMarketTechnicals = async () => {
+  return { success: true, data: {} };
+};
+
+export const getMarketSentimentData = async (range = "1d") => {
+  return { success: true, data: { sentiment: 0.5 } };
+};
+
+export const getMarketSeasonalityData = async () => {
+  return { success: true, data: {} };
+};
+
+export const getMarketCorrelation = async (symbols = null) => {
+  return { success: true, data: {} };
+};
+
+export const getMarketIndices = async () => {
+  return { success: true, data: [] };
+};
+
+export const getMarketTopMovers = async () => {
+  return { success: true, data: [] };
+};
+
+export const getMarketCapDistribution = async () => {
+  return { success: true, data: [] };
+};
+
+// ============================================
+// FINANCIAL DATA FUNCTIONS (Stubs)
+// ============================================
+
+export const getStocks = async (params = {}) => {
+  return { success: true, data: [] };
+};
+
+export const getBalanceSheet = async (ticker) => {
+  return { success: true, data: {} };
+};
+
+export const getIncomeStatement = async (ticker) => {
+  return { success: true, data: {} };
+};
+
+export const getCashFlowStatement = async (ticker) => {
+  return { success: true, data: {} };
+};
+
+export const getKeyMetrics = async (ticker) => {
+  return { success: true, data: {} };
+};
+
 // Export the axios instance for direct use
+export { api };
 export default api;

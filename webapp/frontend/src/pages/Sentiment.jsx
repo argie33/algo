@@ -46,9 +46,7 @@ import {
 } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
-import { getApiUrl } from "../utils/apiUrl";
-
-const API_BASE = getApiUrl();
+// API base removed - using relative paths instead
 
 // Composite sentiment scoring algorithm
 const calculateCompositeSentiment = (newsScore, analystScore, socialScore) => {

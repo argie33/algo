@@ -19,8 +19,13 @@ Updated: 2026-02-09
 import gc
 import logging
 import os
-import resource
 import sys
+
+try:
+    import resource
+    HAS_RESOURCE = True
+except ImportError:
+    HAS_RESOURCE = False
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
@@ -65,10 +70,12 @@ psycopg2.extensions.register_adapter(np.float32, adapt_numpy_float64)
 
 
 def get_rss_mb():
-    usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    if sys.platform.startswith("linux"):
-        return usage / 1024
-    return usage / (1024 * 1024)
+    if HAS_RESOURCE:
+        usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        if sys.platform.startswith("linux"):
+            return usage / 1024
+        return usage / (1024 * 1024)
+    return 0  # Return 0 if resource module not available
 
 
 def log_mem(stage: str):

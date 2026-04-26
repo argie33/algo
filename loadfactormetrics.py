@@ -2033,44 +2033,10 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
 
     growth_rows = []
 
-    # Get all key_metrics data in one query - include margin and financial data for trend calculations
-    try:
-        cursor.execute(
-            """
-            SELECT ticker,
-                   revenue_growth_pct,
-                   earnings_growth_pct,
-                   earnings_q_growth_pct,
-                   return_on_equity_pct,
-                   payout_ratio,
-                   gross_margin_pct,
-                   operating_margin_pct,
-                   profit_margin_pct,
-                   ebitda_margin_pct,
-                   free_cashflow,
-                   net_income,
-                   operating_cashflow,
-                   total_revenue,
-                   eps_trailing,
-                   eps_forward
-            FROM key_metrics
-            WHERE symbol = ANY(%s)
-            """,
-            (symbols,)
-        )
-
-        # Materialize results to avoid cursor state issues with nested queries
-        key_metrics_rows = cursor.fetchall()
-    except Exception as e:
-        logging.warning(f"Failed to fetch key_metrics: {e}. Attempting to recover...")
-        try:
-            conn.rollback()
-        except Exception as rollback_e:
-            logging.debug(f"Rollback failed during key_metrics recovery: {rollback_e}")
-            pass
-        cursor.close()
-        cursor = conn.cursor()
-        key_metrics_rows = []
+    # Note: key_metrics table does not contain revenue_growth_pct, earnings_growth_pct, etc.
+    # Growth metrics are calculated from financial statement tables instead
+    # Skip trying to fetch from key_metrics and go straight to financial statement processing
+    key_metrics_rows = []
 
     for idx, row in enumerate(key_metrics_rows):
         try:

@@ -271,13 +271,16 @@ def load_analyst_sentiment(symbols, cur, conn):
 
         sql = """
             INSERT INTO analyst_sentiment_analysis
-            (symbol, total_analysts, bullish_count, bearish_count, neutral_count, target_price, current_price, upside_downside_percent, date_recorded)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_DATE)
-            ON CONFLICT (symbol) DO UPDATE SET
-                total_analysts = EXCLUDED.total_analysts,
+            (symbol, date, analyst_count, bullish_count, bearish_count, neutral_count, target_price, current_price, upside_downside_percent)
+            VALUES (%s, CURRENT_DATE, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (symbol, date) DO UPDATE SET
+                analyst_count = EXCLUDED.analyst_count,
                 bullish_count = EXCLUDED.bullish_count,
                 bearish_count = EXCLUDED.bearish_count,
-                neutral_count = EXCLUDED.neutral_count
+                neutral_count = EXCLUDED.neutral_count,
+                target_price = EXCLUDED.target_price,
+                current_price = EXCLUDED.current_price,
+                upside_downside_percent = EXCLUDED.upside_downside_percent
         """
 
         try:
