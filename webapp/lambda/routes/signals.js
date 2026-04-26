@@ -237,6 +237,9 @@ router.get("/", getStocksSignals);
 // Canonical endpoint for stock signals (returns ALL signals from 2019 by default)
 router.get("/stocks", getStocksSignals);
 
+// List endpoint - supports timeframe parameter for frontend filtering
+router.get("/list", getStocksSignals);
+
 // Get trading signals for ETFs - SAME STRUCTURE AS STOCKS
 router.get("/etf", async (req, res) => {
   try {
