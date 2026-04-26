@@ -43,7 +43,6 @@ const signalsRoutes = require("./routes/signals");
 const sectorsRoutes = require("./routes/sectors");
 const industriesRoutes = require("./routes/industries");
 const scoresRoutes = require("./routes/scores");
-const optimizationRoutes = require("./routes/optimization");
 const sentimentRoutes = require("./routes/sentiment");
 const priceRoutes = require("./routes/price");
 const stocksRoutes = require("./routes/stocks");
@@ -448,20 +447,21 @@ app.get("/api/debug/test-error", (req, res) => {
 });
 
 // Canonical API Routes - all under /api prefix
+app.use("/api/commodities", commoditiesRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/diagnostics", diagnosticsRoutes);
+app.use("/api/earnings", earningsRoutes);
 app.use("/api/economic", economicRoutes);
 app.use("/api/financials", financialRoutes);
 app.use("/api/health", healthRoutes);
+app.use("/api/industries", industriesRoutes);
 app.use("/api/market", marketRoutes);
 app.use("/api/portfolio", portfolioRoutes);
-app.use("/api/signals", signalsRoutes);
-app.use("/api/sectors", sectorsRoutes);
-app.use("/api/industries", industriesRoutes);
-app.use("/api/scores", scoresRoutes);
-app.use("/api/optimization", optimizationRoutes);
-app.use("/api/sentiment", sentimentRoutes);
 app.use("/api/price", priceRoutes);
+app.use("/api/scores", scoresRoutes);
+app.use("/api/sectors", sectorsRoutes);
+app.use("/api/sentiment", sentimentRoutes);
+app.use("/api/signals", signalsRoutes);
 app.use("/api/stocks", stocksRoutes);
 app.use("/api/trades", tradesRoutes);
 app.use("/api/trades/manual", manualTradesRoutes);
@@ -642,3 +642,5 @@ module.exports = app;
 // AWS Lambda handler - CRITICAL FOR LAMBDA TO WORK
 // This MUST be exported for Lambda to find the handler function
 module.exports.handler = serverlessHttp(app);
+
+
