@@ -98,10 +98,24 @@ function FinancialData() {
           <Box>
             {bsLoading ? (
               <CircularProgress />
-            ) : balanceSheetData ? (
-              <Alert severity="success">Balance Sheet loaded</Alert>
+            ) : balanceSheetData?.data?.financialData?.length > 0 ? (
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" sx={{ mb: 2 }}>Balance Sheet - {ticker}</Typography>
+                  {balanceSheetData.data.financialData.map((item, idx) => (
+                    <Box key={idx} sx={{ mb: 3, pb: 2, borderBottom: idx < balanceSheetData.data.financialData.length - 1 ? '1px solid #ddd' : 'none' }}>
+                      <Typography variant="subtitle2">Fiscal Year: {item.fiscal_year}</Typography>
+                      <Grid container spacing={2} sx={{ mt: 1 }}>
+                        <Grid item xs={12} sm={6}><Typography>Total Assets: ${parseFloat(item.total_assets || 0).toLocaleString('en-US', {maximumFractionDigits: 0})}</Typography></Grid>
+                        <Grid item xs={12} sm={6}><Typography>Total Liabilities: ${parseFloat(item.total_liabilities || 0).toLocaleString('en-US', {maximumFractionDigits: 0})}</Typography></Grid>
+                        {item.stockholders_equity && <Grid item xs={12} sm={6}><Typography>Equity: ${parseFloat(item.stockholders_equity).toLocaleString('en-US', {maximumFractionDigits: 0})}</Typography></Grid>}
+                      </Grid>
+                    </Box>
+                  ))}
+                </CardContent>
+              </Card>
             ) : (
-              <Alert severity="info">Select a company to view data</Alert>
+              <Alert severity="info">No balance sheet data available</Alert>
             )}
           </Box>
         )}
@@ -110,10 +124,25 @@ function FinancialData() {
           <Box>
             {isLoading ? (
               <CircularProgress />
-            ) : incomeStatementData ? (
-              <Alert severity="success">Income Statement loaded</Alert>
+            ) : incomeStatementData?.data?.financialData?.length > 0 ? (
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" sx={{ mb: 2 }}>Income Statement - {ticker}</Typography>
+                  {incomeStatementData.data.financialData.map((item, idx) => (
+                    <Box key={idx} sx={{ mb: 3, pb: 2, borderBottom: idx < incomeStatementData.data.financialData.length - 1 ? '1px solid #ddd' : 'none' }}>
+                      <Typography variant="subtitle2">Fiscal Year: {item.fiscal_year}</Typography>
+                      <Grid container spacing={2} sx={{ mt: 1 }}>
+                        <Grid item xs={12} sm={6}><Typography>Revenue: ${parseFloat(item.revenue || 0).toLocaleString('en-US', {maximumFractionDigits: 0})}</Typography></Grid>
+                        <Grid item xs={12} sm={6}><Typography>Net Income: ${parseFloat(item.net_income || 0).toLocaleString('en-US', {maximumFractionDigits: 0})}</Typography></Grid>
+                        {item.gross_profit && <Grid item xs={12} sm={6}><Typography>Gross Profit: ${parseFloat(item.gross_profit).toLocaleString('en-US', {maximumFractionDigits: 0})}</Typography></Grid>}
+                        {item.operating_income && <Grid item xs={12} sm={6}><Typography>Operating Income: ${parseFloat(item.operating_income).toLocaleString('en-US', {maximumFractionDigits: 0})}</Typography></Grid>}
+                      </Grid>
+                    </Box>
+                  ))}
+                </CardContent>
+              </Card>
             ) : (
-              <Alert severity="info">Select a company to view data</Alert>
+              <Alert severity="info">No income statement data available</Alert>
             )}
           </Box>
         )}
@@ -122,10 +151,24 @@ function FinancialData() {
           <Box>
             {cfLoading ? (
               <CircularProgress />
-            ) : cashFlowData ? (
-              <Alert severity="success">Cash Flow loaded</Alert>
+            ) : cashFlowData?.data?.financialData?.length > 0 ? (
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" sx={{ mb: 2 }}>Cash Flow - {ticker}</Typography>
+                  {cashFlowData.data.financialData.map((item, idx) => (
+                    <Box key={idx} sx={{ mb: 3, pb: 2, borderBottom: idx < cashFlowData.data.financialData.length - 1 ? '1px solid #ddd' : 'none' }}>
+                      <Typography variant="subtitle2">Fiscal Year: {item.fiscal_year}</Typography>
+                      <Grid container spacing={2} sx={{ mt: 1 }}>
+                        <Grid item xs={12} sm={6}><Typography>Operating CF: ${parseFloat(item.operating_cash_flow || 0).toLocaleString('en-US', {maximumFractionDigits: 0})}</Typography></Grid>
+                        <Grid item xs={12} sm={6}><Typography>Investing CF: ${parseFloat(item.investing_cash_flow || 0).toLocaleString('en-US', {maximumFractionDigits: 0})}</Typography></Grid>
+                        {item.financing_cash_flow && <Grid item xs={12} sm={6}><Typography>Financing CF: ${parseFloat(item.financing_cash_flow).toLocaleString('en-US', {maximumFractionDigits: 0})}</Typography></Grid>}
+                      </Grid>
+                    </Box>
+                  ))}
+                </CardContent>
+              </Card>
             ) : (
-              <Alert severity="info">Select a company to view data</Alert>
+              <Alert severity="info">No cash flow data available</Alert>
             )}
           </Box>
         )}
@@ -134,10 +177,20 @@ function FinancialData() {
           <Box>
             {kmLoading ? (
               <CircularProgress />
-            ) : keyMetricsData ? (
-              <Alert severity="success">Key Metrics loaded</Alert>
+            ) : keyMetricsData?.data ? (
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" sx={{ mb: 2 }}>Key Metrics - {ticker}</Typography>
+                  <Grid container spacing={2}>
+                    {keyMetricsData.data.pe_ratio && <Grid item xs={12} sm={6}><Typography>P/E Ratio: {keyMetricsData.data.pe_ratio}</Typography></Grid>}
+                    {keyMetricsData.data.dividend_yield && <Grid item xs={12} sm={6}><Typography>Dividend Yield: {(parseFloat(keyMetricsData.data.dividend_yield) * 100).toFixed(2)}%</Typography></Grid>}
+                    {keyMetricsData.data.debt_to_equity && <Grid item xs={12} sm={6}><Typography>Debt/Equity: {keyMetricsData.data.debt_to_equity}</Typography></Grid>}
+                    {keyMetricsData.data.current_ratio && <Grid item xs={12} sm={6}><Typography>Current Ratio: {keyMetricsData.data.current_ratio}</Typography></Grid>}
+                  </Grid>
+                </CardContent>
+              </Card>
             ) : (
-              <Alert severity="info">Select a company to view data</Alert>
+              <Alert severity="info">No key metrics data available</Alert>
             )}
           </Box>
         )}
