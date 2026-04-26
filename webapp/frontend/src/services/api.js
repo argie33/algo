@@ -332,6 +332,30 @@ export const submitContact = async (data) => {
   }
 };
 
+// ============================================
+// DIAGNOSTICS & ADMIN FUNCTIONS
+// ============================================
+
+export const getDiagnosticInfo = () => {
+  try {
+    return {
+      apiUrl: currentConfig.apiUrl,
+      baseURL: currentConfig.baseURL,
+      isDev: currentConfig.isDev,
+      isDevelopment: currentConfig.isDevelopment,
+      isProduction: currentConfig.isProduction,
+      isServerless: currentConfig.isServerless,
+    };
+  } catch (error) {
+    console.error("Error getting diagnostic info:", error);
+    return {};
+  }
+};
+
+export const getCurrentBaseURL = () => {
+  return currentConfig.baseURL || "/";
+};
+
 // Export the axios instance for direct use
 export { api };
 export default api;

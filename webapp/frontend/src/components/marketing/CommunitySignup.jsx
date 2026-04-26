@@ -36,13 +36,17 @@ const CommunitySignup = () => {
     setMessage(null);
 
     try {
-      // TODO: Replace with actual API endpoint when backend is ready
-      const response = await fetch('/api/community/signup', {
+      const response = await fetch('/api/contact', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({
+          email,
+          subject: 'Newsletter Signup',
+          message: 'User subscribed to newsletter',
+          type: 'newsletter'
+        }),
       });
 
       const result = await response.json();
@@ -53,7 +57,7 @@ const CommunitySignup = () => {
 
       setMessage({
         type: 'success',
-        text: 'Success! Check your email to confirm your subscription.',
+        text: 'Success! You\'ve been added to our mailing list.',
       });
       setEmail('');
     } catch (error) {

@@ -46,7 +46,16 @@
       "Bash(cat)",
       "Read(//c/Users/arger/.claude/plans/**)",
       "Bash(git commit -m 'Document remaining critical issues found *)",
-      "Bash(git commit -m 'Remove duplicate/unused directories - clean up mess *)"
+      "Bash(git commit -m 'Remove duplicate/unused directories - clean up mess *)",
+      "Bash(git commit -m 'Final architecture simplification - one site, right endpoints *)",
+      "Bash(git revert *)",
+      "Bash(git stash *)",
+      "Bash(grep -E \"\\\\.js$\")",
+      "Bash(grep -v \"^//\")",
+      "Bash(sed \"s/api\\\\.get\\('\\\\|api\\\\.get\\(\\\\\"\\\\|api\\\\.post\\('\\\\|api\\\\.post\\(\\\\\"\\\\|axios\\\\.get\\('\\\\|axios\\\\.get\\(\\\\\"\\\\|axios\\\\.post\\('\\\\|axios\\\\.post\\(\\\\\"//\")",
+      "Read(//tmp/**)",
+      "Bash(grep -roh '`/api/[^`]*`\\\\|\"/api/[^\"]*\"\\\\|'\"'\"'/api/[^'\"'\"']*'\"'\"'' /c/Users/arger/code/algo/webapp/frontend/src --include=\"*.jsx\" --include=\"*.js\")",
+      "Bash(git commit -m 'Start Phase 1: Remove unused route files from codebase *)"
     ]
   }
 }

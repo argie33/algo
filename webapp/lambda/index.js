@@ -43,6 +43,8 @@ const signalsRoutes = require("./routes/signals");
 const stocksRoutes = require("./routes/stocks");
 const tradesRoutes = require("./routes/trades");
 const diagnosticsRoutes = require("./routes/diagnostics");
+const userRoutes = require("./routes/user");
+const sectorsRoutes = require("./routes/sectors");
 
 const app = express();
 

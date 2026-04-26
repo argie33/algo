@@ -35,8 +35,6 @@ import EconomicDashboard from "./pages/EconomicDashboard";
 import PortfolioDashboard from "./pages/PortfolioDashboard";
 import TradeHistory from "./pages/TradeHistory";
 import Messages from "./pages/Messages";
-import ServiceHealth from "./pages/ServiceHealth";
-import Settings from "./pages/Settings";
 
 import { useAuth } from "./contexts/AuthContext";
 import AuthModal from "./components/auth/AuthModal";
