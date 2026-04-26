@@ -26,15 +26,12 @@ import {
   Grain as GrainIcon,
 } from "@mui/icons-material";
 
-// Dashboard pages (only existing pages)
+// Dashboard pages (only the 5 working pages)
 import MarketOverview from "./pages/MarketOverview";
 import FinancialData from "./pages/FinancialData";
 import DeepValueStocks from "./pages/DeepValueStocks";
 import TradingSignals from "./pages/TradingSignals";
 import EconomicDashboard from "./pages/EconomicDashboard";
-import PortfolioDashboard from "./pages/PortfolioDashboard";
-import TradeHistory from "./pages/TradeHistory";
-import Messages from "./pages/Messages";
 
 import { useAuth } from "./contexts/AuthContext";
 import AuthModal from "./components/auth/AuthModal";
@@ -106,9 +103,6 @@ function App() {
   const [expandedSections, setExpandedSections] = useState({
     markets: true,
     stocks: true,
-    sentiment: false,
-    research: false,
-    tools: false,
   });
 
   console.log("🎯 APP COMPONENT: State initialized");

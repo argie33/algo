@@ -26,8 +26,8 @@ const Footer = () => {
       title: 'Application',
       links: [
         { label: 'Market Overview', path: '/app/market' },
-        { label: 'Stock Scores', path: '/app/scores' },
-        { label: 'Earnings Hub', path: '/app/earnings' },
+        { label: 'Economic Data', path: '/app/economic' },
+        { label: 'Trading Signals', path: '/app/trading-signals' },
       ],
     },
   ];

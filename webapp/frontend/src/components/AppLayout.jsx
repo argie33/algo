@@ -139,8 +139,6 @@ const AppLayout = ({ children, pageTitle }) => {
   const [expandedSections, setExpandedSections] = useState({
     markets: true,
     stocks: true,
-    sentiment: false,
-    tools: false,
   });
 
   const theme = useTheme();
