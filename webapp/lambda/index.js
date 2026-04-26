@@ -452,7 +452,6 @@ app.use("/api/signals", signalsRoutes);
 app.use("/api/stocks", stocksRoutes);
 app.use("/api/trades", tradesRoutes);
 app.use("/api/trades/manual", manualTradesRoutes);
-app.use("/api/user", userRoutes);
 app.use("/api/diagnostics", diagnosticsRoutes);
 
 // API info endpoint
