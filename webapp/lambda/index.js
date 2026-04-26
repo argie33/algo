@@ -32,18 +32,21 @@ const requestLogger = require("./middleware/requestLogger");
 const { initializeDatabase, query } = require("./utils/database");
 const { initializeAlpacaSync } = require("./utils/alpacaSyncScheduler");
 const responseNormalizer = require("./middleware/responseNormalizer");
+const contactRoutes = require("./routes/contact");
 const economicRoutes = require("./routes/economic");
 const financialRoutes = require("./routes/financials");
 const healthRoutes = require("./routes/health");
 const manualTradesRoutes = require("./routes/manual-trades");
 const marketRoutes = require("./routes/market");
 const portfolioRoutes = require("./routes/portfolio");
+const sectorsRoutes = require("./routes/sectors");
 const signalsRoutes = require("./routes/signals");
 const stocksRoutes = require("./routes/stocks");
 const tradesRoutes = require("./routes/trades");
 const diagnosticsRoutes = require("./routes/diagnostics");
 const earningsRoutes = require("./routes/earnings");
 const priceRoutes = require("./routes/price");
+const userRoutes = require("./routes/user");
 
 const app = express();
 
@@ -443,7 +446,6 @@ app.get("/api/debug/test-error", (req, res) => {
 });
 
 // Canonical API Routes - all under /api prefix
-app.use("/api/contact", contactRoutes);
 app.use("/api/economic", economicRoutes);
 app.use("/api/financials", financialRoutes);
 app.use("/api/health", healthRoutes);
@@ -455,6 +457,9 @@ app.use("/api/stocks", stocksRoutes);
 app.use("/api/trades", tradesRoutes);
 app.use("/api/trades/manual", manualTradesRoutes);
 app.use("/api/diagnostics", diagnosticsRoutes);
+app.use("/api/earnings", earningsRoutes);
+app.use("/api/price", priceRoutes);
+app.use("/api/user", userRoutes);
 
 // API info endpoint
 app.get("/api", (req, res) => {

@@ -1,0 +1,316 @@
+const express = require("express");
+
+const { query } = require("../utils/database");
+const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const router = express.Router();
+
+// Helper for price history fetching
+const getPriceHistoryHandler = async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const offset = (page - 1) * limit;
+
+    // Get total count for pagination
+    const countResult = await query(
+      `SELECT COUNT(*) as count FROM price_daily WHERE symbol = $1`,
+      [symbol.toUpperCase()]
+    );
+    const total = countResult.rows[0]?.count || 0;
+
+    const result = await query(
+      `SELECT symbol, date, open, high, low, close, adj_close, volume
+       FROM price_daily
+       WHERE symbol = $1
+       ORDER BY date DESC
+       LIMIT $2 OFFSET $3`,
+      [symbol.toUpperCase(), limit, offset]
+    );
+
+    const totalPages = Math.ceil(total / limit) || 1;
+    return sendPaginated(res, result.rows || [], {
+      page,
+      limit,
+      offset,
+      total,
+      totalPages,
+      hasNext: offset + limit < total,
+      hasPrev: offset > 0
+    });
+  } catch (err) {
+    console.error('Error fetching price history:', err.message);
+    return sendError(res, err.message, 500);
+  }
+};
+
+// Get price history for a specific symbol
+router.get("/history/:symbol", getPriceHistoryHandler);
+
+// Helper to safely parse float
+function safeFloat(value) {
+  if (value === null || value === undefined) return null;
+  const num = parseFloat(value);
+  return isNaN(num) ? null : num;
+}
+
+// Get daily prices
+router.get("/daily", async (req, res) => {
+  try {
+    const symbol = req.query.symbol;
+    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const offset = (page - 1) * limit;
+    const days = req.query.days ? parseInt(req.query.days) : null;
+
+    let sql = "SELECT * FROM price_daily WHERE volume > 0";
+    const params = [];
+    let paramIndex = 1;
+
+    if (symbol) {
+      sql += ` AND symbol = $${paramIndex}`;
+      params.push(symbol);
+      paramIndex++;
+    }
+
+    if (days) {
+      const daysInt = parseInt(days);
+      if (!isNaN(daysInt) && daysInt > 0) {
+        sql += ` AND date >= CURRENT_DATE - INTERVAL '1 day' * $${paramIndex}`;
+        params.push(daysInt);
+        paramIndex++;
+      }
+    }
+
+    const countResult = await query(
+      `SELECT COUNT(*) as count FROM (${sql}) t`,
+      params
+    );
+    const total = countResult.rows[0]?.count || 0;
+
+    const result = await query(
+      sql + ` ORDER BY date DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      [...params, limit, offset]
+    );
+
+    const totalPages = Math.ceil(total / limit) || 1;
+    return sendPaginated(res, result.rows.map(row => ({
+      ...row,
+      open: safeFloat(row.open),
+      high: safeFloat(row.high),
+      low: safeFloat(row.low),
+      close: safeFloat(row.close),
+      volume: parseInt(row.volume) || 0
+    })), {
+      page,
+      limit,
+      offset,
+      total,
+      totalPages,
+      hasNext: offset + limit < total,
+      hasPrev: offset > 0
+    });
+  } catch (err) {
+    console.error("Price daily error:", err.message);
+    return sendError(res, err.message, 500);
+  }
+});
+
+// Get weekly prices
+router.get("/weekly", async (req, res) => {
+  try {
+    const symbol = req.query.symbol;
+    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const offset = (page - 1) * limit;
+
+    let sql = "SELECT * FROM price_weekly WHERE volume > 0";
+    const params = [];
+    let paramIndex = 1;
+
+    if (symbol) {
+      sql += ` AND symbol = $${paramIndex}`;
+      params.push(symbol);
+      paramIndex++;
+    }
+
+    const countResult = await query(
+      `SELECT COUNT(*) as count FROM (${sql}) t`,
+      params
+    );
+    const total = countResult.rows[0]?.count || 0;
+
+    const result = await query(
+      sql + ` ORDER BY date DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      [...params, limit, offset]
+    );
+
+    const totalPages = Math.ceil(total / limit) || 1;
+    return sendPaginated(res, result.rows.map(row => ({
+      ...row,
+      open: safeFloat(row.open),
+      high: safeFloat(row.high),
+      low: safeFloat(row.low),
+      close: safeFloat(row.close),
+      volume: parseInt(row.volume) || 0
+    })), {
+      page,
+      limit,
+      offset,
+      total,
+      totalPages,
+      hasNext: offset + limit < total,
+      hasPrev: offset > 0
+    });
+  } catch (err) {
+    console.error("Price weekly error:", err.message);
+    return sendError(res, err.message, 500);
+  }
+});
+
+// Get monthly prices
+router.get("/monthly", async (req, res) => {
+  try {
+    const symbol = req.query.symbol;
+    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const offset = (page - 1) * limit;
+
+    let sql = "SELECT * FROM price_monthly WHERE volume > 0";
+    const params = [];
+    let paramIndex = 1;
+
+    if (symbol) {
+      sql += ` AND symbol = $${paramIndex}`;
+      params.push(symbol);
+      paramIndex++;
+    }
+
+    const countResult = await query(
+      `SELECT COUNT(*) as count FROM (${sql}) t`,
+      params
+    );
+    const total = countResult.rows[0]?.count || 0;
+
+    const result = await query(
+      sql + ` ORDER BY date DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      [...params, limit, offset]
+    );
+
+    const totalPages = Math.ceil(total / limit) || 1;
+    return sendPaginated(res, result.rows.map(row => ({
+      ...row,
+      open: safeFloat(row.open),
+      high: safeFloat(row.high),
+      low: safeFloat(row.low),
+      close: safeFloat(row.close),
+      volume: parseInt(row.volume) || 0
+    })), {
+      page,
+      limit,
+      offset,
+      total,
+      totalPages,
+      hasNext: offset + limit < total,
+      hasPrev: offset > 0
+    });
+  } catch (err) {
+    console.error("Price monthly error:", err.message);
+    return sendError(res, err.message, 500);
+  }
+});
+
+// Get ETF daily prices
+router.get("/daily/etf", async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const offset = (page - 1) * limit;
+
+    const countResult = await query("SELECT COUNT(*) as count FROM etf_price_daily");
+    const total = countResult.rows[0]?.count || 0;
+
+    const result = await query(
+      "SELECT * FROM etf_price_daily ORDER BY date DESC LIMIT $1 OFFSET $2",
+      [limit, offset]
+    );
+
+    const totalPages = Math.ceil(total / limit) || 1;
+    return sendPaginated(res, result.rows, {
+      page,
+      limit,
+      offset,
+      total,
+      totalPages,
+      hasNext: offset + limit < total,
+      hasPrev: offset > 0
+    });
+  } catch (err) {
+    console.error("ETF price daily error:", err.message);
+    return sendError(res, err.message, 500);
+  }
+});
+
+// Get ETF weekly prices
+router.get("/weekly/etf", async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const offset = (page - 1) * limit;
+
+    const countResult = await query("SELECT COUNT(*) as count FROM etf_price_weekly");
+    const total = countResult.rows[0]?.count || 0;
+
+    const result = await query(
+      "SELECT * FROM etf_price_weekly ORDER BY date DESC LIMIT $1 OFFSET $2",
+      [limit, offset]
+    );
+
+    const totalPages = Math.ceil(total / limit) || 1;
+    return sendPaginated(res, result.rows, {
+      page,
+      limit,
+      offset,
+      total,
+      totalPages,
+      hasNext: offset + limit < total,
+      hasPrev: offset > 0
+    });
+  } catch (err) {
+    console.error("ETF price weekly error:", err.message);
+    return sendError(res, err.message, 500);
+  }
+});
+
+// Get ETF monthly prices
+router.get("/monthly/etf", async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const offset = (page - 1) * limit;
+
+    const countResult = await query("SELECT COUNT(*) as count FROM etf_price_monthly");
+    const total = countResult.rows[0]?.count || 0;
+
+    const result = await query(
+      "SELECT * FROM etf_price_monthly ORDER BY date DESC LIMIT $1 OFFSET $2",
+      [limit, offset]
+    );
+
+    const totalPages = Math.ceil(total / limit) || 1;
+    return sendPaginated(res, result.rows, {
+      page,
+      limit,
+      offset,
+      total,
+      totalPages,
+      hasNext: offset + limit < total,
+      hasPrev: offset > 0
+    });
+  } catch (err) {
+    console.error("ETF price monthly error:", err.message);
+    return sendError(res, err.message, 500);
+  }
+});
+
+module.exports = router;
