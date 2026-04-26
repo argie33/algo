@@ -3,7 +3,7 @@ const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require("../utils/apiResponse");
 const router = express.Router();
 
-// GET / - Get all sectors with performance rankings
+// GET / - Get all sectors ranked by stock count
 router.get("/", async (req, res) => {
   try {
     const { limit = 500, page = 1 } = req.query;
@@ -11,39 +11,31 @@ router.get("/", async (req, res) => {
     const pageNum = Math.max(parseInt(page) || 1, 1);
     const offset = (pageNum - 1) * limitNum;
 
-    // Get sector performance metrics (real data only, no defaults)
+    // Get sector data ranked by stock count
     const result = await query(`
       SELECT
         cp.sector as sector_name,
         COUNT(DISTINCT cp.ticker) as stock_count,
-        AVG(CAST(pd.close AS FLOAT)) as avg_price,
-        AVG(CAST(mm.momentum_score AS FLOAT)) as momentum_score,
-        AVG(CAST(vm.value_score AS FLOAT)) as value_score,
-        COUNT(DISTINCT CASE WHEN mm.momentum_score IS NOT NULL THEN 1 END) as momentum_count,
-        COUNT(DISTINCT CASE WHEN vm.value_score IS NOT NULL THEN 1 END) as value_count
+        AVG(CAST(pd.close AS FLOAT)) as avg_price
       FROM company_profile cp
       LEFT JOIN price_daily pd ON cp.ticker = pd.symbol
         AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = cp.ticker)
-      LEFT JOIN momentum_metrics mm ON cp.ticker = mm.symbol
-      LEFT JOIN value_metrics vm ON cp.ticker = vm.symbol
       WHERE cp.sector IS NOT NULL AND TRIM(cp.sector) != ''
       GROUP BY cp.sector
-      HAVING COUNT(DISTINCT CASE WHEN mm.momentum_score IS NOT NULL THEN 1 END) > 0
-      ORDER BY momentum_score DESC
+      ORDER BY stock_count DESC, sector_name ASC
       LIMIT $1 OFFSET $2
     `, [limitNum, offset]);
 
     const countResult = await query("SELECT COUNT(DISTINCT sector) as count FROM company_profile WHERE sector IS NOT NULL");
     const total = parseInt(countResult?.rows[0]?.count || 0);
 
-    // Add rankings (only real data)
+    // Add rankings based on real data
     const sectors = (result?.rows || []).map((row, idx) => ({
       sector_name: row.sector_name,
       current_rank: idx + 1 + offset,
       overall_rank: idx + 1 + offset,
       stock_count: parseInt(row.stock_count || 0),
-      momentum_score: row.momentum_score !== null ? parseFloat(row.momentum_score) : null,
-      value_score: row.value_score !== null ? parseFloat(row.value_score) : null
+      avg_price: row.avg_price !== null ? parseFloat(row.avg_price) : null
     }));
 
     const totalPages = Math.ceil(total / limitNum);
