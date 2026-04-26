@@ -890,16 +890,10 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             # DO NOT rollback here - it would undo company_profile and other inserts
             # Only skip this symbol's positioning, but keep other data
 
-        # 7. Insert earnings estimates - SKIPPED
-        # NOTE: yfinance earnings_estimate data (avg, low, high) doesn't match earnings_estimates table schema
-        # which expects (eps_estimate, revenue_estimate, eps_actual, revenue_actual).
-        # Frontend uses earnings_history instead (loaded below in section 8.5) which has actual earnings data.
-        # To avoid schema mismatches, we skip earnings_estimate and rely on earnings_history for all earnings data.
-        stats['earnings_est'] = 0
-
-        # 8.5. Insert earnings history (actual reported earnings - consolidated from loadearningshistory.py)
+        # 7. Insert earnings history (actual reported earnings + estimates)
+        # yfinance provides: epsActual, epsEstimate, epsDifference, surprisePercent
+        # This data feeds the frontend earnings displays and is the core earnings data source
         try:
-            # Retry earnings history fetch with exponential backoff (it often fails with 500 errors)
             earnings_history = None
             for attempt in range(3):
                 try:
@@ -923,7 +917,14 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         safe_float(row.get('epsActual'), max_val=100000, min_val=-100000),
                         safe_float(row.get('epsEstimate'), max_val=100000, min_val=-100000),
                         safe_float(row.get('epsDifference'), max_val=100000, min_val=-100000),
-                        safe_float(row.get('surprisePercent'), max_val=10000, min_val=-10000)
+                        safe_float(row.get('surprisePercent'), max_val=10000, min_val=-10000),
+                        None,  # revenue_actual
+                        None,  # revenue_estimate
+                        None,  # eps_surprise_pct (same as surprisePercent)
+                        None,  # revenue_surprise_pct
+                        None,  # beat_miss_flag
+                        None,  # estimate_revision_days
+                        None   # estimate_revision_count
                     ))
 
                 if history_data:
@@ -932,13 +933,23 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                         """
                         INSERT INTO earnings_history (
                             symbol, quarter, eps_actual, eps_estimate,
-                            eps_difference, surprise_percent
+                            eps_difference, surprise_percent,
+                            revenue_actual, revenue_estimate,
+                            eps_surprise_pct, revenue_surprise_pct,
+                            beat_miss_flag, estimate_revision_days, estimate_revision_count
                         ) VALUES %s
                         ON CONFLICT (symbol, quarter) DO UPDATE SET
                             eps_actual = EXCLUDED.eps_actual,
                             eps_estimate = EXCLUDED.eps_estimate,
                             eps_difference = EXCLUDED.eps_difference,
                             surprise_percent = EXCLUDED.surprise_percent,
+                            revenue_actual = EXCLUDED.revenue_actual,
+                            revenue_estimate = EXCLUDED.revenue_estimate,
+                            eps_surprise_pct = EXCLUDED.eps_surprise_pct,
+                            revenue_surprise_pct = EXCLUDED.revenue_surprise_pct,
+                            beat_miss_flag = EXCLUDED.beat_miss_flag,
+                            estimate_revision_days = EXCLUDED.estimate_revision_days,
+                            estimate_revision_count = EXCLUDED.estimate_revision_count,
                             fetched_at = CURRENT_TIMESTAMP
                         """,
                         history_data
@@ -948,6 +959,9 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
         except Exception as e:
             logging.debug(f"No earnings history available for {symbol}: {e}")
             stats['earnings_history'] = 0
+
+        # Skip earnings_estimates table - data goes into earnings_history instead
+        stats['earnings_est'] = 0
 
         # 8. Insert beta into beta_yfinance table (for loadfactormetrics consumption)
         if info and info.get('beta') is not None:

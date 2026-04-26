@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS earnings_estimates (
     UNIQUE(symbol, quarter)
 );
 
--- Earnings history (alias for compatibility)
+-- Earnings history (actual reported earnings + estimates)
 CREATE TABLE IF NOT EXISTS earnings_history (
     id SERIAL PRIMARY KEY,
     symbol VARCHAR(20),
@@ -126,6 +126,19 @@ CREATE TABLE IF NOT EXISTS earnings_history (
     fiscal_year INTEGER,
     earnings_date DATE,
     estimated BOOLEAN,
+    eps_actual DECIMAL(12, 4),
+    revenue_actual DECIMAL(16, 2),
+    eps_estimate DECIMAL(12, 4),
+    revenue_estimate DECIMAL(16, 2),
+    eps_surprise_pct DECIMAL(8, 2),
+    revenue_surprise_pct DECIMAL(8, 2),
+    eps_difference DECIMAL(12, 4),
+    revenue_difference DECIMAL(16, 2),
+    beat_miss_flag VARCHAR(20),
+    surprise_percent DECIMAL(8, 2),
+    estimate_revision_days INTEGER,
+    estimate_revision_count INTEGER,
+    fetched_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(symbol, quarter)
 );

@@ -175,7 +175,14 @@ def load_earnings_history(symbols, cur, conn, cfg):
                             eps_actual,
                             eps_estimate,
                             eps_difference,
-                            surprise_percent
+                            surprise_percent,
+                            None,  # revenue_actual
+                            None,  # revenue_estimate
+                            None,  # eps_surprise_pct
+                            None,  # revenue_surprise_pct
+                            None,  # beat_miss_flag
+                            None,  # estimate_revision_days
+                            None   # estimate_revision_count
                         ))
 
                     if history_data:
@@ -185,13 +192,23 @@ def load_earnings_history(symbols, cur, conn, cfg):
                                 execute_values(cur, """
                                     INSERT INTO earnings_history (
                                         symbol, quarter, eps_actual, eps_estimate,
-                                        eps_difference, surprise_percent
+                                        eps_difference, surprise_percent,
+                                        revenue_actual, revenue_estimate,
+                                        eps_surprise_pct, revenue_surprise_pct,
+                                        beat_miss_flag, estimate_revision_days, estimate_revision_count
                                     ) VALUES %s
                                     ON CONFLICT (symbol, quarter) DO UPDATE SET
                                         eps_actual = EXCLUDED.eps_actual,
                                         eps_estimate = EXCLUDED.eps_estimate,
                                         eps_difference = EXCLUDED.eps_difference,
                                         surprise_percent = EXCLUDED.surprise_percent,
+                                        revenue_actual = EXCLUDED.revenue_actual,
+                                        revenue_estimate = EXCLUDED.revenue_estimate,
+                                        eps_surprise_pct = EXCLUDED.eps_surprise_pct,
+                                        revenue_surprise_pct = EXCLUDED.revenue_surprise_pct,
+                                        beat_miss_flag = EXCLUDED.beat_miss_flag,
+                                        estimate_revision_days = EXCLUDED.estimate_revision_days,
+                                        estimate_revision_count = EXCLUDED.estimate_revision_count,
                                         fetched_at = CURRENT_TIMESTAMP
                                 """, history_data)
                                 conn.commit()
