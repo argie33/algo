@@ -1701,8 +1701,7 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
 
     # First: Get all key_metrics data in one query
     cursor.execute(
-        "SELECT ticker, market_cap, trailing_pe, forward_pe, price_to_book, "
-        "price_to_sales_ttm, peg_ratio, dividend_yield, beta "
+        "SELECT ticker, market_cap, held_percent_insiders, held_percent_institutions "
         "FROM key_metrics WHERE ticker = ANY(%s)",
         (symbols,)
     )
@@ -1715,22 +1714,22 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
             processed_symbols.add(symbol)
             ticker_dict = {
                 "ticker": symbol,
-                "return_on_equity_pct": row[1],
-                "return_on_assets_pct": row[2],
-                "gross_margin_pct": row[3],
-                "operating_margin_pct": row[4],
-                "profit_margin_pct": row[5],
-                "free_cashflow": row[6],
-                "net_income": row[7],
-                "operating_cashflow": row[8],
-                "debt_to_equity": row[9],
-                "current_ratio": row[10],
-                "quick_ratio": row[11],
-                "payout_ratio": row[12],
-                "ebitda": row[13],
-                "total_debt": row[14],
-                "total_cash": row[15],
-                "total_revenue": row[16],
+                "return_on_equity_pct": None,
+                "return_on_assets_pct": None,
+                "gross_margin_pct": None,
+                "operating_margin_pct": None,
+                "profit_margin_pct": None,
+                "free_cashflow": None,
+                "net_income": None,
+                "operating_cashflow": None,
+                "debt_to_equity": None,
+                "current_ratio": None,
+                "quick_ratio": None,
+                "payout_ratio": None,
+                "ebitda": None,
+                "total_debt": None,
+                "total_cash": None,
+                "total_revenue": None,
             }
 
             # Calculate quality metrics from key_metrics
