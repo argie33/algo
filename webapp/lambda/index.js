@@ -33,21 +33,24 @@ const { initializeDatabase, query } = require("./utils/database");
 const { initializeAlpacaSync } = require("./utils/alpacaSyncScheduler");
 const responseNormalizer = require("./middleware/responseNormalizer");
 const contactRoutes = require("./routes/contact");
+const commoditiesRoutes = require("./routes/commodities");
+const diagnosticsRoutes = require("./routes/diagnostics");
+const earningsRoutes = require("./routes/earnings");
 const economicRoutes = require("./routes/economic");
 const financialRoutes = require("./routes/financials");
 const healthRoutes = require("./routes/health");
+const industriesRoutes = require("./routes/industries");
 const manualTradesRoutes = require("./routes/manual-trades");
 const marketRoutes = require("./routes/market");
+const optimizationRoutes = require("./routes/optimization");
 const portfolioRoutes = require("./routes/portfolio");
-const signalsRoutes = require("./routes/signals");
-const sectorsRoutes = require("./routes/sectors");
-const industriesRoutes = require("./routes/industries");
-const scoresRoutes = require("./routes/scores");
-const sentimentRoutes = require("./routes/sentiment");
 const priceRoutes = require("./routes/price");
+const scoresRoutes = require("./routes/scores");
+const sectorsRoutes = require("./routes/sectors");
+const sentimentRoutes = require("./routes/sentiment");
+const signalsRoutes = require("./routes/signals");
 const stocksRoutes = require("./routes/stocks");
 const tradesRoutes = require("./routes/trades");
-const diagnosticsRoutes = require("./routes/diagnostics");
 
 const app = express();
 
@@ -449,6 +452,8 @@ app.get("/api/debug/test-error", (req, res) => {
 // Canonical API Routes - all under /api prefix
 app.use("/api/commodities", commoditiesRoutes);
 app.use("/api/contact", contactRoutes);
+app.use("/api/commodities", commoditiesRoutes);
+app.use("/api/contact", contactRoutes);
 app.use("/api/diagnostics", diagnosticsRoutes);
 app.use("/api/earnings", earningsRoutes);
 app.use("/api/economic", economicRoutes);
@@ -456,6 +461,7 @@ app.use("/api/financials", financialRoutes);
 app.use("/api/health", healthRoutes);
 app.use("/api/industries", industriesRoutes);
 app.use("/api/market", marketRoutes);
+app.use("/api/optimization", optimizationRoutes);
 app.use("/api/portfolio", portfolioRoutes);
 app.use("/api/price", priceRoutes);
 app.use("/api/scores", scoresRoutes);
