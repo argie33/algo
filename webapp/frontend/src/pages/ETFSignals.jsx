@@ -910,7 +910,6 @@ function ETFSignals() {
                 message: signalsError?.message || String(signalsError),
                 context: {
                   endpoint: `${API_BASE}/api/signals/etf?timeframe=${timeframe}`,
-                  debugEndpoint: `${API_BASE}/api/trading/debug`,
                   filters: { signalType, dateRange, timeframe },
                   component: "ETFSignals",
                 },

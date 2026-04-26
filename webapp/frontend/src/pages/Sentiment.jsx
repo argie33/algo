@@ -119,11 +119,8 @@ const ComprehensiveAnalystMetrics = ({ symbol }) => {
         setLoading(true);
         setError(null);
 
-        // Fetch analyst sentiment data and upgrades from working endpoints
-        const [sentimentRes, upgradesRes] = await Promise.all([
-          fetch(`${API_BASE}/api/sentiment/data?symbol=${symbol}`).catch(() => null),
-          fetch(`${API_BASE}/api/analysts/upgrades?limit=50`).catch(() => null),
-        ]);
+        // Fetch sentiment data
+        const sentimentRes = await fetch(`${API_BASE}/api/sentiment/data?symbol=${symbol}`).catch(() => null);
 
         // Get sentiment data for this symbol
         if (sentimentRes?.ok) {
@@ -131,15 +128,6 @@ const ComprehensiveAnalystMetrics = ({ symbol }) => {
           const symbolData = sentimentData.items?.find(item => item.symbol === symbol);
           if (symbolData) {
             setSentimentTrend(symbolData);
-          }
-        }
-
-        // Filter upgrades for this symbol
-        if (upgradesRes?.ok) {
-          const upgradesData = await upgradesRes.json();
-          const symbolUpgrades = upgradesData.data?.filter(item => item.symbol === symbol) || [];
-          if (symbolUpgrades.length > 0) {
-            setMomentum(symbolUpgrades.slice(0, 10)); // Show latest 10
           }
         }
       } catch (err) {
@@ -557,10 +545,9 @@ const AnalystTrendCard = ({ symbol }) => {
         setError(null);
 
         // Fetch from available endpoints
-        const [insightsRes, sentimentRes, upgradesRes] = await Promise.all([
+        const [insightsRes, sentimentRes] = await Promise.all([
           fetch(`${API_BASE}/api/sentiment/analyst/insights/${symbol}`).catch(() => null),
           fetch(`${API_BASE}/api/sentiment/data?symbol=${symbol}`).catch(() => null),
-          fetch(`${API_BASE}/api/analysts/upgrades?limit=50`).catch(() => null),
         ]);
 
         // Process insights data (primary source)
@@ -575,15 +562,6 @@ const AnalystTrendCard = ({ symbol }) => {
           const symbolData = sentimentData.items?.find(item => item.symbol === symbol);
           if (symbolData) {
             setSentimentTrend(symbolData);
-          }
-        }
-
-        // Filter upgrades for this symbol
-        if (upgradesRes?.ok) {
-          const upgradesData = await upgradesRes.json();
-          const symbolUpgrades = upgradesData.data?.filter(item => item.symbol === symbol) || [];
-          if (symbolUpgrades.length > 0) {
-            setAnalystMomentum(symbolUpgrades.slice(0, 10));
           }
         }
       } catch (err) {
@@ -1173,28 +1151,10 @@ function Sentiment() {
   // Parse sentiment data - API returns { items: [...], pagination: {...} }
   const rawData = sentimentData?.items || sentimentData?.data || [];
 
-  // Fetch analyst upgrades/downgrades
-  useEffect(() => {
-    const fetchAnalystUpgrades = async () => {
-      try {
-        setUpgradesLoading(true);
-        const response = await fetch(`${API_BASE}/api/analysts/upgrades?limit=100`);
-        if (!response.ok) throw new Error("Failed to fetch analyst upgrades");
-        const data = await response.json();
-        // Handle both response structures: { data: [...] } or { data: { upgrades: [...] } }
-        const upgradesData = Array.isArray(data?.data) ? data.data : (data?.data?.upgrades || []);
-        if (upgradesData && upgradesData.length > 0) {
-          setUpgrades(upgradesData);
-        }
-      } catch (err) {
-        console.error("Error fetching analyst upgrades:", err);
-        setUpgradesError("Failed to load analyst upgrades");
-      } finally {
-        setUpgradesLoading(false);
-      }
-    };
-
-    fetchAnalystUpgrades();
+  // Analyst upgrades endpoint removed - use sentiment data instead
+  // setUpgradesLoading(false) on component mount
+  React.useEffect(() => {
+    setUpgradesLoading(false);
   }, []);
 
   // Helper functions for analyst upgrades

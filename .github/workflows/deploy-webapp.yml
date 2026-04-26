@@ -586,92 +586,11 @@ jobs:
           echo "CloudFront invalidation created: $INVALIDATION_ID"
           echo "Distribution ID: $DISTRIBUTION_ID"
 ################################################################################
-# 4) Build and deploy Admin Frontend                                           #
-################################################################################
-  deploy_frontend_admin:
-    name: Deploy Admin Frontend to S3
-    needs: [filter, deploy_infrastructure]
-    if: ${{ needs.filter.outputs.any == 'true' }}
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Cache npm dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            webapp/frontend-admin/node_modules
-            ~/.npm
-          key: ${{ runner.os }}-admin-${{ hashFiles('webapp/frontend-admin/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-admin-
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region:        ${{ env.AWS_REGION }}
-          role-to-assume:    ${{ env.AWS_ROLE_ARN }}
-          role-session-name: ${{ env.AWS_ROLE_SESSION }}
-
-      - name: Verify Admin Frontend (pre-built)
-        working-directory: webapp/frontend-admin
-        run: |
-          echo "Admin frontend will be synced after infrastructure is deployed"
-          if [ -d "dist" ]; then
-            echo "✅ Admin frontend dist folder exists"
-            du -sh dist
-          else
-            echo "⚠️ Admin frontend dist folder not found"
-          fi
-
-      - name: Deploy Admin Frontend to S3
-        working-directory: webapp/frontend-admin
-        run: |
-          BUCKET_PREFIX="${{ needs.deploy_infrastructure.outputs.bucket_prefix }}"
-          AWS_ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
-          BUCKET_NAME="${BUCKET_PREFIX}-${AWS_ACCOUNT_ID}"
-
-          echo "Deploying admin site to: s3://$BUCKET_NAME/admin/"
-
-          # Sync admin frontend files to S3 /admin path
-          aws s3 sync dist-admin/ s3://"$BUCKET_NAME"/admin/ \
-            --delete \
-            --cache-control "public, max-age=31536000" \
-            --exclude "*.html" \
-            --exclude "service-worker.js"
-
-          # Upload HTML files with shorter cache
-          aws s3 sync dist-admin/ s3://"$BUCKET_NAME"/admin/ \
-            --cache-control "public, max-age=0, must-revalidate" \
-            --include "*.html" \
-            --include "service-worker.js"
-
-          echo "✅ Admin frontend deployed to S3: $BUCKET_NAME/admin/"
-
-      - name: Invalidate CloudFront cache for admin
-        run: |
-          DISTRIBUTION_ID="${{ needs.deploy_infrastructure.outputs.cloudfront_id }}"
-
-          INVALIDATION_ID=$(aws cloudfront create-invalidation \
-            --distribution-id "$DISTRIBUTION_ID" \
-            --paths "/admin/*" \
-            --query "Invalidation.Id" \
-            --output text)
-
-          echo "CloudFront invalidation created for /admin: $INVALIDATION_ID"
-################################################################################
-# 5) Post-deployment verification                                              #
+# 4) Post-deployment verification                                              #
 ################################################################################
   verify_deployment:
     name: Verify deployment
-    needs: [setup, deploy_infrastructure, deploy_frontend, deploy_frontend_admin]
+    needs: [setup, deploy_infrastructure, deploy_frontend]
     if: ${{ always() && needs.deploy_infrastructure.result == 'success' }}
     runs-on: ubuntu-latest
 
@@ -735,7 +654,7 @@ jobs:
             echo "Stack name not available"
           fi
 ################################################################################
-# 6) Cleanup on failure                                                        #
+# 5) Cleanup on failure                                                        #
 ################################################################################
   cleanup_on_failure:
     name: Cleanup failed deployment

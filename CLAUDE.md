@@ -21,8 +21,8 @@ It runs as plain Express locally and deploys to AWS Lambda in production. All ot
 # Terminal 1: Start the API server (port 3001)
 node webapp/lambda/index.js
 
-# Terminal 2: Start the admin frontend (port 5174)
-cd webapp/frontend-admin
+# Terminal 2: Start the unified frontend (port 5174)
+cd webapp/frontend
 npm run dev
 
 # Open browser
@@ -64,8 +64,9 @@ The frontend proxy at `/api/*` automatically routes to `http://localhost:3001/ap
                └─── ... 15+ more
                │
 ┌──────────────▼──────────────────────────────┐
-│  React Admin Frontend (port 5174)           │
+│  React Unified Frontend (port 5174)         │
 │  - Vite dev server                          │
+│  - All features in one codebase             │
 │  - Calls /api/* via axios                   │
 │  - MUI components, React Query              │
 └─────────────────────────────────────────────┘
