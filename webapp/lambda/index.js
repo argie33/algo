@@ -32,25 +32,16 @@ const requestLogger = require("./middleware/requestLogger");
 const { initializeDatabase, query } = require("./utils/database");
 const { initializeAlpacaSync } = require("./utils/alpacaSyncScheduler");
 const responseNormalizer = require("./middleware/responseNormalizer");
-const commoditiesRoutes = require("./routes/commodities");
 const contactRoutes = require("./routes/contact");
-const earningsRoutes = require("./routes/earnings");
 const economicRoutes = require("./routes/economic");
 const financialRoutes = require("./routes/financials");
 const healthRoutes = require("./routes/health");
-const industriesRoutes = require("./routes/industries");
 const manualTradesRoutes = require("./routes/manual-trades");
 const marketRoutes = require("./routes/market");
-const optimizationRoutes = require("./routes/optimization");
 const portfolioRoutes = require("./routes/portfolio");
-const priceRoutes = require("./routes/price");
-// const scoringRoutes = require("./routes/scoring"); // DEPRECATED - Use scores system instead
-const scoresRoutes = require("./routes/scores");
 const sectorsRoutes = require("./routes/sectors");
-const sentimentRoutes = require("./routes/sentiment");
 const signalsRoutes = require("./routes/signals");
 const stocksRoutes = require("./routes/stocks");
-const strategiesRoutes = require("./routes/strategies");
 const tradesRoutes = require("./routes/trades");
 const diagnosticsRoutes = require("./routes/diagnostics");
 
@@ -458,6 +449,7 @@ app.use("/api/financials", financialRoutes);
 app.use("/api/health", healthRoutes);
 app.use("/api/market", marketRoutes);
 app.use("/api/portfolio", portfolioRoutes);
+app.use("/api/sectors", sectorsRoutes);
 app.use("/api/signals", signalsRoutes);
 app.use("/api/stocks", stocksRoutes);
 app.use("/api/trades", tradesRoutes);
@@ -472,20 +464,15 @@ app.get("/api", (req, res) => {
       version: "2.0.0",
       status: "operational",
       endpoints: {
-        auth: "/api/auth",
-        commodities: "/api/commodities",
-        earnings: "/api/earnings",
+        contact: "/api/contact",
         economic: "/api/economic",
         financials: "/api/financials",
         health: "/api/health",
         market: "/api/market",
         portfolio: "/api/portfolio",
-        price: "/api/price",
-        scores: "/api/scores",
         sectors: "/api/sectors",
-        sentiment: "/api/sentiment",
         signals: "/api/signals",
-        user: "/api/user",
+        stocks: "/api/stocks",
         trades: "/api/trades"
       },
       timestamp: new Date().toISOString(),
