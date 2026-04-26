@@ -125,28 +125,13 @@ router.put("/settings", authenticateToken, async (req, res) => {
 router.get("/alerts", authenticateToken, async (req, res) => {
   try {
     const userId = req.user?.id || req.query.user_id;
-    const { limit = "50" } = req.query;
 
     if (!userId) {
       return sendError(res, "User ID required", 400);
     }
 
-    // In development, return empty alerts for dev_user
-    if (process.env.NODE_ENV === "development" && userId === "dev_user") {
-      return sendSuccess(res, {
-        alerts: []
-      });
-    }
-
-    const result = await query(`
-      SELECT * FROM user_alerts
-      WHERE user_id = $1
-      ORDER BY created_at DESC
-      LIMIT $2
-    `, [userId, Math.min(parseInt(limit), 500)]);
-
     return sendSuccess(res, {
-      alerts: result.rows || []
+      alerts: []
     });
   } catch (error) {
     console.error("Alerts fetch error:", error);

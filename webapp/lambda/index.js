@@ -452,23 +452,14 @@ app.get("/api/debug/test-error", (req, res) => {
 });
 
 // Canonical API Routes - all under /api prefix
-app.use("/api/commodities", commoditiesRoutes);
 app.use("/api/contact", contactRoutes);
-app.use("/api/earnings", earningsRoutes);
 app.use("/api/economic", economicRoutes);
 app.use("/api/financials", financialRoutes);
 app.use("/api/health", healthRoutes);
-app.use("/api/industries", industriesRoutes);
 app.use("/api/market", marketRoutes);
-app.use("/api/optimization", optimizationRoutes);
 app.use("/api/portfolio", portfolioRoutes);
-app.use("/api/price", priceRoutes);
-app.use("/api/scores", scoresRoutes);
-app.use("/api/sectors", sectorsRoutes);
-app.use("/api/sentiment", sentimentRoutes);
 app.use("/api/signals", signalsRoutes);
 app.use("/api/stocks", stocksRoutes);
-app.use("/api/strategies", strategiesRoutes);
 app.use("/api/trades", tradesRoutes);
 app.use("/api/trades/manual", manualTradesRoutes);
 app.use("/api/diagnostics", diagnosticsRoutes);
