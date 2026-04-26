@@ -251,7 +251,17 @@ export const getStocks = async (params = {}) => {
     const queryStr = new URLSearchParams(params).toString();
     const url = queryStr ? `/api/stocks?${queryStr}` : "/api/stocks";
     const response = await api.get(url);
-    return response.data;
+    // Transform response format for consistency with frontend expectations
+    // API returns { items: [...] }, but frontend expects { data: [...] }
+    const transformedData = {
+      ...response.data,
+      data: (response.data.items || []).map(item => ({
+        ...item,
+        ticker: item.symbol, // Map symbol to ticker for compatibility
+        short_name: item.name, // Map name to short_name for compatibility
+      })),
+    };
+    return transformedData;
   } catch (error) {
     console.error("Error fetching stocks:", error);
     return { success: false, data: [], error: error.message };
