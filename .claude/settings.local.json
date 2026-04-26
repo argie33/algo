@@ -44,7 +44,8 @@
       "Bash(git commit -m 'Architectural cleanup complete: fix response patterns, centralize configs *)",
       "Bash(grep -i \"\\\\.py$\")",
       "Bash(cat)",
-      "Read(//c/Users/arger/.claude/plans/**)"
+      "Read(//c/Users/arger/.claude/plans/**)",
+      "Bash(git commit -m 'Document remaining critical issues found *)"
     ]
   }
 }

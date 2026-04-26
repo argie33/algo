@@ -571,19 +571,11 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve main frontend static files
+// Serve unified frontend static files
 const mainBuildPath = path.join(__dirname, '../frontend/dist');
 app.use(express.static(mainBuildPath, {
   maxAge: '1d',
   etag: false
-}));
-
-// Serve admin site static files
-const adminBuildPath = path.join(__dirname, '../frontend-admin/dist-admin');
-app.use(express.static(adminBuildPath, {
-  maxAge: '1d',
-  etag: false,
-  index: false
 }));
 
 // SPA fallback for frontend routes (must be last - only applies to non-API paths)
