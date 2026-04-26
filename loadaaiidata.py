@@ -34,12 +34,20 @@ import logging
 import json
 import os
 import gc
+from pathlib import Path
+from dotenv import load_dotenv
+
 try:
     import resource
     HAS_RESOURCE = True
 except ImportError:
     HAS_RESOURCE = False
 import math
+
+# Load environment variables from .env.local if it exists
+env_path = Path(__file__).parent / '.env.local'
+if env_path.exists():
+    load_dotenv(env_path)
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values

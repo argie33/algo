@@ -10,6 +10,8 @@ import requests
 import time
 from datetime import datetime, timedelta
 import io
+from pathlib import Path
+from dotenv import load_dotenv
 
 # Fix Unicode encoding on Windows BEFORE any other imports
 if sys.platform == 'win32':
@@ -18,6 +20,11 @@ if sys.platform == 'win32':
     # Wrap stdout to support UTF-8
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
+# Load environment variables from .env.local if it exists
+env_path = Path(__file__).parent / '.env.local'
+if env_path.exists():
+    load_dotenv(env_path)
 
 import boto3
 import pandas as pd
