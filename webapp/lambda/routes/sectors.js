@@ -3,7 +3,7 @@ const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require("../utils/apiResponse");
 const router = express.Router();
 
-// GET / - Get all sectors ranked by stock count
+// GET / - Get all sectors with full performance rankings and scores
 router.get("/", async (req, res) => {
   try {
     const { limit = 500, page = 1 } = req.query;
@@ -11,31 +11,42 @@ router.get("/", async (req, res) => {
     const pageNum = Math.max(parseInt(page) || 1, 1);
     const offset = (pageNum - 1) * limitNum;
 
-    // Get sector data ranked by stock count
     const result = await query(`
       SELECT
         cp.sector as sector_name,
         COUNT(DISTINCT cp.ticker) as stock_count,
-        AVG(CAST(pd.close AS FLOAT)) as avg_price
+        AVG(CAST(pd.close AS FLOAT)) as avg_price,
+        AVG(ss.composite_score) as composite_score,
+        AVG(ss.momentum_score) as momentum_score,
+        AVG(ss.value_score) as value_score,
+        AVG(ss.quality_score) as quality_score,
+        AVG(ss.growth_score) as growth_score,
+        AVG(ss.stability_score) as stability_score
       FROM company_profile cp
       LEFT JOIN price_daily pd ON cp.ticker = pd.symbol
         AND pd.date = (SELECT MAX(date) FROM price_daily WHERE symbol = cp.ticker)
+      LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
       WHERE cp.sector IS NOT NULL AND TRIM(cp.sector) != ''
       GROUP BY cp.sector
-      ORDER BY stock_count DESC, sector_name ASC
+      ORDER BY composite_score DESC NULLS LAST, stock_count DESC
       LIMIT $1 OFFSET $2
     `, [limitNum, offset]);
 
     const countResult = await query("SELECT COUNT(DISTINCT sector) as count FROM company_profile WHERE sector IS NOT NULL");
     const total = parseInt(countResult?.rows[0]?.count || 0);
 
-    // Add rankings based on real data
     const sectors = (result?.rows || []).map((row, idx) => ({
       sector_name: row.sector_name,
       current_rank: idx + 1 + offset,
       overall_rank: idx + 1 + offset,
       stock_count: parseInt(row.stock_count || 0),
-      avg_price: row.avg_price !== null ? parseFloat(row.avg_price) : null
+      avg_price: row.avg_price !== null ? parseFloat(row.avg_price) : null,
+      composite_score: row.composite_score !== null ? parseFloat(row.composite_score) : null,
+      momentum_score: row.momentum_score !== null ? parseFloat(row.momentum_score) : null,
+      value_score: row.value_score !== null ? parseFloat(row.value_score) : null,
+      quality_score: row.quality_score !== null ? parseFloat(row.quality_score) : null,
+      growth_score: row.growth_score !== null ? parseFloat(row.growth_score) : null,
+      stability_score: row.stability_score !== null ? parseFloat(row.stability_score) : null
     }));
 
     const totalPages = Math.ceil(total / limitNum);
