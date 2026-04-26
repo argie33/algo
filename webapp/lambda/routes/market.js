@@ -2087,7 +2087,7 @@ router.get("/internals", async (req, res) => {
             ) aaii ON true
             LEFT JOIN (
               SELECT bullish, bearish
-              FROM naaim_sentiment
+              FROM naaim
               ORDER BY date DESC
               LIMIT 1
             ) naaim ON true
