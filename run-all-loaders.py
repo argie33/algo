@@ -14,11 +14,25 @@ if sys.platform == 'win32':
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 loaders = [
-    ('loaddailycompanydata.py', 'Earnings Estimates'),
-    ('loadecondata.py', 'Economic Data'),
+    # Core data (must run first)
+    ('loaddailycompanydata.py', 'Daily Company Data (Earnings, Positioning)'),
+
+    # Critical analyst/sentiment data
+    ('loadanalystsentiment.py', 'Analyst Sentiment'),
+    ('loadanalystupgradedowngrade.py', 'Analyst Upgrades/Downgrades'),
+
+    # Options and Greeks
+    ('loadoptionschains.py', 'Options Chains & Greeks'),
+
+    # Financial statements
     ('loadannualincomestatement.py', 'Annual Income Statements'),
     ('loadquarterlyincomestatement.py', 'Quarterly Income Statements'),
+
+    # Economic and factor data
+    ('loadecondata.py', 'Economic Data'),
     ('loadfactormetrics.py', 'Factor Metrics'),
+
+    # Trading signals
     ('loadbuysellweekly.py', 'Buy/Sell Signals'),
 ]
 
