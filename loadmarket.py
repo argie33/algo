@@ -36,11 +36,7 @@ from typing import Dict, List, Optional, Tuple, Any
 
 # Windows compatibility: resource module doesn't exist on Windows
 try:
-    try:
     import resource
-    HAS_RESOURCE = True
-except ImportError:
-    HAS_RESOURCE = False
     HAS_RESOURCE = True
 except ImportError:
     HAS_RESOURCE = False
