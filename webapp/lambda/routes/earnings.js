@@ -29,18 +29,18 @@ router.get("/info", async (req, res) => {
 
     if (symbol) {
       const result = await query(
-        "SELECT symbol, quarter, eps_actual, eps_estimate, eps_surprise_pct FROM earnings_estimates WHERE symbol = $1 ORDER BY quarter DESC LIMIT $2",
+        "SELECT symbol, quarter, eps_actual, eps_estimate, eps_surprise_pct FROM earnings_history WHERE symbol = $1 ORDER BY quarter DESC LIMIT $2",
         [symbol.toUpperCase(), limitNum]
       );
-      return sendSuccess(res, { estimates: result.rows || [] });
+      return sendSuccess(res, { earnings: result.rows || [] });
     }
 
     const result = await query(
       `SELECT DISTINCT ON (symbol) symbol, quarter, eps_actual, eps_estimate
-       FROM earnings_estimates ORDER BY symbol, quarter DESC LIMIT $1`,
+       FROM earnings_history ORDER BY symbol, quarter DESC LIMIT $1`,
       [limitNum]
     );
-    return sendSuccess(res, { estimates: result.rows || [] });
+    return sendSuccess(res, { earnings: result.rows || [] });
   } catch (err) {
     return sendError(res, `Failed to fetch earnings: ${err.message}`, 500);
   }

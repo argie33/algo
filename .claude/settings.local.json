@@ -42,7 +42,9 @@
       "Bash(awk '{print $5, $9}')",
       "Bash(git reset *)",
       "Bash(git commit -m 'Architectural cleanup complete: fix response patterns, centralize configs *)",
-      "Bash(grep -i \"\\\\.py$\")"
+      "Bash(grep -i \"\\\\.py$\")",
+      "Bash(cat)",
+      "Read(//c/Users/arger/.claude/plans/**)"
     ]
   }
 }

@@ -1,0 +1,224 @@
+================================================================================
+                    API ENDPOINT QUICK REFERENCE GUIDE
+================================================================================
+
+LEGEND:
+  ✓ = Used by frontend
+  ✗ = Not used / Can be deleted
+  ⚠ = Duplicate / Redundant
+
+================================================================================
+ENDPOINTS BY FRONTEND PAGE USAGE
+================================================================================
+
+PAGE: DeepValueStocks.jsx
+──────────────────────────────────────────────────────────────────────────────
+  ✓  GET /api/stocks/deep-value              (Ranked value stocks with filters)
+
+PAGE: TradeHistory.jsx
+──────────────────────────────────────────────────────────────────────────────
+  ✓  GET /api/trades                         (All trades with filtering)
+  ✓  GET /api/trades/summary                 (Trade statistics & metrics)
+  ⚠  GET /api/trades/history                 (DUPLICATE - same as /trades)
+
+PAGE: PortfolioDashboard.jsx
+──────────────────────────────────────────────────────────────────────────────
+  ✓  GET /api/portfolio/metrics              (Holdings + performance + risk)
+
+PAGE: PortfolioOptimizerNew.jsx
+──────────────────────────────────────────────────────────────────────────────
+  ✓  GET /api/optimization/analysis          (Portfolio optimization suggestions)
+
+PAGE: Messages.jsx
+──────────────────────────────────────────────────────────────────────────────
+  ✓  GET /api/contact/submissions            (Contact form submissions)
+
+PAGE: ServiceHealth.jsx
+──────────────────────────────────────────────────────────────────────────────
+  ✓  GET /api/health                         (API health status)
+  ✓  GET /api/health/database                (Database health status)
+
+PAGE: Settings.jsx
+──────────────────────────────────────────────────────────────────────────────
+  ? GET /api/user/settings                   (Not confirmed in frontend)
+  ? PUT /api/user/settings                   (Not confirmed in frontend)
+
+================================================================================
+MODULES BREAKDOWN
+================================================================================
+
+✓ ACTIVELY USED (7 modules, 13-15 endpoints used)
+
+  STOCKS            1/6  used  [Keep: /deep-value]
+  TRADES            2/3  used  [Keep: /, /summary] [Delete: /history DUPLICATE]
+  PORTFOLIO         5/11 used  [Keep: /metrics, /api-keys/*, /test-api-key]
+  CONTACT           1/4  used  [Keep: /submissions]
+  HEALTH            2/4  used  [Keep: /, /database]
+  OPTIMIZATION      1/5  used  [Keep: /analysis]
+  USER              ?/?  used  [Settings may use this]
+
+✗ COMPLETELY UNUSED (24 modules, 140+ endpoints - DELETE)
+
+  ANALYSTS          6 endpoints   ✗✗✗
+  API-STATUS        1 endpoint    ✗
+  AUTH             10 endpoints   ✗✗✗✗
+  COMMODITIES       8 endpoints   ✗✗
+  COMMUNITY         5 endpoints   ✗
+  DASHBOARD         0 endpoints   (empty module)
+  DIAGNOSTICS       4 endpoints   ✗
+  EARNINGS          8 endpoints   ✗✗
+  ECONOMIC          5 endpoints   ✗
+  FINANCIALS        6 endpoints   ✗
+  INDUSTRIES        3 endpoints   ✗
+  MANUAL-TRADES     5 endpoints   ✗
+  MARKET           23 endpoints   ✗✗✗✗✗✗ (LARGEST - 23 ENDPOINTS!)
+  METRICS           8 endpoints   ✗✗
+  OPTIONS           4 endpoints   ✗
+  PRICE             8 endpoints   ✗✗
+  SCORES            3 endpoints   ✗
+  SECTORS           3 endpoints   ✗
+  SENTIMENT        10 endpoints   ✗✗✗✗
+  SIGNALS           6 endpoints   ✗
+  STRATEGIES        3 endpoints   ✗
+  TECHNICALS        6 endpoints   ✗
+  TRADING           0 endpoints   (empty module)
+  USER              5 endpoints   ✗
+  WORLD-ETFS        4 endpoints   ✗
+
+================================================================================
+MODULES TO DELETE (HIGHEST PRIORITY)
+================================================================================
+
+Priority 1 (Largest impact - delete first):
+  ❌ MARKET.js        (23 endpoints)
+  ❌ SENTIMENT.js     (10 endpoints)
+  ❌ AUTH.js          (10 endpoints)
+
+Priority 2 (Medium impact):
+  ❌ ANALYSTS.js      (6 endpoints)
+  ❌ FINANCIALS.js    (6 endpoints)
+  ❌ TECHNICALS.js    (6 endpoints)
+  ❌ EARNINGS.js      (8 endpoints)
+  ❌ METRICS.js       (8 endpoints)
+  ❌ PRICE.js         (8 endpoints)
+  ❌ SIGNALS.js       (6 endpoints)
+
+Priority 3 (Smaller modules):
+  ❌ COMMODITIES.js   (8 endpoints)
+  ❌ COMMUNITY.js     (5 endpoints)
+  ❌ DIAGNOSTICS.js   (4 endpoints)
+  ❌ EARNINGS.js      (8 endpoints)
+  ❌ ECONOMIC.js      (5 endpoints)
+  ❌ INDUSTRIES.js    (3 endpoints)
+  ❌ MANUAL-TRADES.js (5 endpoints)
+  ❌ OPTIONS.js       (4 endpoints)
+  ❌ SCORES.js        (3 endpoints)
+  ❌ SECTORS.js       (3 endpoints)
+  ❌ STRATEGIES.js    (3 endpoints)
+  ❌ USER.js          (5 endpoints) - if settings not used
+  ❌ WORLD-ETFS.js    (4 endpoints)
+
+Clean up (empty):
+  ❌ DASHBOARD.js     (0 endpoints)
+  ❌ TRADING.js       (0 endpoints)
+
+================================================================================
+DUPLICATES TO REMOVE
+================================================================================
+
+In trades.js:
+  ⚠  GET /api/trades
+  ⚠  GET /api/trades/history  <- DUPLICATE - DELETE THIS ONE
+
+In sectors.js:
+  ⚠  GET /api/sectors
+  ⚠  GET /api/sectors/sectors <- DUPLICATE - DELETE THIS ONE
+
+In industries.js:
+  ⚠  GET /api/industries
+  ⚠  GET /api/industries/industries <- DUPLICATE - DELETE THIS ONE
+
+In market.js:
+  ⚠  GET /api/market/fresh-data appears TWICE <- DELETE ONE
+
+================================================================================
+API FUNCTIONS TO CREATE IN FRONTEND
+================================================================================
+
+✓ Already created:
+  - getDeepValueStocks()
+  - getTrades()
+  - getTradesSummary()
+  - getTradesFifoAnalysis()
+  - getPortfolioData()
+  - getContactSubmissions()
+
+🔨 Still need to create:
+  - getHealthStatus()
+  - getHealthDatabase()
+  - getOptimizationAnalysis()
+  - getPortfolioMetrics()         (alternative to getPortfolioData())
+  - getPortfolioApiKeys()
+  - createPortfolioApiKey()
+  - deletePortfolioApiKey()
+  - testPortfolioApiKey()
+  - getUserSettings()
+  - updateUserSettings()
+
+================================================================================
+CURRENT STATE vs. CLEANUP STATE
+================================================================================
+
+                          BEFORE          AFTER         REDUCTION
+─────────────────────────────────────────────────────────────────
+Route Modules              31              6            -81%
+Total Endpoints           155+            12-14         -91%
+Files to Maintain          31              6            -81%
+Unused Endpoints          140+             0           -100%
+API Complexity         Very High          Low           -90%
+Lines of Code         ~15,000+         ~2,000         -87%
+
+================================================================================
+CONSOLIDATION ROADMAP
+================================================================================
+
+Week 1:
+  [ ] Delete 25 unused route modules
+  [ ] Remove from index.js registration
+  [ ] Fix 4 duplicate endpoints
+  [ ] Run tests to ensure deletions don't break anything
+  Effort: ~6 hours
+
+Week 2:
+  [ ] Create typed API functions for remaining endpoints
+  [ ] Update all frontend components to use functions
+  [ ] Remove direct api.get() calls from components
+  Effort: ~5-6 hours
+
+Week 3:
+  [ ] Full regression testing of all pages
+  [ ] Update API documentation
+  [ ] Performance testing (should be faster)
+  Effort: ~3-4 hours
+
+================================================================================
+FINAL CONSOLIDATED API
+================================================================================
+
+GET  /api/stocks/deep-value         <- DeepValueStocks
+GET  /api/trades                    <- TradeHistory
+GET  /api/trades/summary            <- TradeHistory
+GET  /api/portfolio/metrics         <- PortfolioDashboard
+GET  /api/optimization/analysis     <- PortfolioOptimizerNew
+GET  /api/contact/submissions       <- Messages
+GET  /api/health                    <- ServiceHealth
+GET  /api/health/database           <- ServiceHealth
+GET  /api/user/settings             <- Settings (maybe)
+PUT  /api/user/settings             <- Settings (maybe)
+GET  /api/portfolio/api-keys        <- Settings (maybe)
+POST /api/portfolio/api-keys        <- Settings (maybe)
+POST /api/portfolio/test-api-key    <- Settings (maybe)
+
+TOTAL: 12-14 clean, well-used endpoints
+
+================================================================================
