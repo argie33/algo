@@ -5,25 +5,33 @@ const { getMarketDataPath } = require("../utils/market-data-path");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
-// Root endpoint - returns available sub-endpoints
-router.get("/", (req, res) => {
-  return sendSuccess(res, {
-    endpoint: "economic",
-    description: "Economic indicators and financial conditions data",
-    available_routes: [
-      "GET /leading-indicators - Comprehensive leading, lagging, and coincident economic indicators with 50+ data points",
-      "GET /yield-curve-full - Treasury yield curve (3M-30Y) AND credit spreads with 60-day historical data - consolidated endpoint",
-      "GET /calendar - Upcoming economic events with dates and forecasts"
-    ]
-  });
-});
-
 // GET /api/economic/data - Get economic data from market_data table
 router.get("/data", async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 100, 500);
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const offset = (page - 1) * limit;
+
+    // Check if market_data table exists
+    const tableExists = await query(
+      `SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = 'market_data'
+      )`
+    );
+
+    if (!tableExists.rows[0]?.exists) {
+      // Table doesn't exist - return empty result
+      return sendPaginated(res, [], {
+        page,
+        limit,
+        offset,
+        total: 0,
+        totalPages: 0,
+        hasMore: false
+      });
+    }
 
     const countResult = await query(
       `SELECT COUNT(*) as count FROM market_data WHERE metric_name IN ('VIX', 'DXY', 'YIELD')`

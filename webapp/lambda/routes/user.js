@@ -5,18 +5,6 @@ const { authenticateToken } = require("../middleware/auth");
 const { sendSuccess, sendError, sendPaginated, sendBadRequest, sendNotFound } = require('../utils/apiResponse');
 const router = express.Router();
 
-// Root endpoint - returns available sub-endpoints
-router.get("/", (req, res) => {
-  return sendSuccess(res, {
-    endpoint: "user",
-    available_routes: [
-      "/profile - Get authenticated user profile",
-      "/preferences - Get user preferences and settings",
-      "/activity - Get user activity history"
-    ]
-  });
-});
-
 // GET /api/user/profile - Get user profile
 router.get("/profile", authenticateToken, async (req, res) => {
   try {

@@ -50,22 +50,6 @@ function checkDatabaseAvailable(res) {
 }
 const router = express.Router();
 
-// Root endpoint - returns available sub-endpoints
-router.get("/", (req, res) => {
-  return sendSuccess(res, {
-    endpoint: "commodities",
-    description: "Commodities market data and COT analysis",
-    available_routes: [
-      "/categories - Commodity categories and performance",
-      "/prices - Current commodity prices with filtering",
-      "/market-summary - Market overview and leaders",
-      "/cot/:symbol - Commitment of Traders analysis",
-      "/seasonality/:symbol - Seasonal patterns by month",
-      "/correlations - Price correlations between commodities"
-    ]
-  });
-});
-
 /**
  * GET /commodities/categories
  * Get commodity categories with aggregate performance data
@@ -453,11 +437,6 @@ router.get("/correlations", async (req, res) => {
     console.error("❌ Error fetching correlations:", error.message);
     return sendError(res, "Correlation data not available. Requires commodity_correlations table and data loader.", 503);
   }
-});
-
-// Alias: /list -> /categories for backward compatibility
-router.get("/list", (req, res) => {
-  res.redirect(301, '/api/commodities/categories');
 });
 
 module.exports = router;

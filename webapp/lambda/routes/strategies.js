@@ -4,26 +4,6 @@ const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
-// Root endpoint - documentation
-router.get("/", (req, res) => {
-  return sendSuccess(res, {
-    endpoint: "strategies",
-    documentation: "Options strategies and opportunity analysis",
-    available_routes: [
-      "GET /covered-calls - Get covered call opportunities with filters and pagination",
-      "  Query params: symbol={ticker}, min_score={0-100}, min_premium_pct={num}, max_days_to_exp={num}",
-      "                trend={uptrend|sideways|downtrend}, min_iv_rank={0-100}, sort_by={score|premium|max_profit|iv_rank|expiration}",
-      "                limit={1-200, default 100}, page={1,2,3...}"
-    ],
-    examples: [
-      "GET /api/strategies/covered-calls",
-      "GET /api/strategies/covered-calls?symbol=AAPL&min_score=70",
-      "GET /api/strategies/covered-calls?trend=uptrend&min_premium_pct=1.5&sort_by=score",
-      "GET /api/strategies/covered-calls?symbol=AAPL&limit=50&page=1"
-    ]
-  });
-});
-
 // Get covered call opportunities
 router.get("/covered-calls", async (req, res) => {
   try {
@@ -91,11 +71,6 @@ router.get("/covered-calls", async (req, res) => {
       error: "Covered call strategies require populated options chains data"
     });
   }
-});
-
-// Alias: /list -> /covered-calls for backward compatibility
-router.get("/list", (req, res) => {
-  res.redirect(301, '/api/strategies/covered-calls');
 });
 
 module.exports = router;

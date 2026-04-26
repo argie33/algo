@@ -6,18 +6,6 @@ const { getMarketDataPath } = require("../utils/market-data-path");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
-router.get("/", (req, res) => {
-  return sendSuccess(res, {
-    endpoint: "earnings",
-    description: "Earnings data API - historical earnings and surprises",
-    available_routes: [
-      { path: "/info", method: "GET", params: ["symbol", "limit", "page"] },
-      { path: "/data", method: "GET", params: ["symbol", "limit", "page"] },
-      { path: "/calendar", method: "GET", params: ["period", "startDate", "endDate", "symbol"] }
-    ]
-  });
-});
-
 // ============================================================
 // Named endpoints (must come BEFORE /:symbol route)
 // ============================================================

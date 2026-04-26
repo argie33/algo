@@ -250,20 +250,6 @@ async function getPortfolioHistory(userId) {
 // ROUTES
 // ============================================================================
 
-// Root endpoint - help/info
-router.get("/", (req, res) => {
-  return sendSuccess(res, {
-    endpoint: "portfolio",
-    description: "Get complete portfolio data - holdings from Alpaca and manual trades, all metrics calculated",
-    primary_endpoint: "GET /metrics [AUTH] - Get all portfolio data (summary, positions, daily returns, metrics)",
-    available_routes: [
-      "GET /metrics [AUTH] - Get all portfolio data",
-      "GET /manual-positions - Get all manual positions",
-      "POST /manual-positions - Create a manual position"
-    ]
-  });
-});
-
 // Get manual positions
 router.get("/manual-positions", async (req, res) => {
   try {

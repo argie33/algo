@@ -4,16 +4,6 @@ const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
-router.get("/", (req, res) => {
-  return sendSuccess(res, {
-    endpoint: "sentiment",
-    available_routes: [
-      "/data - Analyst sentiment data",
-      "/summary - Consolidated sentiment (fear/greed, analyst, AAII, NAAIM)"
-    ]
-  });
-});
-
 // GET /api/sentiment/data - Get sentiment data (stocks with analyst sentiment)
 router.get("/data", async (req, res) => {
   try {

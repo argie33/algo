@@ -4,17 +4,6 @@ const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated, sendBadRequest, sendNotFound } = require('../utils/apiResponse');
 const router = express.Router();
 
-// Root endpoint - returns available sub-endpoints
-router.get("/", (req, res) => {
-  return sendSuccess(res, {
-    endpoint: "scores",
-    available_routes: [
-      "/stockscores - Get stock scores with filtering and sorting (comprehensive data with momentum, quality, value, growth, positioning, stability metrics)",
-      "/all - Alias for /stockscores (same endpoint)"
-    ]
-  });
-});
-
 // Helper function to safely convert values to integer
 function safeInt(value) {
   if (value === null || value === undefined) return null;

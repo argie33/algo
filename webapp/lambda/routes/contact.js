@@ -95,6 +95,26 @@ router.get("/submissions", async (req, res) => {
     // In production, add authentication middleware here
     // For now, we'll allow access - implement auth as needed
 
+    // Check if contact_submissions table exists
+    const tableExists = await query(
+      `SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = 'contact_submissions'
+      )`
+    );
+
+    if (!tableExists.rows[0]?.exists) {
+      // Table doesn't exist - return empty result
+      return res.status(200).json({
+        success: true,
+        data: {
+          submissions: [],
+          total: 0
+        }
+      });
+    }
+
     const result = await query(
       `SELECT id, name, email, subject, message, status, submitted_at, reviewed_at
        FROM contact_submissions
@@ -105,8 +125,8 @@ router.get("/submissions", async (req, res) => {
     return res.status(200).json({
       success: true,
       data: {
-        submissions: result.rows,
-        total: result.rowCount
+        submissions: result.rows || [],
+        total: result.rowCount || 0
       }
     });
 

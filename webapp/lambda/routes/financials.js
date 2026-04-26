@@ -11,19 +11,6 @@ try {
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
-router.get("/", async (req, res) => {
-  return sendSuccess(res, {
-    message: "Financials API - Ready",
-    status: "operational",
-    endpoints: [
-      "/:symbol/balance-sheet?period=annual|quarterly",
-      "/:symbol/income-statement?period=annual|quarterly",
-      "/:symbol/cash-flow?period=annual|quarterly",
-      "/:symbol/key-metrics"
-    ],
-  });
-});
-
 router.get("/:symbol/balance-sheet", async (req, res) => {
   const { symbol } = req.params;
   let { period = "annual" } = req.query;

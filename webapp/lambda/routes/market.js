@@ -461,30 +461,6 @@ async function getFullSeasonalityData() {
   };
 }
 
-// Root endpoint for testing
-router.get("/", (req, res) => {
-  return sendSuccess(res, {
-    endpoint: "market",
-    available_routes: [
-      "/status - Current market status (open/closed/pre_market/after_hours)",
-      "/overview - Market quality, top stocks, market breadth",
-      "/breadth - Advance/decline ratios and market breadth indicators",
-      "/mcclellan-oscillator - Breadth momentum indicator (19/39-day EMA)",
-      "/distribution-days - IBD distribution days by index",
-      "/indices - Major market indices (S&P 500, NASDAQ, Dow, Russell 2000, VIX)",
-      "/volatility - Market volatility metrics and VIX data",
-      "/indicators - Technical indicators and market metrics",
-      "/correlation - Stock correlation matrix analysis",
-      "/aaii - AAII investor sentiment (bullish/neutral/bearish %)",
-      "/fear-greed - CNN Fear & Greed Index",
-      "/naaim - NAAIM manager exposure (bullish/bearish %)",
-      "/seasonality - Seasonal patterns and trading calendar",
-      "/internals - Market internals, breadth, moving averages, positioning"
-    ],
-    note: "Sector data has been moved to /api/sectors/sectors-with-history"
-  });
-});
-
 // Get current market status
 router.get("/status", (req, res) => {
   try {

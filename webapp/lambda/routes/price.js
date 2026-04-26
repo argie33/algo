@@ -4,30 +4,6 @@ const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
-// Root endpoint - returns available sub-endpoints
-router.get("/", (req, res) => {
-  return sendSuccess(res, {
-    endpoint: "price",
-    available_routes: [
-      "GET /history/:symbol - Get price history for a specific symbol",
-      "GET /daily - Get daily OHLCV prices",
-      "GET /weekly - Get weekly OHLCV prices",
-      "GET /monthly - Get monthly OHLCV prices",
-      "GET /daily/etf - Get daily ETF prices",
-      "GET /weekly/etf - Get weekly ETF prices",
-      "GET /monthly/etf - Get monthly ETF prices"
-    ],
-    query_params: {
-      symbol: "Filter by symbol (e.g., AAPL)",
-      limit: "Number of records (1-500, default 100)",
-      page: "Page number for pagination",
-      days: "Look back N days",
-      start_date: "Start date (YYYY-MM-DD)",
-      end_date: "End date (YYYY-MM-DD)"
-    }
-  });
-});
-
 // Helper for price history fetching
 const getPriceHistoryHandler = async (req, res) => {
   try {

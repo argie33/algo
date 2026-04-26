@@ -11,22 +11,6 @@ const swingTrader = require("../utils/swing-trading-optimizer");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
-// Root endpoint - returns available sub-endpoints
-router.get("/", authenticateToken, (req, res) => {
-  return res.json({
-    data: {
-      endpoint: "optimization",
-      available_routes: [
-        "/analysis - Get portfolio optimization analysis (traditional approach)",
-        "/swing-trading - Get swing trading portfolio recommendations (12-15 best stocks, risk-based sizing)",
-        "/recommendations - Alias for /swing-trading (backward compatibility)",
-        "/execute - Execute optimization recommendations"
-      ]
-    },
-    success: true
-  });
-});
-
 // GET /optimization/analysis - Get portfolio optimization analysis
 router.get("/analysis", authenticateToken, async (req, res) => {
   const userId = req.user.sub;
@@ -3149,18 +3133,6 @@ router.post("/execute", authenticateToken, async (req, res) => {
       success: false
     });
   }
-});
-
-// GET /optimization/recommendations - Alias for /swing-trading for backward compatibility
-router.get("/recommendations", authenticateToken, async (req, res) => {
-  console.log("📊 Recommendations endpoint called - providing swing trading recommendations");
-  // Simply redirect to swing-trading which has all the logic
-  return res.redirect(`/api/optimization/swing-trading`);
-});
-
-// Alias: /portfolio -> /analysis for backward compatibility
-router.get("/portfolio", authenticateToken, (req, res) => {
-  res.redirect(301, '/api/optimization/analysis');
 });
 
 module.exports = router;

@@ -12,28 +12,6 @@ function safeFloat(value) {
   return isNaN(num) ? null : num;
 }
 
-// Root endpoint - returns available sub-endpoints
-router.get("/", (req, res) => {
-  return sendSuccess(res, {
-    endpoint: "signals",
-    documentation: "Trading signals API",
-    available_routes: [
-      "GET /stocks - Get all stock trading signals with flexible filtering",
-      "  Query parameters: timeframe={daily|weekly|monthly}, symbol={SYMBOL}, limit={1-500}, page={1+}, days={days}, signal_type={Buy|Sell}",
-      "GET /list - Alias for /stocks (backward compatibility)",
-      "GET /etf - Get all ETF trading signals",
-      "  Query parameters: timeframe={daily|weekly|monthly}, symbols={SYMBOL,SYMBOL2}, limit={1-100}"
-    ],
-    examples: [
-      "GET /api/signals/stocks?timeframe=daily&limit=100",
-      "GET /api/signals/stocks?symbol=GOOGL&timeframe=weekly",
-      "GET /api/signals/stocks?timeframe=monthly&signal_type=Buy&limit=50",
-      "GET /api/signals/etf?timeframe=daily",
-      "GET /api/signals/etf?timeframe=daily&symbols=SPY,QQQ"
-    ]
-  });
-});
-
 // Shared handler function for both /stocks and /list
 const getStocksSignals = async (req, res) => {
   try {
