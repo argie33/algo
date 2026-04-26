@@ -188,7 +188,7 @@ def main():
         create_tables(cur)
 
         # Get all stock symbols
-        cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol LIMIT 100")
+        cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
         symbols = [row[0] for row in cur.fetchall()]
 
         logging.info(f"Loading income statements for {len(symbols)} stocks...")

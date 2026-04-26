@@ -126,7 +126,7 @@ def main():
         cur = conn.cursor()
         create_tables(cur)
 
-        cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol LIMIT 100")
+        cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
         symbols = [row[0] for row in cur.fetchall()]
 
         logging.info(f"Loading cash flows for {len(symbols)} stocks...")
