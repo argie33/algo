@@ -19,14 +19,15 @@ export default function PETrendChart({ sectorName, industryName }) {
 
   if (!name) return null;
   if (isLoading) return <CircularProgress size={30} />;
-  if (error || !data?.history) {
+  if (error || !data?.trendData?.length) {
     return <Alert severity="info">No trend data available</Alert>;
   }
 
-  // Use actual P/E values from historical data
-  const chartData = data.history.map(item => ({
+  // Use actual price values from trend data
+  const chartData = data.trendData.map(item => ({
     date: new Date(item.date).toLocaleDateString(),
-    pe: item.trailing_pe !== null ? parseFloat(item.trailing_pe) : null
+    pe: item.avgPrice !== null ? parseFloat(item.avgPrice) : null,
+    stockCount: item.stockCount
   })).filter(item => item.pe !== null);
 
   return (
