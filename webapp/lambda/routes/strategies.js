@@ -12,42 +12,51 @@ router.get("/covered-calls", async (req, res) => {
     const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 100));
     const offset = (pageNum - 1) * limitNum;
 
-    // covered_call_opportunities table is empty - suggest using options data instead
-    // Return high IV stocks that are good covered call candidates
+    const countSql = `SELECT COUNT(*) as total FROM covered_call_opportunities`;
+    const countResult = await query(countSql, []);
+    const total = countResult.rows?.[0]?.total || 0;
+    const totalPages = Math.ceil(total / limitNum);
+
+    if (total === 0) {
+      return sendPaginated(res, [], {
+        page: pageNum,
+        limit: limitNum,
+        total: 0,
+        totalPages: 0,
+        hasNext: false,
+        hasPrev: false
+      });
+    }
+
     const sql = `
-      SELECT DISTINCT
-        oc.symbol,
-        pd.close as current_price,
-        oc.iv,
-        oc.strike,
-        oc.expiration_date,
-        ROUND((oc.strike - pd.close) / pd.close * 100, 2) as otm_pct
-      FROM options_chains oc
-      LEFT JOIN price_daily pd ON oc.symbol = pd.symbol AND pd.date = CURRENT_DATE
-      WHERE oc.iv > 50
-        AND oc.call_bid > 0
-        AND oc.strike > pd.close
-      ORDER BY oc.iv DESC
+      SELECT
+        id, symbol, strike, expiration_date, premium,
+        breakeven_pct, return_pct, days_to_expiration, data_date, created_at
+      FROM covered_call_opportunities
+      ORDER BY created_at DESC
       LIMIT $1 OFFSET $2
     `;
 
     const result = await query(sql, [limitNum, offset]);
     const opportunities = (result.rows || []).map(row => ({
+      id: row.id,
       symbol: row.symbol,
-      current_price: parseFloat(row.current_price),
-      implied_volatility: parseFloat(row.iv),
-      strike: parseFloat(row.strike),
+      strike: row.strike,
       expiration_date: row.expiration_date,
-      otm_percentage: parseFloat(row.otm_pct),
-      note: "Based on high IV options - actual premiums vary by broker"
+      premium: row.premium,
+      breakeven_pct: row.breakeven_pct,
+      return_pct: row.return_pct,
+      days_to_expiration: row.days_to_expiration,
+      data_date: row.data_date,
+      created_at: row.created_at
     }));
 
     return sendPaginated(res, opportunities, {
       page: pageNum,
       limit: limitNum,
-      total: opportunities.length,
-      totalPages: 1,
-      hasNext: false,
+      total,
+      totalPages,
+      hasNext: pageNum < totalPages,
       hasPrev: pageNum > 1
     });
   } catch (error) {

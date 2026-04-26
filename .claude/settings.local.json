@@ -45,8 +45,7 @@
       "Bash(grep -i \"\\\\.py$\")",
       "Bash(cat)",
       "Read(//c/Users/arger/.claude/plans/**)",
-      "Bash(git commit -m 'Document remaining critical issues found *)",
-      "Bash(bash /tmp/audit.sh)"
+      "Bash(git commit -m 'Document remaining critical issues found *)"
     ]
   }
 }

@@ -258,28 +258,22 @@ router.get("/weekly/etf", async (req, res) => {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const offset = (page - 1) * limit;
 
-    // Aggregate daily ETF prices to weekly since etf_price_weekly table is empty
-    const result = await query(`
-      SELECT DISTINCT ON (symbol, date_trunc('week', date))
-        symbol,
-        DATE_TRUNC('week', date)::date as date,
-        FIRST_VALUE(open) OVER (PARTITION BY symbol, date_trunc('week', date) ORDER BY date) as open,
-        MAX(high) OVER (PARTITION BY symbol, date_trunc('week', date)) as high,
-        MIN(low) OVER (PARTITION BY symbol, date_trunc('week', date)) as low,
-        LAST_VALUE(close) OVER (PARTITION BY symbol, date_trunc('week', date) ORDER BY date ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) as close,
-        SUM(volume) OVER (PARTITION BY symbol, date_trunc('week', date)) as volume
-      FROM etf_price_daily
-      ORDER BY symbol, date_trunc('week', date), date DESC
-      LIMIT $1 OFFSET $2
-    `, [limit, offset]);
+    const countResult = await query("SELECT COUNT(*) as count FROM etf_price_weekly");
+    const total = countResult.rows[0]?.count || 0;
 
+    const result = await query(
+      "SELECT * FROM etf_price_weekly ORDER BY date DESC LIMIT $1 OFFSET $2",
+      [limit, offset]
+    );
+
+    const totalPages = Math.ceil(total / limit) || 1;
     return sendPaginated(res, result.rows, {
       page,
       limit,
       offset,
-      total: result.rows?.length || 0,
-      totalPages: 1,
-      hasNext: false,
+      total,
+      totalPages,
+      hasNext: offset + limit < total,
       hasPrev: offset > 0
     });
   } catch (err) {
@@ -295,28 +289,22 @@ router.get("/monthly/etf", async (req, res) => {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const offset = (page - 1) * limit;
 
-    // Aggregate daily ETF prices to monthly since etf_price_monthly table is empty
-    const result = await query(`
-      SELECT DISTINCT ON (symbol, date_trunc('month', date))
-        symbol,
-        DATE_TRUNC('month', date)::date as date,
-        FIRST_VALUE(open) OVER (PARTITION BY symbol, date_trunc('month', date) ORDER BY date) as open,
-        MAX(high) OVER (PARTITION BY symbol, date_trunc('month', date)) as high,
-        MIN(low) OVER (PARTITION BY symbol, date_trunc('month', date)) as low,
-        LAST_VALUE(close) OVER (PARTITION BY symbol, date_trunc('month', date) ORDER BY date ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) as close,
-        SUM(volume) OVER (PARTITION BY symbol, date_trunc('month', date)) as volume
-      FROM etf_price_daily
-      ORDER BY symbol, date_trunc('month', date), date DESC
-      LIMIT $1 OFFSET $2
-    `, [limit, offset]);
+    const countResult = await query("SELECT COUNT(*) as count FROM etf_price_monthly");
+    const total = countResult.rows[0]?.count || 0;
 
+    const result = await query(
+      "SELECT * FROM etf_price_monthly ORDER BY date DESC LIMIT $1 OFFSET $2",
+      [limit, offset]
+    );
+
+    const totalPages = Math.ceil(total / limit) || 1;
     return sendPaginated(res, result.rows, {
       page,
       limit,
       offset,
-      total: result.rows?.length || 0,
-      totalPages: 1,
-      hasNext: false,
+      total,
+      totalPages,
+      hasNext: offset + limit < total,
       hasPrev: offset > 0
     });
   } catch (err) {
