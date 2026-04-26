@@ -10,67 +10,6 @@ const router = express.Router();
 // Named endpoints (must come BEFORE /:symbol route)
 // ============================================================
 
-router.get("/info", async (req, res) => {
-  try {
-    const { symbol, limit = 50 } = req.query;
-    const limitNum = Math.min(parseInt(limit), 500);
-
-    if (symbol) {
-      const result = await query(
-        "SELECT symbol, quarter, eps_actual, eps_estimate, eps_surprise_pct FROM earnings_history WHERE symbol = $1 ORDER BY quarter DESC LIMIT $2",
-        [symbol.toUpperCase(), limitNum]
-      );
-      return sendSuccess(res, { earnings: result.rows || [] });
-    }
-
-    const result = await query(
-      `SELECT DISTINCT ON (symbol) symbol, quarter, eps_actual, eps_estimate
-       FROM earnings_history ORDER BY symbol, quarter DESC LIMIT $1`,
-      [limitNum]
-    );
-    return sendSuccess(res, { earnings: result.rows || [] });
-  } catch (err) {
-    return sendError(res, `Failed to fetch earnings: ${err.message}`, 500);
-  }
-});
-
-router.get("/data", async (req, res) => {
-  try {
-    const { symbol, limit = 100, page = 1 } = req.query;
-    const limitNum = Math.min(parseInt(limit), 500);
-    const pageNum = Math.max(1, parseInt(page));
-    const offset = (pageNum - 1) * limitNum;
-
-    let sql = "SELECT symbol, quarter, eps_actual, eps_estimate, eps_surprise_pct FROM earnings_estimates";
-    let countSql = "SELECT COUNT(*) as count FROM earnings_estimates";
-    const params = [];
-
-    if (symbol) {
-      sql += ` WHERE symbol = $1`;
-      countSql += ` WHERE symbol = $1`;
-      params.push(symbol.toUpperCase());
-    }
-
-    const countResult = await query(countSql, symbol ? [params[0]] : []);
-    const total = countResult.rows[0]?.count || 0;
-
-    const result = await query(
-      sql + ` ORDER BY symbol, quarter DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-      [...params, limitNum, offset]
-    );
-
-    return sendPaginated(res, result.rows || [], {
-      limit: limitNum,
-      offset,
-      total,
-      page: pageNum,
-      totalPages: Math.ceil(total / limitNum)
-    });
-  } catch (err) {
-    return sendError(res, `Failed to fetch earnings data: ${err.message}`, 500);
-  }
-});
-
 // GET /api/earnings/calendar - Earnings calendar view with filters
 router.get("/calendar", async (req, res) => {
   try {
@@ -118,13 +57,6 @@ router.get("/sp500-trend", async (req, res) => {
   } catch (error) {
     return sendError(res, `Failed to fetch earnings summary: ${error.message}`, 500);
   }
-});
-
-router.get("/estimate-momentum", async (req, res) => {
-  return sendSuccess(res, {
-    note: "Estimate momentum tracking requires earnings estimate revisions data (not currently available from yfinance)",
-    suggestion: "Use earnings_history table to analyze actual earnings surprises instead"
-  });
 });
 
 // GET /api/earnings/sector-trend - Sector earnings growth and estimate outlook

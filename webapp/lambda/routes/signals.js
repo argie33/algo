@@ -233,24 +233,6 @@ const getStocksSignals = async (req, res) => {
 // Canonical endpoint for stock signals (returns ALL signals from 2019 by default)
 router.get("/stocks", getStocksSignals);
 
-// Alias for /stocks with timeframe=daily (backward compatibility)
-router.get("/daily", async (req, res) => {
-  req.query.timeframe = 'daily';
-  return getStocksSignals(req, res);
-});
-
-// Alias for /stocks with timeframe=weekly (backward compatibility)
-router.get("/weekly", async (req, res) => {
-  req.query.timeframe = 'weekly';
-  return getStocksSignals(req, res);
-});
-
-// Alias for /stocks with timeframe=monthly (backward compatibility)
-router.get("/monthly", async (req, res) => {
-  req.query.timeframe = 'monthly';
-  return getStocksSignals(req, res);
-});
-
 // Get trading signals for ETFs - SAME STRUCTURE AS STOCKS
 router.get("/etf", async (req, res) => {
   try {

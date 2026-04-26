@@ -5,66 +5,6 @@ const { getMarketDataPath } = require("../utils/market-data-path");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
-// GET /api/economic/data - Get economic data from market_data table
-router.get("/data", async (req, res) => {
-  try {
-    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const offset = (page - 1) * limit;
-
-    // Check if market_data table exists
-    const tableExists = await query(
-      `SELECT EXISTS (
-        SELECT FROM information_schema.tables
-        WHERE table_schema = 'public'
-        AND table_name = 'market_data'
-      )`
-    );
-
-    if (!tableExists.rows[0]?.exists) {
-      // Table doesn't exist - return empty result
-      return sendPaginated(res, [], {
-        page,
-        limit,
-        offset,
-        total: 0,
-        totalPages: 0,
-        hasMore: false
-      });
-    }
-
-    const countResult = await query(
-      `SELECT COUNT(*) as count FROM market_data WHERE metric_name IN ('VIX', 'DXY', 'YIELD')`
-    );
-    const total = countResult.rows[0]?.count || 0;
-
-    const result = await query(
-      `SELECT DISTINCT ON (metric_name)
-        metric_name,
-        metric_value,
-        date,
-        created_at
-      FROM market_data
-      WHERE metric_name IN ('VIX', 'DXY', 'YIELD')
-      ORDER BY metric_name, date DESC
-      LIMIT $1 OFFSET $2`,
-      [limit, offset]
-    );
-
-    return sendPaginated(res, result.rows || [], {
-      page,
-      limit,
-      offset,
-      total,
-      totalPages: Math.ceil(total / limit),
-      hasMore: offset + limit < total
-    });
-  } catch (err) {
-    console.error("Economic data error:", err.message);
-    return sendError(res, err.message, 500);
-  }
-});
-
 // ============================================
 // LEADING INDICATORS - Comprehensive overview
 // ============================================
@@ -650,35 +590,6 @@ router.get("/calendar", async (req, res) => {
   } catch (error) {
     console.error("Economic calendar error:", error);
     return sendError(res, "Failed to fetch economic calendar data", 500);
-  }
-});
-
-// Fresh Economic Data Endpoint - From comprehensive data
-router.get("/fresh-data", async (req, res) => {
-  try {
-    const fs = require("fs");
-
-    const comprehensivePath = getMarketDataPath();
-
-    if (fs.existsSync(comprehensivePath)) {
-      const comprehensiveData = JSON.parse(fs.readFileSync(comprehensivePath, "utf-8"));
-
-      const economicIndicators = Object.values(comprehensiveData.economic_indicators || {});
-      const marketBreadth = comprehensiveData.market_breadth || {};
-
-      return sendSuccess(res, {
-        indicators: economicIndicators,
-        breadth: marketBreadth,
-        timestamp: comprehensiveData.timestamp,
-        source: "fresh-economic",
-        message: "Fresh economic indicators and market breadth"
-      });
-    }
-
-    return sendError(res, "Fresh data not available", 404);
-  } catch (error) {
-    console.error("Fresh economic error:", error.message);
-    return sendError(res, "Failed to fetch fresh economic data", 500);
   }
 });
 
