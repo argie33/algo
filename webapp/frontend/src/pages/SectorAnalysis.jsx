@@ -177,7 +177,7 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
     queryFn: async () => {
       try {
         const response = await api.get(
-          `/api/sectors/trend/sector/${encodeURIComponent(sector.sector_name || sector.sector)}`
+          `/api/sectors/${encodeURIComponent(sector.sector_name || sector.sector)}/trend`
         );
         // responseFormatter wraps response in { success, data: {...}, timestamp }
         return response?.data?.data || response?.data;
@@ -216,7 +216,7 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
     queryFn: async () => {
       try {
         const response = await api.get(
-          `/api/industries/trend/industry/${encodeURIComponent(industry.industry)}`
+          `/api/industries/${encodeURIComponent(industry.industry)}/trend`
         );
         // responseFormatter wraps response in { success, data: {...}, timestamp }
         return response?.data?.data || response?.data;
@@ -686,8 +686,8 @@ const SectorAnalysis = () => {
         try {
           const name = type === "sector" ? (sectorOrIndustry.sector_name || sectorOrIndustry.sector) : sectorOrIndustry.industry;
           const endpoint = type === "sector"
-            ? `/api/sectors/trend/sector/${encodeURIComponent(name)}`
-            : `/api/industries/trend/industry/${encodeURIComponent(name)}`;
+            ? `/api/sectors/${encodeURIComponent(name)}/trend`
+            : `/api/industries/${encodeURIComponent(name)}/trend`;
           const response = await api.get(endpoint);
           // responseFormatter wraps response in { success, data: {...}, timestamp }
           return response?.data?.data || response?.data;
@@ -852,8 +852,8 @@ const SectorAnalysis = () => {
 
     // API endpoint and query configuration
     const queryConfig = type === 'sector'
-      ? { endpoint: `/api/sectors/trend/sector/${encodeURIComponent(identifier)}`, key: ["sector-trend", identifier] }
-      : { endpoint: `/api/industries/trend/industry/${encodeURIComponent(identifier)}`, key: ["industry-trend", identifier] };
+      ? { endpoint: `/api/sectors/${encodeURIComponent(identifier)}/trend`, key: ["sector-trend", identifier] }
+      : { endpoint: `/api/industries/${encodeURIComponent(identifier)}/trend`, key: ["industry-trend", identifier] };
 
     // Fallback periods based on type
     const fallbackPeriods = type === 'sector'
