@@ -12,13 +12,6 @@ function safeFloat(value) {
   return isNaN(num) ? null : num;
 }
 
-// Root endpoint - delegate to stocks by default
-router.get("/", async (req, res) => {
-  // Default to stock signals
-  req.url = "/stocks";
-  return getStocksSignals(req, res);
-});
-
 // Shared handler function for both /stocks and /list
 const getStocksSignals = async (req, res) => {
   try {
@@ -236,6 +229,10 @@ const getStocksSignals = async (req, res) => {
     return sendError(res, "Failed to fetch signals data", 500);
   }
 };
+
+// Root endpoint - default to stock signals (matches /api/signals or /api/signals/)
+router.get("", getStocksSignals);
+router.get("/", getStocksSignals);
 
 // Canonical endpoint for stock signals (returns ALL signals from 2019 by default)
 router.get("/stocks", getStocksSignals);
