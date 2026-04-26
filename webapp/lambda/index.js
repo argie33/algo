@@ -32,9 +32,6 @@ const requestLogger = require("./middleware/requestLogger");
 const { initializeDatabase, query } = require("./utils/database");
 const { initializeAlpacaSync } = require("./utils/alpacaSyncScheduler");
 const responseNormalizer = require("./middleware/responseNormalizer");
-const analystsRoutes = require("./routes/analysts");
-const authRoutes = require("./routes/auth");
-const communityRoutes = require("./routes/community");
 const commoditiesRoutes = require("./routes/commodities");
 const contactRoutes = require("./routes/contact");
 const earningsRoutes = require("./routes/earnings");
@@ -44,8 +41,6 @@ const healthRoutes = require("./routes/health");
 const industriesRoutes = require("./routes/industries");
 const manualTradesRoutes = require("./routes/manual-trades");
 const marketRoutes = require("./routes/market");
-const metricsRoutes = require("./routes/metrics");
-const optionsRoutes = require("./routes/options");
 const optimizationRoutes = require("./routes/optimization");
 const portfolioRoutes = require("./routes/portfolio");
 const priceRoutes = require("./routes/price");
@@ -56,14 +51,8 @@ const sentimentRoutes = require("./routes/sentiment");
 const signalsRoutes = require("./routes/signals");
 const stocksRoutes = require("./routes/stocks");
 const strategiesRoutes = require("./routes/strategies");
-const technicalRoutes = require("./routes/technicals");
 const tradesRoutes = require("./routes/trades");
-const tradingRoutes = require("./routes/trading");
-const userRoutes = require("./routes/user");
-const worldEtfsRoutes = require("./routes/world-etfs");
 const diagnosticsRoutes = require("./routes/diagnostics");
-const dashboardRoutes = require("./routes/dashboard");
-const apiStatusRoutes = require("./routes/api-status");
 
 const app = express();
 
@@ -463,10 +452,7 @@ app.get("/api/debug/test-error", (req, res) => {
 });
 
 // Canonical API Routes - all under /api prefix
-app.use("/api/analysts", analystsRoutes);
-app.use("/api/auth", authRoutes);
 app.use("/api/commodities", commoditiesRoutes);
-app.use("/api/community", communityRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/earnings", earningsRoutes);
 app.use("/api/economic", economicRoutes);
@@ -474,8 +460,6 @@ app.use("/api/financials", financialRoutes);
 app.use("/api/health", healthRoutes);
 app.use("/api/industries", industriesRoutes);
 app.use("/api/market", marketRoutes);
-app.use("/api/metrics", metricsRoutes);
-app.use("/api/options", optionsRoutes);
 app.use("/api/optimization", optimizationRoutes);
 app.use("/api/portfolio", portfolioRoutes);
 app.use("/api/price", priceRoutes);
@@ -485,15 +469,9 @@ app.use("/api/sentiment", sentimentRoutes);
 app.use("/api/signals", signalsRoutes);
 app.use("/api/stocks", stocksRoutes);
 app.use("/api/strategies", strategiesRoutes);
-app.use("/api/technicals", technicalRoutes);
 app.use("/api/trades", tradesRoutes);
-app.use("/api/trading", tradingRoutes);
 app.use("/api/trades/manual", manualTradesRoutes);
-app.use("/api/user", userRoutes);
-app.use("/api/world-etfs", worldEtfsRoutes);
 app.use("/api/diagnostics", diagnosticsRoutes);
-app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/status", apiStatusRoutes);
 
 // API info endpoint
 app.get("/api", (req, res) => {
