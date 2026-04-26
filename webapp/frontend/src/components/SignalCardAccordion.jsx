@@ -50,6 +50,11 @@ const SignalCardAccordion = ({ signals = [] }) => {
   };
 
   const DataField = ({ label, value, format = 'text', color = null, unit = '' }) => {
+    // Skip rendering if value is null/undefined/empty (don't show "—" for missing data)
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+
     let displayValue = value;
     if (format === 'currency' && value) {
       displayValue = `$${parseFloat(value).toFixed(2)}`;
@@ -57,8 +62,6 @@ const SignalCardAccordion = ({ signals = [] }) => {
       displayValue = `${parseFloat(value).toFixed(2)}%`;
     } else if (format === 'number' && value !== null && value !== undefined) {
       displayValue = parseFloat(value).toFixed(2);
-    } else if (!value && value !== 0) {
-      displayValue = '—';
     }
 
     return (
