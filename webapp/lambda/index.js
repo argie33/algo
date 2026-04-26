@@ -36,6 +36,7 @@ const contactRoutes = require("./routes/contact");
 const economicRoutes = require("./routes/economic");
 const financialRoutes = require("./routes/financials");
 const healthRoutes = require("./routes/health");
+const industriesRoutes = require("./routes/industries");
 const manualTradesRoutes = require("./routes/manual-trades");
 const marketRoutes = require("./routes/market");
 const portfolioRoutes = require("./routes/portfolio");
@@ -449,6 +450,7 @@ app.get("/api/debug/test-error", (req, res) => {
 app.use("/api/economic", economicRoutes);
 app.use("/api/financials", financialRoutes);
 app.use("/api/health", healthRoutes);
+app.use("/api/industries", industriesRoutes);
 app.use("/api/market", marketRoutes);
 app.use("/api/portfolio", portfolioRoutes);
 app.use("/api/sectors", sectorsRoutes);

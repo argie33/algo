@@ -56,7 +56,9 @@ const DeepValueStocks = () => {
       }
 
       const result = await response.json();
-      let stocksData = result.data?.stocks || result.data || result.items || result;
+      // API returns { items: [...], pagination: {...}, success: true }
+      // Check items first since that's what the endpoint returns
+      let stocksData = result.items || result.data?.stocks || result.data || result;
 
       // Ensure it's an array
       if (!Array.isArray(stocksData)) {
