@@ -231,6 +231,7 @@ const getStocksSignals = async (req, res) => {
 };
 
 // Root endpoint - default to stock signals (matches /api/signals or /api/signals/)
+router.get("", getStocksSignals);
 router.get("/", getStocksSignals);
 
 // Canonical endpoint for stock signals (returns ALL signals from 2019 by default)
