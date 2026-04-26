@@ -21,7 +21,7 @@ import {
   TrendingFlat as TrendingFlatIcon,
 } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
-// API base removed - using relative paths instead
+import api from "../../services/api";
 
 function CoveredCallOpportunities() {
   const theme = useTheme();
@@ -55,10 +55,9 @@ function CoveredCallOpportunities() {
     queryFn: async () => {
       // Add cache-busting timestamp to ensure fresh data
       const separator = queryParams ? "&" : "?";
-      const url = `${API_BASE}/api/strategies/covered-calls?${queryParams}${separator}_t=${Date.now()}`;
-      const response = await fetch(url);
-      if (!response.ok) throw new Error("Failed to fetch opportunities");
-      return response.json();
+      const endpoint = `/api/strategies/covered-calls?${queryParams}${separator}_t=${Date.now()}`;
+      const response = await api.get(endpoint);
+      return response.data;
     },
     staleTime: 0, // Always fresh - NO caching
     gcTime: 0, // Disable garbage collection cache

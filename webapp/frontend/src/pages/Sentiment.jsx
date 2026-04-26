@@ -46,7 +46,7 @@ import {
 } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
-// API base removed - using relative paths instead
+import api from "../services/api";
 
 // Composite sentiment scoring algorithm
 const calculateCompositeSentiment = (newsScore, analystScore, socialScore) => {
@@ -120,12 +120,11 @@ const ComprehensiveAnalystMetrics = ({ symbol }) => {
         setError(null);
 
         // Fetch sentiment data
-        const sentimentRes = await fetch(`${API_BASE}/api/sentiment/data?symbol=${symbol}`).catch(() => null);
+        const response = await api.get(`/api/sentiment/data?symbol=${symbol}`).catch(() => null);
 
         // Get sentiment data for this symbol
-        if (sentimentRes?.ok) {
-          const sentimentData = await sentimentRes.json();
-          const symbolData = sentimentData.items?.find(item => item.symbol === symbol);
+        if (response?.data?.items) {
+          const symbolData = response.data.items.find(item => item.symbol === symbol);
           if (symbolData) {
             setSentimentTrend(symbolData);
           }
@@ -297,10 +296,9 @@ const ComprehensiveSocialSentiment = ({ symbol }) => {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch(`${API_BASE}/api/sentiment/social/insights/${symbol}`);
-        if (response.ok) {
-          const data = await response.json();
-          setInsightsData(data);
+        const response = await api.get(`/api/sentiment/social/insights/${symbol}`);
+        if (response?.data) {
+          setInsightsData(response.data);
         } else {
           setError("No social sentiment data available");
         }
@@ -546,20 +544,18 @@ const AnalystTrendCard = ({ symbol }) => {
 
         // Fetch from available endpoints
         const [insightsRes, sentimentRes] = await Promise.all([
-          fetch(`${API_BASE}/api/sentiment/analyst/insights/${symbol}`).catch(() => null),
-          fetch(`${API_BASE}/api/sentiment/data?symbol=${symbol}`).catch(() => null),
+          api.get(`/api/sentiment/analyst/insights/${symbol}`).catch(() => null),
+          api.get(`/api/sentiment/data?symbol=${symbol}`).catch(() => null),
         ]);
 
         // Process insights data (primary source)
-        if (insightsRes?.ok) {
-          const insights = await insightsRes.json();
-          setInsightsData(insights);
+        if (insightsRes?.data) {
+          setInsightsData(insightsRes.data);
         }
 
         // Get sentiment data for this symbol
-        if (sentimentRes?.ok) {
-          const sentimentData = await sentimentRes.json();
-          const symbolData = sentimentData.items?.find(item => item.symbol === symbol);
+        if (sentimentRes?.data?.items) {
+          const symbolData = sentimentRes.data.items.find(item => item.symbol === symbol);
           if (symbolData) {
             setSentimentTrend(symbolData);
           }
@@ -1140,9 +1136,8 @@ function Sentiment() {
   const { data: sentimentData, isLoading, error } = useQuery({
     queryKey: ["sentimentStocks"],
     queryFn: async () => {
-      const response = await fetch(`${API_BASE}/api/sentiment/data?limit=512&page=1`);
-      if (!response.ok) throw new Error("Failed to fetch sentiment");
-      return response.json();
+      const response = await api.get(`/api/sentiment/data?limit=512&page=1`);
+      return response.data;
     },
     staleTime: 0, // Always fresh // 5 minutes
     refetchInterval: 300000,

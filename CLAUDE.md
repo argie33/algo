@@ -212,7 +212,7 @@ sam deploy
 1. Check `/api/health` → should return `{ success: true, ... }`
 2. Check `/api/diagnostics` → shows which tables are populated
 3. Check browser DevTools Network tab → are API calls returning 200?
-4. Check API URLs in `webapp/frontend-admin/src/services/api.js` — endpoints must start with `/api/`
+4. Check API URLs in `webapp/frontend/src/services/api.js` — endpoints must start with `/api/`
 
 ### Database connection failed
 1. Verify `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD` in `.env.local`
