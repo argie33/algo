@@ -50,6 +50,7 @@ const sectorsRoutes = require("./routes/sectors");
 const sentimentRoutes = require("./routes/sentiment");
 const signalsRoutes = require("./routes/signals");
 const stocksRoutes = require("./routes/stocks");
+const strategiesRoutes = require("./routes/strategies");
 const tradesRoutes = require("./routes/trades");
 
 const app = express();
@@ -452,8 +453,6 @@ app.get("/api/debug/test-error", (req, res) => {
 // Canonical API Routes - all under /api prefix
 app.use("/api/commodities", commoditiesRoutes);
 app.use("/api/contact", contactRoutes);
-app.use("/api/commodities", commoditiesRoutes);
-app.use("/api/contact", contactRoutes);
 app.use("/api/diagnostics", diagnosticsRoutes);
 app.use("/api/earnings", earningsRoutes);
 app.use("/api/economic", economicRoutes);
@@ -469,6 +468,7 @@ app.use("/api/sectors", sectorsRoutes);
 app.use("/api/sentiment", sentimentRoutes);
 app.use("/api/signals", signalsRoutes);
 app.use("/api/stocks", stocksRoutes);
+app.use("/api/strategies", strategiesRoutes);
 app.use("/api/trades", tradesRoutes);
 app.use("/api/trades/manual", manualTradesRoutes);
 
