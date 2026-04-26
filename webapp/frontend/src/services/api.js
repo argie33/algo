@@ -125,22 +125,23 @@ try {
  * Handles: items arrays, data objects, nested data.data, direct arrays
  */
 export const extractData = (response) => {
-  // Handle paginated responses: {success, items, pagination}
+  // Return the full data object with items and pagination intact
+  // Pages expect: { items: [...], pagination: {...} }
   if (response?.data?.items) {
-    return response.data.items;
+    return response.data;  // Return full response.data which includes items and pagination
   }
-  // Handle double-nested responses: {success, data: {data: [...]}}
+  // Handle double-nested responses
   if (response?.data?.data?.items) {
-    return response.data.data.items;
-  }
-  if (Array.isArray(response?.data?.data)) {
     return response.data.data;
   }
-  // Handle direct array responses: {success, data: [...]}
-  if (Array.isArray(response?.data)) {
-    return response.data;
+  if (Array.isArray(response?.data?.data)) {
+    return { items: response.data.data, pagination: null };
   }
-  // Handle object responses: {success, data: {...}}
+  // Handle direct array responses
+  if (Array.isArray(response?.data)) {
+    return { items: response.data, pagination: null };
+  }
+  // Handle object responses
   if (response?.data?.data) {
     return response.data.data;
   }
@@ -354,6 +355,54 @@ export const getDiagnosticInfo = () => {
 
 export const getCurrentBaseURL = () => {
   return currentConfig.baseURL || "/";
+};
+
+// ============================================
+// HEALTH CHECK & TESTING FUNCTIONS
+// ============================================
+
+export const healthCheck = async () => {
+  try {
+    const response = await api.get("/api/health");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching health check:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const testApiConnection = async () => {
+  try {
+    const response = await api.get("/api/test");
+    return response.data;
+  } catch (error) {
+    console.error("Error testing API connection:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+// ============================================
+// EXTERNAL DATA FUNCTIONS
+// ============================================
+
+export const getNaaimData = async () => {
+  try {
+    const response = await api.get("/api/market/sentiment");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching NAAIM data:", error);
+    return { success: false, data: {}, error: error.message };
+  }
+};
+
+export const getFearGreedData = async () => {
+  try {
+    const response = await api.get("/api/market/sentiment");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching Fear/Greed data:", error);
+    return { success: false, data: {}, error: error.message };
+  }
 };
 
 // Export the axios instance for direct use
