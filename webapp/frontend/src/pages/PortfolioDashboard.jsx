@@ -45,12 +45,15 @@ export default function PortfolioDashboard() {
     const fetchPortfolioData = async () => {
       try {
         setLoading(true);
+        const { extractData } = await import("../services/api");
         const response = await api.get("/api/portfolio/metrics");
-        if (response.data && response.data.data) {
-          setPortfolioData(response.data.data);
+        const extracted = extractData(response);
+        const portfolioData = extracted.data || extracted;
+        if (portfolioData) {
+          setPortfolioData(portfolioData);
 
           // Extract and display data quality warnings
-          const dataQuality = response.data.data.metadata?.data_quality;
+          const dataQuality = portfolioData.metadata?.data_quality;
           if (dataQuality) {
             setDataWarnings(dataQuality.warnings || []);
             setDataIssues(dataQuality.issues || []);

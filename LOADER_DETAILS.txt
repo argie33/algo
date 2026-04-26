@@ -1,0 +1,219 @@
+DETAILED LOADER ANALYSIS - WHAT EACH ONE DOES
+═══════════════════════════════════════════════════════════════════════════════
+
+ESSENTIAL CORE (6 LOADERS - MUST RUN)
+═══════════════════════════════════════════════════════════════════════════════
+
+1. loadstocksymbols.py
+   What: Load all stock symbols from NASDAQ/NYSE
+   Source: nasdaq-symbols, yfinance
+   Creates: stock_symbols table
+   Run order: FIRST (everything else needs this)
+   Time: ~5 minutes
+   Must run: ✅ YES
+
+2. loadpricedaily.py
+   What: Download daily price history (OHLCV) for all stocks
+   Source: yfinance (downloads historical data)
+   Creates: price_daily table (symbol, date, open, high, low, close, volume)
+   Run order: SECOND (after symbols)
+   Time: VERY LONG - several hours due to yfinance rate limits
+   Current: RUNNING NOW at batch 36/994
+   Must run: ✅ YES - CORE DATA
+   Problem: yfinance has rate limits - fetches only ~5 symbols per request
+
+3. loadstockscores.py
+   What: Calculate technical scores (momentum, value, quality, growth, etc.)
+   Source: Reads from price_daily + technical indicators
+   Creates: stock_scores table
+   Dependencies: loadpricedaily (needs price data)
+   Time: 30-60 minutes
+   Must run: ✅ YES - NEEDED FOR SIGNALS
+   Notes: Generates composite scores used in Buy/Sell signal generation
+
+4. loadbuyselldaily.py
+   What: Generate daily Buy/Sell trading signals
+   Source: price_daily + stock_scores
+   Creates: buy_sell_daily (signal, buylevel, stoplevel, date, symbol)
+   Dependencies: loadstockscores
+   Time: 1-2 hours
+   Must run: ✅ YES - THIS IS YOUR MAIN SIGNAL
+   Notes: Actual trading signals based on technical indicators
+
+5. loadbuysellweekly.py
+   What: Aggregate daily signals to weekly timeframe
+   Source: buy_sell_daily
+   Creates: buy_sell_weekly table
+   Time: ~10 minutes
+   Must run: ❓ ONLY if you trade weekly charts
+
+6. loadbuysellmonthly.py
+   What: Aggregate daily signals to monthly timeframe
+   Source: buy_sell_daily
+   Creates: buy_sell_monthly table
+   Time: ~10 minutes
+   Must run: ❓ ONLY if you trade monthly charts
+
+
+PRICE AGGREGATION (2 LOADERS - OPTIONAL)
+═══════════════════════════════════════════════════════════════════════════════
+
+7. loadpriceweekly.py
+   What: Aggregate daily prices to weekly OHLCV
+   Source: price_daily
+   Creates: price_weekly
+   Must run: ❓ Only if you need weekly price charts
+   Time: ~5 minutes
+
+8. loadpricemonthly.py
+   What: Aggregate daily prices to monthly OHLCV
+   Source: price_daily
+   Creates: price_monthly
+   Must run: ❓ Only if you need monthly price charts
+   Time: ~5 minutes
+
+
+REDUNDANT/DUPLICATE LOADERS (DELETE THESE)
+═══════════════════════════════════════════════════════════════════════════════
+
+9-11. loadlatestprice*.py (daily, weekly, monthly)
+    What: Update prices with ONLY latest data (vs full reload)
+    Problem: DUPLICATE of loadprice*.py
+    Recommendation: ❌ DELETE ALL THREE
+
+12-14. loadetfprice*.py (daily, weekly, monthly)
+    What: Load ETF prices separately from stocks
+    Problem: Creates parallel flow, confusing
+    Recommendation: ❌ DELETE unless you specifically trade ETFs
+
+15-17. loadbuysell_etf*.py (daily, weekly, monthly)
+    What: Generate Buy/Sell signals for ETFs only
+    Problem: DUPLICATE logic to stock signals
+    Recommendation: ❌ DELETE unless you specifically trade ETFs
+
+18. loadetfsignals.py
+    What: ETF signal integration
+    Problem: DUPLICATE
+    Recommendation: ❌ DELETE
+
+
+FINANCIAL DATA LOADERS (6 - OPTIONAL)
+═══════════════════════════════════════════════════════════════════════════════
+
+19. loadannualbalancesheet.py → Balance sheet data (annual)
+20. loadannualcashflow.py → Cash flow data (annual)
+21. loadannualincomestatement.py → Income statement (annual)
+22. loadquarterlybalancesheet.py → Balance sheet (quarterly)
+23. loadquarterlycashflow.py → Cash flow (quarterly)
+24. loadquarterlyincomestatement.py → Income statement (quarterly)
+
+What: Financial statements for fundamental analysis
+Purpose: Value investing, fundamental metrics
+Must run: ❌ NO - only if doing fundamental analysis
+Time: Medium-long
+Recommendation: DELETE for now, add back later if needed
+
+
+TECHNICAL/METRICS LOADERS (4 - DELETE)
+═══════════════════════════════════════════════════════════════════════════════
+
+25. loadfactormetrics.py → Factor performance scores
+26. loadttmcashflow.py → Trailing twelve months cash flow
+27. loadttmincomestatement.py → TTM income statement
+28. loaddailycompanydata.py → Company profile data
+
+Must run: ❌ NO
+Recommendation: ❌ DELETE ALL
+
+
+SENTIMENT & NEWS LOADERS (4 - DELETE)
+═══════════════════════════════════════════════════════════════════════════════
+
+29. loadsentiment.py → Market sentiment
+30. loadanalystsentiment.py → Analyst sentiment
+31. loadanalystupgradedowngrade.py → Rating changes
+32. loadnews.py → Financial news
+
+Must run: ❌ NO
+Recommendation: ❌ DELETE ALL for now
+
+
+MARKET DATA LOADERS (4 - DELETE)
+═══════════════════════════════════════════════════════════════════════════════
+
+33. loadmarket.py → Market overview
+34. loadmarketindices.py → S&P 500, Nasdaq
+35. loadecondata.py → Economic data (GDP, unemployment, CPI)
+36. loadcommodities.py → Commodity prices
+
+Must run: ❌ NO
+Recommendation: ❌ DELETE ALL
+
+
+EARNINGS & CALENDAR LOADERS (3 - DELETE)
+═══════════════════════════════════════════════════════════════════════════════
+
+37. loadearningshistory.py → Historical earnings per share
+38. loadearningsrevisions.py → Analyst earnings revisions
+39. loadcalendar.py → Economic calendar events
+
+Must run: ❌ NO
+Recommendation: ❌ DELETE ALL
+
+
+MISCELLANEOUS LOADERS (11 - DELETE)
+═══════════════════════════════════════════════════════════════════════════════
+
+40. loadalpacaportfolio.py → Alpaca broker integration
+41. loadbenchmark.py → Benchmark data
+42. loadcoveredcallopportunities.py → Options data
+43. loadfeargreed.py → Fear/Greed index
+44. loadnaaim.py → NAAIM positioning data
+45. loadoptionschains.py → Options chains
+46. loadrelativeperformance.py → Relative performance
+47. loadsecfilings.py → SEC filings (10-K, 10-Q)
+48. loadsectors.py → Sector groupings
+49. loadseasonality.py → Seasonal patterns
+50. loadaaiidata.py → Unknown purpose
+
+Must run: ❌ NO for all
+Recommendation: ❌ DELETE ALL for now
+
+
+═══════════════════════════════════════════════════════════════════════════════
+CLEANUP PLAN
+═══════════════════════════════════════════════════════════════════════════════
+
+STEP 1: KEEP THESE (6 loaders)
+  ✅ loadstocksymbols.py
+  ✅ loadpricedaily.py (currently running)
+  ✅ loadstockscores.py
+  ✅ loadbuyselldaily.py
+  ✅ loadbuysellweekly.py
+  ✅ loadbuysellmonthly.py
+
+STEP 2: MAYBE KEEP (2 loaders - depends on your needs)
+  ❓ loadpriceweekly.py (only if you need weekly prices)
+  ❓ loadpricemonthly.py (only if you need monthly prices)
+
+STEP 3: DELETE IMMEDIATELY (15 loaders)
+  ❌ loadlatestpricedaily.py
+  ❌ loadlatestpriceweekly.py
+  ❌ loadlatestpricemonthly.py
+  ❌ loadetfpricedaily.py
+  ❌ loadetfpriceweekly.py
+  ❌ loadetfpricemonthly.py
+  ❌ loadbuysell_etf_daily.py
+  ❌ loadbuysell_etf_weekly.py
+  ❌ loadbuysell_etf_monthly.py
+  ❌ loadfactormetrics.py
+  ❌ loadttmcashflow.py
+  ❌ loadttmincomestatement.py
+  ❌ loaddailycompanydata.py
+  ❌ loadetfsignals.py
+
+STEP 4: DELETE LATER (27 loaders)
+  ❌ All the financial, sentiment, news, market data, earnings, misc loaders
+  (Can delete them all for now, add back specific ones later if needed)
+
+═══════════════════════════════════════════════════════════════════════════════

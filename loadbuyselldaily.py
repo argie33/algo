@@ -265,8 +265,14 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
                     skipped += 1
                     continue
 
-                signal_val = row.get('Signal', 'None') or 'None'
-                signal_triggered_val = row.get('signal_triggered', 'None') or 'None'
+                signal_val = row.get('Signal')
+                signal_triggered_val = row.get('signal_triggered')
+
+                # CRITICAL: Only insert Buy/Sell signals, skip 'None' or empty signals
+                # This prevents inserting 97.8% fake "None" records
+                if not signal_val or signal_val not in ('Buy', 'Sell'):
+                    skipped += 1
+                    continue
 
                 # Safe conversion of float fields with NaN/Inf checking
                 buyLevel_val = None
@@ -304,7 +310,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
                 continue
 
             # Check for NaNs or missing values in core fields
-            if any(pd.isna(v) for v in [open_val, high_val, low_val, close_val, signal_val]):
+            if any(pd.isna(v) for v in [open_val, high_val, low_val, close_val]):
                 logging.debug(f"Skipping row {idx}: has NaN in core fields")
                 skipped += 1
                 continue

@@ -206,6 +206,37 @@ sam deploy
 
 ---
 
+## Data Loading Rules (CRITICAL)
+
+### The Process: Local First, Then AWS
+1. **Load locally** using Python loader scripts (39 official loaders only)
+2. **Verify completeness** locally before pushing
+3. **Deploy to AWS** - CI/CD builds Docker images automatically
+
+### Official Loaders (39 Total)
+See `DATA_LOADING.md` and `LOADER_STATUS.md` for complete list with phases.
+
+### ✅ DO
+- Only create loaders that are in the 39-item official list
+- Load ALL data locally before deploying
+- Run loaders in proper dependency order (Phase 1 → Phase 6)
+- Skip records with missing critical data
+- Only insert real Buy/Sell signals (never insert 'None' signals)
+- Document new loaders in DATA_LOADING.md BEFORE implementing
+
+### ❌ DON'T
+- Create extra weird loaders (`loadindustryranking.py`, etc.)
+- Use fake populate scripts (`populate-all-signals.js`, `generate-signals-efficient.js`)
+- Insert default values like COALESCE to 0 or 'None'
+- Patch data in API routes instead of using loaders
+- Add test/debug scripts in root directory
+- Push partial/incomplete data to AWS
+- Mix loader logic into route files
+
+**Why?** Loaders got out of control in the past with 53+ Python files, 66+ Dockerfiles, and fake populate scripts inserting bad default data. Data loading MUST be centralized and disciplined.
+
+---
+
 ## Troubleshooting
 
 ### No data showing on frontend

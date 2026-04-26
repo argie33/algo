@@ -40,7 +40,9 @@ const Messages = () => {
         const result = await getContactSubmissions();
 
         if (result.success && result.data) {
-          setMessages(result.data);
+          // Handle both array and object responses
+          const messages = Array.isArray(result.data) ? result.data : (result.data.submissions || []);
+          setMessages(messages);
           setError(null);
         } else {
           throw new Error('Failed to fetch messages');

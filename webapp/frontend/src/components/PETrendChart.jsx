@@ -5,7 +5,7 @@ import api from "../services/api";
 
 export default function PETrendChart({ sectorName, industryName }) {
   const name = sectorName || industryName;
-  const endpoint = sectorName ? `sectors/trend/${sectorName}` : `industries/trend/${industryName}`;
+  const endpoint = sectorName ? `sectors/${sectorName}/trend` : `industries/${industryName}/trend`;
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["pe-trend", name],

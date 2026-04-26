@@ -597,6 +597,11 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
                 skipped += 1
                 continue
 
+            # CRITICAL: Only insert Buy/Sell signals, skip 'None' signals
+            if row.get('Signal') not in ('Buy', 'Sell'):
+                skipped += 1
+                continue
+
             # Helper function to safely convert NaN to None
             def safe_float(val):
                 if val is None or pd.isna(val):

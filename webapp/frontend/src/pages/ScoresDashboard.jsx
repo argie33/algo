@@ -367,8 +367,8 @@ const ScoresDashboard = () => {
       );
 
       // Check if API response is valid
-      // Unified response format: { success: true, data: { items: [...], pagination: {...} }, timestamp: ... }
-      const responseData = response.data.data || {};
+      // Unified response format: { success: true, items: [...], pagination: {...}, timestamp: ... }
+      const responseData = response.data || {};
       const validStocksArray = responseData.items || [];
 
       if (validStocksArray.length > 0) {

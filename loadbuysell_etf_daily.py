@@ -343,8 +343,13 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
                     skipped += 1
                     continue
 
-                signal_val = row.get('Signal', 'None') or 'None'
-                signal_triggered_val = row.get('signal_triggered', 'None') or 'None'
+                signal_val = row.get('Signal')
+                signal_triggered_val = row.get('signal_triggered')
+
+                # CRITICAL: Only insert Buy/Sell signals, skip 'None' or empty signals
+                if not signal_val or signal_val not in ('Buy', 'Sell'):
+                    skipped += 1
+                    continue
 
                 # Safe conversion of float fields with NaN/Inf checking
                 buyLevel_val = None

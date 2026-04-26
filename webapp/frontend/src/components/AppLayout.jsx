@@ -51,11 +51,17 @@ import { useAuth } from '../contexts/AuthContext';
 const drawerWidth = 240;
 
 const menuItems = [
-  // Markets Section
+  // Markets & Analysis Section
   {
     text: 'Market Overview',
     icon: <TrendingUpIcon />,
     path: '/app/market',
+    category: 'markets',
+  },
+  {
+    text: 'Economic Dashboard',
+    icon: <PublicIcon />,
+    path: '/app/economic',
     category: 'markets',
   },
   {
@@ -65,26 +71,19 @@ const menuItems = [
     category: 'markets',
   },
   {
+    text: 'Sentiment Analysis',
+    icon: <PsychologyIcon />,
+    path: '/app/sentiment',
+    category: 'markets',
+  },
+  {
     text: 'Commodities',
     icon: <GrainIcon />,
     path: '/app/commodities',
     category: 'markets',
   },
-  {
-    text: 'Economic Indicators',
-    icon: <PublicIcon />,
-    path: '/app/economic',
-    category: 'markets',
-  },
 
-  // Stocks Section
-  {
-    text: 'Stock Scores',
-    icon: <Stars />,
-    path: '/app/scores',
-    category: 'stocks',
-    premium: true,
-  },
+  // Stock Analysis Section
   {
     text: 'Deep Value Picks',
     icon: <Stars />,
@@ -92,44 +91,80 @@ const menuItems = [
     category: 'stocks',
   },
   {
-    text: 'Earnings Hub',
-    icon: <EventIcon />,
-    path: '/app/earnings',
-    category: 'stocks',
-  },
-  {
     text: 'Financial Data',
-    icon: <ShowChartIcon />,
+    icon: <StorageIcon />,
     path: '/app/financial-data',
     category: 'stocks',
   },
   {
     text: 'Trading Signals',
-    icon: <TimelineIcon />,
+    icon: <TrendingUpIcon />,
     path: '/app/trading-signals',
     category: 'stocks',
   },
   {
-    text: 'ETF Trading Signals',
+    text: 'ETF Signals',
     icon: <AnalyticsIcon />,
-    path: '/app/etf-trading-signals',
+    path: '/app/etf-signals',
+    category: 'stocks',
+  },
+  {
+    text: 'Earnings Calendar',
+    icon: <EventIcon />,
+    path: '/app/earnings',
+    category: 'stocks',
+  },
+  {
+    text: 'Stock Scores',
+    icon: <Stars />,
+    path: '/app/scores',
     category: 'stocks',
   },
 
-  // Sentiment Analysis
+  // Portfolio & Trading Section
   {
-    text: 'Sentiment Analysis',
-    icon: <PsychologyIcon />,
-    path: '/app/sentiment',
-    category: 'sentiment',
+    text: 'Portfolio Dashboard',
+    icon: <SwapHorizIcon />,
+    path: '/app/portfolio',
+    category: 'portfolio',
   },
-
-  // Tools
+  {
+    text: 'Trade History',
+    icon: <SwapHorizIcon />,
+    path: '/app/trades',
+    category: 'portfolio',
+  },
+  {
+    text: 'Portfolio Optimizer',
+    icon: <Stars />,
+    path: '/app/optimizer',
+    category: 'portfolio',
+  },
   {
     text: 'Hedge Helper',
-    icon: <HealthAndSafetyIcon />,
+    icon: <BusinessIcon />,
     path: '/app/hedge-helper',
-    category: 'tools',
+    category: 'portfolio',
+  },
+
+  // Admin & Settings Section
+  {
+    text: 'Messages',
+    icon: <EventIcon />,
+    path: '/app/messages',
+    category: 'admin',
+  },
+  {
+    text: 'System Health',
+    icon: <HealthAndSafetyIcon />,
+    path: '/app/health',
+    category: 'admin',
+  },
+  {
+    text: 'Settings',
+    icon: <SettingsIcon />,
+    path: '/app/settings',
+    category: 'admin',
   },
 ];
 
@@ -139,6 +174,8 @@ const AppLayout = ({ children, pageTitle }) => {
   const [expandedSections, setExpandedSections] = useState({
     markets: true,
     stocks: true,
+    portfolio: true,
+    admin: true,
   });
 
   const theme = useTheme();
@@ -192,6 +229,8 @@ const AppLayout = ({ children, pageTitle }) => {
     main: 'Dashboard',
     markets: 'Markets',
     stocks: 'Stocks',
+    portfolio: 'Portfolio & Trading',
+    admin: 'Admin & Settings',
     sentiment: 'Sentiment Analysis',
     research: 'Research & Education',
     tools: 'Tools',

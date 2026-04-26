@@ -674,9 +674,11 @@ export default function EconomicDashboard() {
       let economicCalendarData = null;
 
       try {
+        const { extractData } = await import("../services/api");
         const response = await api.get("/api/economic/leading-indicators");
         // Unified format: { success: true, data: {...}, timestamp: ... }
-        leadingIndicators = response.data.data || {};
+        const extracted = extractData(response);
+        leadingIndicators = extracted.data || extracted || {};
       } catch (err) {
         console.warn("⚠️ Failed to fetch leading indicators:", err?.message || err);
         // Use empty array as fallback - UI will show appropriate message
@@ -685,9 +687,11 @@ export default function EconomicDashboard() {
 
       // Fetch yield curve data
       try {
+        const { extractData } = await import("../services/api");
         const response = await api.get("/api/economic/yield-curve-full");
         // Unified format: { success: true, data: {...}, timestamp: ... }
-        const rawData = response.data.data || null;
+        const extracted = extractData(response);
+        const rawData = extracted.data || extracted || null;
 
         // Map the response data to the expected format
         if (rawData) {
@@ -717,9 +721,11 @@ export default function EconomicDashboard() {
 
       // Fetch economic calendar data (optional - use empty defaults if fails)
       try {
+        const { extractData } = await import("../services/api");
         const response = await api.get("/api/economic/calendar");
         // Unified format: { success: true, data: {...}, timestamp: ... }
-        const rawData = response.data.data || {};
+        const extracted = extractData(response);
+        const rawData = extracted.data || extracted || {};
         economicCalendarData = rawData?.events || (Array.isArray(rawData) ? rawData : []);
         console.log("✅ Economic Calendar Data Fetched:", {
           count: economicCalendarData?.length || 0,

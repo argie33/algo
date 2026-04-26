@@ -26,12 +26,25 @@ import {
   Grain as GrainIcon,
 } from "@mui/icons-material";
 
-// Dashboard pages (only the 5 working pages)
+// Dashboard pages - ALL 18 pages
 import MarketOverview from "./pages/MarketOverview";
 import FinancialData from "./pages/FinancialData";
 import DeepValueStocks from "./pages/DeepValueStocks";
 import TradingSignals from "./pages/TradingSignals";
 import EconomicDashboard from "./pages/EconomicDashboard";
+import EarningsCalendar from "./pages/EarningsCalendar";
+import SectorAnalysis from "./pages/SectorAnalysis";
+import Sentiment from "./pages/Sentiment";
+import CommoditiesAnalysis from "./pages/CommoditiesAnalysis";
+import ScoresDashboard from "./pages/ScoresDashboard";
+import TradeHistory from "./pages/TradeHistory";
+import PortfolioDashboard from "./pages/PortfolioDashboard";
+import HedgeHelper from "./pages/HedgeHelper";
+import PortfolioOptimizerNew from "./pages/PortfolioOptimizerNew";
+import ETFSignals from "./pages/ETFSignals";
+import Messages from "./pages/Messages";
+import ServiceHealth from "./pages/ServiceHealth";
+import Settings from "./pages/Settings";
 
 import { useAuth } from "./contexts/AuthContext";
 import AuthModal from "./components/auth/AuthModal";
@@ -57,7 +70,7 @@ import AppLayout from "./components/AppLayout";
 const drawerWidth = 240;
 
 const menuItems = [
-  // Markets Section
+  // Markets & Analysis Section
   {
     text: "Market Overview",
     icon: <TrendingUpIcon />,
@@ -65,13 +78,31 @@ const menuItems = [
     category: "markets",
   },
   {
-    text: "Economic Indicators",
+    text: "Economic Dashboard",
     icon: <PublicIcon />,
     path: "/app/economic",
     category: "markets",
   },
+  {
+    text: "Sector Analysis",
+    icon: <BusinessIcon />,
+    path: "/app/sectors",
+    category: "markets",
+  },
+  {
+    text: "Sentiment Analysis",
+    icon: <PsychologyIcon />,
+    path: "/app/sentiment",
+    category: "markets",
+  },
+  {
+    text: "Commodities",
+    icon: <GrainIcon />,
+    path: "/app/commodities",
+    category: "markets",
+  },
 
-  // Stocks Section
+  // Stock Analysis Section
   {
     text: "Deep Value Picks",
     icon: <Stars />,
@@ -90,6 +121,70 @@ const menuItems = [
     path: "/app/trading-signals",
     category: "stocks",
   },
+  {
+    text: "ETF Signals",
+    icon: <TrendingUpIcon />,
+    path: "/app/etf-signals",
+    category: "stocks",
+  },
+  {
+    text: "Earnings Calendar",
+    icon: <EventIcon />,
+    path: "/app/earnings",
+    category: "stocks",
+  },
+  {
+    text: "Stock Scores",
+    icon: <Stars />,
+    path: "/app/scores",
+    category: "stocks",
+  },
+
+  // Portfolio & Trading Section
+  {
+    text: "Portfolio Dashboard",
+    icon: <SwapHorizIcon />,
+    path: "/app/portfolio",
+    category: "portfolio",
+  },
+  {
+    text: "Trade History",
+    icon: <SwapHorizIcon />,
+    path: "/app/trades",
+    category: "portfolio",
+  },
+  {
+    text: "Portfolio Optimizer",
+    icon: <Stars />,
+    path: "/app/optimizer",
+    category: "portfolio",
+  },
+  {
+    text: "Hedge Helper",
+    icon: <BusinessIcon />,
+    path: "/app/hedge-helper",
+    category: "portfolio",
+  },
+
+  // Admin & Settings Section
+  {
+    text: "Messages",
+    icon: <EventIcon />,
+    path: "/app/messages",
+    category: "admin",
+  },
+  {
+    text: "System Health",
+    icon: <BusinessIcon />,
+    path: "/app/health",
+    category: "admin",
+  },
+  {
+    text: "Settings",
+    icon: <BusinessIcon />,
+    path: "/app/settings",
+    category: "admin",
+  },
 
 ];
 
@@ -103,6 +198,8 @@ function App() {
   const [expandedSections, setExpandedSections] = useState({
     markets: true,
     stocks: true,
+    portfolio: true,
+    admin: true,
   });
 
   console.log("🎯 APP COMPONENT: State initialized");
@@ -183,6 +280,8 @@ function App() {
     main: "Dashboard",
     markets: "Markets",
     stocks: "Stocks",
+    portfolio: "Portfolio & Trading",
+    admin: "Admin & Settings",
     sentiment: "Sentiment Analysis",
     research: "Research & Education",
     tools: "Tools",
@@ -349,11 +448,31 @@ function App() {
     <ErrorBoundary>
       <AppLayout>
         <Routes>
+          {/* Markets & Analysis */}
           <Route path="/app/market" element={<MarketOverview />} />
+          <Route path="/app/economic" element={<EconomicDashboard />} />
+          <Route path="/app/sectors" element={<SectorAnalysis />} />
+          <Route path="/app/sentiment" element={<Sentiment />} />
+          <Route path="/app/commodities" element={<CommoditiesAnalysis />} />
+
+          {/* Stocks Analysis */}
           <Route path="/app/deep-value" element={<DeepValueStocks />} />
           <Route path="/app/financial-data" element={<FinancialData />} />
           <Route path="/app/trading-signals" element={<TradingSignals />} />
-          <Route path="/app/economic" element={<EconomicDashboard />} />
+          <Route path="/app/etf-signals" element={<ETFSignals />} />
+          <Route path="/app/earnings" element={<EarningsCalendar />} />
+          <Route path="/app/scores" element={<ScoresDashboard />} />
+
+          {/* Portfolio & Trading */}
+          <Route path="/app/portfolio" element={<PortfolioDashboard />} />
+          <Route path="/app/trades" element={<TradeHistory />} />
+          <Route path="/app/optimizer" element={<PortfolioOptimizerNew />} />
+          <Route path="/app/hedge-helper" element={<HedgeHelper />} />
+
+          {/* Admin & Settings */}
+          <Route path="/app/messages" element={<Messages />} />
+          <Route path="/app/health" element={<ServiceHealth />} />
+          <Route path="/app/settings" element={<Settings />} />
         </Routes>
 
         {/* Authentication Modal */}

@@ -19,6 +19,7 @@ import {
 } from "aws-amplify/auth";
 import { isCognitoConfigured } from "../config/amplify";
 import SessionWarningDialog from "../components/auth/SessionWarningDialog";
+import sessionManager from "../services/sessionManager";
 
 // Initial auth state
 const initialState = {

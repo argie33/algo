@@ -116,7 +116,7 @@ function EarningsCalendar() {
   } = useQuery({
     queryKey: ["estimateMomentum"],
     queryFn: async () => {
-      const response = await api.get('/api/earnings/estimate-momentum?limit=500&period=0q');
+      const response = await api.get('/api/earnings/calendar?limit=500&period=upcoming');
       return extractResponseData(response);
     },
     staleTime: 1000 * 60 * 60, // 1 hour
@@ -203,7 +203,7 @@ function EarningsCalendar() {
       });
       if (symbolFilter) params.append("symbol", symbolFilter);
 
-      const response = await api.get(`/api/earnings/info?${params}`);
+      const response = await api.get(`/api/earnings/calendar?${params}`);
       const extracted = extractResponseData(response);
       if (!extracted?.estimates) throw new Error('No earnings estimates available');
       return {
@@ -227,7 +227,7 @@ function EarningsCalendar() {
       if (!expandedSymbol || expandedSymbol === "data" || expandedSymbol === "pagination") return null;
 
       logger.info(`Fetching earnings details for ${expandedSymbol}`);
-      const response = await api.get(`/api/earnings/info?symbol=${encodeURIComponent(expandedSymbol)}`);
+      const response = await api.get(`/api/earnings/calendar?symbol=${encodeURIComponent(expandedSymbol)}`);
       const dataRes = extractResponseData(response);
 
       logger.info(`Received data for ${expandedSymbol}:`, {

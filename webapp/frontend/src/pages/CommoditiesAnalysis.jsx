@@ -49,8 +49,10 @@ function CommoditiesAnalysis() {
   const pricesQuery = useQuery({
     queryKey: ["commodities-prices"],
     queryFn: async () => {
+      const { extractData } = await import("../services/api");
       const response = await api.get("/api/commodities/prices?limit=100");
-      return response.data.data || [];
+      const data = extractData(response);
+      return data.items || data.data || [];
     },
     staleTime: 2 * 60 * 1000,
   });
@@ -58,8 +60,10 @@ function CommoditiesAnalysis() {
   const categoriesQuery = useQuery({
     queryKey: ["commodities-categories"],
     queryFn: async () => {
+      const { extractData } = await import("../services/api");
       const response = await api.get("/api/commodities/categories");
-      return response.data.data || [];
+      const data = extractData(response);
+      return data.items || data.data || [];
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -67,8 +71,10 @@ function CommoditiesAnalysis() {
   const correlationsQuery = useQuery({
     queryKey: ["commodities-correlations"],
     queryFn: async () => {
+      const { extractData } = await import("../services/api");
       const response = await api.get("/api/commodities/correlations?minCorrelation=0.3");
-      return response.data.data?.correlations || [];
+      const data = extractData(response);
+      return data.correlations || data.items || data.data || [];
     },
     staleTime: 30 * 60 * 1000,
   });
@@ -76,8 +82,10 @@ function CommoditiesAnalysis() {
   const summaryQuery = useQuery({
     queryKey: ["commodities-summary"],
     queryFn: async () => {
+      const { extractData } = await import("../services/api");
       const response = await api.get("/api/commodities/market-summary");
-      return response.data.data;
+      const data = extractData(response);
+      return data.data || data;
     },
     staleTime: 2 * 60 * 1000,
   });
@@ -86,8 +94,10 @@ function CommoditiesAnalysis() {
     queryKey: ["commodities-seasonality", selectedCommodity],
     queryFn: async () => {
       try {
+        const { extractData } = await import("../services/api");
         const response = await api.get(`/api/commodities/seasonality/${selectedCommodity}`);
-        return response.data.data || [];
+        const data = extractData(response);
+        return data.items || data.data || [];
       } catch {
         return [];
       }
@@ -99,8 +109,10 @@ function CommoditiesAnalysis() {
     queryKey: ["commodities-cot", selectedCommodity],
     queryFn: async () => {
       try {
+        const { extractData } = await import("../services/api");
         const response = await api.get(`/api/commodities/cot/${selectedCommodity}`);
-        return response.data.data || [];
+        const data = extractData(response);
+        return data.items || data.data || [];
       } catch {
         return [];
       }
