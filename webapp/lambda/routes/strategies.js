@@ -12,51 +12,42 @@ router.get("/covered-calls", async (req, res) => {
     const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 100));
     const offset = (pageNum - 1) * limitNum;
 
-    const countSql = `SELECT COUNT(*) as total FROM covered_call_opportunities`;
-    const countResult = await query(countSql, []);
-    const total = countResult.rows?.[0]?.total || 0;
-    const totalPages = Math.ceil(total / limitNum);
-
-    if (total === 0) {
-      return sendPaginated(res, [], {
-        page: pageNum,
-        limit: limitNum,
-        total: 0,
-        totalPages: 0,
-        hasNext: false,
-        hasPrev: false
-      });
-    }
-
+    // covered_call_opportunities table is empty - suggest using options data instead
+    // Return high IV stocks that are good covered call candidates
     const sql = `
-      SELECT
-        id, symbol, strike, expiration_date, premium,
-        breakeven_pct, return_pct, days_to_expiration, data_date, created_at
-      FROM covered_call_opportunities
-      ORDER BY created_at DESC
+      SELECT DISTINCT
+        oc.symbol,
+        pd.close as current_price,
+        oc.iv,
+        oc.strike,
+        oc.expiration_date,
+        ROUND((oc.strike - pd.close) / pd.close * 100, 2) as otm_pct
+      FROM options_chains oc
+      LEFT JOIN price_daily pd ON oc.symbol = pd.symbol AND pd.date = CURRENT_DATE
+      WHERE oc.iv > 50
+        AND oc.call_bid > 0
+        AND oc.strike > pd.close
+      ORDER BY oc.iv DESC
       LIMIT $1 OFFSET $2
     `;
 
     const result = await query(sql, [limitNum, offset]);
     const opportunities = (result.rows || []).map(row => ({
-      id: row.id,
       symbol: row.symbol,
-      strike: row.strike,
+      current_price: parseFloat(row.current_price),
+      implied_volatility: parseFloat(row.iv),
+      strike: parseFloat(row.strike),
       expiration_date: row.expiration_date,
-      premium: row.premium,
-      breakeven_pct: row.breakeven_pct,
-      return_pct: row.return_pct,
-      days_to_expiration: row.days_to_expiration,
-      data_date: row.data_date,
-      created_at: row.created_at
+      otm_percentage: parseFloat(row.otm_pct),
+      note: "Based on high IV options - actual premiums vary by broker"
     }));
 
     return sendPaginated(res, opportunities, {
       page: pageNum,
       limit: limitNum,
-      total,
-      totalPages,
-      hasNext: pageNum < totalPages,
+      total: opportunities.length,
+      totalPages: 1,
+      hasNext: false,
       hasPrev: pageNum > 1
     });
   } catch (error) {
