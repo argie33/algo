@@ -1,86 +1,113 @@
 const express = require("express");
 const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require("../utils/apiResponse");
+
 const router = express.Router();
 
-// GET / - Get all sectors
+// GET /api/sectors - List all sectors with pagination
 router.get("/", async (req, res) => {
   try {
-    const { limit = 500, page = 1 } = req.query;
-    const limitNum = Math.min(parseInt(limit) || 500, 1000);
-    const pageNum = Math.max(parseInt(page) || 1, 1);
-    const offset = (pageNum - 1) * limitNum;
+    const limit = Math.min(parseInt(req.query.limit) || 50, 1000);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const offset = (page - 1) * limit;
 
-    const countResult = await query("SELECT COUNT(DISTINCT sector) as count FROM company_profile WHERE sector IS NOT NULL");
-    const total = parseInt(countResult?.rows[0]?.count || 0);
+    const result = await query(
+      `SELECT DISTINCT sector FROM company_profile
+       WHERE sector IS NOT NULL
+       ORDER BY sector
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
 
-    const result = await query("SELECT DISTINCT sector as sector_name FROM company_profile WHERE sector IS NOT NULL AND TRIM(sector) != '' ORDER BY sector LIMIT $1 OFFSET $2", [limitNum, offset]);
+    const countResult = await query(
+      `SELECT COUNT(DISTINCT sector) as total FROM company_profile WHERE sector IS NOT NULL`
+    );
+    const total = parseInt(countResult.rows[0].total || 0);
 
-    const sectors = (result?.rows || []).map(row => ({sector_name: row.sector_name}));
-    const totalPages = Math.ceil(total / limitNum);
-    return sendPaginated(res, sectors, {page: pageNum, limit: limitNum, total, totalPages, hasNext: pageNum < totalPages, hasPrev: pageNum > 1});
+    return sendPaginated(res, result.rows.map(r => ({ name: r.sector })), {
+      limit,
+      offset,
+      total,
+      page: Math.max(1, Math.ceil((offset / limit) + 1))
+    });
   } catch (error) {
-    console.error("Error fetching sectors:", error.message);
-    return sendError(res, `Failed to fetch sectors: ${error.message.substring(0, 100)}`, 500);
+    const errorMsg = error && typeof error === 'object' ? (error.message || String(error)) : String(error);
+    console.error("❌ Error fetching sectors:", errorMsg);
+    return sendError(res, `Failed to fetch sectors: ${errorMsg}`, 500);
   }
 });
 
-// GET /sectors - Alias for backward compatibility
-router.get("/sectors", async (req, res) => {
+// GET /api/sectors/{name}/stocks - Get stocks in a specific sector
+router.get("/:name/stocks", async (req, res) => {
   try {
-    const { limit = 500, page = 1 } = req.query;
-    const limitNum = Math.min(parseInt(limit) || 500, 1000);
-    const pageNum = Math.max(parseInt(page) || 1, 1);
-    const offset = (pageNum - 1) * limitNum;
+    const sectorName = decodeURIComponent(req.params.name);
+    const limit = Math.min(parseInt(req.query.limit) || 50, 1000);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const offset = (page - 1) * limit;
 
-    const countResult = await query("SELECT COUNT(DISTINCT sector) as count FROM company_profile WHERE sector IS NOT NULL");
-    const total = parseInt(countResult?.rows[0]?.count || 0);
+    const result = await query(
+      `SELECT cp.ticker as symbol, cp.short_name as name, cp.sector
+       FROM company_profile cp
+       WHERE cp.sector = $1
+       ORDER BY cp.ticker
+       LIMIT $2 OFFSET $3`,
+      [sectorName, limit, offset]
+    );
 
-    const result = await query("SELECT DISTINCT sector as sector_name FROM company_profile WHERE sector IS NOT NULL AND TRIM(sector) != '' ORDER BY sector LIMIT $1 OFFSET $2", [limitNum, offset]);
+    const countResult = await query(
+      `SELECT COUNT(*) as total FROM company_profile WHERE sector = $1`,
+      [sectorName]
+    );
+    const total = parseInt(countResult.rows[0].total || 0);
 
-    const sectors = (result?.rows || []).map(row => ({sector_name: row.sector_name}));
-    const totalPages = Math.ceil(total / limitNum);
-    return sendPaginated(res, sectors, {page: pageNum, limit: limitNum, total, totalPages, hasNext: pageNum < totalPages, hasPrev: pageNum > 1});
+    return sendPaginated(res, result.rows, {
+      limit,
+      offset,
+      total,
+      page: Math.max(1, Math.ceil((offset / limit) + 1))
+    });
   } catch (error) {
-    console.error("Error fetching sectors:", error.message);
-    return sendError(res, `Failed to fetch sectors: ${error.message.substring(0, 100)}`, 500);
+    const errorMsg = error && typeof error === 'object' ? (error.message || String(error)) : String(error);
+    console.error("❌ Error fetching sector stocks:", errorMsg);
+    return sendError(res, `Failed to fetch sector stocks: ${errorMsg}`, 500);
   }
 });
 
-// GET /trend/sector/:sectorName - Get sector trend data (for SectorAnalysis charts)
-router.get("/trend/sector/:sectorName", async (req, res) => {
+// GET /api/sectors/{name}/performance - Get sector performance data
+router.get("/:name/performance", async (req, res) => {
   try {
-    const { sectorName } = req.params;
-    const { days = 90 } = req.query;
-    const daysNum = Math.min(parseInt(days) || 90, 365);
+    const sectorName = decodeURIComponent(req.params.name);
 
-    const result = await query(`
-      SELECT
-        DATE(pd.date) as date,
-        AVG(CAST(pd.close AS FLOAT)) as avg_price,
-        COUNT(DISTINCT pd.symbol) as stock_count
-      FROM price_daily pd
-      JOIN company_profile cp ON pd.symbol = cp.ticker
-      WHERE LOWER(TRIM(cp.sector)) = LOWER(TRIM($1))
-      AND pd.date >= CURRENT_DATE - INTERVAL '${daysNum} days'
-      GROUP BY DATE(pd.date)
-      ORDER BY date ASC
-    `, [sectorName]);
+    const result = await query(
+      `SELECT cp.sector,
+              COUNT(DISTINCT cp.ticker) as stock_count,
+              AVG(CAST(pd.close as DECIMAL)) as avg_price,
+              MIN(pd.close::DECIMAL) as min_price,
+              MAX(pd.close::DECIMAL) as max_price
+       FROM company_profile cp
+       LEFT JOIN price_daily pd ON cp.ticker = pd.symbol AND pd.date = (
+         SELECT MAX(date) FROM price_daily WHERE symbol = cp.ticker
+       )
+       WHERE cp.sector = $1
+       GROUP BY cp.sector`,
+      [sectorName]
+    );
 
-    if (!result?.rows || result.rows.length === 0) {
-      return sendError(res, `No trend data found for sector: ${sectorName}`, 404);
+    if (result.rows.length === 0) {
+      return sendSuccess(res, {
+        sector: sectorName,
+        stock_count: 0,
+        avg_price: null,
+        min_price: null,
+        max_price: null
+      });
     }
 
-    const trendData = result.rows.map(row => ({
-      date: row.date,
-      avgPrice: parseFloat(row.avg_price) || 0,
-      stockCount: parseInt(row.stock_count) || 0
-    }));
-
-    return sendSuccess(res, { sector: sectorName, trendData });
+    return sendSuccess(res, result.rows[0]);
   } catch (error) {
-    console.error("Error fetching sector trend:", error.message);
-    return sendError(res, `Failed to fetch sector trend: ${error.message.substring(0, 100)}`, 500);
+    const errorMsg = error && typeof error === 'object' ? (error.message || String(error)) : String(error);
+    console.error("❌ Error fetching sector performance:", errorMsg);
+    return sendError(res, `Failed to fetch sector performance: ${errorMsg}`, 500);
   }
 });
 
