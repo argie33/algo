@@ -46,7 +46,8 @@
       "Bash(cat)",
       "Read(//c/Users/arger/.claude/plans/**)",
       "Bash(git commit -m 'Document remaining critical issues found *)",
-      "Bash(git commit -m 'Remove duplicate/unused directories - clean up mess *)"
+      "Bash(git commit -m 'Remove duplicate/unused directories - clean up mess *)",
+      "Bash(git commit -m 'Final architecture simplification - one site, right endpoints *)"
     ]
   }
 }
