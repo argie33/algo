@@ -32,7 +32,6 @@ const requestLogger = require("./middleware/requestLogger");
 const { initializeDatabase, query } = require("./utils/database");
 const { initializeAlpacaSync } = require("./utils/alpacaSyncScheduler");
 const responseNormalizer = require("./middleware/responseNormalizer");
-const contactRoutes = require("./routes/contact");
 const economicRoutes = require("./routes/economic");
 const financialRoutes = require("./routes/financials");
 const healthRoutes = require("./routes/health");
@@ -43,6 +42,8 @@ const signalsRoutes = require("./routes/signals");
 const stocksRoutes = require("./routes/stocks");
 const tradesRoutes = require("./routes/trades");
 const diagnosticsRoutes = require("./routes/diagnostics");
+const earningsRoutes = require("./routes/earnings");
+const priceRoutes = require("./routes/price");
 
 const app = express();
 
