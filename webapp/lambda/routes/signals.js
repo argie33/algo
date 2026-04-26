@@ -231,7 +231,6 @@ const getStocksSignals = async (req, res) => {
 };
 
 // Root endpoint - default to stock signals (matches /api/signals or /api/signals/)
-router.get("", getStocksSignals);
 router.get("/", getStocksSignals);
 
 // Canonical endpoint for stock signals (returns ALL signals from 2019 by default)
@@ -315,7 +314,7 @@ router.get("/etf", async (req, res) => {
         ${actualColumns},
         es.security_name as company_name
       FROM ${tableName} bsd
-      LEFT JOIN etf_symbols es ON bsd.symbol = es.symbol
+      INNER JOIN etf_symbols es ON bsd.symbol = es.symbol
       ${whereClause}
       ORDER BY bsd.date DESC, bsd.id DESC
       LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}
