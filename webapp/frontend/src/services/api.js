@@ -168,59 +168,158 @@ export const isResponseSuccess = (response) => {
 export const extractResponseData = extractData;
 
 // ============================================
-// MARKET DATA FUNCTIONS (Stubs)
+// MARKET DATA FUNCTIONS
 // ============================================
 
 export const getMarketTechnicals = async () => {
-  return { success: true, data: {} };
+  try {
+    const response = await api.get("/api/market/technicals");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching market technicals:", error);
+    return { success: false, data: {}, error: error.message };
+  }
 };
 
 export const getMarketSentimentData = async (range = "1d") => {
-  return { success: true, data: { sentiment: 0.5 } };
+  try {
+    const response = await api.get(`/api/market/sentiment?range=${range}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching market sentiment:", error);
+    return { success: false, data: { sentiment: 0.5 }, error: error.message };
+  }
 };
 
 export const getMarketSeasonalityData = async () => {
-  return { success: true, data: {} };
+  try {
+    const response = await api.get("/api/market/seasonality");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching market seasonality:", error);
+    return { success: false, data: {}, error: error.message };
+  }
 };
 
 export const getMarketCorrelation = async (symbols = null) => {
-  return { success: true, data: {} };
+  try {
+    const params = symbols ? `?symbols=${symbols}` : "";
+    const response = await api.get(`/api/market/correlation${params}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching market correlation:", error);
+    return { success: false, data: {}, error: error.message };
+  }
 };
 
 export const getMarketIndices = async () => {
-  return { success: true, data: [] };
+  try {
+    const response = await api.get("/api/market/indices");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching market indices:", error);
+    return { success: false, data: [], error: error.message };
+  }
 };
 
 export const getMarketTopMovers = async () => {
-  return { success: true, data: [] };
+  try {
+    const response = await api.get("/api/market/top-movers");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching market top movers:", error);
+    return { success: false, data: [], error: error.message };
+  }
 };
 
 export const getMarketCapDistribution = async () => {
-  return { success: true, data: [] };
+  try {
+    const response = await api.get("/api/market/cap-distribution");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching market cap distribution:", error);
+    return { success: false, data: [], error: error.message };
+  }
 };
 
 // ============================================
-// FINANCIAL DATA FUNCTIONS (Stubs)
+// FINANCIAL DATA FUNCTIONS
 // ============================================
 
 export const getStocks = async (params = {}) => {
-  return { success: true, data: [] };
+  try {
+    const queryStr = new URLSearchParams(params).toString();
+    const url = queryStr ? `/api/stocks?${queryStr}` : "/api/stocks";
+    const response = await api.get(url);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching stocks:", error);
+    return { success: false, data: [], error: error.message };
+  }
 };
 
-export const getBalanceSheet = async (ticker) => {
-  return { success: true, data: {} };
+export const getBalanceSheet = async (ticker, period = "annual") => {
+  try {
+    const response = await api.get(`/api/financials/${ticker}/balance-sheet?period=${period}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching balance sheet:", error);
+    return { success: false, data: {}, error: error.message };
+  }
 };
 
-export const getIncomeStatement = async (ticker) => {
-  return { success: true, data: {} };
+export const getIncomeStatement = async (ticker, period = "annual") => {
+  try {
+    const response = await api.get(`/api/financials/${ticker}/income-statement?period=${period}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching income statement:", error);
+    return { success: false, data: {}, error: error.message };
+  }
 };
 
-export const getCashFlowStatement = async (ticker) => {
-  return { success: true, data: {} };
+export const getCashFlowStatement = async (ticker, period = "annual") => {
+  try {
+    const response = await api.get(`/api/financials/${ticker}/cash-flow?period=${period}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching cash flow statement:", error);
+    return { success: false, data: {}, error: error.message };
+  }
 };
 
 export const getKeyMetrics = async (ticker) => {
-  return { success: true, data: {} };
+  try {
+    const response = await api.get(`/api/stocks/${ticker}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching key metrics:", error);
+    return { success: false, data: {}, error: error.message };
+  }
+};
+
+// ============================================
+// CONTACT & MESSAGING FUNCTIONS
+// ============================================
+
+export const getContactSubmissions = async () => {
+  try {
+    const response = await api.get("/api/contact/submissions");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching contact submissions:", error);
+    return { success: false, data: { submissions: [], total: 0 }, error: error.message };
+  }
+};
+
+export const submitContact = async (data) => {
+  try {
+    const response = await api.post("/api/contact", data);
+    return response.data;
+  } catch (error) {
+    console.error("Error submitting contact form:", error);
+    return { success: false, error: error.message };
+  }
 };
 
 // Export the axios instance for direct use
