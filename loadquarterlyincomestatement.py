@@ -128,7 +128,7 @@ def main():
     try:
         cur = conn.cursor()
         create_tables(cur)
-        cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol LIMIT 100")
+        cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
         symbols = [row[0] for row in cur.fetchall()]
 
         logging.info(f"Loading quarterly income statements for {len(symbols)} stocks...")
