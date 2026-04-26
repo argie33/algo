@@ -1,12 +1,12 @@
-// Load environment variables ONCE at startup from .env.local (local dev only)
+﻿// Load environment variables ONCE at startup from .env.local (local dev only)
 // Production: No .env file needed - uses AWS environment variables or Secrets Manager
 const path = require("path");
 const fs = require("fs");
 
 const envPath = path.resolve(__dirname, "../../.env.local");
-console.log(`🔧 Loading environment from: ${envPath}`);
+console.log(`ðŸ”§ Loading environment from: ${envPath}`);
 const envResult = require("dotenv").config({ path: envPath });
-console.log(`🔧 Environment load result:`, {
+console.log(`ðŸ”§ Environment load result:`, {
   path: envPath,
   fileExists: require("fs").existsSync(envPath),
   loaded: envResult.parsed ? Object.keys(envResult.parsed).length : 0,
@@ -36,18 +36,13 @@ const contactRoutes = require("./routes/contact");
 const economicRoutes = require("./routes/economic");
 const financialRoutes = require("./routes/financials");
 const healthRoutes = require("./routes/health");
-const industriesRoutes = require("./routes/industries");
 const manualTradesRoutes = require("./routes/manual-trades");
 const marketRoutes = require("./routes/market");
 const portfolioRoutes = require("./routes/portfolio");
-const sectorsRoutes = require("./routes/sectors");
 const signalsRoutes = require("./routes/signals");
 const stocksRoutes = require("./routes/stocks");
 const tradesRoutes = require("./routes/trades");
 const diagnosticsRoutes = require("./routes/diagnostics");
-const earningsRoutes = require("./routes/earnings");
-const priceRoutes = require("./routes/price");
-const userRoutes = require("./routes/user");
 
 const app = express();
 
@@ -139,7 +134,7 @@ app.use((req, res, next) => {
 
 // Global OPTIONS handler for CORS preflight requests (MUST be before CORS middleware)
 app.options('*', (req, res) => {
-  console.log(`🔄 Global OPTIONS handler for: ${req.path} from origin: ${req.headers.origin}`);
+  console.log(`ðŸ”„ Global OPTIONS handler for: ${req.path} from origin: ${req.headers.origin}`);
 
   // Ensure CORS headers are explicitly set for AWS API Gateway compatibility
   const origin = req.headers.origin;
@@ -461,6 +456,9 @@ app.use("/api/trades", tradesRoutes);
 app.use("/api/trades/manual", manualTradesRoutes);
 app.use("/api/diagnostics", diagnosticsRoutes);
 app.use("/api/earnings", earningsRoutes);
+app.use("/api/sentiment", sentimentRoutes);
+app.use("/api/scores", scoresRoutes);
+app.use("/api/commodities", commoditiesRoutes);
 app.use("/api/price", priceRoutes);
 app.use("/api/user", userRoutes);
 
@@ -598,13 +596,13 @@ if (!isLambdaEnvironment) {
   // Local development or EC2 - start HTTP server
   server.listen(PORT, '::', () => {
     console.log(
-      `✅ Financial Dashboard API running on port ${PORT}`
+      `âœ… Financial Dashboard API running on port ${PORT}`
     );
-    console.log(`🌐 Health check: http://localhost:${PORT}/api/health`);
-    console.log(`🌐 Health check: http://127.0.0.1:${PORT}/api/health`);
-    console.log(`📈 Sectors: http://localhost:${PORT}/api/sectors`);
-    console.log(`💼 Scores (Stock Data): http://localhost:${PORT}/api/scores/stockscores`);
-    console.log(`⚡ All endpoints available at http://localhost:${PORT}/api/*`);
+    console.log(`ðŸŒ Health check: http://localhost:${PORT}/api/health`);
+    console.log(`ðŸŒ Health check: http://127.0.0.1:${PORT}/api/health`);
+    console.log(`ðŸ“ˆ Sectors: http://localhost:${PORT}/api/sectors`);
+    console.log(`ðŸ’¼ Scores (Stock Data): http://localhost:${PORT}/api/scores/stockscores`);
+    console.log(`âš¡ All endpoints available at http://localhost:${PORT}/api/*`);
 
     // Initialize Alpaca portfolio sync scheduler
     // Syncs every 10 minutes automatically
@@ -612,7 +610,7 @@ if (!isLambdaEnvironment) {
   });
 } else {
   // AWS Lambda environment - serverless-http wrapper handles HTTP request routing
-  console.log('🔷 Running in AWS Lambda environment - using serverless-http handler');
+  console.log('ðŸ”· Running in AWS Lambda environment - using serverless-http handler');
 }
 
 // Handle graceful shutdown
