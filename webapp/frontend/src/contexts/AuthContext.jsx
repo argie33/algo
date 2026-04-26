@@ -152,28 +152,16 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(async () => {
     try {
-      // Clear stored auth token
       localStorage.removeItem("accessToken");
       localStorage.removeItem("authToken");
       sessionStorage.removeItem("accessToken");
       sessionStorage.removeItem("authToken");
-
-      // If Cognito is not configured, use dev auth
-      if (!isCognitoConfigured()) {
-        console.log(
-          "Cognito not configured - using development authentication"
-        );
-        await devAuth.signOut();
-        dispatch({ type: AUTH_ACTIONS.LOGOUT });
-        return { success: true };
-      }
 
       await signOut();
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
       return { success: true };
     } catch (error) {
       console.error("Logout error:", error);
-      // Even if logout fails, clear local state
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
       return { success: false, error: getErrorMessage(error) };
     }
