@@ -410,9 +410,9 @@ function MarketOverview() {
     staleTime: 0, // Always fresh
   });
 
-  // Combined loading and error states (removed indicesLoading - that endpoint is too slow)
-  const marketLoading = technicalsLoading || sentimentLoading || seasonalityLoading;
-  const marketError = technicalsError || sentimentError || seasonalityError;
+  // Combined loading and error states
+  const marketLoading = technicalsLoading || sentimentLoading || seasonalityLoading || indicesLoading;
+  const marketError = technicalsError || sentimentError || seasonalityError || indicesError;
 
   const { data: correlationData, isLoading: correlationLoading } = useQuery({
     queryKey: ["market-correlation"],
