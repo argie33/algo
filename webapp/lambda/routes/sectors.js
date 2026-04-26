@@ -29,5 +29,6 @@ async function fetchSectors(req, res) {
 router.get("/", fetchSectors);
 
 // GET /sectors - Alias for backward compatibility
+router.get("/sectors", fetchSectors);
 
 module.exports = router;

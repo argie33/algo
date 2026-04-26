@@ -29,5 +29,6 @@ async function fetchIndustries(req, res) {
 router.get("/", fetchIndustries);
 
 // GET /industries - Alias for backward compatibility
+router.get("/industries", fetchIndustries);
 
 module.exports = router;
