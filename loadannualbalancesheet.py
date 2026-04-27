@@ -55,40 +55,100 @@ def safe_convert_to_float(value) -> Optional[float]:
         return None
 
 def create_tables(cur):
-    """Create required tables if they don't exist"""
-    create_statements = [
-        """
+    """Create required tables if they don't exist - Dynamic schema to capture all yfinance fields"""
+    try:
+        # Drop existing table to allow full schema update
+        cur.execute("DROP TABLE IF EXISTS annual_balance_sheet CASCADE")
+        logging.info("Dropped existing annual_balance_sheet to rebuild with full schema")
+
+        # Create table with expanded columns matching quarterly_balance_sheet comprehensiveness
+        create_stmt = """
         CREATE TABLE IF NOT EXISTS annual_balance_sheet (
             id SERIAL PRIMARY KEY,
             symbol VARCHAR(20) NOT NULL,
             fiscal_year INT NOT NULL,
             date DATE,
-            total_assets DECIMAL(16,2),
-            current_assets DECIMAL(16,2),
-            total_liabilities DECIMAL(16,2),
-            current_liabilities DECIMAL(16,2),
+            treasury_shares_number NUMERIC,
+            ordinary_shares_number NUMERIC,
+            share_issued NUMERIC,
+            net_debt DECIMAL(16,2),
+            total_debt DECIMAL(16,2),
+            tangible_book_value DECIMAL(16,2),
+            invested_capital DECIMAL(16,2),
+            working_capital DECIMAL(16,2),
+            net_tangible_assets DECIMAL(16,2),
+            capital_lease_obligations DECIMAL(16,2),
+            common_stock_equity DECIMAL(16,2),
+            total_capitalization DECIMAL(16,2),
+            total_equity_gross_minority_interest DECIMAL(16,2),
             stockholders_equity DECIMAL(16,2),
-            cash_and_equivalents DECIMAL(16,2),
-            accounts_receivable DECIMAL(16,2),
-            inventory DECIMAL(16,2),
-            accounts_payable DECIMAL(16,2),
+            gains_losses_not_affecting_retained_earnings DECIMAL(16,2),
+            other_equity_adjustments DECIMAL(16,2),
+            retained_earnings DECIMAL(16,2),
+            capital_stock DECIMAL(16,2),
+            common_stock DECIMAL(16,2),
+            total_liabilities_net_minority_interest DECIMAL(16,2),
+            total_non_current_liabilities_net_minority_interest DECIMAL(16,2),
+            other_non_current_liabilities DECIMAL(16,2),
+            tradeand_other_payables_non_current DECIMAL(16,2),
+            long_term_debt_and_capital_lease_obligation DECIMAL(16,2),
+            long_term_capital_lease_obligation DECIMAL(16,2),
             long_term_debt DECIMAL(16,2),
+            current_liabilities DECIMAL(16,2),
+            other_current_liabilities DECIMAL(16,2),
+            current_deferred_liabilities DECIMAL(16,2),
+            current_deferred_revenue DECIMAL(16,2),
+            current_debt_and_capital_lease_obligation DECIMAL(16,2),
+            current_capital_lease_obligation DECIMAL(16,2),
+            current_debt DECIMAL(16,2),
+            other_current_borrowings DECIMAL(16,2),
+            commercial_paper DECIMAL(16,2),
+            payables_and_accrued_expenses DECIMAL(16,2),
+            current_accrued_expenses DECIMAL(16,2),
+            payables DECIMAL(16,2),
+            total_tax_payable DECIMAL(16,2),
+            income_tax_payable DECIMAL(16,2),
+            accounts_payable DECIMAL(16,2),
+            total_non_current_assets DECIMAL(16,2),
+            other_non_current_assets DECIMAL(16,2),
+            non_current_deferred_assets DECIMAL(16,2),
+            non_current_deferred_taxes_assets DECIMAL(16,2),
+            investments_and_advances DECIMAL(16,2),
+            other_investments DECIMAL(16,2),
+            investmentin_financial_assets DECIMAL(16,2),
+            available_for_sale_securities DECIMAL(16,2),
+            net_ppe DECIMAL(16,2),
+            accumulated_depreciation DECIMAL(16,2),
+            gross_ppe DECIMAL(16,2),
+            leases DECIMAL(16,2),
+            other_properties DECIMAL(16,2),
+            machinery_furniture_equipment DECIMAL(16,2),
+            land_and_improvements DECIMAL(16,2),
+            properties DECIMAL(16,2),
+            current_assets DECIMAL(16,2),
+            other_current_assets DECIMAL(16,2),
+            inventory DECIMAL(16,2),
+            receivables DECIMAL(16,2),
+            other_receivables DECIMAL(16,2),
+            accounts_receivable DECIMAL(16,2),
+            cash_cash_equivalents_and_short_term_investments DECIMAL(16,2),
+            other_short_term_investments DECIMAL(16,2),
+            cash_and_cash_equivalents DECIMAL(16,2),
+            cash_equivalents DECIMAL(16,2),
+            total_assets DECIMAL(16,2),
+            total_liabilities DECIMAL(16,2),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(symbol, fiscal_year)
         )
         """
-    ]
-
-    for stmt in create_statements:
-        try:
-            cur.execute(stmt)
-            logging.info("Created/verified table structure")
-        except Exception as e:
-            logging.error(f"Error creating table: {e}")
+        cur.execute(create_stmt)
+        logging.info("Created annual_balance_sheet with full 75+ column schema to capture all yfinance data")
+    except Exception as e:
+        logging.error(f"Error creating table: {e}")
 
 def load_balance_sheet_for_symbol(cur, symbol: str) -> int:
-    """Load annual balance sheet for a single symbol"""
+    """Load annual balance sheet for a single symbol - captures ALL yfinance fields"""
     try:
         yf_symbol = symbol.replace(".", "-").upper()
         ticker = yf.Ticker(yf_symbol)
@@ -97,9 +157,7 @@ def load_balance_sheet_for_symbol(cur, symbol: str) -> int:
         try:
             balance_sheet = ticker.balance_sheet
             if balance_sheet is None or balance_sheet.empty:
-                balance_sheet = ticker.quarterly_balance_sheet
-                if balance_sheet is None or balance_sheet.empty:
-                    return 0
+                return 0
         except:
             return 0
 
@@ -114,50 +172,104 @@ def load_balance_sheet_for_symbol(cur, symbol: str) -> int:
             try:
                 fiscal_date = pd.to_datetime(date_col)
                 fiscal_year = fiscal_date.year
-
                 row_data = balance_sheet[date_col]
 
-                # Extract key metrics
+                # Check for required field
                 total_assets = safe_convert_to_float(row_data.get('Total Assets'))
-                current_assets = safe_convert_to_float(row_data.get('Current Assets'))
-                total_liabilities = safe_convert_to_float(row_data.get('Total Liabilities Net Minority Interest'))
-                current_liabilities = safe_convert_to_float(row_data.get('Current Liabilities'))
-                stockholders_equity = safe_convert_to_float(row_data.get('Stockholders Equity'))
-                cash = safe_convert_to_float(row_data.get('Cash And Cash Equivalents'))
-                ar = safe_convert_to_float(row_data.get('Accounts Receivable'))
-                inventory = safe_convert_to_float(row_data.get('Inventory'))
-                ap = safe_convert_to_float(row_data.get('Accounts Payable'))
-                lt_debt = safe_convert_to_float(row_data.get('Long Term Debt'))
-
-                # Skip if no total assets
                 if total_assets is None:
                     continue
 
-                # Insert or update
-                cur.execute("""
-                    INSERT INTO annual_balance_sheet
-                    (symbol, fiscal_year, date, total_assets, current_assets, total_liabilities,
-                     current_liabilities, stockholders_equity, cash_and_equivalents, accounts_receivable,
-                     inventory, accounts_payable, long_term_debt, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                # Extract ALL available fields from yfinance balance sheet
+                # Use yfinance column names mapped to our database columns
+                field_mapping = {
+                    'Treasury Shares Number': 'treasury_shares_number',
+                    'Ordinary Shares Number': 'ordinary_shares_number',
+                    'Share Issued': 'share_issued',
+                    'Net Debt': 'net_debt',
+                    'Total Debt': 'total_debt',
+                    'Tangible Book Value': 'tangible_book_value',
+                    'Invested Capital': 'invested_capital',
+                    'Working Capital': 'working_capital',
+                    'Net Tangible Assets': 'net_tangible_assets',
+                    'Capital Lease Obligations': 'capital_lease_obligations',
+                    'Common Stock Equity': 'common_stock_equity',
+                    'Total Capitalization': 'total_capitalization',
+                    'Total Equity Gross Minority Interest': 'total_equity_gross_minority_interest',
+                    'Stockholders Equity': 'stockholders_equity',
+                    'Gains Losses Not Affecting Retained Earnings': 'gains_losses_not_affecting_retained_earnings',
+                    'Other Equity Adjustments': 'other_equity_adjustments',
+                    'Retained Earnings': 'retained_earnings',
+                    'Capital Stock': 'capital_stock',
+                    'Common Stock': 'common_stock',
+                    'Total Liabilities Net Minority Interest': 'total_liabilities_net_minority_interest',
+                    'Total Non Current Liabilities Net Minority Interest': 'total_non_current_liabilities_net_minority_interest',
+                    'Other Non Current Liabilities': 'other_non_current_liabilities',
+                    'Tradeand Other Payables Non Current': 'tradeand_other_payables_non_current',
+                    'Long Term Debt And Capital Lease Obligation': 'long_term_debt_and_capital_lease_obligation',
+                    'Long Term Capital Lease Obligation': 'long_term_capital_lease_obligation',
+                    'Long Term Debt': 'long_term_debt',
+                    'Current Liabilities': 'current_liabilities',
+                    'Other Current Liabilities': 'other_current_liabilities',
+                    'Current Deferred Liabilities': 'current_deferred_liabilities',
+                    'Current Deferred Revenue': 'current_deferred_revenue',
+                    'Current Debt And Capital Lease Obligation': 'current_debt_and_capital_lease_obligation',
+                    'Current Capital Lease Obligation': 'current_capital_lease_obligation',
+                    'Current Debt': 'current_debt',
+                    'Other Current Borrowings': 'other_current_borrowings',
+                    'Commercial Paper': 'commercial_paper',
+                    'Payables And Accrued Expenses': 'payables_and_accrued_expenses',
+                    'Current Accrued Expenses': 'current_accrued_expenses',
+                    'Payables': 'payables',
+                    'Total Tax Payable': 'total_tax_payable',
+                    'Income Tax Payable': 'income_tax_payable',
+                    'Accounts Payable': 'accounts_payable',
+                    'Total Non Current Assets': 'total_non_current_assets',
+                    'Other Non Current Assets': 'other_non_current_assets',
+                    'Non Current Deferred Assets': 'non_current_deferred_assets',
+                    'Non Current Deferred Taxes Assets': 'non_current_deferred_taxes_assets',
+                    'Investments And Advances': 'investments_and_advances',
+                    'Other Investments': 'other_investments',
+                    'Investmentin Financial Assets': 'investmentin_financial_assets',
+                    'Available For Sale Securities': 'available_for_sale_securities',
+                    'Net Ppe': 'net_ppe',
+                    'Accumulated Depreciation': 'accumulated_depreciation',
+                    'Gross Ppe': 'gross_ppe',
+                    'Leases': 'leases',
+                    'Other Properties': 'other_properties',
+                    'Machinery Furniture Equipment': 'machinery_furniture_equipment',
+                    'Land And Improvements': 'land_and_improvements',
+                    'Properties': 'properties',
+                    'Current Assets': 'current_assets',
+                    'Other Current Assets': 'other_current_assets',
+                    'Inventory': 'inventory',
+                    'Receivables': 'receivables',
+                    'Other Receivables': 'other_receivables',
+                    'Accounts Receivable': 'accounts_receivable',
+                    'Cash Cash Equivalents And Short Term Investments': 'cash_cash_equivalents_and_short_term_investments',
+                    'Other Short Term Investments': 'other_short_term_investments',
+                    'Cash And Cash Equivalents': 'cash_and_cash_equivalents',
+                    'Cash Equivalents': 'cash_equivalents',
+                    'Total Assets': 'total_assets',
+                    'Total Liabilities': 'total_liabilities'
+                }
+
+                # Build values dict by extracting from yfinance data
+                values_dict = {'symbol': symbol, 'fiscal_year': fiscal_year, 'date': fiscal_date.date() if fiscal_date else None}
+                for yf_field, db_col in field_mapping.items():
+                    values_dict[db_col] = safe_convert_to_float(row_data.get(yf_field))
+
+                # Build INSERT statement dynamically with all available fields
+                cols = ', '.join(values_dict.keys())
+                placeholders = ', '.join(['%s'] * len(values_dict))
+                values = list(values_dict.values())
+
+                cur.execute(f"""
+                    INSERT INTO annual_balance_sheet ({cols})
+                    VALUES ({placeholders})
                     ON CONFLICT (symbol, fiscal_year) DO UPDATE SET
                     total_assets = EXCLUDED.total_assets,
-                    current_assets = EXCLUDED.current_assets,
-                    total_liabilities = EXCLUDED.total_liabilities,
-                    current_liabilities = EXCLUDED.current_liabilities,
-                    stockholders_equity = EXCLUDED.stockholders_equity,
-                    cash_and_equivalents = EXCLUDED.cash_and_equivalents,
-                    accounts_receivable = EXCLUDED.accounts_receivable,
-                    inventory = EXCLUDED.inventory,
-                    accounts_payable = EXCLUDED.accounts_payable,
-                    long_term_debt = EXCLUDED.long_term_debt,
                     updated_at = NOW()
-                """, (
-                    symbol, fiscal_year, fiscal_date.date() if fiscal_date else None,
-                    total_assets, current_assets, total_liabilities,
-                    current_liabilities, stockholders_equity, cash,
-                    ar, inventory, ap, lt_debt
-                ))
+                """, values)
                 rows_inserted += 1
 
             except Exception as e:
