@@ -35,7 +35,7 @@ def safe_float(value) -> Optional[float]:
             if not value or value == '-':
                 return None
         return float(value)
-    except:
+    except Exception:
         return None
 
 def main():
@@ -79,7 +79,7 @@ def main():
                     cf = ticker.quarterly_cashflow
                     if cf is None or cf.empty:
                         continue
-                except:
+                except Exception:
                     continue
 
                 for date_col in cf.columns:
@@ -109,9 +109,9 @@ def main():
                               safe_float(row_data.get('Capital Expenditure')),
                               safe_float(row_data.get('Free Cash Flow'))))
                         total_rows += 1
-                    except:
+                    except Exception:
                         continue
-            except:
+            except Exception:
                 continue
             if (i + 1) % 10 == 0:
                 conn.commit()

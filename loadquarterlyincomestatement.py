@@ -74,7 +74,7 @@ def load_for_symbol(cur, symbol: str) -> int:
                 income_stmt = ticker.quarterly_financials
             if income_stmt is None or income_stmt.empty:
                 return 0
-        except:
+        except Exception:
             return 0
 
         rows_inserted = 0

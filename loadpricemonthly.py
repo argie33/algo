@@ -90,7 +90,7 @@ def get_rss_mb():
         try:
             import psutil
             return psutil.Process().memory_info().rss / (1024 * 1024)
-        except:
+        except Exception:
             return 0
     usage = resource.getrusage(resource.RUSAGE_SELF)
     if sys.platform.startswith("linux"):
@@ -279,6 +279,11 @@ def load_prices(table_name, symbols, cur, conn):
                 rows = []
                 for idx, row in sub.iterrows():
                     try:
+                        volume = None if math.isnan(row.get("volume", float("nan")))    else int(row.get("volume", 0))
+                        # Skip records with zero or missing volume - these represent non-trading months or delisted stocks
+                        if volume is None or volume == 0:
+                            continue
+
                         rows.append([
                             orig_sym,
                             idx.date(),
@@ -287,7 +292,7 @@ def load_prices(table_name, symbols, cur, conn):
                             None if math.isnan(row.get("low", float("nan")))       else float(row["low"]),
                             None if math.isnan(row.get("close", float("nan")))     else float(row["close"]),
                             None if math.isnan(row.get("adj close", row.get("close", float("nan")))) else float(row.get("adj close", row["close"])),
-                            None if math.isnan(row.get("volume", float("nan")))    else int(row.get("volume", 0)),
+                            volume,
                             0.0  if ("dividends" not in row or (isinstance(row["dividends"], float) and math.isnan(row["dividends"]))) else (0.0 if not isinstance(row["dividends"], (int, float)) else float(row["dividends"])),
                             0.0  if ("stock splits" not in row or (isinstance(row["stock splits"], float) and math.isnan(row["stock splits"]))) else (0.0 if not isinstance(row["stock splits"], (int, float)) else float(row["stock splits"]))
                         ])

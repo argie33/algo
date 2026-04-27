@@ -85,47 +85,48 @@ const getStocksSignals = async (req, res) => {
       paramIndex++;
     }
 
-    // Build columns - SELECT all available with consistent NULL handling
-    const priceTable = timeframe === 'daily' ? 'price_daily' :
-                       timeframe === 'weekly' ? 'price_weekly' :
-                       'price_monthly';
+    // SELECT all signal fields + JOIN technical_data for RSI/ADX/MACD
+    const actualColumns = `
+      bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
+      COALESCE(bsd.signal_triggered_date, bsd.date) as signal_triggered_date,
+      bsd.signal,
+      bsd.buylevel, bsd.stoplevel, bsd.inposition,
+      COALESCE(bsd.strength, bsd.buylevel) as strength,
+      COALESCE(bsd.signal_strength, bsd.buylevel) as signal_strength,
+      bsd.signal_type, bsd.base_type,
+      bsd.pivot_price, bsd.buy_zone_start, bsd.buy_zone_end,
+      bsd.exit_trigger_1_price, bsd.exit_trigger_2_price,
+      bsd.exit_trigger_3_price, bsd.exit_trigger_4_price,
+      bsd.initial_stop, bsd.trailing_stop,
+      bsd.base_length_days, bsd.avg_volume_50d, bsd.volume_surge_pct,
+      bsd.rs_rating, bsd.breakout_quality, bsd.risk_reward_ratio,
+      bsd.current_gain_pct, bsd.days_in_position,
+      bsd.market_stage, bsd.stage_number, bsd.stage_confidence, bsd.substage,
+      bsd.entry_quality_score, bsd.risk_pct, bsd.position_size_recommendation,
+      bsd.profit_target_8pct, bsd.profit_target_20pct, bsd.profit_target_25pct,
+      bsd.sell_level, bsd.mansfield_rs, bsd.sata_score,
+      bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
+      COALESCE(bsd.rsi, t.rsi) as rsi,
+      COALESCE(bsd.adx, t.adx) as adx,
+      COALESCE(bsd.atr, t.atr) as atr,
+      t.macd, t.signal as signal_line,
+      t.sma_20,
+      COALESCE(bsd.sma_50, t.sma_50) as sma_50,
+      COALESCE(bsd.sma_200, t.sma_200) as sma_200,
+      COALESCE(bsd.ema_21, t.ema_12) as ema_12,
+      t.ema_26,
+      bsd.pct_from_ema21, bsd.pct_from_sma50
+    `;
 
-    // Build dynamic SELECT based on what exists in each table
-    let actualColumns;
-    if (timeframe === 'daily') {
-      actualColumns = `
-        bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.date as signal_triggered_date,
-        bsd.signal, bsd.buylevel as strength, bsd.buylevel as signal_strength,
-        p.open, p.high, p.low, p.close, p.volume,
-        t.rsi, t.adx, t.atr,
-        t.macd, t.signal as signal_line,
-        t.sma_20, t.sma_50, t.sma_200,
-        t.ema_12, t.ema_26
-      `;
-    } else {
-      actualColumns = `
-        bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.date as signal_triggered_date,
-        bsd.signal, bsd.buylevel as strength, bsd.buylevel as signal_strength,
-        p.open, p.high, p.low, p.close, p.volume,
-        t.rsi, t.adx, t.atr,
-        t.macd, t.signal as signal_line,
-        t.sma_20, t.sma_50, t.sma_200,
-        t.ema_12, t.ema_26
-      `;
-    }
-
-    // Determine technical table based on timeframe
+    // JOIN technical_data for RSI/ADX/MACD/SMA — price is already in bsd
     const technicalTable = timeframe === 'daily' ? 'technical_data_daily' :
                            timeframe === 'weekly' ? 'technical_data_weekly' :
                            'technical_data_monthly';
 
-    // Query with price JOIN for the matching timeframe and technical JOIN
     const signalsQuery = `
       SELECT
         ${actualColumns}
       FROM ${tableName} bsd
-      LEFT JOIN ${priceTable} p ON bsd.symbol = p.symbol
-        AND DATE(p.date) = DATE(bsd.date)
       LEFT JOIN ${technicalTable} t ON bsd.symbol = t.symbol
         AND DATE(t.date) = DATE(bsd.date)
       ${whereClause}
@@ -167,36 +168,88 @@ const getStocksSignals = async (req, res) => {
       return sendPaginated(res, [], { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false });
     }
 
-    // Format response with ALL available data - COMPLETE ENRICHMENT
+    const sf = v => (v !== null && v !== undefined) ? parseFloat(v) : null;
+    const si = v => (v !== null && v !== undefined) ? parseInt(v) : null;
+
     const formattedData = signalsResult.rows.map(row => ({
-      // Signal core
       id: row.id,
       symbol: row.symbol,
       signal: row.signal,
       date: row.date,
       signal_triggered_date: row.signal_triggered_date,
       timeframe: row.timeframe || timeframe,
-      strength: row.strength !== null ? parseFloat(row.strength) : null,
-      signal_strength: row.signal_strength !== null ? parseFloat(row.signal_strength) : null,
+      inposition: row.inposition ?? null,
 
-      // Price data (from daily table JOIN)
-      open: row.open !== null ? parseFloat(row.open) : null,
-      high: row.high !== null ? parseFloat(row.high) : null,
-      low: row.low !== null ? parseFloat(row.low) : null,
-      close: row.close !== null ? parseFloat(row.close) : null,
-      volume: row.volume !== null ? parseInt(row.volume) : null,
+      // Price (stored directly in signal table)
+      open: sf(row.open),
+      high: sf(row.high),
+      low: sf(row.low),
+      close: sf(row.close),
+      volume: si(row.volume),
 
-      // Technical indicators (from technical_data_daily JOIN)
-      rsi: row.rsi !== null ? parseFloat(row.rsi) : null,
-      adx: row.adx !== null ? parseFloat(row.adx) : null,
-      atr: row.atr !== null ? parseFloat(row.atr) : null,
-      macd: row.macd !== null ? parseFloat(row.macd) : null,
-      signal_line: row.signal_line !== null ? parseFloat(row.signal_line) : null,
-      sma_20: row.sma_20 !== null ? parseFloat(row.sma_20) : null,
-      sma_50: row.sma_50 !== null ? parseFloat(row.sma_50) : null,
-      sma_200: row.sma_200 !== null ? parseFloat(row.sma_200) : null,
-      ema_12: row.ema_12 !== null ? parseFloat(row.ema_12) : null,
-      ema_26: row.ema_26 !== null ? parseFloat(row.ema_26) : null,
+      // Signal levels
+      buylevel: sf(row.buylevel),
+      stoplevel: sf(row.stoplevel),
+      strength: sf(row.strength),
+      signal_strength: sf(row.signal_strength),
+
+      // O'Neill/Minervini signal analysis
+      signal_type: row.signal_type || null,
+      base_type: row.base_type || null,
+      pivot_price: sf(row.pivot_price),
+      buy_zone_start: sf(row.buy_zone_start),
+      buy_zone_end: sf(row.buy_zone_end),
+      exit_trigger_1_price: sf(row.exit_trigger_1_price),
+      exit_trigger_2_price: sf(row.exit_trigger_2_price),
+      exit_trigger_3_price: sf(row.exit_trigger_3_price),
+      exit_trigger_4_price: sf(row.exit_trigger_4_price),
+      initial_stop: sf(row.initial_stop),
+      trailing_stop: sf(row.trailing_stop),
+
+      // Volume analysis
+      avg_volume_50d: si(row.avg_volume_50d),
+      volume_surge_pct: sf(row.volume_surge_pct),
+      base_length_days: si(row.base_length_days),
+
+      // Rankings & quality
+      rs_rating: si(row.rs_rating),
+      breakout_quality: row.breakout_quality || null,
+      risk_reward_ratio: sf(row.risk_reward_ratio),
+      entry_quality_score: sf(row.entry_quality_score),
+      mansfield_rs: sf(row.mansfield_rs),
+      sata_score: si(row.sata_score),
+
+      // Position tracking
+      current_gain_pct: sf(row.current_gain_pct),
+      days_in_position: si(row.days_in_position),
+
+      // Market stage
+      market_stage: row.market_stage || null,
+      stage_number: si(row.stage_number),
+      stage_confidence: sf(row.stage_confidence),
+      substage: row.substage || null,
+
+      // Risk & profit targets
+      risk_pct: sf(row.risk_pct),
+      position_size_recommendation: row.position_size_recommendation || null,
+      profit_target_8pct: sf(row.profit_target_8pct),
+      profit_target_20pct: sf(row.profit_target_20pct),
+      profit_target_25pct: sf(row.profit_target_25pct),
+      sell_level: sf(row.sell_level),
+
+      // Technical indicators (from technical_data JOIN)
+      rsi: sf(row.rsi),
+      adx: sf(row.adx),
+      atr: sf(row.atr),
+      macd: sf(row.macd),
+      signal_line: sf(row.signal_line),
+      sma_20: sf(row.sma_20),
+      sma_50: sf(row.sma_50),
+      sma_200: sf(row.sma_200),
+      ema_12: sf(row.ema_12),
+      ema_26: sf(row.ema_26),
+      pct_from_ema21: sf(row.pct_from_ema21),
+      pct_from_sma50: sf(row.pct_from_sma50),
     }));
 
     // Get total count of records for pagination
@@ -240,7 +293,7 @@ router.get("/stocks", getStocksSignals);
 // List endpoint - supports timeframe parameter for frontend filtering
 router.get("/list", getStocksSignals);
 
-// Get trading signals for ETFs - SAME STRUCTURE AS STOCKS
+// Get trading signals for ETFs - uses dedicated ETF signal tables
 router.get("/etf", async (req, res) => {
   try {
     const timeframe = req.query.timeframe || "daily";
@@ -250,13 +303,11 @@ router.get("/etf", async (req, res) => {
     const symbolFilter = req.query.symbol;
     const offset = (page - 1) * limit;
 
-    // Safely map timeframes to table names to prevent SQL injection
-    // NOTE: ETF signals are in the SAME tables as stocks (buy_sell_daily/weekly/monthly)
-    // Filtered by ETF symbol list below
+    // ETF signals are stored in dedicated ETF tables (populated by loadetfsignals.py)
     const timeframeMap = {
-      daily: "buy_sell_daily",
-      weekly: "buy_sell_weekly",
-      monthly: "buy_sell_monthly"
+      daily: "buy_sell_daily_etf",
+      weekly: "buy_sell_weekly_etf",
+      monthly: "buy_sell_monthly_etf"
     };
 
     const tableName = timeframeMap[timeframe];
@@ -280,18 +331,15 @@ router.get("/etf", async (req, res) => {
       whereClause = `WHERE bsd.date >= '2019-01-01'`;
     }
 
-    // Always exclude 'None' signals - only show Buy/Sell
-    whereClause += ` AND bsd.signal IN ('Buy', 'Sell')`;
+    // ETF tables store signals as uppercase BUY/SELL (vs mixed-case in stock tables)
+    whereClause += ` AND UPPER(bsd.signal) IN ('BUY', 'SELL')`;
 
     // Handle signal_type parameter
     if (signalType) {
-      const signalTypes = signalType.split(',').map(s => s.trim());
+      const signalTypes = signalType.split(',').map(s => s.trim().toUpperCase());
       const signalPlaceholders = signalTypes.map((_, idx) => `$${paramIndex + idx}`).join(',');
-      whereClause += ` AND bsd.signal IN (${signalPlaceholders})`;
-
-      signalTypes.forEach(signal => {
-        queryParams.push(signal.charAt(0).toUpperCase() + signal.slice(1).toLowerCase());
-      });
+      whereClause += ` AND UPPER(bsd.signal) IN (${signalPlaceholders})`;
+      signalTypes.forEach(signal => queryParams.push(signal));
       paramIndex += signalTypes.length;
     }
 
@@ -301,10 +349,11 @@ router.get("/etf", async (req, res) => {
       paramIndex++;
     }
 
-    // For ETF signals, use same essential columns
+    // For ETF signals, select from dedicated ETF table with JOIN to get company name
     const actualColumns = `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.date as signal_triggered_date,
-      bsd.signal, bsd.buylevel as strength, bsd.buylevel as signal_strength
+      bsd.signal, bsd.buylevel as strength, bsd.buylevel as signal_strength,
+      bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume
     `;
 
     // Add limit and offset parameters
@@ -318,7 +367,7 @@ router.get("/etf", async (req, res) => {
         ${actualColumns},
         es.security_name as company_name
       FROM ${tableName} bsd
-      INNER JOIN etf_symbols es ON bsd.symbol = es.symbol
+      LEFT JOIN etf_symbols es ON bsd.symbol = es.symbol
       ${whereClause}
       ORDER BY bsd.date DESC, bsd.id DESC
       LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}
@@ -329,6 +378,9 @@ router.get("/etf", async (req, res) => {
       signalsResult = await query(signalsQuery, queryParams);
     } catch (queryError) {
       console.error(`[ERROR] ETF signals query failed for ${timeframe}: ${queryError.message}`);
+      if (queryError.code === '42P01') {
+        return sendPaginated(res, [], { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false });
+      }
       return sendError(res, `Failed to fetch ETF signals: ${queryError.message.substring(0, 100)}`, 500);
     }
 
@@ -336,7 +388,6 @@ router.get("/etf", async (req, res) => {
       return sendPaginated(res, [], { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false });
     }
 
-    // Format response - only map fields actually selected in the query (6 columns from ETF signals + company_name)
     const formattedData = signalsResult.rows.map(row => ({
       id: row.id,
       symbol: row.symbol,
@@ -344,6 +395,13 @@ router.get("/etf", async (req, res) => {
       date: row.date,
       signal_triggered_date: row.signal_triggered_date || null,
       timeframe: row.timeframe || timeframe,
+      strength: row.strength !== null ? parseFloat(row.strength) : null,
+      signal_strength: row.signal_strength !== null ? parseFloat(row.signal_strength) : null,
+      open: row.open !== null ? parseFloat(row.open) : null,
+      high: row.high !== null ? parseFloat(row.high) : null,
+      low: row.low !== null ? parseFloat(row.low) : null,
+      close: row.close !== null ? parseFloat(row.close) : null,
+      volume: row.volume !== null ? parseInt(row.volume) : null,
       company_name: row.company_name || null,
     }));
 
@@ -351,7 +409,6 @@ router.get("/etf", async (req, res) => {
     const countQuery = `SELECT COUNT(*) as total FROM ${tableName} bsd ${whereClause}`;
     let totalCount = 0;
     try {
-      // Pass ONLY the WHERE clause parameters (not limit/offset which are at the end)
       const countParams = queryParams.slice(0, paramIndex - 1);
       const countResult = await query(countQuery, countParams);
       totalCount = parseInt(countResult.rows[0]?.total || 0);

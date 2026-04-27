@@ -8,10 +8,9 @@ export default function PETrendChart({ sectorName, industryName }) {
   const endpoint = sectorName ? `sectors/${sectorName}/trend` : `industries/${industryName}/trend`;
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["pe-trend", name],
+    queryKey: ["trend", name],
     queryFn: async () => {
-      // Request max available data (limited to ~752 days = ~2 years in database)
-      const response = await api.get(`/api/${endpoint}?days=3650`);
+      const response = await api.get(`/api/${endpoint}?days=365`);
       return response.data.data;
     },
     enabled: !!name,
@@ -19,44 +18,46 @@ export default function PETrendChart({ sectorName, industryName }) {
 
   if (!name) return null;
   if (isLoading) return <CircularProgress size={30} />;
-  if (error || !data?.history) {
+
+  const trendData = data?.trendData || [];
+  if (error || trendData.length === 0) {
     return <Alert severity="info">No trend data available</Alert>;
   }
 
-  // Use actual P/E values from historical data
-  const chartData = data.history.map(item => ({
+  const chartData = trendData.map(item => ({
     date: new Date(item.date).toLocaleDateString(),
-    pe: item.trailing_pe !== null ? parseFloat(item.trailing_pe) : null
-  })).filter(item => item.pe !== null);
+    avgPrice: item.avgPrice !== null ? parseFloat(item.avgPrice) : null,
+    stockCount: item.stockCount || 0,
+  })).filter(item => item.avgPrice !== null);
 
   return (
     <Card sx={{ mt: 2 }}>
       <CardContent>
         <Typography variant="h6" gutterBottom>
-          P/E Over Time
+          Avg Price Trend (1 Year)
         </Typography>
 
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="date" angle={-45} textAnchor="end" height={60} />
-            <YAxis label={{ value: "P/E Ratio", angle: -90, position: "insideLeft" }} />
+            <YAxis label={{ value: "Avg Price ($)", angle: -90, position: "insideLeft" }} />
             <Tooltip
               contentStyle={{ backgroundColor: "rgba(0,0,0,0.8)", border: "1px solid #666", borderRadius: 4 }}
               labelStyle={{ color: "#fff" }}
               formatter={(value) => {
                 if (value === null || value === undefined) return "—";
                 const num = parseFloat(value);
-                return isNaN(num) ? "—" : num.toFixed(2);
+                return isNaN(num) ? "—" : `$${num.toFixed(2)}`;
               }}
               labelFormatter={(label) => label}
             />
-            <Line type="monotone" dataKey="pe" stroke="#E91E63" strokeWidth={3} dot={false} name="P/E" />
+            <Line type="monotone" dataKey="avgPrice" stroke="#E91E63" strokeWidth={3} dot={false} name="Avg Price" />
           </LineChart>
         </ResponsiveContainer>
 
         <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2 }}>
-          Higher = more expensive | Lower = cheaper
+          Average price across {name} stocks over the past year
         </Typography>
       </CardContent>
     </Card>

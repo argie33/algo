@@ -41,7 +41,7 @@ def get_rss_mb():
         try:
             import psutil
             return psutil.Process().memory_info().rss / (1024 * 1024)
-        except:
+        except Exception:
             return 0
     usage = resource.getrusage(resource.RUSAGE_SELF)
     if sys.platform.startswith("linux"):
@@ -229,7 +229,7 @@ def load_earnings_history(symbols, cur, conn, cfg):
                     logging.error(f"Failed to insert data for {orig_sym}: {e}")
                     try:
                         conn.rollback()
-                    except:
+        except Exception:
                         pass
                     failed.append(orig_sym)
 

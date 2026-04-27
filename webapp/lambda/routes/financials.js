@@ -17,30 +17,22 @@ router.get("/:symbol/balance-sheet", async (req, res) => {
   const upperSymbol = symbol.toUpperCase();
 
   try {
-    console.log(`📊 [FINANCIALS] Fetching balance sheet for ${upperSymbol} (${period})`);
+    let result;
 
-    const validTables = {
-      'annual': 'annual_balance_sheet',
-      'quarterly': 'quarterly_balance_sheet'
-    };
-
-    let tableName = validTables[period] || validTables['annual'];
-    let result = await query(`
-      SELECT *
-      FROM ${tableName}
-      WHERE symbol = $1
-      ORDER BY fiscal_year DESC
-      LIMIT 20
-    `, [upperSymbol]);
-
-    // Fallback to quarterly if annual is empty
-    if ((!result.rows || result.rows.length === 0) && period === 'annual') {
-      console.log(`No annual data found, falling back to quarterly for ${upperSymbol}`);
-      tableName = 'quarterly_balance_sheet';
-      period = 'quarterly';
+    if (period === 'annual') {
+      // Use quarterly_balance_sheet (rich schema, 75+ columns) selecting Q4 per year as annual snapshot
+      // annual_balance_sheet only has 3 columns and is not useful
+      result = await query(`
+        SELECT DISTINCT ON (fiscal_year) *
+        FROM quarterly_balance_sheet
+        WHERE symbol = $1
+        ORDER BY fiscal_year DESC, fiscal_quarter DESC
+        LIMIT 20
+      `, [upperSymbol]);
+    } else {
       result = await query(`
         SELECT *
-        FROM ${tableName}
+        FROM quarterly_balance_sheet
         WHERE symbol = $1
         ORDER BY fiscal_year DESC, fiscal_quarter DESC
         LIMIT 20

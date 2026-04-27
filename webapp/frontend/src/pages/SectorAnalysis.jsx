@@ -200,10 +200,13 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
     );
   }
 
-  // Pass trend data to MomentumChart
+  // Pass trend data to MomentumChart - map avgPrice to dailyStrengthScore
   const sectorWithTrend = {
     ...sector,
-    trendData: trendResponse?.trendData || []
+    trendData: (trendResponse?.trendData || []).map(d => ({
+      ...d,
+      dailyStrengthScore: d.avgPrice ?? d.dailyStrengthScore ?? null
+    }))
   };
 
   return <MomentumChart type="sector" data={sectorWithTrend} aggregateToWeekly={aggregateToWeekly} />;
@@ -239,10 +242,13 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
     );
   }
 
-  // Pass trend data to MomentumChart
+  // Pass trend data to MomentumChart - map avgPrice to dailyStrengthScore
   const industryWithTrend = {
     ...industry,
-    trendData: trendResponse?.trendData || []
+    trendData: (trendResponse?.trendData || []).map(d => ({
+      ...d,
+      dailyStrengthScore: d.avgPrice ?? d.dailyStrengthScore ?? null
+    }))
   };
 
   return <MomentumChart type="industry" data={industryWithTrend} aggregateToWeekly={aggregateToWeekly} />;
@@ -720,7 +726,7 @@ const SectorAnalysis = () => {
 
     // Use only real API data (no synthetic defaults) - include both rank and momentum score
     let history = trendData?.trendData.map(row => {
-      // Only include momentum if real data available - do not synthesize 0
+      // Use dailyStrengthScore, momentumScore, momentum, or avgPrice as fallback
       let momentum = null;
       if (row.dailyStrengthScore !== null && row.dailyStrengthScore !== undefined) {
         momentum = parseFloat(row.dailyStrengthScore);
@@ -728,12 +734,13 @@ const SectorAnalysis = () => {
         momentum = parseFloat(row.momentumScore);
       } else if (row.momentum !== null && row.momentum !== undefined) {
         momentum = parseFloat(row.momentum);
+      } else if (row.avgPrice !== null && row.avgPrice !== undefined) {
+        momentum = parseFloat(row.avgPrice);
       }
-      // Return null for momentum if all sources are missing (no fake 0 value)
       return {
         date: row.date,
         label: row.label,
-        rank: row.rank,
+        rank: row.rank ?? null,
         momentum: momentum
       };
     });
@@ -771,6 +778,7 @@ const SectorAnalysis = () => {
     const ranks = history.map(h => h.rank).filter(r => r !== null && r !== undefined);
     const minRank = ranks.length > 0 ? Math.min(...ranks) : 1;
     const maxRank = ranks.length > 0 ? Math.max(...ranks) : 12;
+    const hasMomentum = history.some(h => h.momentum !== null && h.momentum !== undefined);
 
     return (
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -802,43 +810,37 @@ const SectorAnalysis = () => {
           </Box>
         </Box>
 
-        {/* Ranking Trend Chart - Rank only (no momentum) */}
-        <Box sx={{ width: "100%", height: 320, minHeight: 320, overflow: "hidden" }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={history} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 12 }}
-                interval={Math.floor(history.length / 8)}
-                tickFormatter={formatXAxisDate}
-              />
-              {/* Y-axis for Rank */}
-              <YAxis
-                width={50}
-                tick={{ fontSize: 12 }}
-                reversed={true}
-                label={{ value: 'Rank (Lower is Better)', angle: -90, position: 'insideLeft' }}
-              />
-              <Tooltip
-                contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', border: '1px solid #ccc' }}
-                formatter={(value) => `#${value}`}
-                labelFormatter={(label) => `Date: ${formatXAxisDate(label)}`}
-              />
-              <Legend />
-              {/* Rank line (blue) */}
-              <Line
-                type="monotone"
-                dataKey="rank"
-                stroke="#2196F3"
-                name="Ranking"
-                dot={false}
-                strokeWidth={2}
-                isAnimationActive={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </Box>
+        {/* Ranking Trend Chart - show rank if available, else avg price trend */}
+        {ranks.length > 0 ? (
+          <Box sx={{ width: "100%", height: 320, minHeight: 320, overflow: "hidden" }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={history} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" tick={{ fontSize: 12 }} interval={Math.floor(history.length / 8)} tickFormatter={formatXAxisDate} />
+                <YAxis width={50} tick={{ fontSize: 12 }} reversed={true} label={{ value: 'Rank (Lower is Better)', angle: -90, position: 'insideLeft' }} />
+                <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', border: '1px solid #ccc' }} formatter={(value) => `#${value}`} labelFormatter={(label) => `Date: ${formatXAxisDate(label)}`} />
+                <Legend />
+                <Line type="monotone" dataKey="rank" stroke="#2196F3" name="Ranking" dot={false} strokeWidth={2} isAnimationActive={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </Box>
+        ) : hasMomentum ? (
+          <Box sx={{ width: "100%", height: 320, minHeight: 320, overflow: "hidden" }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>Avg Price Trend (historical rank data not available)</Typography>
+            <ResponsiveContainer width="100%" height="90%">
+              <LineChart data={history} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" tick={{ fontSize: 12 }} interval={Math.floor(history.length / 8)} tickFormatter={formatXAxisDate} />
+                <YAxis width={50} tick={{ fontSize: 12 }} label={{ value: 'Avg Price ($)', angle: -90, position: 'insideLeft' }} />
+                <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', border: '1px solid #ccc' }} formatter={(value) => typeof value === 'number' ? `$${value.toFixed(2)}` : value} labelFormatter={(label) => `Date: ${formatXAxisDate(label)}`} />
+                <Legend />
+                <Line type="monotone" dataKey="momentum" stroke="#E91E63" name="Avg Price" dot={false} strokeWidth={2} isAnimationActive={false} connectNulls />
+              </LineChart>
+            </ResponsiveContainer>
+          </Box>
+        ) : (
+          <Typography variant="body2" color="text.secondary" align="center">No historical trend data available</Typography>
+        )}
       </Box>
     );
   };

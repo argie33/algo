@@ -158,7 +158,7 @@ def load_balance_sheet_for_symbol(cur, symbol: str) -> int:
             balance_sheet = ticker.balance_sheet
             if balance_sheet is None or balance_sheet.empty:
                 return 0
-        except:
+        except Exception:
             return 0
 
         if balance_sheet is None or balance_sheet.empty:

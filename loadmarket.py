@@ -98,7 +98,7 @@ def log_mem(stage: str):
         try:
             import psutil
             mb = psutil.Process().memory_info().rss / (1024 * 1024)
-        except:
+        except Exception:
             mb = 0
     logging.info(f"[MEM] {stage}: {mb:.1f} MB RSS")
 

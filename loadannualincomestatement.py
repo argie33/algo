@@ -107,7 +107,7 @@ def load_income_statement_for_symbol(cur, symbol: str) -> int:
             income_stmt = ticker.income_stmt
             if income_stmt is None or income_stmt.empty:
                 income_stmt = ticker.financials
-        except:
+        except Exception:
             income_stmt = ticker.financials
 
         if income_stmt is None or income_stmt.empty:

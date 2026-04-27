@@ -433,14 +433,17 @@ async function getInsiderDataInBatch(symbols) {
 
 // Standard columns returned from stock_scores table (only columns that exist in database)
 const SCORE_COLUMNS = [
-  'symbol',
-  'composite_score',
-  'momentum_score',
-  'value_score',
-  'quality_score',
-  'growth_score',
-  'positioning_score',
-  'stability_score'
+  'ss.symbol',
+  'ss.composite_score',
+  'ss.momentum_score',
+  'ss.value_score',
+  'ss.quality_score',
+  'ss.growth_score',
+  'ss.positioning_score',
+  'ss.stability_score',
+  'st.security_name as company_name',
+  'cp.sector',
+  'cp.industry'
 ];
 
 // Allowed sort columns for safety
@@ -506,15 +509,17 @@ async function queryScores(options = {}) {
   // Build SELECT columns
   const selectCols = SCORE_COLUMNS.join(', ');
 
-  // Count query for pagination (no need for company_name in count query)
+  // Count query for pagination
   const countQuery = `SELECT COUNT(*) as total FROM stock_scores ss ${whereClause}`;
   const countResult = await query(countQuery, queryParams);
   const totalCount = safeInt(countResult.rows[0]?.total) || 0;
 
-  // Data query with pagination
+  // Data query with pagination - JOIN company_profile for sector/industry, stock_symbols for name
   const dataQuery = `
     SELECT ${selectCols}
     FROM stock_scores ss
+    LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
+    LEFT JOIN stock_symbols st ON ss.symbol = st.symbol
     ${whereClause}
     ORDER BY ss.${validatedSort} ${validatedOrder} NULLS LAST, ss.symbol ASC
     LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -559,7 +564,9 @@ async function queryScores(options = {}) {
   for (const row of result.rows || []) {
     const stock = {
       symbol: row.symbol,
-      company_name: null,
+      company_name: row.company_name || null,
+      sector: row.sector || null,
+      industry: row.industry || null,
       composite_score: row.composite_score == null ? null : parseFloat(row.composite_score),
       momentum_score: row.momentum_score == null ? null : parseFloat(row.momentum_score),
       value_score: row.value_score == null ? null : parseFloat(row.value_score),

@@ -72,7 +72,7 @@ def load_cash_flow_for_symbol(cur, symbol: str) -> int:
             cash_flow = ticker.cashflow
             if cash_flow is None or cash_flow.empty:
                 return 0
-        except:
+        except Exception:
             return 0
 
         rows_inserted = 0

@@ -793,7 +793,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
     # BATCH COMMIT: Commit all rows for this symbol at once (10-100x faster!)
     try:
         cur.connection.commit()
-    except:
+        except Exception:
         pass
 
     logging.info(f"Inserted {inserted} rows, skipped {skipped} rows for {symbol} {timeframe}")
