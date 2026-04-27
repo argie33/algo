@@ -7,13 +7,17 @@ Loads quarterly income statement data from yfinance
 import sys
 import logging
 import os
+import time
 from typing import Optional
 
 import psycopg2
 import yfinance as yf
 import pandas as pd
+import requests
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", stream=sys.stdout)
+
+REQUEST_DELAY = 0.5  # Delay between requests to avoid rate limiting
 
 def get_db_connection():
     try:
@@ -63,9 +67,13 @@ def create_tables(cur):
         )
     """)
 
-def load_for_symbol(cur, symbol: str) -> int:
+def load_for_symbol(cur, symbol: str, attempt: int = 0) -> int:
     try:
         yf_symbol = symbol.replace(".", "-").upper()
+
+        # Add delay to avoid rate limiting
+        time.sleep(REQUEST_DELAY)
+
         ticker = yf.Ticker(yf_symbol)
 
         try:
@@ -74,6 +82,13 @@ def load_for_symbol(cur, symbol: str) -> int:
                 income_stmt = ticker.quarterly_financials
             if income_stmt is None or income_stmt.empty:
                 return 0
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 429 and attempt < 3:
+                wait_time = (2 ** attempt) * 5
+                logging.warning(f"{symbol}: Rate limited, waiting {wait_time}s...")
+                time.sleep(wait_time)
+                return load_for_symbol(cur, symbol, attempt + 1)
+            return 0
         except Exception:
             return 0
 
@@ -141,7 +156,7 @@ def main():
                 conn.commit()
 
         conn.commit()
-        logging.info(f"✓ Completed: {total_rows} rows inserted")
+        logging.info(f"Completed: {total_rows} rows inserted")
         return True
     except Exception as e:
         logging.error(f"Error: {e}")

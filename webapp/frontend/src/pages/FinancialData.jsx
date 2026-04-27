@@ -71,39 +71,62 @@ function FinancialData() {
     return data?.data?.financialData || [];
   };
 
-  // Render financial table
-  const renderFinancialTable = (rows, columns) => {
+  // Excluded metadata fields from display
+  const EXCLUDED_KEYS = new Set(['id', 'symbol', 'fiscal_year', 'fiscal_quarter', 'created_at', 'updated_at', 'fetched_at']);
+
+  // Format a column header name
+  const formatColHeader = (key) =>
+    key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+  // Format a cell value — try currency for large numbers, percentage for small
+  const formatCellVal = (value) => {
+    if (value === null || value === undefined || value === '') return '—';
+    const num = parseFloat(value);
+    if (isNaN(num)) return String(value);
+    if (Math.abs(num) >= 1000) return formatCurrency(num);
+    return num.toFixed(2);
+  };
+
+  // Render financial table — dynamically uses ALL columns from the data
+  const renderFinancialTable = (rows, _ignoredColumns) => {
     if (!rows || rows.length === 0) {
       return <Alert severity="info">No data available for selected period</Alert>;
     }
 
+    // Build column list from first row, excluding metadata keys
+    const allKeys = Object.keys(rows[0]).filter(k => !EXCLUDED_KEYS.has(k));
+
     return (
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
-              <TableCell sx={{ fontWeight: "bold" }}>Fiscal Year</TableCell>
-              {columns.map((col) => (
-                <TableCell key={col.key} align="right" sx={{ fontWeight: "bold" }}>
-                  {col.label}
-                </TableCell>
-              ))}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {rows.map((row, idx) => (
-              <TableRow key={idx} sx={{ "&:hover": { backgroundColor: "#f9f9f9" } }}>
-                <TableCell sx={{ fontWeight: "500" }}>{row.fiscal_year}</TableCell>
-                {columns.map((col) => (
-                  <TableCell key={col.key} align="right">
-                    {row[col.key] ? formatCurrency(row[col.key]) : "—"}
+      <Box sx={{ overflowX: 'auto' }}>
+        <TableContainer component={Paper} sx={{ maxHeight: 600 }}>
+          <Table stickyHeader size="small">
+            <TableHead>
+              <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
+                <TableCell sx={{ fontWeight: "bold", minWidth: 100, position: 'sticky', left: 0, zIndex: 3, backgroundColor: '#f5f5f5' }}>Fiscal Year</TableCell>
+                {allKeys.map((key) => (
+                  <TableCell key={key} align="right" sx={{ fontWeight: "bold", whiteSpace: 'nowrap', minWidth: 140 }}>
+                    {formatColHeader(key)}
                   </TableCell>
                 ))}
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+            </TableHead>
+            <TableBody>
+              {rows.map((row, idx) => (
+                <TableRow key={idx} sx={{ "&:hover": { backgroundColor: "#f9f9f9" } }}>
+                  <TableCell sx={{ fontWeight: "500", position: 'sticky', left: 0, backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f9f9f9', zIndex: 1 }}>
+                    {row.fiscal_year}{row.fiscal_quarter ? ` Q${row.fiscal_quarter}` : ''}
+                  </TableCell>
+                  {allKeys.map((key) => (
+                    <TableCell key={key} align="right" sx={{ whiteSpace: 'nowrap' }}>
+                      {formatCellVal(row[key])}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
     );
   };
 
@@ -251,50 +274,48 @@ function FinancialData() {
             ) : keyMetricsData?.data ? (
               <Card>
                 <CardContent>
-                  <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
+                  <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }}>
                     Key Metrics - {ticker}
                   </Typography>
-                  <Grid container spacing={3}>
-                    {keyMetricsData.data.pe_ratio && (
-                      <Grid item xs={12} sm={6} md={3}>
+                  {keyMetricsData.data.name && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                      {keyMetricsData.data.name} · {keyMetricsData.data.sector} · {keyMetricsData.data.industry}
+                    </Typography>
+                  )}
+                  <Grid container spacing={2}>
+                    {[
+                      { label: "P/E Ratio", value: keyMetricsData.data.pe_ratio, format: "number" },
+                      { label: "Forward P/E", value: keyMetricsData.data.forward_pe, format: "number" },
+                      { label: "P/B Ratio", value: keyMetricsData.data.pb_ratio, format: "number" },
+                      { label: "P/S Ratio", value: keyMetricsData.data.ps_ratio, format: "number" },
+                      { label: "EV/EBITDA", value: keyMetricsData.data.ev_to_ebitda, format: "number" },
+                      { label: "PEG Ratio", value: keyMetricsData.data.peg_ratio, format: "number" },
+                      { label: "Dividend Yield", value: keyMetricsData.data.dividend_yield, format: "percent" },
+                      { label: "Debt/Equity", value: keyMetricsData.data.debt_to_equity, format: "number" },
+                      { label: "Current Ratio", value: keyMetricsData.data.current_ratio, format: "number" },
+                      { label: "Quick Ratio", value: keyMetricsData.data.quick_ratio, format: "number" },
+                      { label: "ROE %", value: keyMetricsData.data.roe, format: "number" },
+                      { label: "ROA %", value: keyMetricsData.data.roa, format: "number" },
+                      { label: "Gross Margin %", value: keyMetricsData.data.gross_margin, format: "number" },
+                      { label: "Operating Margin %", value: keyMetricsData.data.operating_margin, format: "number" },
+                      { label: "Profit Margin %", value: keyMetricsData.data.profit_margin, format: "number" },
+                      { label: "Insider Ownership", value: keyMetricsData.data.insider_ownership, format: "percent" },
+                      { label: "Institutional Own.", value: keyMetricsData.data.institutional_ownership, format: "percent" },
+                    ].filter(m => m.value != null).map(({ label, value, format }) => (
+                      <Grid item xs={6} sm={4} md={3} key={label}>
                         <Paper sx={{ p: 2, backgroundColor: "#f5f5f5" }}>
-                          <Typography variant="caption" color="text.secondary">
-                            P/E Ratio
+                          <Typography variant="caption" color="text.secondary" display="block">{label}</Typography>
+                          <Typography variant="h6" sx={{ fontSize: "1rem" }}>
+                            {format === "percent"
+                              ? `${(parseFloat(value) * (Math.abs(parseFloat(value)) < 1 ? 100 : 1)).toFixed(2)}%`
+                              : parseFloat(value).toFixed(2)}
                           </Typography>
-                          <Typography variant="h6">{keyMetricsData.data.pe_ratio}</Typography>
                         </Paper>
                       </Grid>
-                    )}
-                    {keyMetricsData.data.dividend_yield && (
-                      <Grid item xs={12} sm={6} md={3}>
-                        <Paper sx={{ p: 2, backgroundColor: "#f5f5f5" }}>
-                          <Typography variant="caption" color="text.secondary">
-                            Dividend Yield
-                          </Typography>
-                          <Typography variant="h6">
-                            {(parseFloat(keyMetricsData.data.dividend_yield) * 100).toFixed(2)}%
-                          </Typography>
-                        </Paper>
-                      </Grid>
-                    )}
-                    {keyMetricsData.data.debt_to_equity && (
-                      <Grid item xs={12} sm={6} md={3}>
-                        <Paper sx={{ p: 2, backgroundColor: "#f5f5f5" }}>
-                          <Typography variant="caption" color="text.secondary">
-                            Debt/Equity
-                          </Typography>
-                          <Typography variant="h6">{keyMetricsData.data.debt_to_equity}</Typography>
-                        </Paper>
-                      </Grid>
-                    )}
-                    {keyMetricsData.data.current_ratio && (
-                      <Grid item xs={12} sm={6} md={3}>
-                        <Paper sx={{ p: 2, backgroundColor: "#f5f5f5" }}>
-                          <Typography variant="caption" color="text.secondary">
-                            Current Ratio
-                          </Typography>
-                          <Typography variant="h6">{keyMetricsData.data.current_ratio}</Typography>
-                        </Paper>
+                    ))}
+                    {!keyMetricsData.data.pe_ratio && !keyMetricsData.data.debt_to_equity && !keyMetricsData.data.current_ratio && !keyMetricsData.data.gross_margin && !keyMetricsData.data.roe && (
+                      <Grid item xs={12}>
+                        <Alert severity="info">Financial ratio data not yet loaded for {ticker}. Income & Cash Flow tabs have available data.</Alert>
                       </Grid>
                     )}
                   </Grid>

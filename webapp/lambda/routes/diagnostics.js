@@ -178,7 +178,7 @@ router.get("/database-size", async (req, res) => {
       FROM pg_tables
       WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
       ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC
-      LIMIT 20
+      LIMIT 100
     `);
 
     return sendSuccess(res, {

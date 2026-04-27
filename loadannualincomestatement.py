@@ -24,6 +24,7 @@ from psycopg2.extras import execute_values
 import boto3
 import yfinance as yf
 import pandas as pd
+import requests
 
 # Configure logging
 logging.basicConfig(
@@ -33,6 +34,7 @@ logging.basicConfig(
 )
 
 SCRIPT_NAME = "loadannualincomestatement.py"
+REQUEST_DELAY = 0.5  # delay between yfinance requests to avoid rate limiting
 
 def get_db_connection():
     """Get database connection from environment variables"""
@@ -96,10 +98,14 @@ def create_tables(cur):
         except Exception as e:
             logging.error(f"Error creating table: {e}")
 
-def load_income_statement_for_symbol(cur, symbol: str) -> int:
+def load_income_statement_for_symbol(cur, symbol: str, attempt: int = 0) -> int:
     """Load annual income statement for a single symbol"""
     try:
         yf_symbol = symbol.replace(".", "-").upper()
+
+        # Add delay to avoid rate limiting
+        time.sleep(REQUEST_DELAY)
+
         ticker = yf.Ticker(yf_symbol)
 
         # Try to get annual income statement
@@ -107,11 +113,18 @@ def load_income_statement_for_symbol(cur, symbol: str) -> int:
             income_stmt = ticker.income_stmt
             if income_stmt is None or income_stmt.empty:
                 income_stmt = ticker.financials
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 429 and attempt < 3:
+                wait_time = (2 ** attempt) * 5  # exponential backoff: 5s, 10s, 20s
+                logging.warning(f"{symbol}: Rate limited, waiting {wait_time}s before retry...")
+                time.sleep(wait_time)
+                return load_income_statement_for_symbol(cur, symbol, attempt + 1)
+            income_stmt = ticker.financials
         except Exception:
             income_stmt = ticker.financials
 
         if income_stmt is None or income_stmt.empty:
-            logging.warning(f"No annual income statement data for {symbol}")
+            logging.debug(f"No data for {symbol}")
             return 0
 
         rows_inserted = 0
@@ -212,7 +225,7 @@ def main():
                 conn.commit()
 
         conn.commit()
-        logging.info(f"✓ Completed: {total_rows} rows inserted, {successful} successful, {failed} failed")
+        logging.info(f"Completed: {total_rows} rows inserted, {successful} successful, {failed} failed")
         return True
 
     except Exception as e:

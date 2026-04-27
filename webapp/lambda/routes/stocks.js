@@ -101,36 +101,36 @@ router.get("/deep-value", async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 500, 5000);
     const offset = parseInt(req.query.offset) || 0;
 
-    // Deep value = high value score + low composite score (undervalued)
-    // Also include other quality metrics
+    // BEST STOCK PICKS: Quality + Momentum Strategy
+    // Logic: Find quality companies (above 60th percentile) with positive momentum (55+)
+    // Avoids cheap stocks that are cheap for bad reasons (low quality)
+    // Avoids stocks in free fall (low momentum)
     const result = await query(
       `SELECT
         ss.symbol,
         ss.security_name,
         ss.market_category,
         ss.exchange,
-        ROUND(CAST(sc.composite_score AS NUMERIC), 2) as composite_score,
-        ROUND(CAST(sc.value_score AS NUMERIC), 2) as value_score,
-        ROUND(CAST(sc.quality_score AS NUMERIC), 2) as quality_score,
-        ROUND(CAST(sc.growth_score AS NUMERIC), 2) as growth_score,
-        ROUND(CAST(sc.momentum_score AS NUMERIC), 2) as momentum_score,
-        ROUND(CAST(sc.stability_score AS NUMERIC), 2) as stability_score,
-        ROUND(CAST(sc.positioning_score AS NUMERIC), 2) as positioning_score,
-        sc.created_at as last_updated
+        ROUND(CAST(sc.quality_score AS NUMERIC), 1) as quality_score,
+        ROUND(CAST(sc.momentum_score AS NUMERIC), 1) as momentum_score,
+        ROUND(CAST(sc.stability_score AS NUMERIC), 1) as stability_score,
+        ROUND(CAST(sc.growth_score AS NUMERIC), 1) as growth_score,
+        ROUND(CAST((COALESCE(sc.quality_score, 50) + COALESCE(sc.momentum_score, 50) + COALESCE(sc.stability_score, 50)) / 3.0 AS NUMERIC), 1) as strength_score
       FROM stock_scores sc
       JOIN stock_symbols ss ON ss.symbol = sc.symbol
-      WHERE sc.composite_score IS NOT NULL
-        AND sc.value_score IS NOT NULL
+      WHERE sc.quality_score >= 49.8
+        AND sc.momentum_score >= 55
+        AND sc.stability_score IS NOT NULL
       ORDER BY
-        (COALESCE(sc.value_score, 0) - COALESCE(sc.composite_score, 0)) DESC,
-        sc.value_score DESC,
-        sc.composite_score ASC
+        (COALESCE(sc.quality_score, 50) + COALESCE(sc.momentum_score, 50) + COALESCE(sc.stability_score, 50)) / 3.0 DESC,
+        sc.quality_score DESC,
+        sc.momentum_score DESC
       LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
 
     const countResult = await query(
-      "SELECT COUNT(*) as total FROM stock_scores WHERE composite_score IS NOT NULL AND value_score IS NOT NULL"
+      "SELECT COUNT(*) as total FROM stock_scores WHERE quality_score >= 49.8 AND momentum_score >= 55 AND stability_score IS NOT NULL"
     );
     const total = parseInt(countResult.rows[0].total);
 

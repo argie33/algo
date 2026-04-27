@@ -31,9 +31,8 @@ export default function PortfolioOptimizerNew() {
     try {
       const response = await axios.get('/api/optimization/analysis');
       console.log('[PortfolioOptimizerNew] API Response:', response.data);
-      // Extract analysis data from unified response format {success: true, data: {analysis: {...}}}
-      // Handle both response.data.analysis and response.data.data.analysis formats
-      const analysisData = response.data?.data?.analysis || response.data?.analysis || response.data;
+      // Extract analysis data from unified response format {success: true, data: {...}}
+      const analysisData = response.data?.data?.analysis || response.data?.data || response.data?.analysis || response.data;
       console.log('[PortfolioOptimizerNew] Analysis Data:', analysisData);
       if (!analysisData) {
         setError('No analysis data returned from server');

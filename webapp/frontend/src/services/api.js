@@ -17,7 +17,7 @@ export const getApiConfig = () => {
 
   // 3. Dev: relative path, Vite proxy handles it
   const isDev = import.meta.env?.DEV;
-  const apiUrl = "/";
+  const apiUrl = "";
 
   return {
     baseURL: apiUrl,
@@ -60,7 +60,7 @@ const _checkApiHealth = async () => {
 
 // Log config in development only
 if (typeof process === "undefined" || process.env.NODE_ENV !== "test") {
-  if (!currentConfig.apiUrl || currentConfig.apiUrl.includes("localhost")) {
+  if (!currentConfig.apiUrl || currentConfig.apiUrl === "" || currentConfig.apiUrl.includes("localhost")) {
     console.warn(
       "[API CONFIG] Using fallback API URL:",
       currentConfig.baseURL +
@@ -301,7 +301,7 @@ export const getCashFlowStatement = async (ticker, period = "annual") => {
 
 export const getKeyMetrics = async (ticker) => {
   try {
-    const response = await api.get(`/api/stocks/${ticker}`);
+    const response = await api.get(`/api/financials/${ticker}/key-metrics`);
     return response.data;
   } catch (error) {
     console.error("Error fetching key metrics:", error);

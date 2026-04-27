@@ -4,13 +4,17 @@
 import sys
 import logging
 import os
+import time
 from typing import Optional
 
 import psycopg2
 import yfinance as yf
 import pandas as pd
+import requests
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", stream=sys.stdout)
+
+REQUEST_DELAY = 0.5
 
 def get_db_connection():
     try:
@@ -73,6 +77,7 @@ def main():
 
         for i, symbol in enumerate(symbols):
             try:
+                time.sleep(REQUEST_DELAY)
                 yf_symbol = symbol.replace(".", "-").upper()
                 ticker = yf.Ticker(yf_symbol)
                 try:
@@ -117,7 +122,7 @@ def main():
                 conn.commit()
 
         conn.commit()
-        logging.info(f"✓ Completed: {total_rows} rows")
+        logging.info(f"Completed: {total_rows} rows")
         return True
     except Exception as e:
         logging.error(f"Error: {e}")

@@ -29,10 +29,9 @@ import {
   Download as DownloadIcon,
   Info as InfoIcon,
 } from "@mui/icons-material";
-import { getApiConfig } from "../services/api";
+import api from "../services/api";
 
 const DeepValueStocks = () => {
-  const { apiUrl: API_BASE } = getApiConfig();
   const [stocks, setStocks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -49,15 +48,10 @@ const DeepValueStocks = () => {
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`${API_BASE}/api/stocks/deep-value?limit=5000`);
+      const response = await api.get("/api/stocks/deep-value?limit=5000");
+      const result = response.data;
 
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
-
-      const result = await response.json();
       // API returns { items: [...], pagination: {...}, success: true }
-      // Check items first since that's what the endpoint returns
       let stocksData = result.items || result.data?.stocks || result.data || result;
 
       // Ensure it's an array

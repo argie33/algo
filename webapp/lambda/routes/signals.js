@@ -113,9 +113,10 @@ const getStocksSignals = async (req, res) => {
       t.sma_20,
       COALESCE(bsd.sma_50, t.sma_50) as sma_50,
       COALESCE(bsd.sma_200, t.sma_200) as sma_200,
-      COALESCE(bsd.ema_21, t.ema_12) as ema_12,
+      COALESCE(bsd.ema_21, t.ema_12) as ema_21,
       t.ema_26,
-      bsd.pct_from_ema21, bsd.pct_from_sma50
+      bsd.pct_from_ema21, bsd.pct_from_sma50,
+      ss.security_name as company_name
     `;
 
     // JOIN technical_data for RSI/ADX/MACD/SMA — price is already in bsd
@@ -129,6 +130,7 @@ const getStocksSignals = async (req, res) => {
       FROM ${tableName} bsd
       LEFT JOIN ${technicalTable} t ON bsd.symbol = t.symbol
         AND DATE(t.date) = DATE(bsd.date)
+      LEFT JOIN stock_symbols ss ON bsd.symbol = ss.symbol
       ${whereClause}
       ORDER BY bsd.date DESC, bsd.id DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -246,10 +248,23 @@ const getStocksSignals = async (req, res) => {
       sma_20: sf(row.sma_20),
       sma_50: sf(row.sma_50),
       sma_200: sf(row.sma_200),
-      ema_12: sf(row.ema_12),
+      ema_21: sf(row.ema_21),
       ema_26: sf(row.ema_26),
       pct_from_ema21: sf(row.pct_from_ema21),
       pct_from_sma50: sf(row.pct_from_sma50),
+      company_name: row.company_name || null,
+
+      // Computed fields not stored in DB
+      daily_range_pct: (row.high && row.low && row.close && parseFloat(row.close) > 0)
+        ? sf(((parseFloat(row.high) - parseFloat(row.low)) / parseFloat(row.close)) * 100)
+        : null,
+      volume_ratio: (row.volume && row.avg_volume_50d && parseFloat(row.avg_volume_50d) > 0)
+        ? sf(parseFloat(row.volume) / parseFloat(row.avg_volume_50d))
+        : null,
+      // Aliases for frontend compatibility
+      current_pnl_pct: sf(row.current_gain_pct),
+      current_price: sf(row.close),
+      entry_price: sf(row.entry_price) || sf(row.buylevel),
     }));
 
     // Get total count of records for pagination
@@ -349,10 +364,15 @@ router.get("/etf", async (req, res) => {
       paramIndex++;
     }
 
-    // For ETF signals, select from dedicated ETF table with JOIN to get company name
+    // For ETF signals, select from dedicated ETF table with all available fields
     const actualColumns = `
-      bsd.id, bsd.symbol, bsd.timeframe, bsd.date, bsd.date as signal_triggered_date,
-      bsd.signal, bsd.buylevel as strength, bsd.buylevel as signal_strength,
+      bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
+      COALESCE(bsd.signal_triggered_date, bsd.date) as signal_triggered_date,
+      bsd.signal,
+      bsd.buylevel, bsd.stoplevel,
+      bsd.strength, bsd.strength as signal_strength,
+      bsd.signal_type,
+      bsd.market_stage, bsd.stage_number, bsd.entry_quality_score,
       bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume
     `;
 
@@ -388,6 +408,7 @@ router.get("/etf", async (req, res) => {
       return sendPaginated(res, [], { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false });
     }
 
+    const sf = v => (v !== null && v !== undefined) ? parseFloat(v) : null;
     const formattedData = signalsResult.rows.map(row => ({
       id: row.id,
       symbol: row.symbol,
@@ -395,12 +416,18 @@ router.get("/etf", async (req, res) => {
       date: row.date,
       signal_triggered_date: row.signal_triggered_date || null,
       timeframe: row.timeframe || timeframe,
-      strength: row.strength !== null ? parseFloat(row.strength) : null,
-      signal_strength: row.signal_strength !== null ? parseFloat(row.signal_strength) : null,
-      open: row.open !== null ? parseFloat(row.open) : null,
-      high: row.high !== null ? parseFloat(row.high) : null,
-      low: row.low !== null ? parseFloat(row.low) : null,
-      close: row.close !== null ? parseFloat(row.close) : null,
+      buylevel: sf(row.buylevel),
+      stoplevel: sf(row.stoplevel),
+      strength: sf(row.strength),
+      signal_strength: sf(row.signal_strength),
+      signal_type: row.signal_type || null,
+      market_stage: row.market_stage != null ? String(row.market_stage) : null,
+      stage_number: row.stage_number != null ? parseInt(row.stage_number) : null,
+      entry_quality_score: sf(row.entry_quality_score),
+      open: sf(row.open),
+      high: sf(row.high),
+      low: sf(row.low),
+      close: sf(row.close),
       volume: row.volume !== null ? parseInt(row.volume) : null,
       company_name: row.company_name || null,
     }));

@@ -15,6 +15,7 @@ from typing import Optional
 import psycopg2
 import yfinance as yf
 import pandas as pd
+import requests
 
 logging.basicConfig(
     level=logging.INFO,
@@ -23,6 +24,7 @@ logging.basicConfig(
 )
 
 SCRIPT_NAME = "loadannualbalancesheet.py"
+REQUEST_DELAY = 0.5
 
 def get_db_connection():
     """Get database connection from environment variables"""
@@ -147,10 +149,13 @@ def create_tables(cur):
     except Exception as e:
         logging.error(f"Error creating table: {e}")
 
-def load_balance_sheet_for_symbol(cur, symbol: str) -> int:
+def load_balance_sheet_for_symbol(cur, symbol: str, attempt: int = 0) -> int:
     """Load annual balance sheet for a single symbol - captures ALL yfinance fields"""
     try:
         yf_symbol = symbol.replace(".", "-").upper()
+
+        time.sleep(REQUEST_DELAY)
+
         ticker = yf.Ticker(yf_symbol)
 
         # Try to get annual balance sheet
@@ -158,6 +163,13 @@ def load_balance_sheet_for_symbol(cur, symbol: str) -> int:
             balance_sheet = ticker.balance_sheet
             if balance_sheet is None or balance_sheet.empty:
                 return 0
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 429 and attempt < 3:
+                wait_time = (2 ** attempt) * 5
+                logging.warning(f"{symbol}: Rate limited, waiting {wait_time}s...")
+                time.sleep(wait_time)
+                return load_balance_sheet_for_symbol(cur, symbol, attempt + 1)
+            return 0
         except Exception:
             return 0
 
@@ -314,7 +326,7 @@ def main():
                 conn.commit()
 
         conn.commit()
-        logging.info(f"✓ Completed: {total_rows} rows inserted, {successful} successful")
+        logging.info(f"Completed: {total_rows} rows inserted, {successful} successful")
         return True
 
     except Exception as e:
