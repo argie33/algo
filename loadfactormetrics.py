@@ -139,7 +139,7 @@ def get_rss_mb():
         try:
             import psutil
             return psutil.Process().memory_info().rss / (1024 * 1024)
-        except:
+        except Exception:
             return 0
     usage = resource.getrusage(resource.RUSAGE_SELF)
     if sys.platform.startswith("linux"):
@@ -1047,7 +1047,7 @@ def calculate_growth_metrics(ticker_data: Dict, financial_growth: Dict = None, q
                                 retention = 1 - min(1.0, max(0.0, payout_calc))
                             else:
                                 retention = 0.6  # Default
-                        except:
+        except Exception:
                             retention = 0.6  # Default
                     else:
                         retention = 0.6  # Default 60% retention
@@ -1627,7 +1627,7 @@ def load_ad_ratings(conn, cursor, symbols: List[str]):
     # Ensure clean transaction state
     try:
         conn.rollback()
-    except:
+        except Exception:
         pass
 
     ad_rows = []
@@ -2024,12 +2024,12 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
     # Ensure clean transaction state and enable autocommit to avoid transaction abort issues
     try:
         conn.rollback()
-    except:
+        except Exception:
         pass
 
     try:
         conn.autocommit = True
-    except:
+        except Exception:
         pass
 
     growth_rows = []
@@ -2106,7 +2106,7 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                 logging.debug(f"Could not get financial growth for {ticker}: {fge}")
                 try:
                     conn.rollback()
-                except:
+        except Exception:
                     pass
                 cursor = conn.cursor()
                 financial_growth = None
@@ -2117,7 +2117,7 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                 logging.debug(f"Could not get quarterly growth for {ticker}: {qge}")
                 try:
                     conn.rollback()
-                except:
+        except Exception:
                     pass
                 cursor = conn.cursor()
                 quarterly_growth = None
@@ -2128,7 +2128,7 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                 logging.debug(f"Could not get earnings history growth for {ticker}: {ege}")
                 try:
                     conn.rollback()
-                except:
+        except Exception:
                     pass
                 cursor = conn.cursor()
                 earnings_history_growth = None
@@ -2168,7 +2168,7 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                     logging.warning(f"Commit failed at symbol {idx + 1}: {commit_e}")
                     try:
                         conn.rollback()
-                    except:
+        except Exception:
                         pass
                     cursor = conn.cursor()
         except Exception as e:
@@ -2201,7 +2201,7 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                 logging.debug(f"Could not get financial growth for {symbol}: {fge}")
                 try:
                     conn.rollback()
-                except:
+        except Exception:
                     pass
                 cursor = conn.cursor()
                 financial_growth = None
@@ -2212,7 +2212,7 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                 logging.debug(f"Could not get quarterly growth for {symbol}: {qge}")
                 try:
                     conn.rollback()
-                except:
+        except Exception:
                     pass
                 cursor = conn.cursor()
                 quarterly_growth = None
@@ -2223,7 +2223,7 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                 logging.debug(f"Could not get earnings history growth for {symbol}: {ege}")
                 try:
                     conn.rollback()
-                except:
+        except Exception:
                     pass
                 cursor = conn.cursor()
                 earnings_history_growth = None
@@ -2335,7 +2335,7 @@ def load_momentum_metrics(conn, cursor, symbols: List[str]):
     # Ensure clean transaction state
     try:
         conn.rollback()
-    except:
+        except Exception:
         pass
 
     momentum_rows = []
@@ -2483,7 +2483,7 @@ def load_stability_metrics(conn, cursor, symbols: List[str]):
     # Ensure clean transaction state
     try:
         conn.rollback()
-    except:
+        except Exception:
         pass
 
     stability_rows = []
@@ -2604,7 +2604,7 @@ def load_value_metrics(conn, cursor, symbols: List[str]):
     # Ensure clean transaction state
     try:
         conn.rollback()
-    except:
+        except Exception:
         pass
 
     value_rows = []
@@ -2702,7 +2702,7 @@ def load_positioning_metrics(conn, cursor, symbols: List[str]):
     # Ensure clean transaction state
     try:
         conn.rollback()
-    except:
+        except Exception:
         pass
 
     try:
@@ -2818,7 +2818,7 @@ def load_positioning_metrics(conn, cursor, symbols: List[str]):
         logging.error(f"Error loading positioning metrics: {e}")
         try:
             conn.rollback()
-        except:
+        except Exception:
             pass
         raise
 
@@ -3267,7 +3267,7 @@ def main():
         try:
             cursor.close()
             conn.close()
-        except:
+        except Exception:
             pass
         conn = psycopg2.connect(**db_config)
         cursor = conn.cursor()
@@ -3295,7 +3295,7 @@ def main():
         try:
             cursor.close()
             conn.close()
-        except:
+        except Exception:
             pass
         conn = psycopg2.connect(**db_config)
         cursor = conn.cursor()
@@ -3323,7 +3323,7 @@ def main():
         try:
             cursor.close()
             conn.close()
-        except:
+        except Exception:
             pass
         conn = psycopg2.connect(**db_config)
         cursor = conn.cursor()
@@ -3351,7 +3351,7 @@ def main():
         try:
             cursor.close()
             conn.close()
-        except:
+        except Exception:
             pass
         conn = psycopg2.connect(**db_config)
         cursor = conn.cursor()
@@ -3379,7 +3379,7 @@ def main():
         try:
             cursor.close()
             conn.close()
-        except:
+        except Exception:
             pass
         conn = psycopg2.connect(**db_config)
         cursor = conn.cursor()
@@ -3407,7 +3407,7 @@ def main():
         try:
             cursor.close()
             conn.close()
-        except:
+        except Exception:
             pass
         conn = psycopg2.connect(**db_config)
         cursor = conn.cursor()
@@ -3435,7 +3435,7 @@ def main():
         try:
             cursor.close()
             conn.close()
-        except:
+        except Exception:
             pass
         conn = psycopg2.connect(**db_config)
         cursor = conn.cursor()
@@ -3592,7 +3592,7 @@ def main():
                 logging.warning(f"Could not update last_updated table: {lu_err}")
                 try:
                     conn.rollback()
-                except:
+        except Exception:
                     pass
 
         except Exception as verify_err:

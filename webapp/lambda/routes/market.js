@@ -2622,28 +2622,39 @@ router.get("/technicals", async (req, res) => {
         return result.rows[0] || {};
       })(),
 
-      // 5. Internals (from /data endpoint logic)
+      // 5. Internals - stocks above SMA20/50/200 from technical_data_daily latest date
       (async () => {
-        const result = await query(`
-          WITH latest_date AS (
-            SELECT MAX(date) as max_date FROM price_daily WHERE close IS NOT NULL
-          ),
-          price_stats AS (
+        try {
+          const result = await query(`
+            WITH max_tech_date AS (
+              SELECT MAX(date) as max_date FROM technical_data_daily
+            ),
+            max_price_date AS (
+              SELECT MAX(date) as max_date FROM price_daily WHERE close IS NOT NULL
+            ),
+            latest_tech AS (
+              SELECT t.symbol, t.sma_20, t.sma_50, t.sma_200
+              FROM technical_data_daily t
+              JOIN max_tech_date m ON t.date = m.max_date
+            ),
+            latest_price AS (
+              SELECT p.symbol, p.close
+              FROM price_daily p
+              JOIN max_price_date m ON p.date = m.max_date
+            )
             SELECT
-              symbol,
-              close,
-              ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
-            FROM price_daily
-            WHERE date = (SELECT max_date FROM latest_date)
-          )
-          SELECT
-            COUNT(*) as total_stocks,
-            COUNT(CASE WHEN close > 50 THEN 1 END) as above_50_ma,
-            COUNT(CASE WHEN close > 200 THEN 1 END) as above_200_ma
-          FROM price_stats
-          WHERE rn = 1
-        `);
-        return result.rows[0] || {};
+              COUNT(*) as total_stocks,
+              COUNT(CASE WHEN lt.sma_20 IS NOT NULL AND lp.close > lt.sma_20 THEN 1 END) as above_sma20,
+              COUNT(CASE WHEN lt.sma_50 IS NOT NULL AND lp.close > lt.sma_50 THEN 1 END) as above_50_ma,
+              COUNT(CASE WHEN lt.sma_200 IS NOT NULL AND lp.close > lt.sma_200 THEN 1 END) as above_200_ma
+            FROM latest_tech lt
+            JOIN latest_price lp ON lt.symbol = lp.symbol
+          `);
+          return result.rows[0] || {};
+        } catch (e) {
+          console.warn("Internals SMA query failed:", e.message);
+          return {};
+        }
       })()
     ]);
 

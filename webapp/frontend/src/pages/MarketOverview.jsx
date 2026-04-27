@@ -499,12 +499,17 @@ const handleTabChange = (event, newValue) => {
     const b_adv = parseInt(breadth?.advancing || 0, 10);
     const b_dec = parseInt(breadth?.declining || 0, 10);
     const b_unch = parseInt(breadth?.unchanged || 0, 10);
+    const i_sma20 = parseInt(internals?.above_sma20 || 0, 10);
+    const i_50 = parseInt(internals?.above_50_ma || 0, 10);
     const i_200 = parseInt(internals?.above_200_ma || 0, 10);
+    const i_total = parseInt(internals?.total_stocks || b_total, 10);
 
     // Calculate percentages safely
     const adv_pct = b_total > 0 ? (b_adv / b_total * 100).toFixed(1) : 0;
     const dec_pct = b_total > 0 ? (b_dec / b_total * 100).toFixed(1) : 0;
-    const ma200_pct = b_total > 0 ? (i_200 / b_total * 100).toFixed(1) : 0;
+    const ma20_pct = i_total > 0 ? (i_sma20 / i_total * 100).toFixed(1) : 0;
+    const ma50_pct = i_total > 0 ? (i_50 / i_total * 100).toFixed(1) : 0;
+    const ma200_pct = i_total > 0 ? (i_200 / i_total * 100).toFixed(1) : 0;
     const da_ratio = b_dec > 0 ? (b_adv / b_dec).toFixed(2) : "N/A";
 
     return {
@@ -516,29 +521,29 @@ const handleTabChange = (event, newValue) => {
           total_stocks: b_total,
           advancing_percent: adv_pct,
           decline_advance_ratio: da_ratio,
-          avg_daily_change: null,  // Not available in API
-          total_volume: null,       // Not available in API
-          strong_up: null,          // Not available in API
-          strong_down: null         // Not available in API
+          avg_daily_change: null,
+          total_volume: null,
+          strong_up: null,
+          strong_down: null
         },
         moving_average_analysis: {
           above_sma20: {
-            count: null,            // Not available in API
-            total: b_total,
-            percent: null,          // Not available in API
-            avg_distance_pct: null  // Not available in API
+            count: i_sma20 || null,
+            total: i_total,
+            percent: i_sma20 > 0 ? ma20_pct : null,
+            avg_distance_pct: null
           },
           above_sma50: {
-            count: null,            // Not available in API
-            total: b_total,
-            percent: null,          // Not available in API
-            avg_distance_pct: null  // Not available in API
+            count: i_50 || null,
+            total: i_total,
+            percent: i_50 > 0 ? ma50_pct : null,
+            avg_distance_pct: null
           },
           above_sma200: {
-            count: i_200,
-            total: b_total,
-            percent: ma200_pct,
-            avg_distance_pct: null  // Not available in API
+            count: i_200 || null,
+            total: i_total,
+            percent: i_200 > 0 ? ma200_pct : null,
+            avg_distance_pct: null
           }
         },
         market_extremes: {

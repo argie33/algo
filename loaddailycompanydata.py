@@ -190,7 +190,7 @@ def get_rss_mb():
         try:
             import psutil
             return psutil.Process().memory_info().rss / (1024 * 1024)
-        except:
+        except Exception:
             return 0
     usage = resource.getrusage(resource.RUSAGE_SELF)
     if sys.platform.startswith("linux"):
@@ -622,7 +622,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 # Rollback failed transaction to reset state for next symbol
                 try:
                     conn.rollback()
-                except:
+        except Exception:
                     pass
 
         # CRITICAL: Always insert key_metrics - commit immediately to guarantee persistence
@@ -638,7 +638,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             logging.error(f" CRITICAL: Failed to insert key_metrics for {symbol}: {str(e)}")
             try:
                 conn.rollback()
-            except:
+        except Exception:
                 pass
 
         # 2. Insert institutional holders
@@ -704,7 +704,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 # Rollback failed transaction
                 try:
                     conn.rollback()
-                except:
+        except Exception:
                     pass
 
         # 3. Insert mutual fund holders (NEW!)
@@ -762,7 +762,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 # Rollback failed transaction
                 try:
                     conn.rollback()
-                except:
+        except Exception:
                     pass
 
         # 4. Insert insider transactions (NEW!)
@@ -803,7 +803,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 # Rollback failed transaction
                 try:
                     conn.rollback()
-                except:
+        except Exception:
                     pass
 
         # 5. Insert insider roster (NEW!) - WITH RETRY for deadlock handling
@@ -935,7 +935,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 # Rollback failed transaction
                 try:
                     conn.rollback()
-                except:
+        except Exception:
                     pass
 
         # 8.5. Insert earnings history (actual reported earnings - consolidated from loadearningshistory.py)
@@ -1011,7 +1011,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
                 # Rollback failed transaction
                 try:
                     conn.rollback()
-                except:
+        except Exception:
                     pass
 
         # 9. Do NOT calculate liquidity metrics here - only in loadfactormetrics.py
@@ -1026,7 +1026,7 @@ def load_all_realtime_data(symbol: str, cur, conn) -> Dict:
             logging.error(f" COMMIT FAILED {symbol}: {str(commit_err)[:200]}")
             try:
                 conn.rollback()
-            except:
+        except Exception:
                 pass
         return stats
 
@@ -1311,7 +1311,7 @@ if __name__ == "__main__":
         finally:
             try:
                 thread_conn.close()
-            except:
+        except Exception:
                 pass
 
     # MAIN LOOP: Process all symbols with automatic retries for failures

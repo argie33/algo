@@ -35,7 +35,7 @@ def safe_float(value) -> Optional[float]:
             if not value or value == '-':
                 return None
         return float(value)
-        except Exception:
+    except Exception:
         return None
 
 def main():
@@ -79,7 +79,7 @@ def main():
                     bs = ticker.quarterly_balance_sheet
                     if bs is None or bs.empty:
                         continue
-        except Exception:
+                except Exception:
                     continue
 
                 for date_col in bs.columns:
@@ -108,9 +108,9 @@ def main():
                               safe_float(row_data.get('Current Liabilities')),
                               safe_float(row_data.get('Stockholders Equity'))))
                         total_rows += 1
-        except Exception:
+                    except Exception:
                         continue
-        except Exception:
+            except Exception:
                 continue
             if (i + 1) % 10 == 0:
                 conn.commit()
