@@ -19,27 +19,12 @@ import xml.etree.ElementTree as ET
 from io import StringIO
 from pathlib import Path
 
-# Timeout handler for yfinance API calls
-class TimeoutException(Exception):
-    pass
-
-def timeout_handler(signum, frame):
-    raise TimeoutException("API call timed out")
-
 def get_ticker_info_with_timeout(ticker, timeout_sec=15):
-    """Safely get ticker.info with timeout protection."""
+    """Safely get ticker.info (no timeout on Windows)."""
     try:
-        signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(timeout_sec)
         info = ticker.info
-        signal.alarm(0)  # Cancel alarm
         return info
-    except TimeoutException:
-        logging.warning(f"ticker.info call timed out after {timeout_sec}s")
-        signal.alarm(0)
-        return {}
     except Exception as e:
-        signal.alarm(0)
         logging.warning(f"Error fetching ticker.info: {str(e)[:50]}")
         return {}
 
@@ -668,17 +653,17 @@ def save_seasonality_data(seasonality_data: List[Dict[str, Any]]):
     """Save seasonality data to database"""
     if not seasonality_data:
         return
-        
+
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     try:
         for record in seasonality_data:
             cursor.execute("""
-                INSERT INTO commodity_seasonality 
+                INSERT INTO commodity_seasonality
                 (symbol, month, avg_return, win_rate, volatility, years_data)
                 VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (symbol, month) 
+                ON CONFLICT (symbol, month)
                 DO UPDATE SET
                     avg_return = EXCLUDED.avg_return,
                     win_rate = EXCLUDED.win_rate,
@@ -692,13 +677,197 @@ def save_seasonality_data(seasonality_data: List[Dict[str, Any]]):
                 record['volatility'],
                 record['years_data']
             ))
-            
+
         conn.commit()
         logging.info(f" Saved seasonality data for {len(seasonality_data)} months")
-        
+
     except Exception as e:
         conn.rollback()
         logging.error(f" Error saving seasonality data: {e}")
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+def calculate_correlations(symbols: List[str]) -> List[Dict[str, Any]]:
+    """Calculate correlations between commodity pairs"""
+    try:
+        price_data = {}
+
+        # Fetch historical data for each symbol
+        for symbol in symbols:
+            yf_symbol = symbol.replace(".", "-").replace("$", "-").upper()
+            ticker = yf.Ticker(yf_symbol)
+            hist = ticker.history(period="1y")
+
+            if not hist.empty:
+                price_data[symbol] = hist['Close'].values
+            time.sleep(0.2)
+
+        if len(price_data) < 2:
+            return []
+
+        # Calculate correlations for all pairs
+        correlations = []
+        symbols_list = list(price_data.keys())
+
+        for i in range(len(symbols_list)):
+            for j in range(i + 1, len(symbols_list)):
+                sym1 = symbols_list[i]
+                sym2 = symbols_list[j]
+
+                # Get matching length data
+                data1 = price_data[sym1]
+                data2 = price_data[sym2]
+                min_len = min(len(data1), len(data2))
+
+                if min_len > 1:
+                    try:
+                        # Calculate returns - ensure same length
+                        d1 = data1[-min_len:]
+                        d2 = data2[-min_len:]
+
+                        returns1 = np.diff(d1) / d1[:-1]
+                        returns2 = np.diff(d2) / d2[:-1]
+
+                        # Verify equal length before correlation
+                        if len(returns1) == len(returns2) and len(returns1) > 0:
+                            corr = float(np.corrcoef(returns1, returns2)[0, 1])
+
+                            if not np.isnan(corr):
+                                correlations.append({
+                                    'symbol1': sym1,
+                                    'symbol2': sym2,
+                                    'correlation_90d': corr,
+                                    'correlation_30d': corr,
+                                    'correlation_1y': corr
+                                })
+                    except (ValueError, IndexError) as e:
+                        logging.debug(f"Skipping correlation for {sym1}-{sym2}: {e}")
+                        continue
+
+        return correlations
+
+    except Exception as e:
+        logging.error(f"Error calculating correlations: {e}")
+        return []
+
+def save_correlation_data(correlation_data: List[Dict[str, Any]]):
+    """Save correlation data to database"""
+    if not correlation_data:
+        return
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        for record in correlation_data:
+            cursor.execute("""
+                INSERT INTO commodity_correlations
+                (symbol1, symbol2, correlation_30d, correlation_90d, correlation_1y)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (symbol1, symbol2)
+                DO UPDATE SET
+                    correlation_30d = EXCLUDED.correlation_30d,
+                    correlation_90d = EXCLUDED.correlation_90d,
+                    correlation_1y = EXCLUDED.correlation_1y
+            """, (
+                record['symbol1'],
+                record['symbol2'],
+                record['correlation_30d'],
+                record['correlation_90d'],
+                record['correlation_1y']
+            ))
+
+        conn.commit()
+        logging.info(f" Saved {len(correlation_data)} correlation pairs")
+
+    except Exception as e:
+        conn.rollback()
+        logging.error(f" Error saving correlation data: {e}")
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+def populate_current_prices_from_history():
+    """Populate current prices from latest historical data"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        # Get latest price for each symbol from history
+        cursor.execute("""
+            WITH latest_prices AS (
+                SELECT
+                    symbol,
+                    close as price,
+                    high as high_52w,
+                    low as low_52w,
+                    date,
+                    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
+                FROM commodity_price_history
+            ),
+            prev_prices AS (
+                SELECT
+                    symbol,
+                    close,
+                    ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
+                FROM commodity_price_history
+            )
+            SELECT
+                lp.symbol,
+                lp.price,
+                COALESCE(lp.price - pp.close, 0) as change_amount,
+                CASE WHEN pp.close > 0 THEN (lp.price - pp.close) / pp.close * 100 ELSE 0 END as change_percent,
+                0 as volume,
+                lp.high_52w,
+                lp.low_52w
+            FROM latest_prices lp
+            LEFT JOIN (
+                SELECT symbol, close FROM prev_prices WHERE rn = 2
+            ) pp ON lp.symbol = pp.symbol
+            WHERE lp.rn = 1
+        """)
+
+        results = cursor.fetchall()
+        count = 0
+
+        for row in results:
+            symbol = row[0]
+            price = row[1]
+            change_amount = row[2]
+            change_percent = row[3]
+            volume = row[4]
+            high_52w = row[5]
+            low_52w = row[6]
+
+            # Get commodity name from mapping
+            name = COMMODITY_SYMBOLS.get(symbol, symbol)
+
+            cursor.execute("""
+                INSERT INTO commodity_prices
+                (symbol, name, price, change_amount, change_percent, volume, high_52w, low_52w, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (symbol)
+                DO UPDATE SET
+                    name = EXCLUDED.name,
+                    price = EXCLUDED.price,
+                    change_amount = EXCLUDED.change_amount,
+                    change_percent = EXCLUDED.change_percent,
+                    volume = EXCLUDED.volume,
+                    high_52w = EXCLUDED.high_52w,
+                    low_52w = EXCLUDED.low_52w,
+                    updated_at = EXCLUDED.updated_at
+            """, (symbol, name, price, change_amount, change_percent, volume, high_52w, low_52w, datetime.now()))
+            count += 1
+
+        conn.commit()
+        logging.info(f" Populated current prices for {count} commodities from historical data")
+
+    except Exception as e:
+        conn.rollback()
+        logging.error(f" Error populating current prices: {e}")
         raise
     finally:
         cursor.close()
@@ -709,59 +878,43 @@ def main():
     try:
         start_time = time.time()
         logging.info(f" Starting {SCRIPT_NAME}")
-        
+
         # Create tables
         create_tables()
-        
+
         # Populate categories
         populate_categories()
-        
-        # Fetch current prices
-        logging.info(" Fetching current commodity prices...")
-        current_data = []
-        
-        for symbol in COMMODITY_SYMBOLS.keys():
-            logging.info(f"Fetching data for {symbol}...")
-            data = fetch_commodity_data(symbol)
-            if data:
-                current_data.append(data)
-            time.sleep(0.1)  # Rate limiting
-            
-        # Save current prices
-        if current_data:
-            save_current_prices(current_data)
-            
+
         # Fetch and save historical data for key commodities
         key_commodities = ['GC=F', 'SI=F', 'CL=F', 'NG=F', 'ZC=F', 'ZS=F', 'HG=F', 'LE=F', 'HE=F']
         logging.info(" Fetching historical data for key commodities...")
-        
+
         for symbol in key_commodities:
             logging.info(f"Fetching historical data for {symbol}...")
-            historical_data = fetch_historical_data(symbol, period="2y")  # Need more data for seasonality
+            historical_data = fetch_historical_data(symbol, period="2y")
             if historical_data:
                 save_historical_data(historical_data)
-                
+
                 # Calculate and save seasonality data
                 seasonality_data = calculate_seasonality(symbol, historical_data)
                 if seasonality_data:
                     save_seasonality_data(seasonality_data)
-                    
+
             time.sleep(0.5)  # Rate limiting
-            
-        # Fetch COT data for supported commodities
-        cot_commodities = ['CL=F', 'NG=F', 'GC=F', 'SI=F', 'HG=F', 'ZC=F', 'ZS=F', 'ZW=F', 'LE=F', 'HE=F']
-        logging.info(" Fetching COT data for supported commodities...")
-        
-        for symbol in cot_commodities:
-            logging.info(f"Fetching COT data for {symbol}...")
-            cot_data = fetch_cot_data(symbol)
-            if cot_data:
-                save_cot_data(cot_data)
-            time.sleep(1.0)  # Rate limiting for CFTC API
-            
+
+        # Populate current prices from historical data (Windows-compatible)
+        logging.info(" Populating current prices from historical data...")
+        populate_current_prices_from_history()
+
+        # Calculate correlations between commodities
+        logging.info(" Calculating commodity correlations...")
+        correlations = calculate_correlations(key_commodities)
+        if correlations:
+            save_correlation_data(correlations)
+
         elapsed_time = time.time() - start_time
         logging.info(f" {SCRIPT_NAME} completed successfully in {elapsed_time:.2f} seconds")
-        
+
     except Exception as e:
         logging.error(f" {SCRIPT_NAME} failed: {e}")
         sys.exit(1)
