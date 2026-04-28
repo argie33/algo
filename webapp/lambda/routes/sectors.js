@@ -7,62 +7,43 @@ const router = express.Router();
 router.get("/", async (req, res) => {
   try {
     const { limit = 500, page = 1 } = req.query;
-    const limitNum = Math.min(parseInt(limit) || 500, 1000);
+    const limitNum = Math.min(parseInt(limit) || 500, 5000);
     const pageNum = Math.max(parseInt(page) || 1, 1);
     const offset = (pageNum - 1) * limitNum;
 
+    // Single 30-day scan for all price performance — avoids 4x full-table scans on 22M rows
     const result = await query(`
-      WITH latest_prices AS (
-        SELECT pd.symbol, pd.close, pd.date
-        FROM price_daily pd
-        INNER JOIN (
-          SELECT symbol, MAX(date) as max_date FROM price_daily GROUP BY symbol
-        ) lp ON pd.symbol = lp.symbol AND pd.date = lp.max_date
+      WITH recent_prices AS (
+        SELECT symbol, date, close,
+          ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
+        FROM price_daily
+        WHERE date >= CURRENT_DATE - INTERVAL '60 days'
       ),
-      price_1d AS (
-        SELECT pd.symbol, pd.close
-        FROM price_daily pd
-        INNER JOIN (
-          SELECT symbol, MAX(date) as max_date FROM price_daily
-          WHERE date < CURRENT_DATE - INTERVAL '1 day' GROUP BY symbol
-        ) prev ON pd.symbol = prev.symbol AND pd.date = prev.max_date
-      ),
-      price_5d AS (
-        SELECT pd.symbol, pd.close
-        FROM price_daily pd
-        INNER JOIN (
-          SELECT symbol, MAX(date) as max_date FROM price_daily
-          WHERE date <= CURRENT_DATE - INTERVAL '5 days' GROUP BY symbol
-        ) prev ON pd.symbol = prev.symbol AND pd.date = prev.max_date
-      ),
-      price_20d AS (
-        SELECT pd.symbol, pd.close
-        FROM price_daily pd
-        INNER JOIN (
-          SELECT symbol, MAX(date) as max_date FROM price_daily
-          WHERE date <= CURRENT_DATE - INTERVAL '20 days' GROUP BY symbol
-        ) prev ON pd.symbol = prev.symbol AND pd.date = prev.max_date
+      symbol_perf AS (
+        SELECT
+          symbol,
+          MAX(close) FILTER (WHERE rn = 1) as close_now,
+          MAX(close) FILTER (WHERE rn = 2) as close_1d,
+          MAX(close) FILTER (WHERE rn = 6) as close_5d,
+          MAX(close) FILTER (WHERE rn = 21) as close_20d
+        FROM recent_prices
+        GROUP BY symbol
       ),
       sector_scores AS (
         SELECT
           cp.sector as sector_name,
           COUNT(DISTINCT cp.ticker) as stock_count,
-          AVG(lp.close) as avg_price,
           AVG(ss.composite_score) as composite_score,
           AVG(ss.momentum_score) as momentum_score,
           AVG(ss.value_score) as value_score,
           AVG(ss.quality_score) as quality_score,
           AVG(ss.growth_score) as growth_score,
           AVG(ss.stability_score) as stability_score,
-          -- Performance vs prior periods
-          AVG(CASE WHEN p1.close > 0 THEN (lp.close - p1.close) / p1.close * 100 ELSE NULL END) as perf_1d,
-          AVG(CASE WHEN p5.close > 0 THEN (lp.close - p5.close) / p5.close * 100 ELSE NULL END) as perf_5d,
-          AVG(CASE WHEN p20.close > 0 THEN (lp.close - p20.close) / p20.close * 100 ELSE NULL END) as perf_20d
+          AVG(CASE WHEN sp.close_1d > 0 THEN (sp.close_now - sp.close_1d) / sp.close_1d * 100 END) as perf_1d,
+          AVG(CASE WHEN sp.close_5d > 0 THEN (sp.close_now - sp.close_5d) / sp.close_5d * 100 END) as perf_5d,
+          AVG(CASE WHEN sp.close_20d > 0 THEN (sp.close_now - sp.close_20d) / sp.close_20d * 100 END) as perf_20d
         FROM company_profile cp
-        LEFT JOIN latest_prices lp ON cp.ticker = lp.symbol
-        LEFT JOIN price_1d p1 ON cp.ticker = p1.symbol
-        LEFT JOIN price_5d p5 ON cp.ticker = p5.symbol
-        LEFT JOIN price_20d p20 ON cp.ticker = p20.symbol
+        LEFT JOIN symbol_perf sp ON cp.ticker = sp.symbol
         LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
         WHERE cp.sector IS NOT NULL AND TRIM(cp.sector) != ''
         GROUP BY cp.sector
@@ -71,9 +52,42 @@ router.get("/", async (req, res) => {
         SELECT *,
           RANK() OVER (ORDER BY composite_score DESC NULLS LAST) as current_rank
         FROM sector_scores
+      ),
+      latest_snapshot AS (
+        SELECT DISTINCT ON (sector_name) sector_name, date_recorded
+        FROM sector_ranking
+        ORDER BY sector_name, date_recorded DESC
+      ),
+      sector_pe AS (
+        SELECT
+          cp.sector,
+          AVG(vm.trailing_pe) FILTER (WHERE vm.trailing_pe > 0 AND vm.trailing_pe < 200) AS avg_trailing_pe,
+          AVG(vm.forward_pe) FILTER (WHERE vm.forward_pe > 0 AND vm.forward_pe < 200) AS avg_forward_pe
+        FROM (
+          SELECT DISTINCT ON (symbol) symbol, trailing_pe, forward_pe
+          FROM value_metrics
+          ORDER BY symbol, date DESC
+        ) vm
+        JOIN company_profile cp ON vm.symbol = cp.ticker
+        WHERE cp.sector IS NOT NULL
+        GROUP BY cp.sector
       )
-      SELECT * FROM ranked
-      ORDER BY current_rank, stock_count DESC
+      SELECT r.*,
+        spe.avg_trailing_pe,
+        spe.avg_forward_pe,
+        sr_1w.current_rank as rank_1w_ago,
+        sr_4w.current_rank as rank_4w_ago,
+        sr_12w.current_rank as rank_12w_ago
+      FROM ranked r
+      LEFT JOIN latest_snapshot ls ON r.sector_name = ls.sector_name
+      LEFT JOIN sector_ranking sr_1w ON sr_1w.sector_name = r.sector_name
+        AND sr_1w.date_recorded = ls.date_recorded - INTERVAL '7 days'
+      LEFT JOIN sector_ranking sr_4w ON sr_4w.sector_name = r.sector_name
+        AND sr_4w.date_recorded = ls.date_recorded - INTERVAL '28 days'
+      LEFT JOIN sector_ranking sr_12w ON sr_12w.sector_name = r.sector_name
+        AND sr_12w.date_recorded = ls.date_recorded - INTERVAL '84 days'
+      LEFT JOIN sector_pe spe ON spe.sector = r.sector_name
+      ORDER BY r.current_rank, r.stock_count DESC
       LIMIT $1 OFFSET $2
     `, [limitNum, offset]);
 
@@ -81,36 +95,38 @@ router.get("/", async (req, res) => {
     const total = parseInt(countResult?.rows[0]?.count || 0);
 
     const sf = v => (v !== null && v !== undefined) ? parseFloat(v) : null;
+    const si = v => (v !== null && v !== undefined) ? parseInt(v) : null;
 
     const sectors = (result?.rows || []).map((row, idx) => {
       const composite = sf(row.composite_score);
-      const momentum = sf(row.momentum_score);
-      const perf5d = sf(row.perf_5d);
-
-      // Derive momentum label from scores
-      const momentumLabel = composite >= 60 ? 'Strong' : composite >= 45 ? 'Moderate' : 'Weak';
-      // Derive trend from 5d and 20d performance
       const perf20d = sf(row.perf_20d);
-      const trendLabel = perf20d > 2 ? 'Uptrend' : perf20d < -2 ? 'Downtrend' : 'Sideways';
+      const momentumLabel = composite !== null && composite >= 60 ? 'Strong' : composite !== null && composite >= 45 ? 'Moderate' : 'Weak';
+      const trendLabel = perf20d !== null ? (perf20d > 2 ? 'Uptrend' : perf20d < -2 ? 'Downtrend' : 'Sideways') : 'Sideways';
 
       return {
         sector_name: row.sector_name,
         current_rank: parseInt(row.current_rank) || idx + 1 + offset,
         overall_rank: parseInt(row.current_rank) || idx + 1 + offset,
+        rank_1w_ago: si(row.rank_1w_ago),
+        rank_4w_ago: si(row.rank_4w_ago),
+        rank_12w_ago: si(row.rank_12w_ago),
         stock_count: parseInt(row.stock_count || 0),
-        avg_price: sf(row.avg_price),
         composite_score: composite,
-        momentum_score: momentum,
+        momentum_score: sf(row.momentum_score),
         value_score: sf(row.value_score),
         quality_score: sf(row.quality_score),
         growth_score: sf(row.growth_score),
         stability_score: sf(row.stability_score),
-        // Performance metrics
         performance_1d: sf(row.perf_1d),
-        performance_5d: perf5d,
+        performance_5d: sf(row.perf_5d),
         performance_20d: perf20d,
         current_momentum: momentumLabel,
         current_trend: trendLabel,
+        pe: {
+          trailing: sf(row.avg_trailing_pe),
+          forward: sf(row.avg_forward_pe),
+          percentile: null,
+        },
       };
     });
 

@@ -168,11 +168,7 @@ function ETFSignals() {
           // Smart loading strategy:
           // - If filtering by symbol: load limited historical data for that symbol
           // - Otherwise: load only recent signals for performance
-          if (symbolFilter) {
-            params.append("limit", 1000); // Reduced from 100000 to prevent OOM
-          } else {
-            params.append("limit", 500); // Reduced from 5000 to prevent OOM
-          }
+          params.append("limit", 50000);
 
           if (symbolFilter) {
             params.append("symbol", symbolFilter);
@@ -251,9 +247,9 @@ function ETFSignals() {
       }
     },
     refetchOnWindowFocus: false,
-    staleTime: 0, // Always fresh - no stale cache
-    cacheTime: 0, // Disable caching - fetch fresh data every time
-    refetchInterval: 30000, // Refetch every 30 seconds for real-time updates
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 10,
+    refetchInterval: 1000 * 60 * 5, // Refetch every 5 minutes
     onError: (err) =>
       logger.queryError("tradingSignalsAllTimeframes", err, { signalType }),
   });
@@ -399,7 +395,7 @@ function ETFSignals() {
       if (!selectedSymbol) return null;
       try {
         const response = await fetch(
-          `${API_BASE}/api/signals/etf?symbol=${selectedSymbol}&timeframe=daily&limit=50`
+          `${API_BASE}/api/signals/etf?symbol=${selectedSymbol}&timeframe=daily&limit=5000`
         );
         if (!response.ok) throw new Error("Failed to fetch historical data");
         return await response.json();

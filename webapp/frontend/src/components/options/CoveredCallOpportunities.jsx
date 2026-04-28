@@ -59,10 +59,10 @@ function CoveredCallOpportunities() {
       const response = await api.get(endpoint);
       return response.data;
     },
-    staleTime: 0, // Always fresh - NO caching
-    gcTime: 0, // Disable garbage collection cache
-    refetchOnWindowFocus: true, // Refetch when window regains focus
-    refetchInterval: 30000, // Refetch every 30 seconds for fresh data
+    staleTime: 30000,
+    gcTime: 1000 * 60 * 10,
+    refetchOnWindowFocus: false,
+    refetchInterval: 60000,
   });
 
   const items = data?.items || [];

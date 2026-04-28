@@ -14,23 +14,29 @@ const router = express.Router();
 router.get("/calendar", async (req, res) => {
   try {
     const { period = "past", limit = 50 } = req.query;
-    const limitNum = Math.min(parseInt(limit), 500);
+    const limitNum = Math.min(parseInt(limit), 5000);
 
-    // Use earnings_history since earnings_calendar table is empty
-    let sql = `SELECT symbol, quarter, fiscal_quarter, fiscal_year,
-              eps_actual, eps_estimate, eps_surprise_pct, created_at
-              FROM earnings_history
-              WHERE quarter IS NOT NULL`;
+    let result;
 
-    if (period === "past") {
-      sql += ` ORDER BY quarter DESC LIMIT $1`;
-    } else if (period === "upcoming") {
-      sql += ` AND quarter > CURRENT_DATE ORDER BY quarter ASC LIMIT $1`;
+    if (period === "upcoming") {
+      result = await query(`
+        SELECT symbol, quarter, fiscal_quarter, fiscal_year,
+               eps_actual, eps_estimate, eps_surprise_pct, created_at
+        FROM earnings_history
+        WHERE quarter IS NOT NULL
+          AND quarter > CURRENT_DATE
+        ORDER BY quarter ASC LIMIT $1
+      `, [limitNum]);
     } else {
-      sql += ` ORDER BY quarter DESC LIMIT $1`;
+      // Use earnings_history for past earnings
+      result = await query(`
+        SELECT symbol, quarter, fiscal_quarter, fiscal_year,
+               eps_actual, eps_estimate, eps_surprise_pct, created_at
+        FROM earnings_history
+        WHERE quarter IS NOT NULL
+        ORDER BY quarter DESC LIMIT $1
+      `, [limitNum]);
     }
-
-    const result = await query(sql, [limitNum]);
 
     return sendPaginated(res, result.rows || [], {
       limit: limitNum,

@@ -131,19 +131,16 @@ configureAmplify();
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 0, // Always fresh - NO caching
-      gcTime: 0, // Disable garbage collection cache
-      refetchOnWindowFocus: true, // Refetch when window regains focus
+      staleTime: 30000, // 30 seconds default
+      gcTime: 1000 * 60 * 10, // 10 minutes
+      refetchOnWindowFocus: false,
       retry: (failureCount, error) => {
         if (error.status === 404) return false;
-        return failureCount < 3;
+        return failureCount < 2;
       },
     },
   },
 });
-
-// Clear cache immediately - no stale data before render
-queryClient.clear();
 
 // Theme and QueryClient created, looking for root element
 

@@ -2306,7 +2306,7 @@ async function getMarketDataHandler(req, res) {
                  FROM stock_scores WHERE composite_score IS NOT NULL`),
           query(`SELECT symbol, composite_score, momentum_score, value_score
                  FROM stock_scores WHERE composite_score IS NOT NULL
-                 ORDER BY composite_score DESC LIMIT 10`),
+                 ORDER BY composite_score DESC LIMIT 50`),
           query(`SELECT * FROM price_daily WHERE symbol = 'SPY' ORDER BY date DESC LIMIT 2`)
         ]);
         return {
@@ -3062,7 +3062,7 @@ router.get("/technicals-fresh", async (req, res) => {
 router.get("/top-movers", async (req, res) => {
   try {
     const { limit = 20 } = req.query;
-    const limitNum = Math.min(parseInt(limit) || 20, 100);
+    const limitNum = Math.min(parseInt(limit) || 20, 500);
 
     const result = await query(`
       WITH latest_date AS (

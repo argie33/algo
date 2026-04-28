@@ -8,7 +8,7 @@ const router = express.Router();
 router.get("/data", async (req, res) => {
   try {
     const { limit = "100", page = "1", symbol } = req.query;
-    const limitNum = Math.min(parseInt(limit), 500);
+    const limitNum = Math.min(parseInt(limit), 5000);
     const pageNum = Math.max(parseInt(page), 1);
     const offset = (pageNum - 1) * limitNum;
 
@@ -138,7 +138,7 @@ router.get("/summary", async (req, res) => {
 router.get("/analyst", async (req, res) => {
   try {
     const { symbol, limit = "50", page = "1" } = req.query;
-    const limitNum = Math.min(parseInt(limit), 500);
+    const limitNum = Math.min(parseInt(limit), 5000);
     const pageNum = Math.max(parseInt(page), 1);
     const offset = (pageNum - 1) * limitNum;
 
@@ -314,7 +314,7 @@ router.get("/divergence", async (req, res) => {
       params.push(symbol.toUpperCase());
     }
 
-    queryStr += ` ORDER BY date DESC LIMIT 100`;
+    queryStr += ` ORDER BY date DESC LIMIT 10000`;
 
     const result = await query(queryStr, params);
 

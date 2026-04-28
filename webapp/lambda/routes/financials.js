@@ -17,77 +17,45 @@ router.get("/:symbol/balance-sheet", async (req, res) => {
   const upperSymbol = symbol.toUpperCase();
 
   try {
-    // Try quarterly_balance_sheet first (populated by loader); fall back to value_metrics + quality_metrics
-    let bsResult = { rows: [] };
-    try {
-      bsResult = await query(`
+    console.log(`📊 [FINANCIALS] Fetching balance sheet for ${upperSymbol} (${period})`);
+
+    const validTables = {
+      'annual': 'annual_balance_sheet',
+      'quarterly': 'quarterly_balance_sheet'
+    };
+
+    let tableName = validTables[period] || validTables['annual'];
+    let result = await query(`
+      SELECT *
+      FROM ${tableName}
+      WHERE symbol = $1
+      ORDER BY fiscal_year DESC
+      LIMIT 20
+    `, [upperSymbol]);
+
+    // Fallback to quarterly if annual is empty
+    if ((!result.rows || result.rows.length === 0) && period === 'annual') {
+      console.log(`No annual data found, falling back to quarterly for ${upperSymbol}`);
+      tableName = 'quarterly_balance_sheet';
+      period = 'quarterly';
+      result = await query(`
         SELECT *
-        FROM quarterly_balance_sheet
+        FROM ${tableName}
         WHERE symbol = $1
         ORDER BY fiscal_year DESC, fiscal_quarter DESC
         LIMIT 20
       `, [upperSymbol]);
-    } catch (e) {
-      // Table doesn't exist yet — use fallback metrics
     }
 
-    let transformedData = (bsResult.rows || []).map(row => {
-      const data = { symbol: row.symbol, fiscal_year: row.fiscal_year, fiscal_quarter: row.fiscal_quarter };
+    const transformedData = (result.rows || []).map(row => {
+      const data = { symbol: row.symbol, fiscal_year: row.fiscal_year };
       Object.entries(row).forEach(([key, value]) => {
-        if (!['id', 'created_at', 'updated_at', 'fetched_at'].includes(key)) {
+        if (!['symbol', 'fiscal_year', 'fiscal_quarter'].includes(key)) {
           data[key] = value;
         }
       });
       return data;
     });
-
-    // Fallback: if no balance sheet data, use value_metrics + quality_metrics
-    if (transformedData.length === 0) {
-      const [vmResult, qmResult] = await Promise.all([
-        query(`
-          SELECT DISTINCT ON (symbol)
-            symbol, trailing_pe, forward_pe, price_to_book, price_to_sales_ttm,
-            peg_ratio, ev_to_revenue, ev_to_ebitda, dividend_yield, payout_ratio, date
-          FROM value_metrics WHERE symbol = $1 ORDER BY symbol, date DESC
-        `, [upperSymbol]),
-        query(`
-          SELECT DISTINCT ON (symbol)
-            symbol, return_on_equity_pct, return_on_assets_pct, return_on_invested_capital_pct,
-            gross_margin_pct, operating_margin_pct, profit_margin_pct,
-            debt_to_equity, current_ratio, quick_ratio, earnings_beat_rate, date
-          FROM quality_metrics WHERE symbol = $1 ORDER BY symbol, date DESC
-        `, [upperSymbol])
-      ]);
-
-      const vm = vmResult.rows[0] || {};
-      const qm = qmResult.rows[0] || {};
-      const year = vm.date ? new Date(vm.date).getFullYear() : new Date().getFullYear();
-
-      transformedData = [{
-        symbol: upperSymbol,
-        fiscal_year: year,
-        fiscal_quarter: null,
-        trailing_pe: vm.trailing_pe,
-        forward_pe: vm.forward_pe,
-        price_to_book: vm.price_to_book,
-        price_to_sales_ttm: vm.price_to_sales_ttm,
-        peg_ratio: vm.peg_ratio,
-        ev_to_revenue: vm.ev_to_revenue,
-        ev_to_ebitda: vm.ev_to_ebitda,
-        dividend_yield: vm.dividend_yield,
-        payout_ratio: vm.payout_ratio,
-        return_on_equity_pct: qm.return_on_equity_pct,
-        return_on_assets_pct: qm.return_on_assets_pct,
-        return_on_invested_capital_pct: qm.return_on_invested_capital_pct,
-        gross_margin_pct: qm.gross_margin_pct,
-        operating_margin_pct: qm.operating_margin_pct,
-        profit_margin_pct: qm.profit_margin_pct,
-        debt_to_equity: qm.debt_to_equity,
-        current_ratio: qm.current_ratio,
-        quick_ratio: qm.quick_ratio,
-        earnings_beat_rate: qm.earnings_beat_rate,
-      }].filter(row => Object.values(row).some(v => v !== null && v !== undefined && !['symbol','fiscal_year','fiscal_quarter'].includes(v)));
-    }
 
     return sendSuccess(res, {
       symbol: upperSymbol,
@@ -106,45 +74,35 @@ router.get("/:symbol/income-statement", async (req, res) => {
   const upperSymbol = symbol.toUpperCase();
 
   try {
-    // Try quarterly_income_statement first (populated by loader)
-    let quarterlyRows = [];
-    try {
-      const quarterlyResult = await query(`
-        SELECT symbol, fiscal_year, fiscal_quarter, date,
-               revenue, cost_of_revenue, gross_profit, operating_expenses,
-               operating_income, net_income
-        FROM quarterly_income_statement
-        WHERE symbol = $1
-        ORDER BY fiscal_year DESC, fiscal_quarter DESC
-        LIMIT 20
-      `, [upperSymbol]);
-      quarterlyRows = quarterlyResult.rows || [];
-    } catch (e) {
-      // Table doesn't exist yet — fall through to TTM
-    }
-
-    if (quarterlyRows.length > 0) {
-      return sendSuccess(res, { symbol: upperSymbol, period, financialData: quarterlyRows });
-    }
-
-    // Fallback: pivot ttm_income_statement from long to wide format
+    console.log(`📊 [FINANCIALS] Fetching income statement for ${upperSymbol} (${period})`);
+    const validTables = {
+      'annual': 'annual_income_statement',
+      'quarterly': 'quarterly_income_statement'
+    };
+    const tableName = validTables[period] || validTables['annual'];
     const result = await query(`
-      SELECT date, item_name, value
-      FROM ttm_income_statement
+      SELECT *
+      FROM ${tableName}
       WHERE symbol = $1
-      ORDER BY date DESC
+      ORDER BY fiscal_year DESC
+      LIMIT 20
     `, [upperSymbol]);
 
-    const byDate = {};
-    for (const row of (result.rows || [])) {
-      const dateKey = row.date ? new Date(row.date).toISOString().slice(0, 10) : 'TTM';
-      if (!byDate[dateKey]) byDate[dateKey] = { symbol: upperSymbol, fiscal_year: row.date ? new Date(row.date).getFullYear() : null, fiscal_quarter: null, date: dateKey };
-      const colName = row.item_name ? row.item_name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/_+$/, '') : 'unknown';
-      byDate[dateKey][colName] = row.value;
-    }
-    const transformedData = Object.values(byDate).sort((a, b) => (b.fiscal_year || 0) - (a.fiscal_year || 0));
+    const transformedData = (result.rows || []).map(row => {
+      const data = { symbol: row.symbol, fiscal_year: row.fiscal_year };
+      Object.entries(row).forEach(([key, value]) => {
+        if (!['symbol', 'fiscal_year', 'fiscal_quarter'].includes(key)) {
+          data[key] = value;
+        }
+      });
+      return data;
+    });
 
-    return sendSuccess(res, { symbol: upperSymbol, period, financialData: transformedData });
+    return sendSuccess(res, {
+      symbol: upperSymbol,
+      period: period,
+      financialData: transformedData
+    });
   } catch (error) {
     console.error("Income statement error:", error);
     return sendError(res, `Failed to fetch income statement: ${error.message}`, 500);
@@ -157,48 +115,42 @@ router.get("/:symbol/cash-flow", async (req, res) => {
   const upperSymbol = symbol.toUpperCase();
 
   try {
-    // Try quarterly_cash_flow first (populated by loader)
-    let quarterlyRows = [];
-    try {
-      const quarterlyResult = await query(`
-        SELECT symbol, fiscal_year, fiscal_quarter, date,
-               operating_cash_flow, investing_cash_flow, financing_cash_flow,
-               capital_expenditures, free_cash_flow
-        FROM quarterly_cash_flow
-        WHERE symbol = $1
-        ORDER BY fiscal_year DESC, fiscal_quarter DESC
-        LIMIT 20
-      `, [upperSymbol]);
-      quarterlyRows = quarterlyResult.rows || [];
-    } catch (e) {
-      // Table doesn't exist yet — fall through to TTM
-    }
-
-    if (quarterlyRows.length > 0) {
-      return sendSuccess(res, { symbol: upperSymbol, period, financialData: quarterlyRows });
-    }
-
-    // Fallback: pivot ttm_cash_flow from long to wide format
+    console.log(`📊 [FINANCIALS] Fetching cash flow for ${upperSymbol} (${period})`);
+    const validTables = {
+      'annual': 'annual_cash_flow',
+      'quarterly': 'quarterly_cash_flow'
+    };
+    const tableName = validTables[period] || validTables['annual'];
     const result = await query(`
-      SELECT date, item_name, value
-      FROM ttm_cash_flow
+      SELECT *
+      FROM ${tableName}
       WHERE symbol = $1
-      ORDER BY date DESC
+      ORDER BY fiscal_year DESC
+      LIMIT 20
     `, [upperSymbol]);
 
-    const byDate = {};
-    for (const row of (result.rows || [])) {
-      const dateKey = row.date ? new Date(row.date).toISOString().slice(0, 10) : 'TTM';
-      if (!byDate[dateKey]) byDate[dateKey] = { symbol: upperSymbol, fiscal_year: row.date ? new Date(row.date).getFullYear() : null, fiscal_quarter: null, date: dateKey };
-      const colName = row.item_name ? row.item_name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/_+$/, '') : 'unknown';
-      byDate[dateKey][colName] = row.value;
-    }
-    const transformedData = Object.values(byDate).sort((a, b) => (b.fiscal_year || 0) - (a.fiscal_year || 0));
+    const transformedData = (result.rows || []).map(row => {
+      const data = { symbol: row.symbol, fiscal_year: row.fiscal_year };
+      Object.entries(row).forEach(([key, value]) => {
+        if (!['symbol', 'fiscal_year', 'fiscal_quarter'].includes(key)) {
+          data[key] = value;
+        }
+      });
+      return data;
+    });
 
-    return sendSuccess(res, { symbol: upperSymbol, period, financialData: transformedData });
+    return sendSuccess(res, {
+      symbol: upperSymbol,
+      period: period,
+      financialData: transformedData
+    });
   } catch (error) {
     console.error("Cash flow error:", error);
-    return sendSuccess(res, { symbol: upperSymbol, period, financialData: [] });
+    return sendSuccess(res, {
+      symbol: upperSymbol,
+      period: period,
+      financialData: []
+    });
   }
 });
 
@@ -207,6 +159,7 @@ router.get("/:symbol/key-metrics", async (req, res) => {
   const upperSymbol = symbol.toUpperCase();
 
   try {
+    console.log(`📊 [FINANCIALS] Fetching key metrics for ${upperSymbol}`);
     const [mainResult, vmResult, qmResult] = await Promise.all([
       query(`
         SELECT cp.ticker, cp.short_name, cp.long_name, cp.sector, cp.industry,
@@ -233,8 +186,7 @@ router.get("/:symbol/key-metrics", async (req, res) => {
     const vm = vmResult.rows[0] || {};
     const qm = qmResult.rows[0] || {};
 
-    // Return flat data object for FinancialData.jsx compatibility
-    const flatData = {
+    return sendSuccess(res, {
       symbol: upperSymbol,
       name: cp.short_name || null,
       sector: cp.sector || null,
@@ -260,9 +212,7 @@ router.get("/:symbol/key-metrics", async (req, res) => {
       gross_margin: qm.gross_margin_pct || null,
       operating_margin: qm.operating_margin_pct || null,
       profit_margin: qm.profit_margin_pct || null,
-    };
-
-    return sendSuccess(res, flatData);
+    });
   } catch (error) {
     console.error("Key metrics error:", error);
     return sendSuccess(res, { symbol: upperSymbol });

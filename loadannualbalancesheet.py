@@ -59,10 +59,6 @@ def safe_convert_to_float(value) -> Optional[float]:
 def create_tables(cur):
     """Create required tables if they don't exist - Dynamic schema to capture all yfinance fields"""
     try:
-        # Drop existing table to allow full schema update
-        cur.execute("DROP TABLE IF EXISTS annual_balance_sheet CASCADE")
-        logging.info("Dropped existing annual_balance_sheet to rebuild with full schema")
-
         # Create table with expanded columns matching quarterly_balance_sheet comprehensiveness
         create_stmt = """
         CREATE TABLE IF NOT EXISTS annual_balance_sheet (
@@ -307,7 +303,13 @@ def main():
         cur = conn.cursor()
         create_tables(cur)
 
-        cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
+        cur.execute("""
+            SELECT DISTINCT ss.symbol FROM stock_symbols ss
+            WHERE NOT EXISTS (
+                SELECT 1 FROM annual_balance_sheet t WHERE t.symbol = ss.symbol
+            )
+            ORDER BY ss.symbol
+        """)
         symbols = [row[0] for row in cur.fetchall()]
 
         logging.info(f"Loading balance sheets for {len(symbols)} stocks...")

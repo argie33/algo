@@ -129,17 +129,17 @@ async function getFactorMetricsInBatch(symbols) {
         // positioning_metrics doesn't have a date column, so handle differently
         // For value_metrics, prioritize records with non-null values over purely recent records
         if (table === 'positioning_metrics') {
-          // Join with key_metrics to get short_percent_of_float since it doesn't exist in positioning_metrics table
-          // key_metrics uses 'ticker' column while positioning_metrics uses 'symbol'
           metricsQuery = `
-            SELECT
-              pm.symbol, pm.institutional_ownership_pct, pm.top_10_institutions_pct,
+            SELECT DISTINCT ON (pm.symbol)
+              pm.symbol, pm.institutional_ownership_pct, NULL as top_10_institutions_pct,
               pm.institutional_holders_count, pm.insider_ownership_pct, pm.short_ratio,
-              pm.short_interest_pct, pm.ad_rating,
-              km.short_percent_of_float
+              pm.short_interest_pct, pm.short_percent_of_float, pm.ad_rating
             FROM ${table} pm
-            LEFT JOIN key_metrics km ON pm.symbol = km.ticker
             WHERE pm.symbol IN (${placeholders})
+              AND (pm.institutional_ownership_pct IS NOT NULL OR pm.insider_ownership_pct IS NOT NULL
+                   OR pm.short_percent_of_float IS NOT NULL OR pm.short_ratio IS NOT NULL
+                   OR pm.ad_rating IS NOT NULL)
+            ORDER BY pm.symbol, pm.date DESC
           `;
         } else if (table === 'value_metrics') {
           // For value_metrics, get latest available data per symbol using DISTINCT ON
@@ -150,7 +150,8 @@ async function getFactorMetricsInBatch(symbols) {
             FROM ${table}
             WHERE symbol IN (${placeholders})
               AND (trailing_pe IS NOT NULL OR forward_pe IS NOT NULL OR price_to_book IS NOT NULL
-                   OR price_to_sales_ttm IS NOT NULL OR ev_to_revenue IS NOT NULL OR ev_to_ebitda IS NOT NULL)
+                   OR price_to_sales_ttm IS NOT NULL OR ev_to_revenue IS NOT NULL OR ev_to_ebitda IS NOT NULL
+                   OR peg_ratio IS NOT NULL OR dividend_yield IS NOT NULL)
             ORDER BY symbol, date DESC
           `;
         } else if (table === 'quality_metrics') {
@@ -159,27 +160,36 @@ async function getFactorMetricsInBatch(symbols) {
             SELECT DISTINCT ON (symbol)
               symbol, return_on_equity_pct, return_on_assets_pct,
               return_on_invested_capital_pct, gross_margin_pct, operating_margin_pct,
-              profit_margin_pct, debt_to_equity, current_ratio, quick_ratio,
+              profit_margin_pct, fcf_to_net_income, operating_cf_to_net_income,
+              debt_to_equity, current_ratio, quick_ratio,
+              earnings_surprise_avg, eps_growth_stability,
               earnings_beat_rate, estimate_revision_direction, consecutive_positive_quarters,
-              surprise_consistency, earnings_growth_4q_avg, date
+              surprise_consistency, earnings_growth_4q_avg, payout_ratio, date
             FROM ${table}
             WHERE symbol IN (${placeholders})
               AND (return_on_equity_pct IS NOT NULL OR return_on_assets_pct IS NOT NULL
                    OR debt_to_equity IS NOT NULL OR current_ratio IS NOT NULL
                    OR operating_margin_pct IS NOT NULL
-                   OR earnings_beat_rate IS NOT NULL OR estimate_revision_direction IS NOT NULL)
+                   OR earnings_beat_rate IS NOT NULL OR estimate_revision_direction IS NOT NULL
+                   OR profit_margin_pct IS NOT NULL)
             ORDER BY symbol, date DESC
           `;
         } else if (table === 'growth_metrics') {
-          // For growth_metrics, get latest available data per symbol
+          // For growth_metrics, get all columns from latest available row per symbol
           metricsQuery = `
             SELECT DISTINCT ON (symbol)
               symbol, revenue_growth_3y_cagr, eps_growth_3y_cagr,
-              fcf_growth_yoy, ocf_growth_yoy, net_income_growth_yoy, revenue_growth_yoy, date
+              operating_income_growth_yoy, roe_trend, sustainable_growth_rate,
+              fcf_growth_yoy, ocf_growth_yoy, net_income_growth_yoy, revenue_growth_yoy,
+              gross_margin_trend, operating_margin_trend, net_margin_trend,
+              quarterly_growth_momentum, asset_growth_yoy, date
             FROM ${table}
             WHERE symbol IN (${placeholders})
               AND (revenue_growth_3y_cagr IS NOT NULL OR eps_growth_3y_cagr IS NOT NULL
-                   OR fcf_growth_yoy IS NOT NULL OR net_income_growth_yoy IS NOT NULL)
+                   OR fcf_growth_yoy IS NOT NULL OR net_income_growth_yoy IS NOT NULL
+                   OR operating_income_growth_yoy IS NOT NULL OR asset_growth_yoy IS NOT NULL
+                   OR roe_trend IS NOT NULL OR quarterly_growth_momentum IS NOT NULL
+                   OR revenue_growth_yoy IS NOT NULL OR net_margin_trend IS NOT NULL)
             ORDER BY symbol, date DESC
           `;
         } else if (table === 'stability_metrics') {
@@ -467,12 +477,12 @@ async function queryScores(options = {}) {
     sortBy = 'composite_score',
     sortOrder = 'DESC',
     symbols = null,
-    singleSymbol = null
+    singleSymbol = null,
+    sp500Only = false
   } = options;
 
   // Validate and sanitize parameters
-  // Cap limit to prevent timeout on large batch fetches - batch fetching 6+ metric tables takes time
-  const MAX_LIMIT = 250;
+  const MAX_LIMIT = 10000;
   const validatedLimit = Math.max(1, Math.min(parseInt(limit, 10) || 50, MAX_LIMIT));
   const validatedOffset = Math.max(0, safeInt(offset) || 0);
   const validatedSort = ALLOWED_SORT_COLUMNS.includes(sortBy) ? sortBy : 'composite_score';
@@ -482,6 +492,11 @@ async function queryScores(options = {}) {
   let whereConditions = [];
   let queryParams = [];
   let paramIndex = 1;
+
+  // Add SP500 filter
+  if (sp500Only) {
+    whereConditions.push(`st.is_sp500 = true`);
+  }
 
   // Add search filter
   if (search) {
@@ -509,8 +524,8 @@ async function queryScores(options = {}) {
   // Build SELECT columns
   const selectCols = SCORE_COLUMNS.join(', ');
 
-  // Count query for pagination
-  const countQuery = `SELECT COUNT(*) as total FROM stock_scores ss ${whereClause}`;
+  // Count query for pagination — always JOIN stock_symbols for SP500 filter
+  const countQuery = `SELECT COUNT(*) as total FROM stock_scores ss LEFT JOIN stock_symbols st ON ss.symbol = st.symbol ${whereClause}`;
   const countResult = await query(countQuery, queryParams);
   const totalCount = safeInt(countResult.rows[0]?.total) || 0;
 
@@ -530,33 +545,27 @@ async function queryScores(options = {}) {
 
   // BATCH fetch factor metrics for ALL stocks at once (not per-stock)
   const symbolList = (result.rows || []).map(row => row.symbol.toUpperCase());
-  const metricsMap = await getFactorMetricsInBatch(symbolList);
-  const insiderMap = await getInsiderDataInBatch(symbolList);
-  const rsiMacdMap = await getRSIAndMACDDataInBatch(symbolList);
 
-  // Log batch fetch warnings (partial failures are OK, allow data to display)
-  // Per RULES.md: Return real data when available, null when unavailable (not fake defaults)
-  if (metricsMap.errors && metricsMap.errors.length > 0) {
-    console.warn(`⚠️  Some factor metrics unavailable (partial):`, metricsMap.errors.map(e => e.table || e.error).join(', '));
-  }
-  if (insiderMap.errors && insiderMap.errors.length > 0) {
-    console.warn(`⚠️  Some insider data unavailable (partial):`, insiderMap.errors.map(e => e.error).join(', '));
-  }
-  if (rsiMacdMap.errors && rsiMacdMap.errors.length > 0) {
-    console.warn(`⚠️  Some RSI/MACD data unavailable (partial):`, rsiMacdMap.errors.map(e => e.error).join(', '));
-  }
+  // Skip expensive factor metrics queries for large bulk requests — they run 6+ queries
+  // with thousands of IN-clause params and time out. Factor inputs are only shown in the
+  // expanded detail view, so they are fetched on-demand via the single-symbol endpoint.
+  const isBulkRequest = validatedLimit > 50 && !singleSymbol;
+  const emptyMap = { data: {}, errors: [], partialSuccess: true };
 
-  // Allow partial success - return available data with nulls for unavailable data
-  // Prevent complete failure unless NO data was returned at all
-  const hasAnyData = metricsMap.partialSuccess || (metricsMap.data && Object.keys(metricsMap.data).length > 0) ||
-                     insiderMap.partialSuccess || (insiderMap.data && Object.keys(insiderMap.data).length > 0) ||
-                     rsiMacdMap.partialSuccess || (rsiMacdMap.data && Object.keys(rsiMacdMap.data).length > 0);
+  const metricsMap = isBulkRequest ? emptyMap : await getFactorMetricsInBatch(symbolList);
+  const insiderMap = isBulkRequest ? emptyMap : await getInsiderDataInBatch(symbolList);
+  const rsiMacdMap = isBulkRequest ? emptyMap : await getRSIAndMACDDataInBatch(symbolList);
 
-  if (!hasAnyData && symbolList.length > 0) {
-    console.error('❌ COMPLETE DATA FETCH FAILURE: All batch fetches failed');
-    const error = new Error("Unable to fetch stock data - all critical sources failed");
-    error.statusCode = 503;
-    throw error;
+  if (!isBulkRequest) {
+    if (metricsMap.errors && metricsMap.errors.length > 0) {
+      console.warn(`⚠️  Some factor metrics unavailable (partial):`, metricsMap.errors.map(e => e.table || e.error).join(', '));
+    }
+    if (insiderMap.errors && insiderMap.errors.length > 0) {
+      console.warn(`⚠️  Some insider data unavailable (partial):`, insiderMap.errors.map(e => e.error).join(', '));
+    }
+    if (rsiMacdMap.errors && rsiMacdMap.errors.length > 0) {
+      console.warn(`⚠️  Some RSI/MACD data unavailable (partial):`, rsiMacdMap.errors.map(e => e.error).join(', '));
+    }
   }
 
   // Format results with factor input metrics and insider data
@@ -743,7 +752,9 @@ router.get("/stockscores", async (req, res) => {
       offset: req.query.offset,
       search: req.query.search,
       sortBy: req.query.sortBy,
-      sortOrder: req.query.sortOrder
+      sortOrder: req.query.sortOrder,
+      sp500Only: req.query.sp500Only === 'true' || req.query.sp500Only === '1',
+      singleSymbol: req.query.symbol || null
     });
     const page = Math.floor(result.offset / result.limit) + 1;
     const totalPages = Math.ceil(result.total / result.limit);
@@ -781,7 +792,8 @@ router.get("/all", async (req, res) => {
       offset: req.query.offset,
       search: req.query.search,
       sortBy: req.query.sortBy,
-      sortOrder: req.query.sortOrder
+      sortOrder: req.query.sortOrder,
+      sp500Only: req.query.sp500Only === 'true' || req.query.sp500Only === '1'
     });
     const page = Math.floor(result.offset / result.limit) + 1;
     const totalPages = Math.ceil(result.total / result.limit);

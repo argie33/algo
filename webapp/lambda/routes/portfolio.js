@@ -227,7 +227,7 @@ async function getPortfolioHistory(userId) {
        FROM portfolio_performance
        WHERE user_id = $1
        ORDER BY created_at DESC
-       LIMIT 252`,
+       LIMIT 1260`,
       [userId]
     ).catch(() => ({ rows: [] }));
 
@@ -1203,7 +1203,7 @@ router.get("/metrics", authenticateToken, async (req, res) => {
         const symbols = positionsData.map(p => p.symbol);
         const signalsResult = await query(
           `SELECT symbol, date, signal, strength FROM buy_sell_daily
-           WHERE symbol = ANY($1) ORDER BY date DESC LIMIT 50`,
+           WHERE symbol = ANY($1) ORDER BY date DESC LIMIT 500`,
           [symbols]
         ).catch(() => ({ rows: [] }));
         signalsData = signalsResult.rows || [];

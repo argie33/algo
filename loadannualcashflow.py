@@ -108,9 +108,9 @@ def load_cash_flow_for_symbol(cur, symbol: str, attempt: int = 0) -> int:
 
                 cur.execute("""
                     INSERT INTO annual_cash_flow
-                    (symbol, fiscal_year, date, operating_cash_flow, investing_cash_flow,
+                    (symbol, fiscal_year, operating_cash_flow, investing_cash_flow,
                      financing_cash_flow, capital_expenditures, free_cash_flow, dividends_paid, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
                     ON CONFLICT (symbol, fiscal_year) DO UPDATE SET
                     operating_cash_flow = EXCLUDED.operating_cash_flow,
                     investing_cash_flow = EXCLUDED.investing_cash_flow,
@@ -119,7 +119,7 @@ def load_cash_flow_for_symbol(cur, symbol: str, attempt: int = 0) -> int:
                     free_cash_flow = EXCLUDED.free_cash_flow,
                     dividends_paid = EXCLUDED.dividends_paid,
                     updated_at = NOW()
-                """, (symbol, fiscal_year, fiscal_date.date() if fiscal_date else None,
+                """, (symbol, fiscal_year,
                       operating, investing, financing, capex, free_cf, dividends))
                 rows_inserted += 1
             except Exception as e:
@@ -140,7 +140,13 @@ def main():
         cur = conn.cursor()
         create_tables(cur)
 
-        cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
+        cur.execute("""
+            SELECT DISTINCT ss.symbol FROM stock_symbols ss
+            WHERE NOT EXISTS (
+                SELECT 1 FROM annual_cash_flow t WHERE t.symbol = ss.symbol
+            )
+            ORDER BY ss.symbol
+        """)
         symbols = [row[0] for row in cur.fetchall()]
 
         logging.info(f"Loading cash flows for {len(symbols)} stocks...")

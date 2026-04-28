@@ -1246,9 +1246,8 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     df['maFilterOk'] = df['buyLevel'] > df['maFilter']
 
     # === TIME FILTER (Pine Script: time > Start and time < Finish) ===
-    # Pine Script uses Start = 2019-01-01 and Finish = 2100-01-01 by default
-    # Only allow trades within backtest range
-    start_date = pd.Timestamp('2019-01-01')
+    # Using full history start — indicators warm up on pre-1990 data
+    start_date = pd.Timestamp('1990-01-01')
     end_date = pd.Timestamp('2100-01-01')
     df['timeOk'] = (df['date'] >= start_date) & (df['date'] <= end_date)
 

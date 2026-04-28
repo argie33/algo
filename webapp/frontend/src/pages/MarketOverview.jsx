@@ -371,7 +371,7 @@ function MarketOverview() {
     queryFn: fetchMarketTechnicals,
     refetchInterval: 60000,
     retry: 2,
-    staleTime: 0, // Always fresh
+    staleTime: 30000,
   });
 
   const {
@@ -383,7 +383,7 @@ function MarketOverview() {
     queryFn: () => fetchMarketSentiment("30d"),
     refetchInterval: 60000,
     retry: 2,
-    staleTime: 0, // Always fresh
+    staleTime: 60000,
   });
 
   const {
@@ -393,9 +393,9 @@ function MarketOverview() {
   } = useQuery({
     queryKey: ["market-seasonality"],
     queryFn: fetchMarketSeasonality,
-    refetchInterval: 60000,
+    refetchInterval: 1000 * 60 * 60,
     retry: 2,
-    staleTime: 0, // Always fresh
+    staleTime: 1000 * 60 * 60,
   });
 
   const {
@@ -407,7 +407,7 @@ function MarketOverview() {
     queryFn: getMarketIndices,
     refetchInterval: 60000,
     retry: 2,
-    staleTime: 0, // Always fresh
+    staleTime: 30000,
   });
 
   // Combined loading and error states
@@ -417,21 +417,21 @@ function MarketOverview() {
   const { data: correlationData, isLoading: correlationLoading } = useQuery({
     queryKey: ["market-correlation"],
     queryFn: getMarketCorrelation,
-    staleTime: 0, // Always fresh
+    staleTime: 1000 * 60 * 60,
     refetchInterval: 120000,
   });
 
   const { data: topMoversData, isLoading: topMoversLoading } = useQuery({
     queryKey: ["market-top-movers"],
     queryFn: getMarketTopMovers,
-    staleTime: 0, // Always fresh
+    staleTime: 30000,
     refetchInterval: 60000,
   });
 
   const { data: marketCapData, isLoading: marketCapLoading } = useQuery({
     queryKey: ["market-cap-distribution"],
     queryFn: getMarketCapDistribution,
-    staleTime: 0, // Always fresh
+    staleTime: 1000 * 60 * 60,
     refetchInterval: 120000,
   });
 
@@ -1567,7 +1567,7 @@ const handleTabChange = (event, newValue) => {
             <LinearProgress />
           ) : (
             <Grid container spacing={3}>
-              {seasonality?.data && (
+              {seasonality?.currentPosition && (
                 <>
                   {/* Current Seasonal Position Summary */}
                   <Grid item xs={12}>
@@ -1596,7 +1596,7 @@ const handleTabChange = (event, newValue) => {
                                 color="info.contrastText"
                               >
                                 {
-                                  seasonality?.data?.currentPosition
+                                  seasonality?.currentPosition
                                     ?.seasonalScore
                                 }
                                 /100
@@ -1612,7 +1612,7 @@ const handleTabChange = (event, newValue) => {
                                 color="info.contrastText"
                               >
                                 {
-                                  seasonality?.data?.summary
+                                  seasonality?.summary
                                     ?.overallSeasonalBias
                                 }
                               </Typography>
@@ -1632,7 +1632,7 @@ const handleTabChange = (event, newValue) => {
                                 color="secondary.contrastText"
                               >
                                 {
-                                  seasonality?.data?.currentPosition
+                                  seasonality?.currentPosition
                                     ?.presidentialCycle
                                 }
                               </Typography>
@@ -1658,7 +1658,7 @@ const handleTabChange = (event, newValue) => {
                                 color="warning.contrastText"
                               >
                                 {
-                                  seasonality?.data?.currentPosition
+                                  seasonality?.currentPosition
                                     ?.nextMajorEvent?.name
                                 }
                               </Typography>
@@ -1668,7 +1668,7 @@ const handleTabChange = (event, newValue) => {
                               >
                                 Next Event (
                                 {
-                                  seasonality?.data?.currentPosition
+                                  seasonality?.currentPosition
                                     ?.nextMajorEvent?.daysAway
                                 }{" "}
                                 days)
@@ -1679,11 +1679,11 @@ const handleTabChange = (event, newValue) => {
                         <Box sx={{ mt: 3 }}>
                           <Typography variant="body1" sx={{ mb: 1 }}>
                             <strong>Recommendation:</strong>{" "}
-                            {seasonality?.data?.summary?.recommendation}
+                            {seasonality?.summary?.recommendation}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
                             Active Periods:{" "}
-                            {seasonality?.data?.currentPosition?.activePeriods?.join(
+                            {seasonality?.currentPosition?.activePeriods?.join(
                               ", "
                             )}
                           </Typography>
@@ -1705,7 +1705,7 @@ const handleTabChange = (event, newValue) => {
                         <Box sx={{ height: 350, width: '100%' }}>
                           <ResponsiveContainer width="100%" height="100%">
                             <BarChart
-                              data={seasonality?.data?.monthlySeasonality}
+                              data={seasonality?.monthlySeasonality}
                             >
                               <CartesianGrid strokeDasharray="3 3" />
                               <XAxis
@@ -1754,7 +1754,7 @@ const handleTabChange = (event, newValue) => {
                         <Box sx={{ height: 350, width: '100%' }}>
                           <ResponsiveContainer width="100%" height="100%">
                             <BarChart
-                              data={seasonality?.data?.quarterlySeasonality}
+                              data={seasonality?.quarterlySeasonality}
                             >
                               <CartesianGrid strokeDasharray="3 3" />
                               <XAxis dataKey="name" />
@@ -1796,7 +1796,7 @@ const handleTabChange = (event, newValue) => {
                         <Box sx={{ height: 300, width: '100%' }}>
                           <ResponsiveContainer width="100%" height="100%">
                             <BarChart
-                              data={seasonality?.data?.presidentialCycle?.data || []}
+                              data={seasonality?.presidentialCycle?.data || []}
                             >
                               <CartesianGrid strokeDasharray="3 3" />
                               <XAxis
@@ -1852,7 +1852,7 @@ const handleTabChange = (event, newValue) => {
                         <Box sx={{ height: 400, width: '100%' }}>
                           <ResponsiveContainer width="100%" height="100%">
                             <ComposedChart
-                              data={seasonality?.data?.monthlySeasonality || []}
+                              data={seasonality?.monthlySeasonality || []}
                               margin={{ top: 10, right: 60, left: 20, bottom: 0 }}
                             >
                               <CartesianGrid strokeDasharray="3 3" />
@@ -1925,7 +1925,7 @@ const handleTabChange = (event, newValue) => {
                                 opacity={0.75}
                                 radius={[4, 4, 0, 0]}
                               >
-                                {(seasonality?.data?.monthlySeasonality || []).map((entry, index) => (
+                                {(seasonality?.monthlySeasonality || []).map((entry, index) => (
                                   <Cell
                                     key={`cell-${index}`}
                                     fill={(entry.avgReturn || 0) >= 0 ? "#22c55e" : "#ef4444"}
@@ -1949,7 +1949,7 @@ const handleTabChange = (event, newValue) => {
                         >
                           Day of Week Effects
                         </Typography>
-                        {(seasonality?.data?.dayOfWeekEffects || []).map(
+                        {(seasonality?.dayOfWeekEffects || []).map(
                           (day) => (
                             <Box
                               key={day.day}
@@ -1997,7 +1997,7 @@ const handleTabChange = (event, newValue) => {
                           Seasonal Anomalies & Effects
                         </Typography>
                         <Grid container spacing={2}>
-                          {(seasonality?.data?.seasonalAnomalies || []).map(
+                          {(seasonality?.seasonalAnomalies || []).map(
                             (anomaly, index) => (
                               <Grid item xs={12} sm={6} md={3} key={index}>
                                 <Box
@@ -2068,7 +2068,7 @@ const handleTabChange = (event, newValue) => {
                               </TableRow>
                             </TableHead>
                             <TableBody>
-                              {(seasonality?.data?.holidayEffects || []).map(
+                              {(seasonality?.holidayEffects || []).map(
                                 (holiday, index) => {
                                   const effectValue = holiday.effect ? parseFloat(holiday.effect.replace("%", "")) : 0;
                                   return (
@@ -2099,7 +2099,7 @@ const handleTabChange = (event, newValue) => {
                   <Grid item xs={12}>
                     <Card>
                       <CardContent>
-                        <SectorSeasonalityTable data={seasonality?.data?.sectorSeasonality || []} />
+                        <SectorSeasonalityTable data={seasonality?.sectorSeasonality || []} />
                       </CardContent>
                     </Card>
                   </Grid>

@@ -7,7 +7,7 @@ const router = express.Router();
 // Helper function to fetch stocks list
 async function fetchStocksList(req, res) {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 100, 1000);
+    const limit = Math.min(parseInt(req.query.limit) || 100, 10000);
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const offset = (page - 1) * limit;
 
@@ -39,7 +39,7 @@ router.get("/", fetchStocksList);
 router.get("/search", async (req, res) => {
   try {
     const q = req.query.q || req.query.symbol || '';
-    const limit = Math.min(parseInt(req.query.limit) || 100, 1000);
+    const limit = Math.min(parseInt(req.query.limit) || 100, 10000);
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const offset = (page - 1) * limit;
 
@@ -75,7 +75,7 @@ router.get("/search", async (req, res) => {
 // GET /api/stocks/gainers - Top gaining stocks
 router.get("/gainers", async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const limit = Math.min(parseInt(req.query.limit) || 20, 10000);
     const result = await query(
       `SELECT symbol, security_name as name, market_category as category, exchange
        FROM stock_symbols
@@ -95,46 +95,105 @@ router.get("/gainers", async (req, res) => {
   }
 });
 
-// GET /api/stocks/deep-value - Get deep value stock picks (high value, low composite)
+// GET /api/stocks/deep-value - Deep value: cheap valuations + strong fundamentals
+// Formula: PE percentile (25%) + PB percentile (15%) + ROE percentile (35%) + Op.Margin percentile (25%)
+// Uses raw value_metrics + quality_metrics — independent of stock_scores
 router.get("/deep-value", async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 500, 5000);
+    const limit = Math.min(parseInt(req.query.limit) || 100, 5000);
     const offset = parseInt(req.query.offset) || 0;
 
-    // BEST STOCK PICKS: Quality + Momentum Strategy
-    // Logic: Find quality companies (above 60th percentile) with positive momentum (55+)
-    // Avoids cheap stocks that are cheap for bad reasons (low quality)
-    // Avoids stocks in free fall (low momentum)
     const result = await query(
-      `SELECT
-        ss.symbol,
-        ss.security_name,
-        ss.market_category,
-        ss.exchange,
-        ROUND(CAST(sc.quality_score AS NUMERIC), 1) as quality_score,
-        ROUND(CAST(sc.momentum_score AS NUMERIC), 1) as momentum_score,
-        ROUND(CAST(sc.stability_score AS NUMERIC), 1) as stability_score,
-        ROUND(CAST(sc.growth_score AS NUMERIC), 1) as growth_score,
-        ROUND(CAST((COALESCE(sc.quality_score, 50) + COALESCE(sc.momentum_score, 50) + COALESCE(sc.stability_score, 50)) / 3.0 AS NUMERIC), 1) as strength_score
-      FROM stock_scores sc
-      JOIN stock_symbols ss ON ss.symbol = sc.symbol
-      WHERE sc.quality_score >= 49.8
-        AND sc.momentum_score >= 55
-        AND sc.stability_score IS NOT NULL
-      ORDER BY
-        (COALESCE(sc.quality_score, 50) + COALESCE(sc.momentum_score, 50) + COALESCE(sc.stability_score, 50)) / 3.0 DESC,
-        sc.quality_score DESC,
-        sc.momentum_score DESC
+      `WITH latest_value AS (
+        SELECT DISTINCT ON (symbol)
+          symbol, trailing_pe, price_to_book, price_to_sales_ttm,
+          ev_to_ebitda, peg_ratio, dividend_yield
+        FROM value_metrics
+        WHERE trailing_pe > 0 AND trailing_pe < 200
+          AND price_to_book > 0 AND price_to_book < 50
+        ORDER BY symbol, date DESC
+      ),
+      latest_quality AS (
+        SELECT DISTINCT ON (symbol)
+          symbol, return_on_equity_pct, return_on_assets_pct,
+          gross_margin_pct, operating_margin_pct, profit_margin_pct,
+          debt_to_equity, current_ratio
+        FROM quality_metrics
+        WHERE return_on_equity_pct > 0 AND operating_margin_pct > 0
+        ORDER BY symbol, date DESC
+      ),
+      latest_price AS (
+        SELECT DISTINCT ON (symbol) symbol, close AS current_price
+        FROM price_daily
+        ORDER BY symbol, date DESC
+      ),
+      combined AS (
+        SELECT
+          v.symbol,
+          v.trailing_pe, v.price_to_book, v.price_to_sales_ttm,
+          v.ev_to_ebitda, v.peg_ratio, v.dividend_yield,
+          q.return_on_equity_pct AS roe,
+          q.return_on_assets_pct AS roa,
+          q.gross_margin_pct AS gross_margin,
+          q.operating_margin_pct AS op_margin,
+          q.profit_margin_pct AS net_margin,
+          q.debt_to_equity,
+          q.current_ratio
+        FROM latest_value v
+        JOIN latest_quality q ON v.symbol = q.symbol
+      ),
+      scored AS (
+        SELECT *,
+          PERCENT_RANK() OVER (ORDER BY trailing_pe DESC) * 100 AS pe_pct,
+          PERCENT_RANK() OVER (ORDER BY price_to_book DESC) * 100 AS pb_pct,
+          PERCENT_RANK() OVER (ORDER BY roe ASC) * 100 AS roe_pct,
+          PERCENT_RANK() OVER (ORDER BY op_margin ASC) * 100 AS margin_pct
+        FROM combined
+      )
+      SELECT
+        s.symbol,
+        cp.long_name AS company_name,
+        cp.sector,
+        cp.industry,
+        ROUND(CAST(lp.current_price AS NUMERIC), 2) AS current_price,
+        ROUND(CAST(s.trailing_pe AS NUMERIC), 2) AS trailing_pe,
+        ROUND(CAST(s.price_to_book AS NUMERIC), 2) AS price_to_book,
+        ROUND(CAST(s.price_to_sales_ttm AS NUMERIC), 2) AS price_to_sales,
+        ROUND(CAST(s.ev_to_ebitda AS NUMERIC), 2) AS ev_to_ebitda,
+        ROUND(CAST(s.peg_ratio AS NUMERIC), 2) AS peg_ratio,
+        ROUND(CAST(s.dividend_yield AS NUMERIC), 2) AS dividend_yield,
+        ROUND(CAST(s.roe AS NUMERIC), 1) AS roe_pct,
+        ROUND(CAST(s.roa AS NUMERIC), 1) AS roa_pct,
+        ROUND(CAST(s.gross_margin AS NUMERIC), 1) AS gross_margin_pct,
+        ROUND(CAST(s.op_margin AS NUMERIC), 1) AS op_margin_pct,
+        ROUND(CAST(s.net_margin AS NUMERIC), 1) AS net_margin_pct,
+        ROUND(CAST(s.debt_to_equity AS NUMERIC), 2) AS debt_to_equity,
+        ROUND(CAST(s.current_ratio AS NUMERIC), 2) AS current_ratio,
+        ROUND(CAST(
+          (s.pe_pct * 0.25 + s.pb_pct * 0.15 + s.roe_pct * 0.35 + s.margin_pct * 0.25)
+          AS NUMERIC), 1) AS deep_value_score
+      FROM scored s
+      LEFT JOIN company_profile cp ON s.symbol = cp.ticker
+      LEFT JOIN latest_price lp ON s.symbol = lp.symbol
+      ORDER BY deep_value_score DESC
       LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
 
     const countResult = await query(
-      "SELECT COUNT(*) as total FROM stock_scores WHERE quality_score >= 49.8 AND momentum_score >= 55 AND stability_score IS NOT NULL"
+      `SELECT COUNT(*) as total
+       FROM (
+         SELECT DISTINCT ON (v.symbol) v.symbol
+         FROM value_metrics v
+         JOIN quality_metrics q ON v.symbol = q.symbol
+         WHERE v.trailing_pe > 0 AND v.trailing_pe < 200
+           AND v.price_to_book > 0 AND v.price_to_book < 50
+           AND q.return_on_equity_pct > 0 AND q.operating_margin_pct > 0
+         ORDER BY v.symbol, v.date DESC
+       ) subq`
     );
     const total = parseInt(countResult.rows[0].total);
 
-    // Use standard pagination format like all other list endpoints
     return sendPaginated(res, result.rows, {
       limit,
       offset,
@@ -145,24 +204,8 @@ router.get("/deep-value", async (req, res) => {
       hasPrev: offset > 0
     });
   } catch (error) {
-    console.error("❌ Error fetching deep value stocks:", {
-      message: error.message,
-      code: error.code,
-      tables: ['stock_scores', 'stock_symbols'],
-      possibleCauses: [
-        'Tables not yet created',
-        'No data in stock_scores table',
-        'Missing stock symbol references'
-      ]
-    });
-    const userMessage = error.code === '42P01'
-      ? 'Stock scores data not yet available - please check database setup'
-      : `Failed to fetch deep value stocks: ${error.message}`;
-    return sendError(res, userMessage, 500, {
-      code: error.code,
-      tables: ['stock_scores', 'stock_symbols'],
-      possibleCauses: ['Tables not yet created', 'No data populated']
-    });
+    console.error("Error fetching deep value stocks:", error.message);
+    return sendError(res, `Failed to fetch deep value stocks: ${error.message}`, 500);
   }
 });
 

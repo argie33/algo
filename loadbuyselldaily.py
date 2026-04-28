@@ -466,7 +466,8 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
                 days_held = None
 
             # Market stage and quality fields (calculated by generate_signals)
-            market_stage_val = row.get('market_stage') or None
+            _ms = row.get('market_stage')
+            market_stage_val = None if (_ms is None or (isinstance(_ms, float) and (pd.isna(_ms) or np.isnan(_ms)))) else (_ms or None)
 
             # Stage number (typically 1-4 for market stage)
             stage_num = None
@@ -1231,9 +1232,8 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     df['maFilterOk'] = df['buyLevel'] > df['maFilter']
 
     # === TIME FILTER (Pine Script: time > Start and time < Finish) ===
-    # Pine Script uses Start = 2019-01-01 and Finish = 2100-01-01 by default
-    # Only allow trades within backtest range
-    start_date = pd.Timestamp('2019-01-01')
+    # Using full history start — indicators warm up on pre-1990 data
+    start_date = pd.Timestamp('1990-01-01')
     end_date = pd.Timestamp('2100-01-01')
     df['timeOk'] = (df['date'] >= start_date) & (df['date'] <= end_date)
 

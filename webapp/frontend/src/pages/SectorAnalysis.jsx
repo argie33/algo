@@ -186,8 +186,8 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
         return null;
       }
     },
-    staleTime: 0, // Always fresh - no stale cache
-    gcTime: 0, // Disable garbage collection cache // 5 minutes
+    staleTime: 1000 * 60 * 10,
+    gcTime: 1000 * 60 * 10,
     enabled: !!(sector.sector_name || sector.sector),
     retry: false,
   });
@@ -228,8 +228,8 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
         return null;
       }
     },
-    staleTime: 0, // Always fresh - no stale cache
-    gcTime: 0, // Disable garbage collection cache // 5 minutes
+    staleTime: 1000 * 60 * 10,
+    gcTime: 1000 * 60 * 10,
     enabled: !!industry.industry,
     retry: false,
   });
@@ -702,8 +702,8 @@ const SectorAnalysis = () => {
           return null;
         }
       },
-      staleTime: 0, // Always fresh - no stale cache
-    gcTime: 0, // Disable garbage collection cache // 5 minutes
+      staleTime: 1000 * 60 * 10,
+      gcTime: 1000 * 60 * 10,
       enabled: !!(type === "sector" ? (sectorOrIndustry.sector_name || sectorOrIndustry.sector) : sectorOrIndustry.industry),
       retry: false,
     });
@@ -885,8 +885,8 @@ const SectorAnalysis = () => {
           return null;
         }
       },
-      staleTime: 0, // Always fresh - no stale cache
-    gcTime: 0, // Disable garbage collection cache // 5 minutes
+      staleTime: 1000 * 60 * 10,
+      gcTime: 1000 * 60 * 10,
       enabled: !!identifier,
       retry: false,
     });
@@ -944,7 +944,7 @@ const SectorAnalysis = () => {
           try {
             // Fetch top 10 performing stocks in this industry, sorted by composite score
             const response = await api.get(
-              `/api/scores/stockscores?limit=10&sortBy=composite_score&sortOrder=desc`
+              `/api/scores/stockscores?limit=100&sortBy=composite_score&sortOrder=desc`
             );
             // Get response data with proper structure
             const stocksList = response?.data?.items || [];
@@ -1092,12 +1092,12 @@ const SectorAnalysis = () => {
   const { data: rotationData, isLoading: rotationLoading, error: rotationError } = useQuery({
     queryKey: ["sector-performance"],
     queryFn: async () => {
-      const response = await api.get("/api/sectors?limit=20");
+      const response = await api.get("/api/sectors?limit=500");
       // Response format: { success: true, items: [...sectors], pagination: {...}, timestamp: ... }
       return response.data.items || [];
     },
-    staleTime: 0, // Always fresh - no stale cache
-    gcTime: 0, // Disable garbage collection cache
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 10,
     enabled: true,
     retry: false,
   });
@@ -1124,8 +1124,8 @@ const SectorAnalysis = () => {
         current_trend: ind.current_trend
       }));
     },
-    staleTime: 0, // Always fresh - no stale cache
-    gcTime: 0, // Disable garbage collection cache
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 10,
     enabled: true,
     retry: false,
   });

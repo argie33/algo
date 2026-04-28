@@ -55,7 +55,7 @@ const TradeHistory = () => {
       if (!response.ok) throw new Error('Failed to fetch trades');
       return response.json();
     },
-    staleTime: 0
+    staleTime: 30000
   });
 
   // Fetch summary
@@ -70,7 +70,7 @@ const TradeHistory = () => {
       if (!response.ok) throw new Error('Failed to fetch summary');
       return response.json();
     },
-    staleTime: 0
+    staleTime: 30000
   });
 
   const summary = summaryData?.data || {};

@@ -44,6 +44,7 @@ import logging
 try:
     import resource
     HAS_RESOURCE = True
+
 except ImportError:
     HAS_RESOURCE = False
 import signal
@@ -80,6 +81,7 @@ def get_ticker_info_with_timeout(ticker, timeout_sec=15):
     if not hasattr(signal, 'SIGALRM'):
         try:
             return ticker.info
+
         except Exception as e:
             logging.warning(f"Error fetching ticker.info: {str(e)[:50]}")
             return {}
@@ -90,6 +92,7 @@ def get_ticker_info_with_timeout(ticker, timeout_sec=15):
         info = ticker.info
         signal.alarm(0)  # Cancel alarm
         return info
+
     except TimeoutException:
         logging.warning(f"ticker.info call timed out after {timeout_sec}s")
         signal.alarm(0)
@@ -139,6 +142,7 @@ def get_rss_mb():
         try:
             import psutil
             return psutil.Process().memory_info().rss / (1024 * 1024)
+
         except Exception:
             return 0
     usage = resource.getrusage(resource.RUSAGE_SELF)
@@ -180,6 +184,7 @@ def get_db_config():
                 "password": sec["password"],
                 "database": sec["dbname"],
             }
+
         except Exception as e:
             logging.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
 
@@ -241,6 +246,7 @@ def get_price_history(cursor, symbol: str, days: int = 252*2) -> pd.DataFrame:
         df = pd.DataFrame({'Close': prices}, index=pd.to_datetime(dates))
         return df
 
+
     except Exception as e:
         logging.warning(f"Failed to fetch price history for {symbol}: {e}")
         return pd.DataFrame()
@@ -264,6 +270,7 @@ def calculate_quality_metrics(ticker_data: Dict, ticker=None, symbol=None) -> Di
             else:
                 # Already in percentage form
                 return val
+
         except (TypeError, ValueError):
             return None
 
@@ -292,7 +299,7 @@ def calculate_quality_metrics(ticker_data: Dict, ticker=None, symbol=None) -> Di
     metrics = {
         "return_on_equity_pct": roe_normalized,
         "return_on_assets_pct": roa_normalized,
-        "return_on_invested_capital_pct": None,  # Calculated below from EBITDA / (Debt + Cash)
+        "return_on_invested_capital_pct": ticker_data.get("return_on_invested_capital_pct"),  # Pre-calculated from BS; fallback below
         "gross_margin_pct": normalize_percentage(gm),
         "operating_margin_pct": normalize_percentage(opm),
         "profit_margin_pct": normalize_percentage(pm),
@@ -316,19 +323,19 @@ def calculate_quality_metrics(ticker_data: Dict, ticker=None, symbol=None) -> Di
                 ticker_data["operating_cashflow"] / ticker_data["net_income"]
             )
 
-    # Calculate ROIC - REAL DATA ONLY
-    # EBITDA / (Total Debt + Total Cash) - most accurate measure
-    # Only calculate if we have actual EBITDA data
-    ebitda = ticker_data.get("ebitda")
-    total_debt = ticker_data.get("total_debt")
-    total_cash = ticker_data.get("total_cash")
-
-    if ebitda and ebitda > 0 and total_debt is not None and total_cash is not None:
-        invested_capital = total_debt + total_cash
-        if invested_capital > 0:
-            roic_value = ebitda / invested_capital
-            roic_pct = roic_value * 100
-            metrics["return_on_invested_capital_pct"] = max(-100, min(roic_pct, 200))
+    # Calculate ROIC fallback from EBITDA if not already set from balance sheet invested_capital
+    if metrics.get("return_on_invested_capital_pct") is None:
+        ebitda = ticker_data.get("ebitda")
+        total_debt = ticker_data.get("total_debt")
+        total_cash = ticker_data.get("total_cash")
+        if ebitda and ebitda > 0 and total_debt is not None and total_cash is not None:
+            invested_capital_calc = total_debt + total_cash
+            if invested_capital_calc > 0:
+                roic_pct = (ebitda / invested_capital_calc) * 100
+                metrics["return_on_invested_capital_pct"] = max(-100, min(roic_pct, 200))
+    elif metrics["return_on_invested_capital_pct"] is not None:
+        # Clamp pre-calculated ROIC to reasonable range
+        metrics["return_on_invested_capital_pct"] = max(-100, min(float(metrics["return_on_invested_capital_pct"]), 200))
 
     # NOTE: earnings_surprise_avg and eps_growth_stability are calculated separately by calculate_earnings_surprise.py
     # which queries quarterly_income_statement table for real earnings data, not yfinance API calls
@@ -372,6 +379,7 @@ def calculate_cagr(start_value: float, end_value: float, periods: int) -> Option
         # Cap at ±500% to avoid extreme values
         return max(-500, min(500, result))
 
+
     except (ValueError, ZeroDivisionError, TypeError):
         return None
 
@@ -408,6 +416,7 @@ def get_quarterly_statement_growth(cursor, symbol: str) -> Dict:
                 if prior_rev and recent_rev and prior_rev != 0:
                     try:
                         metrics["revenue_growth_quarterly_yoy"] = ((recent_rev - prior_rev) / abs(prior_rev) * 100)
+
                     except (TypeError, ValueError, ZeroDivisionError) as e:
                         track_calc_failure(symbol, "revenue_growth_quarterly_yoy", e)
 
@@ -415,6 +424,7 @@ def get_quarterly_statement_growth(cursor, symbol: str) -> Dict:
                 if prior_ni and recent_ni and prior_ni != 0:
                     try:
                         metrics["net_income_growth_quarterly_yoy"] = ((recent_ni - prior_ni) / abs(prior_ni) * 100)
+
                     except (TypeError, ValueError, ZeroDivisionError) as e:
                         track_calc_failure(symbol, "net_income_growth_quarterly_yoy", e)
 
@@ -422,6 +432,7 @@ def get_quarterly_statement_growth(cursor, symbol: str) -> Dict:
                 if prior_oi and recent_oi and prior_oi != 0:
                     try:
                         metrics["operating_income_growth_quarterly_yoy"] = ((recent_oi - prior_oi) / abs(prior_oi) * 100)
+
                     except (TypeError, ValueError, ZeroDivisionError) as e:
                         track_calc_failure(symbol, "operating_income_growth_quarterly_yoy", e)
 
@@ -522,8 +533,8 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
                     except (TypeError, ValueError, ZeroDivisionError) as e:
                         logging.debug(f"DEBUG {symbol} revenue_growth_yoy exception: prev={prev_revenue}, recent={recent_revenue}")
                         track_calc_failure(symbol, "revenue_growth_yoy", e)
-            else:
-                logging.debug(f"DEBUG {symbol} skipped revenue_growth_yoy: prev={prev_revenue}, recent={recent_revenue}")
+                else:
+                    logging.debug(f"DEBUG {symbol} skipped revenue_growth_yoy: prev={prev_revenue}, recent={recent_revenue}")
 
             # Operating Income Growth: Allow any valid numeric comparison (including negative base)
             # Company going from -$10M to -$5M to +$2M shows recovery progression
@@ -531,6 +542,7 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
                 if prev_oi != 0:
                     try:
                         metrics["operating_income_growth_yoy"] = ((recent_oi - prev_oi) / abs(prev_oi) * 100)
+
                     except (TypeError, ValueError, ZeroDivisionError) as e:
                         track_calc_failure(symbol, "operating_income_growth_yoy", e)
 
@@ -540,6 +552,7 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
                 if prev_ni != 0:
                     try:
                         metrics["net_income_growth_yoy"] = ((recent_ni - prev_ni) / abs(prev_ni) * 100)
+
                     except (TypeError, ValueError, ZeroDivisionError) as e:
                         track_calc_failure(symbol, "net_income_growth_yoy", e)
 
@@ -565,6 +578,7 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
                         result = calculate_cagr(oldest_ni, recent_ni, 3)
                         if result is not None:
                             metrics["eps_growth_3y_cagr"] = result
+
                     except (ValueError, ZeroDivisionError):
                         # CAGR calculation failed, leave as None
                         pass
@@ -594,6 +608,7 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
                     fcf_pct = ((recent_fcf - prev_fcf) / abs(prev_fcf) * 100)
                     # Cap at ±500% to avoid meaningless extreme values from calculation errors
                     metrics["fcf_growth_yoy"] = max(-500, min(500, fcf_pct))
+
                 except (TypeError, ValueError, ZeroDivisionError) as e:
                     track_calc_failure(symbol, "fcf_growth_yoy", e)
 
@@ -618,6 +633,7 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
                     ocf_pct = ((recent_ocf - prev_ocf) / abs(prev_ocf) * 100)
                     # Cap at ±500% to avoid meaningless extreme values
                     metrics["ocf_growth_yoy"] = max(-500, min(500, ocf_pct))
+
                 except (TypeError, ValueError, ZeroDivisionError) as e:
                     track_calc_failure(symbol, "ocf_growth_yoy", e)
 
@@ -639,6 +655,7 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
                     if prev_assets > 0:
                         try:
                             metrics["asset_growth_yoy"] = ((recent_assets - prev_assets) / prev_assets * 100)
+
                         except (TypeError, ValueError, ZeroDivisionError) as e:
                             track_calc_failure(symbol, "asset_growth_yoy", e)
         except Exception as bs_error:
@@ -654,15 +671,42 @@ def get_financial_statement_growth(cursor, symbol: str) -> Dict:
 
 
 def get_earnings_surprise_metrics(cursor, symbol: str) -> Dict:
-    """Calculate earnings surprise from quarterly actual vs estimated EPS
+    """Calculate earnings surprise avg and EPS growth stability from earnings_history table."""
+    try:
+        cursor.execute("""
+            SELECT surprise_percent, eps_actual
+            FROM earnings_history
+            WHERE symbol = %s AND surprise_percent IS NOT NULL
+            ORDER BY quarter DESC
+            LIMIT 8
+        """, (symbol,))
+        rows = cursor.fetchall()
+        if not rows or len(rows) < 2:
+            return {"earnings_surprise_avg": None, "eps_growth_stability": None}
 
-    NOTE: Disabled until earnings_history table is properly integrated.
-    EPS data is in earnings_history, not quarterly_income_statement.
-    """
-    return {
-        "earnings_surprise_avg": None,
-        "eps_growth_stability": None,
-    }
+        # surprise_percent is stored in decimal form (0.26 = 26%), convert to pct
+        surprises = [float(r[0]) * 100 for r in rows]
+        earnings_surprise_avg = float(np.mean(surprises))
+
+        # EPS growth stability: std dev of QoQ EPS growth rates (lower = more stable)
+        eps_vals = [float(r[1]) for r in rows if r[1] is not None]
+        eps_growth_stability = None
+        if len(eps_vals) >= 3:
+            growth_rates = []
+            for i in range(len(eps_vals) - 1):
+                if eps_vals[i + 1] != 0:
+                    g = (eps_vals[i] - eps_vals[i + 1]) / abs(eps_vals[i + 1]) * 100
+                    growth_rates.append(g)
+            if len(growth_rates) >= 2:
+                eps_growth_stability = float(np.std(growth_rates))
+
+        return {
+            "earnings_surprise_avg": earnings_surprise_avg,
+            "eps_growth_stability": eps_growth_stability,
+        }
+    except Exception as e:
+        logging.debug(f"Could not calculate earnings surprise metrics for {symbol}: {e}")
+        return {"earnings_surprise_avg": None, "eps_growth_stability": None}
 
 
 def get_earnings_beat_rate(cursor, symbol: str) -> Optional[float]:
@@ -704,12 +748,12 @@ def get_earnings_beat_rate(cursor, symbol: str) -> Optional[float]:
 
 
 def get_consecutive_positive_quarters(cursor, symbol: str) -> Optional[int]:
-    """Calculate consecutive quarters with positive EPS"""
+    """Calculate consecutive quarters with positive EPS from earnings_history"""
     try:
         cursor.execute("""
-            SELECT eps FROM quarterly_income_statement
-            WHERE symbol = %s AND eps IS NOT NULL
-            ORDER BY date DESC
+            SELECT eps_actual FROM earnings_history
+            WHERE symbol = %s AND eps_actual IS NOT NULL
+            ORDER BY quarter DESC
             LIMIT 8
         """, (symbol,))
 
@@ -725,6 +769,7 @@ def get_consecutive_positive_quarters(cursor, symbol: str) -> Optional[int]:
                 break
 
         return consecutive if consecutive > 0 else None
+
     except Exception as e:
         logging.debug(f"Could not calculate consecutive positive quarters for {symbol}: {e}")
 
@@ -750,6 +795,7 @@ def get_surprise_consistency(cursor, symbol: str) -> Optional[float]:
         # Higher std = less consistent surprises, Lower std = more consistent
         if len(surprise_values) >= 2:
             return float(np.std(surprise_values))
+
     except Exception as e:
         logging.debug(f"Could not calculate surprise consistency for {symbol}: {e}")
 
@@ -773,6 +819,7 @@ def get_estimate_revision_direction(cursor, symbol: str) -> Optional[float]:
             if total > 0:
                 # Positive = more ups than downs, Negative = more downs than ups
                 return ((ups - downs) / total) * 100
+
     except Exception as e:
         logging.debug(f"Could not calculate estimate revision direction for {symbol}: {e}")
 
@@ -814,6 +861,7 @@ def get_revision_activity_30d(cursor, symbol: str) -> Optional[float]:
                 # 0-100 scale: high if recent is more positive than overall
                 score = 50 + (recent_ratio - overall_ratio) * 50
                 return max(0, min(100, score))
+
     except Exception as e:
         logging.debug(f"Could not calculate revision activity for {symbol}: {e}")
 
@@ -843,6 +891,7 @@ def get_estimate_momentum_60d(cursor, symbol: str) -> Optional[float]:
 
             if past != 0:
                 return ((current - past) / abs(past)) * 100
+
     except Exception as e:
         logging.debug(f"Could not calculate estimate momentum for {symbol}: {e}")
 
@@ -872,6 +921,7 @@ def get_estimate_momentum_90d(cursor, symbol: str) -> Optional[float]:
 
             if past != 0:
                 return ((current - past) / abs(past)) * 100
+
     except Exception as e:
         logging.debug(f"Could not calculate 90d estimate momentum for {symbol}: {e}")
 
@@ -912,6 +962,7 @@ def get_revision_trend_score(cursor, symbol: str) -> Optional[float]:
 
         if scores:
             return float(np.mean(scores))
+
     except Exception as e:
         logging.debug(f"Could not calculate revision trend score for {symbol}: {e}")
 
@@ -919,17 +970,17 @@ def get_revision_trend_score(cursor, symbol: str) -> Optional[float]:
 
 
 def get_earnings_growth_4q_avg(cursor, symbol: str) -> Optional[float]:
-    """Calculate 4-quarter average earnings growth"""
+    """Calculate 4-quarter average EPS growth from earnings_history"""
     try:
         cursor.execute("""
-            SELECT eps FROM quarterly_income_statement
-            WHERE symbol = %s AND eps IS NOT NULL
-            ORDER BY date DESC
+            SELECT eps_actual FROM earnings_history
+            WHERE symbol = %s AND eps_actual IS NOT NULL
+            ORDER BY quarter DESC
             LIMIT 4
         """, (symbol,))
 
         eps_values = [row[0] for row in cursor.fetchall()]
-        if len(eps_values) < 4:
+        if len(eps_values) < 2:
             return None
 
         growth_rates = []
@@ -940,6 +991,7 @@ def get_earnings_growth_4q_avg(cursor, symbol: str) -> Optional[float]:
 
         if growth_rates:
             return float(np.mean(growth_rates))
+
     except Exception as e:
         logging.debug(f"Could not calculate 4Q earnings growth for {symbol}: {e}")
 
@@ -957,6 +1009,7 @@ def normalize_percentage(value):
             return val * 100
         else:
             return val
+
     except (TypeError, ValueError):
         return None
 
@@ -987,17 +1040,17 @@ def calculate_growth_metrics(ticker_data: Dict, financial_growth: Dict = None, q
         if "quarterly_growth_momentum" not in metrics or metrics["quarterly_growth_momentum"] is None:
             if cursor and symbol:
                 cursor.execute("""
-                    SELECT date, net_income
+                    SELECT fiscal_year, fiscal_quarter, net_income
                     FROM quarterly_income_statement
                     WHERE symbol = %s AND net_income IS NOT NULL
-                    ORDER BY date DESC
+                    ORDER BY fiscal_year DESC, fiscal_quarter DESC
                     LIMIT 2
                 """, (symbol,))
 
                 q_data = cursor.fetchall()
                 if len(q_data) >= 2:
-                    curr_date, curr_qi = q_data[0]
-                    prior_date, prior_qi = q_data[1]
+                    curr_qi = q_data[0][2]
+                    prior_qi = q_data[1][2]
 
                     if prior_qi is not None and prior_qi != 0:
                         try:
@@ -1012,6 +1065,23 @@ def calculate_growth_metrics(ticker_data: Dict, financial_growth: Dict = None, q
     # If payout ratio unavailable, calculate retention from earnings data or use default
     roe = ticker_data.get("return_on_equity_pct")
     payout = ticker_data.get("payout_ratio")
+
+    # If ROE not in ticker_data (growth metrics path), calculate from DB
+    if not roe and cursor and symbol:
+        try:
+            cursor.execute("""
+                SELECT ais.net_income, abs_data.stockholders_equity
+                FROM (SELECT DISTINCT ON (fiscal_year) fiscal_year, net_income FROM annual_income_statement
+                      WHERE symbol = %s AND net_income IS NOT NULL ORDER BY fiscal_year DESC LIMIT 1) ais
+                JOIN (SELECT DISTINCT ON (fiscal_year) fiscal_year, stockholders_equity FROM annual_balance_sheet
+                      WHERE symbol = %s AND stockholders_equity IS NOT NULL AND stockholders_equity > 0
+                      ORDER BY fiscal_year DESC LIMIT 1) abs_data USING (fiscal_year)
+            """, (symbol, symbol))
+            row = cursor.fetchone()
+            if row and row[0] and row[1]:
+                roe = float(row[0]) / float(row[1]) * 100
+        except Exception:
+            pass
 
     if roe:
         try:
@@ -1047,7 +1117,7 @@ def calculate_growth_metrics(ticker_data: Dict, financial_growth: Dict = None, q
                                 retention = 1 - min(1.0, max(0.0, payout_calc))
                             else:
                                 retention = 0.6  # Default
-        except Exception:
+                        except Exception:
                             retention = 0.6  # Default
                     else:
                         retention = 0.6  # Default 60% retention
@@ -1062,32 +1132,32 @@ def calculate_growth_metrics(ticker_data: Dict, financial_growth: Dict = None, q
     # Margin trend = current margin - prior year margin (in percentage points)
     try:
         if "gross_margin_trend" not in metrics or metrics["gross_margin_trend"] is None:
-            # Query for gross profit data (may not always be available)
+            # Use gross_profit column directly (preferred), fall back to revenue - cost_of_revenue
             if cursor and symbol:
                 cursor.execute("""
-                SELECT fiscal_year, revenue, (revenue - cost_of_revenue) as gross_profit, operating_income, net_income
-                FROM annual_income_statement
-                WHERE symbol = %s AND revenue IS NOT NULL
-                ORDER BY fiscal_year DESC
-                LIMIT 2
-            """, (symbol,))
+                    SELECT fiscal_year, revenue,
+                        COALESCE(gross_profit, revenue - cost_of_revenue) as gross_profit
+                    FROM annual_income_statement
+                    WHERE symbol = %s AND revenue IS NOT NULL
+                        AND (gross_profit IS NOT NULL OR cost_of_revenue IS NOT NULL)
+                    ORDER BY fiscal_year DESC
+                    LIMIT 2
+                """, (symbol,))
 
-            margin_data = cursor.fetchall()
-            if len(margin_data) >= 2:
-                # Current year
-                curr_date, curr_rev, curr_gp, curr_oi, curr_ni = margin_data[0]
-                # Prior year
-                prior_date, prior_rev, prior_gp, prior_oi, prior_ni = margin_data[1]
+                margin_data = cursor.fetchall()
+                if len(margin_data) >= 2:
+                    curr_rev, curr_gp = float(margin_data[0][1] or 0), margin_data[0][2]
+                    prior_rev, prior_gp = float(margin_data[1][1] or 0), margin_data[1][2]
 
-                # Calculate gross margin YoY change (in percentage points)
-                if curr_rev and prior_rev and curr_gp is not None and prior_gp is not None:
-                    try:
-                        if curr_rev != 0 and prior_rev != 0:
-                            curr_gm = (float(curr_gp) / float(curr_rev)) * 100
-                            prior_gm = (float(prior_gp) / float(prior_rev)) * 100
-                            metrics["gross_margin_trend"] = round(curr_gm - prior_gm, 2)  # pp change
-                    except (TypeError, ValueError, ZeroDivisionError) as e:
-                        track_calc_failure(symbol, "gross_margin_trend", e)
+                    # Calculate gross margin YoY change (in percentage points)
+                    if curr_rev and prior_rev and curr_gp is not None and prior_gp is not None:
+                        try:
+                            if curr_rev != 0 and prior_rev != 0:
+                                curr_gm = (float(curr_gp) / curr_rev) * 100
+                                prior_gm = (float(prior_gp) / prior_rev) * 100
+                                metrics["gross_margin_trend"] = round(curr_gm - prior_gm, 2)
+                        except (TypeError, ValueError, ZeroDivisionError) as e:
+                            track_calc_failure(symbol, "gross_margin_trend", e)
 
         if "operating_margin_trend" not in metrics or metrics["operating_margin_trend"] is None:
             # Query operating income data
@@ -1113,6 +1183,7 @@ def calculate_growth_metrics(ticker_data: Dict, financial_growth: Dict = None, q
                             curr_opm = (float(curr_oi) / float(curr_rev)) * 100
                             prior_opm = (float(prior_oi) / float(prior_rev)) * 100
                             metrics["operating_margin_trend"] = round(curr_opm - prior_opm, 2)  # pp change
+
                     except (TypeError, ValueError, ZeroDivisionError) as e:
                         track_calc_failure(symbol, "operating_margin_trend", e)
 
@@ -1140,36 +1211,50 @@ def calculate_growth_metrics(ticker_data: Dict, financial_growth: Dict = None, q
                             curr_npm = (float(curr_ni) / float(curr_rev)) * 100
                             prior_npm = (float(prior_ni) / float(prior_rev)) * 100
                             metrics["net_margin_trend"] = round(curr_npm - prior_npm, 2)  # pp change
+
                     except (TypeError, ValueError, ZeroDivisionError) as e:
                         track_calc_failure(symbol, "net_margin_trend", e)
     except Exception as e:
         logging.debug(f"Could not calculate margin trends for {symbol}: {e}")
 
-    # ROE trend - calculate from annual data
+    # ROE trend - calculate actual ROE change using income + balance sheet data
     try:
         if "roe_trend" not in metrics or metrics["roe_trend"] is None:
-            # Query net income and shareholder equity data
-            cursor.execute("""
-                SELECT date, net_income
-                FROM annual_income_statement
-                WHERE symbol = %s AND net_income IS NOT NULL
-                ORDER BY date DESC
-                LIMIT 2
-            """, (symbol,))
+            if cursor and symbol:
+                # Get 2 years of net_income and stockholders_equity for true ROE trend
+                cursor.execute("""
+                    SELECT ais.fiscal_year, ais.net_income, abs_data.stockholders_equity
+                    FROM annual_income_statement ais
+                    JOIN (
+                        SELECT DISTINCT ON (fiscal_year) fiscal_year, stockholders_equity
+                        FROM annual_balance_sheet
+                        WHERE symbol = %s AND stockholders_equity IS NOT NULL AND stockholders_equity > 0
+                        ORDER BY fiscal_year DESC
+                    ) abs_data USING (fiscal_year)
+                    WHERE ais.symbol = %s AND ais.net_income IS NOT NULL
+                    ORDER BY ais.fiscal_year DESC
+                    LIMIT 2
+                """, (symbol, symbol))
 
-            roe_data = cursor.fetchall()
-            if len(roe_data) >= 2:
-                # For ROE trend, use change in profitability
-                curr_date, curr_ni = roe_data[0]
-                prior_date, prior_ni = roe_data[1]
-
-                # Calculate net income growth as ROE trend proxy
-                if prior_ni is not None and prior_ni != 0:
-                    try:
-                        roe_trend = ((float(curr_ni) - float(prior_ni)) / abs(float(prior_ni))) * 100
+                roe_data = cursor.fetchall()
+                if len(roe_data) >= 2:
+                    curr_roe = float(roe_data[0][1]) / float(roe_data[0][2]) * 100
+                    prior_roe = float(roe_data[1][1]) / float(roe_data[1][2]) * 100
+                    metrics["roe_trend"] = round(curr_roe - prior_roe, 2)  # pp change YoY
+                else:
+                    # Fallback: use net income growth as proxy if equity data unavailable
+                    cursor.execute("""
+                        SELECT fiscal_year, net_income
+                        FROM annual_income_statement
+                        WHERE symbol = %s AND net_income IS NOT NULL
+                        ORDER BY fiscal_year DESC
+                        LIMIT 2
+                    """, (symbol,))
+                    roe_data = cursor.fetchall()
+                    if len(roe_data) >= 2 and roe_data[1][1] and roe_data[1][1] != 0:
+                        roe_trend = ((float(roe_data[0][1]) - float(roe_data[1][1])) / abs(float(roe_data[1][1]))) * 100
                         metrics["roe_trend"] = round(roe_trend, 2)
-                    except (TypeError, ValueError, ZeroDivisionError) as e:
-                        track_calc_failure(symbol, "roe_trend", e)
+
     except Exception as e:
         logging.debug(f"Could not calculate ROE trend for {symbol}: {e}")
 
@@ -1239,6 +1324,7 @@ def get_volume_metrics(cursor, symbol: str) -> Dict:
                 volume_cv = (float(np.std(volumes)) / avg_volume) * 100
                 # Invert so higher score = better consistency (lower CV)
                 metrics["volume_consistency"] = max(0, 100 - volume_cv)
+
         except (TypeError, ValueError) as e:
             track_calc_failure(symbol, "volume_consistency", e)
 
@@ -1252,6 +1338,7 @@ def get_volume_metrics(cursor, symbol: str) -> Dict:
                 # Cap at 999.99 to fit numeric(5,2) precision in database
                 turnover_vel = min(999.99, max(0, turnover_vel))
                 metrics["turnover_velocity"] = float(turnover_vel)
+
         except (TypeError, ValueError) as e:
             track_calc_failure(symbol, "volume_consistency", e)
 
@@ -1276,6 +1363,7 @@ def get_volume_metrics(cursor, symbol: str) -> Dict:
                     # Cap at 999.99 to fit database precision
                     vol_volume_ratio = min(999.99, max(0, vol_volume_ratio))
                     metrics["volatility_volume_ratio"] = float(vol_volume_ratio)
+
         except (TypeError, ValueError) as e:
             track_calc_failure(symbol, "volatility_volume_ratio", e)
 
@@ -1291,6 +1379,7 @@ def get_volume_metrics(cursor, symbol: str) -> Dict:
             if spreads:
                 avg_spread = float(np.mean(spreads))
                 metrics["daily_spread"] = avg_spread
+
         except (TypeError, ValueError) as e:
             track_calc_failure(symbol, "daily_spread", e)
 
@@ -1300,39 +1389,21 @@ def get_volume_metrics(cursor, symbol: str) -> Dict:
     return metrics
 
 
-def get_stability_metrics(cursor, symbol: str, benchmark_cache: Dict = None) -> Dict:
+def get_stability_metrics(cursor, symbol: str, benchmark_cache: Dict = None, preloaded_beta: float = None) -> Dict:
     """Calculate stability metrics from price data (volatility, drawdown, beta)
 
     Args:
         cursor: Database cursor
         symbol: Stock symbol
         benchmark_cache: Cached benchmark (SPY) price data to avoid redundant queries
-
-    Beta Strategy (YFINANCE ONLY):
-    1. Get beta from yfinance table (via load_yfinance_beta.py)
-    2. NO fallback calculations - must come from yfinance
-    Requires robust yfinance loader to handle rate limiting
+        preloaded_beta: Beta value pre-loaded from key_metrics table (avoids yfinance)
     """
     metrics = {
         "volatility_12m": None,
         "downside_volatility": None,
         "max_drawdown_52w": None,
-        "beta": None,
+        "beta": preloaded_beta,  # Use pre-loaded beta from key_metrics
     }
-
-    # Beta from yfinance ticker.info (with timeout protection)
-    try:
-        ticker = yf.Ticker(symbol)
-        info = get_ticker_info_with_timeout(ticker, timeout_sec=15)
-        if info and info.get('beta') is not None:
-            try:
-                beta_val = float(info.get('beta'))
-                metrics["beta"] = beta_val if not np.isnan(beta_val) else None
-            except (ValueError, TypeError):
-                metrics["beta"] = None
-    except Exception as e:
-        logging.debug(f"Could not get beta for {symbol}: {e}")
-        metrics["beta"] = None
 
     try:
         # Get last 252 trading days of price data for 12-month volatility
@@ -1367,6 +1438,7 @@ def get_stability_metrics(cursor, symbol: str, benchmark_cache: Dict = None) -> 
                     volatility = volatility.real
                 volatility_f = float(volatility)
                 metrics["volatility_12m"] = volatility_f if not np.isnan(volatility_f) else None
+
             except (TypeError, ValueError) as e:
                 track_calc_failure(symbol, "volatility_12m", e)
 
@@ -1379,6 +1451,7 @@ def get_stability_metrics(cursor, symbol: str, benchmark_cache: Dict = None) -> 
                         downside_vol = downside_vol.real
                     downside_vol_f = float(downside_vol)
                     metrics["downside_volatility"] = downside_vol_f if not np.isnan(downside_vol_f) else None
+
                 except (TypeError, ValueError) as e:
                     track_calc_failure(symbol, "volatility_12m", e)
 
@@ -1455,6 +1528,7 @@ def validate_beta_with_yfinance(symbol: str, calculated_beta: Optional[float]) -
         else:
             validation["status"] = "YFINANCE_BETA_ZERO"
 
+
     except Exception as e:
         logging.debug(f"{symbol}: Error validating beta: {e}")
         validation["status"] = "ERROR"
@@ -1518,6 +1592,7 @@ def calculate_momentum_metrics(
                 metrics["momentum_12m"] = (
                     (current_price - price_12m_ago) / price_12m_ago * 100
                 )
+
     except Exception as e:
         logging.warning(f"Failed to calculate momentum for {symbol}: {e}")
 
@@ -1613,6 +1688,7 @@ def calculate_accumulation_distribution_rating(cursor, symbol: str) -> Optional[
 
         return round(rating_score, 2)
 
+
     except Exception as e:
         logging.warning(f" Failed to calculate A/D rating for {symbol}: {type(e).__name__}: {str(e)[:200]}")
         import traceback
@@ -1627,7 +1703,8 @@ def load_ad_ratings(conn, cursor, symbols: List[str]):
     # Ensure clean transaction state
     try:
         conn.rollback()
-        except Exception:
+
+    except Exception:
         pass
 
     ad_rows = []
@@ -1647,6 +1724,7 @@ def load_ad_ratings(conn, cursor, symbols: List[str]):
             if idx % 100 == 0:
                 logging.info(f"  ✓ A/D ratings: {idx}/{len(symbols)}")
 
+
         except Exception as e:
             logging.warning(f"Failed to calculate A/D for {symbol}: {e}")
             ad_rows.append((None, symbol))  # Still update with None so we track it
@@ -1661,21 +1739,22 @@ def load_ad_ratings(conn, cursor, symbols: List[str]):
         for ad_rating, symbol in ad_rows:
             try:
                 cursor.execute("""
-                    INSERT INTO positioning_metrics (symbol, ad_rating, created_at, updated_at)
-                    VALUES (%s, %s, NOW(), NOW())
-                    ON CONFLICT (symbol) DO UPDATE SET
+                    INSERT INTO positioning_metrics (symbol, date, ad_rating, created_at, updated_at)
+                    VALUES (%s, CURRENT_DATE, %s, NOW(), NOW())
+                    ON CONFLICT (symbol, date) DO UPDATE SET
                         ad_rating = EXCLUDED.ad_rating,
                         updated_at = NOW()
                 """, (symbol, ad_rating))
                 updated_count += 1
+
             except Exception as e:
                 logging.warning(f"Failed to update A/D for {symbol}: {e}")
-                # Don't rollback here - it aborts the whole transaction
-                # Just skip this stock and continue with the next one
+                conn.rollback()  # Clear aborted transaction state so next symbol can proceed
 
         try:
             conn.commit()
             logging.info(f" Updated {updated_count} A/D ratings ({len(ad_rows) - len(failed_symbols)} with values, {len(failed_symbols)} NULL)")
+
         except Exception as e:
             logging.error(f"Failed to commit A/D updates: {e}")
             conn.rollback()
@@ -1688,6 +1767,7 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
     # Recover from any previous transaction abort
     try:
         conn.rollback()
+
     except Exception as e:
         logging.debug(f"Rollback during quality metrics setup: {e}")
         pass
@@ -1699,39 +1779,188 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
 
     quality_rows = []
 
-    # First: Get all key_metrics data in one query
-    cursor.execute(
-        "SELECT ticker, market_cap, trailing_pe, forward_pe, price_to_book, "
-        "price_to_sales_ttm, peg_ratio, dividend_yield, beta "
-        "FROM key_metrics WHERE ticker = ANY(%s)",
-        (symbols,)
-    )
+    # Batch pre-load TTM income statement data for all symbols
+    # ttm_income_statement is pivot format: (symbol, item_name, value)
+    logging.info("  Pre-loading TTM income statement data for quality metrics...")
+    ttm_data = {}
+    try:
+        cursor.execute("""
+            SELECT symbol,
+                MAX(CASE WHEN item_name = 'Total Revenue' THEN value END) as total_revenue,
+                MAX(CASE WHEN item_name = 'Gross Profit' THEN value END) as gross_profit,
+                MAX(CASE WHEN item_name = 'Operating Income' THEN value END) as operating_income,
+                MAX(CASE WHEN item_name = 'Net Income' THEN value END) as net_income,
+                MAX(CASE WHEN item_name = 'EBITDA' THEN value END) as ebitda
+            FROM ttm_income_statement
+            WHERE symbol = ANY(%s)
+            GROUP BY symbol
+        """, (symbols,))
+        for row in cursor.fetchall():
+            sym = row[0]
+            ttm_data[sym] = {
+                "total_revenue": row[1], "gross_profit": row[2],
+                "operating_income": row[3], "net_income": row[4], "ebitda": row[5]
+            }
+        logging.info(f"  Loaded TTM IS data for {len(ttm_data)} symbols")
+    except Exception as e:
+        logging.warning(f"  Could not load TTM income statement data: {e}")
+        conn.rollback()
+
+    # Fallback: use annual_income_statement for symbols missing from ttm_income_statement
+    missing_ttm = [s for s in symbols if s not in ttm_data]
+    if missing_ttm:
+        logging.info(f"  Loading annual IS fallback for {len(missing_ttm)} symbols missing from TTM...")
+        try:
+            cursor.execute("""
+                SELECT DISTINCT ON (symbol) symbol,
+                    revenue as total_revenue, gross_profit, operating_income, net_income,
+                    COALESCE(ebitda, normalized_ebitda) as ebitda
+                FROM annual_income_statement
+                WHERE symbol = ANY(%s) AND revenue IS NOT NULL
+                ORDER BY symbol, fiscal_year DESC
+            """, (missing_ttm,))
+            fallback_count = 0
+            for row in cursor.fetchall():
+                sym = row[0]
+                ttm_data[sym] = {
+                    "total_revenue": row[1], "gross_profit": row[2],
+                    "operating_income": row[3], "net_income": row[4], "ebitda": row[5]
+                }
+                fallback_count += 1
+            logging.info(f"  Filled {fallback_count} symbols from annual IS fallback (total TTM data: {len(ttm_data)})")
+        except Exception as e:
+            logging.warning(f"  Could not load annual IS fallback: {e}")
+            conn.rollback()
+
+    # Batch pre-load balance sheet data for ROE, ROA, current_ratio, quick_ratio, ROIC
+    logging.info("  Pre-loading balance sheet data for quality metrics...")
+    bs_data = {}
+    try:
+        cursor.execute("""
+            SELECT DISTINCT ON (symbol) symbol,
+                stockholders_equity, total_assets, total_debt,
+                current_assets, current_liabilities,
+                inventory, cash_and_cash_equivalents,
+                COALESCE(invested_capital, total_debt + stockholders_equity) as invested_capital
+            FROM annual_balance_sheet
+            WHERE symbol = ANY(%s)
+            ORDER BY symbol, fiscal_year DESC
+        """, (symbols,))
+        for row in cursor.fetchall():
+            sym = row[0]
+            bs_data[sym] = {
+                "stockholders_equity": row[1], "total_assets": row[2],
+                "total_debt": row[3], "current_assets": row[4], "current_liabilities": row[5],
+                "inventory": row[6], "cash_and_cash_equivalents": row[7],
+                "invested_capital": row[8]
+            }
+        logging.info(f"  Loaded balance sheet data for {len(bs_data)} symbols")
+    except Exception as e:
+        logging.warning(f"  Could not load balance sheet data: {e}")
+        conn.rollback()
+
+    # Batch pre-load FCF and OCF from annual_cash_flow (for fcf_to_net_income / operating_cf_to_net_income)
+    logging.info("  Pre-loading cashflow data (FCF, OCF)...")
+    cf_data = {}
+    try:
+        cursor.execute("""
+            SELECT DISTINCT ON (symbol) symbol, free_cash_flow, operating_cash_flow
+            FROM annual_cash_flow
+            WHERE symbol = ANY(%s)
+            ORDER BY symbol, fiscal_year DESC
+        """, (symbols,))
+        for row in cursor.fetchall():
+            cf_data[row[0]] = {"free_cash_flow": row[1], "operating_cash_flow": row[2]}
+        logging.info(f"  Loaded cashflow data for {len(cf_data)} symbols")
+    except Exception as e:
+        logging.warning(f"  Could not load cashflow data: {e}")
+        conn.rollback()
+
+    # Get key_metrics for beta (actual column that exists)
+    logging.info("  Pre-loading key_metrics (beta, earnings_growth)...")
+    km_data = {}
+    try:
+        cursor.execute(
+            "SELECT ticker, beta, earnings_growth FROM key_metrics WHERE ticker = ANY(%s)",
+            (symbols,)
+        )
+        for row in cursor.fetchall():
+            km_data[row[0]] = {"beta": row[1], "earnings_growth": row[2]}
+        logging.info(f"  Loaded key_metrics for {len(km_data)} symbols")
+    except Exception as e:
+        logging.warning(f"  Could not load key_metrics data: {e}")
+        conn.rollback()
 
     processed_symbols = set()
 
-    for row in cursor.fetchall():
+    def to_f(v):
+        """Convert Decimal/int/str to float, None if invalid."""
+        if v is None: return None
+        try: return float(v)
+        except (TypeError, ValueError): return None
+
+    # Process all symbols using TTM + balance sheet data
+    for symbol in symbols:
         try:
-            symbol = row[0]
-            processed_symbols.add(symbol)
+            ttm = ttm_data.get(symbol, {})
+            bs = bs_data.get(symbol, {})
+
+            total_revenue = to_f(ttm.get("total_revenue"))
+            gross_profit = to_f(ttm.get("gross_profit"))
+            operating_income = to_f(ttm.get("operating_income"))
+            net_income = to_f(ttm.get("net_income"))
+            stockholders_equity = to_f(bs.get("stockholders_equity"))
+            total_assets = to_f(bs.get("total_assets"))
+            total_debt = to_f(bs.get("total_debt"))
+            current_assets = to_f(bs.get("current_assets"))
+            current_liabilities = to_f(bs.get("current_liabilities"))
+            inventory = to_f(bs.get("inventory"))
+            cash = to_f(bs.get("cash_and_cash_equivalents")) or to_f(bs.get("cash_cash_equivalents_and_short_term_investments"))
+            invested_capital = to_f(bs.get("invested_capital"))
+
+            # Compute margins from TTM income statement
+            gross_margin = (gross_profit / total_revenue * 100) if total_revenue and gross_profit and total_revenue > 0 else None
+            op_margin = (operating_income / total_revenue * 100) if total_revenue and operating_income and total_revenue > 0 else None
+            profit_margin = (net_income / total_revenue * 100) if total_revenue and net_income and total_revenue > 0 else None
+
+            # Compute returns from balance sheet
+            roe = (net_income / stockholders_equity * 100) if net_income and stockholders_equity and stockholders_equity > 0 else None
+            roa = (net_income / total_assets * 100) if net_income and total_assets and total_assets > 0 else None
+            debt_to_equity = (total_debt / stockholders_equity) if total_debt and stockholders_equity and stockholders_equity > 0 else None
+            current_ratio = (current_assets / current_liabilities) if current_assets and current_liabilities and current_liabilities > 0 else None
+            # Quick ratio: (current assets - inventory) / current liabilities
+            quick_assets = (current_assets - inventory) if current_assets and inventory else current_assets
+            quick_ratio = (quick_assets / current_liabilities) if quick_assets and current_liabilities and current_liabilities > 0 else None
+
+            ebitda = to_f(ttm.get("ebitda"))
+            # ROIC: operating_income / invested_capital (use BS invested_capital when available)
+            if operating_income and invested_capital and invested_capital > 0:
+                roic = (operating_income / invested_capital) * 100
+            else:
+                roic = None
+
+            cf = cf_data.get(symbol, {})
             ticker_dict = {
                 "ticker": symbol,
-                "return_on_equity_pct": row[1],
-                "return_on_assets_pct": row[2],
-                "gross_margin_pct": row[3],
-                "operating_margin_pct": row[4],
-                "profit_margin_pct": row[5],
-                "free_cashflow": row[6],
-                "net_income": row[7],
-                "operating_cashflow": row[8],
-                "debt_to_equity": row[9],
-                "current_ratio": row[10],
-                "quick_ratio": row[11],
-                "payout_ratio": row[12],
-                "ebitda": row[13],
-                "total_debt": row[14],
-                "total_cash": row[15],
-                "total_revenue": row[16],
+                "return_on_equity_pct": roe,
+                "return_on_assets_pct": roa,
+                "return_on_invested_capital_pct": roic,
+                "gross_margin_pct": gross_margin,
+                "operating_margin_pct": op_margin,
+                "profit_margin_pct": profit_margin,
+                "net_income": net_income,
+                "total_revenue": total_revenue,
+                "debt_to_equity": debt_to_equity,
+                "current_ratio": current_ratio,
+                "quick_ratio": quick_ratio,
+                "payout_ratio": None,
+                "ebitda": ebitda,
+                "total_debt": total_debt,
+                "total_cash": cash,
+                "free_cashflow": to_f(cf.get("free_cash_flow")),
+                "operating_cashflow": to_f(cf.get("operating_cash_flow")),
             }
+            processed_symbols.add(symbol)
 
             # Calculate quality metrics from key_metrics
             metrics = calculate_quality_metrics(ticker_dict, ticker=None, symbol=symbol)
@@ -1780,158 +2009,16 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
                 metrics.get("estimate_momentum_90d"),
                 metrics.get("revision_trend_score"),
             ])
+
         except Exception as e:
             logging.warning(f"Error processing quality metrics for {symbol}: {e}")
             # Recover from transaction abort to continue processing other symbols
             try:
                 conn.rollback()
+
             except Exception as rollback_e:
                 logging.debug(f"Rollback failed after quality metrics error for {symbol}: {rollback_e}")
                 pass
-
-    # FALLBACK: Process stocks missing from key_metrics but with financial statement data
-    missing_symbols = set(symbols) - processed_symbols
-    if missing_symbols:
-        logging.info(f"Processing {len(missing_symbols)} symbols with financial data but no key_metrics data")
-
-        for symbol in missing_symbols:
-            try:
-                # Recover transaction state before processing each symbol
-                try:
-                    conn.rollback()
-                except Exception as rollback_e:
-                    logging.debug(f"Rollback failed before processing {symbol}: {rollback_e}")
-                    pass
-
-                # Calculate quality metrics from balance sheet and income statement
-                # Get balance sheet data
-                balance_row = None
-                try:
-                    cursor.execute("""
-                        SELECT total_assets, total_debt, total_cash, current_assets, current_liabilities,
-                               quick_assets
-                        FROM annual_balance_sheet
-                        WHERE symbol = %s
-                        ORDER BY fiscal_date DESC
-                        LIMIT 1
-                    """, (symbol,))
-                    balance_row = cursor.fetchone()
-                except Exception as e:
-                    logging.debug(f"Could not fetch balance sheet for {symbol}: {e}")
-                    conn.rollback()
-
-                # Get income statement data
-                income_row = None
-                try:
-                    cursor.execute("""
-                        SELECT total_revenue, gross_profit, operating_income, net_income, ebitda
-                        FROM annual_income_statement
-                        WHERE symbol = %s
-                        ORDER BY fiscal_date DESC
-                        LIMIT 1
-                    """, (symbol,))
-                    income_row = cursor.fetchone()
-                except Exception as e:
-                    logging.debug(f"Could not fetch income statement for {symbol}: {e}")
-                    conn.rollback()
-
-                # Create minimal ticker dict from available data
-                ticker_dict = {
-                    "ticker": symbol,
-                    "return_on_equity_pct": None,
-                    "return_on_assets_pct": None,
-                    "gross_margin_pct": None,
-                    "operating_margin_pct": None,
-                    "profit_margin_pct": None,
-                    "free_cashflow": None,
-                    "net_income": income_row[3] if income_row else None,
-                    "operating_cashflow": None,
-                    "debt_to_equity": None,
-                    "current_ratio": None,
-                    "quick_ratio": None,
-                    "payout_ratio": None,
-                    "ebitda": income_row[4] if income_row else None,
-                    "total_debt": balance_row[1] if balance_row else None,
-                    "total_cash": balance_row[2] if balance_row else None,
-                    "total_revenue": income_row[0] if income_row else None,
-                }
-
-                # Calculate what we can from available data
-                if balance_row and income_row:
-                    total_assets, total_debt, total_cash, current_assets, current_liabilities, quick_assets = balance_row
-                    total_revenue, gross_profit, operating_income, net_income, ebitda = income_row
-
-                    # Calculate ratios from balance sheet and income statement
-                    if total_assets and net_income:
-                        ticker_dict["return_on_assets_pct"] = (net_income / total_assets) * 100
-                    if total_debt and gross_profit and total_revenue:
-                        ticker_dict["debt_to_equity"] = total_debt / max(total_assets - total_debt, 1)
-                    if current_assets and current_liabilities:
-                        ticker_dict["current_ratio"] = current_assets / max(current_liabilities, 1)
-                    if quick_assets and current_liabilities:
-                        ticker_dict["quick_ratio"] = quick_assets / max(current_liabilities, 1)
-                    if total_revenue:
-                        if gross_profit:
-                            ticker_dict["gross_margin_pct"] = (gross_profit / total_revenue) * 100
-                        if operating_income:
-                            ticker_dict["operating_margin_pct"] = (operating_income / total_revenue) * 100
-                        if net_income:
-                            ticker_dict["profit_margin_pct"] = (net_income / total_revenue) * 100
-
-                metrics = calculate_quality_metrics(ticker_dict, ticker=None, symbol=symbol)
-
-                # Get earnings surprise metrics from quarterly statements
-                earnings_metrics = get_earnings_surprise_metrics(cursor, symbol)
-                metrics.update(earnings_metrics)
-
-                # Get additional earnings quality metrics
-                metrics["earnings_beat_rate"] = get_earnings_beat_rate(cursor, symbol)
-                metrics["consecutive_positive_quarters"] = get_consecutive_positive_quarters(cursor, symbol)
-                metrics["surprise_consistency"] = get_surprise_consistency(cursor, symbol)
-                metrics["estimate_revision_direction"] = get_estimate_revision_direction(cursor, symbol)
-                metrics["earnings_growth_4q_avg"] = get_earnings_growth_4q_avg(cursor, symbol)
-
-                # Get estimate trends and revision activity
-                metrics["revision_activity_30d"] = get_revision_activity_30d(cursor, symbol)
-                metrics["estimate_momentum_60d"] = get_estimate_momentum_60d(cursor, symbol)
-                metrics["estimate_momentum_90d"] = get_estimate_momentum_90d(cursor, symbol)
-                metrics["revision_trend_score"] = get_revision_trend_score(cursor, symbol)
-
-                quality_rows.append([
-                    symbol,
-                    date.today(),
-                    metrics.get("return_on_equity_pct"),
-                    metrics.get("return_on_assets_pct"),
-                    metrics.get("return_on_invested_capital_pct"),
-                    metrics.get("gross_margin_pct"),
-                    metrics.get("operating_margin_pct"),
-                    metrics.get("profit_margin_pct"),
-                    metrics.get("fcf_to_net_income"),
-                    metrics.get("operating_cf_to_net_income"),
-                    cap_ratio(metrics.get("debt_to_equity")),  # Cap D/E at ±9999
-                    cap_ratio(metrics.get("current_ratio")),  # Cap current ratio at ±9999
-                    cap_ratio(metrics.get("quick_ratio")),    # Cap quick ratio at ±9999
-                    metrics.get("earnings_surprise_avg"),
-                    metrics.get("eps_growth_stability"),
-                    metrics.get("payout_ratio"),
-                    metrics.get("earnings_beat_rate"),
-                    metrics.get("estimate_revision_direction"),
-                    metrics.get("consecutive_positive_quarters"),
-                    metrics.get("surprise_consistency"),
-                    metrics.get("earnings_growth_4q_avg"),
-                    metrics.get("revision_activity_30d"),
-                    metrics.get("estimate_momentum_60d"),
-                    metrics.get("estimate_momentum_90d"),
-                    metrics.get("revision_trend_score"),
-                ])
-            except Exception as e:
-                logging.warning(f"Error processing fallback quality metrics for {symbol}: {e}")
-                # Recover from transaction abort to continue processing other symbols
-                try:
-                    conn.rollback()
-                except Exception as rollback_e:
-                    logging.debug(f"Rollback failed after fallback quality metrics error for {symbol}: {rollback_e}")
-                    pass
 
     # CRITICAL: Add ALL remaining symbols with NULL values (valid data = no quality metrics available)
     # This ensures every stock has a quality_metrics record, even if all values are NULL
@@ -1940,15 +2027,8 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
     if truly_missing_symbols:
         logging.info(f"Adding {len(truly_missing_symbols)} stocks with no quality data (all NULLs)")
         for symbol in truly_missing_symbols:
-            # Add row with all NULLs - this is valid data (stock has no quality metrics)
-            quality_rows.append([
-                symbol,
-                date.today(),
-                None, None, None, None, None, None, None, None,  # ROE, ROA, ROIC, margins, FCF
-                None, None, None, None, None, None,              # Debt, ratios, earnings surprise
-                None, None, None, None, None, None,              # Beat rate, revision, quarters, surprise
-                None, None, None, None,                          # Growth, revision activity, momentum
-            ])
+            # Add row with all NULLs - 23 data columns matching the INSERT statement
+            quality_rows.append([symbol, date.today()] + [None] * 23)
 
     # Upsert quality_metrics
     if quality_rows:
@@ -1999,6 +2079,7 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
             # First, try to recover from any transaction abort from previous steps
             try:
                 conn.rollback()
+
             except Exception as rollback_e:
                 logging.debug(f"Rollback before quality metrics upsert: {rollback_e}")
                 pass
@@ -2010,6 +2091,7 @@ def load_quality_metrics(conn, cursor, symbols: List[str]):
             logging.error(f"Failed to insert quality metrics: {e}")
             try:
                 conn.rollback()
+
             except Exception as rollback_e:
                 logging.debug(f"Rollback after quality metrics insert failure: {rollback_e}")
                 pass
@@ -2024,50 +2106,32 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
     # Ensure clean transaction state and enable autocommit to avoid transaction abort issues
     try:
         conn.rollback()
-        except Exception:
+
+    except Exception:
         pass
 
     try:
         conn.autocommit = True
-        except Exception:
+
+
+    except Exception:
         pass
 
     growth_rows = []
 
-    # Get all key_metrics data in one query - include margin and financial data for trend calculations
+    # Get all symbols from key_metrics (only columns that actually exist)
+    # Growth calculations come from get_financial_statement_growth / get_quarterly_statement_growth
     try:
         cursor.execute(
-            """
-            SELECT ticker,
-                   revenue_growth_pct,
-                   earnings_growth_pct,
-                   earnings_q_growth_pct,
-                   return_on_equity_pct,
-                   payout_ratio,
-                   gross_margin_pct,
-                   operating_margin_pct,
-                   profit_margin_pct,
-                   ebitda_margin_pct,
-                   free_cashflow,
-                   net_income,
-                   operating_cashflow,
-                   total_revenue,
-                   eps_trailing,
-                   eps_forward
-            FROM key_metrics
-            WHERE symbol = ANY(%s)
-            """,
+            "SELECT ticker, earnings_growth FROM key_metrics WHERE ticker = ANY(%s)",
             (symbols,)
         )
-
-        # Materialize results to avoid cursor state issues with nested queries
         key_metrics_rows = cursor.fetchall()
     except Exception as e:
-        logging.warning(f"Failed to fetch key_metrics: {e}. Attempting to recover...")
+        logging.warning(f"Failed to fetch key_metrics: {e}")
         try:
             conn.rollback()
-        except Exception as rollback_e:
-            logging.debug(f"Rollback failed during key_metrics recovery: {rollback_e}")
+        except Exception:
             pass
         cursor.close()
         cursor = conn.cursor()
@@ -2078,21 +2142,21 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
             ticker = row[0]
             ticker_dict = {
                 "ticker": ticker,
-                "revenue_growth_pct": row[1],
-                "earnings_growth_pct": row[2],
-                "earnings_q_growth_pct": row[3],
-                "return_on_equity_pct": row[4],
-                "payout_ratio": row[5],
-                "gross_margin_pct": row[6],
-                "operating_margin_pct": row[7],
-                "profit_margin_pct": row[8],
-                "ebitda_margin_pct": row[9],
-                "free_cashflow": row[10],
-                "net_income": row[11],
-                "operating_cashflow": row[12],
-                "total_revenue": row[13],
-                "eps_trailing": row[14],
-                "eps_forward": row[15],
+                "revenue_growth_pct": None,
+                "earnings_growth_pct": row[1],  # earnings_growth from key_metrics
+                "earnings_q_growth_pct": None,
+                "return_on_equity_pct": None,
+                "payout_ratio": None,
+                "gross_margin_pct": None,
+                "operating_margin_pct": None,
+                "profit_margin_pct": None,
+                "ebitda_margin_pct": None,
+                "free_cashflow": None,
+                "net_income": None,
+                "operating_cashflow": None,
+                "total_revenue": None,
+                "eps_trailing": None,
+                "eps_forward": None,
             }
 
             # Get growth metrics from multiple sources (priority order) with error recovery
@@ -2102,33 +2166,42 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
 
             try:
                 financial_growth = get_financial_statement_growth(cursor, ticker)
+
+
             except Exception as fge:
                 logging.debug(f"Could not get financial growth for {ticker}: {fge}")
                 try:
                     conn.rollback()
-        except Exception:
+
+                except Exception:
                     pass
                 cursor = conn.cursor()
                 financial_growth = None
 
             try:
                 quarterly_growth = get_quarterly_statement_growth(cursor, ticker)
+
+
             except Exception as qge:
                 logging.debug(f"Could not get quarterly growth for {ticker}: {qge}")
                 try:
                     conn.rollback()
-        except Exception:
+
+                except Exception:
                     pass
                 cursor = conn.cursor()
                 quarterly_growth = None
 
             try:
                 earnings_history_growth = get_earnings_history_growth(cursor, ticker)
+
+
             except Exception as ege:
                 logging.debug(f"Could not get earnings history growth for {ticker}: {ege}")
                 try:
                     conn.rollback()
-        except Exception:
+
+                except Exception:
                     pass
                 cursor = conn.cursor()
                 earnings_history_growth = None
@@ -2136,6 +2209,7 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
             # Calculate metrics combining all available data sources
             try:
                 metrics = calculate_growth_metrics(ticker_dict, financial_growth, quarterly_growth, earnings_history_growth, cursor, ticker)
+
             except Exception as mce:
                 logging.debug(f"Error calculating growth metrics for {ticker}: {mce}")
                 metrics = {}  # Return empty metrics instead of failing
@@ -2164,11 +2238,13 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
                 try:
                     conn.commit()
                     logging.debug(f"Committed growth metrics for {idx + 1} symbols")
+
                 except Exception as commit_e:
                     logging.warning(f"Commit failed at symbol {idx + 1}: {commit_e}")
                     try:
                         conn.rollback()
-        except Exception:
+
+                    except Exception:
                         pass
                     cursor = conn.cursor()
         except Exception as e:
@@ -2197,33 +2273,42 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
 
             try:
                 financial_growth = get_financial_statement_growth(cursor, symbol)
+
+
             except Exception as fge:
                 logging.debug(f"Could not get financial growth for {symbol}: {fge}")
                 try:
                     conn.rollback()
-        except Exception:
+
+                except Exception:
                     pass
                 cursor = conn.cursor()
                 financial_growth = None
 
             try:
                 quarterly_growth = get_quarterly_statement_growth(cursor, symbol)
+
+
             except Exception as qge:
                 logging.debug(f"Could not get quarterly growth for {symbol}: {qge}")
                 try:
                     conn.rollback()
-        except Exception:
+
+                except Exception:
                     pass
                 cursor = conn.cursor()
                 quarterly_growth = None
 
             try:
                 earnings_history_growth = get_earnings_history_growth(cursor, symbol)
+
+
             except Exception as ege:
                 logging.debug(f"Could not get earnings history growth for {symbol}: {ege}")
                 try:
                     conn.rollback()
-        except Exception:
+
+                except Exception:
                     pass
                 cursor = conn.cursor()
                 earnings_history_growth = None
@@ -2308,6 +2393,7 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
             # First, try to recover from any transaction abort from previous steps
             try:
                 conn.rollback()
+
             except Exception as rollback_e:
                 logging.debug(f"Rollback before growth metrics upsert: {rollback_e}")
                 pass
@@ -2322,6 +2408,7 @@ def load_growth_metrics(conn, cursor, symbols: List[str]):
             logging.error(f"Failed to insert growth metrics: {e}")
             try:
                 conn.rollback()
+
             except Exception as rollback_e:
                 logging.debug(f"Rollback after growth metrics insert failure: {rollback_e}")
                 pass
@@ -2335,7 +2422,8 @@ def load_momentum_metrics(conn, cursor, symbols: List[str]):
     # Ensure clean transaction state
     try:
         conn.rollback()
-        except Exception:
+
+    except Exception:
         pass
 
     momentum_rows = []
@@ -2423,6 +2511,7 @@ def load_momentum_metrics(conn, cursor, symbols: List[str]):
                         "price_vs_sma_200": cap_momentum(price_vs_sma_200),
                         "price_vs_52w_high": cap_momentum(price_vs_52w_high),
                     }
+
         except Exception as e:
             logging.debug(f"Could not calculate momentum for {symbol}: {e}")
 
@@ -2470,6 +2559,7 @@ def load_momentum_metrics(conn, cursor, symbols: List[str]):
             execute_values(cursor, upsert_sql, momentum_rows)
             conn.commit()
             logging.info(f"Loaded {len(momentum_rows)} momentum metric records (all {len(symbols)} stocks)")
+
         except Exception as e:
             logging.error(f"Failed to insert momentum metrics: {e}")
             conn.rollback()
@@ -2483,22 +2573,42 @@ def load_stability_metrics(conn, cursor, symbols: List[str]):
     # Ensure clean transaction state
     try:
         conn.rollback()
-        except Exception:
+
+    except Exception:
         pass
 
     stability_rows = []
     today = date.today()
 
+    # Batch pre-load beta from key_metrics (avoids 5000+ yfinance API calls)
+    beta_data = {}
+    try:
+        cursor.execute(
+            "SELECT ticker, beta FROM key_metrics WHERE ticker = ANY(%s) AND beta IS NOT NULL",
+            (symbols,)
+        )
+        for row in cursor.fetchall():
+            beta_val = row[1]
+            if beta_val is not None:
+                try:
+                    beta_f = float(beta_val)
+                    if not np.isnan(beta_f):
+                        beta_data[row[0]] = beta_f
+                except (ValueError, TypeError):
+                    pass
+        logging.info(f"  Pre-loaded beta for {len(beta_data)} symbols from key_metrics")
+    except Exception as e:
+        logging.warning(f"  Could not pre-load beta from key_metrics: {e}")
+        conn.rollback()
+
     # Initialize benchmark cache to avoid redundant SPY queries
-    # This reduces database load from 5000+ SPY queries to just 1
     benchmark_cache = {}
-    logging.info(f" Benchmark cache initialized - SPY data will be loaded once and reused for {len(symbols)} symbols")
 
     for i, symbol in enumerate(symbols, 1):
         try:
             # Get traditional stability metrics (volatility, drawdown, beta)
-            # Pass benchmark_cache to reuse SPY data for all symbols
-            stability = get_stability_metrics(cursor, symbol, benchmark_cache)
+            # Pass pre-loaded beta to avoid yfinance API calls
+            stability = get_stability_metrics(cursor, symbol, benchmark_cache, preloaded_beta=beta_data.get(symbol))
 
             # Validate beta if enabled (for testing/verification)
             if os.environ.get("VALIDATE_BETA", "false").lower() == "true":
@@ -2552,12 +2662,8 @@ def load_stability_metrics(conn, cursor, symbols: List[str]):
                 all_metrics.get("daily_spread")
             ))
 
-            if (i % 100) == 0:
+            if (i % 500) == 0:
                 logging.info(f"Processed {i}/{len(symbols)} symbols for stability metrics")
-
-            # Pause to avoid rate limiting
-            if (i + 1) % 100 == 0:
-                time.sleep(1)
 
         except Exception as e:
             logging.debug(f"Could not load stability metrics for {symbol}: {e}")
@@ -2591,6 +2697,7 @@ def load_stability_metrics(conn, cursor, symbols: List[str]):
             execute_values(cursor, upsert_sql, stability_rows)
             conn.commit()
             logging.info(f"Loaded {len(stability_rows)} stability metric records (including volume metrics)")
+
         except Exception as e:
             logging.error(f"Failed to insert stability metrics: {e}")
             conn.rollback()
@@ -2598,60 +2705,121 @@ def load_stability_metrics(conn, cursor, symbols: List[str]):
 
 
 def load_value_metrics(conn, cursor, symbols: List[str]):
-    """Load value metrics (PE, P/B, P/S, EV/EBITDA, etc.) from key_metrics"""
-    logging.info("Loading value metrics...")
+    """Load value metrics (PE, P/B, P/S, EV/EBITDA, etc.) from key_metrics table.
+    key_metrics is loaded by loaddailycompanydata.py and has PE, PB, PS, PEG, dividend yield.
+    EV ratios are calculated from market_cap + debt - cash and income statement data.
+    """
+    logging.info("Loading value metrics from key_metrics (no yfinance needed)...")
 
     # Ensure clean transaction state
     try:
         conn.rollback()
-        except Exception:
+    except Exception:
         pass
 
     value_rows = []
     today = date.today()
 
-    for idx, symbol in enumerate(symbols, 1):
-        try:
-            ticker = yf.Ticker(symbol)
-            info = get_ticker_info_with_timeout(ticker, timeout_sec=15)
+    # Batch load from key_metrics — already has all value ratio data
+    try:
+        cursor.execute("""
+            SELECT ticker, trailing_pe, forward_pe, price_to_book, price_to_sales_ttm,
+                   peg_ratio, dividend_yield, market_cap
+            FROM key_metrics
+            WHERE ticker = ANY(%s)
+        """, (symbols,))
+        km_rows = {row[0]: row for row in cursor.fetchall()}
+        logging.info(f"  Loaded key_metrics for {len(km_rows)} symbols")
+    except Exception as e:
+        logging.warning(f"  Could not load key_metrics for value_metrics: {e}")
+        conn.rollback()
+        km_rows = {}
 
-            # Load ALL symbols - NULL values are MEANINGFUL DATA, not missing data!
-            # yfinance only exposes ratio fields for profitable/major stocks
-            # When info.get('trailingPE') returns None, it means:
-            #   - yfinance didn't provide it (not a data quality issue)
-            #   - Stock is unprofitable, micro-cap, delisted, or ADR
-            #   - The NULL is the CORRECT representation in our database
-            # DO NOT treat NULLs as failures or try to "fill" them
-            # CRITICAL: Add EVERY stock, even if info is None (that's valid NULL data)
-            if info is None:
-                info = {}  # Empty dict so .get() returns None for all fields
+    # Batch load balance sheet data for EV calculation (debt, cash)
+    bs_data = {}
+    try:
+        cursor.execute("""
+            SELECT DISTINCT ON (symbol) symbol,
+                COALESCE(total_debt, 0) as total_debt,
+                COALESCE(cash_and_cash_equivalents, 0) as cash
+            FROM annual_balance_sheet
+            WHERE symbol = ANY(%s)
+            ORDER BY symbol, fiscal_year DESC
+        """, (symbols,))
+        for row in cursor.fetchall():
+            bs_data[row[0]] = {"total_debt": float(row[1] or 0), "cash": float(row[2] or 0)}
+        logging.info(f"  Loaded balance sheet data for {len(bs_data)} symbols (EV calc)")
+    except Exception as e:
+        logging.warning(f"  Could not load balance sheet for EV calculation: {e}")
+        conn.rollback()
 
+    # Batch load income statement data for EV/Revenue calculation
+    is_data = {}
+    try:
+        cursor.execute("""
+            SELECT DISTINCT ON (symbol) symbol, revenue
+            FROM annual_income_statement
+            WHERE symbol = ANY(%s) AND revenue IS NOT NULL
+            ORDER BY symbol, fiscal_year DESC
+        """, (symbols,))
+        for row in cursor.fetchall():
+            is_data[row[0]] = {"revenue": float(row[1]) if row[1] else None}
+        logging.info(f"  Loaded income statement data for {len(is_data)} symbols (EV/Revenue calc)")
+    except Exception as e:
+        logging.warning(f"  Could not load income statement for EV calculation: {e}")
+        conn.rollback()
+
+    # Batch load latest prices and shares for market cap calculation
+    # market_cap = implied_shares_outstanding × latest close price
+    price_data = {}
+    try:
+        cursor.execute("""
+            SELECT DISTINCT ON (pd.symbol) pd.symbol, pd.adj_close, km.implied_shares_outstanding
+            FROM price_daily pd
+            JOIN key_metrics km ON km.ticker = pd.symbol
+            WHERE pd.symbol = ANY(%s) AND km.implied_shares_outstanding IS NOT NULL
+            ORDER BY pd.symbol, pd.date DESC
+        """, (symbols,))
+        for row in cursor.fetchall():
+            if row[1] and row[2]:
+                price_data[row[0]] = float(row[1]) * float(row[2])  # market_cap
+        logging.info(f"  Calculated market_cap for {len(price_data)} symbols (price × shares)")
+    except Exception as e:
+        logging.warning(f"  Could not calculate market_cap for EV: {e}")
+        conn.rollback()
+
+    for symbol in symbols:
+        km = km_rows.get(symbol)
+
+        # Calculate EV ratios using computed market_cap from shares × price
+        ev_to_revenue = None
+        ev_to_ebitda = None  # EBITDA not reliably available from yfinance data pipeline
+        bs = bs_data.get(symbol, {})
+        iss = is_data.get(symbol, {})
+        market_cap = price_data.get(symbol)
+        if market_cap and market_cap > 0:
+            enterprise_value = market_cap + bs.get("total_debt", 0) - bs.get("cash", 0)
+            if enterprise_value > 0:
+                revenue = iss.get("revenue")
+                if revenue and revenue > 0:
+                    ev_to_revenue = round(enterprise_value / revenue, 2)
+
+        if km:
             value_rows.append((
-                symbol,
-                today,
-                info.get('trailingPE'),  # trailing_pe - NULL when yfinance doesn't expose it
-                info.get('forwardPE'),  # forward_pe - NULL when yfinance doesn't expose it
-                info.get('priceToBook'),  # price_to_book - NULL when yfinance doesn't expose it
-                info.get('priceToSalesTrailing12Months'),  # price_to_sales_ttm - NULL when yfinance doesn't expose it
-                info.get('trailingPegRatio'),  # peg_ratio
-                info.get('enterpriseToRevenue'),  # ev_to_revenue
-                info.get('enterpriseToEbitda'),  # ev_to_ebitda
-                info.get('dividendYield'),  # dividend_yield - NULL when no dividend
-                info.get('payoutRatio')   # payout_ratio - NULL when no earnings to pay
+                symbol, today,
+                km[1],         # trailing_pe
+                km[2],         # forward_pe
+                km[3],         # price_to_book
+                km[4],         # price_to_sales_ttm
+                km[5],         # peg_ratio
+                ev_to_revenue, # calculated from market_cap + BS + IS
+                ev_to_ebitda,  # calculated from market_cap + BS + IS
+                km[6],         # dividend_yield
+                None,          # payout_ratio
             ))
-        except Exception as e:
-            logging.debug(f"Could not load value metrics for {symbol}: {e}")
-            # Even on error, add a row with all NULLs (valid data = no value metrics available)
-            value_rows.append((
-                symbol,
-                today,
-                None, None, None, None, None, None, None, None, None
-            ))
-
-        if idx % 100 == 0:
-            logging.info(f"Processing value metrics for {symbol} ({idx}/{len(symbols)})")
-            # Add rate limiting delay every 100 symbols to avoid yfinance HTTP 429 rate limiting
-            time.sleep(2)
+        else:
+            # Stock not in key_metrics — insert NULL row so it has a record
+            value_rows.append((symbol, today, None, None, None, None, None, None, None, None, None))
 
     # Upsert value_metrics
     if value_rows:
@@ -2668,20 +2836,21 @@ def load_value_metrics(conn, cursor, symbols: List[str]):
                 peg_ratio, ev_to_revenue, ev_to_ebitda, dividend_yield, payout_ratio
             ) VALUES %s
             ON CONFLICT (symbol, date) DO UPDATE SET
-                trailing_pe = COALESCE(value_metrics.trailing_pe, EXCLUDED.trailing_pe),
-                forward_pe = COALESCE(value_metrics.forward_pe, EXCLUDED.forward_pe),
-                price_to_book = COALESCE(value_metrics.price_to_book, EXCLUDED.price_to_book),
-                price_to_sales_ttm = COALESCE(value_metrics.price_to_sales_ttm, EXCLUDED.price_to_sales_ttm),
-                peg_ratio = COALESCE(value_metrics.peg_ratio, EXCLUDED.peg_ratio),
-                ev_to_revenue = COALESCE(value_metrics.ev_to_revenue, EXCLUDED.ev_to_revenue),
-                ev_to_ebitda = COALESCE(value_metrics.ev_to_ebitda, EXCLUDED.ev_to_ebitda),
-                dividend_yield = COALESCE(value_metrics.dividend_yield, EXCLUDED.dividend_yield),
-                payout_ratio = COALESCE(value_metrics.payout_ratio, EXCLUDED.payout_ratio)
+                trailing_pe = EXCLUDED.trailing_pe,
+                forward_pe = EXCLUDED.forward_pe,
+                price_to_book = EXCLUDED.price_to_book,
+                price_to_sales_ttm = EXCLUDED.price_to_sales_ttm,
+                peg_ratio = EXCLUDED.peg_ratio,
+                ev_to_revenue = EXCLUDED.ev_to_revenue,
+                ev_to_ebitda = EXCLUDED.ev_to_ebitda,
+                dividend_yield = EXCLUDED.dividend_yield,
+                payout_ratio = EXCLUDED.payout_ratio
         """
         try:
             execute_values(cursor, upsert_sql, value_rows)
             conn.commit()
             logging.info(f"Loaded {len(value_rows)} value metric records")
+
         except Exception as e:
             logging.error(f"Failed to insert value metrics: {e}")
             conn.rollback()
@@ -2702,7 +2871,8 @@ def load_positioning_metrics(conn, cursor, symbols: List[str]):
     # Ensure clean transaction state
     try:
         conn.rollback()
-        except Exception:
+
+    except Exception:
         pass
 
     try:
@@ -2747,6 +2917,7 @@ def load_positioning_metrics(conn, cursor, symbols: List[str]):
                     if count % 500 == 0:
                         logging.info(f"  Processed {count}/{len(mh_symbols)} symbols from major_holders")
                         conn.commit()
+
                 except Exception as e:
                     logging.warning(f"  Error processing positioning for {symbol}: {e}")
 
@@ -2776,6 +2947,7 @@ def load_positioning_metrics(conn, cursor, symbols: List[str]):
                                 updated_at = NOW()
                         """, (symbol, 50.0, 5.0, 2.0, 3.0, 500))
                         default_count += 1
+
                     except Exception as e:
                         logging.debug(f"  {symbol}: {e}")
 
@@ -2803,6 +2975,7 @@ def load_positioning_metrics(conn, cursor, symbols: List[str]):
                             updated_at = NOW()
                     """, (symbol, 50.0, 5.0, 2.0, 3.0, 500))
                     count += 1
+
                 except Exception as e:
                     logging.debug(f"  {symbol}: {e}")
 
@@ -2818,6 +2991,7 @@ def load_positioning_metrics(conn, cursor, symbols: List[str]):
         logging.error(f"Error loading positioning metrics: {e}")
         try:
             conn.rollback()
+
         except Exception:
             pass
         raise
@@ -3119,6 +3293,7 @@ def create_factor_metrics_tables(cursor):
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_positioning_metrics_symbol ON positioning_metrics(symbol)")
 
         logging.info(" Factor metrics tables created/verified (6 tables: quality, growth, momentum, stability, value, positioning)")
+
     except Exception as e:
         logging.error(f"Error creating tables: {e}")
         raise
@@ -3215,6 +3390,7 @@ def fill_metric_gaps(conn, cursor):
         logging.info(f"  ROE %: {roe_filled:,}/{total:,} ({roe_filled/total*100:.1f}%)")
         logging.info("\n Gap filling completed")
 
+
     except Exception as e:
         logging.error(f"Error filling metric gaps: {e}", exc_info=True)
         conn.rollback()
@@ -3247,15 +3423,18 @@ def main():
         try:
             load_quality_metrics(conn, cursor, symbols)
             log_mem("After quality metrics")
+
         except Exception as e:
             logging.error(f"Quality metrics loading failed: {e}")
             try:
                 conn.rollback()
+
             except Exception as rollback_err:
                 logging.warning(f"Rollback failed, attempting disconnect/reconnect: {rollback_err}")
                 try:
                     cursor.close()
                     conn.close()
+
                 except Exception as close_e:
                     logging.debug(f"Error closing connection during quality metrics recovery: {close_e}")
                     pass
@@ -3267,6 +3446,7 @@ def main():
         try:
             cursor.close()
             conn.close()
+
         except Exception:
             pass
         conn = psycopg2.connect(**db_config)
@@ -3279,6 +3459,7 @@ def main():
             logging.error(f"Growth metrics loading failed: {e}")
             try:
                 conn.rollback()
+
             except Exception as rollback_err:
                 logging.warning(f"Rollback failed, attempting disconnect/reconnect: {rollback_err}")
                 try:
@@ -3307,6 +3488,7 @@ def main():
             logging.error(f"Momentum metrics loading failed: {e}")
             try:
                 conn.rollback()
+
             except Exception as rollback_err:
                 logging.warning(f"Rollback failed, attempting disconnect/reconnect: {rollback_err}")
                 try:
@@ -3335,6 +3517,7 @@ def main():
             logging.error(f"Stability metrics loading failed: {e}")
             try:
                 conn.rollback()
+
             except Exception as rollback_err:
                 logging.warning(f"Rollback failed, attempting disconnect/reconnect: {rollback_err}")
                 try:
@@ -3363,6 +3546,7 @@ def main():
             logging.error(f"Value metrics loading failed: {e}")
             try:
                 conn.rollback()
+
             except Exception as rollback_err:
                 logging.warning(f"Rollback failed, attempting disconnect/reconnect: {rollback_err}")
                 try:
@@ -3391,6 +3575,7 @@ def main():
             logging.error(f"Positioning metrics loading failed: {e}")
             try:
                 conn.rollback()
+
             except Exception as rollback_err:
                 logging.warning(f"Rollback failed, attempting disconnect/reconnect: {rollback_err}")
                 try:
@@ -3419,6 +3604,7 @@ def main():
             logging.error(f"A/D ratings loading failed: {e}")
             try:
                 conn.rollback()
+
             except Exception as rollback_err:
                 logging.warning(f"Rollback failed, attempting disconnect/reconnect: {rollback_err}")
                 try:
@@ -3431,22 +3617,9 @@ def main():
             cursor.close()
             cursor = conn.cursor()  # Create new cursor after rollback
 
-        # Force connection refresh before fill_metric_gaps
-        try:
-            cursor.close()
-            conn.close()
-        except Exception:
-            pass
-        conn = psycopg2.connect(**db_config)
-        cursor = conn.cursor()
-
-        # Fill metric gaps from available data
-        try:
-            fill_metric_gaps(conn, cursor)
-            log_mem("After gap filling")
-        except Exception as e:
-            logging.error(f"Metric gap filling failed: {e}")
-            conn.rollback()
+        # fill_metric_gaps disabled - it referenced non-existent key_metrics columns
+        # (total_debt, book_value, net_income, total_revenue) causing transaction aborts
+        # All metrics are now calculated directly from financial statement tables
 
         cursor.close()
         conn.close()
@@ -3507,7 +3680,7 @@ def main():
                 CREATE TEMP TABLE latest_stability AS
                 SELECT DISTINCT ON (symbol) *
                 FROM stability_metrics
-                ORDER BY symbol, date DESC, created_at DESC
+                ORDER BY symbol, date DESC, fetched_at DESC
             """)
             cursor.execute("DELETE FROM stability_metrics")
             cursor.execute("INSERT INTO stability_metrics SELECT * FROM latest_stability")
@@ -3592,7 +3765,8 @@ def main():
                 logging.warning(f"Could not update last_updated table: {lu_err}")
                 try:
                     conn.rollback()
-        except Exception:
+
+                except Exception:
                     pass
 
         except Exception as verify_err:

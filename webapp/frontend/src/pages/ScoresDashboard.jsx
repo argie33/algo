@@ -270,8 +270,10 @@ const ScoresDashboard = () => {
   const [expandedStock, setExpandedStock] = useState(null);
   const [signals, setSignals] = useState({});
   const [signalsLoading, setSignalsLoading] = useState(false);
+  const [stockDetails, setStockDetails] = useState({}); // Lazy-loaded factor details per symbol
   const [showFilters, setShowFilters] = useState(false);
-  const [displayLimit, setDisplayLimit] = useState(50); // Items per page
+  const [displayLimit] = useState(5000); // Fetch all stocks from server for filtering/sorting
+  const [pageSize, setPageSize] = useState(100); // How many to render at once in the accordion
   const [showAllStocks, setShowAllStocks] = useState(false);
   const [currentPage, setCurrentPage] = useState(1); // Pagination state
   const [totalRecords, setTotalRecords] = useState(0); // Total from API
@@ -348,11 +350,10 @@ const ScoresDashboard = () => {
     loadAllScores();
   }, []);
 
+  // Reset to page 1 when any filter changes
   useEffect(() => {
-    if (scores.length > 0) {
-      loadSignalsForStocks(scores);
-    }
-  }, [scores]);
+    setCurrentPage(1);
+  }, [searchTerm, minCompositeScore, minMomentumScore, minQualityScore, minValueScore, minGrowthScore, selectedSector, sortBy, sortOrder]);
 
   const loadAllScores = async (page = 1) => {
     setLoading(true);
@@ -361,7 +362,6 @@ const ScoresDashboard = () => {
       // Calculate offset based on page and displayLimit
       const offset = (page - 1) * displayLimit;
 
-      // Fetch paginated data from API - use composite_score for main display
       const response = await api.get(
         `/api/scores/stockscores?limit=${displayLimit}&offset=${offset}&sortBy=composite_score`
       );
@@ -377,15 +377,15 @@ const ScoresDashboard = () => {
 
         // Extract pagination info from response
         const totalRecords = responseData.pagination?.total || validStocksArray.length;
-        const pageSize = responseData.pagination?.limit || displayLimit;
-        const totalPages = Math.ceil(totalRecords / pageSize);
+        const fetchedPageSize = responseData.pagination?.limit || displayLimit;
+        const totalPages = Math.ceil(totalRecords / fetchedPageSize);
 
         setTotalRecords(totalRecords);
         setTotalPages(totalPages);
         setPaginationInfo({
           totalRecords: totalRecords,
           totalPages: totalPages,
-          pageSize: pageSize,
+          pageSize: fetchedPageSize,
           offset: responseData.pagination?.offset || 0
         });
         setCurrentPage(page);
@@ -437,7 +437,7 @@ const ScoresDashboard = () => {
         for (const timeframe of timeframes) {
           try {
             const response = await api.get(
-              `/api/signals/stocks?symbol=${stock.symbol}&timeframe=${timeframe}&limit=500`
+              `/api/signals/stocks?symbol=${stock.symbol}&timeframe=${timeframe}&limit=10000`
             );
             const signalsArray = response?.data?.items || [];
             if (response?.data?.success && signalsArray.length > 0) {
@@ -596,8 +596,14 @@ const ScoresDashboard = () => {
       return sortOrder === "desc" ? comparison : -comparison;
     });
 
-  // Get displayed stocks (paginated)
-  const displayedStocks = showAllStocks ? filteredAndSortedScores : filteredAndSortedScores.slice(0, displayLimit);
+  // Paginate the filtered list — only render one page of accordions at a time to avoid OOM
+  const totalFilteredCount = filteredAndSortedScores.length;
+  const totalDisplayPages = Math.ceil(totalFilteredCount / pageSize);
+  const displayPageStart = (currentPage - 1) * pageSize;
+  const displayPageEnd = displayPageStart + pageSize;
+  const displayedStocks = filteredAndSortedScores
+    .slice(displayPageStart, displayPageEnd)
+    .map((s) => stockDetails[s.symbol] ? { ...s, ...stockDetails[s.symbol] } : s);
 
   // Get top performers for each category with optional sector filtering - ONLY real data
   const getTopPerformers = (scoreField, count = 10, sector = null) => {
@@ -693,6 +699,26 @@ const ScoresDashboard = () => {
 
   const handleAccordionChange = (symbol) => (event, isExpanded) => {
     setExpandedStock(isExpanded ? symbol : null);
+    if (isExpanded) {
+      // Lazy-load signals only for the expanded stock if not already loaded
+      if (!signals[symbol]) {
+        const stock = scores.find((s) => s.symbol === symbol);
+        if (stock) loadSignalsForStocks([stock]);
+      }
+      // Lazy-load full factor details (quality_inputs, growth_inputs, etc.) if not cached
+      if (!stockDetails[symbol]) {
+        import("../services/api").then(({ default: api }) => {
+          api.get(`/api/scores/stockscores?symbol=${symbol}&limit=1`)
+            .then((resp) => {
+              const items = resp.data?.items || [];
+              if (items[0]) {
+                setStockDetails((prev) => ({ ...prev, [symbol]: items[0] }));
+              }
+            })
+            .catch(() => {}); // Silently ignore — accordion still renders with base data
+        });
+      }
+    }
   };
 
   const clearFilters = () => {
@@ -703,6 +729,7 @@ const ScoresDashboard = () => {
     setMinValueScore(0);
     setMinGrowthScore(0);
     setSelectedSector("all");
+    setCurrentPage(1);
   };
 
   const formatChange = (change) => {
@@ -1009,26 +1036,25 @@ const ScoresDashboard = () => {
                 </Tooltip>
               </>
             )}
-            {filteredAndSortedScores.length > displayLimit && !showAllStocks && (
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={() => setShowAllStocks(true)}
-                startIcon={<ExpandMore />}
-              >
-                Show All {filteredAndSortedScores.length}
-              </Button>
-            )}
-            {showAllStocks && filteredAndSortedScores.length > displayLimit && (
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={() => setShowAllStocks(false)}
-                startIcon={<ExpandMore sx={{ transform: "rotate(180deg)" }} />}
-              >
-                Show Top {displayLimit}
-              </Button>
-            )}
+            {/* Page size selector */}
+            <FormControl size="small" sx={{ minWidth: 90 }}>
+              <Select value={pageSize} onChange={(e) => { setPageSize(parseInt(e.target.value, 10)); setCurrentPage(1); }}>
+                <MenuItem value={25}>25 / pg</MenuItem>
+                <MenuItem value={50}>50 / pg</MenuItem>
+                <MenuItem value={100}>100 / pg</MenuItem>
+                <MenuItem value={250}>250 / pg</MenuItem>
+              </Select>
+            </FormControl>
+            {/* Prev / Next page */}
+            <IconButton size="small" disabled={currentPage <= 1} onClick={() => { setCurrentPage(p => p - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+              <ChevronLeftIcon />
+            </IconButton>
+            <Typography variant="body2" sx={{ whiteSpace: 'nowrap' }}>
+              {currentPage} / {totalDisplayPages || 1}
+            </Typography>
+            <IconButton size="small" disabled={currentPage >= totalDisplayPages} onClick={() => { setCurrentPage(p => p + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
+              <ChevronRightIcon />
+            </IconButton>
           </Box>
         </Box>
 
@@ -1765,7 +1791,7 @@ const ScoresDashboard = () => {
                                       <TableCell align="right">
                                         {stock.stability_inputs?.volatility_12m !== null && stock.stability_inputs?.volatility_12m !== undefined
                                           ? `${parseFloat(stock.stability_inputs.volatility_12m).toFixed(2)}%`
-                                          : ""}
+                                          : "—"}
                                       </TableCell>
                                     </TableRow>
                                     <TableRow>
@@ -1773,7 +1799,7 @@ const ScoresDashboard = () => {
                                       <TableCell align="right">
                                         {stock.stability_inputs?.downside_volatility !== null && stock.stability_inputs?.downside_volatility !== undefined
                                           ? `${parseFloat(stock.stability_inputs.downside_volatility).toFixed(2)}%`
-                                          : ""}
+                                          : "—"}
                                       </TableCell>
                                     </TableRow>
                                     <TableRow>
@@ -1781,7 +1807,7 @@ const ScoresDashboard = () => {
                                       <TableCell align="right">
                                         {stock.stability_inputs?.max_drawdown_52w !== null && stock.stability_inputs?.max_drawdown_52w !== undefined
                                           ? `${parseFloat(stock.stability_inputs.max_drawdown_52w).toFixed(2)}%`
-                                          : ""}
+                                          : "—"}
                                       </TableCell>
                                     </TableRow>
                                     <TableRow>
@@ -1789,7 +1815,7 @@ const ScoresDashboard = () => {
                                       <TableCell align="right">
                                         {stock.stability_inputs?.beta !== null && stock.stability_inputs?.beta !== undefined
                                           ? parseFloat(stock.stability_inputs.beta).toFixed(2)
-                                          : ""}
+                                          : "—"}
                                       </TableCell>
                                     </TableRow>
                                     {/* Market Liquidity Metrics */}
@@ -1798,7 +1824,7 @@ const ScoresDashboard = () => {
                                       <TableCell align="right">
                                         {stock.stability_inputs?.volume_consistency !== null && stock.stability_inputs?.volume_consistency !== undefined
                                           ? parseFloat(stock.stability_inputs.volume_consistency).toFixed(1)
-                                          : ""}
+                                          : "—"}
                                       </TableCell>
                                     </TableRow>
                                     <TableRow>
@@ -1806,7 +1832,7 @@ const ScoresDashboard = () => {
                                       <TableCell align="right">
                                         {stock.stability_inputs?.turnover_velocity !== null && stock.stability_inputs?.turnover_velocity !== undefined
                                           ? parseFloat(stock.stability_inputs.turnover_velocity).toFixed(1)
-                                          : ""}
+                                          : "—"}
                                       </TableCell>
                                     </TableRow>
                                     <TableRow>
@@ -1814,7 +1840,7 @@ const ScoresDashboard = () => {
                                       <TableCell align="right">
                                         {stock.stability_inputs?.volatility_volume_ratio !== null && stock.stability_inputs?.volatility_volume_ratio !== undefined
                                           ? parseFloat(stock.stability_inputs.volatility_volume_ratio).toFixed(1)
-                                          : ""}
+                                          : "—"}
                                       </TableCell>
                                     </TableRow>
                                     <TableRow>
@@ -1822,7 +1848,7 @@ const ScoresDashboard = () => {
                                       <TableCell align="right">
                                         {stock.stability_inputs?.daily_spread !== null && stock.stability_inputs?.daily_spread !== undefined
                                           ? parseFloat(stock.stability_inputs.daily_spread).toFixed(1)
-                                          : ""}
+                                          : "—"}
                                       </TableCell>
                                     </TableRow>
                                   </TableBody>
@@ -1925,7 +1951,7 @@ const ScoresDashboard = () => {
                                       <TableCell align="right">
                                         {stock.rsi !== null && stock.rsi !== undefined
                                           ? parseFloat(stock.rsi).toFixed(1)
-                                          : ""}
+                                          : "—"}
                                       </TableCell>
                                     </TableRow>
                                     <TableRow>
@@ -1933,7 +1959,7 @@ const ScoresDashboard = () => {
                                       <TableCell align="right">
                                         {stock.macd !== null && stock.macd !== undefined
                                           ? parseFloat(stock.macd).toFixed(4)
-                                          : ""}
+                                          : "—"}
                                       </TableCell>
                                     </TableRow>
                                     <TableRow>
@@ -1941,7 +1967,7 @@ const ScoresDashboard = () => {
                                       <TableCell align="right">
                                         {stock.momentum_inputs.price_vs_sma_50 !== null && stock.momentum_inputs.price_vs_sma_50 !== undefined
                                           ? `${parseFloat(stock.momentum_inputs.price_vs_sma_50).toFixed(2)}%`
-                                          : ""}
+                                          : "—"}
                                       </TableCell>
                                     </TableRow>
 
@@ -1950,7 +1976,7 @@ const ScoresDashboard = () => {
                                       <TableCell align="right">
                                         {stock.momentum_inputs?.momentum_3m != null
                                           ? `${parseFloat(stock.momentum_inputs.momentum_3m).toFixed(2)}%`
-                                          : ""}
+                                          : "—"}
                                       </TableCell>
                                     </TableRow>
 
@@ -1959,7 +1985,7 @@ const ScoresDashboard = () => {
                                       <TableCell align="right">
                                         {stock.momentum_inputs?.momentum_6m != null
                                           ? `${parseFloat(stock.momentum_inputs.momentum_6m).toFixed(2)}%`
-                                          : ""}
+                                          : "—"}
                                       </TableCell>
                                     </TableRow>
 
@@ -1968,7 +1994,7 @@ const ScoresDashboard = () => {
                                       <TableCell align="right">
                                         {stock.momentum_inputs?.momentum_12_3 != null
                                           ? `${parseFloat(stock.momentum_inputs.momentum_12_3).toFixed(2)}%`
-                                          : ""}
+                                          : "—"}
                                       </TableCell>
                                     </TableRow>
 
@@ -1977,7 +2003,7 @@ const ScoresDashboard = () => {
                                       <TableCell align="right">
                                         {stock.momentum_inputs.price_vs_sma_200 !== null && stock.momentum_inputs.price_vs_sma_200 !== undefined
                                           ? `${parseFloat(stock.momentum_inputs.price_vs_sma_200).toFixed(2)}%`
-                                          : ""}
+                                          : "—"}
                                       </TableCell>
                                     </TableRow>
                                     <TableRow>
@@ -1985,7 +2011,7 @@ const ScoresDashboard = () => {
                                       <TableCell align="right">
                                         {stock.momentum_inputs.price_vs_52w_high !== null && stock.momentum_inputs.price_vs_52w_high !== undefined
                                           ? `${parseFloat(stock.momentum_inputs.price_vs_52w_high).toFixed(2)}%`
-                                          : ""}
+                                          : "—"}
                                       </TableCell>
                                     </TableRow>
                                   </>
@@ -2210,31 +2236,33 @@ const ScoresDashboard = () => {
                                 <TableRow>
                                   <TableCell>Institutional Ownership %</TableCell>
                                   <TableCell align="right">
-                                    {stock.positioning_inputs?.institutional_ownership_pct != null ? `${(parseFloat(stock.positioning_inputs.institutional_ownership_pct) * 100).toFixed(1)}%` : ""}
+                                    {stock.positioning_inputs?.institutional_ownership_pct != null ? `${parseFloat(stock.positioning_inputs.institutional_ownership_pct).toFixed(1)}%` : "—"}
                                   </TableCell>
                                 </TableRow>
                                 <TableRow>
                                   <TableCell>Insider Ownership %</TableCell>
                                   <TableCell align="right">
-                                    {stock.positioning_inputs?.insider_ownership_pct != null ? `${(parseFloat(stock.positioning_inputs.insider_ownership_pct) * 100).toFixed(1)}%` : ""}
+                                    {stock.positioning_inputs?.insider_ownership_pct != null ? `${parseFloat(stock.positioning_inputs.insider_ownership_pct).toFixed(1)}%` : "—"}
                                   </TableCell>
                                 </TableRow>
                                 <TableRow>
                                   <TableCell>Short % of Float</TableCell>
                                   <TableCell align="right">
-                                    {stock.positioning_inputs?.short_percent_of_float != null ? `${(parseFloat(stock.positioning_inputs.short_percent_of_float) * 100).toFixed(1)}%` : ""}
+                                    {stock.positioning_inputs?.short_percent_of_float != null ? `${parseFloat(stock.positioning_inputs.short_percent_of_float).toFixed(1)}%` : "—"}
                                   </TableCell>
                                 </TableRow>
                                 <TableRow>
                                   <TableCell>Days to Cover (Short Ratio)</TableCell>
                                   <TableCell align="right">
-                                    {stock.positioning_inputs?.short_ratio != null ? parseFloat(stock.positioning_inputs.short_ratio).toFixed(2) : ""}
+                                    {stock.positioning_inputs?.short_ratio != null && parseFloat(stock.positioning_inputs.short_ratio) < 99999
+                                      ? parseFloat(stock.positioning_inputs.short_ratio).toFixed(2)
+                                      : "—"}
                                   </TableCell>
                                 </TableRow>
                                 <TableRow>
                                   <TableCell>Accumulation/Distribution Rating</TableCell>
                                   <TableCell align="right">
-                                    {stock.positioning_inputs?.ad_rating != null ? parseFloat(stock.positioning_inputs.ad_rating).toFixed(1) : ""}
+                                    {stock.positioning_inputs?.ad_rating != null ? parseFloat(stock.positioning_inputs.ad_rating).toFixed(1) : "—"}
                                   </TableCell>
                                 </TableRow>
                               </TableBody>
@@ -2260,41 +2288,25 @@ const ScoresDashboard = () => {
           ))}
 
           {/* Pagination Controls */}
-          {paginationInfo && totalPages > 1 && (
-            <Box
-              sx={{
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                gap: 2,
-                mt: 4,
-                mb: 2,
-              }}
-            >
+          {totalDisplayPages > 1 && (
+            <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 2, mt: 3, mb: 2 }}>
               <Button
                 variant="outlined"
-                disabled={!paginationInfo.hasPrevPage}
-                onClick={() => loadAllScores(currentPage - 1)}
+                disabled={currentPage <= 1}
+                onClick={() => { setCurrentPage(p => p - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                 startIcon={<ChevronLeftIcon />}
               >
                 Previous
               </Button>
-
-              <Typography variant="body1" sx={{ minWidth: "200px", textAlign: "center" }}>
-                Page {currentPage} of {totalPages}
-                {totalRecords > 0 && (
-                  <>
-                    {" • "}
-                    {paginationInfo.pageStart}-{paginationInfo.pageEnd} of{" "}
-                    {totalRecords}
-                  </>
-                )}
+              <Typography variant="body1" sx={{ minWidth: "180px", textAlign: "center" }}>
+                Page {currentPage} of {totalDisplayPages}
+                {" • "}
+                {displayPageStart + 1}–{Math.min(displayPageEnd, totalFilteredCount)} of {totalFilteredCount.toLocaleString()}
               </Typography>
-
               <Button
                 variant="outlined"
-                disabled={!paginationInfo.hasNextPage}
-                onClick={() => loadAllScores(currentPage + 1)}
+                disabled={currentPage >= totalDisplayPages}
+                onClick={() => { setCurrentPage(p => p + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                 endIcon={<ChevronRightIcon />}
               >
                 Next

@@ -18,6 +18,7 @@ import {
   getCurrentUser,
 } from "aws-amplify/auth";
 import { isCognitoConfigured } from "../config/amplify";
+import devAuth from "../services/devAuth"; // eslint-disable-line import/no-unused-modules
 import SessionWarningDialog from "../components/auth/SessionWarningDialog";
 import sessionManager from "../services/sessionManager";
 

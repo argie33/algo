@@ -66,7 +66,12 @@
       "Bash(fuser -k 3001/tcp)",
       "Bash(npm run *)",
       "Bash(git commit -m 'Fix: Clean up AI slop - add missing route imports, remove deleted endpoint references, fix /portfolio/positions *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(export DB_HOST=localhost DB_PORT=5432 DB_USER=stocks DB_PASSWORD=bed0elAn DB_NAME=stocks DB_SSL=false)",
+      "Bash(PORT=3001 node webapp/lambda/index.js)",
+      "Bash(curl -s \"http://localhost:3001/api/stocks/deep-value?limit=15\")",
+      "Bash(curl -s \"http://localhost:3001/api/stocks/deep-value?limit=10\")",
+      "Bash(psql -h localhost -U stocks -d stocks -c ' *)"
     ]
   }
 }

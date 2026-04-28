@@ -72,9 +72,18 @@ def zscore_to_percentile(z_score):
     return float(stats.norm.cdf(z_capped) * 100)
 
 def calculate_factor_zscore(values, invert=False):
-    """Calculate z-scores from values, handling NaN appropriately"""
+    """Calculate z-scores from values with winsorization to handle outliers."""
+    values = np.array(values, dtype=float)
     if np.all(np.isnan(values)):
         return np.full(len(values), np.nan)
+    # Winsorize at 1st/99th percentile before z-scoring to prevent outliers
+    # from inflating std and crushing all other scores toward zero
+    valid_mask = ~np.isnan(values)
+    if valid_mask.sum() < 3:
+        return np.full(len(values), np.nan)
+    lo = np.nanpercentile(values, 1)
+    hi = np.nanpercentile(values, 99)
+    values = np.where(valid_mask, np.clip(values, lo, hi), np.nan)
     with np.errstate(invalid='ignore'):
         mean_val = np.nanmean(values)
         std_val = np.nanstd(values)
@@ -87,30 +96,34 @@ def calculate_factor_zscore(values, invert=False):
 
 def calculate_weighted_score(df, metric_columns, weights=None):
     """
-    Calculate a weighted composite score from multiple metrics.
-    Standardizes each metric individually, then combines with weights.
-    Returns: array of weighted composite z-scores
+    Compute a weighted average z-score across metrics, handling missing values.
+    For each stock, re-normalizes weights using only the metrics that are present,
+    so a stock missing half the metrics isn't penalized and scores stay on the
+    same scale regardless of how many metrics each factor uses.
     """
     if weights is None:
         weights = {col: 1.0 for col in metric_columns}
 
-    # Normalize weights
-    total_weight = sum(weights.values())
-    weights = {k: v / total_weight for k, v in weights.items()}
-
-    # Calculate z-score for each metric
     z_scores = []
+    weight_vals = []
     for col in metric_columns:
         if col in df.columns:
             z = calculate_factor_zscore(df[col].values)
-            z_scores.append(z * weights.get(col, 1.0))
+            z_scores.append(z)
+            weight_vals.append(weights.get(col, 1.0))
 
-    # If no valid metrics, return NaN
     if not z_scores:
         return np.full(len(df), np.nan)
 
-    # Average the weighted z-scores
-    combined = np.nanmean(np.array(z_scores), axis=0)
+    z_array = np.array(z_scores)       # (n_metrics, n_stocks)
+    w_array = np.array(weight_vals)    # (n_metrics,)
+
+    # Weighted sum and sum-of-weights per stock (ignoring NaN metrics)
+    present = (~np.isnan(z_array)).astype(float)  # 1 where metric is available
+    weighted_sum = np.nansum(z_array * w_array[:, np.newaxis], axis=0)
+    weight_sum = np.sum(present * w_array[:, np.newaxis], axis=0)
+
+    combined = np.where(weight_sum > 0, weighted_sum / weight_sum, np.nan)
     return combined
 
 def load_comprehensive_metrics(conn):
@@ -133,15 +146,20 @@ def load_comprehensive_metrics(conn):
     # ===== QUALITY METRICS =====
     logger.info("Loading quality metrics...")
     cur.execute("""
-        SELECT symbol, return_on_equity_pct, return_on_assets_pct, gross_margin_pct, operating_margin_pct, profit_margin_pct,
-               debt_to_equity, current_ratio, quick_ratio, return_on_invested_capital_pct
+        SELECT DISTINCT ON (symbol) symbol, return_on_equity_pct, return_on_assets_pct, gross_margin_pct, operating_margin_pct, profit_margin_pct,
+               debt_to_equity, current_ratio, quick_ratio, return_on_invested_capital_pct,
+               earnings_beat_rate, earnings_surprise_avg,
+               fcf_to_net_income, operating_cf_to_net_income
         FROM quality_metrics
+        ORDER BY symbol, date DESC
     """)
     quality_data = cur.fetchall()
     if quality_data:
         quality_df = pd.DataFrame(quality_data, columns=[
             'symbol', 'roe', 'roa', 'gross_margin', 'operating_margin', 'profit_margin',
-            'debt_to_equity', 'current_ratio', 'quick_ratio', 'roic'
+            'debt_to_equity', 'current_ratio', 'quick_ratio', 'roic',
+            'earnings_beat_rate', 'earnings_surprise_avg',
+            'fcf_to_ni', 'ocf_to_ni'
         ]).set_index('symbol')
         df = df.join(quality_df, how='left')
         logger.info(f"  Loaded quality metrics for {quality_df.shape[0]} stocks")
@@ -149,17 +167,19 @@ def load_comprehensive_metrics(conn):
     # ===== GROWTH METRICS =====
     logger.info("Loading growth metrics...")
     cur.execute("""
-        SELECT symbol,
+        SELECT DISTINCT ON (symbol) symbol,
             revenue_growth_3y_cagr, eps_growth_3y_cagr, fcf_growth_yoy, ocf_growth_yoy,
-            net_income_growth_yoy, revenue_growth_yoy
+            net_income_growth_yoy, revenue_growth_yoy,
+            roe_trend, quarterly_growth_momentum, operating_income_growth_yoy
         FROM growth_metrics
-        ORDER BY symbol
+        ORDER BY symbol, date DESC
     """)
     growth_data = cur.fetchall()
     if growth_data:
         growth_df = pd.DataFrame(growth_data, columns=[
             'symbol', 'rev_3y_cagr', 'eps_3y_cagr', 'fcf_growth', 'ocf_growth',
-            'ni_growth', 'rev_growth'
+            'ni_growth', 'rev_growth',
+            'roe_trend', 'quarterly_growth_momentum', 'oi_growth'
         ]).set_index('symbol')
         df = df.join(growth_df, how='left')
         logger.info(f"  Loaded growth metrics for {growth_df.shape[0]} stocks")
@@ -167,8 +187,9 @@ def load_comprehensive_metrics(conn):
     # ===== STABILITY METRICS =====
     logger.info("Loading stability metrics...")
     cur.execute("""
-        SELECT symbol, beta, volatility_12m, downside_volatility, max_drawdown_52w, volume_consistency
+        SELECT DISTINCT ON (symbol) symbol, beta, volatility_12m, downside_volatility, max_drawdown_52w, volume_consistency
         FROM stability_metrics
+        ORDER BY symbol, date DESC
     """)
     stability_data = cur.fetchall()
     if stability_data:
@@ -200,13 +221,16 @@ def load_comprehensive_metrics(conn):
     # ===== VALUE METRICS =====
     logger.info("Loading value metrics...")
     cur.execute("""
-        SELECT symbol, COALESCE(trailing_pe, pe_ratio) as pe_ratio, price_to_book, price_to_sales_ttm, peg_ratio, dividend_yield
+        SELECT DISTINCT ON (symbol) symbol, trailing_pe as pe_ratio, price_to_book, price_to_sales_ttm, peg_ratio, dividend_yield,
+               ev_to_ebitda, ev_to_revenue
         FROM value_metrics
+        ORDER BY symbol, date DESC
     """)
     value_data = cur.fetchall()
     if value_data:
         value_df = pd.DataFrame(value_data, columns=[
-            'symbol', 'pe_ratio', 'pb_ratio', 'ps_ratio', 'peg_ratio', 'div_yield'
+            'symbol', 'pe_ratio', 'pb_ratio', 'ps_ratio', 'peg_ratio', 'div_yield',
+            'ev_to_ebitda', 'ev_to_revenue'
         ]).set_index('symbol')
         df = df.join(value_df, how='left')
         logger.info(f"  Loaded value metrics for {value_df.shape[0]} stocks")
@@ -248,9 +272,23 @@ def main():
 
     # ===== QUALITY SCORE =====
     logger.info("Calculating QUALITY scores (ROE, ROA, margins, ratios based)...")
-    quality_metrics = [m for m in ['roe', 'roa', 'gross_margin', 'operating_margin', 'profit_margin', 'roic', 'current_ratio'] if m in df.columns]
+    # Invert debt_to_equity before scoring (lower leverage = better quality)
+    if 'debt_to_equity' in df.columns:
+        df['debt_to_equity_inv'] = -df['debt_to_equity']
+    quality_metrics = [m for m in [
+        'roe', 'roa', 'gross_margin', 'operating_margin', 'profit_margin', 'roic',
+        'current_ratio', 'quick_ratio', 'debt_to_equity_inv',
+        'earnings_beat_rate', 'earnings_surprise_avg',
+        'fcf_to_ni', 'ocf_to_ni'
+    ] if m in df.columns]
     if quality_metrics:
-        quality_weights = {'roe': 2.0, 'roa': 1.5, 'gross_margin': 1.0, 'operating_margin': 1.0, 'profit_margin': 1.5, 'roic': 1.5, 'current_ratio': 0.5}
+        quality_weights = {
+            'roe': 2.0, 'roa': 1.5, 'gross_margin': 1.0, 'operating_margin': 1.0,
+            'profit_margin': 1.5, 'roic': 1.5, 'current_ratio': 0.5, 'quick_ratio': 0.5,
+            'debt_to_equity_inv': 1.0,
+            'earnings_beat_rate': 1.0, 'earnings_surprise_avg': 0.5,
+            'fcf_to_ni': 1.0, 'ocf_to_ni': 0.5
+        }
         df['quality_z'] = calculate_weighted_score(df, quality_metrics, quality_weights)
         df['quality_score'] = df['quality_z'].apply(zscore_to_percentile)
     else:
@@ -258,11 +296,16 @@ def main():
         df['quality_z'] = np.nan
         df['quality_score'] = np.nan
 
-    # ===== GROWTH SCORE (6 metrics) =====
+    # ===== GROWTH SCORE (9 metrics) =====
     logger.info("Calculating GROWTH scores (revenue expansion, earnings growth)...")
-    all_growth_metrics = ['rev_3y_cagr', 'eps_3y_cagr', 'fcf_growth', 'ocf_growth', 'ni_growth', 'rev_growth']
+    all_growth_metrics = [
+        'rev_3y_cagr', 'eps_3y_cagr', 'fcf_growth', 'ocf_growth', 'ni_growth', 'rev_growth',
+        'roe_trend', 'quarterly_growth_momentum', 'oi_growth'
+    ]
     growth_weights = {
-        'rev_3y_cagr': 1.5, 'eps_3y_cagr': 2.0, 'fcf_growth': 1.5, 'ocf_growth': 1.0, 'ni_growth': 2.0, 'rev_growth': 1.0
+        'rev_3y_cagr': 1.5, 'eps_3y_cagr': 2.0, 'fcf_growth': 1.5, 'ocf_growth': 1.0,
+        'ni_growth': 2.0, 'rev_growth': 1.0,
+        'roe_trend': 1.0, 'quarterly_growth_momentum': 1.0, 'oi_growth': 1.0
     }
     # Filter to only available metrics
     growth_metrics = [m for m in all_growth_metrics if m in df.columns]
@@ -299,10 +342,10 @@ def main():
 
     # ===== MOMENTUM SCORE (8 metrics) =====
     logger.info("Calculating MOMENTUM scores (price trends, technical positioning)...")
-    all_momentum_metrics = ['momentum_1m', 'momentum_3m', 'momentum_6m', 'momentum_12m', 'sma_50', 'sma_200']
+    all_momentum_metrics = ['momentum_1m', 'momentum_3m', 'momentum_6m', 'momentum_12m', 'sma_50', 'sma_200', 'high_52w']
     momentum_weights = {
         'momentum_1m': 1.0, 'momentum_3m': 1.5, 'momentum_6m': 1.5, 'momentum_12m': 2.0,
-        'sma_50': 1.0, 'sma_200': 1.0
+        'sma_50': 1.0, 'sma_200': 1.0, 'high_52w': 1.0
     }
     # Filter to only available metrics
     momentum_metrics = [m for m in all_momentum_metrics if m in df.columns]
@@ -315,17 +358,20 @@ def main():
         df['momentum_score'] = np.nan
 
     # ===== VALUE SCORE =====
-    logger.info("Calculating VALUE scores (P/E, P/B, PEG based)...")
-    all_value_metrics = ['pe_ratio', 'pb_ratio', 'ps_ratio', 'peg_ratio', 'div_yield']
+    logger.info("Calculating VALUE scores (P/E, P/B, PEG, EV based)...")
+    all_value_metrics = ['pe_ratio', 'pb_ratio', 'ps_ratio', 'peg_ratio', 'div_yield', 'ev_to_ebitda', 'ev_to_revenue']
     value_metrics_available = [m for m in all_value_metrics if m in df.columns]
     if value_metrics_available:
         value_for_calc = df.copy()
-        # Invert metrics where lower is better
-        for metric in ['pe_ratio', 'pb_ratio', 'ps_ratio', 'peg_ratio']:
+        # Invert metrics where lower is better (cheaper valuation = better score)
+        for metric in ['pe_ratio', 'pb_ratio', 'ps_ratio', 'peg_ratio', 'ev_to_ebitda', 'ev_to_revenue']:
             if metric in value_for_calc.columns:
                 value_for_calc[metric] = -value_for_calc[metric]
         # Dividend yield: higher is better (don't invert)
-        value_weights = {'pe_ratio': 1.5, 'pb_ratio': 1.0, 'ps_ratio': 0.5, 'peg_ratio': 1.0, 'div_yield': 1.0}
+        value_weights = {
+            'pe_ratio': 1.5, 'pb_ratio': 1.0, 'ps_ratio': 0.5, 'peg_ratio': 1.0,
+            'div_yield': 1.0, 'ev_to_ebitda': 1.5, 'ev_to_revenue': 0.5
+        }
         df['value_z'] = calculate_weighted_score(value_for_calc, value_metrics_available, value_weights)
         df['value_score'] = df['value_z'].apply(zscore_to_percentile)
     else:
@@ -333,11 +379,13 @@ def main():
         df['value_z'] = np.nan
         df['value_score'] = np.nan
 
-    # ===== POSITIONING SCORE (6 metrics) =====
-    logger.info("Calculating POSITIONING scores (institutional alignment, short interest)...")
-    positioning_metrics = ['institutional_ownership_pct', 'insider_ownership_pct', 'short_interest_pct']
+    # ===== POSITIONING SCORE (4 metrics) =====
+    logger.info("Calculating POSITIONING scores (institutional alignment, short interest, A/D)...")
+    all_positioning_metrics = ['institutional_ownership_pct', 'insider_ownership_pct', 'short_interest_pct', 'ad_rating']
+    positioning_metrics = [m for m in all_positioning_metrics if m in df.columns]
     positioning_weights = {
-        'institutional_ownership_pct': 2.0, 'insider_ownership_pct': 1.5, 'short_interest_pct': 2.0
+        'institutional_ownership_pct': 2.0, 'insider_ownership_pct': 1.5,
+        'short_interest_pct': 2.0, 'ad_rating': 1.5
     }
     # Invert short interest (lower short = better positioning)
     positioning_for_calc = df.copy()
@@ -348,7 +396,11 @@ def main():
 
     # ===== MOMENTUM INTRAWEEK SCORE (short-term 1-month momentum) =====
     logger.info("Calculating MOMENTUM INTRAWEEK scores (short-term momentum from 1m return)...")
-    df['momentum_intraweek'] = df['momentum_1m'].apply(zscore_to_percentile) if 'momentum_1m' in df.columns else None
+    if 'momentum_1m' in df.columns:
+        m1_z = calculate_factor_zscore(df['momentum_1m'].values)
+        df['momentum_intraweek'] = pd.Series(m1_z, index=df.index).apply(zscore_to_percentile)
+    else:
+        df['momentum_intraweek'] = None
 
     # ===== COMPOSITE SCORE =====
     logger.info("Calculating COMPOSITE scores (equal weight across all 6 factors)...")

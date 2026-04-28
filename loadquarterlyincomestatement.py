@@ -112,18 +112,18 @@ def load_for_symbol(cur, symbol: str, attempt: int = 0) -> int:
 
                 cur.execute("""
                     INSERT INTO quarterly_income_statement
-                    (symbol, fiscal_year, fiscal_quarter, date, revenue, cost_of_revenue, gross_profit,
-                     operating_expenses, operating_income, net_income, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                    (symbol, fiscal_year, fiscal_quarter, revenue, cost_of_revenue, gross_profit,
+                     operating_expense, operating_income, net_income, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
                     ON CONFLICT (symbol, fiscal_year, fiscal_quarter) DO UPDATE SET
                     revenue = EXCLUDED.revenue,
                     cost_of_revenue = EXCLUDED.cost_of_revenue,
                     gross_profit = EXCLUDED.gross_profit,
-                    operating_expenses = EXCLUDED.operating_expenses,
+                    operating_expense = EXCLUDED.operating_expense,
                     operating_income = EXCLUDED.operating_income,
                     net_income = EXCLUDED.net_income,
                     updated_at = NOW()
-                """, (symbol, fiscal_year, fiscal_quarter, fiscal_date.date() if fiscal_date else None,
+                """, (symbol, fiscal_year, fiscal_quarter,
                       revenue, cost_of_revenue, gross_profit, operating_expenses, operating_income, net_income))
                 rows_inserted += 1
             except Exception as e:
@@ -143,7 +143,13 @@ def main():
     try:
         cur = conn.cursor()
         create_tables(cur)
-        cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
+        cur.execute("""
+            SELECT DISTINCT ss.symbol FROM stock_symbols ss
+            WHERE NOT EXISTS (
+                SELECT 1 FROM quarterly_income_statement t WHERE t.symbol = ss.symbol
+            )
+            ORDER BY ss.symbol
+        """)
         symbols = [row[0] for row in cur.fetchall()]
 
         logging.info(f"Loading quarterly income statements for {len(symbols)} stocks...")

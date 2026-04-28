@@ -42,7 +42,6 @@ import PortfolioDashboard from "./pages/PortfolioDashboard";
 import HedgeHelper from "./pages/HedgeHelper";
 import PortfolioOptimizerNew from "./pages/PortfolioOptimizerNew";
 import ETFSignals from "./pages/ETFSignals";
-import Messages from "./pages/Messages";
 import ServiceHealth from "./pages/ServiceHealth";
 import Settings from "./pages/Settings";
 
@@ -167,12 +166,6 @@ const menuItems = [
   },
 
   // Admin & Settings Section
-  {
-    text: "Messages",
-    icon: <EventIcon />,
-    path: "/app/messages",
-    category: "admin",
-  },
   {
     text: "System Health",
     icon: <BusinessIcon />,
@@ -470,7 +463,6 @@ function App() {
           <Route path="/app/hedge-helper" element={<HedgeHelper />} />
 
           {/* Admin & Settings */}
-          <Route path="/app/messages" element={<Messages />} />
           <Route path="/app/health" element={<ServiceHealth />} />
           <Route path="/app/settings" element={<Settings />} />
         </Routes>

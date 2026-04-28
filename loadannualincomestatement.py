@@ -151,12 +151,12 @@ def load_income_statement_for_symbol(cur, symbol: str, attempt: int = 0) -> int:
                 if revenue is None:
                     continue
 
-                # Insert or update
+                # Insert or update — use actual DB column names
                 cur.execute("""
                     INSERT INTO annual_income_statement
-                    (symbol, fiscal_year, date, revenue, cost_of_revenue, gross_profit,
-                     operating_expenses, operating_income, net_income, tax_expense, interest_expense, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                    (symbol, fiscal_year, revenue, cost_of_revenue, gross_profit,
+                     operating_expenses, operating_income, net_income, tax_provision, interest_expense)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (symbol, fiscal_year) DO UPDATE SET
                     revenue = EXCLUDED.revenue,
                     cost_of_revenue = EXCLUDED.cost_of_revenue,
@@ -164,11 +164,10 @@ def load_income_statement_for_symbol(cur, symbol: str, attempt: int = 0) -> int:
                     operating_expenses = EXCLUDED.operating_expenses,
                     operating_income = EXCLUDED.operating_income,
                     net_income = EXCLUDED.net_income,
-                    tax_expense = EXCLUDED.tax_expense,
-                    interest_expense = EXCLUDED.interest_expense,
-                    updated_at = NOW()
+                    tax_provision = EXCLUDED.tax_provision,
+                    interest_expense = EXCLUDED.interest_expense
                 """, (
-                    symbol, fiscal_year, fiscal_date.date() if fiscal_date else None,
+                    symbol, fiscal_year,
                     revenue, cost_of_revenue, gross_profit,
                     operating_expenses, operating_income, net_income,
                     tax_expense, interest_expense
@@ -200,11 +199,17 @@ def main():
         # Create tables
         create_tables(cur)
 
-        # Get all stock symbols
-        cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
+        # Get all stock symbols — skip those already loaded to avoid re-fetching
+        cur.execute("""
+            SELECT DISTINCT ss.symbol FROM stock_symbols ss
+            WHERE NOT EXISTS (
+                SELECT 1 FROM annual_income_statement ais WHERE ais.symbol = ss.symbol
+            )
+            ORDER BY ss.symbol
+        """)
         symbols = [row[0] for row in cur.fetchall()]
 
-        logging.info(f"Loading income statements for {len(symbols)} stocks...")
+        logging.info(f"Loading income statements for {len(symbols)} remaining stocks...")
 
         total_rows = 0
         successful = 0

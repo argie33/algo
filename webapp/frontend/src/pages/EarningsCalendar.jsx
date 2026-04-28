@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import api from "../services/api";
 import {
@@ -18,17 +18,13 @@ import {
   TableRow,
   Paper,
   Chip,
-  TablePagination,
 } from "@mui/material";
 import {
   TrendingUp,
-  TrendingDown,
   ShowChart,
   Schedule,
 } from "@mui/icons-material";
 import {
-  LineChart,
-  Line,
   BarChart,
   Bar,
   XAxis,
@@ -43,7 +39,6 @@ function EarningsCalendar() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
 
-  // Fetch S&P 500 earnings trend data
   const {
     data: sp500TrendData,
     isLoading: sp500Loading,
@@ -52,12 +47,11 @@ function EarningsCalendar() {
     queryKey: ["sp500EarningsTrend"],
     queryFn: async () => {
       const response = await api.get('/api/earnings/sp500-trend');
-      return response.data;
+      return response.data?.data || response.data;
     },
     staleTime: 1000 * 60 * 60,
   });
 
-  // Fetch sector earnings trend
   const {
     data: sectorTrendData,
     isLoading: sectorTrendLoading,
@@ -66,25 +60,24 @@ function EarningsCalendar() {
     queryKey: ["sectorEarningsTrend"],
     queryFn: async () => {
       const response = await api.get('/api/earnings/sector-trend');
-      return response.data;
+      return response.data?.data || response.data;
     },
     staleTime: 1000 * 60 * 60,
   });
 
-  // Fetch upcoming earnings
   const {
     data: upcomingData,
     isLoading: upcomingLoading,
     error: upcomingError,
   } = useQuery({
-    queryKey: ["upcomingEarnings", page, rowsPerPage],
+    queryKey: ["upcomingEarnings"],
     queryFn: async () => {
-      const response = await api.get(`/api/earnings/calendar?period=upcoming&limit=50`);
+      const response = await api.get(`/api/earnings/calendar?period=upcoming&limit=500`);
       return response.data?.items || [];
     },
+    staleTime: 1000 * 60 * 30,
   });
 
-  // Fetch past earnings
   const {
     data: pastData,
     isLoading: pastLoading,
@@ -92,19 +85,11 @@ function EarningsCalendar() {
   } = useQuery({
     queryKey: ["pastEarnings"],
     queryFn: async () => {
-      const response = await api.get('/api/earnings/calendar?period=past&limit=50');
+      const response = await api.get('/api/earnings/calendar?period=past&limit=500');
       return response.data?.items || [];
     },
+    staleTime: 1000 * 60 * 30,
   });
-
-  const handleChangePage = (event, newPage) => {
-    setPage(newPage);
-  };
-
-  const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
-  };
 
   if (sp500Loading || sectorTrendLoading) {
     return (
@@ -186,7 +171,6 @@ function EarningsCalendar() {
                     formatter={(value) => typeof value === 'number' ? `$${value.toFixed(2)}` : value}
                   />
                   <Legend />
-                  {/* Display all sectors as bars */}
                   {sectorTrendData.timeSeries.length > 0 &&
                     Object.keys(sectorTrendData.timeSeries[0])
                       .filter(key => key !== 'quarter')
@@ -210,7 +194,7 @@ function EarningsCalendar() {
                   Best Performing Sector
                 </Typography>
                 <Typography variant="h6" color="success.main">
-                  {sectorTrendData.bestGrowth.name}: {sectorTrendData.bestGrowth.growth?.toFixed(1)}% growth
+                  {sectorTrendData.bestGrowth.name}: {parseFloat(sectorTrendData.bestGrowth.growth || 0).toFixed(1)}% growth
                 </Typography>
               </Box>
             )}
@@ -245,7 +229,7 @@ function EarningsCalendar() {
                     <TableRow key={idx} sx={{ '&:hover': { backgroundColor: '#f9f9f9' } }}>
                       <TableCell sx={{ fontWeight: '500' }}>{item.symbol}</TableCell>
                       <TableCell>{item.quarter || item.fiscal_quarter || '—'}</TableCell>
-                      <TableCell align="right">${(item.eps_estimate || 0).toFixed(2)}</TableCell>
+                      <TableCell align="right">${parseFloat(item.eps_estimate || 0).toFixed(2)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -283,14 +267,13 @@ function EarningsCalendar() {
                 </TableHead>
                 <TableBody>
                   {pastData.map((item, idx) => {
-                    const surprise = item.eps_surprise_pct || 0;
-                    const surpriseColor = surprise > 0 ? 'success.main' : surprise < 0 ? 'error.main' : 'grey.500';
+                    const surprise = parseFloat(item.eps_surprise_pct || 0);
                     return (
                       <TableRow key={idx} sx={{ '&:hover': { backgroundColor: '#f9f9f9' } }}>
                         <TableCell sx={{ fontWeight: '500' }}>{item.symbol}</TableCell>
                         <TableCell>{item.quarter || item.fiscal_quarter || '—'}</TableCell>
-                        <TableCell align="right">${(item.eps_actual || 0).toFixed(2)}</TableCell>
-                        <TableCell align="right">${(item.eps_estimate || 0).toFixed(2)}</TableCell>
+                        <TableCell align="right">${parseFloat(item.eps_actual || 0).toFixed(2)}</TableCell>
+                        <TableCell align="right">${parseFloat(item.eps_estimate || 0).toFixed(2)}</TableCell>
                         <TableCell align="right">
                           <Chip
                             label={`${surprise.toFixed(1)}%`}

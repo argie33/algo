@@ -18,20 +18,15 @@ const getStocksSignals = async (req, res) => {
     const timeframe = req.query.timeframe || "daily";
     const signalType = req.query.signal_type;
     const symbolFilter = req.query.symbol;
-    // CRITICAL PERF: Reduce default limit to improve response time
-    // With JOINs: Daily takes 28s at limit=100, reduced to 50 = ~14s
-    // Performance: limit=50 is minimum for good UX, limit=100 is max before 30s timeout
-    const MAX_LIMIT = 100; // Absolute max - prevents full table returns
-    const DEFAULT_LIMIT = 50; // Reduced from 100 to halve query time
+    const dateFilter = req.query.date;       // Single exact date: YYYY-MM-DD
+    const fromDate = req.query.from_date;    // Range start: YYYY-MM-DD
+    const toDate = req.query.to_date;        // Range end: YYYY-MM-DD
+    const dayRange = parseInt(req.query.days);
+
+    const MAX_LIMIT = 50000;
+    const DEFAULT_LIMIT = dateFilter ? 5000 : 1000;
     const limit = Math.min(parseInt(req.query.limit) || DEFAULT_LIMIT, MAX_LIMIT);
     const page = Math.max(1, parseInt(req.query.page) || 1);
-
-    // Prevent extremely large offsets that cause poor performance
-    const MAX_PAGE = Math.ceil(1000000 / limit);
-    if (page > MAX_PAGE) {
-      return sendPaginated(res, [], { page, limit, total: 0, totalPages: MAX_PAGE, hasNext: false, hasPrev: true });
-    }
-
     const offset = (page - 1) * limit;
 
     // Safely map timeframes to table names to prevent SQL injection
@@ -46,22 +41,31 @@ const getStocksSignals = async (req, res) => {
       return sendError(res, "Invalid timeframe. Must be daily, weekly, or monthly", 400);
     }
 
-    // Build WHERE clause based on filters
+    // Build WHERE clause - server-side date filtering
     let whereClause = '';
     let queryParams = [];
     let paramIndex = 1;
 
-    // Add date filtering - return ALL historical data by default (matches TradingView backtest from 2019)
-    const dayRange = parseInt(req.query.days);
-    if (dayRange && dayRange > 0) {
-      // If user specifies days, use that date range
+    if (dateFilter) {
+      // Exact date: return ALL signals for that specific day
+      whereClause = `WHERE bsd.date = $${paramIndex}`;
+      queryParams.push(dateFilter);
+      paramIndex++;
+    } else if (fromDate) {
+      whereClause = `WHERE bsd.date >= $${paramIndex}`;
+      queryParams.push(fromDate);
+      paramIndex++;
+      if (toDate) {
+        whereClause += ` AND bsd.date <= $${paramIndex}`;
+        queryParams.push(toDate);
+        paramIndex++;
+      }
+    } else if (dayRange && dayRange > 0) {
       whereClause = `WHERE bsd.date >= CURRENT_DATE - MAKE_INTERVAL(days => $${paramIndex})`;
       queryParams.push(dayRange);
       paramIndex++;
     } else {
-      // Default: Return ALL signals from 2019-01-01 onwards (matches Pine Script backtest range)
-      // Frontend will filter to last 7 days for "active" view
-      whereClause = `WHERE bsd.date >= '2019-01-01'`;
+      whereClause = `WHERE bsd.date >= '1990-01-01'`;
     }
 
     // Always exclude 'None' signals - only show Buy/Sell
@@ -85,8 +89,11 @@ const getStocksSignals = async (req, res) => {
       paramIndex++;
     }
 
-    // SELECT all signal fields + JOIN technical_data for RSI/ADX/MACD
-    const actualColumns = `
+    // Only JOIN technical_data_daily when filtering by a specific symbol (fast single-symbol query)
+    // Skip the JOIN for all-symbol queries to avoid the 28s full-table JOIN
+    const useTechJoin = timeframe === 'daily' && !!symbolFilter;
+
+    const actualColumns = useTechJoin ? `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
       COALESCE(bsd.signal_triggered_date, bsd.date) as signal_triggered_date,
       bsd.signal,
@@ -105,6 +112,7 @@ const getStocksSignals = async (req, res) => {
       bsd.entry_quality_score, bsd.risk_pct, bsd.position_size_recommendation,
       bsd.profit_target_8pct, bsd.profit_target_20pct, bsd.profit_target_25pct,
       bsd.sell_level, bsd.mansfield_rs, bsd.sata_score,
+      bsd.entry_price,
       bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
       COALESCE(bsd.rsi, t.rsi) as rsi,
       COALESCE(bsd.adx, t.adx) as adx,
@@ -117,22 +125,44 @@ const getStocksSignals = async (req, res) => {
       t.ema_26,
       bsd.pct_from_ema21, bsd.pct_from_sma50,
       ss.security_name as company_name
+    ` : `
+      bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
+      COALESCE(bsd.signal_triggered_date, bsd.date) as signal_triggered_date,
+      bsd.signal,
+      bsd.buylevel, bsd.stoplevel, bsd.inposition,
+      COALESCE(bsd.strength, bsd.buylevel) as strength,
+      COALESCE(bsd.signal_strength, bsd.buylevel) as signal_strength,
+      bsd.signal_type, bsd.base_type,
+      bsd.pivot_price, bsd.buy_zone_start, bsd.buy_zone_end,
+      bsd.exit_trigger_1_price, bsd.exit_trigger_2_price,
+      bsd.exit_trigger_3_price, bsd.exit_trigger_4_price,
+      bsd.initial_stop, bsd.trailing_stop,
+      bsd.base_length_days, bsd.avg_volume_50d, bsd.volume_surge_pct,
+      bsd.rs_rating, bsd.breakout_quality, bsd.risk_reward_ratio,
+      bsd.current_gain_pct, bsd.days_in_position,
+      bsd.market_stage, bsd.stage_number, bsd.stage_confidence, bsd.substage,
+      bsd.entry_quality_score, bsd.risk_pct, bsd.position_size_recommendation,
+      bsd.profit_target_8pct, bsd.profit_target_20pct, bsd.profit_target_25pct,
+      bsd.sell_level, bsd.mansfield_rs, bsd.sata_score,
+      bsd.entry_price,
+      bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
+      bsd.rsi, bsd.adx, bsd.atr,
+      NULL::numeric as macd, NULL::numeric as signal_line,
+      NULL::numeric as sma_20,
+      bsd.sma_50, bsd.sma_200, bsd.ema_21,
+      NULL::numeric as ema_26,
+      bsd.pct_from_ema21, bsd.pct_from_sma50,
+      ss.security_name as company_name
     `;
-
-    // JOIN technical_data for RSI/ADX/MACD/SMA — price is already in bsd
-    const technicalTable = timeframe === 'daily' ? 'technical_data_daily' :
-                           timeframe === 'weekly' ? 'technical_data_weekly' :
-                           'technical_data_monthly';
 
     const signalsQuery = `
       SELECT
         ${actualColumns}
       FROM ${tableName} bsd
-      LEFT JOIN ${technicalTable} t ON bsd.symbol = t.symbol
-        AND DATE(t.date) = DATE(bsd.date)
+      ${useTechJoin ? 'LEFT JOIN technical_data_daily t ON bsd.symbol = t.symbol AND DATE(t.date) = DATE(bsd.date)' : ''}
       LEFT JOIN stock_symbols ss ON bsd.symbol = ss.symbol
       ${whereClause}
-      ORDER BY bsd.date DESC, bsd.id DESC
+      ORDER BY bsd.date DESC, (bsd.rsi IS NOT NULL)::int DESC, bsd.id ASC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
@@ -265,6 +295,7 @@ const getStocksSignals = async (req, res) => {
       current_pnl_pct: sf(row.current_gain_pct),
       current_price: sf(row.close),
       entry_price: sf(row.entry_price) || sf(row.buylevel),
+      quality_score: sf(row.entry_quality_score),
     }));
 
     // Get total count of records for pagination
@@ -312,7 +343,7 @@ router.get("/list", getStocksSignals);
 router.get("/etf", async (req, res) => {
   try {
     const timeframe = req.query.timeframe || "daily";
-    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+    const limit = Math.min(parseInt(req.query.limit) || 500, 50000);
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const signalType = req.query.signal_type;
     const symbolFilter = req.query.symbol;
@@ -342,8 +373,8 @@ router.get("/etf", async (req, res) => {
       queryParams.push(dayRange);
       paramIndex++;
     } else {
-      // Default: Return ALL signals from 2019-01-01 onwards
-      whereClause = `WHERE bsd.date >= '2019-01-01'`;
+      // Default: Return ALL signals (full history from 1990+)
+      whereClause = `WHERE bsd.date >= '1990-01-01'`;
     }
 
     // ETF tables store signals as uppercase BUY/SELL (vs mixed-case in stock tables)
@@ -364,16 +395,35 @@ router.get("/etf", async (req, res) => {
       paramIndex++;
     }
 
-    // For ETF signals, select from dedicated ETF table with all available fields
+    // For ETF signals, select from dedicated ETF table - full schema (same as stock tables)
+    // ETF tables have identical 51-column schema; no technical_data JOIN needed (stored directly)
     const actualColumns = `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
       COALESCE(bsd.signal_triggered_date, bsd.date) as signal_triggered_date,
       bsd.signal,
-      bsd.buylevel, bsd.stoplevel,
-      bsd.strength, bsd.strength as signal_strength,
-      bsd.signal_type,
-      bsd.market_stage, bsd.stage_number, bsd.entry_quality_score,
-      bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume
+      bsd.buylevel, bsd.stoplevel, bsd.inposition,
+      COALESCE(bsd.strength, bsd.buylevel) as strength,
+      COALESCE(bsd.signal_strength, bsd.buylevel) as signal_strength,
+      bsd.signal_type, bsd.base_type,
+      bsd.pivot_price, bsd.buy_zone_start, bsd.buy_zone_end,
+      bsd.exit_trigger_1_price, bsd.exit_trigger_2_price,
+      bsd.exit_trigger_3_price, bsd.exit_trigger_4_price,
+      bsd.initial_stop, bsd.trailing_stop,
+      bsd.base_length_days, bsd.avg_volume_50d, bsd.volume_surge_pct,
+      bsd.rs_rating, bsd.breakout_quality, bsd.risk_reward_ratio,
+      bsd.current_gain_pct, bsd.days_in_position,
+      bsd.market_stage, bsd.stage_number, bsd.stage_confidence, bsd.substage,
+      bsd.entry_quality_score, bsd.risk_pct, bsd.position_size_recommendation,
+      bsd.profit_target_8pct, bsd.profit_target_20pct, bsd.profit_target_25pct,
+      bsd.sell_level, bsd.mansfield_rs, bsd.sata_score,
+      bsd.entry_price,
+      bsd.open, bsd.high, bsd.low, bsd.close, bsd.volume,
+      bsd.rsi, bsd.adx, bsd.atr,
+      NULL::numeric as macd, NULL::numeric as signal_line,
+      NULL::numeric as sma_20,
+      bsd.sma_50, bsd.sma_200, bsd.ema_21,
+      NULL::numeric as ema_26,
+      bsd.pct_from_ema21, bsd.pct_from_sma50
     `;
 
     // Add limit and offset parameters
@@ -389,7 +439,7 @@ router.get("/etf", async (req, res) => {
       FROM ${tableName} bsd
       LEFT JOIN etf_symbols es ON bsd.symbol = es.symbol
       ${whereClause}
-      ORDER BY bsd.date DESC, bsd.id DESC
+      ORDER BY bsd.date DESC, (bsd.rsi IS NOT NULL)::int DESC, bsd.id ASC
       LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}
     `;
 
@@ -409,6 +459,7 @@ router.get("/etf", async (req, res) => {
     }
 
     const sf = v => (v !== null && v !== undefined) ? parseFloat(v) : null;
+    const si = v => (v !== null && v !== undefined) ? parseInt(v) : null;
     const formattedData = signalsResult.rows.map(row => ({
       id: row.id,
       symbol: row.symbol,
@@ -416,20 +467,82 @@ router.get("/etf", async (req, res) => {
       date: row.date,
       signal_triggered_date: row.signal_triggered_date || null,
       timeframe: row.timeframe || timeframe,
-      buylevel: sf(row.buylevel),
-      stoplevel: sf(row.stoplevel),
-      strength: sf(row.strength),
-      signal_strength: sf(row.signal_strength),
-      signal_type: row.signal_type || null,
-      market_stage: row.market_stage != null ? String(row.market_stage) : null,
-      stage_number: row.stage_number != null ? parseInt(row.stage_number) : null,
-      entry_quality_score: sf(row.entry_quality_score),
+      inposition: row.inposition ?? null,
+
       open: sf(row.open),
       high: sf(row.high),
       low: sf(row.low),
       close: sf(row.close),
-      volume: row.volume !== null ? parseInt(row.volume) : null,
+      volume: si(row.volume),
+
+      buylevel: sf(row.buylevel),
+      stoplevel: sf(row.stoplevel),
+      strength: sf(row.strength),
+      signal_strength: sf(row.signal_strength),
+
+      signal_type: row.signal_type || null,
+      base_type: row.base_type || null,
+      pivot_price: sf(row.pivot_price),
+      buy_zone_start: sf(row.buy_zone_start),
+      buy_zone_end: sf(row.buy_zone_end),
+      exit_trigger_1_price: sf(row.exit_trigger_1_price),
+      exit_trigger_2_price: sf(row.exit_trigger_2_price),
+      exit_trigger_3_price: sf(row.exit_trigger_3_price),
+      exit_trigger_4_price: sf(row.exit_trigger_4_price),
+      initial_stop: sf(row.initial_stop),
+      trailing_stop: sf(row.trailing_stop),
+
+      avg_volume_50d: si(row.avg_volume_50d),
+      volume_surge_pct: sf(row.volume_surge_pct),
+      base_length_days: si(row.base_length_days),
+
+      rs_rating: si(row.rs_rating),
+      breakout_quality: row.breakout_quality || null,
+      risk_reward_ratio: sf(row.risk_reward_ratio),
+      entry_quality_score: sf(row.entry_quality_score),
+      mansfield_rs: sf(row.mansfield_rs),
+      sata_score: si(row.sata_score),
+
+      current_gain_pct: sf(row.current_gain_pct),
+      days_in_position: si(row.days_in_position),
+
+      market_stage: row.market_stage || null,
+      stage_number: si(row.stage_number),
+      stage_confidence: sf(row.stage_confidence),
+      substage: row.substage || null,
+
+      risk_pct: sf(row.risk_pct),
+      position_size_recommendation: row.position_size_recommendation || null,
+      profit_target_8pct: sf(row.profit_target_8pct),
+      profit_target_20pct: sf(row.profit_target_20pct),
+      profit_target_25pct: sf(row.profit_target_25pct),
+      sell_level: sf(row.sell_level),
+
+      rsi: sf(row.rsi),
+      adx: sf(row.adx),
+      atr: sf(row.atr),
+      macd: sf(row.macd),
+      signal_line: sf(row.signal_line),
+      sma_20: sf(row.sma_20),
+      sma_50: sf(row.sma_50),
+      sma_200: sf(row.sma_200),
+      ema_21: sf(row.ema_21),
+      ema_26: sf(row.ema_26),
+      pct_from_ema21: sf(row.pct_from_ema21),
+      pct_from_sma50: sf(row.pct_from_sma50),
+
       company_name: row.company_name || null,
+
+      daily_range_pct: (row.high && row.low && row.close && parseFloat(row.close) > 0)
+        ? sf(((parseFloat(row.high) - parseFloat(row.low)) / parseFloat(row.close)) * 100)
+        : null,
+      volume_ratio: (row.volume && row.avg_volume_50d && parseFloat(row.avg_volume_50d) > 0)
+        ? sf(parseFloat(row.volume) / parseFloat(row.avg_volume_50d))
+        : null,
+      current_pnl_pct: sf(row.current_gain_pct),
+      current_price: sf(row.close),
+      entry_price: sf(row.entry_price) || sf(row.buylevel),
+      quality_score: sf(row.entry_quality_score),
     }));
 
     // Get total count of records for pagination

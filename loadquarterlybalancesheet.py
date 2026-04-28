@@ -69,7 +69,13 @@ def main():
             )
         """)
 
-        cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
+        cur.execute("""
+            SELECT DISTINCT ss.symbol FROM stock_symbols ss
+            WHERE NOT EXISTS (
+                SELECT 1 FROM quarterly_balance_sheet t WHERE t.symbol = ss.symbol
+            )
+            ORDER BY ss.symbol
+        """)
         symbols = [row[0] for row in cur.fetchall()]
 
         logging.info(f"Loading quarterly balance sheets for {len(symbols)} stocks...")
@@ -100,13 +106,17 @@ def main():
 
                         cur.execute("""
                             INSERT INTO quarterly_balance_sheet
-                            (symbol, fiscal_year, fiscal_quarter, date, total_assets, current_assets,
+                            (symbol, fiscal_year, fiscal_quarter, total_assets, current_assets,
                              total_liabilities, current_liabilities, stockholders_equity, updated_at)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
                             ON CONFLICT (symbol, fiscal_year, fiscal_quarter) DO UPDATE SET
                             total_assets = EXCLUDED.total_assets,
+                            current_assets = EXCLUDED.current_assets,
+                            total_liabilities = EXCLUDED.total_liabilities,
+                            current_liabilities = EXCLUDED.current_liabilities,
+                            stockholders_equity = EXCLUDED.stockholders_equity,
                             updated_at = NOW()
-                        """, (symbol, fiscal_year, fiscal_quarter, fiscal_date.date() if fiscal_date else None,
+                        """, (symbol, fiscal_year, fiscal_quarter,
                               total_assets,
                               safe_float(row_data.get('Current Assets')),
                               safe_float(row_data.get('Total Liabilities Net Minority Interest')),

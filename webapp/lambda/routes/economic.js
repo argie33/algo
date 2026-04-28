@@ -59,7 +59,7 @@ router.get("/leading-indicators", async (req, res) => {
       WHERE event_date >= CURRENT_DATE
         AND event_date <= CURRENT_DATE + INTERVAL '120 days'
       ORDER BY event_date, event_time
-      LIMIT 100
+      LIMIT 500
     `;
 
     // Execute both queries in parallel with error handling
@@ -403,7 +403,7 @@ router.get("/yield-curve-full", async (req, res) => {
         'BAMLH0A0HYM2', 'BAMLH0A0IG', 'BAMLH0A0PRI', 'BAA', 'AAA', 'VIXCLS'
       )
       ORDER BY date DESC, series_id
-      LIMIT 500
+      LIMIT 2000
     `;
 
     const result = await query(yieldCurveQuery);
@@ -570,7 +570,7 @@ router.get("/calendar", async (req, res) => {
         FROM economic_calendar
         ${whereClause}
         ORDER BY event_date ASC, event_time ASC
-        LIMIT 100
+        LIMIT 500
       `,
         queryParams
       );

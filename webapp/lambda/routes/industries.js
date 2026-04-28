@@ -7,62 +7,44 @@ const router = express.Router();
 async function fetchIndustries(req, res) {
   try {
     const { limit = 500, page = 1 } = req.query;
-    const limitNum = Math.min(parseInt(limit) || 500, 1000);
+    const limitNum = Math.min(parseInt(limit) || 500, 5000);
     const pageNum = Math.max(parseInt(page) || 1, 1);
     const offset = (pageNum - 1) * limitNum;
 
+    // Single 60-day scan for all price performance — 60 days ensures 21+ trading days for 20d lookback
     const result = await query(`
-      WITH latest_prices AS (
-        SELECT pd.symbol, pd.close, pd.date
-        FROM price_daily pd
-        INNER JOIN (
-          SELECT symbol, MAX(date) as max_date FROM price_daily GROUP BY symbol
-        ) lp ON pd.symbol = lp.symbol AND pd.date = lp.max_date
+      WITH recent_prices AS (
+        SELECT symbol, date, close,
+          ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
+        FROM price_daily
+        WHERE date >= CURRENT_DATE - INTERVAL '60 days'
       ),
-      price_1d AS (
-        SELECT pd.symbol, pd.close
-        FROM price_daily pd
-        INNER JOIN (
-          SELECT symbol, MAX(date) as max_date FROM price_daily
-          WHERE date < CURRENT_DATE - INTERVAL '1 day' GROUP BY symbol
-        ) prev ON pd.symbol = prev.symbol AND pd.date = prev.max_date
-      ),
-      price_5d AS (
-        SELECT pd.symbol, pd.close
-        FROM price_daily pd
-        INNER JOIN (
-          SELECT symbol, MAX(date) as max_date FROM price_daily
-          WHERE date <= CURRENT_DATE - INTERVAL '5 days' GROUP BY symbol
-        ) prev ON pd.symbol = prev.symbol AND pd.date = prev.max_date
-      ),
-      price_20d AS (
-        SELECT pd.symbol, pd.close
-        FROM price_daily pd
-        INNER JOIN (
-          SELECT symbol, MAX(date) as max_date FROM price_daily
-          WHERE date <= CURRENT_DATE - INTERVAL '20 days' GROUP BY symbol
-        ) prev ON pd.symbol = prev.symbol AND pd.date = prev.max_date
+      symbol_perf AS (
+        SELECT
+          symbol,
+          MAX(close) FILTER (WHERE rn = 1) as close_now,
+          MAX(close) FILTER (WHERE rn = 2) as close_1d,
+          MAX(close) FILTER (WHERE rn = 6) as close_5d,
+          MAX(close) FILTER (WHERE rn = 21) as close_20d
+        FROM recent_prices
+        GROUP BY symbol
       ),
       industry_scores AS (
         SELECT
           cp.industry,
           cp.sector,
           COUNT(DISTINCT cp.ticker) as stock_count,
-          AVG(lp.close) as avg_price,
           AVG(ss.composite_score) as composite_score,
           AVG(ss.momentum_score) as momentum_score,
           AVG(ss.value_score) as value_score,
           AVG(ss.quality_score) as quality_score,
           AVG(ss.growth_score) as growth_score,
           AVG(ss.stability_score) as stability_score,
-          AVG(CASE WHEN p1.close > 0 THEN (lp.close - p1.close) / p1.close * 100 ELSE NULL END) as perf_1d,
-          AVG(CASE WHEN p5.close > 0 THEN (lp.close - p5.close) / p5.close * 100 ELSE NULL END) as perf_5d,
-          AVG(CASE WHEN p20.close > 0 THEN (lp.close - p20.close) / p20.close * 100 ELSE NULL END) as perf_20d
+          AVG(CASE WHEN sp.close_1d > 0 THEN (sp.close_now - sp.close_1d) / sp.close_1d * 100 END) as perf_1d,
+          AVG(CASE WHEN sp.close_5d > 0 THEN (sp.close_now - sp.close_5d) / sp.close_5d * 100 END) as perf_5d,
+          AVG(CASE WHEN sp.close_20d > 0 THEN (sp.close_now - sp.close_20d) / sp.close_20d * 100 END) as perf_20d
         FROM company_profile cp
-        LEFT JOIN latest_prices lp ON cp.ticker = lp.symbol
-        LEFT JOIN price_1d p1 ON cp.ticker = p1.symbol
-        LEFT JOIN price_5d p5 ON cp.ticker = p5.symbol
-        LEFT JOIN price_20d p20 ON cp.ticker = p20.symbol
+        LEFT JOIN symbol_perf sp ON cp.ticker = sp.symbol
         LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
         WHERE cp.industry IS NOT NULL AND TRIM(cp.industry) != ''
         GROUP BY cp.industry, cp.sector
@@ -85,8 +67,8 @@ async function fetchIndustries(req, res) {
     const industries = (result?.rows || []).map((row, idx) => {
       const composite = sf(row.composite_score);
       const perf20d = sf(row.perf_20d);
-      const momentumLabel = composite >= 60 ? 'Strong' : composite >= 45 ? 'Moderate' : 'Weak';
-      const trendLabel = perf20d > 2 ? 'Uptrend' : perf20d < -2 ? 'Downtrend' : 'Sideways';
+      const momentumLabel = composite !== null && composite >= 60 ? 'Strong' : composite !== null && composite >= 45 ? 'Moderate' : 'Weak';
+      const trendLabel = perf20d !== null ? (perf20d > 2 ? 'Uptrend' : perf20d < -2 ? 'Downtrend' : 'Sideways') : 'Sideways';
 
       return {
         industry: row.industry,
@@ -94,7 +76,6 @@ async function fetchIndustries(req, res) {
         current_rank: parseInt(row.current_rank) || idx + 1 + offset,
         overall_rank: parseInt(row.current_rank) || idx + 1 + offset,
         stock_count: parseInt(row.stock_count || 0),
-        avg_price: sf(row.avg_price),
         composite_score: composite,
         momentum_score: sf(row.momentum_score),
         value_score: sf(row.value_score),

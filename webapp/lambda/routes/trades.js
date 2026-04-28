@@ -49,7 +49,7 @@ router.get('/', async (req, res) => {
 
     // Validate and constrain pagination
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const pageSize = Math.min(500, Math.max(1, parseInt(limit, 10) || 50));
+    const pageSize = Math.min(10000, Math.max(1, parseInt(limit, 10) || 50));
     const offset = (pageNum - 1) * pageSize;
 
     // Parse filter values
@@ -164,9 +164,9 @@ router.get('/', async (req, res) => {
           symbol: row.symbol,
           type: (row.side || 'buy').toLowerCase(),
           quantity: parseFloat(row.quantity),
-          execution_price: parseFloat(row.execution_price),
-          execution_date: row.execution_date,
-          order_value: row.order_value ? parseFloat(row.order_value) : null,
+          price: parseFloat(row.execution_price),
+          executionDate: row.execution_date,
+          orderValue: row.order_value ? parseFloat(row.order_value) : null,
           commission: row.commission ? parseFloat(row.commission) : 0,
           source: 'manual',
           orderId: row.id,

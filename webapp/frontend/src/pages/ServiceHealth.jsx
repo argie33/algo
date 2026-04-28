@@ -337,7 +337,8 @@ function ServiceHealth() {
         const response = await api.get("/api/health");
         if (import.meta.env && import.meta.env.DEV)
           console.log("Service health response:", response?.data);
-        return response?.data;
+        const raw = response?.data;
+        return raw?.data || raw;
       } catch (error) {
         console.error("Service health error:", error);
         throw error;

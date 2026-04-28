@@ -1136,10 +1136,10 @@ function Sentiment() {
   const { data: sentimentData, isLoading, error } = useQuery({
     queryKey: ["sentimentStocks"],
     queryFn: async () => {
-      const response = await api.get(`/api/sentiment/data?limit=512&page=1`);
+      const response = await api.get(`/api/sentiment/data?limit=5000&page=1`);
       return response.data;
     },
-    staleTime: 0, // Always fresh // 5 minutes
+    staleTime: 300000,
     refetchInterval: 300000,
   });
 

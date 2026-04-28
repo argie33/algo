@@ -1351,8 +1351,8 @@ def generate_signals(df, pvtLenL=3, pvtLenR=3, useMaFilter=True, maLength=50, sh
     df['aboveMA'] = (pd.notna(buyLevel_numeric)) & (pd.notna(ma50_numeric)) & (buyLevel_numeric > ma50_numeric)
 
     # === TIME FILTER (Pine Script: time > Start and time < Finish) ===
-    # Pine Script uses Start = 2019-01-01 and Finish = 2100-01-01 by default
-    start_date = pd.Timestamp('2019-01-01')
+    # Using full history start — indicators warm up on pre-1986 ETF data
+    start_date = pd.Timestamp('1990-01-01')
     end_date = pd.Timestamp('2100-01-01')
     df['timeOk'] = (df['date'] >= start_date) & (df['date'] <= end_date)
 

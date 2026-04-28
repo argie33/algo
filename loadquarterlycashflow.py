@@ -69,7 +69,13 @@ def main():
             )
         """)
 
-        cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
+        cur.execute("""
+            SELECT DISTINCT ss.symbol FROM stock_symbols ss
+            WHERE NOT EXISTS (
+                SELECT 1 FROM quarterly_cash_flow t WHERE t.symbol = ss.symbol
+            )
+            ORDER BY ss.symbol
+        """)
         symbols = [row[0] for row in cur.fetchall()]
 
         logging.info(f"Loading quarterly cash flows for {len(symbols)} stocks...")
@@ -100,14 +106,18 @@ def main():
 
                         cur.execute("""
                             INSERT INTO quarterly_cash_flow
-                            (symbol, fiscal_year, fiscal_quarter, date, operating_cash_flow,
-                             investing_cash_flow, financing_cash_flow, capital_expenditures,
+                            (symbol, fiscal_year, fiscal_quarter, operating_cash_flow,
+                             investing_cash_flow, financing_cash_flow, capital_expenditure,
                              free_cash_flow, updated_at)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
                             ON CONFLICT (symbol, fiscal_year, fiscal_quarter) DO UPDATE SET
                             operating_cash_flow = EXCLUDED.operating_cash_flow,
+                            investing_cash_flow = EXCLUDED.investing_cash_flow,
+                            financing_cash_flow = EXCLUDED.financing_cash_flow,
+                            capital_expenditure = EXCLUDED.capital_expenditure,
+                            free_cash_flow = EXCLUDED.free_cash_flow,
                             updated_at = NOW()
-                        """, (symbol, fiscal_year, fiscal_quarter, fiscal_date.date() if fiscal_date else None,
+                        """, (symbol, fiscal_year, fiscal_quarter,
                               operating,
                               safe_float(row_data.get('Investing Cash Flow')),
                               safe_float(row_data.get('Financing Cash Flow')),

@@ -91,7 +91,7 @@ function TradingSignals() {
   }, []);
   const [signalType, setSignalType] = useState("all");
   const [timeframe, setTimeframe] = useState("daily");
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(0); // display page only
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [selectedSymbol, setSelectedSymbol] = useState(null);
   const [historicalDialogOpen, setHistoricalDialogOpen] = useState(false);
@@ -140,6 +140,24 @@ function TradingSignals() {
     }
   };
 
+  // Compute API date params from dateRange state
+  const getDateParams = (range) => {
+    const today = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const fmt = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    const todayStr = fmt(today);
+    if (range === "today") return { date: todayStr };
+    if (range === "week") {
+      const d = new Date(today); d.setDate(d.getDate() - 7);
+      return { from_date: fmt(d), to_date: todayStr };
+    }
+    if (range === "month") {
+      const d = new Date(today); d.setDate(d.getDate() - 30);
+      return { from_date: fmt(d), to_date: todayStr };
+    }
+    return {}; // "all" — no date filter
+  };
+
   // Fetch buy/sell signals for CURRENT timeframe only (not all three)
   const {
     data: signalsData,
@@ -152,28 +170,32 @@ function TradingSignals() {
       timeframe,
       signalType,
       symbolFilter,
+      dateRange,
     ],
     queryFn: async () => {
       try {
         const params = new URLSearchParams();
 
-        // Only add defined parameters
         if (signalType !== "all") {
           params.append("signal_type", signalType);
         }
         params.append("timeframe", timeframe);
 
-        // Reasonable limits:
-        // - If filtering by symbol: load up to 200 signals for that symbol
-        // - Otherwise: load up to 50 signals (default behavior)
-        if (symbolFilter) {
-          params.append("limit", 200);
-          params.append("symbol", symbolFilter);
-        } else {
-          params.append("limit", 50);
+        // Server-side date filtering — no client-side date filtering needed
+        const dateParams = getDateParams(dateRange);
+        if (dateParams.date) params.append("date", dateParams.date);
+        if (dateParams.from_date) params.append("from_date", dateParams.from_date);
+        if (dateParams.to_date) params.append("to_date", dateParams.to_date);
+
+        if (symbolFilter) params.append("symbol", symbolFilter);
+
+        // For all-time view, always load the most recent 50k signals (page 1)
+        // Display pagination navigates within this loaded set
+        if (dateRange === "all") {
+          params.append("limit", 50000);
+          params.append("page", 1);
         }
 
-        // Add cache-busting parameter to force fresh data from server
         params.append("_t", Date.now());
 
         // Use correct endpoint based on asset type
@@ -201,56 +223,12 @@ function TradingSignals() {
         throw err;
       }
     },
-    refetchOnWindowFocus: true,
-    staleTime: 0,
-    gcTime: 0,
-    cacheTime: 0,
-    refetchInterval: 30000, // Reduced from 5000ms (5s) to 30000ms (30s)
+    refetchOnWindowFocus: false,
+    staleTime: 30000,
+    gcTime: 60000,
+    refetchInterval: 60000,
     onError: (err) =>
       logger.queryError("tradingSignals", err, { timeframe, signalType }),
-  });
-
-  // Fetch summary stats from all timeframes (lightweight operation)
-  const {
-    data: allTimeframesData,
-  } = useQuery({
-    queryKey: ["tradingSignalsSummary", assetType, signalType, symbolFilter],
-    queryFn: async () => {
-      try {
-        const timeframes = ["daily", "weekly", "monthly"];
-        const requests = timeframes.map(async (tf) => {
-          const params = new URLSearchParams();
-          if (signalType !== "all") {
-            params.append("signal_type", signalType);
-          }
-          params.append("timeframe", tf);
-          params.append("limit", 100); // Small limit for summary only
-          if (symbolFilter) {
-            params.append("symbol", symbolFilter);
-          }
-          params.append("_t", Date.now());
-
-          const endpoint = assetType === "etf" ? "etf" : "stocks";
-          const url = `/api/signals/${endpoint}?${params}`;
-
-          const response = await api.get(url);
-          return extractResponseData(response);
-        });
-
-        const results = await Promise.all(requests);
-        return {
-          daily: results[0] || { items: [] },
-          weekly: results[1] || { items: [] },
-          monthly: results[2] || { items: [] },
-        };
-      } catch (err) {
-        logger.warn("fetchSummaryStats - Error", err);
-        return { daily: { items: [] }, weekly: { items: [] }, monthly: { items: [] } };
-      }
-    },
-    staleTime: 10000,
-    gcTime: 10000,
-    cacheTime: 10000,
   });
 
   // Ensure we have a valid response object, default to empty items
@@ -262,62 +240,7 @@ function TradingSignals() {
     console.warn(`⚠️ NO SIGNALS FOUND FOR ${timeframe.toUpperCase()} - Database is empty`);
   }
 
-  // Calculate summary statistics from ALL loaded timeframes
-  const summaryStats = useMemo(() => {
-    // Collect data from all timeframes that were loaded
-    const allSignals = [];
-    if (allTimeframesData?.daily?.items) allSignals.push(...allTimeframesData.daily.items);
-    if (allTimeframesData?.weekly?.items) allSignals.push(...allTimeframesData.weekly.items);
-    if (allTimeframesData?.monthly?.items) allSignals.push(...allTimeframesData.monthly.items);
-
-    if (!allSignals || allSignals.length === 0) {
-      return null;
-    }
-
-    const totalSignals = allSignals?.length || 0;
-    // Count signals matching current date range
-    const currentRangeSignals = allSignals.filter((s) => matchesDateRange(s.date)).length;
-    const buySignals = allSignals.filter((s) => String(s.signal).toLowerCase() === "buy").length;
-    const sellSignals = allSignals.filter((s) => String(s.signal).toLowerCase() === "sell").length;
-
-    // Get signals from current timeframe view
-    const signals = signalsData?.items || [];
-
-    // Swing Trading Metrics
-    const stage2Signals = signals.filter((s) => s.market_stage === "Stage 2 - Advancing").length;
-    const highQualitySignals = signals.filter((s) => s.quality_score >= 60).length;
-    const pocketPivots = signals.filter((s) => s.volume_analysis === "Pocket Pivot").length;
-    const swingPatternCompliant = signals.filter((s) => s.passes_minervini_template).length;
-    const inPosition = signals.filter((s) => s.inposition).length;
-
-    // Average metrics for signals with data
-    const validRRSignals = signals.filter((s) => s.risk_reward_ratio && s.risk_reward_ratio > 0);
-    const avgRiskReward = validRRSignals.length > 0
-      ? (validRRSignals.reduce((sum, s) => sum + parseFloat(s.risk_reward_ratio), 0) / validRRSignals.length).toFixed(1)
-      : null;
-
-    const validQualitySignals = signals.filter((s) => s.quality_score);
-    const avgQualityScore = validQualitySignals.length > 0
-      ? Math.round(validQualitySignals.reduce((sum, s) => sum + parseInt(s.quality_score), 0) / validQualitySignals.length)
-      : null;
-
-    return {
-      totalSignals,
-      currentRangeSignals,
-      buySignals,
-      sellSignals,
-      // Swing Trading Metrics
-      stage2Signals,
-      highQualitySignals,
-      pocketPivots,
-      swingPatternCompliant,
-      inPosition,
-      avgRiskReward,
-      avgQualityScore,
-    };
-  }, [allTimeframesData, dateRange]);
-
-  // Filter data based on all filter settings
+  // Filter data based on all filter settings (defined before summaryStats so counts are accurate)
   const filteredSignals = useMemo(() => {
     // The API response structure is: { items: [...], pagination, success }
     const signalsArray = validSignalsData?.items || [];
@@ -365,16 +288,11 @@ function TradingSignals() {
       filtered = filtered.filter((signal) => signal.signal === typeToMatch);
     }
 
-    // Apply date range filter only if not "all"
-    if (dateRange !== "all") {
-      filtered = filtered.filter((signal) => matchesDateRange(signal.date));
-    }
+    // Date filtering is now server-side — no client-side date filtering needed
 
-    // Apply symbol filter
-    if (symbolFilter) {
-      filtered = filtered.filter((signal) =>
-        signal.symbol?.toLowerCase().includes(symbolFilter.toLowerCase())
-      );
+    // Symbol filter is server-side too, but keep local filter for search-as-you-type
+    if (symbolFilter && !searchInput) {
+      // Already filtered by API
     }
 
     logger.info("filteredSignals", "Data filtered", {
@@ -404,6 +322,47 @@ function TradingSignals() {
     timeframe
   ]);
 
+  // Calculate summary statistics from the already-filtered current timeframe signals
+  const summaryStats = useMemo(() => {
+    const signals = filteredSignals || [];
+    if (!signals.length) return null;
+
+    const totalSignals = signals.length;
+    const currentRangeSignals = signals.length;
+    const buySignals = signals.filter((s) => String(s.signal).toLowerCase() === "buy").length;
+    const sellSignals = signals.filter((s) => String(s.signal).toLowerCase() === "sell").length;
+
+    const stage2Signals = signals.filter((s) => s.market_stage === "Stage 2 - Advancing").length;
+    const highQualitySignals = signals.filter((s) => s.quality_score >= 60).length;
+    const pocketPivots = signals.filter((s) => s.volume_analysis === "Pocket Pivot").length;
+    const swingPatternCompliant = signals.filter((s) => s.passes_minervini_template).length;
+    const inPosition = signals.filter((s) => s.inposition).length;
+
+    const validRRSignals = signals.filter((s) => s.risk_reward_ratio && s.risk_reward_ratio > 0);
+    const avgRiskReward = validRRSignals.length > 0
+      ? (validRRSignals.reduce((sum, s) => sum + parseFloat(s.risk_reward_ratio), 0) / validRRSignals.length).toFixed(1)
+      : null;
+
+    const validQualitySignals = signals.filter((s) => s.quality_score);
+    const avgQualityScore = validQualitySignals.length > 0
+      ? Math.round(validQualitySignals.reduce((sum, s) => sum + parseInt(s.quality_score), 0) / validQualitySignals.length)
+      : null;
+
+    return {
+      totalSignals,
+      currentRangeSignals,
+      buySignals,
+      sellSignals,
+      stage2Signals,
+      highQualitySignals,
+      pocketPivots,
+      swingPatternCompliant,
+      inPosition,
+      avgRiskReward,
+      avgQualityScore,
+    };
+  }, [filteredSignals]);
+
   // Fetch historical data for selected symbol
   const { data: historicalData, isLoading: historicalLoading } = useQuery({
     queryKey: ["historicalSignals", assetType, selectedSymbol],
@@ -412,7 +371,7 @@ function TradingSignals() {
       try {
         const endpoint = assetType === "etf" ? "etf" : "stocks";
         const response = await api.get(
-          `/api/signals/${endpoint}?symbol=${selectedSymbol}&timeframe=daily&limit=50`
+          `/api/signals/${endpoint}?symbol=${selectedSymbol}&timeframe=daily&limit=5000`
         );
         return extractResponseData(response);
       } catch (err) {
@@ -427,7 +386,7 @@ function TradingSignals() {
   // Helper functions for search
   const handleSearch = () => {
     setSymbolFilter(searchInput.trim());
-    setPage(0);
+    setPage(0); // reset display page on new search
   };
 
   const handleClearSearch = () => {
@@ -615,11 +574,20 @@ function TradingSignals() {
   const BuySellSignalsTable = () => {
     const columns = getDynamicColumns(filteredSignals);
 
-    // Calculate paginated data
-    const totalSignals = filteredSignals?.length || 0;
-    const startIndex = page * rowsPerPage;
-    const endIndex = startIndex + rowsPerPage;
+    const serverPagination = signalsData?.pagination;
+    // For "all time": server handles pagination; for date-constrained: local slicing
+    const isAllTime = dateRange === "all";
+    const totalSignals = isAllTime
+      ? (serverPagination?.total || filteredSignals?.length || 0)
+      : (filteredSignals?.length || 0);
+
+    const startIndex = isAllTime ? 0 : page * rowsPerPage;
+    const endIndex = isAllTime ? rowsPerPage : (startIndex + rowsPerPage);
     const paginatedSignals = filteredSignals?.slice(startIndex, endIndex) || [];
+
+    const pageOffset = isAllTime ? page * 500 : startIndex;
+    const displayStart = pageOffset + 1;
+    const displayEnd = pageOffset + paginatedSignals.length;
 
     return (
       <Box>
@@ -718,18 +686,42 @@ function TradingSignals() {
         {filteredSignals?.length > 0 && (
           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 2 }}>
             <Typography variant="body2" color="text.secondary">
-              Showing {startIndex + 1} to {Math.min(endIndex, totalSignals)} of {totalSignals} signals
+              Showing {displayStart} to {displayEnd} of {totalSignals.toLocaleString()} signals
+              {dateRange === "all" && serverPagination?.totalPages > 1 && ` (page ${page + 1} of ${serverPagination.totalPages})`}
             </Typography>
-            <TablePagination
-              rowsPerPageOptions={[10, 25, 50, 100]}
-              component="div"
-              count={totalSignals}
-              rowsPerPage={rowsPerPage}
-              page={page}
-              onPageChange={handleChangePage}
-              onRowsPerPageChange={handleChangeRowsPerPage}
-              sx={{ ml: "auto" }}
-            />
+            {dateRange === "all" ? (
+              // Server-paginated: navigate 500-item pages from server
+              <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+                <Button size="small" variant="outlined" disabled={page === 0}
+                  onClick={() => { setPage(p => p - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+                  ← Prev 500
+                </Button>
+                <Typography variant="body2">Page {page + 1}{serverPagination?.totalPages ? ` / ${serverPagination.totalPages}` : ""}</Typography>
+                <Button size="small" variant="outlined" disabled={!serverPagination?.hasNext}
+                  onClick={() => { setPage(p => p + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+                  Next 500 →
+                </Button>
+                <FormControl size="small" sx={{ minWidth: 90, ml: 1 }}>
+                  <Select value={rowsPerPage} onChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); }}>
+                    <MenuItem value={25}>25 / pg</MenuItem>
+                    <MenuItem value={50}>50 / pg</MenuItem>
+                    <MenuItem value={100}>100 / pg</MenuItem>
+                    <MenuItem value={500}>500 / pg</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
+            ) : (
+              <TablePagination
+                rowsPerPageOptions={[10, 25, 50, 100, 250]}
+                component="div"
+                count={filteredSignals?.length || 0}
+                rowsPerPage={rowsPerPage}
+                page={page}
+                onPageChange={handleChangePage}
+                onRowsPerPageChange={handleChangeRowsPerPage}
+                sx={{ ml: "auto" }}
+              />
+            )}
           </Box>
         )}
       </Box>

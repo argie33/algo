@@ -149,12 +149,6 @@ const menuItems = [
 
   // Admin & Settings Section
   {
-    text: 'Messages',
-    icon: <EventIcon />,
-    path: '/app/messages',
-    category: 'admin',
-  },
-  {
     text: 'System Health',
     icon: <HealthAndSafetyIcon />,
     path: '/app/health',

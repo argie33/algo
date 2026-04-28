@@ -31,7 +31,6 @@ function FinancialData() {
   const [tabValue, setTabValue] = useState(0);
   const [period, setPeriod] = useState("annual");
 
-  // Get companies list
   const { data: companiesData, isLoading: companiesLoading } = useQuery({
     queryKey: ["companies"],
     queryFn: () => getStocks({ limit: 1000 }),
@@ -41,7 +40,6 @@ function FinancialData() {
   const companies = companiesData?.data ?? [];
   const safeCompanies = Array.isArray(companies) ? companies : [];
 
-  // Get financial data with period selection
   const { data: balanceSheetData, isLoading: bsLoading } = useQuery({
     queryKey: ["balance-sheet", ticker, period],
     queryFn: () => getBalanceSheet(ticker, period),
@@ -66,19 +64,15 @@ function FinancialData() {
     enabled: !!ticker,
   });
 
-  // Helper to safely extract financial data
   const getFinancialData = (data) => {
     return data?.data?.financialData || [];
   };
 
-  // Excluded metadata fields from display
   const EXCLUDED_KEYS = new Set(['id', 'symbol', 'fiscal_year', 'fiscal_quarter', 'created_at', 'updated_at', 'fetched_at']);
 
-  // Format a column header name
   const formatColHeader = (key) =>
     key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
-  // Format a cell value — try currency for large numbers, percentage for small
   const formatCellVal = (value) => {
     if (value === null || value === undefined || value === '') return '—';
     const num = parseFloat(value);
@@ -87,13 +81,11 @@ function FinancialData() {
     return num.toFixed(2);
   };
 
-  // Render financial table — dynamically uses ALL columns from the data
-  const renderFinancialTable = (rows, _ignoredColumns) => {
+  const renderFinancialTable = (rows) => {
     if (!rows || rows.length === 0) {
       return <Alert severity="info">No data available for selected period</Alert>;
     }
 
-    // Build column list from first row, excluding metadata keys
     const allKeys = Object.keys(rows[0]).filter(k => !EXCLUDED_KEYS.has(k));
 
     return (
@@ -140,7 +132,6 @@ function FinancialData() {
           Comprehensive financial statements for stocks
         </Typography>
 
-        {/* Company Selection */}
         <Card sx={{ mb: 3, backgroundColor: "#fafafa" }}>
           <CardContent>
             <Grid container spacing={2} alignItems="center">
@@ -178,7 +169,6 @@ function FinancialData() {
           </CardContent>
         </Card>
 
-        {/* Tabs */}
         <Paper sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}>
           <Tabs
             value={tabValue}
@@ -193,7 +183,6 @@ function FinancialData() {
           </Tabs>
         </Paper>
 
-        {/* Balance Sheet */}
         {tabValue === 0 && (
           <Box>
             {bsLoading ? (
@@ -204,11 +193,7 @@ function FinancialData() {
                   <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
                     Balance Sheet - {ticker}
                   </Typography>
-                  {renderFinancialTable(getFinancialData(balanceSheetData), [
-                    { key: "total_assets", label: "Total Assets" },
-                    { key: "total_liabilities", label: "Total Liabilities" },
-                    { key: "stockholders_equity", label: "Stockholders Equity" },
-                  ])}
+                  {renderFinancialTable(getFinancialData(balanceSheetData))}
                 </CardContent>
               </Card>
             ) : (
@@ -217,7 +202,6 @@ function FinancialData() {
           </Box>
         )}
 
-        {/* Income Statement */}
         {tabValue === 1 && (
           <Box>
             {isLoading ? (
@@ -228,12 +212,7 @@ function FinancialData() {
                   <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
                     Income Statement - {ticker}
                   </Typography>
-                  {renderFinancialTable(getFinancialData(incomeStatementData), [
-                    { key: "revenue", label: "Revenue" },
-                    { key: "gross_profit", label: "Gross Profit" },
-                    { key: "operating_income", label: "Operating Income" },
-                    { key: "net_income", label: "Net Income" },
-                  ])}
+                  {renderFinancialTable(getFinancialData(incomeStatementData))}
                 </CardContent>
               </Card>
             ) : (
@@ -242,7 +221,6 @@ function FinancialData() {
           </Box>
         )}
 
-        {/* Cash Flow */}
         {tabValue === 2 && (
           <Box>
             {cfLoading ? (
@@ -253,11 +231,7 @@ function FinancialData() {
                   <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
                     Cash Flow Statement - {ticker}
                   </Typography>
-                  {renderFinancialTable(getFinancialData(cashFlowData), [
-                    { key: "operating_cash_flow", label: "Operating Cash Flow" },
-                    { key: "investing_cash_flow", label: "Investing Cash Flow" },
-                    { key: "financing_cash_flow", label: "Financing Cash Flow" },
-                  ])}
+                  {renderFinancialTable(getFinancialData(cashFlowData))}
                 </CardContent>
               </Card>
             ) : (
@@ -266,7 +240,6 @@ function FinancialData() {
           </Box>
         )}
 
-        {/* Key Metrics */}
         {tabValue === 3 && (
           <Box>
             {kmLoading ? (
@@ -315,7 +288,7 @@ function FinancialData() {
                     ))}
                     {!keyMetricsData.data.pe_ratio && !keyMetricsData.data.debt_to_equity && !keyMetricsData.data.current_ratio && !keyMetricsData.data.gross_margin && !keyMetricsData.data.roe && (
                       <Grid item xs={12}>
-                        <Alert severity="info">Financial ratio data not yet loaded for {ticker}. Income & Cash Flow tabs have available data.</Alert>
+                        <Alert severity="info">Financial ratio data not yet loaded for {ticker}. Income &amp; Cash Flow tabs have available data.</Alert>
                       </Grid>
                     )}
                   </Grid>

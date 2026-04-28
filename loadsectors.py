@@ -212,6 +212,29 @@ def create_tables_if_needed(conn):
         """)
         logger.info(" industry_technical_data table ready")
 
+        # Migrate industry_ranking.date -> date_recorded if needed (schema alignment)
+        cursor.execute("""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='industry_ranking' AND column_name='date'
+                ) AND NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='industry_ranking' AND column_name='date_recorded'
+                ) THEN
+                    ALTER TABLE industry_ranking RENAME COLUMN date TO date_recorded;
+                    ALTER TABLE industry_ranking DROP CONSTRAINT IF EXISTS industry_ranking_industry_date_key;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conname='industry_ranking_industry_date_recorded_key'
+                    ) THEN
+                        ALTER TABLE industry_ranking ADD CONSTRAINT industry_ranking_industry_date_recorded_key UNIQUE(industry, date_recorded);
+                    END IF;
+                END IF;
+            END$$
+        """)
+
         # Create indexes for performance (only for ranking tables - performance tables already have indexes on fetched_at)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_sector_ranking_date ON sector_ranking(date_recorded)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_sector_ranking_sector ON sector_ranking(sector_name)")

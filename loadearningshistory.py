@@ -229,7 +229,7 @@ def load_earnings_history(symbols, cur, conn, cfg):
                     logging.error(f"Failed to insert data for {orig_sym}: {e}")
                     try:
                         conn.rollback()
-        except Exception:
+                    except Exception:
                         pass
                     failed.append(orig_sym)
 
