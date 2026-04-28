@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""
+# Triggered: 2026-04-28 14:50 UTC - Batch 4 Financial Statements
 Quarterly Income Statement Loader
 Loads quarterly income statement data from yfinance
 """

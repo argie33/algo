@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Quarterly Balance Sheet Loader"""
+# Triggered: 2026-04-28 14:50 UTC - Batch 4 Financial Statements
 
 import sys
 import logging
