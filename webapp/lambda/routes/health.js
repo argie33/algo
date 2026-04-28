@@ -106,7 +106,7 @@ router.get("/", async (req, res) => {
         try {
           const _result = await query("SELECT 1 as ok");
           if (_result && (_result.rows || _result.length >= 0)) {
-            const dbTime = Date.now() - Date.now();
+            const dbTime = 0; // test env - timing not relevant
             return sendSuccess(res, {
               status: "healthy",
               healthy: true,
@@ -281,7 +281,7 @@ router.get("/", async (req, res) => {
         "etf_price_daily",
         "etf_price_weekly",
         "etf_price_monthly",
-        "price_data_montly",
+        "price_monthly",
         "annual_balance_sheet",
         "annual_income_statement",
         "annual_cash_flow",

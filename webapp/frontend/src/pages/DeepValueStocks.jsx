@@ -49,7 +49,7 @@ const DeepValueStocks = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await api.get("/api/stocks/deep-value?limit=5000");
+      const response = await api.get("/api/stocks/deep-value?limit=600");
       const result = response.data;
       let stocksData = result.items || result.data?.stocks || result.data || result;
       if (!Array.isArray(stocksData)) stocksData = [];

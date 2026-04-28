@@ -53,9 +53,30 @@ async function fetchIndustries(req, res) {
         SELECT *,
           RANK() OVER (ORDER BY composite_score DESC NULLS LAST) as current_rank
         FROM industry_scores
+      ),
+      industry_pe AS (
+        SELECT
+          cp.industry,
+          AVG(vm.trailing_pe) FILTER (WHERE vm.trailing_pe > 0 AND vm.trailing_pe < 200) AS avg_trailing_pe,
+          AVG(vm.forward_pe) FILTER (WHERE vm.forward_pe > 0 AND vm.forward_pe < 200) AS avg_forward_pe
+        FROM (
+          SELECT DISTINCT ON (symbol) symbol, trailing_pe, forward_pe
+          FROM value_metrics
+          ORDER BY symbol, date DESC
+        ) vm
+        JOIN company_profile cp ON vm.symbol = cp.ticker
+        WHERE cp.industry IS NOT NULL
+        GROUP BY cp.industry
+      ),
+      industry_pe_ranked AS (
+        SELECT *,
+          PERCENT_RANK() OVER (ORDER BY avg_trailing_pe ASC NULLS LAST) * 100 AS pe_percentile
+        FROM industry_pe
       )
-      SELECT * FROM ranked
-      ORDER BY current_rank, stock_count DESC
+      SELECT r.*, ipe.avg_trailing_pe, ipe.avg_forward_pe, ipe.pe_percentile
+      FROM ranked r
+      LEFT JOIN industry_pe_ranked ipe ON ipe.industry = r.industry
+      ORDER BY r.current_rank, r.stock_count DESC
       LIMIT $1 OFFSET $2
     `, [limitNum, offset]);
 
@@ -87,6 +108,11 @@ async function fetchIndustries(req, res) {
         performance_20d: perf20d,
         current_momentum: momentumLabel,
         current_trend: trendLabel,
+        pe: {
+          trailing: sf(row.avg_trailing_pe),
+          forward: sf(row.avg_forward_pe),
+          percentile: sf(row.pe_percentile),
+        },
       };
     });
 
@@ -112,15 +138,21 @@ router.get("/:industry/trend", async (req, res) => {
     const daysNum = Math.min(parseInt(days) || 90, 365);
 
     const result = await query(`
-      SELECT
-        DATE(pd.date) as date,
-        AVG(CAST(pd.close AS FLOAT)) as avg_price,
-        COUNT(DISTINCT pd.symbol) as stock_count
-      FROM price_daily pd
-      JOIN company_profile cp ON pd.symbol = cp.ticker
-      WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM($1))
-      AND pd.date >= CURRENT_DATE - INTERVAL '${daysNum} days'
-      GROUP BY DATE(pd.date)
+      WITH prices AS (
+        SELECT
+          DATE(pd.date) as date,
+          AVG(CAST(pd.close AS FLOAT)) as avg_price,
+          COUNT(DISTINCT pd.symbol) as stock_count
+        FROM price_daily pd
+        JOIN company_profile cp ON pd.symbol = cp.ticker
+        WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM($1))
+          AND pd.date >= CURRENT_DATE - INTERVAL '${daysNum} days'
+        GROUP BY DATE(pd.date)
+        ORDER BY date ASC
+      )
+      SELECT date, avg_price, stock_count,
+        ((avg_price / NULLIF(FIRST_VALUE(avg_price) OVER (ORDER BY date), 0)) - 1) * 100 AS daily_strength_score
+      FROM prices
       ORDER BY date ASC
     `, [industry]);
 
@@ -133,7 +165,8 @@ router.get("/:industry/trend", async (req, res) => {
       trendData: result.rows.map(row => ({
         date: row.date,
         avgPrice: parseFloat(row.avg_price) || 0,
-        stockCount: parseInt(row.stock_count) || 0
+        stockCount: parseInt(row.stock_count) || 0,
+        dailyStrengthScore: parseFloat(row.daily_strength_score) || 0
       }))
     });
   } catch (error) {
@@ -150,15 +183,21 @@ router.get("/trend/industry/:industryName", async (req, res) => {
     const daysNum = Math.min(parseInt(days) || 90, 365);
 
     const result = await query(`
-      SELECT
-        DATE(pd.date) as date,
-        AVG(CAST(pd.close AS FLOAT)) as avg_price,
-        COUNT(DISTINCT pd.symbol) as stock_count
-      FROM price_daily pd
-      JOIN company_profile cp ON pd.symbol = cp.ticker
-      WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM($1))
-      AND pd.date >= CURRENT_DATE - INTERVAL '${daysNum} days'
-      GROUP BY DATE(pd.date)
+      WITH prices AS (
+        SELECT
+          DATE(pd.date) as date,
+          AVG(CAST(pd.close AS FLOAT)) as avg_price,
+          COUNT(DISTINCT pd.symbol) as stock_count
+        FROM price_daily pd
+        JOIN company_profile cp ON pd.symbol = cp.ticker
+        WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM($1))
+          AND pd.date >= CURRENT_DATE - INTERVAL '${daysNum} days'
+        GROUP BY DATE(pd.date)
+        ORDER BY date ASC
+      )
+      SELECT date, avg_price, stock_count,
+        ((avg_price / NULLIF(FIRST_VALUE(avg_price) OVER (ORDER BY date), 0)) - 1) * 100 AS daily_strength_score
+      FROM prices
       ORDER BY date ASC
     `, [industryName]);
 
@@ -169,7 +208,8 @@ router.get("/trend/industry/:industryName", async (req, res) => {
     const trendData = result.rows.map(row => ({
       date: row.date,
       avgPrice: parseFloat(row.avg_price) || 0,
-      stockCount: parseInt(row.stock_count) || 0
+      stockCount: parseInt(row.stock_count) || 0,
+      dailyStrengthScore: parseFloat(row.daily_strength_score) || 0
     }));
 
     return sendSuccess(res, { industry: industryName, trendData });

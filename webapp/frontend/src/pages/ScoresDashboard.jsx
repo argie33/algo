@@ -363,7 +363,7 @@ const ScoresDashboard = () => {
       const offset = (page - 1) * displayLimit;
 
       const response = await api.get(
-        `/api/scores/stockscores?limit=${displayLimit}&offset=${offset}&sortBy=composite_score`
+        `/api/scores/stockscores?limit=${displayLimit}&offset=${offset}&sortBy=composite_score&sp500Only=true`
       );
 
       // Check if API response is valid

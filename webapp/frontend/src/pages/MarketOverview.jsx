@@ -463,17 +463,19 @@ const handleTabChange = (event, newValue) => {
     // Calculate current value from latest data point
     const latest = mcclellanRawData[mcclellanRawData.length - 1];
     const previous = mcclellanRawData[mcclellanRawData.length - 2];
-    const adl = latest?.advance_decline_line;
-    const currentValue = typeof adl === 'number' ? adl : 0;
-    const prevAdl = previous?.advance_decline_line;
-    const change = typeof prevAdl === 'number' ? currentValue - prevAdl : 0;
+    const currentValue = parseFloat(latest?.advance_decline_line) || 0;
+    const prevValue = parseFloat(previous?.advance_decline_line) || 0;
+    const change = currentValue - prevValue;
 
     return {
       current_value: currentValue,
-      ema_19: null, // Not available in new endpoint
-      ema_39: null, // Not available in new endpoint
+      ema_19: null,
+      ema_39: null,
       interpretation: currentValue > 0 ? "Bullish breadth" : "Bearish breadth",
-      recent_data: mcclellanRawData.slice(-30),
+      recent_data: mcclellanRawData.slice(-30).map(d => ({
+        ...d,
+        advance_decline_line: parseFloat(d.advance_decline_line) || 0
+      })),
       change
     };
   }, [mcclellanRawData]);
@@ -1125,7 +1127,7 @@ const handleTabChange = (event, newValue) => {
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} md={6}>
           <MarketExposure
-            marketData={{ data: { indices: indicesData?.data || [] } }}
+            marketData={{ data: { indices: indicesData?.data?.items || [] } }}
             breadthData={{ data: breadth }}
             distributionDaysData={distributionDays}
           />

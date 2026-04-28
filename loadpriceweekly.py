@@ -9,6 +9,9 @@ import os
 import gc
 import math
 import signal
+import argparse
+from datetime import timedelta
+from collections import defaultdict
 
 # Windows compatibility: resource module doesn't exist on Windows
 try:
@@ -387,10 +390,153 @@ def load_prices(table_name, symbols, cur, conn):
 
     return total, inserted, failed
 
+
+def load_prices_smart(table_name, symbols, cur, conn):
+    """
+    FAST incremental loader: queries DB for max(date) per symbol, then
+    downloads ONLY missing data. Batches 200 symbols at once via yf.download().
+    For weekly data: ~25 API calls vs 1000+ for full reload.
+    """
+    from datetime import date
+
+    logging.info(f"[SMART] {table_name}: loading {len(symbols)} symbols in smart incremental mode")
+    start_wall = time.time()
+
+    cur.execute(f"SELECT symbol, MAX(date) AS last_date FROM {table_name} WHERE symbol = ANY(%s) GROUP BY symbol", (symbols,))
+    existing = {r["symbol"]: r["last_date"] for r in cur.fetchall()}
+    logging.info(f"[SMART] {table_name}: {len(existing)} symbols already have data in DB")
+
+    today = date.today()
+    need_full = [s for s in symbols if s not in existing]
+    need_incr = [s for s in symbols if s in existing and existing[s] < today]
+    up_to_date = [s for s in symbols if s in existing and existing[s] >= today]
+    logging.info(f"[SMART] {table_name}: need_full={len(need_full)}, need_incr={len(need_incr)}, up_to_date={len(up_to_date)}")
+
+    total_inserted, total_failed = 0, []
+    INCR_BATCH, FULL_BATCH = 200, 50
+    INCR_PAUSE, FULL_PAUSE = 1.0, 2.0
+
+    def _download_and_insert(batch_syms, start_date=None, period=None, pause=1.0):
+        yq_batch = [s.replace('.', '-').replace('$', '-P') for s in batch_syms]
+        mapping = dict(zip(yq_batch, batch_syms))
+        n_ins, n_fail = 0, []
+
+        for attempt in range(1, 4):
+            try:
+                kwargs = dict(tickers=yq_batch, interval="1wk", auto_adjust=False,
+                              actions=True, threads=True, progress=False)
+                if start_date:
+                    kwargs["start"] = start_date.isoformat()
+                else:
+                    kwargs["period"] = period or "max"
+                df = yf.download(**kwargs)
+                break
+            except Exception as e:
+                logging.warning(f"[SMART] download attempt {attempt}/3 failed: {e}")
+                time.sleep(2 ** attempt)
+                df = None
+
+        if df is None or (hasattr(df, 'empty') and df.empty):
+            return 0, batch_syms
+
+        gc.disable()
+        try:
+            for yq_sym, orig_sym in mapping.items():
+                try:
+                    if isinstance(df.columns, pd.MultiIndex):
+                        if yq_sym not in df.columns.get_level_values(0):
+                            continue
+                        sub = df[yq_sym].copy()
+                    else:
+                        sub = df.copy()
+
+                    sub.columns = [c.lower().replace(' ', '_') if isinstance(c, str) else str(c).lower() for c in sub.columns]
+                    sub = sub.sort_index()
+                    if "open" in sub.columns:
+                        sub = sub[sub["open"].notna()]
+
+                    rows = []
+                    for idx, row in sub.iterrows():
+                        try:
+                            o = float(row.get("open", float("nan")))
+                            h = float(row.get("high", float("nan")))
+                            l = float(row.get("low", float("nan")))
+                            c = float(row.get("close", float("nan")))
+                            ac = float(row.get("adj_close", row.get("close", float("nan"))))
+                            v = row.get("volume", None)
+                            vol = None if v is None or (isinstance(v, float) and math.isnan(v)) else int(v)
+                            if vol is None or vol == 0:
+                                continue
+                            div = float(row.get("dividends", 0.0) or 0.0)
+                            sp = float(row.get("stock_splits", 0.0) or 0.0)
+                            if any(math.isnan(x) for x in [o, h, l, c]):
+                                continue
+                            rows.append([orig_sym, idx.date(), o, h, l, c, ac, vol, div, sp])
+                        except Exception:
+                            continue
+
+                    if rows:
+                        sql = (f"INSERT INTO {table_name} ({COL_LIST}) VALUES %s "
+                               f"ON CONFLICT (symbol, date) DO UPDATE SET "
+                               f"open=EXCLUDED.open, high=EXCLUDED.high, low=EXCLUDED.low, "
+                               f"close=EXCLUDED.close, adj_close=EXCLUDED.adj_close, "
+                               f"volume=EXCLUDED.volume, dividends=EXCLUDED.dividends, "
+                               f"stock_splits=EXCLUDED.stock_splits")
+                        execute_values(cur, sql, rows)
+                        conn.commit()
+                        n_ins += len(rows)
+                except Exception as e:
+                    logging.warning(f"[SMART] {orig_sym} insert error: {e}")
+                    n_fail.append(orig_sym)
+                    conn.rollback()
+        finally:
+            gc.enable()
+
+        time.sleep(pause)
+        return n_ins, n_fail
+
+    if need_incr:
+        date_groups = defaultdict(list)
+        for s in need_incr:
+            date_groups[existing[s]].append(s)
+        for last_date, group in sorted(date_groups.items()):
+            start_date = last_date + timedelta(days=1)
+            logging.info(f"[SMART] incremental: {len(group)} symbols from {start_date}")
+            for i in range(0, len(group), INCR_BATCH):
+                batch = group[i:i+INCR_BATCH]
+                ins, fail = _download_and_insert(batch, start_date=start_date, pause=INCR_PAUSE)
+                total_inserted += ins
+                total_failed.extend(fail)
+                logging.info(f"[SMART] incr batch {i//INCR_BATCH+1}: inserted {ins} rows, {len(fail)} failed")
+
+    if need_full:
+        logging.info(f"[SMART] full history: {len(need_full)} symbols")
+        for i in range(0, len(need_full), FULL_BATCH):
+            batch = need_full[i:i+FULL_BATCH]
+            ins, fail = _download_and_insert(batch, period="max", pause=FULL_PAUSE)
+            total_inserted += ins
+            total_failed.extend(fail)
+            logging.info(f"[SMART] full batch {i//FULL_BATCH+1}/{(len(need_full)+FULL_BATCH-1)//FULL_BATCH}: inserted {ins} rows")
+
+    elapsed = time.time() - start_wall
+    logging.info(f"[SMART] {table_name}: DONE in {elapsed:.1f}s — inserted {total_inserted} rows, {len(total_failed)} failed")
+    return len(symbols), total_inserted, total_failed
+
+
 # -------------------------------
 # Entrypoint
 # -------------------------------
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Load weekly price data for stocks')
+    parser.add_argument('--smart', action='store_true',
+                       help='Smart incremental: only fetch missing data per symbol. FAST (5-10 min vs hours).')
+    args = parser.parse_args()
+
+    if args.smart:
+        logging.info("Running in SMART mode - incremental per-symbol fetch")
+    else:
+        logging.info("Running in DEFAULT mode - loading recent 3 months of data")
+
     try:
         log_mem("startup")
         logging.info("Starting priceweekly loader...")
@@ -438,7 +584,10 @@ if __name__ == "__main__":
         # Load stock symbols only (ETF tables are managed by loadetfpriceweekly.py)
         cur.execute("SELECT symbol FROM stock_symbols;")
         stock_syms = [r["symbol"] for r in cur.fetchall()]
-        t_s, i_s, f_s = load_prices("price_weekly", stock_syms, cur, conn)
+        if args.smart:
+            t_s, i_s, f_s = load_prices_smart("price_weekly", stock_syms, cur, conn)
+        else:
+            t_s, i_s, f_s = load_prices("price_weekly", stock_syms, cur, conn)
 
         t_w, i_w, f_w = 0, 0, []  # ETFs handled by separate loader
 

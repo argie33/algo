@@ -423,6 +423,44 @@ const SignalCardAccordion = ({ signals = [] }) => {
                     />
                   </Grid>
                 )}
+
+                {/* UPCOMING EARNINGS */}
+                {signal.next_earnings_date && (
+                  <Grid item xs={12} sm={6} md={4} lg={2.4}>
+                    <Typography variant="overline" sx={{ fontWeight: 700, color: 'primary.main', display: 'block', mb: 2 }}>
+                      Upcoming Earnings
+                    </Typography>
+                    <Box
+                      sx={{
+                        p: 1.5,
+                        borderRadius: 1,
+                        backgroundColor:
+                          signal.days_to_earnings != null && signal.days_to_earnings < 14
+                            ? 'error.light'
+                            : signal.days_to_earnings != null && signal.days_to_earnings < 30
+                              ? 'warning.light'
+                              : 'success.light',
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ display: 'block', mb: 0.5, color: 'text.secondary' }}>
+                        Next Date
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        {new Date(signal.next_earnings_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </Typography>
+                      {signal.days_to_earnings != null && (
+                        <>
+                          <Typography variant="caption" sx={{ display: 'block', mt: 1, mb: 0.5, color: 'text.secondary' }}>
+                            Days Away
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                            {signal.days_to_earnings} days
+                          </Typography>
+                        </>
+                      )}
+                    </Box>
+                  </Grid>
+                )}
               </Grid>
             </AccordionDetails>
           </Accordion>

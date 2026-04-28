@@ -45,6 +45,29 @@ import {
 import { formatXAxisDate } from "../utils/dateFormatters";
 import PETrendChart from "../components/PETrendChart";
 
+// Compute simple moving average for an array of values
+const computeMovingAverage = (values, period) => {
+  return values.map((_, i) => {
+    if (i < period - 1) return null;
+    const slice = values.slice(i - period + 1, i + 1).filter(v => v !== null && v !== undefined);
+    if (slice.length < Math.ceil(period * 0.7)) return null;
+    return slice.reduce((a, b) => a + b, 0) / slice.length;
+  });
+};
+
+// Enrich trend data with computed MA10 and MA20
+const enrichWithMovingAverages = (trendData) => {
+  if (!trendData || trendData.length === 0) return trendData;
+  const prices = trendData.map(d => d.dailyStrengthScore);
+  const ma10 = computeMovingAverage(prices, 10);
+  const ma20 = computeMovingAverage(prices, 20);
+  return trendData.map((d, i) => ({
+    ...d,
+    ma_10: d.ma_10 ?? ma10[i],
+    ma_20: d.ma_20 ?? ma20[i],
+  }));
+};
+
 // Helper component for sector momentum chart
 // Displays Daily Strength chart with Moving Averages
 const MomentumChart = ({ type = 'sector', data, aggregateToWeekly }) => {
@@ -177,7 +200,7 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
     queryFn: async () => {
       try {
         const response = await api.get(
-          `/api/sectors/${encodeURIComponent(sector.sector_name || sector.sector)}/trend`
+          `/api/sectors/${encodeURIComponent(sector.sector_name || sector.sector)}/trend?days=365`
         );
         // responseFormatter wraps response in { success, data: {...}, timestamp }
         return response?.data?.data || response?.data;
@@ -200,13 +223,16 @@ const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
     );
   }
 
-  // Pass trend data to MomentumChart - map avgPrice to dailyStrengthScore
+  const firstAvgPrice = trendResponse?.trendData?.[0]?.avgPrice || null;
+  const rawTrend = (trendResponse?.trendData || []).map(d => ({
+    ...d,
+    dailyStrengthScore: d.dailyStrengthScore != null
+      ? d.dailyStrengthScore
+      : (firstAvgPrice ? ((d.avgPrice / firstAvgPrice) - 1) * 100 : null)
+  }));
   const sectorWithTrend = {
     ...sector,
-    trendData: (trendResponse?.trendData || []).map(d => ({
-      ...d,
-      dailyStrengthScore: d.avgPrice ?? d.dailyStrengthScore ?? null
-    }))
+    trendData: enrichWithMovingAverages(rawTrend)
   };
 
   return <MomentumChart type="sector" data={sectorWithTrend} aggregateToWeekly={aggregateToWeekly} />;
@@ -219,7 +245,7 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
     queryFn: async () => {
       try {
         const response = await api.get(
-          `/api/industries/${encodeURIComponent(industry.industry)}/trend`
+          `/api/industries/${encodeURIComponent(industry.industry)}/trend?days=365`
         );
         // responseFormatter wraps response in { success, data: {...}, timestamp }
         return response?.data?.data || response?.data;
@@ -242,13 +268,16 @@ const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
     );
   }
 
-  // Pass trend data to MomentumChart - map avgPrice to dailyStrengthScore
+  const firstAvgPrice = trendResponse?.trendData?.[0]?.avgPrice || null;
+  const rawTrend = (trendResponse?.trendData || []).map(d => ({
+    ...d,
+    dailyStrengthScore: d.dailyStrengthScore != null
+      ? d.dailyStrengthScore
+      : (firstAvgPrice ? ((d.avgPrice / firstAvgPrice) - 1) * 100 : null)
+  }));
   const industryWithTrend = {
     ...industry,
-    trendData: (trendResponse?.trendData || []).map(d => ({
-      ...d,
-      dailyStrengthScore: d.avgPrice ?? d.dailyStrengthScore ?? null
-    }))
+    trendData: enrichWithMovingAverages(rawTrend)
   };
 
   return <MomentumChart type="industry" data={industryWithTrend} aggregateToWeekly={aggregateToWeekly} />;
@@ -692,8 +721,8 @@ const SectorAnalysis = () => {
         try {
           const name = type === "sector" ? (sectorOrIndustry.sector_name || sectorOrIndustry.sector) : sectorOrIndustry.industry;
           const endpoint = type === "sector"
-            ? `/api/sectors/${encodeURIComponent(name)}/trend`
-            : `/api/industries/${encodeURIComponent(name)}/trend`;
+            ? `/api/sectors/${encodeURIComponent(name)}/trend?days=365`
+            : `/api/industries/${encodeURIComponent(name)}/trend?days=365`;
           const response = await api.get(endpoint);
           // responseFormatter wraps response in { success, data: {...}, timestamp }
           return response?.data?.data || response?.data;
@@ -854,8 +883,8 @@ const SectorAnalysis = () => {
 
     // API endpoint and query configuration
     const queryConfig = type === 'sector'
-      ? { endpoint: `/api/sectors/${encodeURIComponent(identifier)}/trend`, key: ["sector-trend", identifier] }
-      : { endpoint: `/api/industries/${encodeURIComponent(identifier)}/trend`, key: ["industry-trend", identifier] };
+      ? { endpoint: `/api/sectors/${encodeURIComponent(identifier)}/trend?days=365`, key: ["sector-trend", identifier] }
+      : { endpoint: `/api/industries/${encodeURIComponent(identifier)}/trend?days=365`, key: ["industry-trend", identifier] };
 
     // Fallback periods based on type
     const fallbackPeriods = type === 'sector'
@@ -891,8 +920,9 @@ const SectorAnalysis = () => {
       retry: false,
     });
 
-    // Use API data if available, otherwise fall back to summary data
-    let trendData = trendResponse?.trendData && trendResponse.trendData.length > 0
+    // Use API data if available and has rank values, otherwise fall back to summary data
+    const apiTrendHasRanks = trendResponse?.trendData?.some(r => r.rank != null);
+    let trendData = apiTrendHasRanks
       ? trendResponse.trendData.map(row => ({
           date: row.date,
           label: row.label,

@@ -53,11 +53,6 @@ router.get("/", async (req, res) => {
           RANK() OVER (ORDER BY composite_score DESC NULLS LAST) as current_rank
         FROM sector_scores
       ),
-      latest_snapshot AS (
-        SELECT DISTINCT ON (sector_name) sector_name, date_recorded
-        FROM sector_ranking
-        ORDER BY sector_name, date_recorded DESC
-      ),
       sector_pe AS (
         SELECT
           cp.sector,
@@ -71,22 +66,42 @@ router.get("/", async (req, res) => {
         JOIN company_profile cp ON vm.symbol = cp.ticker
         WHERE cp.sector IS NOT NULL
         GROUP BY cp.sector
+      ),
+      sector_pe_ranked AS (
+        SELECT *,
+          PERCENT_RANK() OVER (ORDER BY avg_trailing_pe ASC NULLS LAST) * 100 AS pe_percentile
+        FROM sector_pe
+      ),
+      max_snapshot_date AS (
+        SELECT MAX(date_recorded) AS max_date FROM sector_ranking
       )
       SELECT r.*,
         spe.avg_trailing_pe,
         spe.avg_forward_pe,
+        spe.pe_percentile,
         sr_1w.current_rank as rank_1w_ago,
         sr_4w.current_rank as rank_4w_ago,
         sr_12w.current_rank as rank_12w_ago
       FROM ranked r
-      LEFT JOIN latest_snapshot ls ON r.sector_name = ls.sector_name
-      LEFT JOIN sector_ranking sr_1w ON sr_1w.sector_name = r.sector_name
-        AND sr_1w.date_recorded = ls.date_recorded - INTERVAL '7 days'
-      LEFT JOIN sector_ranking sr_4w ON sr_4w.sector_name = r.sector_name
-        AND sr_4w.date_recorded = ls.date_recorded - INTERVAL '28 days'
-      LEFT JOIN sector_ranking sr_12w ON sr_12w.sector_name = r.sector_name
-        AND sr_12w.date_recorded = ls.date_recorded - INTERVAL '84 days'
-      LEFT JOIN sector_pe spe ON spe.sector = r.sector_name
+      LEFT JOIN sector_pe_ranked spe ON spe.sector = r.sector_name
+      LEFT JOIN LATERAL (
+        SELECT current_rank FROM sector_ranking
+        WHERE LOWER(TRIM(sector_name)) = LOWER(TRIM(r.sector_name))
+          AND date_recorded <= (SELECT max_date FROM max_snapshot_date) - INTERVAL '7 days'
+        ORDER BY date_recorded DESC LIMIT 1
+      ) sr_1w ON true
+      LEFT JOIN LATERAL (
+        SELECT current_rank FROM sector_ranking
+        WHERE LOWER(TRIM(sector_name)) = LOWER(TRIM(r.sector_name))
+          AND date_recorded <= (SELECT max_date FROM max_snapshot_date) - INTERVAL '28 days'
+        ORDER BY date_recorded DESC LIMIT 1
+      ) sr_4w ON true
+      LEFT JOIN LATERAL (
+        SELECT current_rank FROM sector_ranking
+        WHERE LOWER(TRIM(sector_name)) = LOWER(TRIM(r.sector_name))
+          AND date_recorded <= (SELECT max_date FROM max_snapshot_date) - INTERVAL '84 days'
+        ORDER BY date_recorded DESC LIMIT 1
+      ) sr_12w ON true
       ORDER BY r.current_rank, r.stock_count DESC
       LIMIT $1 OFFSET $2
     `, [limitNum, offset]);
@@ -125,7 +140,7 @@ router.get("/", async (req, res) => {
         pe: {
           trailing: sf(row.avg_trailing_pe),
           forward: sf(row.avg_forward_pe),
-          percentile: null,
+          percentile: sf(row.pe_percentile),
         },
       };
     });
@@ -146,15 +161,21 @@ router.get("/:sector/trend", async (req, res) => {
     const daysNum = Math.min(parseInt(days) || 90, 365);
 
     const result = await query(`
-      SELECT
-        DATE(pd.date) as date,
-        AVG(CAST(pd.close AS FLOAT)) as avg_price,
-        COUNT(DISTINCT pd.symbol) as stock_count
-      FROM price_daily pd
-      JOIN company_profile cp ON pd.symbol = cp.ticker
-      WHERE LOWER(TRIM(cp.sector)) = LOWER(TRIM($1))
-      AND pd.date >= CURRENT_DATE - INTERVAL '${daysNum} days'
-      GROUP BY DATE(pd.date)
+      WITH prices AS (
+        SELECT
+          DATE(pd.date) as date,
+          AVG(CAST(pd.close AS FLOAT)) as avg_price,
+          COUNT(DISTINCT pd.symbol) as stock_count
+        FROM price_daily pd
+        JOIN company_profile cp ON pd.symbol = cp.ticker
+        WHERE LOWER(TRIM(cp.sector)) = LOWER(TRIM($1))
+          AND pd.date >= CURRENT_DATE - INTERVAL '${daysNum} days'
+        GROUP BY DATE(pd.date)
+        ORDER BY date ASC
+      )
+      SELECT date, avg_price, stock_count,
+        ((avg_price / NULLIF(FIRST_VALUE(avg_price) OVER (ORDER BY date), 0)) - 1) * 100 AS daily_strength_score
+      FROM prices
       ORDER BY date ASC
     `, [sector]);
 
@@ -167,7 +188,8 @@ router.get("/:sector/trend", async (req, res) => {
       trendData: result.rows.map(row => ({
         date: row.date,
         avgPrice: parseFloat(row.avg_price) || 0,
-        stockCount: parseInt(row.stock_count) || 0
+        stockCount: parseInt(row.stock_count) || 0,
+        dailyStrengthScore: parseFloat(row.daily_strength_score) || 0
       }))
     });
   } catch (error) {
@@ -184,15 +206,21 @@ router.get("/trend/sector/:sectorName", async (req, res) => {
     const daysNum = Math.min(parseInt(days) || 90, 365);
 
     const result = await query(`
-      SELECT
-        DATE(pd.date) as date,
-        AVG(CAST(pd.close AS FLOAT)) as avg_price,
-        COUNT(DISTINCT pd.symbol) as stock_count
-      FROM price_daily pd
-      JOIN company_profile cp ON pd.symbol = cp.ticker
-      WHERE LOWER(TRIM(cp.sector)) = LOWER(TRIM($1))
-      AND pd.date >= CURRENT_DATE - INTERVAL '${daysNum} days'
-      GROUP BY DATE(pd.date)
+      WITH prices AS (
+        SELECT
+          DATE(pd.date) as date,
+          AVG(CAST(pd.close AS FLOAT)) as avg_price,
+          COUNT(DISTINCT pd.symbol) as stock_count
+        FROM price_daily pd
+        JOIN company_profile cp ON pd.symbol = cp.ticker
+        WHERE LOWER(TRIM(cp.sector)) = LOWER(TRIM($1))
+          AND pd.date >= CURRENT_DATE - INTERVAL '${daysNum} days'
+        GROUP BY DATE(pd.date)
+        ORDER BY date ASC
+      )
+      SELECT date, avg_price, stock_count,
+        ((avg_price / NULLIF(FIRST_VALUE(avg_price) OVER (ORDER BY date), 0)) - 1) * 100 AS daily_strength_score
+      FROM prices
       ORDER BY date ASC
     `, [sectorName]);
 
@@ -203,7 +231,8 @@ router.get("/trend/sector/:sectorName", async (req, res) => {
     const trendData = result.rows.map(row => ({
       date: row.date,
       avgPrice: parseFloat(row.avg_price) || 0,
-      stockCount: parseInt(row.stock_count) || 0
+      stockCount: parseInt(row.stock_count) || 0,
+      dailyStrengthScore: parseFloat(row.daily_strength_score) || 0
     }));
 
     return sendSuccess(res, { sector: sectorName, trendData });

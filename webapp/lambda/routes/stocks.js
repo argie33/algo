@@ -100,32 +100,32 @@ router.get("/gainers", async (req, res) => {
 // Uses raw value_metrics + quality_metrics — independent of stock_scores
 router.get("/deep-value", async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 100, 5000);
+    const limit = Math.min(parseInt(req.query.limit) || 100, 600);
     const offset = parseInt(req.query.offset) || 0;
 
     const result = await query(
-      `WITH latest_value AS (
-        SELECT DISTINCT ON (symbol)
-          symbol, trailing_pe, price_to_book, price_to_sales_ttm,
-          ev_to_ebitda, peg_ratio, dividend_yield
-        FROM value_metrics
-        WHERE trailing_pe > 0 AND trailing_pe < 200
-          AND price_to_book > 0 AND price_to_book < 50
-        ORDER BY symbol, date DESC
+      `WITH sp500 AS (
+        SELECT symbol FROM stock_symbols WHERE is_sp500 = true
+      ),
+      latest_value AS (
+        SELECT DISTINCT ON (vm.symbol)
+          vm.symbol, vm.trailing_pe, vm.price_to_book, vm.price_to_sales_ttm,
+          vm.ev_to_ebitda, vm.peg_ratio, vm.dividend_yield
+        FROM value_metrics vm
+        JOIN sp500 st ON vm.symbol = st.symbol
+        WHERE vm.trailing_pe > 0 AND vm.trailing_pe < 200
+          AND vm.price_to_book > 0 AND vm.price_to_book < 50
+        ORDER BY vm.symbol, vm.date DESC
       ),
       latest_quality AS (
-        SELECT DISTINCT ON (symbol)
-          symbol, return_on_equity_pct, return_on_assets_pct,
-          gross_margin_pct, operating_margin_pct, profit_margin_pct,
-          debt_to_equity, current_ratio
-        FROM quality_metrics
-        WHERE return_on_equity_pct > 0 AND operating_margin_pct > 0
-        ORDER BY symbol, date DESC
-      ),
-      latest_price AS (
-        SELECT DISTINCT ON (symbol) symbol, close AS current_price
-        FROM price_daily
-        ORDER BY symbol, date DESC
+        SELECT DISTINCT ON (qm.symbol)
+          qm.symbol, qm.return_on_equity_pct, qm.return_on_assets_pct,
+          qm.gross_margin_pct, qm.operating_margin_pct, qm.profit_margin_pct,
+          qm.debt_to_equity, qm.current_ratio
+        FROM quality_metrics qm
+        JOIN sp500 st ON qm.symbol = st.symbol
+        WHERE qm.return_on_equity_pct > 0 AND qm.operating_margin_pct > 0
+        ORDER BY qm.symbol, qm.date DESC
       ),
       combined AS (
         SELECT
@@ -155,7 +155,7 @@ router.get("/deep-value", async (req, res) => {
         cp.long_name AS company_name,
         cp.sector,
         cp.industry,
-        ROUND(CAST(lp.current_price AS NUMERIC), 2) AS current_price,
+        lp.current_price,
         ROUND(CAST(s.trailing_pe AS NUMERIC), 2) AS trailing_pe,
         ROUND(CAST(s.price_to_book AS NUMERIC), 2) AS price_to_book,
         ROUND(CAST(s.price_to_sales_ttm AS NUMERIC), 2) AS price_to_sales,
@@ -174,22 +174,29 @@ router.get("/deep-value", async (req, res) => {
           AS NUMERIC), 1) AS deep_value_score
       FROM scored s
       LEFT JOIN company_profile cp ON s.symbol = cp.ticker
-      LEFT JOIN latest_price lp ON s.symbol = lp.symbol
+      LEFT JOIN LATERAL (
+        SELECT ROUND(CAST(close AS NUMERIC), 2) AS current_price
+        FROM price_daily
+        WHERE symbol = s.symbol
+        ORDER BY date DESC
+        LIMIT 1
+      ) lp ON true
       ORDER BY deep_value_score DESC
       LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
 
     const countResult = await query(
-      `SELECT COUNT(*) as total
+      `WITH sp500 AS (SELECT symbol FROM stock_symbols WHERE is_sp500 = true)
+       SELECT COUNT(*) as total
        FROM (
-         SELECT DISTINCT ON (v.symbol) v.symbol
+         SELECT DISTINCT v.symbol
          FROM value_metrics v
+         JOIN sp500 st ON v.symbol = st.symbol
          JOIN quality_metrics q ON v.symbol = q.symbol
          WHERE v.trailing_pe > 0 AND v.trailing_pe < 200
            AND v.price_to_book > 0 AND v.price_to_book < 50
            AND q.return_on_equity_pct > 0 AND q.operating_margin_pct > 0
-         ORDER BY v.symbol, v.date DESC
        ) subq`
     );
     const total = parseInt(countResult.rows[0].total);

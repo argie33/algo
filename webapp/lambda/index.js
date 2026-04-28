@@ -469,6 +469,7 @@ app.use("/api/stocks", stocksRoutes);
 app.use("/api/strategies", strategiesRoutes);
 app.use("/api/trades", tradesRoutes);
 app.use("/api/trades/manual", manualTradesRoutes);
+app.use("/api/user", require("./routes/user"));
 
 // API info endpoint
 app.get("/api", (req, res) => {

@@ -124,7 +124,9 @@ const getStocksSignals = async (req, res) => {
       COALESCE(bsd.ema_21, t.ema_12) as ema_21,
       t.ema_26,
       bsd.pct_from_ema21, bsd.pct_from_sma50,
-      ss.security_name as company_name
+      ss.security_name as company_name,
+      eh_next.next_earnings_date,
+      (eh_next.next_earnings_date - CURRENT_DATE) AS days_to_earnings
     ` : `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
       COALESCE(bsd.signal_triggered_date, bsd.date) as signal_triggered_date,
@@ -152,7 +154,9 @@ const getStocksSignals = async (req, res) => {
       bsd.sma_50, bsd.sma_200, bsd.ema_21,
       NULL::numeric as ema_26,
       bsd.pct_from_ema21, bsd.pct_from_sma50,
-      ss.security_name as company_name
+      ss.security_name as company_name,
+      eh_next.next_earnings_date,
+      (eh_next.next_earnings_date - CURRENT_DATE) AS days_to_earnings
     `;
 
     const signalsQuery = `
@@ -161,6 +165,11 @@ const getStocksSignals = async (req, res) => {
       FROM ${tableName} bsd
       ${useTechJoin ? 'LEFT JOIN technical_data_daily t ON bsd.symbol = t.symbol AND DATE(t.date) = DATE(bsd.date)' : ''}
       LEFT JOIN stock_symbols ss ON bsd.symbol = ss.symbol
+      LEFT JOIN LATERAL (
+        SELECT (MAX(COALESCE(earnings_date, quarter)) + (CEIL(GREATEST((CURRENT_DATE - MAX(COALESCE(earnings_date, quarter)))::numeric, 1) / 91.0) * INTERVAL '91 days'))::date AS next_earnings_date
+        FROM earnings_history
+        WHERE symbol = bsd.symbol AND COALESCE(earnings_date, quarter) IS NOT NULL
+      ) eh_next ON true
       ${whereClause}
       ORDER BY bsd.date DESC, (bsd.rsi IS NOT NULL)::int DESC, bsd.id ASC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -296,6 +305,10 @@ const getStocksSignals = async (req, res) => {
       current_price: sf(row.close),
       entry_price: sf(row.entry_price) || sf(row.buylevel),
       quality_score: sf(row.entry_quality_score),
+
+      // Earnings data
+      next_earnings_date: row.next_earnings_date ? new Date(row.next_earnings_date).toISOString().split('T')[0] : null,
+      days_to_earnings: row.days_to_earnings !== null && row.days_to_earnings !== undefined ? parseInt(row.days_to_earnings) : null,
     }));
 
     // Get total count of records for pagination
