@@ -160,62 +160,56 @@ router.get("/:symbol/key-metrics", async (req, res) => {
 
   try {
     console.log(`📊 [FINANCIALS] Fetching key metrics for ${upperSymbol}`);
-    const [mainResult, vmResult, qmResult] = await Promise.all([
-      query(`
-        SELECT cp.ticker, cp.short_name, cp.long_name, cp.sector, cp.industry,
-               cp.exchange, km.market_cap, km.held_percent_insiders, km.held_percent_institutions
-        FROM company_profile cp
-        LEFT JOIN key_metrics km ON cp.ticker = km.ticker
-        WHERE cp.ticker = $1 LIMIT 1
-      `, [upperSymbol]),
-      query(`
-        SELECT DISTINCT ON (symbol)
-          trailing_pe, forward_pe, price_to_book, price_to_sales_ttm,
-          peg_ratio, ev_to_revenue, ev_to_ebitda, dividend_yield, payout_ratio
-        FROM value_metrics WHERE symbol = $1 ORDER BY symbol, date DESC
-      `, [upperSymbol]),
-      query(`
-        SELECT DISTINCT ON (symbol)
-          debt_to_equity, current_ratio, quick_ratio, return_on_equity_pct,
-          return_on_assets_pct, gross_margin_pct, operating_margin_pct, profit_margin_pct
-        FROM quality_metrics WHERE symbol = $1 ORDER BY symbol, date DESC
-      `, [upperSymbol])
-    ]);
+    const result = await query(`
+      SELECT cp.ticker, cp.short_name, cp.long_name, cp.sector, cp.industry,
+             cp.exchange, km.market_cap, km.held_percent_insiders, km.held_percent_institutions
+      FROM company_profile cp
+      LEFT JOIN key_metrics km ON cp.ticker = km.ticker
+      WHERE cp.ticker = $1
+      LIMIT 1
+    `, [upperSymbol]);
 
-    const cp = mainResult.rows[0] || {};
-    const vm = vmResult.rows[0] || {};
-    const qm = qmResult.rows[0] || {};
+    const metricsData = {};
+    if (result.rows && result.rows.length > 0) {
+      const row = result.rows[0];
+      metricsData['Company Info'] = {
+        title: 'Company Information',
+        metrics: {
+          'Name': row.short_name,
+          'Full Name': row.long_name,
+          'Sector': row.sector,
+          'Industry': row.industry,
+          'Exchange': row.exchange,
+          'Website': row.website,
+          'Employees': row.employees,
+          'Currency': row.currency_code
+        }
+      };
+      metricsData['Valuation'] = {
+        title: 'Valuation Metrics',
+        metrics: {
+          'Market Cap': row.market_cap
+        }
+      };
+      metricsData['Ownership'] = {
+        title: 'Ownership',
+        metrics: {
+          'Insider Ownership %': row.held_percent_insiders,
+          'Institutional Ownership %': row.held_percent_institutions
+        }
+      };
+    }
 
     return sendSuccess(res, {
       symbol: upperSymbol,
-      name: cp.short_name || null,
-      sector: cp.sector || null,
-      industry: cp.industry || null,
-      exchange: cp.exchange || null,
-      market_cap: cp.market_cap || null,
-      insider_ownership: cp.held_percent_insiders || null,
-      institutional_ownership: cp.held_percent_institutions || null,
-      pe_ratio: vm.trailing_pe || vm.forward_pe || null,
-      forward_pe: vm.forward_pe || null,
-      pb_ratio: vm.price_to_book || null,
-      ps_ratio: vm.price_to_sales_ttm || null,
-      peg_ratio: vm.peg_ratio || null,
-      ev_to_revenue: vm.ev_to_revenue || null,
-      ev_to_ebitda: vm.ev_to_ebitda || null,
-      dividend_yield: vm.dividend_yield || null,
-      payout_ratio: vm.payout_ratio || null,
-      debt_to_equity: qm.debt_to_equity || null,
-      current_ratio: qm.current_ratio || null,
-      quick_ratio: qm.quick_ratio || null,
-      roe: qm.return_on_equity_pct || null,
-      roa: qm.return_on_assets_pct || null,
-      gross_margin: qm.gross_margin_pct || null,
-      operating_margin: qm.operating_margin_pct || null,
-      profit_margin: qm.profit_margin_pct || null,
+      metricsData: metricsData
     });
   } catch (error) {
     console.error("Key metrics error:", error);
-    return sendSuccess(res, { symbol: upperSymbol });
+    return sendSuccess(res, {
+      symbol: upperSymbol,
+      metricsData: {}
+    });
   }
 });
 
