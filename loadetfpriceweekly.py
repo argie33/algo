@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ETF Daily Price Data Loader - fetches OHLCV data for ETFs only
+# Triggered: 2026-04-28 14:45 UTC - Batch 3 Parallel Load
 import sys
 import time
 import logging
