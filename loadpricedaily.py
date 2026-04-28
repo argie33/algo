@@ -67,6 +67,29 @@ def get_rss_mb():
 def log_mem(stage: str):
     logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
 
+
+def filter_symbols_by_range(symbols, symbol_range):
+    """
+    Filter symbols by range for parallel processing.
+    Range examples: "A-L", "M-Z", "AA-AZ", "BA-ZZ", "ETF"
+    """
+    if not symbol_range or symbol_range is None:
+        return symbols
+
+    if symbol_range == "ETF":
+        # Already filtered to ETFs by the caller
+        return symbols
+
+    # Parse range like "A-L" -> start='A', end='L'
+    if '-' in symbol_range:
+        start, end = symbol_range.split('-')
+    else:
+        start = end = symbol_range
+
+    # Filter: symbol >= start AND symbol < chr(ord(end)+1)
+    filtered = [s for s in symbols if start <= s[0] <= end]
+    return filtered
+
 # -------------------------------
 # Retry settings - improved for better network resilience
 # -------------------------------
@@ -593,6 +616,8 @@ if __name__ == "__main__":
                        help='Load recent data only (period="3mo")')
     parser.add_argument('--smart', action='store_true',
                        help='Smart incremental: only fetch missing data per symbol. FAST (5-10 min vs 3-4 hours).')
+    parser.add_argument('--symbol-range', type=str, default=None,
+                       help='Symbol range for parallel loading (e.g., "A-L", "M-Z", "AA-AZ", "BA-ZZ", "ETF")')
     args = parser.parse_args()
 
     # Determine data period based on arguments
@@ -673,29 +698,42 @@ if __name__ == "__main__":
 
     conn.commit()
 
-    # Load ALL stock symbols - daily loader must update all symbols every day
-    # (not just new symbols like the initial load)
-    cur.execute("SELECT symbol FROM stock_symbols;")
-    stock_syms = [r["symbol"] for r in cur.fetchall()]
-    logging.info(f"Loading daily prices for ALL {len(stock_syms)} stock symbols (daily update mode)")
+    # Load stock symbols - optionally filtered by symbol range for parallel processing
+    # If --symbol-range is specified, only load symbols in that range
+    if args.symbol_range and args.symbol_range != "ETF":
+        # For ranges like A-L, M-Z, AA-AZ, etc.
+        cur.execute("SELECT symbol FROM stock_symbols ORDER BY symbol;")
+        all_syms = [r["symbol"] for r in cur.fetchall()]
+        stock_syms = filter_symbols_by_range(all_syms, args.symbol_range)
+        logging.info(f"Loading daily prices for {len(stock_syms)} stock symbols in range {args.symbol_range}")
+    else:
+        # Load all stock symbols
+        cur.execute("SELECT symbol FROM stock_symbols;")
+        stock_syms = [r["symbol"] for r in cur.fetchall()]
+        logging.info(f"Loading daily prices for ALL {len(stock_syms)} stock symbols (daily update mode)")
 
     if args.smart:
         t_s, i_s, f_s = load_prices_smart("price_daily", stock_syms, cur, conn)
     else:
         t_s, i_s, f_s = load_prices("price_daily", stock_syms, cur, conn)
 
-    # Load ALL ETF symbols (from etf_symbols table if it exists) - daily loader updates all symbols
-    try:
-        cur.execute("SELECT symbol FROM etf_symbols;")
-        etf_syms = [r["symbol"] for r in cur.fetchall()]
-        logging.info(f"Loading daily prices for ALL {len(etf_syms)} ETF symbols (daily update mode)")
+    # Load ETF symbols (from etf_symbols table if it exists)
+    # Only load if --symbol-range is not specified or is "ETF"
+    if not args.symbol_range or args.symbol_range == "ETF":
+        try:
+            cur.execute("SELECT symbol FROM etf_symbols;")
+            etf_syms = [r["symbol"] for r in cur.fetchall()]
+            logging.info(f"Loading daily prices for ALL {len(etf_syms)} ETF symbols (daily update mode)")
 
-        if args.smart:
-            t_w, i_w, f_w = load_prices_smart("etf_price_daily", etf_syms, cur, conn)
-        else:
-            t_w, i_w, f_w = load_prices("etf_price_daily", etf_syms, cur, conn)
-    except psycopg2.errors.UndefinedTable:
-        logging.warning(" etf_symbols table does not exist - skipping ETF price loading")
+            if args.smart:
+                t_w, i_w, f_w = load_prices_smart("etf_price_daily", etf_syms, cur, conn)
+            else:
+                t_w, i_w, f_w = load_prices("etf_price_daily", etf_syms, cur, conn)
+        except psycopg2.errors.UndefinedTable:
+            logging.warning(" etf_symbols table does not exist - skipping ETF price loading")
+            t_w, i_w, f_w = 0, 0, 0
+    else:
+        logging.info(f"Skipping ETF loading (--symbol-range={args.symbol_range})")
         t_w, i_w, f_w = 0, 0, 0
 
     # Record last run
