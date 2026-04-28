@@ -37,6 +37,7 @@ import SectorAnalysis from "./pages/SectorAnalysis";
 import Sentiment from "./pages/Sentiment";
 import CommoditiesAnalysis from "./pages/CommoditiesAnalysis";
 import ScoresDashboard from "./pages/ScoresDashboard";
+import MetricsDashboard from "./pages/MetricsDashboard";
 import TradeHistory from "./pages/TradeHistory";
 import PortfolioDashboard from "./pages/PortfolioDashboard";
 import HedgeHelper from "./pages/HedgeHelper";
@@ -136,6 +137,12 @@ const menuItems = [
     text: "Stock Scores",
     icon: <Stars />,
     path: "/app/scores",
+    category: "stocks",
+  },
+  {
+    text: "Factor Metrics",
+    icon: <TrendingUpIcon />,
+    path: "/app/metrics",
     category: "stocks",
   },
 
@@ -455,6 +462,7 @@ function App() {
           <Route path="/app/etf-signals" element={<ETFSignals />} />
           <Route path="/app/earnings" element={<EarningsCalendar />} />
           <Route path="/app/scores" element={<ScoresDashboard />} />
+          <Route path="/app/metrics" element={<MetricsDashboard />} />
 
           {/* Portfolio & Trading */}
           <Route path="/app/portfolio" element={<PortfolioDashboard />} />
