@@ -731,10 +731,10 @@ if __name__ == "__main__":
                 t_w, i_w, f_w = load_prices("etf_price_daily", etf_syms, cur, conn)
         except psycopg2.errors.UndefinedTable:
             logging.warning(" etf_symbols table does not exist - skipping ETF price loading")
-            t_w, i_w, f_w = 0, 0, 0
+            t_w, i_w, f_w = 0, 0, []
     else:
         logging.info(f"Skipping ETF loading (--symbol-range={args.symbol_range})")
-        t_w, i_w, f_w = 0, 0, 0
+        t_w, i_w, f_w = 0, 0, []
 
     # Record last run
     cur.execute("""
