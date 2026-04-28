@@ -14,15 +14,14 @@ import {
   TextField,
   Autocomplete,
   Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   ToggleButton,
   ToggleButtonGroup,
+  List,
+  ListItem,
+  ListItemText,
+  Divider,
 } from "@mui/material";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { getStocks, getBalanceSheet, getIncomeStatement, getCashFlowStatement, getKeyMetrics } from "../services/api";
 import { formatCurrency } from "../utils/formatters";
 
@@ -66,44 +65,108 @@ function FinancialData() {
     enabled: !!ticker,
   });
 
-  // Helper to safely extract financial data
   const getFinancialData = (data) => {
     return data?.data?.financialData || [];
   };
 
-  // Render financial table
-  const renderFinancialTable = (rows, columns) => {
+  // Format field name for display (snake_case -> Title Case)
+  const formatFieldName = (field) => {
+    return field
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
+  // Get all available financial fields (excluding metadata)
+  const getAvailableFields = (rows) => {
+    if (!rows || rows.length === 0) return [];
+    const fieldsSet = new Set();
+    rows.forEach(row => {
+      Object.keys(row).forEach(key => {
+        if (!['id', 'date', 'symbol'].includes(key)) {
+          fieldsSet.add(key);
+        }
+      });
+    });
+
+    // Sort with priority fields first
+    const priority = ['fiscal_year', 'total_assets', 'total_liabilities', 'stockholders_equity',
+                     'revenue', 'gross_profit', 'operating_income', 'net_income',
+                     'operating_cash_flow', 'investing_cash_flow', 'financing_cash_flow'];
+    const fields = Array.from(fieldsSet);
+    return [
+      ...priority.filter(f => fields.includes(f)),
+      ...fields.filter(f => !priority.includes(f)).sort()
+    ];
+  };
+
+  // Render complete financial statement as list
+  const renderFinancialList = (rows) => {
     if (!rows || rows.length === 0) {
       return <Alert severity="info">No data available for selected period</Alert>;
     }
 
+    const fields = getAvailableFields(rows);
+
     return (
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
-              <TableCell sx={{ fontWeight: "bold" }}>Fiscal Year</TableCell>
-              {columns.map((col) => (
-                <TableCell key={col.key} align="right" sx={{ fontWeight: "bold" }}>
-                  {col.label}
-                </TableCell>
-              ))}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {rows.map((row, idx) => (
-              <TableRow key={idx} sx={{ "&:hover": { backgroundColor: "#f9f9f9" } }}>
-                <TableCell sx={{ fontWeight: "500" }}>{row.fiscal_year}</TableCell>
-                {columns.map((col) => (
-                  <TableCell key={col.key} align="right">
-                    {row[col.key] ? formatCurrency(row[col.key]) : "—"}
-                  </TableCell>
+      <Box>
+        {rows.map((row, idx) => (
+          <Card key={idx} sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                {period === 'annual' ? `FY ${row.fiscal_year}` : `Q${row.fiscal_quarter} ${row.fiscal_year}`}
+              </Typography>
+              <List sx={{ width: '100%' }}>
+                {fields.map((field, fidx) => (
+                  <Box key={field}>
+                    <ListItem sx={{ py: 1, px: 0 }}>
+                      <ListItemText
+                        primary={formatFieldName(field)}
+                        secondary={
+                          typeof row[field] === 'number' ?
+                            formatCurrency(row[field]) :
+                            (row[field] ? String(row[field]) : '—')
+                        }
+                        primaryTypographyProps={{ variant: 'body2', sx: { fontWeight: 500 } }}
+                        secondaryTypographyProps={{ variant: 'body2', sx: { fontWeight: 600, color: 'primary.main' } }}
+                      />
+                    </ListItem>
+                    {fidx < fields.length - 1 && <Divider />}
+                  </Box>
                 ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+              </List>
+            </CardContent>
+          </Card>
+        ))}
+
+        {/* Trend Chart */}
+        {rows.length > 1 && (
+          <Card sx={{ mt: 4 }}>
+            <CardContent>
+              <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
+                Trend Analysis
+              </Typography>
+              <ResponsiveContainer width="100%" height={400}>
+                <LineChart data={rows.map(row => ({
+                  period: `FY${row.fiscal_year}`,
+                  assets: row.total_assets,
+                  revenue: row.revenue,
+                  income: row.net_income,
+                }))} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="period" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => value ? formatCurrency(value) : '—'} />
+                  <Legend />
+                  {rows.some(r => r.total_assets) && <Line type="monotone" dataKey="assets" stroke="#8884d8" name="Total Assets" />}
+                  {rows.some(r => r.revenue) && <Line type="monotone" dataKey="revenue" stroke="#82ca9d" name="Revenue" />}
+                  {rows.some(r => r.net_income) && <Line type="monotone" dataKey="income" stroke="#ffc658" name="Net Income" />}
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
+      </Box>
     );
   };
 
@@ -114,7 +177,7 @@ function FinancialData() {
           📊 Financial Data Analysis
         </Typography>
         <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 4 }}>
-          Comprehensive financial statements for stocks
+          Complete financial statements with trend analysis
         </Typography>
 
         {/* Company Selection */}
@@ -176,18 +239,12 @@ function FinancialData() {
             {bsLoading ? (
               <CircularProgress />
             ) : getFinancialData(balanceSheetData).length > 0 ? (
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-                    Balance Sheet - {ticker}
-                  </Typography>
-                  {renderFinancialTable(getFinancialData(balanceSheetData), [
-                    { key: "total_assets", label: "Total Assets" },
-                    { key: "total_liabilities", label: "Total Liabilities" },
-                    { key: "stockholders_equity", label: "Stockholders Equity" },
-                  ])}
-                </CardContent>
-              </Card>
+              <Box>
+                <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
+                  Balance Sheet - {ticker}
+                </Typography>
+                {renderFinancialList(getFinancialData(balanceSheetData))}
+              </Box>
             ) : (
               <Alert severity="warning">No balance sheet data available for {ticker}</Alert>
             )}
@@ -200,19 +257,12 @@ function FinancialData() {
             {isLoading ? (
               <CircularProgress />
             ) : getFinancialData(incomeStatementData).length > 0 ? (
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-                    Income Statement - {ticker}
-                  </Typography>
-                  {renderFinancialTable(getFinancialData(incomeStatementData), [
-                    { key: "revenue", label: "Revenue" },
-                    { key: "gross_profit", label: "Gross Profit" },
-                    { key: "operating_income", label: "Operating Income" },
-                    { key: "net_income", label: "Net Income" },
-                  ])}
-                </CardContent>
-              </Card>
+              <Box>
+                <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
+                  Income Statement - {ticker}
+                </Typography>
+                {renderFinancialList(getFinancialData(incomeStatementData))}
+              </Box>
             ) : (
               <Alert severity="warning">No income statement data available for {ticker}</Alert>
             )}
@@ -225,18 +275,12 @@ function FinancialData() {
             {cfLoading ? (
               <CircularProgress />
             ) : getFinancialData(cashFlowData).length > 0 ? (
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
-                    Cash Flow Statement - {ticker}
-                  </Typography>
-                  {renderFinancialTable(getFinancialData(cashFlowData), [
-                    { key: "operating_cash_flow", label: "Operating Cash Flow" },
-                    { key: "investing_cash_flow", label: "Investing Cash Flow" },
-                    { key: "financing_cash_flow", label: "Financing Cash Flow" },
-                  ])}
-                </CardContent>
-              </Card>
+              <Box>
+                <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
+                  Cash Flow Statement - {ticker}
+                </Typography>
+                {renderFinancialList(getFinancialData(cashFlowData))}
+              </Box>
             ) : (
               <Alert severity="warning">No cash flow data available for {ticker}</Alert>
             )}
@@ -251,52 +295,28 @@ function FinancialData() {
             ) : keyMetricsData?.data ? (
               <Card>
                 <CardContent>
-                  <Typography variant="h6" sx={{ mb: 3, fontWeight: 600 }}>
+                  <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
                     Key Metrics - {ticker}
                   </Typography>
                   <Grid container spacing={3}>
-                    {keyMetricsData.data.pe_ratio && (
-                      <Grid item xs={12} sm={6} md={3}>
-                        <Paper sx={{ p: 2, backgroundColor: "#f5f5f5" }}>
-                          <Typography variant="caption" color="text.secondary">
-                            P/E Ratio
-                          </Typography>
-                          <Typography variant="h6">{keyMetricsData.data.pe_ratio}</Typography>
-                        </Paper>
-                      </Grid>
-                    )}
-                    {keyMetricsData.data.dividend_yield && (
-                      <Grid item xs={12} sm={6} md={3}>
-                        <Paper sx={{ p: 2, backgroundColor: "#f5f5f5" }}>
-                          <Typography variant="caption" color="text.secondary">
-                            Dividend Yield
-                          </Typography>
-                          <Typography variant="h6">
-                            {(parseFloat(keyMetricsData.data.dividend_yield) * 100).toFixed(2)}%
-                          </Typography>
-                        </Paper>
-                      </Grid>
-                    )}
-                    {keyMetricsData.data.debt_to_equity && (
-                      <Grid item xs={12} sm={6} md={3}>
-                        <Paper sx={{ p: 2, backgroundColor: "#f5f5f5" }}>
-                          <Typography variant="caption" color="text.secondary">
-                            Debt/Equity
-                          </Typography>
-                          <Typography variant="h6">{keyMetricsData.data.debt_to_equity}</Typography>
-                        </Paper>
-                      </Grid>
-                    )}
-                    {keyMetricsData.data.current_ratio && (
-                      <Grid item xs={12} sm={6} md={3}>
-                        <Paper sx={{ p: 2, backgroundColor: "#f5f5f5" }}>
-                          <Typography variant="caption" color="text.secondary">
-                            Current Ratio
-                          </Typography>
-                          <Typography variant="h6">{keyMetricsData.data.current_ratio}</Typography>
-                        </Paper>
-                      </Grid>
-                    )}
+                    {Object.entries(keyMetricsData.data).map(([key, value]) => (
+                      value !== null && value !== undefined && (
+                        <Grid item xs={12} sm={6} md={4} key={key}>
+                          <Paper sx={{ p: 2, backgroundColor: "#f5f5f5" }}>
+                            <Typography variant="caption" color="text.secondary">
+                              {formatFieldName(key)}
+                            </Typography>
+                            <Typography variant="h6" sx={{ mt: 1 }}>
+                              {typeof value === 'number' && Math.abs(value) < 1 && key.includes('yield')
+                                ? `${(value * 100).toFixed(2)}%`
+                                : typeof value === 'number'
+                                ? formatCurrency(value)
+                                : String(value)}
+                            </Typography>
+                          </Paper>
+                        </Grid>
+                      )
+                    ))}
                   </Grid>
                 </CardContent>
               </Card>

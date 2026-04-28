@@ -88,15 +88,9 @@ const MetricsDashboard = () => {
       const params = new URLSearchParams({
         page: page.toString(),
         limit: "50",
-        search: searchTerm,
-        sector: selectedSector,
-        minMetric: minMetric.toString(),
-        maxMetric: maxMetric.toString(),
-        sortBy,
-        sortOrder,
       });
 
-      const response = await fetch(`${API_BASE}/api/metrics?${params}`);
+      const response = await fetch(`${API_BASE}/api/scores/stockscores?${params}`);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -104,8 +98,29 @@ const MetricsDashboard = () => {
 
       const data = await response.json();
 
-      setStocks(data.stocks || []);
-      setTotalPages(data.pagination?.totalPages || 1);
+      let filteredStocks = data.items || [];
+
+      // Client-side filtering
+      if (searchTerm) {
+        filteredStocks = filteredStocks.filter(s =>
+          s.symbol.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      }
+
+      if (selectedSector) {
+        filteredStocks = filteredStocks.filter(s => s.sector === selectedSector);
+      }
+
+      // Client-side sorting
+      filteredStocks.sort((a, b) => {
+        const sortKey = sortBy === "composite_metric" ? "composite_score" : sortBy.replace("_metric", "_score");
+        const aVal = a[sortKey] || 0;
+        const bVal = b[sortKey] || 0;
+        return sortOrder === "desc" ? bVal - aVal : aVal - bVal;
+      });
+
+      setStocks(filteredStocks);
+      setTotalPages(Math.ceil(filteredStocks.length / 50));
       setError(null);
     } catch (err) {
       if (import.meta.env && import.meta.env.DEV)
@@ -118,12 +133,29 @@ const MetricsDashboard = () => {
 
   const fetchSectorAnalysis = async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/metrics/sectors/analysis`);
+      const response = await fetch(`${API_BASE}/api/scores/stockscores?limit=10000`);
       if (!response.ok)
         throw new Error(`HTTP error! status: ${response.status}`);
 
       const data = await response.json();
-      setSectors(data.sectors || []);
+      const stocks = data.items || [];
+
+      // Group by sector
+      const sectorData = {};
+      stocks.forEach(stock => {
+        if (stock.sector) {
+          if (!sectorData[stock.sector]) {
+            sectorData[stock.sector] = [];
+          }
+          sectorData[stock.sector].push(stock);
+        }
+      });
+
+      setSectors(Object.entries(sectorData).map(([name, stocks]) => ({
+        name,
+        count: stocks.length,
+        avgComposite: (stocks.reduce((sum, s) => sum + (s.composite_score || 0), 0) / stocks.length).toFixed(2),
+      })));
     } catch (err) {
       if (import.meta.env && import.meta.env.DEV)
         console.error("Error fetching sector analysis:", err);
@@ -133,19 +165,28 @@ const MetricsDashboard = () => {
 
   const fetchTopStocks = async () => {
     try {
-      const categories = ["composite", "quality", "value"];
-      const promises = (categories || []).map((category) =>
-        fetch(`${API_BASE}/api/metrics/top/${category}?limit=10`)
-          .then((res) => res.json())
-          .then((data) => ({ category, data: data.topStocks || [] }))
-      );
+      const response = await fetch(`${API_BASE}/api/scores/stockscores?limit=10000`);
+      if (!response.ok)
+        throw new Error(`HTTP error! status: ${response.status}`);
 
-      const results = await Promise.all(promises);
-      const topStocksData = {};
+      const data = await response.json();
+      const allStocks = data.items || [];
 
-      results.forEach(({ category, data }) => {
-        topStocksData[category] = data;
-      });
+      // Get top 10 by each category
+      const topStocksData = {
+        composite: [...allStocks]
+          .filter(s => s.composite_score !== null)
+          .sort((a, b) => b.composite_score - a.composite_score)
+          .slice(0, 10),
+        quality: [...allStocks]
+          .filter(s => s.quality_score !== null)
+          .sort((a, b) => b.quality_score - a.quality_score)
+          .slice(0, 10),
+        value: [...allStocks]
+          .filter(s => s.value_score !== null)
+          .sort((a, b) => b.value_score - a.value_score)
+          .slice(0, 10),
+      };
 
       setTopStocks(topStocksData);
     } catch (err) {
