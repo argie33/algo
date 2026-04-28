@@ -1,5 +1,6 @@
-# Triggered: 2026-04-28 - GitHub Actions Parallel Data Loading Pipeline
-# URGENT REBUILD: 2026-01-28 03:15 UTC - AWS ECS Deployment Trigger - FORCE RUN TASKS
+# Triggered: 2026-04-28 14:35 UTC - GitHub Actions Parallel Data Loading Pipeline
+# Cloud Deployment: AWS ECS Fargate with OIDC authentication
+# Strategy: Incremental loading (MAX(date) optimization) for optimal cloud sync
 # ============================================================================
 #!/usr/bin/env python3
 # Daily price data loader - fetches OHLCV data for all symbols
