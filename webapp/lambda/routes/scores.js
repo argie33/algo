@@ -18,8 +18,9 @@ function safeFloat(value) {
   return isNaN(num) ? null : num;
 }
 
-// Helper: Remove all null values from objects (recursively)
-// IMPORTANT: Keep reason fields that explain why scores are NULL (for frontend transparency)
+// Helper: Keep all values including nulls (don't strip them out)
+// Null values are LEGITIMATE - they indicate "N/A" due to underlying data
+// (e.g., P/E = null when earnings are zero, not "data missing")
 function removeNullValues(obj, keepReasonFields = true) {
   if (!obj || typeof obj !== 'object') return obj;
 
@@ -27,29 +28,16 @@ function removeNullValues(obj, keepReasonFields = true) {
     return obj.map(item => removeNullValues(item, keepReasonFields));
   }
 
-  // Don't recurse into Date objects or strings (like last_updated timestamps)
   if (obj instanceof Date || typeof obj === 'string') {
     return obj;
   }
 
-  // Reason fields to preserve (explain why scores are NULL)
-  const reasonFields = new Set([
-    'momentum_reason', 'growth_reason', 'value_reason',
-    'quality_reason', 'positioning_reason', 'stability_reason'
-  ]);
-
   const cleaned = {};
   for (const [key, value] of Object.entries(obj)) {
-    // Keep reason fields even if null (they explain NULL scores)
-    if (keepReasonFields && reasonFields.has(key)) {
-      if (value !== null && value !== undefined) {
-        cleaned[key] = value;
-      }
-      continue;
-    }
-
+    // Keep ALL fields including nulls - they have meaning
     if (value === null || value === undefined) {
-      continue; // Skip null/undefined values entirely
+      cleaned[key] = value; // Keep null to show "not applicable"
+      continue;
     }
     if (typeof value === 'object' && !(value instanceof Date) && typeof value !== 'string') {
       cleaned[key] = removeNullValues(value, keepReasonFields);
