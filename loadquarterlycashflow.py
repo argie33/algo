@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Quarterly Cash Flow Loader"""
+# Triggered: 2026-04-28 14:55 UTC - Batch 5 Final Data
 
 import sys
 import logging

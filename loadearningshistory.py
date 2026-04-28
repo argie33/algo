@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# FORCE RUN NOW: 2026-01-30_090000 - All task definitions ready - executing earnings history loader NOW
+# Triggered: 2026-04-28 14:55 UTC - Batch 5 Final Data
 # Database population with full earnings history records
 import sys
 import time
