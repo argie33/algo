@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Monthly price data loader - fetches monthly OHLCV data for all symbols
-# FORCE REBUILD TRIGGER: 20260107-220000-AWS-ECS - Monthly price loader with signal-based timeout
+# Triggered: 2026-04-28 14:40 UTC - AWS Batch 2 Parallel Execution (3 concurrent)
+# Strategy: Incremental loading with MAX(date) optimization
 import sys
 import time
 import logging

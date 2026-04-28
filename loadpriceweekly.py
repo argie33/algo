@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Weekly price data loader - fetches weekly OHLCV data for all symbols
-# FORCE REBUILD TRIGGER: 20260107-220000-AWS-ECS - Weekly price loader with signal-based timeout
+# Triggered: 2026-04-28 14:40 UTC - AWS Batch 2 Parallel Execution (3 concurrent)
+# Strategy: Incremental loading with incremental data append
 import sys
 import time
 import logging

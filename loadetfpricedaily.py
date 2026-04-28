@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # ETF Daily Price Data Loader - fetches OHLCV data for ETFs only
+# Triggered: 2026-04-28 14:40 UTC - AWS Batch 2 Parallel Execution (3 concurrent)
+# Cloud Strategy: Concurrent ECS Fargate + Lambda for event-driven jobs
 import sys
 import time
 import logging
