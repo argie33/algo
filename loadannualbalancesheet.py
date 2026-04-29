@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Triggered: 2026-04-28 14:50 UTC - Batch 4 Financial Statements
+"""
 Annual Balance Sheet Loader
 Loads annual balance sheet data for all stocks from yfinance
 Part of comprehensive AWS-compatible real data loading system
