@@ -82,18 +82,24 @@ def timeout_handler(signum, frame):
 def get_ticker_news_with_timeout(symbol):
     """Fetch ticker news with timeout to prevent hanging on yfinance API."""
     try:
+        yf_symbol = symbol.replace('.', '-').replace('$', '-').upper()
+
+        if not hasattr(signal, 'SIGALRM'):
+            ticker = yf.Ticker(yf_symbol)
+            return ticker.news
+
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(NEWS_FETCH_TIMEOUT)
-        yf_symbol = symbol.replace('.', '-').replace('$', '-').upper()
         ticker = yf.Ticker(yf_symbol)
         news_data = ticker.news
-        signal.alarm(0)  # Cancel alarm
+        signal.alarm(0)
         return news_data
     except TimeoutException:
         logging.warning(f"News fetch timeout for {symbol} after {NEWS_FETCH_TIMEOUT}s")
         return None
     except Exception as e:
-        signal.alarm(0)  # Cancel alarm on any exception
+        if hasattr(signal, 'SIGALRM'):
+            signal.alarm(0)
         logging.error(f"Error fetching news for {symbol}: {e}")
         return None
 
