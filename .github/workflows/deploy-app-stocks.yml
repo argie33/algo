@@ -1181,6 +1181,7 @@ jobs:
             --arg imageUri "$IMAGE_URI" \
             --arg containerName "$CONTAINER_NAME" \
             --arg dbSecretArn "arn:aws:secretsmanager:us-east-1:626216981288:secret:rds-stocks-secret" \
+            --arg dbPassword "${{ secrets.RDS_PASSWORD }}" \
             '.containerDefinitions |= map(if .name == $containerName then
               .image = $imageUri |
               .environment += [
@@ -1189,6 +1190,7 @@ jobs:
                 {"name": "DB_HOST", "value": "rds-stocks.c2gujitq3h1b.us-east-1.rds.amazonaws.com"},
                 {"name": "DB_PORT", "value": "5432"},
                 {"name": "DB_USER", "value": "stocks"},
+                {"name": "DB_PASSWORD", "value": $dbPassword},
                 {"name": "DB_NAME", "value": "stocks"}
               ]
             else . end) | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)')
