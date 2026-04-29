@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Application stack – RDS (public), Secrets (DB creds),
+  Application stack - RDS (public), Secrets (DB creds),
   ECS cluster, and ECS task execution role.
   Updated: 2025-10-12 - Reduced max autoscaling to 40GB to optimize costs
 
