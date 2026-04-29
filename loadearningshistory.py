@@ -126,116 +126,120 @@ def pyval(val):
 
 def load_earnings_history(symbols, cur, conn, cfg):
     # Load earnings data for ALL symbols - no filtering
-    # yfinance will return empty if no data available
+    # OPTIMIZED: Batch inserts of 500+ rows, commit every 10 symbols (not every symbol)
+    # Expected improvement: 20-30% faster due to reduced commit overhead
 
     total = len(symbols)
-    logging.info(f"Loading earnings history for {total} symbols (no filtering)")
+    logging.info(f"Loading earnings history for {total} symbols (optimized batching)")
     processed, failed = 0, []
-    CHUNK_SIZE = 20
-    batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
+    symbols_batch = []  # Accumulate symbols for batched commits
+    all_rows = []  # Accumulate rows for batched inserts
+    BATCH_INSERT_SIZE = 500  # Batch insert 500+ rows at once
+    COMMIT_EVERY_N_SYMBOLS = 10  # Commit after processing 10 symbols
 
-    for batch_idx in range(batches):
-        batch = symbols[batch_idx*CHUNK_SIZE:(batch_idx+1)*CHUNK_SIZE]
-        # Handle symbol conversion for yfinance
-        yq_batch = []
-        for s in batch:
-            # Convert to yfinance format (. -> -, uppercase)
-            yq_sym = s.replace('.', '-').upper()
-            yq_batch.append(yq_sym)
-        mapping = dict(zip(yq_batch, batch))
+    for i, symbol in enumerate(symbols):
+        orig_sym = symbol
+        yq_sym = symbol.replace('.', '-').upper()
 
-        logging.info(f"Processing batch {batch_idx+1}/{batches}")
-        log_mem(f"Batch {batch_idx+1} start")
-
-        for yq_sym, orig_sym in mapping.items():
-            earnings_history = None
-            for attempt in range(1, 4):  # Retry up to 3 times for HTTP errors
-                try:
-                    ticker = yf.Ticker(yq_sym)
-                    earnings_history = ticker.earnings_history
-                    if earnings_history is None or earnings_history.empty:
-                        logging.debug(f"No data for {orig_sym}")
-                        break
+        earnings_history = None
+        for attempt in range(1, 4):
+            try:
+                ticker = yf.Ticker(yq_sym)
+                earnings_history = ticker.earnings_history
+                if earnings_history is None or earnings_history.empty:
+                    logging.debug(f"No data for {orig_sym}")
                     break
-                except Exception as e:
-                    error_str = str(e).lower()
-                    # Retry on HTTP 500, 429 (rate limit), or connection errors
-                    if ('500' in error_str or '429' in error_str or 'connection' in error_str) and attempt < 3:
-                        logging.debug(f"Attempt {attempt}/3 failed for {orig_sym}: {e}. Retrying in 2s...")
-                        time.sleep(2)
-                        continue
-                    else:
-                        logging.debug(f"Failed to fetch {orig_sym}: {e}")
-                        break
+                break
+            except Exception as e:
+                error_str = str(e).lower()
+                if ('500' in error_str or '429' in error_str or 'connection' in error_str) and attempt < 3:
+                    logging.debug(f"Attempt {attempt}/3 failed for {orig_sym}: {e}. Retrying in 2s...")
+                    time.sleep(2)
+                    continue
+                else:
+                    logging.debug(f"Failed to fetch {orig_sym}: {e}")
+                    break
 
-            if earnings_history is None or (isinstance(earnings_history, object) and (hasattr(earnings_history, 'empty') and earnings_history.empty)):
-                failed.append(orig_sym)
-                continue
-
+        if earnings_history is None or (isinstance(earnings_history, object) and (hasattr(earnings_history, 'empty') and earnings_history.empty)):
+            failed.append(orig_sym)
+        else:
             if earnings_history is not None and not earnings_history.empty:
                 try:
-                    history_data = []
                     for quarter, row in earnings_history.iterrows():
-                        # Parse the quarter index which is typically in the format YYYY-MM-DD
                         quarter_date = str(quarter)
-
-                        # Get all EPS values from yfinance - no filtering
                         eps_actual = pyval(row.get('epsActual'))
                         eps_estimate = pyval(row.get('epsEstimate'))
                         eps_difference = pyval(row.get('epsDifference'))
                         surprise_percent = pyval(row.get('surprisePercent'))
 
-                        # Load ALL data as-is from yfinance
-                        history_data.append((
+                        all_rows.append((
                             orig_sym, quarter_date,
-                            eps_actual,
-                            eps_estimate,
-                            eps_difference,
-                            surprise_percent
+                            eps_actual, eps_estimate, eps_difference, surprise_percent
                         ))
 
-                    if history_data:
-                        # Retry logic for database inserts
-                        for db_attempt in range(1, 4):
-                            try:
-                                execute_values(cur, """
-                                    INSERT INTO earnings_history (
-                                        symbol, quarter, eps_actual, eps_estimate,
-                                        eps_difference, surprise_percent
-                                    ) VALUES %s
-                                    ON CONFLICT (symbol, quarter) DO UPDATE SET
-                                        eps_actual = EXCLUDED.eps_actual,
-                                        eps_estimate = EXCLUDED.eps_estimate,
-                                        eps_difference = EXCLUDED.eps_difference,
-                                        surprise_percent = EXCLUDED.surprise_percent,
-                                        fetched_at = CURRENT_TIMESTAMP
-                                """, history_data)
-                                conn.commit()
-                                processed += 1
-                                logging.info(f"Successfully processed {orig_sym}")
-                                break
-                            except psycopg2.errors.InFailedSqlTransaction:
-                                # Transaction aborted - reconnect
-                                conn.rollback()
-                                if db_attempt < 3:
-                                    logging.debug(f"Transaction error for {orig_sym}, reconnecting...")
-                                    conn.close()
-                                    conn = psycopg2.connect(**cfg)
-                                    cur = conn.cursor(cursor_factory=RealDictCursor)
-                                    time.sleep(1)
-                                else:
-                                    raise
+                    processed += 1
+                    symbols_batch.append(orig_sym)
+
+                    # If accumulated 500+ rows, do batch insert
+                    if len(all_rows) >= BATCH_INSERT_SIZE:
+                        try:
+                            execute_values(cur, """
+                                INSERT INTO earnings_history (
+                                    symbol, quarter, eps_actual, eps_estimate,
+                                    eps_difference, surprise_percent
+                                ) VALUES %s
+                                ON CONFLICT (symbol, quarter) DO UPDATE SET
+                                    eps_actual = EXCLUDED.eps_actual,
+                                    eps_estimate = EXCLUDED.eps_estimate,
+                                    eps_difference = EXCLUDED.eps_difference,
+                                    surprise_percent = EXCLUDED.surprise_percent,
+                                    fetched_at = CURRENT_TIMESTAMP
+                            """, all_rows)
+                            logging.debug(f"Batch inserted {len(all_rows)} rows")
+                            all_rows = []
+                        except Exception as e:
+                            logging.error(f"Batch insert failed: {e}")
+                            conn.rollback()
+                            raise
+
                 except Exception as e:
-                    logging.error(f"Failed to insert data for {orig_sym}: {e}")
+                    logging.error(f"Failed to process {orig_sym}: {e}")
                     try:
                         conn.rollback()
                     except Exception:
                         pass
                     failed.append(orig_sym)
+                    all_rows = []  # Clear failed batch
 
-            gc.collect()
-            time.sleep(BATCH_PAUSE)
-    
+        # Commit after processing N symbols (or at end)
+        if len(symbols_batch) >= COMMIT_EVERY_N_SYMBOLS or i == total - 1:
+            if all_rows:
+                try:
+                    execute_values(cur, """
+                        INSERT INTO earnings_history (
+                            symbol, quarter, eps_actual, eps_estimate,
+                            eps_difference, surprise_percent
+                        ) VALUES %s
+                        ON CONFLICT (symbol, quarter) DO UPDATE SET
+                            eps_actual = EXCLUDED.eps_actual,
+                            eps_estimate = EXCLUDED.eps_estimate,
+                            eps_difference = EXCLUDED.eps_difference,
+                            surprise_percent = EXCLUDED.surprise_percent,
+                            fetched_at = CURRENT_TIMESTAMP
+                    """, all_rows)
+                    all_rows = []
+                except Exception as e:
+                    logging.error(f"Final batch insert failed: {e}")
+                    conn.rollback()
+                    raise
+
+            conn.commit()
+            logging.info(f"Committed after {len(symbols_batch)} symbols (total: {i+1}/{total})")
+            symbols_batch = []
+
+        gc.collect()
+        time.sleep(BATCH_PAUSE)
+
     return total, processed, failed
 
 def lambda_handler(event, context):
