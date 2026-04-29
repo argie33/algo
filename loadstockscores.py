@@ -471,7 +471,7 @@ def main():
                         momentum_intraweek = EXCLUDED.momentum_intraweek,
                         score_date = CURRENT_DATE,
                         last_updated = CURRENT_TIMESTAMP
-                """, [(s, c, q, g, v, m, p, st, mi) for s, c, q, g, v, m, p, st, mi in batch_rows])
+                """, batch_rows)
                 saved += len(batch_rows)
                 conn.commit()
                 logger.info(f"  Batch inserted {len(batch_rows)} scores. Total: {saved}/{len(df)}")
@@ -479,7 +479,6 @@ def main():
 
         except Exception as e:
             logger.warning(f"Error processing {symbol}: {e}")
-            batch_rows = []
             failed += 1
 
     # Insert remaining rows
