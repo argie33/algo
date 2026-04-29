@@ -14,40 +14,24 @@ permissions:
 
 jobs:
   deploy:
-    name: Deploy Billing Circuit Breaker
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-          role-session-name: billing-deploy
+          role-to-assume: arn:aws:iam::626216981288:role/GitHubActionsDeployRole
           aws-region: us-east-1
 
-      - name: Deploy
-        run: |
-          aws cloudformation deploy \
-            --template-file billing-circuit-breaker.yml \
-            --stack-name billing-circuit-breaker \
-            --region us-east-1 \
-            --no-fail-on-empty-changeset 2>&1 | head -100
+      - run: |
+          echo "✅ AWS configured"
+          aws sts get-caller-identity
 
-      - name: Send test alert
-        run: |
+      - run: |
+          echo "Publishing test alert..."
           aws sns publish \
             --topic-arn arn:aws:sns:us-east-1:626216981288:billing-circuit-breaker-alerts \
             --region us-east-1 \
-            --subject "✅ Billing Circuit Breaker Active" \
-            --message "Your AWS billing protection system is ONLINE!
-
-Alert Levels:
-• $50 (50%) → Email + SMS warning
-• $75 (75%) → Email + SMS aggressive alert
-• $90 (90%) → Email + SMS critical alert
-• $100+ (100%+) → HARD STOP - API disabled
-
-If you received this via BOTH email AND SMS, protection is WORKING! ✅
-
-System is now monitoring your AWS costs."
+            --subject "TEST: Billing Circuit Breaker" \
+            --message "If you got this, alerts work!"
+          echo "✅ Alert sent"
