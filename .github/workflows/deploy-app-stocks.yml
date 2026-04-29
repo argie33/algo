@@ -1187,7 +1187,7 @@ jobs:
               .environment += [
                 {"name": "AWS_REGION", "value": "us-east-1"},
                 {"name": "DB_SECRET_ARN", "value": $dbSecretArn},
-                {"name": "DB_HOST", "value": "rds-stocks.c2gujitq3h1b.us-east-1.rds.amazonaws.com"},
+                {"name": "DB_HOST", "value": "stocks.cojggi2mkthi.us-east-1.rds.amazonaws.com"},
                 {"name": "DB_PORT", "value": "5432"},
                 {"name": "DB_USER", "value": "stocks"},
                 {"name": "DB_PASSWORD", "value": $dbPassword},
