@@ -168,12 +168,13 @@ def get_db_config():
     1. AWS Secrets Manager (if DB_SECRET_ARN is set)
     2. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
     """
+    aws_region = os.environ.get("AWS_REGION")
     db_secret_arn = os.environ.get("DB_SECRET_ARN")
 
     base_config = {}
-    if db_secret_arn:
+    if db_secret_arn and aws_region:
         try:
-            secret_str = boto3.client("secretsmanager").get_secret_value(
+            secret_str = boto3.client("secretsmanager", region_name=aws_region).get_secret_value(
                 SecretId=db_secret_arn
             )["SecretString"]
             sec = json.loads(secret_str)

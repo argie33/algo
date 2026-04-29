@@ -5,25 +5,61 @@ import sys
 import logging
 import os
 import time
+import json
 from typing import Optional
 
 import psycopg2
 import yfinance as yf
 import pandas as pd
 import requests
+import boto3
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", stream=sys.stdout)
 
 REQUEST_DELAY = 0.5
 
 def get_db_connection():
+    aws_region = os.environ.get("AWS_REGION")
+    db_secret_arn = os.environ.get("DB_SECRET_ARN")
+
+    db_config = {}
+
+    # Try AWS Secrets Manager first
+    if db_secret_arn and aws_region:
+        try:
+            secret_str = boto3.client("secretsmanager", region_name=aws_region).get_secret_value(
+                SecretId=db_secret_arn
+            )["SecretString"]
+            sec = json.loads(secret_str)
+            logging.info(f"Using AWS Secrets Manager for database config")
+            db_config = {
+                "host": sec["host"],
+                "port": int(sec.get("port", 5432)),
+                "user": sec["username"],
+                "password": sec["password"],
+                "dbname": sec["dbname"]
+            }
+        except Exception as e:
+            logging.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
+
+    # Fall back to environment variables
+    if not db_config:
+        logging.info("Using environment variables for database config")
+        db_config = {
+            "host": os.environ.get("DB_HOST", "localhost"),
+            "port": int(os.environ.get("DB_PORT", 5432)),
+            "user": os.environ.get("DB_USER", "stocks"),
+            "password": os.environ.get("DB_PASSWORD", ""),
+            "dbname": os.environ.get("DB_NAME", "stocks")
+        }
+
     try:
         return psycopg2.connect(
-            host=os.environ.get("DB_HOST", "localhost"),
-            port=os.environ.get("DB_PORT", "5432"),
-            user=os.environ.get("DB_USER", "stocks"),
-            password=os.environ.get("DB_PASSWORD", ""),
-            dbname=os.environ.get("DB_NAME", "stocks"),
+            host=db_config["host"],
+            port=db_config["port"],
+            user=db_config["user"],
+            password=db_config["password"],
+            dbname=db_config["dbname"],
             connect_timeout=10
         )
     except Exception as e:
