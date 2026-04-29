@@ -21,20 +21,43 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 REQUEST_DELAY = 0.5  # Delay between requests to avoid rate limiting
 
 def get_db_connection():
-    try:
-        conn = psycopg2.connect(
-            host=os.environ.get("DB_HOST", "localhost"),
-            port=os.environ.get("DB_PORT", "5432"),
-            user=os.environ.get("DB_USER", "stocks"),
-            password=os.environ.get("DB_PASSWORD", ""),
-            dbname=os.environ.get("DB_NAME", "stocks"),
-            connect_timeout=10
-        )
-        conn.autocommit = True
-        return conn
-    except Exception as e:
-        logging.error(f"Failed to connect: {e}")
-        return None
+    db_host = os.environ.get("DB_HOST", "localhost")
+    db_port = int(os.environ.get("DB_PORT", "5432"))
+    db_user = os.environ.get("DB_USER", "stocks")
+    db_password = os.environ.get("DB_PASSWORD", "")
+    db_name = os.environ.get("DB_NAME", "stocks")
+
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            logging.info(f"Attempting database connection (attempt {attempt+1}/{max_retries}): {db_host}:{db_port}")
+            conn = psycopg2.connect(
+                host=db_host,
+                port=db_port,
+                user=db_user,
+                password=db_password,
+                dbname=db_name,
+                connect_timeout=10
+            )
+            conn.autocommit = True
+            logging.info("Database connection successful")
+            return conn
+        except Exception as e:
+            error_msg = str(e)
+            logging.warning(f"Connection attempt {attempt+1} failed: {error_msg[:100]}")
+
+            if attempt < max_retries - 1:
+                if "could not translate host" in error_msg or "refused" in error_msg:
+                    if "rds-stocks" in db_host:
+                        logging.info("RDS unreachable - will retry")
+                        time.sleep((attempt + 1) * 2)
+                        continue
+
+            if attempt == max_retries - 1:
+                logging.error(f"Failed to connect to database after {max_retries} attempts: {error_msg}")
+                return None
+
+    return None
 
 def safe_convert_to_float(value) -> Optional[float]:
     if pd.isna(value) or value is None:
