@@ -107,14 +107,14 @@ def main():
                         cur.execute("""
                             INSERT INTO quarterly_cash_flow
                             (symbol, fiscal_year, fiscal_quarter, operating_cash_flow,
-                             investing_cash_flow, financing_cash_flow, capital_expenditure,
+                             investing_cash_flow, financing_cash_flow, capital_expenditures,
                              free_cash_flow, updated_at)
                             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
                             ON CONFLICT (symbol, fiscal_year, fiscal_quarter) DO UPDATE SET
                             operating_cash_flow = EXCLUDED.operating_cash_flow,
                             investing_cash_flow = EXCLUDED.investing_cash_flow,
                             financing_cash_flow = EXCLUDED.financing_cash_flow,
-                            capital_expenditure = EXCLUDED.capital_expenditure,
+                            capital_expenditures = EXCLUDED.capital_expenditures,
                             free_cash_flow = EXCLUDED.free_cash_flow,
                             updated_at = NOW()
                         """, (symbol, fiscal_year, fiscal_quarter,

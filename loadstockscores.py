@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Triggered: 2026-04-28 14:55 UTC - Batch 5 Final Data
+"""
 Stock Scores Loader v3.0 COMPREHENSIVE - Uses all available metrics for accurate scoring
 """
 import psycopg2
