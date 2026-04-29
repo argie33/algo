@@ -159,6 +159,27 @@ jobs:
                 "aaiidata")
                   DOCKERFILE_TO_CHECK="Dockerfile.loadaaiidata"
                   ;;
+                "annualcashflow")
+                  DOCKERFILE_TO_CHECK="Dockerfile.loadannualcashflow"
+                  ;;
+                "annualbalancesheet")
+                  DOCKERFILE_TO_CHECK="Dockerfile.loadannualbalancesheet"
+                  ;;
+                "annualincomestatement")
+                  DOCKERFILE_TO_CHECK="Dockerfile.loadannualincomestatement"
+                  ;;
+                "quarterlycashflow")
+                  DOCKERFILE_TO_CHECK="Dockerfile.loadquarterlycashflow"
+                  ;;
+                "quarterlybalancesheet")
+                  DOCKERFILE_TO_CHECK="Dockerfile.loadquarterlybalancesheet"
+                  ;;
+                "quarterlyincomestatement")
+                  DOCKERFILE_TO_CHECK="Dockerfile.loadquarterlyincomestatement"
+                  ;;
+                "factormetrics")
+                  DOCKERFILE_TO_CHECK="Dockerfile.loadfactormetrics"
+                  ;;
                 "feargreed")
                   DOCKERFILE_TO_CHECK="Dockerfile.loadfeargreed"
                   ;;
@@ -171,8 +192,14 @@ jobs:
                 "sectordata")
                   DOCKERFILE_TO_CHECK="Dockerfile.sectordata"
                   ;;
+                "stockscores")
+                  DOCKERFILE_TO_CHECK="Dockerfile.loadstockscores"
+                  ;;
+                "stocksymbols")
+                  DOCKERFILE_TO_CHECK="Dockerfile.loadstocksymbols"
+                  ;;
                 *)
-                  DOCKERFILE_TO_CHECK="Dockerfile.$loader"
+                  DOCKERFILE_TO_CHECK="Dockerfile.load$loader"
                   ;;
               esac
 
