@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS Billing Circuit Breaker - Monitors costs and enforces hard stops at thresholds'
+Description: 'AWS Billing Circuit Breaker - Auto-sends alerts without confirmation'
 
 Parameters:
   PhoneNumber:
@@ -23,7 +23,7 @@ Parameters:
     Default: 'arn:aws:iam::626216981288:role/stocks-algo-api-dev-us-east-1-lambdaRole'
 
 Resources:
-  # SNS Topic for Billing Alerts (email + SMS)
+  # SNS Topic for Billing Alerts
   BillingAlertTopic:
     Type: AWS::SNS::Topic
     Properties:
@@ -33,21 +33,78 @@ Resources:
         - Key: Purpose
           Value: cost-control
 
-  # Email Subscription
-  EmailSubscription:
-    Type: AWS::SNS::Subscription
+  # Alert Sender Lambda - sends emails/SMS directly without confirmation
+  AlertSenderFunction:
+    Type: AWS::Lambda::Function
     Properties:
-      TopicArn: !Ref BillingAlertTopic
-      Protocol: email
-      Endpoint: !Ref EmailAddress
+      FunctionName: billing-alert-sender
+      Runtime: nodejs20.x
+      Role: !GetAtt AlertSenderRole.Arn
+      Handler: index.handler
+      Timeout: 60
+      Environment:
+        Variables:
+          EMAIL: !Ref EmailAddress
+          PHONE: !Ref PhoneNumber
+      Code:
+        ZipFile: |
+          const AWS = require('aws-sdk');
+          const sns = new AWS.SNS();
+          const ses = new AWS.SES();
 
-  # SMS Subscription (phone)
-  SMSSubscription:
-    Type: AWS::SNS::Subscription
+          exports.handler = async (event) => {
+            const email = process.env.EMAIL;
+            const phone = process.env.PHONE;
+
+            console.log('Alert event:', JSON.stringify(event));
+
+            try {
+              // Send via email (SES - no confirmation needed)
+              await ses.sendEmail({
+                Source: email,
+                Destination: { ToAddresses: [email] },
+                Message: {
+                  Subject: { Data: '🚨 AWS Billing Alert' },
+                  Body: { Text: { Data: JSON.stringify(event, null, 2) } }
+                }
+              }).promise();
+              console.log('✓ Email sent');
+
+              // Send via SMS (SNS - no subscription confirmation)
+              await sns.publish({
+                PhoneNumber: phone,
+                Message: '🚨 AWS Billing Alert - Check your email for details'
+              }).promise();
+              console.log('✓ SMS sent');
+
+            } catch (error) {
+              console.error('Error sending alerts:', error);
+              throw error;
+            }
+          };
+
+  AlertSenderRole:
+    Type: AWS::IAM::Role
     Properties:
-      TopicArn: !Ref BillingAlertTopic
-      Protocol: sms
-      Endpoint: !Ref PhoneNumber
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: SendAlerts
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                  - ses:SendEmail
+                Resource: '*'
 
   # AWS Budget - Monitors monthly spend
   StocksPlatformBudget:
