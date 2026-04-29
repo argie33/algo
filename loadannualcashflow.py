@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260429_145000 - Batch 5: Annual cash flow loader - VERIFICATION RUN
+# TRIGGER: 20260429_160000 - Batch 5: Annual cash flow loader - WITH DB_PASSWORD FIX
 """
 Annual Cash Flow Loader
 Loads annual cash flow statement data for all stocks from yfinance

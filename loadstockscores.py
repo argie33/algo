@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260429_145300 - Batch 5: Stock scores loader - VERIFICATION RUN
+# TRIGGER: 20260429_160300 - Batch 5: Stock scores loader - WITH DB_PASSWORD FIX
 """
 Stock Scores Loader v3.0 COMPREHENSIVE - Uses all available metrics for accurate scoring
 """
