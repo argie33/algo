@@ -1156,7 +1156,7 @@ jobs:
             --arg dbSecretArn "arn:aws:secretsmanager:us-east-1:626216981288:secret:rds-stocks-secret" \
             '.containerDefinitions |= map(if .name == $containerName then
               .image = $imageUri |
-              .environment = [
+              .environment = (.environment | map(select(.name == "DB_PASSWORD")) + [
                 {"name": "PATH", "value": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"},
                 {"name": "AWS_REGION", "value": "us-east-1"},
                 {"name": "AWS_DEFAULT_REGION", "value": "us-east-1"},
@@ -1166,7 +1166,7 @@ jobs:
                 {"name": "DB_PORT", "value": "5432"},
                 {"name": "DB_USER", "value": "stocks"},
                 {"name": "DB_NAME", "value": "stocks"}
-              ]
+              ])
             else . end) | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)')
 
           # Register new task definition revision
