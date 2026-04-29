@@ -49,7 +49,7 @@ def get_db_connection():
                 connect_timeout=10
             )
             conn.autocommit = True
-            logging.info("✓ Database connection successful")
+            logging.info("[OK] Database connection successful")
             return conn
         except Exception as e:
             error_msg = str(e)
@@ -152,7 +152,7 @@ def load_symbol_data(symbol: str) -> List[Dict[str, Any]]:
                 continue
 
         if rows:
-            logging.debug(f"✓ {symbol}: {len(rows)} rows")
+            logging.debug(f"[OK] {symbol}: {len(rows)} rows")
         return rows
 
     except Exception as e:
@@ -277,7 +277,7 @@ def main():
         # Final stats
         elapsed = time.time() - start_time
         logging.info(
-            f"✓ Completed: {total_rows} rows inserted, "
+            f"[OK] Completed: {total_rows} rows inserted, "
             f"{successful} successful, {failed} failed "
             f"in {elapsed:.1f}s ({elapsed/60:.1f}m)"
         )
