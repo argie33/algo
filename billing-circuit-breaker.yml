@@ -1,19 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS Billing Circuit Breaker - Direct alert sender'
-
-Parameters:
-  PhoneNumber:
-    Type: String
-    Default: '+13123078620'
-  EmailAddress:
-    Type: String
-    Default: 'argeropolos@gmail.com'
-  MonthlyBudgetLimit:
-    Type: Number
-    Default: 100
-  LambdaExecutionRoleArn:
-    Type: String
-    Default: 'arn:aws:iam::626216981288:role/stocks-algo-api-dev-us-east-1-lambdaRole'
+Description: 'AWS Billing Circuit Breaker'
 
 Resources:
   BillingAlertTopic:
@@ -21,71 +7,6 @@ Resources:
     Properties:
       TopicName: billing-circuit-breaker-alerts
 
-  AlertSenderRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-      Policies:
-        - PolicyName: SNSPublish
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - sns:Publish
-                Resource: '*'
-
-  AlertSenderLambda:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: billing-alert-sender
-      Runtime: nodejs20.x
-      Role: !GetAtt AlertSenderRole.Arn
-      Handler: index.handler
-      Environment:
-        Variables:
-          PHONE: !Ref PhoneNumber
-          TOPIC_ARN: !Ref BillingAlertTopic
-      Code:
-        ZipFile: |
-          const aws = require('aws-sdk');
-          const sns = new aws.SNS({region: 'us-east-1'});
-
-          exports.handler = async (event) => {
-            const phone = process.env.PHONE;
-            const topicArn = process.env.TOPIC_ARN;
-
-            try {
-              console.log('Sending SMS to ' + phone);
-              await sns.publish({
-                PhoneNumber: phone,
-                Message: 'Billing Alert Test: If you got this SMS, alerts are working!'
-              }).promise();
-
-              console.log('Publishing to SNS topic');
-              await sns.publish({
-                TopicArn: topicArn,
-                Subject: 'Billing Circuit Breaker Test',
-                Message: 'Test alert - System is working!'
-              }).promise();
-
-              return {statusCode: 200, body: 'OK'};
-            } catch (e) {
-              console.error('Error:', e);
-              throw e;
-            }
-          };
-
 Outputs:
-  SNSTopicArn:
+  TopicArn:
     Value: !Ref BillingAlertTopic
-  LambdaArn:
-    Value: !GetAtt AlertSenderLambda.Arn
