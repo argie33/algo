@@ -1,5 +1,5 @@
-# TRIGGER: 20260429_064000 - Phase 1 prerequisite loader - stock_symbols must be populated first
-# FIX: Corrected jq filter to avoid duplicate environment variables
+# TRIGGER: 20260429_065000 - Phase 1 prerequisite loader - stock_symbols must be populated first
+# FIX: Fixed jq syntax - explicit OR conditions instead of IN() function
 #!/usr/bin/env python3
 # Updated: 2026-01-28 15:30 - CRITICAL FIX: Removed DROP TABLE vulnerability
 # Trigger: 20260128_193000 - Deploy to AWS ECS with crash-safe loader
