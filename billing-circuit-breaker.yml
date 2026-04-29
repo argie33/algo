@@ -53,7 +53,7 @@ Resources:
       Environment:
         Variables:
           PHONE: !Ref PhoneNumber
-          EMAIL: !Ref EmailAddress
+          TOPIC_ARN: !Ref BillingAlertTopic
       Code:
         ZipFile: |
           const aws = require('aws-sdk');
@@ -61,25 +61,25 @@ Resources:
 
           exports.handler = async (event) => {
             const phone = process.env.PHONE;
-            const email = process.env.EMAIL;
+            const topicArn = process.env.TOPIC_ARN;
 
             try {
-              console.log('Sending SMS...');
+              console.log('Sending SMS to ' + phone);
               await sns.publish({
                 PhoneNumber: phone,
-                Message: event.message || 'AWS Billing Alert: Test message received'
+                Message: 'Billing Alert Test: If you got this SMS, alerts are working!'
               }).promise();
 
-              console.log('Sending Email...');
+              console.log('Publishing to SNS topic');
               await sns.publish({
-                TopicArn: 'arn:aws:sns:us-east-1:626216981288:billing-circuit-breaker-alerts',
-                Subject: event.subject || 'AWS Billing Alert',
-                Message: event.message || 'Test message'
+                TopicArn: topicArn,
+                Subject: 'Billing Circuit Breaker Test',
+                Message: 'Test alert - System is working!'
               }).promise();
 
-              return {statusCode: 200, body: 'Alerts sent'};
+              return {statusCode: 200, body: 'OK'};
             } catch (e) {
-              console.error(e);
+              console.error('Error:', e);
               throw e;
             }
           };
