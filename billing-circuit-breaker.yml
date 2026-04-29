@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS Billing Circuit Breaker - Minimal working version'
+Description: 'AWS Billing Circuit Breaker'
 
 Parameters:
   PhoneNumber:
@@ -22,9 +22,22 @@ Resources:
       TopicName: billing-circuit-breaker-alerts
       DisplayName: AWS Billing Circuit Breaker
 
+  EmailSub:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref BillingAlertTopic
+      Protocol: email
+      Endpoint: !Ref EmailAddress
+
+  SMSSub:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref BillingAlertTopic
+      Protocol: sms
+      Endpoint: !Ref PhoneNumber
+
 Outputs:
   SNSTopicArn:
-    Description: ARN of SNS topic for billing alerts
     Value: !Ref BillingAlertTopic
-    Export:
-      Name: BillingAlertTopicArn
+  TopicName:
+    Value: billing-circuit-breaker-alerts
