@@ -28,12 +28,22 @@ jobs:
 
       - name: Deploy
         run: |
-          set -x
           aws cloudformation deploy \
             --template-file billing-circuit-breaker.yml \
             --stack-name billing-circuit-breaker \
             --region us-east-1 \
-            --no-fail-on-empty-changeset \
-            2>&1 | tee deploy.log
+            --no-fail-on-empty-changeset
 
-          cat deploy.log
+      - name: Send test alert
+        run: |
+          TOPIC=$(aws cloudformation describe-stacks \
+            --stack-name billing-circuit-breaker \
+            --region us-east-1 \
+            --query 'Stacks[0].Outputs[?OutputKey==`SNSTopicArn`].OutputValue' \
+            --output text)
+
+          aws sns publish \
+            --topic-arn "$TOPIC" \
+            --region us-east-1 \
+            --subject "Billing Circuit Breaker Active" \
+            --message "Your AWS billing protection is now ACTIVE! If you got this via EMAIL and SMS, the system is working."
