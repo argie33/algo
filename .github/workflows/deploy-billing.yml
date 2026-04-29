@@ -36,14 +36,18 @@ jobs:
 
       - name: Send test alert
         run: |
-          TOPIC=$(aws cloudformation describe-stacks \
-            --stack-name billing-circuit-breaker \
-            --region us-east-1 \
-            --query 'Stacks[0].Outputs[?OutputKey==`SNSTopicArn`].OutputValue' \
-            --output text)
-
           aws sns publish \
-            --topic-arn "$TOPIC" \
+            --topic-arn arn:aws:sns:us-east-1:626216981288:billing-circuit-breaker-alerts \
             --region us-east-1 \
-            --subject "Billing Circuit Breaker Active" \
-            --message "Your AWS billing protection is now ACTIVE! If you got this via EMAIL and SMS, the system is working."
+            --subject "✅ Billing Circuit Breaker Active" \
+            --message "Your AWS billing protection system is ONLINE!
+
+Alert Levels:
+• $50 (50%) → Email + SMS warning
+• $75 (75%) → Email + SMS aggressive alert
+• $90 (90%) → Email + SMS critical alert
+• $100+ (100%+) → HARD STOP - API disabled
+
+If you received this via BOTH email AND SMS, protection is WORKING! ✅
+
+System is now monitoring your AWS costs."
