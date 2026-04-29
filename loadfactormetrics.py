@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260429_140200 - Batch 5: Factor metrics loader
+# TRIGGER: 20260429_145200 - Batch 5: Factor metrics loader - VERIFICATION RUN
 """
 Factor Metrics Loader - Consolidated ALL Metric Loaders
 Populates ALL derived factor metrics from key_metrics, financial statements, and price data.
