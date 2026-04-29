@@ -1156,14 +1156,17 @@ jobs:
             --arg dbSecretArn "arn:aws:secretsmanager:us-east-1:626216981288:secret:rds-stocks-secret" \
             '.containerDefinitions |= map(if .name == $containerName then
               .image = $imageUri |
-              .environment = ((.environment // []) | map(select(.name == "PATH" or .name == "HOME" or .name == "AWS_DEFAULT_REGION" or .name == "PYTHONUNBUFFERED" or .name == "DB_PASSWORD")) + [
+              .environment = [
+                {"name": "PATH", "value": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"},
                 {"name": "AWS_REGION", "value": "us-east-1"},
+                {"name": "AWS_DEFAULT_REGION", "value": "us-east-1"},
+                {"name": "PYTHONUNBUFFERED", "value": "1"},
                 {"name": "DB_SECRET_ARN", "value": $dbSecretArn},
                 {"name": "DB_HOST", "value": "rds-stocks.c2gujitq3h1b.us-east-1.rds.amazonaws.com"},
                 {"name": "DB_PORT", "value": "5432"},
                 {"name": "DB_USER", "value": "stocks"},
                 {"name": "DB_NAME", "value": "stocks"}
-              ])
+              ]
             else . end) | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)')
 
           # Register new task definition revision
