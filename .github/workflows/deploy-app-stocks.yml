@@ -1157,6 +1157,7 @@ jobs:
             '.containerDefinitions |= map(if .name == $containerName then
               .image = $imageUri |
               .environment = ((.environment // []) | map(select(.name | IN("PATH", "HOME", "AWS_DEFAULT_REGION", "AWS_REGION", "PYTHONUNBUFFERED"))) + [
+                {"name": "AWS_REGION", "value": "us-east-1"},
                 {"name": "DB_SECRET_ARN", "value": $dbSecretArn},
                 {"name": "DB_HOST", "value": "rds-stocks.c2gujitq3h1b.us-east-1.rds.amazonaws.com"},
                 {"name": "DB_PORT", "value": "5432"},
