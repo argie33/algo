@@ -50,30 +50,23 @@ jobs:
 
           LAMBDA_ROLE="${{ secrets.LAMBDA_ROLE_ARN }}"
           if [ -z "$LAMBDA_ROLE" ]; then
-            echo "Auto-detecting Lambda role..."
-            LAMBDA_ROLE=$(aws iam list-roles \
-              --query "Roles[?contains(RoleName, 'stocks-algo-api')].Arn" \
-              --output text | head -1)
+            LAMBDA_ROLE="arn:aws:iam::626216981288:role/stocks-algo-api-dev-us-east-1-lambdaRole"
           fi
 
-          echo "Using Lambda role: $LAMBDA_ROLE"
-          echo ""
+          echo "Lambda role: $LAMBDA_ROLE"
 
           aws cloudformation deploy \
             --template-file billing-circuit-breaker.yml \
             --stack-name billing-circuit-breaker \
+            --region us-east-1 \
             --capabilities CAPABILITY_NAMED_IAM \
             --parameter-overrides \
               PhoneNumber="${{ secrets.BILLING_PHONE_NUMBER }}" \
               EmailAddress="${{ secrets.BILLING_EMAIL }}" \
               MonthlyBudgetLimit="${{ secrets.BILLING_MONTHLY_LIMIT }}" \
-              LambdaExecutionRoleArn="$LAMBDA_ROLE" \
-            --region us-east-1 \
-            --tags Project=stocks-algo-api Cost-Control=enabled
+              LambdaExecutionRoleArn="$LAMBDA_ROLE"
 
-          echo ""
           echo "✅ Stack deployed!"
-          echo ""
 
       - name: Get stack outputs
         run: |
