@@ -26,19 +26,13 @@ jobs:
           role-session-name: billing-deploy
           aws-region: us-east-1
 
-      - name: Delete old stack
-        run: |
-          aws cloudformation delete-stack \
-            --stack-name billing-circuit-breaker \
-            --region us-east-1 2>/dev/null || true
-          sleep 5
-
       - name: Deploy
         run: |
           aws cloudformation deploy \
             --template-file billing-circuit-breaker.yml \
             --stack-name billing-circuit-breaker \
-            --region us-east-1
+            --region us-east-1 \
+            --no-fail-on-empty-changeset 2>&1 | head -100
 
       - name: Send test alert
         run: |
