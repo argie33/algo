@@ -3786,4 +3786,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+        sys.exit(0)
+    except Exception as e:
+        logging.error(f"Unhandled exception in {SCRIPT_NAME}: {e}", exc_info=True)
+        sys.exit(1)

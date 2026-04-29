@@ -3,6 +3,7 @@
 """
 Stock Scores Loader v3.0 COMPREHENSIVE - Uses all available metrics for accurate scoring
 """
+import sys
 import psycopg2
 import pandas as pd
 import numpy as np
@@ -578,4 +579,9 @@ def main():
     logger.info("=" * 100)
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+        sys.exit(0)
+    except Exception as e:
+        logger.error(f"Unhandled exception: {e}", exc_info=True)
+        sys.exit(1)
