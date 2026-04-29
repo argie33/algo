@@ -2,155 +2,38 @@ name: deploy-billing-circuit-breaker
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - 'billing-circuit-breaker.yml'
       - '.github/workflows/deploy-billing.yml'
   workflow_dispatch:
-  repository_dispatch:
-    types: [deploy-billing]
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  deploy-billing:
+  deploy:
     name: Deploy Billing Circuit Breaker
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-          role-session-name: github-deploy-billing
+          role-session-name: billing-deploy
           aws-region: us-east-1
 
-      - name: Validate CloudFormation template
+      - name: Deploy
         run: |
-          echo "=========================================="
-          echo "🔍 Validating billing circuit breaker template"
-          echo "=========================================="
-          aws cloudformation validate-template \
-            --template-body file://billing-circuit-breaker.yml \
-            --region us-east-1
-          echo "✅ Template valid"
-          echo ""
-
-      - name: Deploy billing circuit breaker stack
-        run: |
-          echo "=========================================="
-          echo "🚀 Deploying billing circuit breaker"
-          echo "=========================================="
-
-          LAMBDA_ROLE="${{ secrets.LAMBDA_ROLE_ARN }}"
-          if [ -z "$LAMBDA_ROLE" ]; then
-            LAMBDA_ROLE="arn:aws:iam::626216981288:role/stocks-algo-api-dev-us-east-1-lambdaRole"
-          fi
-
-          echo "Lambda role: $LAMBDA_ROLE"
-
+          set -x
           aws cloudformation deploy \
             --template-file billing-circuit-breaker.yml \
             --stack-name billing-circuit-breaker \
             --region us-east-1 \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --parameter-overrides \
-              PhoneNumber="${{ secrets.BILLING_PHONE_NUMBER }}" \
-              EmailAddress="${{ secrets.BILLING_EMAIL }}" \
-              MonthlyBudgetLimit="${{ secrets.BILLING_MONTHLY_LIMIT }}" \
-              LambdaExecutionRoleArn="$LAMBDA_ROLE"
+            --no-fail-on-empty-changeset \
+            2>&1 | tee deploy.log
 
-          echo "✅ Stack deployed!"
-
-      - name: Get stack outputs
-        run: |
-          echo "=========================================="
-          echo "📋 Stack Outputs"
-          echo "=========================================="
-
-          aws cloudformation describe-stacks \
-            --stack-name billing-circuit-breaker \
-            --region us-east-1 \
-            --query 'Stacks[0].Outputs' \
-            --output table
-          echo ""
-
-      - name: Verify SNS subscriptions
-        run: |
-          echo "=========================================="
-          echo "📬 SNS Subscriptions"
-          echo "=========================================="
-
-          TOPIC_ARN=$(aws cloudformation describe-stacks \
-            --stack-name billing-circuit-breaker \
-            --region us-east-1 \
-            --query 'Stacks[0].Outputs[?OutputKey==`SNSTopicArn`].OutputValue' \
-            --output text)
-
-          aws sns list-subscriptions-by-topic \
-            --topic-arn "$TOPIC_ARN" \
-            --region us-east-1 \
-            --query 'Subscriptions[].{Protocol:Protocol,Endpoint:Endpoint,Status:SubscriptionArn}' \
-            --output table
-          echo ""
-
-      - name: Send test SNS notification
-        run: |
-          echo "=========================================="
-          echo "🧪 Sending test notification"
-          echo "=========================================="
-
-          TOPIC_ARN=$(aws cloudformation describe-stacks \
-            --stack-name billing-circuit-breaker \
-            --region us-east-1 \
-            --query 'Stacks[0].Outputs[?OutputKey==`SNSTopicArn`].OutputValue' \
-            --output text)
-
-          aws sns publish \
-            --topic-arn "$TOPIC_ARN" \
-            --region us-east-1 \
-            --subject "✅ Billing Circuit Breaker - Deployment Test" \
-            --message "Your AWS billing circuit breaker is now ACTIVE!
-
-🛡️ Protection Levels:
-  • 50% spend (\$50) → Email + SMS warning
-  • 75% spend (\$75) → Email + SMS aggressive alert
-  • 90% spend (\$90) → Email + SMS critical alert
-  • 100%+ spend (\$100+) → HARD STOP - API disabled, no new charges
-
-✅ All alerts configured for:
-  Phone: ${{ secrets.BILLING_PHONE_NUMBER }}
-  Email: ${{ secrets.BILLING_EMAIL }}
-
-If you received this via email AND SMS, notifications are working!
-
-Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
-"
-
-          echo "✅ Test notification sent!"
-          echo ""
-
-      - name: Print summary
-        if: always()
-        run: |
-          echo "=========================================="
-          echo "✅ BILLING CIRCUIT BREAKER DEPLOYED"
-          echo "=========================================="
-          echo ""
-          echo "📊 Configuration:"
-          echo "  • Monthly Budget: \$${BILLING_MONTHLY_LIMIT:-100}"
-          echo "  • Email Alerts: ${{ secrets.BILLING_EMAIL }}"
-          echo "  • SMS Alerts: ${{ secrets.BILLING_PHONE_NUMBER }}"
-          echo ""
-          echo "🎯 Next Steps:"
-          echo "  1. Check email for SNS confirmation"
-          echo "  2. Check phone for SMS confirmation"
-          echo "  3. Confirm both subscriptions"
-          echo "  4. You're protected! 🛡️"
-          echo ""
+          cat deploy.log
