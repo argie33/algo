@@ -1,12 +1,157 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS Billing Circuit Breaker'
+Description: 'AWS Billing Circuit Breaker - Complete Protection'
+
+Parameters:
+  PhoneNumber:
+    Type: String
+    Default: '+13123078620'
+  EmailAddress:
+    Type: String
+    Default: 'argeropolos@gmail.com'
+  MonthlyBudgetLimit:
+    Type: Number
+    Default: 100
+  LambdaExecutionRoleArn:
+    Type: String
+    Default: 'arn:aws:iam::626216981288:role/stocks-algo-api-dev-us-east-1-lambdaRole'
 
 Resources:
+  # SNS Topic
   BillingAlertTopic:
     Type: AWS::SNS::Topic
     Properties:
       TopicName: billing-circuit-breaker-alerts
 
+  # AWS Budget with alerts
+  MonthlyBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: stocks-platform-monthly-limit
+        BudgetLimit:
+          Amount: !Ref MonthlyBudgetLimit
+          Unit: USD
+        TimeUnit: MONTHLY
+        BudgetType: COST
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 50
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: SNS
+              Address: !Ref BillingAlertTopic
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 75
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: SNS
+              Address: !Ref BillingAlertTopic
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 90
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: SNS
+              Address: !Ref BillingAlertTopic
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: SNS
+              Address: !Ref BillingAlertTopic
+
+  # Circuit Breaker Lambda Role
+  CircuitBreakerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: billing-circuit-breaker-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CircuitBreakerPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                Resource: '*'
+
+  # Circuit Breaker Lambda
+  CircuitBreakerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: billing-circuit-breaker-emergency-stop
+      Runtime: nodejs20.x
+      Role: !GetAtt CircuitBreakerRole.Arn
+      Handler: index.handler
+      Environment:
+        Variables:
+          TARGET_ROLE: !Ref LambdaExecutionRoleArn
+          SNS_TOPIC: !Ref BillingAlertTopic
+      Code:
+        ZipFile: |
+          const aws = require('aws-sdk');
+          const sns = new aws.SNS();
+          const iam = new aws.IAM();
+
+          exports.handler = async (event) => {
+            const targetRole = process.env.TARGET_ROLE.split('/').pop();
+            const topicArn = process.env.SNS_TOPIC;
+
+            console.log('CIRCUIT BREAKER ACTIVATED');
+
+            try {
+              // Attach deny-all policy
+              await iam.putRolePolicy({
+                RoleName: targetRole,
+                PolicyName: 'billing-circuit-breaker-emergency-deny',
+                PolicyDocument: JSON.stringify({
+                  Version: '2012-10-17',
+                  Statement: [{Effect: 'Deny', Action: '*', Resource: '*'}]
+                })
+              }).promise();
+
+              // Send alert
+              await sns.publish({
+                TopicArn: topicArn,
+                Subject: '🚨 BILLING HARD STOP ACTIVATED',
+                Message: `AWS Billing has exceeded $100 limit.
+All API access DISABLED to prevent further charges.
+Circuit breaker policy attached to ${targetRole}`
+              }).promise();
+
+              return {statusCode: 200, body: 'Circuit breaker activated'};
+            } catch (e) {
+              console.error(e);
+              throw e;
+            }
+          };
+
 Outputs:
-  TopicArn:
+  SNSTopicArn:
     Value: !Ref BillingAlertTopic
+    Export:
+      Name: BillingAlertTopicArn
+  CircuitBreakerLambdaArn:
+    Value: !GetAtt CircuitBreakerFunction.Arn
+    Export:
+      Name: CircuitBreakerLambdaArn
+  BudgetName:
+    Value: !Ref MonthlyBudget
