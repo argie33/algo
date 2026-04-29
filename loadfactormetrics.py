@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Triggered: 2026-04-28 14:55 UTC - Batch 5 Final Data
+# TRIGGER: 20260429_140200 - Batch 5: Factor metrics loader
 """
 Factor Metrics Loader - Consolidated ALL Metric Loaders
 Populates ALL derived factor metrics from key_metrics, financial statements, and price data.
