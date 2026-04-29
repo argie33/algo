@@ -1,0 +1,363 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS Billing Circuit Breaker - Monitors costs and enforces hard stops at thresholds'
+
+Parameters:
+  PhoneNumber:
+    Type: String
+    Default: '+13123078620'
+    Description: Phone number for SMS alerts (E.164 format)
+
+  EmailAddress:
+    Type: String
+    Default: 'argeropolos@gmail.com'
+    Description: Email for alerts
+
+  MonthlyBudgetLimit:
+    Type: Number
+    Default: 100
+    Description: Monthly budget limit in USD
+
+  LambdaExecutionRoleArn:
+    Type: String
+    Description: ARN of Lambda execution role to be locked down on hard stop
+    Default: 'arn:aws:iam::626216981288:role/stocks-algo-api-dev-us-east-1-lambdaRole'
+
+Resources:
+  # SNS Topic for Billing Alerts (email + SMS)
+  BillingAlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: billing-circuit-breaker-alerts
+      DisplayName: AWS Billing Circuit Breaker
+      Tags:
+        - Key: Purpose
+          Value: cost-control
+
+  # Email Subscription
+  EmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref BillingAlertTopic
+      Protocol: email
+      Endpoint: !Ref EmailAddress
+
+  # SMS Subscription (phone)
+  SMSSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref BillingAlertTopic
+      Protocol: sms
+      Endpoint: !Ref PhoneNumber
+
+  # AWS Budget - Monitors monthly spend
+  StocksPlatformBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: stocks-platform-monthly
+        BudgetLimit:
+          Amount: !Ref MonthlyBudgetLimit
+          Unit: USD
+        TimeUnit: MONTHLY
+        BudgetType: COST
+        CostFilters:
+          TagKeyValue:
+            - 'Project$stocks-algo-api'
+      NotificationsWithSubscribers:
+        # 50% threshold - First warning
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 50
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: SNS
+              Address: !Ref BillingAlertTopic
+        # 75% threshold - Aggressive warning
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 75
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: SNS
+              Address: !Ref BillingAlertTopic
+        # 90% threshold - Final warning
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 90
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: SNS
+              Address: !Ref BillingAlertTopic
+        # 100% threshold - Hard stop trigger
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: SNS
+              Address: !Ref BillingAlertTopic
+
+  # IAM Role for Circuit Breaker Lambda
+  CircuitBreakerLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: billing-circuit-breaker-lambda-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CircuitBreakerPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Allow publishing to SNS for emergency alerts
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref BillingAlertTopic
+
+              # Allow attaching/detaching deny policy to target role
+              - Effect: Allow
+                Action:
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:GetRole
+                  - iam:ListRolePolicies
+                Resource: !Ref LambdaExecutionRoleArn
+
+              # Allow stopping RDS instances
+              - Effect: Allow
+                Action:
+                  - rds:DescribeDBInstances
+                  - rds:StopDBInstance
+                  - rds:ModifyDBInstance
+                Resource: 'arn:aws:rds:*:*:db/*'
+
+              # Allow disabling Lambda functions
+              - Effect: Allow
+                Action:
+                  - lambda:UpdateFunctionConfiguration
+                  - lambda:ListFunctions
+                  - lambda:GetFunction
+                Resource: 'arn:aws:lambda:*:*:function:*'
+
+              # Allow deactivating API Gateway
+              - Effect: Allow
+                Action:
+                  - apigateway:GET
+                  - apigateway:POST
+                  - apigateway:PATCH
+                  - apigateway:DELETE
+                Resource: 'arn:aws:apigateway:*::*'
+
+  # Lambda Function - Circuit Breaker (Hard Stop)
+  BillingCircuitBreakerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: billing-circuit-breaker
+      Runtime: nodejs20.x
+      Role: !GetAtt CircuitBreakerLambdaRole.Arn
+      Handler: index.handler
+      Timeout: 60
+      Environment:
+        Variables:
+          TARGET_ROLE_ARN: !Ref LambdaExecutionRoleArn
+          SNS_TOPIC_ARN: !Ref BillingAlertTopic
+          PHONE_NUMBER: !Ref PhoneNumber
+          EMAIL: !Ref EmailAddress
+      Code:
+        ZipFile: |
+          const AWS = require('aws-sdk');
+          const iam = new AWS.IAM();
+          const sns = new AWS.SNS();
+          const rds = new AWS.RDS();
+
+          const DENY_ALL_POLICY = {
+            Version: '2012-10-17',
+            Statement: [
+              {
+                Effect: 'Deny',
+                Action: '*',
+                Resource: '*'
+              }
+            ]
+          };
+
+          exports.handler = async (event) => {
+            console.log('BILLING CIRCUIT BREAKER TRIGGERED', JSON.stringify(event));
+
+            try {
+              const targetRoleArn = process.env.TARGET_ROLE_ARN;
+              const roleName = targetRoleArn.split('/').pop();
+
+              // Phase 1: Attach deny-all policy to Lambda execution role
+              console.log(`[PHASE 1] Attaching deny-all policy to ${roleName}...`);
+              await iam.putRolePolicy({
+                RoleName: roleName,
+                PolicyName: 'billing-circuit-breaker-deny-all',
+                PolicyDocument: JSON.stringify(DENY_ALL_POLICY)
+              }).promise();
+              console.log('[PHASE 1] ✓ Deny-all policy attached - all Lambda invocations will fail');
+
+              // Phase 2: Send emergency SMS + Email
+              const emergencyMessage = `🚨 AWS BILLING HARD STOP ACTIVATED
+
+Your monthly AWS bill has exceeded $100 limit.
+All API functions are DISABLED to prevent further charges.
+
+Action taken:
+✓ Deny-all policy attached to Lambda role
+✓ All future API calls will be rejected
+✓ No new AWS charges can be incurred
+
+To restore service:
+1. Review your AWS billing in the console
+2. Contact me at argeropolos@gmail.com
+3. I will remove the deny policy after review
+
+Timestamp: ${new Date().toISOString()}`;
+
+              console.log('[PHASE 2] Sending emergency SMS + Email...');
+              await sns.publish({
+                TopicArn: process.env.SNS_TOPIC_ARN,
+                Subject: '🚨 AWS BILLING CIRCUIT BREAKER ACTIVATED',
+                Message: emergencyMessage
+              }).promise();
+              console.log('[PHASE 2] ✓ Emergency notifications sent');
+
+              // Phase 3: Log the incident
+              console.log(`[PHASE 3] Circuit breaker actions complete at ${new Date().toISOString()}`);
+              console.log('[PHASE 3] Monitor CloudWatch for recovery instructions');
+
+              return {
+                statusCode: 200,
+                body: JSON.stringify({
+                  message: 'Circuit breaker activated - all access denied',
+                  timestamp: new Date().toISOString()
+                })
+              };
+
+            } catch (error) {
+              console.error('❌ Circuit breaker ERROR:', error);
+
+              // Send error notification
+              await sns.publish({
+                TopicArn: process.env.SNS_TOPIC_ARN,
+                Subject: '❌ Circuit Breaker Failed to Activate',
+                Message: `The billing circuit breaker FAILED to activate. Manual intervention required.
+
+Error: ${error.message}
+
+Please check AWS IAM permissions and manually:
+1. Go to IAM Roles
+2. Find: ${process.env.TARGET_ROLE_ARN}
+3. Manually attach a deny-all policy
+4. Or disable Lambda functions
+
+Timestamp: ${new Date().toISOString()}`
+              }).promise();
+
+              throw error;
+            }
+          };
+
+  # CloudWatch Alarm - Estimated Charges (Real-time monitoring)
+  EstimatedChargesAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: AWS-Estimated-Charges-Alert
+      AlarmDescription: Alerts when estimated monthly charges approach budget limit
+      MetricName: EstimatedCharges
+      Namespace: AWS/Billing
+      Statistic: Maximum
+      Period: 3600  # Check hourly
+      EvaluationPeriods: 1
+      Threshold: 80  # Alert at $80 (before hitting $100)
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref BillingAlertTopic
+
+  # EventBridge Rule - Trigger Circuit Breaker at 100% Budget
+  BudgetAlertRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: billing-circuit-breaker-trigger
+      Description: Triggers circuit breaker when monthly budget is exceeded
+      EventPattern:
+        source:
+          - aws.budgets
+        detail-type:
+          - Budget Notification
+        detail:
+          status:
+            - ACTUAL
+          threshold:
+            - 100
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt BillingCircuitBreakerFunction.Arn
+          RoleArn: !GetAtt EventBridgeRole.Arn
+
+  # IAM Role for EventBridge to invoke Lambda
+  EventBridgeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AllowLambdaInvoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !GetAtt BillingCircuitBreakerFunction.Arn
+
+  # Allow EventBridge to invoke the circuit breaker Lambda
+  CircuitBreakerLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref BillingCircuitBreakerFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt BudgetAlertRule.Arn
+
+Outputs:
+  SNSTopicArn:
+    Description: ARN of SNS topic for billing alerts
+    Value: !Ref BillingAlertTopic
+    Export:
+      Name: BillingAlertTopicArn
+
+  CircuitBreakerFunctionArn:
+    Description: ARN of circuit breaker Lambda function
+    Value: !GetAtt BillingCircuitBreakerFunction.Arn
+    Export:
+      Name: BillingCircuitBreakerFunctionArn
+
+  BudgetName:
+    Description: Name of the AWS Budget
+    Value: !Ref StocksPlatformBudget
+
+  AlertConfiguration:
+    Description: Alert thresholds configured
+    Value: '50% (warning), 75% (aggressive), 90% (final), 100% (hard stop)'

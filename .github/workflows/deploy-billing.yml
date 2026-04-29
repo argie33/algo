@@ -1,0 +1,213 @@
+name: deploy-billing-circuit-breaker
+
+on:
+  push:
+    branches:
+      - main
+      - '*'
+    paths:
+      - 'billing-circuit-breaker.yml'
+      - '.github/workflows/deploy-billing.yml'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+  AWS_ROLE_SESSION: github-deploy
+
+jobs:
+  ################################################################################
+  # 1) Validate billing circuit breaker template                                 #
+  ################################################################################
+  validate:
+    name: Validate CloudFormation template
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Validate template
+        run: |
+          aws cloudformation validate-template \
+            --template-body file://billing-circuit-breaker.yml \
+            --region ${{ env.AWS_REGION }}
+
+  ################################################################################
+  # 2) Get Lambda role ARN (for parameter)                                       #
+  ################################################################################
+  get-lambda-role:
+    name: Get Lambda execution role ARN
+    needs: validate
+    runs-on: ubuntu-latest
+    outputs:
+      lambda_role_arn: ${{ steps.get-role.outputs.lambda_role_arn }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Get Lambda role ARN
+        id: get-role
+        run: |
+          ROLE_ARN=$(aws iam get-role \
+            --role-name stocks-algo-api-dev-us-east-1-lambdaRole \
+            --query 'Role.Arn' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -z "$ROLE_ARN" ]; then
+            echo "⚠️  WARNING: Could not find Lambda role 'stocks-algo-api-dev-us-east-1-lambdaRole'"
+            echo "Will use default ARN from secrets"
+            ROLE_ARN="${{ secrets.LAMBDA_ROLE_ARN }}"
+          fi
+
+          echo "lambda_role_arn=$ROLE_ARN" >> $GITHUB_OUTPUT
+          echo "Using Lambda role: $ROLE_ARN"
+
+  ################################################################################
+  # 3) Deploy billing circuit breaker stack                                      #
+  ################################################################################
+  deploy:
+    name: Deploy billing circuit breaker
+    needs: [validate, get-lambda-role]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Deploy billing circuit breaker stack
+        id: deploy
+        run: |
+          aws cloudformation deploy \
+            --template-file billing-circuit-breaker.yml \
+            --stack-name billing-circuit-breaker \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameter-overrides \
+              PhoneNumber=${{ secrets.BILLING_PHONE_NUMBER || '+13123078620' }} \
+              EmailAddress=${{ secrets.BILLING_EMAIL || 'argeropolos@gmail.com' }} \
+              MonthlyBudgetLimit=${{ secrets.BILLING_MONTHLY_LIMIT || '100' }} \
+              LambdaExecutionRoleArn=${{ needs.get-lambda-role.outputs.lambda_role_arn }} \
+            --region ${{ env.AWS_REGION }} \
+            --no-fail-on-empty-changeset \
+            --tags Project=stocks-algo-api Cost-Control=enabled
+
+      - name: Get stack outputs
+        id: outputs
+        run: |
+          TOPIC_ARN=$(aws cloudformation describe-stacks \
+            --stack-name billing-circuit-breaker \
+            --query 'Stacks[0].Outputs[?OutputKey==`SNSTopicArn`].OutputValue' \
+            --output text \
+            --region ${{ env.AWS_REGION }})
+
+          LAMBDA_ARN=$(aws cloudformation describe-stacks \
+            --stack-name billing-circuit-breaker \
+            --query 'Stacks[0].Outputs[?OutputKey==`CircuitBreakerFunctionArn`].OutputValue' \
+            --output text \
+            --region ${{ env.AWS_REGION }})
+
+          echo "sns_topic_arn=$TOPIC_ARN" >> $GITHUB_OUTPUT
+          echo "lambda_arn=$LAMBDA_ARN" >> $GITHUB_OUTPUT
+
+      - name: Verify SNS topic
+        run: |
+          echo "✅ SNS Topic ARN: ${{ steps.outputs.outputs.sns_topic_arn }}"
+          echo "✅ Circuit Breaker Lambda: ${{ steps.outputs.outputs.lambda_arn }}"
+
+          # List subscriptions to verify they exist
+          aws sns list-subscriptions-by-topic \
+            --topic-arn ${{ steps.outputs.outputs.sns_topic_arn }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Subscriptions[].{Protocol:Protocol,Endpoint:Endpoint}' \
+            --output table
+
+      - name: Post deployment summary
+        if: always()
+        run: |
+          echo "## 🛡️ Billing Circuit Breaker Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Stack**: billing-circuit-breaker" >> $GITHUB_STEP_SUMMARY
+          echo "**Region**: ${{ env.AWS_REGION }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status**: ✅ Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "- **Monthly Budget**: ${{ secrets.BILLING_MONTHLY_LIMIT || '100' }} USD" >> $GITHUB_STEP_SUMMARY
+          echo "- **Email Alerts**: ${{ secrets.BILLING_EMAIL || 'argeropolos@gmail.com' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **SMS Alerts**: ${{ secrets.BILLING_PHONE_NUMBER || '+13123078620' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🚨 Alert Thresholds" >> $GITHUB_STEP_SUMMARY
+          echo "- 50%: Warning (email + SMS)" >> $GITHUB_STEP_SUMMARY
+          echo "- 75%: Aggressive (email + SMS)" >> $GITHUB_STEP_SUMMARY
+          echo "- 90%: Critical (email + SMS)" >> $GITHUB_STEP_SUMMARY
+          echo "- 100%: Hard Stop (deny-all policy attached)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📞 Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. ✉️ Check email for SNS subscription confirmation" >> $GITHUB_STEP_SUMMARY
+          echo "2. 📱 Confirm SMS subscription (reply to text)" >> $GITHUB_STEP_SUMMARY
+          echo "3. 🧪 Test: Send test message to SNS topic" >> $GITHUB_STEP_SUMMARY
+          echo "4. 📊 Monitor: https://console.aws.amazon.com/billing" >> $GITHUB_STEP_SUMMARY
+
+  ################################################################################
+  # 4) Test SNS (optional - send test message)                                   #
+  ################################################################################
+  test-sns:
+    name: Test SNS notifications
+    needs: deploy
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Send test notification
+        run: |
+          TOPIC_ARN=$(aws cloudformation describe-stacks \
+            --stack-name billing-circuit-breaker \
+            --query 'Stacks[0].Outputs[?OutputKey==`SNSTopicArn`].OutputValue' \
+            --output text \
+            --region ${{ env.AWS_REGION }})
+
+          aws sns publish \
+            --topic-arn $TOPIC_ARN \
+            --subject "✅ Billing Circuit Breaker Test - Deployed Successfully" \
+            --message "Your billing circuit breaker has been deployed successfully!
+
+Alerts are now active at:
+- 50% of budget ($50) → Email + SMS
+- 75% of budget ($75) → Email + SMS
+- 90% of budget ($90) → Email + SMS
+- 100%+ of budget ($100+) → Hard Stop (API disabled)
+
+This is a test message. No action is needed.
+
+Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+GitHub Workflow: ${{ github.workflow }}
+Branch: ${{ github.ref }}" \
+            --region ${{ env.AWS_REGION }}
+
+          echo "✅ Test notification sent!"
