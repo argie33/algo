@@ -1156,7 +1156,7 @@ jobs:
             --arg dbSecretArn "arn:aws:secretsmanager:us-east-1:626216981288:secret:rds-stocks-secret" \
             '.containerDefinitions |= map(if .name == $containerName then
               .image = $imageUri |
-              .environment = ((.environment // []) | map(select(.name | IN("PATH", "HOME", "AWS_DEFAULT_REGION", "PYTHONUNBUFFERED") or .name == "DB_PASSWORD")) + [
+              .environment = ((.environment // []) | map(select(.name == "PATH" or .name == "HOME" or .name == "AWS_DEFAULT_REGION" or .name == "PYTHONUNBUFFERED" or .name == "DB_PASSWORD")) + [
                 {"name": "AWS_REGION", "value": "us-east-1"},
                 {"name": "DB_SECRET_ARN", "value": $dbSecretArn},
                 {"name": "DB_HOST", "value": "rds-stocks.c2gujitq3h1b.us-east-1.rds.amazonaws.com"},
