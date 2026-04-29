@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 # TRIGGER: 20260429_160100 - Batch 5: Quarterly cash flow loader - WITH DB_PASSWORD FIX
+"""
+Quarterly Cash Flow Loader
+Loads quarterly cash flow data from yfinance
+"""
 
 import sys
 import logging

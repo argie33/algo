@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+"""
+Monthly Buy/Sell Signals Loader
+Loads monthly buy/sell trading signals from multiple sources
+"""
 import os
 import sys
 import json

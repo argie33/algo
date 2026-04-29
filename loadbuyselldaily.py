@@ -1,6 +1,10 @@
-# AWS DEPLOYMENT: 2026-01-27_142000 - ECS cluster production deployment
 #!/usr/bin/env python3
+# AWS DEPLOYMENT: 2026-01-27_142000 - ECS cluster production deployment
 # CRITICAL: Buy/Sell signals table missing from database. Must run to enable trading signal pages
+"""
+Daily Buy/Sell Signals Loader
+Loads daily buy/sell trading signals from multiple sources
+"""
 # Trigger: 2026-01-27_142000 - Deploy to AWS ECS with consolidated Docker images
 # Trigger: 2026-01-27 - Production AWS RDS with schema fixes and consolidated loaders
 #

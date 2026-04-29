@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 # Triggered: 2026-04-28 14:45 UTC - Batch 3 Parallel Load
+"""
+ETF Weekly Price Loader
+Loads weekly OHLCV price data for ETFs from yfinance
+"""
 import sys
 import time
 import logging

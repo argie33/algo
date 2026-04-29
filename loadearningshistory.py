@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # Triggered: 2026-04-28 14:55 UTC - Batch 5 Final Data
 # Database population with full earnings history records
+"""
+Earnings History Loader
+Loads historical earnings data from yfinance
+"""
 import sys
 import time
 import logging

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 # Triggered: 2026-04-28 14:50 UTC - Batch 4 Financial Statements
+"""
+Quarterly Balance Sheet Loader
+Loads quarterly balance sheet data from yfinance
+"""
 
 import sys
 import logging

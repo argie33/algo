@@ -2,6 +2,10 @@
 # ETF Daily Price Data Loader - fetches OHLCV data for ETFs only
 # Triggered: 2026-04-28 14:40 UTC - AWS Batch 2 Parallel Execution (3 concurrent)
 # Cloud Strategy: Concurrent ECS Fargate + Lambda for event-driven jobs
+"""
+ETF Daily Price Loader
+Loads daily OHLCV price data for ETFs from yfinance
+"""
 import sys
 import time
 import logging
