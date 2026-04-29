@@ -423,13 +423,8 @@ def main():
     cur.execute("TRUNCATE TABLE stock_scores")
     logger.info("Cleared old scores from database")
 
-    # OPTIMIZED: Batch insert 1000+ rows at once (not individual INSERT statements)
-    # This reduces database round-trips and commit overhead significantly
     saved = 0
     failed = 0
-    batch_rows = []
-    BATCH_SIZE = 1000
-
     for idx, symbol in enumerate(df.index):
         try:
             composite_val = df.iloc[idx]['composite_score']
@@ -451,59 +446,33 @@ def main():
             stability = None if pd.isna(stability_val) else float(stability_val)
             momentum_intraweek = None if pd.isna(momentum_intraweek_val) else float(momentum_intraweek_val)
 
-            batch_rows.append((symbol, composite, quality, growth, value, momentum, positioning, stability, momentum_intraweek))
+            cur.execute("""
+                INSERT INTO stock_scores (symbol, composite_score, quality_score, growth_score, value_score,
+                                          momentum_score, positioning_score, stability_score, momentum_intraweek, score_date, last_updated)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_DATE, CURRENT_TIMESTAMP)
+                ON CONFLICT (symbol) DO UPDATE SET
+                    composite_score = EXCLUDED.composite_score,
+                    quality_score = EXCLUDED.quality_score,
+                    growth_score = EXCLUDED.growth_score,
+                    value_score = EXCLUDED.value_score,
+                    momentum_score = EXCLUDED.momentum_score,
+                    positioning_score = EXCLUDED.positioning_score,
+                    stability_score = EXCLUDED.stability_score,
+                    momentum_intraweek = EXCLUDED.momentum_intraweek,
+                    score_date = CURRENT_DATE,
+                    last_updated = CURRENT_TIMESTAMP
+            """, (symbol, composite, quality, growth, value, momentum, positioning, stability, momentum_intraweek))
 
-            # When batch reaches BATCH_SIZE, execute batch insert
-            if len(batch_rows) >= BATCH_SIZE:
-                from psycopg2.extras import execute_values
-                execute_values(cur, """
-                    INSERT INTO stock_scores (symbol, composite_score, quality_score, growth_score, value_score,
-                                              momentum_score, positioning_score, stability_score, momentum_intraweek, score_date, last_updated)
-                    VALUES %s
-                    ON CONFLICT (symbol) DO UPDATE SET
-                        composite_score = EXCLUDED.composite_score,
-                        quality_score = EXCLUDED.quality_score,
-                        growth_score = EXCLUDED.growth_score,
-                        value_score = EXCLUDED.value_score,
-                        momentum_score = EXCLUDED.momentum_score,
-                        positioning_score = EXCLUDED.positioning_score,
-                        stability_score = EXCLUDED.stability_score,
-                        momentum_intraweek = EXCLUDED.momentum_intraweek,
-                        score_date = CURRENT_DATE,
-                        last_updated = CURRENT_TIMESTAMP
-                """, batch_rows)
-                saved += len(batch_rows)
+            saved += 1
+            if saved % 1000 == 0:
                 conn.commit()
-                logger.info(f"  Batch inserted {len(batch_rows)} scores. Total: {saved}/{len(df)}")
-                batch_rows = []
-
+                logger.info(f"  Saved {saved}/{len(df)} scores...")
         except Exception as e:
-            logger.warning(f"Error processing {symbol}: {e}")
+            logger.warning(f"Error saving {symbol}: {e}")
             failed += 1
 
-    # Insert remaining rows
-    if batch_rows:
-        from psycopg2.extras import execute_values
-        execute_values(cur, """
-            INSERT INTO stock_scores (symbol, composite_score, quality_score, growth_score, value_score,
-                                      momentum_score, positioning_score, stability_score, momentum_intraweek, score_date, last_updated)
-            VALUES %s
-            ON CONFLICT (symbol) DO UPDATE SET
-                composite_score = EXCLUDED.composite_score,
-                quality_score = EXCLUDED.quality_score,
-                growth_score = EXCLUDED.growth_score,
-                value_score = EXCLUDED.value_score,
-                momentum_score = EXCLUDED.momentum_score,
-                positioning_score = EXCLUDED.positioning_score,
-                stability_score = EXCLUDED.stability_score,
-                momentum_intraweek = EXCLUDED.momentum_intraweek,
-                score_date = CURRENT_DATE,
-                last_updated = CURRENT_TIMESTAMP
-        """, batch_rows)
-        saved += len(batch_rows)
-
     conn.commit()
-    logger.info(f"Saved {saved} / {len(df)} stocks ({100*saved/len(df):.1f}%). Failed: {failed}")
+    logger.info(f" Saved {saved} / {len(df)} stocks ({100*saved/len(df):.1f}%). Failed: {failed}")
 
     # Restore company names that were saved
     if company_names:
