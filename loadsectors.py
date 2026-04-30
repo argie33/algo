@@ -682,156 +682,194 @@ def populate_industry_performance(conn):
         cursor.close()
 
 
+def process_sector_technical_data(sector_name):
+    """Worker function: Process technical data for a single sector (thread-safe)"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT
+              pd.date,
+              SUM(pd.close * md.market_cap) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN md.market_cap ELSE 0 END), 0) as weighted_close,
+              SUM(pd.volume) as total_vol
+            FROM company_profile cp
+            JOIN price_daily pd ON cp.ticker = pd.symbol
+            INNER JOIN market_data md ON cp.ticker = md.symbol
+            WHERE cp.sector = %s AND md.market_cap > 0
+            GROUP BY pd.date
+            ORDER BY pd.date ASC
+        """, (sector_name,))
+
+        data = cursor.fetchall()
+        if not data:
+            cursor.close()
+            conn.close()
+            return {"sector": sector_name, "status": "success", "rows": 0}
+
+        valid_data = [(row[0], row[1], row[2]) for row in data if row[1] is not None]
+        if not valid_data:
+            cursor.close()
+            conn.close()
+            return {"sector": sector_name, "status": "success", "rows": 0}
+
+        dates = [row[0] for row in valid_data]
+        prices = np.array([float(row[1]) for row in valid_data])
+        volumes = [int(row[2]) if row[2] is not None else 0 for row in valid_data]
+
+        rsi_values = [None] * len(prices)
+        if len(prices) >= 14:
+            for rsi_i in range(len(prices)):
+                rsi_values[rsi_i] = calculate_rsi(prices[:rsi_i+1])
+
+        rows_inserted = 0
+        for i, date in enumerate(dates):
+            ma20 = float(np.mean(prices[max(0, i-19):i+1])) if i >= 19 else None
+            ma50 = float(np.mean(prices[max(0, i-49):i+1])) if i >= 49 else None
+            ma200 = float(np.mean(prices[max(0, i-199):i+1])) if i >= 199 else None
+            rsi = rsi_values[i]
+
+            cursor.execute("""
+                INSERT INTO sector_technical_data
+                (sector, date, close_price, ma_20, ma_50, ma_200, rsi, volume)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (sector, date) DO UPDATE SET
+                ma_20 = EXCLUDED.ma_20, ma_50 = EXCLUDED.ma_50, ma_200 = EXCLUDED.ma_200,
+                rsi = EXCLUDED.rsi, volume = EXCLUDED.volume
+            """, (sector_name, date, float(prices[i]), ma20, ma50, ma200, rsi, volumes[i]))
+            rows_inserted += 1
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return {"sector": sector_name, "status": "success", "rows": rows_inserted}
+    except Exception as e:
+        logger.warning(f"  Error processing sector {sector_name}: {e}")
+        return {"sector": sector_name, "status": "error", "error": str(e)}
+
+
+def process_industry_technical_data(industry_name):
+    """Worker function: Process technical data for a single industry (thread-safe)"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT
+              pd.date,
+              SUM(pd.close * md.market_cap) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN md.market_cap ELSE 0 END), 0) as weighted_close,
+              SUM(pd.volume) as total_vol
+            FROM company_profile cp
+            JOIN price_daily pd ON cp.ticker = pd.symbol
+            INNER JOIN market_data md ON cp.ticker = md.symbol
+            WHERE cp.industry = %s AND md.market_cap > 0
+            GROUP BY pd.date
+            ORDER BY pd.date ASC
+        """, (industry_name,))
+
+        data = cursor.fetchall()
+        if not data:
+            cursor.close()
+            conn.close()
+            return {"industry": industry_name, "status": "success", "rows": 0}
+
+        valid_data = [(row[0], row[1], row[2]) for row in data if row[1] is not None]
+        if not valid_data:
+            cursor.close()
+            conn.close()
+            return {"industry": industry_name, "status": "success", "rows": 0}
+
+        dates = [row[0] for row in valid_data]
+        prices = np.array([float(row[1]) for row in valid_data])
+        volumes = [int(row[2]) if row[2] is not None else 0 for row in valid_data]
+
+        rsi_values = [None] * len(prices)
+        if len(prices) >= 14:
+            for rsi_i in range(len(prices)):
+                rsi_values[rsi_i] = calculate_rsi(prices[:rsi_i+1])
+
+        rows_inserted = 0
+        for i, date in enumerate(dates):
+            ma20 = float(np.mean(prices[max(0, i-19):i+1])) if i >= 19 else None
+            ma50 = float(np.mean(prices[max(0, i-49):i+1])) if i >= 49 else None
+            ma200 = float(np.mean(prices[max(0, i-199):i+1])) if i >= 199 else None
+            rsi = rsi_values[i]
+
+            cursor.execute("""
+                INSERT INTO industry_technical_data
+                (industry, date, close_price, ma_20, ma_50, ma_200, rsi, volume)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (industry, date) DO UPDATE SET
+                ma_20 = EXCLUDED.ma_20, ma_50 = EXCLUDED.ma_50, ma_200 = EXCLUDED.ma_200,
+                rsi = EXCLUDED.rsi, volume = EXCLUDED.volume
+            """, (industry_name, date, float(prices[i]), ma20, ma50, ma200, rsi, volumes[i]))
+            rows_inserted += 1
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return {"industry": industry_name, "status": "success", "rows": rows_inserted}
+    except Exception as e:
+        logger.warning(f"  Error processing industry {industry_name}: {e}")
+        return {"industry": industry_name, "status": "error", "error": str(e)}
+
+
 def populate_technical_data(conn):
     """
     Populate sector_technical_data and industry_technical_data tables
     with 200-day price history, moving averages, and RSI indicators
     Uses MARKET-CAP WEIGHTED calculations for accuracy
+    OPTIMIZED: Parallel processing with 5 workers for both sectors and industries
     """
     logger.info(" Populating technical data tables...")
     cursor = conn.cursor()
 
     try:
-        # Process sectors
+        # Get list of sectors to process
         cursor.execute("SELECT DISTINCT sector FROM company_profile WHERE sector IS NOT NULL ORDER BY sector")
         sectors = [row[0] for row in cursor.fetchall()]
-        logger.info(f"  Processing {len(sectors)} sectors...")
+        cursor.close()
+        logger.info(f"  Processing {len(sectors)} sectors in parallel...")
 
-        for sector in sectors:
-            try:
-                # Market-cap weighted average price calculation for each date
-                cursor.execute("""
-                    SELECT
-                      pd.date,
-                      SUM(pd.close * md.market_cap) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN md.market_cap ELSE 0 END), 0) as weighted_close,
-                      SUM(pd.volume) as total_vol
-                    FROM company_profile cp
-                    JOIN price_daily pd ON cp.ticker = pd.symbol
-                    INNER JOIN market_data md ON cp.ticker = md.symbol
-                    WHERE cp.sector = %s AND md.market_cap > 0
-                    GROUP BY pd.date
-                    ORDER BY pd.date ASC
-                """, (sector,))
+        completed_sectors = 0
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = {executor.submit(process_sector_technical_data, sector): sector for sector in sectors}
 
-                data = cursor.fetchall()
-                if not data:
-                    continue
+            for future in as_completed(futures):
+                result = future.result()
+                completed_sectors += 1
+                if result["status"] == "success":
+                    logger.info(f"  ✓ Sector {result['sector']}: {result['rows']} rows ({completed_sectors}/{len(sectors)})")
+                else:
+                    logger.warning(f"  ✗ Sector {result['sector']}: {result.get('error', 'Unknown error')} ({completed_sectors}/{len(sectors)})")
 
-                valid_data = [(row[0], row[1], row[2]) for row in data if row[1] is not None]
-                if not valid_data:
-                    continue
+        logger.info(f"   Completed {completed_sectors}/{len(sectors)} sectors")
 
-                dates = [row[0] for row in valid_data]
-                prices = np.array([float(row[1]) for row in valid_data])
-                volumes = [int(row[2]) if row[2] is not None else 0 for row in valid_data]
-
-                # Pre-calculate RSI for all prices if enough data
-                rsi_values = [None] * len(prices)
-                if len(prices) >= 14:
-                    for rsi_i in range(len(prices)):
-                        rsi_values[rsi_i] = calculate_rsi(prices[:rsi_i+1])
-
-                # Calculate moving averages and RSI for each row
-                for i, date in enumerate(dates):
-                    # Moving averages (only when sufficient data exists)
-                    ma20 = float(np.mean(prices[max(0, i-19):i+1])) if i >= 19 else None
-                    ma50 = float(np.mean(prices[max(0, i-49):i+1])) if i >= 49 else None
-                    ma200 = float(np.mean(prices[max(0, i-199):i+1])) if i >= 199 else None
-
-                    # RSI from pre-calculated values
-                    rsi = rsi_values[i]
-
-                    cursor.execute("""
-                        INSERT INTO sector_technical_data
-                        (sector, date, close_price, ma_20, ma_50, ma_200, rsi, volume)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (sector, date) DO UPDATE SET
-                        ma_20 = EXCLUDED.ma_20, ma_50 = EXCLUDED.ma_50, ma_200 = EXCLUDED.ma_200,
-                        rsi = EXCLUDED.rsi, volume = EXCLUDED.volume
-                    """, (sector, date, float(prices[i]), ma20, ma50, ma200, rsi, volumes[i]))
-
-                conn.commit()
-            except Exception as e:
-                logger.warning(f"  Error processing sector {sector}: {e}")
-                conn.rollback()
-                continue
-
-        logger.info(f"   Processed {len(sectors)} sectors")
-
-        # Process industries
+        # Get list of industries to process
+        cursor = conn.cursor()
         cursor.execute("SELECT DISTINCT industry FROM company_profile WHERE industry IS NOT NULL ORDER BY industry")
         industries = [row[0] for row in cursor.fetchall()]
-        logger.info(f"  Processing {len(industries)} industries...")
+        cursor.close()
+        logger.info(f"  Processing {len(industries)} industries in parallel...")
 
-        for industry in industries:
-            try:
-                # Market-cap weighted average price calculation for each date
-                cursor.execute("""
-                    SELECT
-                      pd.date,
-                      SUM(pd.close * md.market_cap) / NULLIF(SUM(CASE WHEN pd.close IS NOT NULL THEN md.market_cap ELSE 0 END), 0) as weighted_close,
-                      SUM(pd.volume) as total_vol
-                    FROM company_profile cp
-                    JOIN price_daily pd ON cp.ticker = pd.symbol
-                    INNER JOIN market_data md ON cp.ticker = md.symbol
-                    WHERE cp.industry = %s AND md.market_cap > 0
-                    GROUP BY pd.date
-                    ORDER BY pd.date ASC
-                """, (industry,))
+        completed_industries = 0
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = {executor.submit(process_industry_technical_data, industry): industry for industry in industries}
 
-                data = cursor.fetchall()
-                if not data:
-                    continue
+            for future in as_completed(futures):
+                result = future.result()
+                completed_industries += 1
+                if result["status"] == "success":
+                    logger.info(f"  ✓ Industry {result['industry']}: {result['rows']} rows ({completed_industries}/{len(industries)})")
+                else:
+                    logger.warning(f"  ✗ Industry {result['industry']}: {result.get('error', 'Unknown error')} ({completed_industries}/{len(industries)})")
 
-                valid_data = [(row[0], row[1], row[2]) for row in data if row[1] is not None]
-                if not valid_data:
-                    continue
-
-                dates = [row[0] for row in valid_data]
-                prices = np.array([float(row[1]) for row in valid_data])
-                volumes = [int(row[2]) if row[2] is not None else 0 for row in valid_data]
-
-                # Pre-calculate RSI for all prices if enough data
-                rsi_values = [None] * len(prices)
-                if len(prices) >= 14:
-                    for rsi_i in range(len(prices)):
-                        rsi_values[rsi_i] = calculate_rsi(prices[:rsi_i+1])
-
-                # Calculate moving averages and RSI for each row
-                for i, date in enumerate(dates):
-                    # Moving averages (only when sufficient data exists)
-                    ma20 = float(np.mean(prices[max(0, i-19):i+1])) if i >= 19 else None
-                    ma50 = float(np.mean(prices[max(0, i-49):i+1])) if i >= 49 else None
-                    ma200 = float(np.mean(prices[max(0, i-199):i+1])) if i >= 199 else None
-
-                    # RSI from pre-calculated values
-                    rsi = rsi_values[i]
-
-                    cursor.execute("""
-                        INSERT INTO industry_technical_data
-                        (industry, date, close_price, ma_20, ma_50, ma_200, rsi, volume)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (industry, date) DO UPDATE SET
-                        ma_20 = EXCLUDED.ma_20, ma_50 = EXCLUDED.ma_50, ma_200 = EXCLUDED.ma_200,
-                        rsi = EXCLUDED.rsi, volume = EXCLUDED.volume
-                    """, (industry, date, float(prices[i]), ma20, ma50, ma200, rsi, volumes[i]))
-
-                conn.commit()
-            except Exception as e:
-                logger.warning(f"  Error processing industry {industry}: {e}")
-                conn.rollback()
-                continue
-
-        logger.info(f"   Processed {len(industries)} industries")
-        logger.info(" Technical data population completed!")
+        logger.info(f"   Completed {completed_industries}/{len(industries)} industries")
         return True
 
     except Exception as e:
         logger.error(f" Error populating technical data: {e}")
-        conn.rollback()
         return False
-    finally:
-        cursor.close()
 
 
 def main():

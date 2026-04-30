@@ -7,6 +7,8 @@ import sys
 import psycopg2
 import pandas as pd
 import numpy as np
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
 from datetime import datetime
 import logging
 import os
@@ -128,8 +130,31 @@ def calculate_weighted_score(df, metric_columns, weights=None):
     combined = np.where(weight_sum > 0, weighted_sum / weight_sum, np.nan)
     return combined
 
+def load_metric_set(metric_set_name, query, columns):
+    """Worker function: Load a single metric set in parallel (thread-safe)"""
+    try:
+        cfg = get_db_config()
+        conn = psycopg2.connect(host=cfg["host"], port=cfg["port"], user=cfg["user"], password=cfg["password"], dbname=cfg["database"])
+        cur = conn.cursor()
+        cur.execute(query)
+        data = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        if data:
+            df = pd.DataFrame(data, columns=columns).set_index('symbol')
+            logger.info(f"  ✓ {metric_set_name}: {df.shape[0]} stocks")
+            return {"name": metric_set_name, "status": "success", "data": df}
+        else:
+            logger.info(f"  ○ {metric_set_name}: No data")
+            return {"name": metric_set_name, "status": "no_data", "data": None}
+    except Exception as e:
+        logger.warning(f"  ✗ {metric_set_name}: {e}")
+        return {"name": metric_set_name, "status": "error", "error": str(e), "data": None}
+
+
 def load_comprehensive_metrics(conn):
-    """Load all comprehensive metric data from all metric tables"""
+    """Load all comprehensive metric data from all metric tables in parallel"""
     logger.info("Loading comprehensive metric data...")
     cur = conn.cursor()
 
@@ -140,122 +165,90 @@ def load_comprehensive_metrics(conn):
         ORDER BY symbol
     """)
     symbols = [row[0] for row in cur.fetchall()]
+    cur.close()
     logger.info(f" Loading metrics for all {len(symbols)} stocks (will calculate scores from available data)")
 
     df = pd.DataFrame(index=symbols)
     df.index.name = 'symbol'
 
-    # ===== QUALITY METRICS =====
-    logger.info("Loading quality metrics...")
-    cur.execute("""
-        SELECT DISTINCT ON (symbol) symbol, return_on_equity_pct, return_on_assets_pct, gross_margin_pct, operating_margin_pct, profit_margin_pct,
-               debt_to_equity, current_ratio, quick_ratio, return_on_invested_capital_pct,
-               earnings_beat_rate, earnings_surprise_avg,
-               fcf_to_net_income, operating_cf_to_net_income
-        FROM quality_metrics
-        ORDER BY symbol, date DESC
-    """)
-    quality_data = cur.fetchall()
-    if quality_data:
-        quality_df = pd.DataFrame(quality_data, columns=[
-            'symbol', 'roe', 'roa', 'gross_margin', 'operating_margin', 'profit_margin',
-            'debt_to_equity', 'current_ratio', 'quick_ratio', 'roic',
-            'earnings_beat_rate', 'earnings_surprise_avg',
-            'fcf_to_ni', 'ocf_to_ni'
-        ]).set_index('symbol')
-        df = df.join(quality_df, how='left')
-        logger.info(f"  Loaded quality metrics for {quality_df.shape[0]} stocks")
+    # Define all metric sets to load in parallel
+    metric_sets = [
+        ("quality_metrics", """
+            SELECT DISTINCT ON (symbol) symbol, return_on_equity_pct, return_on_assets_pct, gross_margin_pct, operating_margin_pct, profit_margin_pct,
+                   debt_to_equity, current_ratio, quick_ratio, return_on_invested_capital_pct,
+                   earnings_beat_rate, earnings_surprise_avg,
+                   fcf_to_net_income, operating_cf_to_net_income
+            FROM quality_metrics
+            ORDER BY symbol, date DESC
+        """, ['symbol', 'roe', 'roa', 'gross_margin', 'operating_margin', 'profit_margin',
+              'debt_to_equity', 'current_ratio', 'quick_ratio', 'roic',
+              'earnings_beat_rate', 'earnings_surprise_avg',
+              'fcf_to_ni', 'ocf_to_ni']),
 
-    # ===== GROWTH METRICS =====
-    logger.info("Loading growth metrics...")
-    cur.execute("""
-        SELECT DISTINCT ON (symbol) symbol,
-            revenue_growth_3y_cagr, eps_growth_3y_cagr, fcf_growth_yoy, ocf_growth_yoy,
-            net_income_growth_yoy, revenue_growth_yoy,
-            roe_trend, quarterly_growth_momentum, operating_income_growth_yoy
-        FROM growth_metrics
-        ORDER BY symbol, date DESC
-    """)
-    growth_data = cur.fetchall()
-    if growth_data:
-        growth_df = pd.DataFrame(growth_data, columns=[
-            'symbol', 'rev_3y_cagr', 'eps_3y_cagr', 'fcf_growth', 'ocf_growth',
-            'ni_growth', 'rev_growth',
-            'roe_trend', 'quarterly_growth_momentum', 'oi_growth'
-        ]).set_index('symbol')
-        df = df.join(growth_df, how='left')
-        logger.info(f"  Loaded growth metrics for {growth_df.shape[0]} stocks")
+        ("growth_metrics", """
+            SELECT DISTINCT ON (symbol) symbol,
+                revenue_growth_3y_cagr, eps_growth_3y_cagr, fcf_growth_yoy, ocf_growth_yoy,
+                net_income_growth_yoy, revenue_growth_yoy,
+                roe_trend, quarterly_growth_momentum, operating_income_growth_yoy
+            FROM growth_metrics
+            ORDER BY symbol, date DESC
+        """, ['symbol', 'rev_3y_cagr', 'eps_3y_cagr', 'fcf_growth', 'ocf_growth',
+              'ni_growth', 'rev_growth',
+              'roe_trend', 'quarterly_growth_momentum', 'oi_growth']),
 
-    # ===== STABILITY METRICS =====
-    logger.info("Loading stability metrics...")
-    cur.execute("""
-        SELECT DISTINCT ON (symbol) symbol, beta, volatility_12m, downside_volatility, max_drawdown_52w, volume_consistency
-        FROM stability_metrics
-        ORDER BY symbol, date DESC
-    """)
-    stability_data = cur.fetchall()
-    if stability_data:
-        stability_df = pd.DataFrame(stability_data, columns=[
-            'symbol', 'beta', 'volatility_12m', 'downside_vol', 'max_drawdown', 'volume_consistency'
-        ]).set_index('symbol')
-        df = df.join(stability_df, how='left')
-        logger.info(f"  Loaded stability metrics for {stability_df.shape[0]} stocks")
+        ("stability_metrics", """
+            SELECT DISTINCT ON (symbol) symbol, beta, volatility_12m, downside_volatility, max_drawdown_52w, volume_consistency
+            FROM stability_metrics
+            ORDER BY symbol, date DESC
+        """, ['symbol', 'beta', 'volatility_12m', 'downside_vol', 'max_drawdown', 'volume_consistency']),
 
-    # ===== MOMENTUM METRICS =====
-    logger.info("Loading momentum metrics...")
-    cur.execute("""
-        SELECT symbol, current_price, momentum_1m, momentum_3m, momentum_6m, momentum_12m,
-               price_vs_sma_50, price_vs_sma_200, price_vs_52w_high
-        FROM momentum_metrics
-        WHERE (symbol, date) IN (
-            SELECT symbol, MAX(date) FROM momentum_metrics GROUP BY symbol
-        )
-    """)
-    momentum_data = cur.fetchall()
-    if momentum_data:
-        momentum_df = pd.DataFrame(momentum_data, columns=[
-            'symbol', 'price', 'momentum_1m', 'momentum_3m', 'momentum_6m', 'momentum_12m',
-            'sma_50', 'sma_200', 'high_52w'
-        ]).set_index('symbol')
-        df = df.join(momentum_df, how='left')
-        logger.info(f"  Loaded momentum metrics for {momentum_df.shape[0]} stocks")
+        ("momentum_metrics", """
+            SELECT symbol, current_price, momentum_1m, momentum_3m, momentum_6m, momentum_12m,
+                   price_vs_sma_50, price_vs_sma_200, price_vs_52w_high
+            FROM momentum_metrics
+            WHERE (symbol, date) IN (
+                SELECT symbol, MAX(date) FROM momentum_metrics GROUP BY symbol
+            )
+        """, ['symbol', 'price', 'momentum_1m', 'momentum_3m', 'momentum_6m', 'momentum_12m',
+              'sma_50', 'sma_200', 'high_52w']),
 
-    # ===== VALUE METRICS =====
-    logger.info("Loading value metrics...")
-    cur.execute("""
-        SELECT DISTINCT ON (symbol) symbol, trailing_pe as pe_ratio, price_to_book, price_to_sales_ttm, peg_ratio, dividend_yield,
-               ev_to_ebitda, ev_to_revenue
-        FROM value_metrics
-        ORDER BY symbol, date DESC
-    """)
-    value_data = cur.fetchall()
-    if value_data:
-        value_df = pd.DataFrame(value_data, columns=[
-            'symbol', 'pe_ratio', 'pb_ratio', 'ps_ratio', 'peg_ratio', 'div_yield',
-            'ev_to_ebitda', 'ev_to_revenue'
-        ]).set_index('symbol')
-        df = df.join(value_df, how='left')
-        logger.info(f"  Loaded value metrics for {value_df.shape[0]} stocks")
+        ("value_metrics", """
+            SELECT DISTINCT ON (symbol) symbol, trailing_pe as pe_ratio, price_to_book, price_to_sales_ttm, peg_ratio, dividend_yield,
+                   ev_to_ebitda, ev_to_revenue
+            FROM value_metrics
+            ORDER BY symbol, date DESC
+        """, ['symbol', 'pe_ratio', 'pb_ratio', 'ps_ratio', 'peg_ratio', 'div_yield',
+              'ev_to_ebitda', 'ev_to_revenue']),
 
-    # ===== POSITIONING METRICS =====
-    logger.info("Loading positioning metrics...")
-    cur.execute("""
-        SELECT symbol, institutional_ownership_pct, insider_ownership_pct,
-               short_ratio, short_interest_pct, ad_rating
-        FROM positioning_metrics
-    """)
-    positioning_data = cur.fetchall()
-    if positioning_data:
-        positioning_df = pd.DataFrame(positioning_data, columns=[
-            'symbol', 'institutional_ownership_pct', 'insider_ownership_pct', 'short_ratio', 'short_interest_pct',
-            'ad_rating'
-        ]).set_index('symbol')
-        df = df.join(positioning_df, how='left')
-        logger.info(f"  Loaded positioning metrics for {positioning_df.shape[0]} stocks")
-    else:
-        logger.warning("  No positioning metrics found - using NULL values")
+        ("positioning_metrics", """
+            SELECT symbol, institutional_ownership_pct, insider_ownership_pct,
+                   short_ratio, short_interest_pct, ad_rating
+            FROM positioning_metrics
+        """, ['symbol', 'institutional_ownership_pct', 'insider_ownership_pct', 'short_ratio', 'short_interest_pct',
+              'ad_rating']),
+    ]
 
-    cur.close()
+    # Load all metric sets in parallel with 5 workers
+    logger.info(f"Loading {len(metric_sets)} metric sets in parallel...")
+    completed = 0
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {executor.submit(load_metric_set, name, query, cols): name
+                   for name, query, cols in metric_sets}
+
+        for future in as_completed(futures):
+            result = future.result()
+            completed += 1
+            metric_name = result["name"]
+
+            if result["status"] == "success" and result["data"] is not None:
+                df = df.join(result["data"], how='left')
+                logger.info(f"  Joined {metric_name} data ({completed}/{len(metric_sets)})")
+            elif result["status"] == "no_data":
+                logger.info(f"  No data for {metric_name} ({completed}/{len(metric_sets)})")
+            else:
+                logger.warning(f"  Error loading {metric_name}: {result.get('error', 'Unknown')} ({completed}/{len(metric_sets)})")
+
+    logger.info(f"✓ Loaded all {completed} metric sets in parallel")
     return df
 
 def main():

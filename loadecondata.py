@@ -8,6 +8,8 @@ import json
 import logging
 import requests
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
 from datetime import datetime, timedelta
 import io
 
@@ -540,6 +542,45 @@ def handler(event, context):
             "UMCSENT","RSXFS","EMSRATIO"
         ]
 
+        def fetch_fred_series(series_id):
+            """Worker function: Fetch and upsert a single FRED series (thread-safe)"""
+            try:
+                fred = Fred(api_key=FRED_API_KEY)
+                logger.info(f"Fetching {series_id} …")
+                ts = fred.get_series(series_id)
+
+                if ts is None or ts.empty:
+                    logger.warning(f"No data for {series_id}")
+                    return {"series": series_id, "status": "no_data", "rows": 0}
+
+                ts = ts.dropna()
+                rows = [(series_id, pd.to_datetime(dt).date(), float(val)) for dt, val in ts.items()]
+
+                # Upsert with thread-safe connection
+                temp_conn = get_db_creds()
+                temp_db = psycopg2.connect(**temp_conn)
+                temp_cur = temp_db.cursor()
+
+                execute_values(
+                    temp_cur,
+                    """
+                    INSERT INTO economic_data (series_id, date, value)
+                    VALUES %s
+                    ON CONFLICT (series_id, date) DO UPDATE
+                      SET value = EXCLUDED.value;
+                    """,
+                    rows
+                )
+                temp_db.commit()
+                temp_cur.close()
+                temp_db.close()
+
+                logger.info(f"✓ {len(rows)} rows upserted for {series_id}")
+                return {"series": series_id, "status": "success", "rows": len(rows)}
+            except Exception as e:
+                logger.error(f"Failed to fetch {series_id}: {e}")
+                return {"series": series_id, "status": "error", "error": str(e)}
+
         # Initialize FRED client if API key is available
         fred = None
         if FRED_API_KEY:
@@ -552,36 +593,24 @@ def handler(event, context):
         else:
             logger.info("FRED_API_KEY not set, skipping FRED data fetching")
 
-        # 4) Fetch & upsert each series
+        # 4) Fetch & upsert each series in parallel
         if fred:
-            for sid in series_ids:
-                logger.info(f"Fetching {sid} …")
-                try:
-                    ts = fred.get_series(sid)
-                except Exception as e:
-                    logger.error(f"Failed to fetch {sid}: {e}")
-                    continue
+            logger.info(f"Fetching {len(series_ids)} FRED series with 5 workers...")
+            completed_series = 0
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                futures = {executor.submit(fetch_fred_series, sid): sid for sid in series_ids}
 
-                if ts is None or ts.empty:
-                    logger.warning(f"No data for {sid}")
-                    continue
+                for future in as_completed(futures):
+                    result = future.result()
+                    completed_series += 1
+                    if result["status"] == "success":
+                        logger.info(f"  ({completed_series}/{len(series_ids)}) {result['series']}: {result['rows']} rows")
+                    elif result["status"] == "no_data":
+                        logger.warning(f"  ({completed_series}/{len(series_ids)}) {result['series']}: No data available")
+                    else:
+                        logger.error(f"  ({completed_series}/{len(series_ids)}) {result['series']}: {result.get('error', 'Unknown error')}")
 
-                ts = ts.dropna()
-                rows = [(sid, pd.to_datetime(dt).date(), float(val)) for dt, val in ts.items()]
-
-                # bulk upsert
-                execute_values(
-                    cur,
-                    """
-                    INSERT INTO economic_data (series_id, date, value)
-                    VALUES %s
-                    ON CONFLICT (series_id, date) DO UPDATE
-                      SET value = EXCLUDED.value;
-                    """,
-                    rows
-                )
-                conn.commit()
-                logger.info(f"✓ {len(rows)} rows upserted for {sid}")
+            logger.info(f"✓ Completed fetching {completed_series} FRED series")
         else:
             logger.warning(" Skipping FRED data fetching - no API key available")
 

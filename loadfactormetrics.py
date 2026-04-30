@@ -32,6 +32,8 @@ Updated: 2026-02-08
 import sys
 import os
 import io
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
 
 # Fix Unicode encoding on Windows BEFORE any other imports that use stdout/logging
 if sys.platform == 'win32':
