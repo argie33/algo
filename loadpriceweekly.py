@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Phase 3A Trigger: 2026-04-30 - S3 Bulk COPY execution
 # Weekly price data loader - fetches weekly OHLCV data for all symbols
 # Triggered: 2026-04-28 14:40 UTC - AWS Batch 2 Parallel Execution (3 concurrent)
 # Strategy: Incremental loading with incremental data append

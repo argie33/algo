@@ -3,6 +3,7 @@
 # Strategy: Incremental loading (MAX(date) optimization) for optimal cloud sync
 # ============================================================================
 #!/usr/bin/env python3
+# Phase 3A Trigger: 2026-04-30 - S3 Bulk COPY execution
 # Daily price data loader - fetches OHLCV data for all symbols
 # CRITICAL: Populates price_daily table with OHLCV data for all 5000+ symbols
 # Required by: volatility calculations, technical indicators, momentum metrics
