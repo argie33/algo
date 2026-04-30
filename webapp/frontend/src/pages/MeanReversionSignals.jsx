@@ -52,7 +52,7 @@ import { formatCellValue, getCellAlign, getDynamicColumns } from "../utils/signa
 import api, { getApiConfig, extractResponseData } from "../services/api";
 import { ErrorDisplay, LoadingDisplay } from "../components/ui/ErrorBoundary";
 import ErrorBoundary from "../components/ErrorBoundary";
-import SignalCardAccordion from "../components/SignalCardAccordion";
+import MeanReversionAccordion from "../components/MeanReversionAccordion";
 
 const logger = {
   info: (msg) => console.log(`[MeanReversionSignals] ${msg}`),
@@ -353,7 +353,7 @@ function MeanReversionSignals() {
               </Grid>
             </Paper>
 
-            <SignalCardAccordion signals={filteredSignals.slice(page * rowsPerPage, (page + 1) * rowsPerPage)} />
+            <MeanReversionAccordion signals={filteredSignals.slice(page * rowsPerPage, (page + 1) * rowsPerPage)} />
           </>
         )}
       </ErrorBoundary>
