@@ -38,31 +38,43 @@ class DataLoadScheduler:
         self.use_ecs = os.environ.get("SCHEDULER_USE_ECS", "true").lower() == "true"
         logger.info(f"Scheduler initialized: enabled={self.schedule_enabled}, use_ecs={self.use_ecs}")
 
-    def run_loader(self, loader_name, loaders_list=None):
-        """Execute a single loader or list of loaders"""
+    def run_loader(self, loader_name, loaders_list=None, incremental=False):
+        """Execute a single loader or list of loaders
+
+        Args:
+            loader_name: Name of primary loader
+            loaders_list: List of loaders to run
+            incremental: If True, pass --incremental flag to loaders
+        """
         if isinstance(loaders_list, str):
             loaders_list = [loaders_list]
 
         loaders = loaders_list or [loader_name]
+        mode = "INCREMENTAL" if incremental else "FULL RELOAD"
 
-        logger.info(f"🚀 Starting data load: {', '.join(loaders)}")
+        logger.info(f"🚀 Starting {mode}: {', '.join(loaders)}")
 
         if self.use_ecs:
-            self._run_in_ecs(loaders)
+            self._run_in_ecs(loaders, incremental=incremental)
         else:
-            self._run_locally(loaders)
+            self._run_locally(loaders, incremental=incremental)
 
-        logger.info(f"✅ Data load completed: {', '.join(loaders)}")
+        logger.info(f"✅ Data load completed ({mode}): {', '.join(loaders)}")
 
-    def _run_locally(self, loaders):
+    def _run_locally(self, loaders, incremental=False):
         """Run loaders locally (for development)"""
         for loader in loaders:
             loader_file = f"load{loader}.py"
-            logger.info(f"Running locally: {loader_file}")
+            cmd = ["python3", loader_file]
+
+            if incremental:
+                cmd.append("--incremental")
+
+            logger.info(f"Running locally: {' '.join(cmd)}")
 
             try:
                 result = subprocess.run(
-                    ["python3", loader_file],
+                    cmd,
                     capture_output=True,
                     text=True,
                     timeout=600  # 10 minute timeout
@@ -78,19 +90,22 @@ class DataLoadScheduler:
             except Exception as e:
                 logger.error(f"❌ {loader_file} error: {str(e)}")
 
-    def _run_in_ecs(self, loaders):
+    def _run_in_ecs(self, loaders, incremental=False):
         """Run loaders in AWS ECS (for production)"""
         try:
             import boto3
             ecs_client = boto3.client("ecs", region_name=AWS_REGION)
 
             # Environment variables for task
-            container_overrides = {
-                "environment": [
-                    {"name": "LOADERS_TO_RUN", "value": ",".join(loaders)},
-                    {"name": "LOG_LEVEL", "value": "INFO"}
-                ]
-            }
+            env = [
+                {"name": "LOADERS_TO_RUN", "value": ",".join(loaders)},
+                {"name": "LOG_LEVEL", "value": "INFO"}
+            ]
+
+            if incremental:
+                env.append({"name": "INCREMENTAL_LOAD", "value": "true"})
+
+            container_overrides = {"environment": env}
 
             logger.info(f"Running in ECS cluster: {ECS_CLUSTER}")
 
@@ -125,23 +140,30 @@ class DataLoadScheduler:
 
 
 def schedule_daily_updates():
-    """Schedule daily price updates at 5:00 AM (cost: $0.05/day)"""
+    """Schedule daily INCREMENTAL price updates at 5:00 AM (cost: $0.05/day)"""
     scheduler = DataLoadScheduler()
 
-    # Daily price updates - fast and cheap
-    schedule.every().day.at("05:00").do(
-        scheduler.run_loader,
-        loader_name="pricedaily",
-        loaders_list=["pricedaily", "etfpricedaily"]
-    )
-    logger.info("📅 Daily price updates scheduled at 05:00")
+    # Daily INCREMENTAL updates - only load new data since last run
+    # Monday-Saturday: incremental load (~2-3 minutes, $0.05/day)
+    # Sunday: full reload (handled separately)
+    for day in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']:
+        getattr(schedule.every(), day).at("05:00").do(
+            scheduler.run_loader,
+            loader_name="daily_incremental",
+            loaders_list=["pricedaily", "etfpricedaily", "buyselldaily",
+                          "analystsentiment", "stockscores", "factormetrics"],
+            incremental=True
+        )
+
+    logger.info("📅 Daily INCREMENTAL updates scheduled at 05:00 (Mon-Sat)")
+    logger.info("   Expected: 2-3 minutes, $0.05/day (8x faster than full reload)")
 
 
 def schedule_weekly_updates():
-    """Schedule weekly full reload on Sunday at 2:00 AM (cost: $0.50/week)"""
+    """Schedule weekly FULL RELOAD on Sunday at 2:00 AM (cost: $0.50/week)"""
     scheduler = DataLoadScheduler()
 
-    # Weekly full reload - regenerates all signals and metrics
+    # Weekly full reload - regenerates all signals and metrics for consistency
     schedule.every().sunday.at("02:00").do(
         scheduler.run_loader,
         loader_name="weekly_full",
@@ -149,10 +171,12 @@ def schedule_weekly_updates():
             "pricedaily", "priceweekly", "pricemonthly",
             "etfpricedaily", "etfpriceweekly", "etfpricemonthly",
             "buyselldaily", "buysellweekly", "buysellmonthly",
-            "stockscores", "factormetrics"
-        ]
+            "analystsentiment", "stockscores", "factormetrics"
+        ],
+        incremental=False  # Full reload on Sunday for consistency
     )
-    logger.info("📅 Weekly full reload scheduled for Sunday at 02:00")
+    logger.info("📅 Weekly FULL RELOAD scheduled for Sunday at 02:00 ($0.50/week)")
+    logger.info("   Expected: ~20 minutes (consistency check after 6 days of incremental)")
 
 
 def schedule_advanced_updates():
