@@ -32,6 +32,7 @@ const requestLogger = require("./middleware/requestLogger");
 const { initializeDatabase, query } = require("./utils/database");
 const { initializeAlpacaSync } = require("./utils/alpacaSyncScheduler");
 const responseNormalizer = require("./middleware/responseNormalizer");
+const { cacheMiddleware } = require("./middleware/cacheMiddleware");
 const contactRoutes = require("./routes/contact");
 const commoditiesRoutes = require("./routes/commodities");
 const diagnosticsRoutes = require("./routes/diagnostics");
@@ -467,7 +468,8 @@ app.use("/api/portfolio", portfolioRoutes);
 app.use("/api/scores", scoresRoutes);
 app.use("/api/sectors", sectorsRoutes);
 app.use("/api/sentiment", sentimentRoutes);
-app.use("/api/signals", signalsRoutes);
+// Cache signals endpoint: 60 second TTL (signals update periodically)
+app.use("/api/signals", cacheMiddleware(60), signalsRoutes);
 app.use("/api/stocks", stocksRoutes);
 app.use("/api/strategies", strategiesRoutes);
 app.use("/api/trades", tradesRoutes);
