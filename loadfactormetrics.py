@@ -2800,14 +2800,14 @@ def load_value_metrics(conn, cursor, symbols: List[str]):
         if km:
             value_rows.append((
                 symbol, today,
-                km[1],         # trailing_pe
-                km[2],         # forward_pe
-                km[3],         # price_to_book
-                km[4],         # price_to_sales_ttm
-                km[5],         # peg_ratio
+                float(km[1]) if km[1] is not None else None,         # trailing_pe
+                float(km[2]) if km[2] is not None else None,         # forward_pe
+                float(km[3]) if km[3] is not None else None,         # price_to_book
+                float(km[4]) if km[4] is not None else None,         # price_to_sales_ttm
+                float(km[5]) if km[5] is not None else None,         # peg_ratio
                 ev_to_revenue, # calculated from market_cap + BS + IS
                 ev_to_ebitda,  # calculated from market_cap + BS + IS
-                km[6],         # dividend_yield
+                float(km[6]) if km[6] is not None else None,         # dividend_yield
                 None,          # payout_ratio
             ))
         else:
