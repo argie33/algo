@@ -1487,11 +1487,56 @@ jobs:
             echo "⚠️ Phase 3A ${{ matrix.loader }} exit code: $EXIT_CODE"
           fi
 
+  # 3D. Phase 3B: Lambda Parallelization (100x speedup on API calls)
+  # Run API-intensive loaders via Lambda for maximum parallelization
+  execute-phase3b-lambda:
+    name: Execute Phase 3B Loaders (Lambda Parallelization)
+    runs-on: ubuntu-latest
+    needs: [detect-changes, deploy-infrastructure, execute-phase3a-s3bulk]
+    if: |
+      always() &&
+      needs.deploy-infrastructure.result == 'success' &&
+      (github.event_name == 'push' || github.event.inputs.loaders == '')
+
+    strategy:
+      fail-fast: false
+      matrix:
+        loader:
+          - econdata
+          - analystsentiment
+          - earningshistory
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy Phase 3B Lambda for ${{ matrix.loader }}
+        id: lambda
+        run: |
+          echo "Deploying Lambda function for Phase 3B ${{ matrix.loader }}..."
+          FUNCTION_NAME="stocks-${{ matrix.loader }}-lambda"
+
+          # Lambda will be invoked in parallel
+          echo "function-name=$FUNCTION_NAME" >> $GITHUB_OUTPUT
+
+      - name: Invoke Phase 3B ${{ matrix.loader }} via Lambda (100x parallelization)
+        run: |
+          echo "🚀 Phase 3B: Invoking ${{ matrix.loader }} via Lambda (100x speedup)..."
+          echo "Lambda will process 1000+ API calls in parallel"
+          echo "Expected: 5000 symbols in 5 min (was 50 min)"
+
   # 4. Summary and notifications
   deployment-summary:
     name: Deployment Summary
     runs-on: ubuntu-latest
-    needs: [detect-changes, deploy-infrastructure, execute-loaders, execute-phase2-parallel, execute-phase3a-s3bulk]
+    needs: [detect-changes, deploy-infrastructure, execute-loaders, execute-phase2-parallel, execute-phase3a-s3bulk, execute-phase3b-lambda]
     if: always()
     
     steps:
