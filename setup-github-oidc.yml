@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'GitHub Actions OIDC Setup for CI/CD Pipeline'
+
+Parameters:
+  GitHubOrganization:
+    Type: String
+    Default: argie33
+    Description: GitHub organization name
+
+  GitHubRepository:
+    Type: String
+    Default: algo
+    Description: GitHub repository name
+
+Resources:
+  # 1. OIDC Identity Provider
+  GitHubOIDCProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - arn:aws:iam::626216981288:repo:argie33/algo:*
+      ThumbprintList:
+        - '6938fd4d98bab03faadb97b34396831e3780aea1'  # GitHub's thumbprint
+
+  # 2. IAM Role for GitHub Actions
+  GitHubActionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: GitHubActionsDeployRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub 'arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'token.actions.githubusercontent.com:aud': !Sub 'arn:aws:iam::${AWS::AccountId}:repo:${GitHubOrganization}/${GitHubRepository}:*'
+
+  # 3. Attach Permissions Policy
+  GitHubActionsPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - cloudformation:*
+              - rds:*
+              - ecs:*
+              - ec2:*
+              - iam:*
+              - s3:*
+              - ecr:*
+              - secretsmanager:*
+              - logs:*
+            Resource: '*'
+      Roles:
+        - !Ref GitHubActionsRole
+
+Outputs:
+  OIDCProviderArn:
+    Description: ARN of the OIDC Provider
+    Value: !GetAtt GitHubOIDCProvider.Arn
+    Export:
+      Name: GitHubOIDCProviderArn
+
+  GitHubActionsRoleArn:
+    Description: ARN of the GitHub Actions IAM Role
+    Value: !GetAtt GitHubActionsRole.Arn
+    Export:
+      Name: GitHubActionsRoleArn
+
+  GitHubActionsRoleName:
+    Description: Name of the GitHub Actions IAM Role
+    Value: !Ref GitHubActionsRole
+    Export:
+      Name: GitHubActionsRoleName
