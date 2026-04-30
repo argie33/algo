@@ -222,6 +222,7 @@ function App() {
     markets: true,
     stocks: true,
     portfolio: true,
+    research: true,
     admin: true,
   });
 

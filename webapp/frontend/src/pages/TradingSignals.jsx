@@ -64,7 +64,7 @@ const logger = {
 };
 
 function TradingSignals() {
-  useDocumentTitle("Trading Signals");
+  useDocumentTitle("Swing Trading Signals");
   const theme = useTheme();
   const { apiUrl: API_BASE } = getApiConfig();
 
@@ -421,59 +421,19 @@ function TradingSignals() {
   }
 
   const getSignalChip = (signal, signalDate) => {
-    const isBuy = signal === "Buy" || signal === "BUY";
-    const isSell = signal === "Sell" || signal === "SELL";
-    const isHold = signal === "Hold" || signal === "HOLD";
-    const isRecent = matchesDateRange(signalDate);
-
     return (
-      <Badge
-        badgeContent={isRecent ? <NewReleases sx={{ fontSize: 12 }} /> : 0}
-        color="secondary"
-        overlap="circular"
-      >
-        <Chip
-          label={signal || "None"}
-          size="medium"
-          icon={
-            isBuy ? (
-              <TrendingUp />
-            ) : isSell ? (
-              <TrendingDown />
-            ) : (
-              <HorizontalRule />
-            )
-          }
-          sx={{
-            backgroundColor: isBuy
-              ? theme.palette.success.main
-              : isSell
-                ? theme.palette.error.main
-                : isHold
-                  ? theme.palette.warning.main
-                  : theme.palette.action.disabled,
-            color: "white",
-            fontWeight: "bold",
-            fontSize: "0.875rem",
-            minWidth: "80px",
-            borderRadius: "16px",
-            ...(isRecent && {
-              boxShadow: isBuy
-                ? `0 0 15px ${theme.palette.success.light}40`
-                : isSell
-                  ? `0 0 15px ${theme.palette.error.light}40`
-                  : `0 0 15px ${theme.palette.primary.light}40`,
-              animation: "pulse 2s infinite",
-            }),
-            ...(isBuy && {
-              background: `linear-gradient(45deg, ${theme.palette.success.main} 30%, ${theme.palette.success.light} 90%)`,
-            }),
-            ...(isSell && {
-              background: `linear-gradient(45deg, ${theme.palette.error.main} 30%, ${theme.palette.error.light} 90%)`,
-            }),
-          }}
-        />
-      </Badge>
+      <Chip
+        label={signal || "None"}
+        size="medium"
+        sx={{
+          backgroundColor: theme.palette.action.hover,
+          color: theme.palette.text.primary,
+          fontWeight: "500",
+          fontSize: "0.875rem",
+          minWidth: "80px",
+          borderRadius: "4px",
+        }}
+      />
     );
   };
 
@@ -739,10 +699,10 @@ function TradingSignals() {
             gutterBottom
             sx={{ fontWeight: 700, color: "primary.main" }}
           >
-            🎯 Trading Signals
+            🎯 Swing Trading Signals
           </Typography>
           <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 3 }}>
-            AI-powered trading signals with real-time market analysis and
+            AI-powered swing trading signals with real-time market analysis and
             institutional-grade insights
           </Typography>
         </Box>

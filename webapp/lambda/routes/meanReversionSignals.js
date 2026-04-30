@@ -21,26 +21,17 @@ router.get('/', async (req, res, next) => {
 
     let q = `
       SELECT
-        mrs.id, mrs.symbol, mrs.date, mrs.timeframe,
-        mrs.open, mrs.high, mrs.low, mrs.close, mrs.volume,
-        mrs.signal, mrs.signal_type,
-        mrs.rsi_2, mrs.pct_above_200sma, mrs.sma_5,
-        mrs.entry_price, mrs.stop_level, mrs.target_estimate,
-        mrs.risk_pct, mrs.risk_reward_ratio,
-        mrs.confluence_score,
-        mrs.rsi_14, mrs.atr,
-        mrs.td_buy_setup_count, mrs.td_buy_setup_complete, mrs.td_buy_setup_perfected,
-        mrs.td_pressure,
-        ss.security_name
+        mrs.*,
+        ss.security_name as company_name
       FROM mean_reversion_signals_daily mrs
       LEFT JOIN stock_symbols ss ON mrs.symbol = ss.symbol
       WHERE mrs.timeframe = $1
-        AND mrs.date >= NOW() - INTERVAL '%d days'
+        AND mrs.date >= NOW() - INTERVAL '${days} days'
         AND mrs.confluence_score >= $2
     `;
 
-    const params = [timeframe, parseInt(min_confluence), days];
-    let paramCount = 3;
+    const params = [timeframe, parseInt(min_confluence)];
+    let paramCount = 2;
 
     if (signal) {
       paramCount++;

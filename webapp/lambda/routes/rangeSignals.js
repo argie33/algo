@@ -21,24 +21,16 @@ router.get('/', async (req, res, next) => {
 
     let q = `
       SELECT
-        rs.id, rs.symbol, rs.date, rs.timeframe,
-        rs.open, rs.high, rs.low, rs.close, rs.volume,
-        rs.signal, rs.signal_type,
-        rs.range_high, rs.range_low, rs.range_position, rs.range_age_days, rs.range_strength, rs.range_height_pct,
-        rs.entry_price, rs.stop_level, rs.target_1, rs.target_2,
-        rs.risk_pct, rs.risk_reward_ratio,
-        rs.rsi, rs.adx, rs.atr,
-        rs.td_buy_setup_count, rs.td_sell_setup_count, rs.td_buy_setup_complete, rs.td_sell_setup_complete,
-        rs.td_pressure,
-        ss.security_name
+        rs.*,
+        ss.security_name as company_name
       FROM range_signals_daily rs
       LEFT JOIN stock_symbols ss ON rs.symbol = ss.symbol
       WHERE rs.timeframe = $1
-        AND rs.date >= NOW() - INTERVAL '%d days'
+        AND rs.date >= NOW() - INTERVAL '${days} days'
     `;
 
-    const params = [timeframe, days];
-    let paramCount = 2;
+    const params = [timeframe];
+    let paramCount = 1;
 
     if (signal) {
       paramCount++;

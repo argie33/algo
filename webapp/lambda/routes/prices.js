@@ -9,17 +9,28 @@ router.get("/latest", async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 100, 10000);
     const offset = Math.max(0, parseInt(req.query.offset) || 0);
 
+    // OPTIMIZATION: Get max date first (fast with index) then use that value
+    const maxDateResult = await query(
+      "SELECT MAX(date) as latest_date FROM price_daily"
+    );
+    const latestDate = maxDateResult.rows[0]?.latest_date;
+
+    if (!latestDate) {
+      return sendPaginated(res, [], { limit, offset, total: 0, page: 1 });
+    }
+
     const result = await query(
       `SELECT symbol, close as price, open, high, low, volume, date
        FROM price_daily
-       WHERE date = (SELECT MAX(date) FROM price_daily)
+       WHERE date = $1
        ORDER BY symbol
-       LIMIT $1 OFFSET $2`,
-      [limit, offset]
+       LIMIT $2 OFFSET $3`,
+      [latestDate, limit, offset]
     );
 
     const countResult = await query(
-      "SELECT COUNT(DISTINCT symbol) as total FROM price_daily"
+      "SELECT COUNT(DISTINCT symbol) as total FROM price_daily WHERE date = $1",
+      [latestDate]
     );
     const total = parseInt(countResult.rows[0].total);
 

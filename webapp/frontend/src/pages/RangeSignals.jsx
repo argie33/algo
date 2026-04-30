@@ -1,325 +1,362 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useTheme } from "@mui/material/styles";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  CircularProgress,
   Container,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  FormControl,
+  FormControlLabel,
+  Grid,
+  IconButton,
+  InputAdornment,
+  InputLabel,
+  MenuItem,
   Paper,
+  Select,
+  Switch,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  CircularProgress,
-  Alert,
-  Box,
   TextField,
-  Button,
-  Grid,
-  Card,
-  CardContent,
+  Tooltip,
   Typography,
-  Collapse,
-  IconButton,
-  Chip
-} from '@mui/material';
-import { KeyboardArrowDown, KeyboardArrowUp } from '@mui/icons-material';
-import axios from 'axios';
+} from "@mui/material";
+import {
+  TrendingUp,
+  TrendingDown,
+  Analytics,
+  NewReleases,
+  FilterList,
+  Close,
+  Timeline,
+  Search,
+  Clear,
+  HorizontalRule,
+} from "@mui/icons-material";
+import { formatCurrency, formatPercentage } from "../utils/formatters";
+import { formatCellValue, getCellAlign, getDynamicColumns } from "../utils/signalTableHelpers";
+import api, { getApiConfig, extractResponseData } from "../services/api";
+import { ErrorDisplay, LoadingDisplay } from "../components/ui/ErrorBoundary";
+import ErrorBoundary from "../components/ErrorBoundary";
 
-const RangeSignals = () => {
-  const [signals, setSignals] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [expandedRows, setExpandedRows] = useState(new Set());
-  const [filters, setFilters] = useState({
-    signal: '',
-    signal_type: '',
-    symbol: '',
-    days: 30,
-    limit: 50,
-    offset: 0
-  });
-  const [pagination, setPagination] = useState({
-    total: 0,
-    page: 1,
-    totalPages: 1
-  });
+const logger = {
+  info: (msg) => console.log(`[RangeSignals] ${msg}`),
+  error: (msg) => console.error(`[RangeSignals] ${msg}`),
+  warn: (msg) => console.warn(`[RangeSignals] ${msg}`),
+};
 
-  useEffect(() => {
-    fetchSignals();
-  }, [filters]);
+function RangeSignals() {
+  useDocumentTitle("Range Trading Signals");
+  const theme = useTheme();
+  const { apiUrl: API_BASE } = getApiConfig();
 
-  const fetchSignals = async () => {
-    try {
-      setLoading(true);
+  const [signalType, setSignalType] = useState("all");
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [selectedSymbol, setSelectedSymbol] = useState(null);
+  const [historicalDialogOpen, setHistoricalDialogOpen] = useState(false);
+  const [symbolFilter, setSymbolFilter] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [days, setDays] = useState(30);
+
+  const { data: signalsData, isLoading, isError, error } = useQuery({
+    queryKey: ["rangeSignals", signalType, days, page],
+    queryFn: async () => {
       const params = new URLSearchParams();
-      if (filters.signal) params.append('signal', filters.signal);
-      if (filters.signal_type) params.append('signal_type', filters.signal_type);
-      if (filters.symbol) params.append('symbol', filters.symbol);
-      params.append('days', filters.days);
-      params.append('limit', filters.limit);
-      params.append('offset', filters.offset);
+      if (signalType !== "all") params.append("signal", signalType);
+      params.append("days", days);
+      params.append("limit", 500);
+      params.append("offset", page * 500);
 
-      const response = await axios.get(`/api/signals/range?${params}`);
-      setSignals(response.data.items || []);
-      setPagination(response.data.pagination);
-      setError(null);
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load range signals');
-      setSignals([]);
-    } finally {
-      setLoading(false);
-    }
+      const response = await api.get(`/api/signals/range?${params}`);
+      return extractResponseData(response);
+    },
+  });
+
+  const filteredSignals = signalsData?.items?.filter(
+    (signal) => !symbolFilter || signal.symbol?.toUpperCase().includes(symbolFilter.toUpperCase())
+  ) || [];
+
+  const handleSignalTypeChange = (e) => {
+    setSignalType(e.target.value);
+    setPage(0);
   };
 
-  const handleExpandClick = (id) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id);
-    } else {
-      newExpanded.add(id);
-    }
-    setExpandedRows(newExpanded);
+  const handleDaysChange = (e) => {
+    setDays(e.target.value);
+    setPage(0);
   };
 
-  const handleFilterChange = (key, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [key]: value,
-      offset: 0
-    }));
+  const handleSearch = () => {
+    setSymbolFilter(searchInput);
+    setPage(0);
   };
 
-  const handlePageChange = (newOffset) => {
-    setFilters(prev => ({
-      ...prev,
-      offset: newOffset
-    }));
+  const handleClearFilters = () => {
+    setSymbolFilter("");
+    setSearchInput("");
+    setSignalType("all");
+    setDays(30);
+    setPage(0);
   };
 
   const getSignalColor = (signal) => {
-    if (signal === 'BUY') return '#4caf50';
-    if (signal === 'SELL') return '#f44336';
-    return '#9e9e9e';
+    if (signal === "BUY") return theme.palette.success.main;
+    if (signal === "SELL") return theme.palette.error.main;
+    return theme.palette.warning.main;
   };
 
-  const ExpandableRow = ({ signal }) => (
-    <React.Fragment>
-      <TableRow>
-        <TableCell>
-          <IconButton
-            size="small"
-            onClick={() => handleExpandClick(signal.id)}
-          >
-            {expandedRows.has(signal.id) ? <KeyboardArrowUp /> : <KeyboardArrowDown />}
-          </IconButton>
-        </TableCell>
-        <TableCell>{signal.symbol}</TableCell>
-        <TableCell>{new Date(signal.date).toLocaleDateString()}</TableCell>
-        <TableCell>
-          <Chip
-            label={signal.signal}
-            size="small"
-            style={{ backgroundColor: getSignalColor(signal.signal), color: 'white' }}
-          />
-        </TableCell>
-        <TableCell>{signal.signal_type}</TableCell>
-        <TableCell>{signal.range_position?.toFixed(1)}%</TableCell>
-        <TableCell>${signal.range_high?.toFixed(2)}</TableCell>
-        <TableCell>${signal.range_low?.toFixed(2)}</TableCell>
-        <TableCell>${signal.entry_price?.toFixed(2)}</TableCell>
-        <TableCell>{signal.risk_reward_ratio?.toFixed(2)}</TableCell>
-      </TableRow>
-      <TableRow>
-        <TableCell colSpan={10} style={{ paddingBottom: 0, paddingTop: 0 }}>
-          <Collapse in={expandedRows.has(signal.id)} timeout="auto" unmountOnExit>
-            <Box sx={{ margin: 2 }}>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6} md={3}>
-                  <Card>
-                    <CardContent>
-                      <Typography color="textSecondary" gutterBottom>
-                        Range Age
-                      </Typography>
-                      <Typography variant="h6">
-                        {signal.range_age_days} days
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                  <Card>
-                    <CardContent>
-                      <Typography color="textSecondary" gutterBottom>
-                        Range Strength
-                      </Typography>
-                      <Typography variant="h6">
-                        {signal.range_strength} touches
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                  <Card>
-                    <CardContent>
-                      <Typography color="textSecondary" gutterBottom>
-                        TD Buy Setup
-                      </Typography>
-                      <Typography variant="h6">
-                        {signal.td_buy_setup_count}/9
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                  <Card>
-                    <CardContent>
-                      <Typography color="textSecondary" gutterBottom>
-                        TD Pressure
-                      </Typography>
-                      <Typography variant="h6">
-                        {signal.td_pressure?.toFixed(0)}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Card>
-                    <CardContent>
-                      <Typography color="textSecondary" gutterBottom>
-                        Trade Levels
-                      </Typography>
-                      <Typography variant="body2">
-                        Stop: ${signal.stop_level?.toFixed(2)} | Target 1: ${signal.target_1?.toFixed(2)} | Target 2: ${signal.target_2?.toFixed(2)}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Card>
-                    <CardContent>
-                      <Typography color="textSecondary" gutterBottom>
-                        Technicals
-                      </Typography>
-                      <Typography variant="body2">
-                        RSI: {signal.rsi?.toFixed(1)} | ADX: {signal.adx?.toFixed(1)} | ATR: ${signal.atr?.toFixed(2)}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              </Grid>
-            </Box>
-          </Collapse>
-        </TableCell>
-      </TableRow>
-    </React.Fragment>
-  );
+  const getSignalChip = (signal) => {
+    const isBuy = signal === "BUY";
+    const isSell = signal === "SELL";
 
-  return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        Range Trading Signals
-      </Typography>
+    return (
+      <Chip
+        label={signal || "HOLD"}
+        size="medium"
+        icon={
+          isBuy ? (
+            <TrendingUp />
+          ) : isSell ? (
+            <TrendingDown />
+          ) : (
+            <HorizontalRule />
+          )
+        }
+        sx={{
+          backgroundColor: theme.palette.action.hover,
+          color: theme.palette.text.primary,
+          fontWeight: "500",
+          fontSize: "0.875rem",
+          minWidth: "80px",
+          borderRadius: "4px",
+        }}
+      />
+    );
+  };
 
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Grid container spacing={2}>
-          <Grid item xs={12} sm={6} md={3}>
-            <TextField
-              size="small"
-              label="Symbol"
-              value={filters.symbol}
-              onChange={(e) => handleFilterChange('symbol', e.target.value)}
-              fullWidth
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <TextField
-              size="small"
-              label="Signal Type"
-              value={filters.signal_type}
-              onChange={(e) => handleFilterChange('signal_type', e.target.value)}
-              fullWidth
-              select
-              SelectProps={{ native: true }}
-            >
-              <option value="">All</option>
-              <option value="RANGE_BOUNCE_LOW">Long (Support)</option>
-              <option value="RANGE_BOUNCE_HIGH">Short (Resistance)</option>
-              <option value="RANGE_BREAKOUT_UP">Breakout Up</option>
-              <option value="RANGE_BREAKDOWN">Breakdown</option>
-            </TextField>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <TextField
-              size="small"
-              label="Days"
-              type="number"
-              value={filters.days}
-              onChange={(e) => handleFilterChange('days', e.target.value)}
-              fullWidth
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Button variant="contained" fullWidth onClick={() => setFilters(filters)}>
-              Apply Filters
-            </Button>
-          </Grid>
-        </Grid>
-      </Paper>
+  const RangeSignalsTable = () => {
+    const columns = getDynamicColumns(filteredSignals);
 
-      {error && <Alert severity="error">{error}</Alert>}
+    const totalSignals = signalsData?.pagination?.total || filteredSignals?.length || 0;
+    const paginatedSignals = filteredSignals?.slice(0, rowsPerPage) || [];
 
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <>
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
-                <TableRow>
-                  <TableCell width="5%" />
-                  <TableCell><strong>Symbol</strong></TableCell>
-                  <TableCell><strong>Date</strong></TableCell>
-                  <TableCell><strong>Signal</strong></TableCell>
-                  <TableCell><strong>Type</strong></TableCell>
-                  <TableCell><strong>Position %</strong></TableCell>
-                  <TableCell><strong>Range High</strong></TableCell>
-                  <TableCell><strong>Range Low</strong></TableCell>
-                  <TableCell><strong>Entry</strong></TableCell>
-                  <TableCell><strong>R:R</strong></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {signals.map((signal) => (
-                  <ExpandableRow key={signal.id} signal={signal} />
+    const displayStart = page * rowsPerPage + 1;
+    const displayEnd = displayStart + paginatedSignals.length - 1;
+
+    return (
+      <Box>
+        <TableContainer component={Paper} elevation={0} sx={{ overflowX: "auto" }}>
+          <Table stickyHeader>
+            <TableHead>
+              <TableRow>
+                {columns.map((col) => (
+                  <TableCell
+                    key={col}
+                    align={getCellAlign(col)}
+                    sx={{
+                      fontWeight: "bold",
+                      whiteSpace: "nowrap",
+                      minWidth: "100px",
+                    }}
+                  >
+                    <Tooltip title={col} placement="top">
+                      <span>{col.replace(/_/g, " ").replace(/^./, str => str.toUpperCase())}</span>
+                    </Tooltip>
+                  </TableCell>
                 ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {paginatedSignals?.map((signal, index) => (
+                <TableRow
+                  key={`${signal.symbol}-${signal.date}-${index}`}
+                  hover
+                  sx={{
+                    "&:hover": {
+                      backgroundColor: "action.hover",
+                    },
+                  }}
+                >
+                  {columns.map((col) => {
+                    const value = signal[col];
+                    const isSymbolColumn = col === "symbol";
+                    const isSignalColumn = col === "signal";
 
-          <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography>
-              Page {pagination.page} of {pagination.totalPages} | Total: {pagination.total} signals
+                    return (
+                      <TableCell
+                        key={`${signal.symbol}-${col}`}
+                        align={getCellAlign(col)}
+                        sx={{ whiteSpace: "nowrap" }}
+                      >
+                        {isSymbolColumn ? (
+                          <Button
+                            variant="text"
+                            size="small"
+                            sx={{ fontWeight: "bold", minWidth: "auto", p: 0.5 }}
+                            onClick={() => {
+                              setSelectedSymbol(signal.symbol);
+                              setHistoricalDialogOpen(true);
+                            }}
+                          >
+                            {value}
+                          </Button>
+                        ) : isSignalColumn ? (
+                          <Box>{getSignalChip(value)}</Box>
+                        ) : (
+                          <Typography variant="body2">
+                            {formatCellValue(value, col)}
+                          </Typography>
+                        )}
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          {paginatedSignals?.length === 0 && (
+            <Box sx={{ p: 4, textAlign: "center" }}>
+              <Typography variant="h6" color="text.secondary" gutterBottom>
+                No range signals found
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Try adjusting your filters or date range.
+              </Typography>
+            </Box>
+          )}
+        </TableContainer>
+
+        {paginatedSignals?.length > 0 && (
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 2 }}>
+            <Typography variant="body2" color="text.secondary">
+              Showing {displayStart} to {displayEnd} of {totalSignals.toLocaleString()} signals
             </Typography>
             <Box>
               <Button
-                disabled={!pagination.hasPrev}
-                onClick={() => handlePageChange(filters.offset - filters.limit)}
+                disabled={page === 0}
+                onClick={() => setPage(p => p - 1)}
               >
                 Previous
               </Button>
+              <Typography variant="body2" sx={{ display: "inline", mx: 2 }}>
+                Page {page + 1}
+              </Typography>
               <Button
-                disabled={!pagination.hasNext}
-                onClick={() => handlePageChange(filters.offset + filters.limit)}
+                disabled={displayEnd >= totalSignals}
+                onClick={() => setPage(p => p + 1)}
               >
                 Next
               </Button>
             </Box>
           </Box>
-        </>
-      )}
+        )}
+      </Box>
+    );
+  };
+
+  return (
+    <Container maxWidth="lg" sx={{ py: 3 }}>
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h4" gutterBottom>
+          <Timeline sx={{ mr: 1, verticalAlign: "middle" }} />
+          Range Trading Signals
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Detects tight trading ranges for bounce plays at support/resistance with TD Sequential confirmation
+        </Typography>
+      </Box>
+
+      <ErrorBoundary fallback={<ErrorDisplay />}>
+        {isLoading ? (
+          <LoadingDisplay />
+        ) : isError ? (
+          <ErrorDisplay error={error} />
+        ) : (
+          <>
+            <Paper sx={{ p: 2, mb: 3 }}>
+              <Grid container spacing={2} alignItems="flex-end">
+                <Grid item xs={12} sm={6} md={3}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Symbol"
+                    placeholder="AAPL"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    onKeyPress={(e) => e.key === "Enter" && handleSearch()}
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton size="small" onClick={handleSearch}>
+                            <Search />
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Signal Type</InputLabel>
+                    <Select
+                      value={signalType}
+                      label="Signal Type"
+                      onChange={handleSignalTypeChange}
+                    >
+                      <MenuItem value="all">All Signals</MenuItem>
+                      <MenuItem value="BUY">Buy Only</MenuItem>
+                      <MenuItem value="SELL">Sell Only</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Days</InputLabel>
+                    <Select
+                      value={days}
+                      label="Days"
+                      onChange={handleDaysChange}
+                    >
+                      <MenuItem value={7}>Last 7 Days</MenuItem>
+                      <MenuItem value={30}>Last 30 Days</MenuItem>
+                      <MenuItem value={90}>Last 90 Days</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    startIcon={<Clear />}
+                    onClick={handleClearFilters}
+                  >
+                    Clear Filters
+                  </Button>
+                </Grid>
+              </Grid>
+            </Paper>
+
+            <RangeSignalsTable />
+          </>
+        )}
+      </ErrorBoundary>
     </Container>
   );
-};
+}
 
 export default RangeSignals;

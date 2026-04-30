@@ -97,7 +97,7 @@ const menuItems = [
     category: 'stocks',
   },
   {
-    text: 'Trading Signals',
+    text: 'Swing Trading Signals',
     icon: <TrendingUpIcon />,
     path: '/app/trading-signals',
     category: 'stocks',
@@ -106,6 +106,18 @@ const menuItems = [
     text: 'ETF Signals',
     icon: <AnalyticsIcon />,
     path: '/app/etf-signals',
+    category: 'stocks',
+  },
+  {
+    text: 'Range Signals',
+    icon: <TrendingUpIcon />,
+    path: '/app/range-signals',
+    category: 'stocks',
+  },
+  {
+    text: 'Mean Reversion',
+    icon: <TrendingUpIcon />,
+    path: '/app/mean-reversion',
     category: 'stocks',
   },
   {
@@ -147,6 +159,14 @@ const menuItems = [
     category: 'portfolio',
   },
 
+  // Research & Testing Section
+  {
+    text: 'Backtest Results',
+    icon: <TimelineIcon />,
+    path: '/app/backtests',
+    category: 'research',
+  },
+
   // Admin & Settings Section
   {
     text: 'System Health',
@@ -169,6 +189,7 @@ const AppLayout = ({ children, pageTitle }) => {
     markets: true,
     stocks: true,
     portfolio: true,
+    research: true,
     admin: true,
   });
 
