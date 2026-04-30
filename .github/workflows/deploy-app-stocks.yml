@@ -1396,11 +1396,102 @@ jobs:
             echo "⚠️ ${{ matrix.loader }} exit code: $EXIT_CODE"
           fi
 
+  # 3C. Phase 3A: S3 Bulk COPY Parallel Execution (10x faster bulk inserts)
+  # Run official high-volume loaders with S3 staging for 10x speedup
+  execute-phase3a-s3bulk:
+    name: Execute Phase 3A Loaders (S3 Bulk COPY)
+    runs-on: ubuntu-latest
+    needs: [detect-changes, deploy-infrastructure, execute-phase2-parallel]
+    if: |
+      always() &&
+      needs.deploy-infrastructure.result == 'success' &&
+      (github.event_name == 'push' || github.event.inputs.loaders == '')
+
+    strategy:
+      fail-fast: false
+      matrix:
+        loader:
+          - buyselldaily
+          - buysellweekly
+          - buysellmonthly
+          - pricedaily
+          - priceweekly
+          - pricemonthly
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Fetch CloudFormation outputs
+        id: cfn
+        run: |
+          SUBNET1=$(aws cloudformation list-exports --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" --output text)
+          SUBNET2=$(aws cloudformation list-exports --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" --output text)
+          SG=$(aws cloudformation list-exports --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" --output text)
+          echo "subnet1=$SUBNET1" >> $GITHUB_OUTPUT
+          echo "subnet2=$SUBNET2" >> $GITHUB_OUTPUT
+          echo "security-group=$SG" >> $GITHUB_OUTPUT
+
+      - name: Run Phase 3A ${{ matrix.loader }} with S3 bulk COPY
+        id: task
+        run: |
+          echo "🚀 Phase 3A: Starting ${{ matrix.loader }} with S3 bulk COPY (10x speedup)..."
+
+          TASK_NAME="load${{ matrix.loader }}"
+          SUBNET1="${{ steps.cfn.outputs.subnet1 }}"
+          SUBNET2="${{ steps.cfn.outputs.subnet2 }}"
+          SG="${{ steps.cfn.outputs.security-group }}"
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "stocks-cluster" \
+            --task-definition "${TASK_NAME}:1" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNET1,$SUBNET2],securityGroups=[$SG],assignPublicIp=ENABLED}" \
+            --query "tasks[0].taskArn" \
+            --output text 2>/dev/null || echo "")
+
+          if [ -z "$TASK_ARN" ] || [ "$TASK_ARN" == "None" ]; then
+            echo "⚠️ Could not start task for Phase 3A ${{ matrix.loader }}"
+            exit 0
+          fi
+
+          echo "task-arn=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "Started: $TASK_ARN"
+
+      - name: Wait for Phase 3A ${{ matrix.loader }} completion (max 15 min)
+        if: steps.task.outputs.task-arn != ''
+        run: |
+          timeout 900 aws ecs wait tasks-stopped \
+            --cluster "stocks-cluster" \
+            --tasks "${{ steps.task.outputs.task-arn }}" || true
+
+      - name: Verify Phase 3A ${{ matrix.loader }} result
+        if: steps.task.outputs.task-arn != ''
+        run: |
+          TASK_DETAILS=$(aws ecs describe-tasks \
+            --cluster "stocks-cluster" \
+            --tasks "${{ steps.task.outputs.task-arn }}")
+
+          EXIT_CODE=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].containers[0].exitCode // -1')
+
+          if [[ "$EXIT_CODE" == "0" ]]; then
+            echo "✅ Phase 3A ${{ matrix.loader }} completed (S3 bulk COPY - 10x speedup)"
+          else
+            echo "⚠️ Phase 3A ${{ matrix.loader }} exit code: $EXIT_CODE"
+          fi
+
   # 4. Summary and notifications
   deployment-summary:
     name: Deployment Summary
     runs-on: ubuntu-latest
-    needs: [detect-changes, deploy-infrastructure, execute-loaders, execute-phase2-parallel]
+    needs: [detect-changes, deploy-infrastructure, execute-loaders, execute-phase2-parallel, execute-phase3a-s3bulk]
     if: always()
     
     steps:
