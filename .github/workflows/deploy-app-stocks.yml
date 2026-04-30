@@ -1316,17 +1316,49 @@ jobs:
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Fetch CloudFormation outputs (subnets & security group)
+        id: cfn
+        run: |
+          echo "Fetching CloudFormation exports..."
+
+          SUBNET1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+
+          SUBNET2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+
+          SG=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+
+          echo "subnet1=$SUBNET1" >> $GITHUB_OUTPUT
+          echo "subnet2=$SUBNET2" >> $GITHUB_OUTPUT
+          echo "security-group=$SG" >> $GITHUB_OUTPUT
+
+          echo "Subnets: $SUBNET1, $SUBNET2"
+          echo "Security Group: $SG"
+
       - name: Run ${{ matrix.loader }} in parallel
         id: task
         run: |
           echo "🚀 Starting Phase 2 ${{ matrix.loader }} task (parallel execution)..."
 
           TASK_NAME="load${{ matrix.loader }}"
+          SUBNET1="${{ steps.cfn.outputs.subnet1 }}"
+          SUBNET2="${{ steps.cfn.outputs.subnet2 }}"
+          SG="${{ steps.cfn.outputs.security-group }}"
+
+          echo "Using network configuration:"
+          echo "  Subnets: $SUBNET1, $SUBNET2"
+          echo "  Security Group: $SG"
+
           TASK_ARN=$(aws ecs run-task \
             --cluster "stocks-cluster" \
             --task-definition "${TASK_NAME}:1" \
             --launch-type FARGATE \
-            --network-configuration "awsvpcConfiguration={subnets=[subnet-12345,subnet-67890],securityGroups=[sg-12345],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNET1,$SUBNET2],securityGroups=[$SG],assignPublicIp=ENABLED}" \
             --query "tasks[0].taskArn" \
             --output text 2>/dev/null || echo "")
 
