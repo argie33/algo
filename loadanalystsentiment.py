@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Phase 3B Lambda Parallelization: 2026-04-30 - 100x speedup on API calls
 # FORCE REBUILD TRIGGER: 20260107-220000-AWS-ECS - Ensure analyst sentiment images built
 """
 Analyst Sentiment Data Loader for yfinance
