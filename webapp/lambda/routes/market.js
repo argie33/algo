@@ -1,6 +1,7 @@
 const express = require("express");
 
 const { getMarketDataPath } = require("../utils/market-data-path");
+const { getLatestMarketDate } = require("../utils/market-cache");
 
 let query;
 try {
@@ -521,27 +522,14 @@ router.get("/breadth", async (req, res) => {
   console.log("Market breadth endpoint called");
 
   try {
-    // Get market breadth data - simplified for performance
-    // Get the latest date with sufficient data, calculate breadth for that day
+    // Get latest market date from cache (5 min TTL)
+    const latestDate = await getLatestMarketDate('price_daily', 'WHERE close IS NOT NULL');
+    if (!latestDate) {
+      return sendNotFound(res, "No market breadth data found");
+    }
+
+    // Get market breadth data using cached date
     const breadthQuery = `
-      WITH latest_date AS (
-        SELECT MAX(date) as market_date
-        FROM price_daily
-        WHERE close IS NOT NULL
-      ),
-      latest_day_data AS (
-        SELECT
-          symbol,
-          close,
-          open,
-          volume,
-          date
-        FROM price_daily
-        WHERE date = (SELECT market_date FROM latest_date)
-          AND close IS NOT NULL
-          AND open IS NOT NULL
-          AND volume > 0
-      )
       SELECT
         COUNT(*) as total_stocks,
         COUNT(CASE WHEN (close - open) > 0 THEN 1 END) as advancing,
@@ -551,10 +539,14 @@ router.get("/breadth", async (req, res) => {
         COUNT(CASE WHEN (close - open) < (open * -0.05) THEN 1 END) as strong_declining,
         AVG(CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END) as avg_change,
         AVG(volume) as avg_volume
-      FROM latest_day_data
+      FROM price_daily
+      WHERE date = $1
+        AND close IS NOT NULL
+        AND open IS NOT NULL
+        AND volume > 0
     `;
 
-    const result = await query(breadthQuery);
+    const result = await query(breadthQuery, [latestDate]);
 
     if (
       !result ||
@@ -1832,7 +1824,13 @@ router.get("/internals", async (req, res) => {
       return sendError(res, "Database service unavailable", 500);
     }
 
-    // Run all queries in parallel
+    // Get latest market date from cache once (5 min TTL) - used by multiple queries
+    const latestDate = await getLatestMarketDate('price_daily', 'WHERE close IS NOT NULL');
+    if (!latestDate) {
+      return sendError(res, "No market data available", 500);
+    }
+
+    // Run all queries in parallel using cached market date
     const [breadthResult, maAnalysisResult, historicalBreadthResult, positioningResult] = await Promise.all([
       // Current breadth data with advance/decline calculations
       query(`
@@ -1847,19 +1845,14 @@ router.get("/internals", async (req, res) => {
           AVG((close - open) / open * 100) as avg_daily_change,
           STDDEV((close - open) / open * 100) as stddev_change
         FROM price_daily
-        WHERE date = (SELECT MAX(date) FROM price_daily WHERE close IS NOT NULL)
+        WHERE date = $1
           AND close IS NOT NULL
           AND open IS NOT NULL
-      `),
+      `, [latestDate]),
 
       // Stocks above moving averages analysis (calculated from 20, 50, 200 day averages)
       query(`
-        WITH latest_date AS (
-          SELECT MAX(date) as max_date
-          FROM price_daily
-          WHERE close IS NOT NULL
-        ),
-        price_stats AS (
+        WITH price_stats AS (
           SELECT
             symbol,
             close,
@@ -1867,7 +1860,7 @@ router.get("/internals", async (req, res) => {
             AVG(close) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 49 PRECEDING AND CURRENT ROW) as sma_50,
             AVG(close) OVER (PARTITION BY symbol ORDER BY date ROWS BETWEEN 199 PRECEDING AND CURRENT ROW) as sma_200
           FROM price_daily
-          WHERE date >= (SELECT max_date FROM latest_date) - INTERVAL '200 days'
+          WHERE date >= $1::date - INTERVAL '200 days'
             AND close IS NOT NULL
         ),
         latest_prices AS (
@@ -1896,7 +1889,7 @@ router.get("/internals", async (req, res) => {
           total_with_sma20, total_with_sma50, total_with_sma200,
           total_stocks, avg_dist_from_sma20, avg_dist_from_sma50, avg_dist_from_sma200
         FROM ma_analysis
-      `),
+      `, [latestDate]),
 
       // Historical breadth percentiles (30, 60, 90 day lookback)
       query(`
@@ -2283,6 +2276,12 @@ async function getMarketDataHandler(req, res) {
     console.log("📊 /api/market/data - Fetching all market data...");
     const startTime = Date.now();
 
+    // Get latest market date from cache once (5 min TTL) - used by multiple queries
+    const latestDate = await getLatestMarketDate('price_daily', 'WHERE close IS NOT NULL');
+    if (!latestDate) {
+      return sendError(res, "No market data available", 500);
+    }
+
     // Run all data fetches in parallel for speed
     const [
       overviewData,
@@ -2319,21 +2318,14 @@ async function getMarketDataHandler(req, res) {
       // 2. Breadth (advancing/declining/unchanged)
       (async () => {
         const result = await query(`
-          WITH latest_date AS (
-            SELECT MAX(date) as market_date FROM price_daily WHERE close IS NOT NULL
-          ),
-          latest_day_data AS (
-            SELECT symbol, (close - open) as daily_change
-            FROM price_daily
-            WHERE date = (SELECT market_date FROM latest_date)
-          )
           SELECT
             COUNT(*) as total_stocks,
-            COUNT(CASE WHEN daily_change > 0 THEN 1 END) as advancing,
-            COUNT(CASE WHEN daily_change < 0 THEN 1 END) as declining,
-            COUNT(CASE WHEN daily_change = 0 THEN 1 END) as unchanged
-          FROM latest_day_data
-        `);
+            COUNT(CASE WHEN (close - open) > 0 THEN 1 END) as advancing,
+            COUNT(CASE WHEN (close - open) < 0 THEN 1 END) as declining,
+            COUNT(CASE WHEN (close - open) = 0 THEN 1 END) as unchanged
+          FROM price_daily
+          WHERE date = $1
+        `, [latestDate]);
         return result.rows[0] || {};
       })(),
 
@@ -2425,24 +2417,13 @@ async function getMarketDataHandler(req, res) {
       // 11. Market Internals
       (async () => {
         const result = await query(`
-          WITH latest_date AS (
-            SELECT MAX(date) as max_date FROM price_daily WHERE close IS NOT NULL
-          ),
-          price_stats AS (
-            SELECT
-              symbol,
-              close,
-              ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
-            FROM price_daily
-            WHERE date = (SELECT max_date FROM latest_date)
-          )
           SELECT
             COUNT(*) as total_stocks,
             COUNT(CASE WHEN close > 50 THEN 1 END) as above_50_ma,
             COUNT(CASE WHEN close > 200 THEN 1 END) as above_200_ma
-          FROM price_stats
-          WHERE rn = 1
-        `);
+          FROM price_daily
+          WHERE date = $1
+        `, [latestDate]);
         return result.rows[0] || {};
       })()
     ]);
@@ -2493,29 +2474,27 @@ router.get("/technicals", async (req, res) => {
   try {
     console.log("📊 [Market API] Fetching technicals...");
 
+    // Get latest market and technical dates from cache (5 min TTL)
+    const latestPriceDate = await getLatestMarketDate('price_daily', 'WHERE close IS NOT NULL');
+    const latestTechDate = await getLatestMarketDate('technical_data_daily');
+
+    if (!latestPriceDate) {
+      return sendError(res, "No market data available", 500);
+    }
+
     const [breadthData, mcclellanData, distributionDaysData, volatilityData, internalsData] = await Promise.allSettled([
       // 1. Breadth (Latest day only)
       (async () => {
         const result = await query(`
-          WITH latest_date AS (
-            SELECT MAX(date) as market_date FROM price_daily WHERE close IS NOT NULL
-          ),
-          latest_day_data AS (
-            SELECT
-              symbol,
-              (close - open) as daily_change,
-              CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END as pct_change
-            FROM price_daily
-            WHERE date = (SELECT market_date FROM latest_date) AND close IS NOT NULL
-          )
           SELECT
             COUNT(*) as total_stocks,
-            COUNT(CASE WHEN daily_change > 0 THEN 1 END) as advancing,
-            COUNT(CASE WHEN daily_change < 0 THEN 1 END) as declining,
-            COUNT(CASE WHEN daily_change = 0 THEN 1 END) as unchanged,
-            AVG(ABS(pct_change)) as avg_abs_change
-          FROM latest_day_data
-        `);
+            COUNT(CASE WHEN (close - open) > 0 THEN 1 END) as advancing,
+            COUNT(CASE WHEN (close - open) < 0 THEN 1 END) as declining,
+            COUNT(CASE WHEN (close - open) = 0 THEN 1 END) as unchanged,
+            AVG(ABS(CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END)) as avg_abs_change
+          FROM price_daily
+          WHERE date = $1 AND close IS NOT NULL
+        `, [latestPriceDate]);
         return result.rows[0] || {};
       })(),
 
@@ -2626,21 +2605,15 @@ router.get("/technicals", async (req, res) => {
       (async () => {
         try {
           const result = await query(`
-            WITH max_tech_date AS (
-              SELECT MAX(date) as max_date FROM technical_data_daily
-            ),
-            max_price_date AS (
-              SELECT MAX(date) as max_date FROM price_daily WHERE close IS NOT NULL
-            ),
-            latest_tech AS (
+            WITH latest_tech AS (
               SELECT t.symbol, t.sma_20, t.sma_50, t.sma_200
               FROM technical_data_daily t
-              JOIN max_tech_date m ON t.date = m.max_date
+              WHERE t.date = $1
             ),
             latest_price AS (
               SELECT p.symbol, p.close
               FROM price_daily p
-              JOIN max_price_date m ON p.date = m.max_date
+              WHERE p.date = $2
             )
             SELECT
               COUNT(*) as total_stocks,
@@ -2649,7 +2622,7 @@ router.get("/technicals", async (req, res) => {
               COUNT(CASE WHEN lt.sma_200 IS NOT NULL AND lp.close > lt.sma_200 THEN 1 END) as above_200_ma
             FROM latest_tech lt
             JOIN latest_price lp ON lt.symbol = lp.symbol
-          `);
+          `, [latestTechDate || latestPriceDate, latestPriceDate]);
           return result.rows[0] || {};
         } catch (e) {
           console.warn("Internals SMA query failed:", e.message);
@@ -2829,30 +2802,26 @@ router.get("/technicals-fresh", async (req, res) => {
   try {
     console.log("📊 [Market API] Fetching technicals fresh from database...");
 
+    // Get latest market date from cache (5 min TTL)
+    const latestDate = await getLatestMarketDate('price_daily', 'WHERE close IS NOT NULL');
+    if (!latestDate) {
+      return sendError(res, "No market data available", 500);
+    }
+
     // Fetch all technical data from database
     const [breadthData, mcclellanData, distributionDaysData, volatilityData, internalsData] = await Promise.allSettled([
       // 1. Breadth (Latest day only)
       (async () => {
         const result = await query(`
-          WITH latest_date AS (
-            SELECT MAX(date) as market_date FROM price_daily WHERE close IS NOT NULL
-          ),
-          latest_day_data AS (
-            SELECT
-              symbol,
-              (close - open) as daily_change,
-              CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END as pct_change
-            FROM price_daily
-            WHERE date = (SELECT market_date FROM latest_date) AND close IS NOT NULL
-          )
           SELECT
             COUNT(*) as total_stocks,
-            COUNT(CASE WHEN daily_change > 0 THEN 1 END) as advancing,
-            COUNT(CASE WHEN daily_change < 0 THEN 1 END) as declining,
-            COUNT(CASE WHEN daily_change = 0 THEN 1 END) as unchanged,
-            AVG(ABS(pct_change)) as avg_abs_change
-          FROM latest_day_data
-        `);
+            COUNT(CASE WHEN (close - open) > 0 THEN 1 END) as advancing,
+            COUNT(CASE WHEN (close - open) < 0 THEN 1 END) as declining,
+            COUNT(CASE WHEN (close - open) = 0 THEN 1 END) as unchanged,
+            AVG(ABS(CASE WHEN open > 0 THEN ((close - open) / open * 100) ELSE 0 END)) as avg_abs_change
+          FROM price_daily
+          WHERE date = $1 AND close IS NOT NULL
+        `, [latestDate]);
         return result.rows[0] || {};
       })(),
 
@@ -2962,17 +2931,14 @@ router.get("/technicals-fresh", async (req, res) => {
       // 5. Internals (real data from database with SMA20/50 percentages)
       (async () => {
         const result = await query(`
-          WITH latest_date AS (
-            SELECT MAX(date) as max_date FROM price_daily WHERE close IS NOT NULL
-          ),
-          price_history AS (
+          WITH price_history AS (
             SELECT
               symbol,
               close,
               date,
               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as row_num
             FROM price_daily
-            WHERE date >= (SELECT max_date - INTERVAL '200 days' FROM latest_date)
+            WHERE date >= ($1::date - INTERVAL '200 days')
           ),
           sma_calc AS (
             SELECT
@@ -3003,7 +2969,7 @@ router.get("/technicals-fresh", async (req, res) => {
             ROUND(100.0 * COUNT(CASE WHEN current_price > sma_50 THEN 1 END) / NULLIF(COUNT(*), 0), 1) as pct_above_50_ma,
             ROUND(100.0 * COUNT(CASE WHEN current_price > sma_200 THEN 1 END) / NULLIF(COUNT(*), 0), 1) as pct_above_200_ma
           FROM latest_smas
-        `);
+        `, [latestDate]);
         return result.rows[0] || {};
       })(),
     ]);
@@ -3064,15 +3030,18 @@ router.get("/top-movers", async (req, res) => {
     const { limit = 20 } = req.query;
     const limitNum = Math.min(parseInt(limit) || 20, 500);
 
+    // Get latest market date from cache (5 min TTL)
+    const latestDate = await getLatestMarketDate('price_daily', 'WHERE close IS NOT NULL');
+    if (!latestDate) {
+      return sendError(res, "No market data available", 500);
+    }
+
     const result = await query(`
-      WITH latest_date AS (
-        SELECT MAX(date) as market_date FROM price_daily WHERE close IS NOT NULL
-      ),
-      latest_prices AS (
+      WITH latest_prices AS (
         SELECT symbol, close, open,
           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
         FROM price_daily pd
-        WHERE date >= (SELECT market_date - INTERVAL '2 days' FROM latest_date)
+        WHERE date >= ($1::date - INTERVAL '2 days')
       ),
       price_changes AS (
         SELECT symbol, close, open,
@@ -3083,8 +3052,8 @@ router.get("/top-movers", async (req, res) => {
       SELECT symbol, change_pct, close FROM price_changes
       WHERE change_pct != 0
       ORDER BY change_pct DESC
-      LIMIT $1;
-    `, [limitNum * 2]);
+      LIMIT $2;
+    `, [latestDate, limitNum * 2]);
 
     const gainers = result.rows.slice(0, limitNum);
     const losers = result.rows.slice().reverse().slice(0, limitNum);

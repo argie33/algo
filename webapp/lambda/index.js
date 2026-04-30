@@ -31,6 +31,7 @@ const errorHandler = require("./middleware/errorHandler");
 const requestLogger = require("./middleware/requestLogger");
 const { initializeDatabase, initializeSchema, query } = require("./utils/database");
 const { initializeAlpacaSync } = require("./utils/alpacaSyncScheduler");
+const { marketCache } = require("./utils/market-cache");
 const responseNormalizer = require("./middleware/responseNormalizer");
 const { cacheMiddleware } = require("./middleware/cacheMiddleware");
 const contactRoutes = require("./routes/contact");
@@ -347,6 +348,12 @@ const ensureDatabase = async () => {
         } catch (err) {
           console.warn("Schema initialization warning (non-critical):", err.message);
           // Don't fail - schema initialization is non-critical
+        }
+        // Preload market cache for MAX(date) optimization
+        try {
+          await marketCache.preload();
+        } catch (err) {
+          console.warn("Market cache preload warning (non-critical):", err.message);
         }
         return pool;
       })
