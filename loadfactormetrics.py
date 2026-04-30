@@ -2823,6 +2823,8 @@ def load_value_metrics(conn, cursor, symbols: List[str]):
             deduplicated[key] = row
         value_rows = list(deduplicated.values())
 
+        logging.info(f"Inserting {len(value_rows)} value metric rows...")
+
         upsert_sql = """
             INSERT INTO value_metrics (
                 symbol, date, trailing_pe, forward_pe, price_to_book, price_to_sales_ttm,
@@ -2842,11 +2844,15 @@ def load_value_metrics(conn, cursor, symbols: List[str]):
         try:
             execute_values(cursor, upsert_sql, value_rows)
             conn.commit()
-            logging.info(f"Loaded {len(value_rows)} value metric records")
+            logging.info(f"SUCCESS: Loaded {len(value_rows)} value metric records")
 
         except Exception as e:
-            logging.error(f"Failed to insert value metrics: {e}")
+            logging.error(f"FAILED to insert value metrics: {e}")
+            logging.error(f"Value rows sample (first 3): {value_rows[:3]}")
             conn.rollback()
+            raise
+    else:
+        logging.warning(f"No value_rows to insert! km_rows was likely empty.")
             raise
 
 
