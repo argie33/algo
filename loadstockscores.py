@@ -455,7 +455,6 @@ def main():
             failed += 1
 
     logger.info(f"Pre-computed {len(batch_rows)} scores, starting single transaction insert...")
-    conn.autocommit = False  # Explicit transaction control for efficiency
 
     try:
         # Insert all rows in batches but within single transaction
@@ -486,8 +485,6 @@ def main():
         logger.error(f"Transaction failed: {e}")
         conn.rollback()
         raise
-    finally:
-        conn.autocommit = True
     logger.info(f"Saved {saved} / {len(df)} stocks ({100*saved/len(df):.1f}%). Failed: {failed}")
 
     # Restore company names that were saved
