@@ -471,15 +471,15 @@ app.use("/api/economic", economicRoutes);
 app.use("/api/financials", financialRoutes);
 app.use("/api/health", healthRoutes);
 app.use("/api/industries", industriesRoutes);
-app.use("/api/market", marketRoutes);
+app.use("/api/market", cacheMiddleware(60), marketRoutes);
 app.use("/api/optimization", optimizationRoutes);
 app.use("/api/portfolio", portfolioRoutes);
-app.use("/api/scores", scoresRoutes);
-app.use("/api/sectors", sectorsRoutes);
+app.use("/api/scores", cacheMiddleware(120), scoresRoutes);
+app.use("/api/sectors", cacheMiddleware(60), sectorsRoutes);
 app.use("/api/sentiment", sentimentRoutes);
 // Cache signals endpoint: 60 second TTL (signals update periodically)
 app.use("/api/signals", cacheMiddleware(60), signalsRoutes);
-app.use("/api/stocks", stocksRoutes);
+app.use("/api/stocks", cacheMiddleware(30), stocksRoutes);
 app.use("/api/strategies", strategiesRoutes);
 app.use("/api/trades", tradesRoutes);
 app.use("/api/trades/manual", manualTradesRoutes);
@@ -491,8 +491,8 @@ app.use("/api/signals/mean-reversion", meanReversionSignalsRoutes);
 app.use("/api/research/backtests", backtestsRoutes);
 
 // Status and price routes
-app.use("/api/status", statusRoutes);
-app.use("/api/price", pricesRoutes);
+app.use("/api/status", cacheMiddleware(30), statusRoutes);
+app.use("/api/price", cacheMiddleware(30), pricesRoutes);
 
 // API info endpoint
 app.get("/api", (req, res) => {

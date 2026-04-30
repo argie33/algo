@@ -9,20 +9,31 @@ const { query } = require("../utils/database");
 const { sendSuccess, sendError } = require('../utils/apiResponse');
 const router = express.Router();
 
-// GET /api/diagnostics - Full system health check
+// Diagnostics cache with 5-minute TTL
+let diagnosticsCache = null;
+let diagnosticsCacheTime = 0;
+const DIAGNOSTICS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// GET /api/diagnostics - Full system health check (optimized with caching)
 router.get("/", async (req, res) => {
+  // Return cached result if available and fresh
+  const now = Date.now();
+  if (diagnosticsCache && (now - diagnosticsCacheTime) < DIAGNOSTICS_CACHE_TTL) {
+    return sendSuccess(res, diagnosticsCache);
+  }
+
   const diagnostics = {
     timestamp: new Date().toISOString(),
     api_status: "healthy",
     database_status: "checking",
     data_availability: {},
+    database_indexes: {},
     endpoints_status: {},
     recommendations: []
   };
 
   try {
-    // Test database connectivity
-    console.log("[DIAG] Testing database connectivity...");
+    // Test database connectivity first
     const dbTest = await query("SELECT COUNT(*) as count FROM stock_symbols");
     diagnostics.database_status = "connected";
     diagnostics.database_tables = {
@@ -31,93 +42,95 @@ router.get("/", async (req, res) => {
   } catch (err) {
     diagnostics.database_status = "error";
     diagnostics.database_error = err.message;
-    diagnostics.recommendations.push("❌ Database connection failed - check DB_HOST credentials");
+    diagnostics.recommendations.push("Database connection failed");
+    diagnosticsCache = diagnostics;
+    diagnosticsCacheTime = now;
+    return sendSuccess(res, diagnostics);
   }
 
-  try {
-    // Check key data tables
-    const tables = [
-      { name: "stock_symbols", query: "SELECT COUNT(*) as count FROM stock_symbols" },
-      { name: "stock_scores", query: "SELECT COUNT(*) as count FROM stock_scores" },
-      { name: "company_profile", query: "SELECT COUNT(*) as count FROM company_profile" },
-      { name: "growth_metrics", query: "SELECT COUNT(*) as count FROM growth_metrics" },
-      { name: "value_metrics", query: "SELECT COUNT(*) as count FROM value_metrics" },
-      { name: "quality_metrics", query: "SELECT COUNT(*) as count FROM quality_metrics" },
-      { name: "earnings_history", query: "SELECT COUNT(*) as count FROM earnings_history" },
-      { name: "earnings_estimates", query: "SELECT COUNT(*) as count FROM earnings_estimates" },
-      { name: "buy_sell_daily", query: "SELECT COUNT(*) as count FROM buy_sell_daily" },
-      { name: "price_daily", query: "SELECT COUNT(*) as count FROM price_daily" },
-      { name: "technical_data_daily", query: "SELECT COUNT(*) as count FROM technical_data_daily" }
-    ];
+  // Run table counts in parallel instead of sequentially
+  const tables = [
+    { name: "stock_symbols", small: true },
+    { name: "stock_scores", small: true },
+    { name: "company_profile", small: true },
+    { name: "growth_metrics", small: true },
+    { name: "value_metrics", small: true },
+    { name: "quality_metrics", small: true },
+    { name: "earnings_history", medium: true },
+    { name: "earnings_estimates", small: true },
+    { name: "buy_sell_daily", medium: true },
+    { name: "price_daily", large: true },
+    { name: "technical_data_daily", large: true }
+  ];
 
-    for (const table of tables) {
-      try {
-        const result = await query(table.query);
-        const count = parseInt(result.rows[0]?.count || 0);
-        diagnostics.data_availability[table.name] = {
-          count,
-          status: count > 0 ? "✅ Data available" : "⚠️ Empty"
-        };
-
-        if (count === 0) {
-          diagnostics.recommendations.push(`⚠️ Table ${table.name} is empty - no data for this metric`);
-        }
-      } catch (err) {
-        diagnostics.data_availability[table.name] = {
-          status: "❌ Query error: " + err.message.substring(0, 50)
-        };
-        diagnostics.recommendations.push(`❌ Cannot query ${table.name} - check table exists`);
-      }
+  // For large tables, use reltuples estimate instead of COUNT(*)
+  const countQueries = tables.map(table => {
+    let q;
+    if (table.large) {
+      // Use pg_stat_user_tables for large tables (much faster, estimates)
+      q = `SELECT '${table.name}'::text as name,
+           COALESCE(reltuples::bigint, 0) as count FROM pg_stat_user_tables
+           WHERE relname = '${table.name}'`;
+    } else {
+      q = `SELECT '${table.name}'::text as name, COUNT(*) as count FROM ${table.name}`;
     }
-  } catch (err) {
-    diagnostics.database_status = "error";
-    diagnostics.database_error = err.message;
-  }
+    return query(q).then(result => ({
+      name: table.name,
+      count: parseInt(result.rows[0]?.count || 0),
+      success: true
+    })).catch(err => ({
+      name: table.name,
+      count: 0,
+      success: false,
+      error: err.message
+    }));
+  });
+
+  // Execute all count queries in parallel
+  const results = await Promise.all(countQueries);
+
+  results.forEach(result => {
+    if (result.success) {
+      diagnostics.data_availability[result.name] = {
+        count: result.count,
+        status: result.count > 0 ? "Data available" : "Empty"
+      };
+      if (result.count === 0) {
+        diagnostics.recommendations.push(`Table ${result.name} is empty`);
+      }
+    } else {
+      diagnostics.data_availability[result.name] = {
+        status: "Query error"
+      };
+      diagnostics.recommendations.push(`Cannot query ${result.name}`);
+    }
+  });
 
   // Check index status
   try {
     const indexResult = await query(`
-      SELECT COUNT(*) as index_count
-      FROM pg_indexes
-      WHERE schemaname = 'public'
+      SELECT COUNT(*) as index_count FROM pg_indexes WHERE schemaname = 'public'
     `);
     const indexCount = parseInt(indexResult.rows[0]?.index_count || 0);
     diagnostics.database_indexes = {
       count: indexCount,
-      status: indexCount > 20 ? "✅ Indexes present" : "⚠️ Few indexes - performance may suffer"
+      status: indexCount > 20 ? "Indexes present" : "Few indexes"
     };
-
-    if (indexCount < 20) {
-      diagnostics.recommendations.push(`⚠️ Only ${indexCount} indexes found - run optimize-database-indexes.sql`);
-    }
   } catch (err) {
-    diagnostics.recommendations.push("⚠️ Cannot check indexes - may not have permissions");
-  }
-
-  // Test sample endpoints
-  const endpointsToTest = [
-    { path: "metrics/growth?symbol=AAPL", name: "Growth Metrics" },
-    { path: "metrics/value", name: "Value Metrics" },
-    { path: "earnings/info?symbol=AAPL", name: "Earnings Info" },
-    { path: "stocks?limit=5", name: "Stocks List" }
-  ];
-
-  for (const ep of endpointsToTest) {
-    try {
-      const testResult = await query("SELECT 1 as test");
-      diagnostics.endpoints_status[ep.name] = "✅ Endpoint accessible";
-    } catch (err) {
-      diagnostics.endpoints_status[ep.name] = "❌ Error: " + err.message.substring(0, 50);
-    }
+    diagnostics.database_indexes = { count: 0, status: "Cannot check" };
   }
 
   // Generate summary
   if (diagnostics.recommendations.length === 0) {
-    diagnostics.recommendations.push("✅ All systems operational");
+    diagnostics.recommendations.push("All systems operational");
     diagnostics.api_status = "healthy";
   } else {
-    diagnostics.api_status = "degraded";
+    diagnostics.api_status = diagnostics.database_status === "connected" ? "degraded" : "error";
   }
+
+  // Cache the result
+  diagnosticsCache = diagnostics;
+  diagnosticsCacheTime = now;
 
   return sendSuccess(res, diagnostics);
 });
