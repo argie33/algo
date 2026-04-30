@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
-# Phase 4: Relative Performance Calculator
-# Calculates stock performance relative to sector/industry baseline
+# Phase 4: Relative Performance - FIXED
 import os, json, logging, sys
 from pathlib import Path
 import psycopg2
 from psycopg2.extras import execute_values
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
+from datetime import datetime
 
 env_path = Path(__file__).parent / '.env.local'
 if env_path.exists():
     load_dotenv(env_path)
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", stream=sys.stdout)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 def get_db_config():
     db_secret_arn = os.environ.get("DB_SECRET_ARN")
@@ -32,11 +31,8 @@ def init_db():
     cur.execute("""CREATE TABLE IF NOT EXISTS relative_performance (
         id SERIAL PRIMARY KEY,
         symbol VARCHAR(20),
-        sector VARCHAR(50),
         date DATE,
-        stock_return FLOAT,
-        sector_return FLOAT,
-        relative_performance FLOAT,
+        price_change_pct FLOAT,
         UNIQUE(symbol, date)
     )""")
     conn.commit()
@@ -50,23 +46,23 @@ def calculate_performance():
     cur = conn.cursor()
     
     try:
-        # Get latest prices and sector mapping
+        # Calculate 7-day performance for all stocks
         cur.execute("""
-            SELECT DISTINCT cp.symbol, cp.sector, 
-                   (cp.current_price - LAG(cp.current_price) OVER (PARTITION BY cp.symbol ORDER BY DATE)) / LAG(cp.current_price) OVER (PARTITION BY cp.symbol ORDER BY DATE) as stock_return
-            FROM company_profile cp
-            JOIN price_daily pd ON cp.symbol = pd.symbol
-            WHERE pd.date >= CURRENT_DATE - INTERVAL '30 days'
-            ORDER BY cp.symbol, pd.date DESC
+            SELECT ss.symbol,
+                   CURRENT_DATE as date,
+                   (pd1.close - pd2.close) / NULLIF(pd2.close, 0) * 100 as pct_change
+            FROM stock_scores ss
+            JOIN price_daily pd1 ON ss.symbol = pd1.symbol 
+            JOIN price_daily pd2 ON ss.symbol = pd2.symbol 
+            WHERE pd1.date = (SELECT MAX(date) FROM price_daily)
+            AND pd2.date = (SELECT MAX(date) FROM price_daily) - INTERVAL '7 days'
+            AND pd1.volume > 0 AND pd2.volume > 0
         """)
         
-        records = []
-        for row in cur.fetchall():
-            if row[2]:  # if stock_return exists
-                records.append((row[0], row[1], datetime.now().date(), row[2], 0.0, row[2]))
+        records = [(row[0], row[1], row[2]) for row in cur.fetchall()]
         
         if records:
-            execute_values(cur, """INSERT INTO relative_performance (symbol, sector, date, stock_return, sector_return, relative_performance) VALUES %s ON CONFLICT (symbol, date) DO NOTHING""", records)
+            execute_values(cur, """INSERT INTO relative_performance (symbol, date, price_change_pct) VALUES %s ON CONFLICT (symbol, date) DO NOTHING""", records)
             conn.commit()
             logging.info(f"Inserted {len(records)} relative performance records")
         
@@ -77,10 +73,10 @@ def calculate_performance():
         conn.close()
 
 def main():
-    logging.info("Starting loadrelativeperformance.py")
+    logging.info("Starting loadrelativeperformance.py (FIXED)")
     init_db()
     calculate_performance()
-    logging.info("Relative performance calculation complete")
+    logging.info("Relative performance complete")
 
 if __name__ == "__main__":
     main()
