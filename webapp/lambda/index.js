@@ -51,6 +51,9 @@ const signalsRoutes = require("./routes/signals");
 const stocksRoutes = require("./routes/stocks");
 const strategiesRoutes = require("./routes/strategies");
 const tradesRoutes = require("./routes/trades");
+const rangeSignalsRoutes = require("./routes/rangeSignals");
+const meanReversionSignalsRoutes = require("./routes/meanReversionSignals");
+const backtestsRoutes = require("./routes/backtests");
 
 const app = express();
 
@@ -470,6 +473,11 @@ app.use("/api/strategies", strategiesRoutes);
 app.use("/api/trades", tradesRoutes);
 app.use("/api/trades/manual", manualTradesRoutes);
 app.use("/api/user", require("./routes/user"));
+
+// New strategy routes
+app.use("/api/signals/range", rangeSignalsRoutes);
+app.use("/api/signals/mean-reversion", meanReversionSignalsRoutes);
+app.use("/api/research/backtests", backtestsRoutes);
 
 // API info endpoint
 app.get("/api", (req, res) => {

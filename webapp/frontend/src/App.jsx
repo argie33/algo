@@ -31,6 +31,9 @@ import MarketOverview from "./pages/MarketOverview";
 import FinancialData from "./pages/FinancialData";
 import DeepValueStocks from "./pages/DeepValueStocks";
 import TradingSignals from "./pages/TradingSignals";
+import RangeSignals from "./pages/RangeSignals";
+import MeanReversionSignals from "./pages/MeanReversionSignals";
+import BacktestResults from "./pages/BacktestResults";
 import EconomicDashboard from "./pages/EconomicDashboard";
 import EarningsCalendar from "./pages/EarningsCalendar";
 import SectorAnalysis from "./pages/SectorAnalysis";
@@ -122,6 +125,18 @@ const menuItems = [
     category: "stocks",
   },
   {
+    text: "Range Signals",
+    icon: <TrendingUpIcon />,
+    path: "/app/range-signals",
+    category: "stocks",
+  },
+  {
+    text: "Mean Reversion",
+    icon: <TrendingDownIcon />,
+    path: "/app/mean-reversion",
+    category: "stocks",
+  },
+  {
     text: "ETF Signals",
     icon: <TrendingUpIcon />,
     path: "/app/etf-signals",
@@ -170,6 +185,14 @@ const menuItems = [
     icon: <BusinessIcon />,
     path: "/app/hedge-helper",
     category: "portfolio",
+  },
+
+  // Research & Testing Section
+  {
+    text: "Backtest Results",
+    icon: <TrendingUpIcon />,
+    path: "/app/backtests",
+    category: "research",
   },
 
   // Admin & Settings Section
@@ -459,6 +482,8 @@ function App() {
           <Route path="/app/deep-value" element={<DeepValueStocks />} />
           <Route path="/app/financial-data" element={<FinancialData />} />
           <Route path="/app/trading-signals" element={<TradingSignals />} />
+          <Route path="/app/range-signals" element={<RangeSignals />} />
+          <Route path="/app/mean-reversion" element={<MeanReversionSignals />} />
           <Route path="/app/etf-signals" element={<ETFSignals />} />
           <Route path="/app/earnings" element={<EarningsCalendar />} />
           <Route path="/app/scores" element={<ScoresDashboard />} />
@@ -469,6 +494,9 @@ function App() {
           <Route path="/app/trades" element={<TradeHistory />} />
           <Route path="/app/optimizer" element={<PortfolioOptimizerNew />} />
           <Route path="/app/hedge-helper" element={<HedgeHelper />} />
+
+          {/* Research & Testing */}
+          <Route path="/app/backtests" element={<BacktestResults />} />
 
           {/* Admin & Settings */}
           <Route path="/app/health" element={<ServiceHealth />} />
