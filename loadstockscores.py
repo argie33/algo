@@ -389,14 +389,6 @@ def main():
     df['positioning_z'] = calculate_weighted_score(positioning_for_calc, positioning_metrics, positioning_weights)
     df['positioning_score'] = df['positioning_z'].apply(zscore_to_percentile)
 
-    # ===== MOMENTUM INTRAWEEK SCORE (short-term 1-month momentum) =====
-    logger.info("Calculating MOMENTUM INTRAWEEK scores (short-term momentum from 1m return)...")
-    if 'momentum_1m' in df.columns:
-        m1_z = calculate_factor_zscore(df['momentum_1m'].values)
-        df['momentum_intraweek'] = pd.Series(m1_z, index=df.index).apply(zscore_to_percentile)
-    else:
-        df['momentum_intraweek'] = None
-
     # ===== COMPOSITE SCORE =====
     logger.info("Calculating COMPOSITE scores (equal weight across all 6 factors)...")
     score_cols = ['quality_score', 'growth_score', 'value_score', 'momentum_score', 'positioning_score', 'stability_score']
@@ -436,7 +428,6 @@ def main():
             momentum_val = df.iloc[idx]['momentum_score']
             positioning_val = df.iloc[idx]['positioning_score']
             stability_val = df.iloc[idx]['stability_score']
-            momentum_intraweek_val = df.iloc[idx].get('momentum_intraweek', np.nan)
 
             # Convert to None if NaN (vectorized)
             composite = None if pd.isna(composite_val) else float(composite_val)
@@ -446,9 +437,7 @@ def main():
             momentum = None if pd.isna(momentum_val) else float(momentum_val)
             positioning = None if pd.isna(positioning_val) else float(positioning_val)
             stability = None if pd.isna(stability_val) else float(stability_val)
-            momentum_intraweek = None if pd.isna(momentum_intraweek_val) else float(momentum_intraweek_val)
-
-            batch_rows.append((symbol, composite, quality, growth, value, momentum, positioning, stability, momentum_intraweek))
+            batch_rows.append((symbol, composite, quality, growth, value, momentum, positioning, stability))
 
         except Exception as e:
             logger.warning(f"Error processing {symbol}: {e}")
@@ -462,7 +451,7 @@ def main():
             batch = batch_rows[i:i+BATCH_SIZE]
             execute_values(cur, """
                 INSERT INTO stock_scores (symbol, composite_score, quality_score, growth_score, value_score,
-                                          momentum_score, positioning_score, stability_score, momentum_intraweek, score_date, last_updated)
+                                          momentum_score, positioning_score, stability_score, score_date, last_updated)
                 VALUES %s
                 ON CONFLICT (symbol) DO UPDATE SET
                     composite_score = EXCLUDED.composite_score,
@@ -472,7 +461,6 @@ def main():
                     momentum_score = EXCLUDED.momentum_score,
                     positioning_score = EXCLUDED.positioning_score,
                     stability_score = EXCLUDED.stability_score,
-                    momentum_intraweek = EXCLUDED.momentum_intraweek,
                     score_date = CURRENT_DATE,
                     last_updated = CURRENT_TIMESTAMP
             """, batch)
@@ -530,7 +518,6 @@ def main():
             COUNT(*) FILTER (WHERE momentum_score IS NOT NULL) as has_momentum,
             COUNT(*) FILTER (WHERE value_score IS NOT NULL) as has_value,
             COUNT(*) FILTER (WHERE positioning_score IS NOT NULL) as has_positioning,
-            COUNT(*) FILTER (WHERE momentum_intraweek IS NOT NULL) as has_momentum_intraweek,
             COUNT(*) FILTER (WHERE composite_score IS NOT NULL) as has_composite
           FROM stock_scores
         """)
@@ -541,7 +528,6 @@ def main():
         logger.info(f"    Growth scores: {stats[2]} ({100*stats[2]/stats[0]:.1f}%)")
         logger.info(f"    Stability scores: {stats[3]} ({100*stats[3]/stats[0]:.1f}%)")
         logger.info(f"    Momentum scores: {stats[4]} ({100*stats[4]/stats[0]:.1f}%)")
-        logger.info(f"    Momentum Intraweek: {stats[7]} ({100*stats[7]/stats[0]:.1f}%)")
         logger.info(f"    Value scores: {stats[5]} ({100*stats[5]/stats[0]:.1f}%)")
         logger.info(f"    Positioning scores: {stats[6]} ({100*stats[6]/stats[0]:.1f}%)")
         logger.info(f"    Composite scores: {stats[8]} ({100*stats[8]/stats[0]:.1f}%)")
