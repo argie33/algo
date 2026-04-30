@@ -6,6 +6,14 @@ Calculates monthly and quarterly returns for S&P 500 (SPY).
 
 import os
 import sys
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env.local
+env_path = Path(__file__).parent / '.env.local'
+if env_path.exists():
+    load_dotenv(env_path)
+
 import psycopg2
 from psycopg2.extras import execute_values
 from datetime import datetime, timedelta

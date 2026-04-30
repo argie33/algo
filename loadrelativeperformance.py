@@ -28,7 +28,9 @@ def init_db():
     config = get_db_config()
     conn = psycopg2.connect(**config)
     cur = conn.cursor()
-    cur.execute("""CREATE TABLE IF NOT EXISTS relative_performance (
+    # Drop and recreate to ensure correct schema
+    cur.execute("DROP TABLE IF EXISTS relative_performance CASCADE")
+    cur.execute("""CREATE TABLE relative_performance (
         id SERIAL PRIMARY KEY,
         symbol VARCHAR(20),
         date DATE,
