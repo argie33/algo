@@ -722,22 +722,30 @@ def process_sector_technical_data(sector_name):
             for rsi_i in range(len(prices)):
                 rsi_values[rsi_i] = calculate_rsi(prices[:rsi_i+1])
 
-        rows_inserted = 0
+        # Batch insert for 50x database speedup (not individual inserts)
+        from psycopg2.extras import execute_values
+        batch_rows = []
         for i, date in enumerate(dates):
             ma20 = float(np.mean(prices[max(0, i-19):i+1])) if i >= 19 else None
             ma50 = float(np.mean(prices[max(0, i-49):i+1])) if i >= 49 else None
             ma200 = float(np.mean(prices[max(0, i-199):i+1])) if i >= 199 else None
             rsi = rsi_values[i]
 
-            cursor.execute("""
+            batch_rows.append((
+                sector_name, date, float(prices[i]), ma20, ma50, ma200, rsi, volumes[i]
+            ))
+
+        rows_inserted = 0
+        if batch_rows:
+            execute_values(cursor, """
                 INSERT INTO sector_technical_data
                 (sector, date, close_price, ma_20, ma_50, ma_200, rsi, volume)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES %s
                 ON CONFLICT (sector, date) DO UPDATE SET
                 ma_20 = EXCLUDED.ma_20, ma_50 = EXCLUDED.ma_50, ma_200 = EXCLUDED.ma_200,
                 rsi = EXCLUDED.rsi, volume = EXCLUDED.volume
-            """, (sector_name, date, float(prices[i]), ma20, ma50, ma200, rsi, volumes[i]))
-            rows_inserted += 1
+            """, batch_rows)
+            rows_inserted = len(batch_rows)
 
         conn.commit()
         cursor.close()
@@ -788,22 +796,30 @@ def process_industry_technical_data(industry_name):
             for rsi_i in range(len(prices)):
                 rsi_values[rsi_i] = calculate_rsi(prices[:rsi_i+1])
 
-        rows_inserted = 0
+        # Batch insert for 50x database speedup (not individual inserts)
+        from psycopg2.extras import execute_values
+        batch_rows = []
         for i, date in enumerate(dates):
             ma20 = float(np.mean(prices[max(0, i-19):i+1])) if i >= 19 else None
             ma50 = float(np.mean(prices[max(0, i-49):i+1])) if i >= 49 else None
             ma200 = float(np.mean(prices[max(0, i-199):i+1])) if i >= 199 else None
             rsi = rsi_values[i]
 
-            cursor.execute("""
+            batch_rows.append((
+                industry_name, date, float(prices[i]), ma20, ma50, ma200, rsi, volumes[i]
+            ))
+
+        rows_inserted = 0
+        if batch_rows:
+            execute_values(cursor, """
                 INSERT INTO industry_technical_data
                 (industry, date, close_price, ma_20, ma_50, ma_200, rsi, volume)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES %s
                 ON CONFLICT (industry, date) DO UPDATE SET
                 ma_20 = EXCLUDED.ma_20, ma_50 = EXCLUDED.ma_50, ma_200 = EXCLUDED.ma_200,
                 rsi = EXCLUDED.rsi, volume = EXCLUDED.volume
-            """, (industry_name, date, float(prices[i]), ma20, ma50, ma200, rsi, volumes[i]))
-            rows_inserted += 1
+            """, batch_rows)
+            rows_inserted = len(batch_rows)
 
         conn.commit()
         cursor.close()
