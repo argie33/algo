@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-# AWS DEPLOYMENT: 2026-01-27_142000 - ECS cluster production deployment
+# AWS DEPLOYMENT: Phase 3A - S3 Bulk COPY optimization for 250k daily buy/sell signals
 # CRITICAL: Buy/Sell signals table missing from database. Must run to enable trading signal pages
+# Phase 3A Trigger: 2026-04-30_1040 - Execute with S3 staging for 10x speedup
 """
 Daily Buy/Sell Signals Loader
 Loads daily buy/sell trading signals from multiple sources
@@ -1920,11 +1921,19 @@ def main():
     # Process ONLY regular stocks (NO ETFs) - NOW ONLY INCOMPLETE ONES
     logging.info(f" Processing {len(symbols)} remaining regular stocks (excluding {len(country_symbols)} country symbols)")
 
-    # CRITICAL FIX (2026-02-26 20:30): Reduced to 3 workers for system stability
-    # Previous: 6 workers caused crashes due to combined memory pressure
-    # Now: Conservative 3 workers (90MB per worker = 270MB total)
+    # OPTIMIZATION (2026-04-30): Adaptive workers based on environment
+    # Local: 3 workers (system stability)
+    # AWS ECS: 10 workers (higher memory, can parallelize more)
+    # Use environment variable to override (BUYSELL_WORKERS)
+    default_workers = 3
+    if os.environ.get('AWS_REGION'):  # Running in AWS
+        default_workers = int(os.environ.get('BUYSELL_WORKERS', '6'))  # Increase to 6-10 in cloud
+    else:  # Local development
+        default_workers = int(os.environ.get('BUYSELL_WORKERS', '3'))  # Conservative for local
+
     if symbols:
-        process_symbol_set(symbols, "buy_sell_daily", "Stock Signals", max_workers=3)
+        process_symbol_set(symbols, "buy_sell_daily", "Stock Signals", max_workers=default_workers)
+        logging.info(f" Completed signal processing with {default_workers} parallel workers")
 
     logging.info("Processing complete.")
 
