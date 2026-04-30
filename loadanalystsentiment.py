@@ -14,6 +14,8 @@ import os
 import gc
 import threading
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Semaphore
 try:
     import resource
     HAS_RESOURCE = True
@@ -219,70 +221,73 @@ def fetch_analyst_data(symbol):
         return None
 
 def load_analyst_sentiment(symbols, cur, conn):
-    """Load analyst sentiment data for all symbols."""
+    """Load analyst sentiment data for all symbols with concurrent fetching."""
     total = len(symbols)
-    logging.info(f"Loading analyst sentiment data for {total} symbols")
+    logging.info(f"Loading analyst sentiment data for {total} symbols (concurrent mode)")
     inserted, failed, no_data = 0, [], 0
 
-    for idx, symbol in enumerate(symbols):
-        if idx % 100 == 0:
-            log_mem(f"Processing {symbol} ({idx+1}/{total})")
+    # Concurrent fetch with rate limiting
+    max_workers = 8  # Concurrent requests (tuned to avoid yfinance rate limits)
+    rate_limiter = Semaphore(max_workers)
 
-        data = fetch_analyst_data(symbol)
+    def fetch_with_rate_limit(symbol):
+        """Fetch analyst data with rate limiting semaphore."""
+        with rate_limiter:
+            return symbol, fetch_analyst_data(symbol)
 
-        if data is None:
-            no_data += 1
-            continue
+    # Batch processing results for database insertion
+    batch_inserts = []
+    batch_size = 100
 
-        # Calculate rating distribution
-        strong_buy, buy, hold, sell, strong_sell = calculate_rating_distribution(
-            data["numeric_rating"],
-            data["analyst_count"]
-        )
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(fetch_with_rate_limit, symbol): symbol for symbol in symbols}
 
-        # Get current price for target comparison
-        try:
-            yf_symbol = symbol.replace('.', '-').replace('$', '-').upper()
-            ticker2 = yf.Ticker(yf_symbol)
-            current_price = ticker2.info.get("currentPrice") or ticker2.info.get("regularMarketPrice")
-        except Exception as e:
-            logging.warning(f"Failed to fetch current price for {symbol} from yfinance: {str(e)}")
-            current_price = None
+        completed = 0
+        for future in as_completed(futures):
+            completed += 1
+            if completed % 100 == 0:
+                log_mem(f"Fetched {completed}/{total} symbols")
 
-        # Calculate price target vs current
-        upside_downside_percent = None
-        if data["target_mean"] and current_price:
             try:
-                upside_downside_percent = ((float(data["target_mean"]) / float(current_price)) - 1.0) * 100
+                symbol, data = future.result()
             except Exception as e:
-                logging.warning(f"Failed to calculate upside/downside for {symbol}: {str(e)}")
-                pass
+                logging.warning(f"Error fetching {symbol}: {e}")
+                failed.append(symbol)
+                continue
 
-        # Data is ready to insert - will be mapped in SQL section below
+            if data is None:
+                no_data += 1
+                continue
 
-        # Insert analyst sentiment data (fresh load, no conflicts expected)
-        # Map to actual table columns per schema: bullish_count, bearish_count, neutral_count, total_analysts
-        strong_buy, buy, hold, sell, strong_sell = calculate_rating_distribution(
-            data["numeric_rating"],
-            data["analyst_count"]
-        )
-        bullish_count = strong_buy + buy
-        bearish_count = sell + strong_sell
-        neutral_count = hold
+            # Calculate rating distribution
+            strong_buy, buy, hold, sell, strong_sell = calculate_rating_distribution(
+                data["numeric_rating"],
+                data["analyst_count"]
+            )
 
-        sql = """
-            INSERT INTO analyst_sentiment_analysis
-            (symbol, total_analysts, bullish_count, bearish_count, neutral_count, target_price, current_price, upside_downside_percent, date_recorded)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_DATE)
-            ON CONFLICT (symbol) DO UPDATE SET
-                total_analysts = EXCLUDED.total_analysts,
-                bullish_count = EXCLUDED.bullish_count,
-                bearish_count = EXCLUDED.bearish_count,
-                neutral_count = EXCLUDED.neutral_count
-        """
+            bullish_count = strong_buy + buy
+            bearish_count = sell + strong_sell
+            neutral_count = hold
 
-        try:
-            cur.execute(sql, [
+            # Get current price (fetch once per symbol, reuse in batch)
+            current_price = None
+            try:
+                yf_symbol = symbol.replace('.', '-').replace('$', '-').upper()
+                ticker2 = yf.Ticker(yf_symbol)
+                current_price = ticker2.info.get("currentPrice") or ticker2.info.get("regularMarketPrice")
+            except Exception as e:
+                logging.debug(f"Failed to fetch current price for {symbol}: {str(e)[:50]}")
+
+            # Calculate upside/downside
+            upside_downside_percent = None
+            if data["target_mean"] and current_price:
+                try:
+                    upside_downside_percent = ((float(data["target_mean"]) / float(current_price)) - 1.0) * 100
+                except Exception:
+                    pass
+
+            # Add to batch insert
+            batch_inserts.append((
                 symbol,
                 data["analyst_count"],
                 bullish_count,
@@ -291,18 +296,53 @@ def load_analyst_sentiment(symbols, cur, conn):
                 data["target_mean"],
                 current_price,
                 upside_downside_percent
-            ])
-            conn.commit()
-            inserted += 1
-            if data["analyst_count"] is not None and data["analyst_count"] > 0:
-                logging.info(f"{symbol}: {data['analyst_count']} analysts, avg rating {data['numeric_rating']}")
-        except Exception as e:
-            logging.error(f"Failed to insert {symbol}: {e}")
-            conn.rollback()
-            failed.append(symbol)
+            ))
 
-        gc.collect()
-        time.sleep(2)  # Rate limiting - 2 second delay per symbol to avoid yfinance rate limits
+            # Batch insert when size reached
+            if len(batch_inserts) >= batch_size:
+                try:
+                    insert_sql = """
+                        INSERT INTO analyst_sentiment_analysis
+                        (symbol, total_analysts, bullish_count, bearish_count, neutral_count, target_price, current_price, upside_downside_percent, date_recorded)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_DATE)
+                        ON CONFLICT (symbol) DO UPDATE SET
+                            total_analysts = EXCLUDED.total_analysts,
+                            bullish_count = EXCLUDED.bullish_count,
+                            bearish_count = EXCLUDED.bearish_count,
+                            neutral_count = EXCLUDED.neutral_count
+                    """
+                    execute_values(cur, insert_sql, batch_inserts)
+                    conn.commit()
+                    inserted += len(batch_inserts)
+                    batch_inserts = []
+                except Exception as e:
+                    logging.error(f"Failed to batch insert {len(batch_inserts)} records: {e}")
+                    conn.rollback()
+                    failed.extend([row[0] for row in batch_inserts])
+                    batch_inserts = []
+
+    # Insert any remaining batch
+    if batch_inserts:
+        try:
+            insert_sql = """
+                INSERT INTO analyst_sentiment_analysis
+                (symbol, total_analysts, bullish_count, bearish_count, neutral_count, target_price, current_price, upside_downside_percent, date_recorded)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_DATE)
+                ON CONFLICT (symbol) DO UPDATE SET
+                    total_analysts = EXCLUDED.total_analysts,
+                    bullish_count = EXCLUDED.bullish_count,
+                    bearish_count = EXCLUDED.bearish_count,
+                    neutral_count = EXCLUDED.neutral_count
+            """
+            execute_values(cur, insert_sql, batch_inserts)
+            conn.commit()
+            inserted += len(batch_inserts)
+        except Exception as e:
+            logging.error(f"Failed to insert final batch: {e}")
+            conn.rollback()
+            failed.extend([row[0] for row in batch_inserts])
+
+    gc.collect()
 
     return total, inserted, no_data, failed
 
