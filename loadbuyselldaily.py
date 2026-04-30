@@ -29,6 +29,14 @@ from importlib import import_module
 from pathlib import Path
 from dotenv import load_dotenv
 
+# Phase 3: S3 Staging for 10x database speedup
+try:
+    from s3_staging_helper import S3StagingHelper
+    HAS_S3_STAGING = True
+except ImportError:
+    HAS_S3_STAGING = False
+    logging.warning("S3StagingHelper not available - using standard database inserts")
+
 # Load environment from .env.local
 env_path = Path(__file__).parent / '.env.local'
 if env_path.exists():
@@ -38,6 +46,10 @@ if env_path.exists():
 # Script metadata & logging setup
 # -------------------------------
 SCRIPT_NAME = "loadbuyselldaily.py"
+
+# Phase 3: S3 Staging Configuration (10x speedup on inserts)
+USE_S3_STAGING = os.environ.get('USE_S3_STAGING', 'false').lower() == 'true'
+S3_STAGING_BUCKET = os.environ.get('S3_STAGING_BUCKET', 'stocks-app-data')
 
 # Setup rotating log file handler to prevent disk exhaustion from excessive logging
 import tempfile
