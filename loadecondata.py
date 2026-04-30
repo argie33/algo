@@ -543,43 +543,57 @@ def handler(event, context):
         ]
 
         def fetch_fred_series(series_id):
-            """Worker function: Fetch and upsert a single FRED series (thread-safe)"""
-            try:
-                fred = Fred(api_key=FRED_API_KEY)
-                logger.info(f"Fetching {series_id} …")
-                ts = fred.get_series(series_id)
+            """Worker function: Fetch and upsert a single FRED series with rate limit handling"""
+            max_retries = 4
+            for attempt in range(max_retries):
+                try:
+                    fred = Fred(api_key=FRED_API_KEY)
+                    logger.info(f"Fetching {series_id} (attempt {attempt+1}/{max_retries})")
+                    ts = fred.get_series(series_id)
 
-                if ts is None or ts.empty:
-                    logger.warning(f"No data for {series_id}")
-                    return {"series": series_id, "status": "no_data", "rows": 0}
+                    if ts is None or ts.empty:
+                        logger.warning(f"No data for {series_id}")
+                        return {"series": series_id, "status": "no_data", "rows": 0}
 
-                ts = ts.dropna()
-                rows = [(series_id, pd.to_datetime(dt).date(), float(val)) for dt, val in ts.items()]
+                    ts = ts.dropna()
+                    rows = [(series_id, pd.to_datetime(dt).date(), float(val)) for dt, val in ts.items()]
 
-                # Upsert with thread-safe connection
-                temp_conn = get_db_creds()
-                temp_db = psycopg2.connect(**temp_conn)
-                temp_cur = temp_db.cursor()
+                    # Upsert with thread-safe connection
+                    temp_conn = get_db_creds()
+                    temp_db = psycopg2.connect(**temp_conn)
+                    temp_cur = temp_db.cursor()
 
-                execute_values(
-                    temp_cur,
-                    """
-                    INSERT INTO economic_data (series_id, date, value)
-                    VALUES %s
-                    ON CONFLICT (series_id, date) DO UPDATE
-                      SET value = EXCLUDED.value;
-                    """,
-                    rows
-                )
-                temp_db.commit()
-                temp_cur.close()
-                temp_db.close()
+                    execute_values(
+                        temp_cur,
+                        """
+                        INSERT INTO economic_data (series_id, date, value)
+                        VALUES %s
+                        ON CONFLICT (series_id, date) DO UPDATE
+                          SET value = EXCLUDED.value;
+                        """,
+                        rows
+                    )
+                    temp_db.commit()
+                    temp_cur.close()
+                    temp_db.close()
 
-                logger.info(f"✓ {len(rows)} rows upserted for {series_id}")
-                return {"series": series_id, "status": "success", "rows": len(rows)}
-            except Exception as e:
-                logger.error(f"Failed to fetch {series_id}: {e}")
-                return {"series": series_id, "status": "error", "error": str(e)}
+                    logger.info(f"✓ {len(rows)} rows upserted for {series_id}")
+                    return {"series": series_id, "status": "success", "rows": len(rows)}
+
+                except Exception as e:
+                    error_str = str(e)
+                    is_rate_limit = "429" in error_str or "rate" in error_str.lower()
+
+                    if attempt < max_retries - 1:
+                        # Exponential backoff: 1s, 2s, 4s, 8s
+                        wait_time = (2 ** attempt) * 1.0
+                        if is_rate_limit:
+                            wait_time *= 2  # Double wait for rate limits
+                        logger.warning(f"  ⚠ {series_id}: {error_str[:50]}... Retry {attempt+1}/{max_retries} in {wait_time}s")
+                        time.sleep(wait_time)
+                    else:
+                        logger.error(f"Failed to fetch {series_id} after {max_retries} attempts: {error_str[:100]}")
+                        return {"series": series_id, "status": "error", "error": error_str}
 
         # Initialize FRED client if API key is available
         fred = None
@@ -594,10 +608,12 @@ def handler(event, context):
             logger.info("FRED_API_KEY not set, skipping FRED data fetching")
 
         # 4) Fetch & upsert each series in parallel
+        # Note: Using 3 workers for FRED API (not 5) to avoid rate limiting
+        # FRED has rate limits and prefers fewer concurrent requests
         if fred:
-            logger.info(f"Fetching {len(series_ids)} FRED series with 5 workers...")
+            logger.info(f"Fetching {len(series_ids)} FRED series with 3 workers (rate limit friendly)...")
             completed_series = 0
-            with ThreadPoolExecutor(max_workers=5) as executor:
+            with ThreadPoolExecutor(max_workers=3) as executor:
                 futures = {executor.submit(fetch_fred_series, sid): sid for sid in series_ids}
 
                 for future in as_completed(futures):
