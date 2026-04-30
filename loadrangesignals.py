@@ -104,12 +104,12 @@ def get_price_data(symbol, lookback_days=120):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        q = """
+        q = f"""
             SELECT symbol, date, open, high, low, close, volume
             FROM price_daily
-            WHERE symbol = %s AND date >= NOW() - INTERVAL '%d days'
+            WHERE symbol = %s AND date >= NOW() - INTERVAL '{lookback_days} days'
             ORDER BY date ASC
-        """ % (lookback_days,)
+        """
         cur.execute(q, (symbol,))
         rows = cur.fetchall()
 
