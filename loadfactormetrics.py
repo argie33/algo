@@ -1700,68 +1700,57 @@ def calculate_accumulation_distribution_rating(cursor, symbol: str) -> Optional[
         return None
 
 
-def load_ad_ratings(conn, cursor, symbols: List[str]):
-    """Load Accumulation/Distribution ratings for all symbols"""
-    logging.info("Loading A/D ratings...")
-
-    # Ensure clean transaction state
+def calculate_and_store_ad_rating(symbol):
+    """Worker function: Calculate A/D rating for one symbol and store to DB (thread-safe)"""
     try:
-        conn.rollback()
+        cfg = get_db_config()
+        conn = psycopg2.connect(**cfg)
+        cursor = conn.cursor()
 
-    except Exception:
-        pass
+        ad_rating = calculate_accumulation_distribution_rating(cursor, symbol)
 
-    ad_rows = []
-    failed_symbols = []
+        cursor.execute("""
+            INSERT INTO positioning_metrics (symbol, date, ad_rating, created_at, updated_at)
+            VALUES (%s, CURRENT_DATE, %s, NOW(), NOW())
+            ON CONFLICT (symbol, date) DO UPDATE SET
+                ad_rating = EXCLUDED.ad_rating,
+                updated_at = NOW()
+        """, (symbol, ad_rating))
 
-    for idx, symbol in enumerate(symbols, 1):
-        try:
-            ad_rating = calculate_accumulation_distribution_rating(cursor, symbol)
+        conn.commit()
+        cursor.close()
+        conn.close()
 
-            # ALWAYS append result (even if None) so UPDATE runs for all symbols
-            ad_rows.append((ad_rating, symbol))
-
-            if ad_rating is None:
-                failed_symbols.append(symbol)
-
-            # Print progress every 100 symbols
-            if idx % 100 == 0:
-                logging.info(f"  ✓ A/D ratings: {idx}/{len(symbols)}")
+        return {"symbol": symbol, "status": "success", "has_value": ad_rating is not None}
+    except Exception as e:
+        logging.warning(f"Failed to calculate A/D for {symbol}: {e}")
+        return {"symbol": symbol, "status": "error", "error": str(e), "has_value": False}
 
 
-        except Exception as e:
-            logging.warning(f"Failed to calculate A/D for {symbol}: {e}")
-            ad_rows.append((None, symbol))  # Still update with None so we track it
-            failed_symbols.append(symbol)
+def load_ad_ratings(conn, cursor, symbols: List[str]):
+    """Load Accumulation/Distribution ratings for all symbols in parallel"""
+    logging.info(f"Loading A/D ratings for {len(symbols)} symbols in parallel...")
 
-    # Update positioning_metrics with A/D ratings (including None values)
-    if ad_rows:
-        logging.info(f"Updating {len(ad_rows)} A/D ratings in positioning_metrics...")
-        logging.info(f"    {len(failed_symbols)} symbols with NULL A/D (insufficient price data or calculation failed)")
+    completed = 0
+    with_values = 0
+    failed = 0
 
-        updated_count = 0
-        for ad_rating, symbol in ad_rows:
-            try:
-                cursor.execute("""
-                    INSERT INTO positioning_metrics (symbol, date, ad_rating, created_at, updated_at)
-                    VALUES (%s, CURRENT_DATE, %s, NOW(), NOW())
-                    ON CONFLICT (symbol, date) DO UPDATE SET
-                        ad_rating = EXCLUDED.ad_rating,
-                        updated_at = NOW()
-                """, (symbol, ad_rating))
-                updated_count += 1
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {executor.submit(calculate_and_store_ad_rating, symbol): symbol for symbol in symbols}
 
-            except Exception as e:
-                logging.warning(f"Failed to update A/D for {symbol}: {e}")
-                conn.rollback()  # Clear aborted transaction state so next symbol can proceed
+        for future in as_completed(futures):
+            result = future.result()
+            completed += 1
 
-        try:
-            conn.commit()
-            logging.info(f" Updated {updated_count} A/D ratings ({len(ad_rows) - len(failed_symbols)} with values, {len(failed_symbols)} NULL)")
+            if result["status"] == "success":
+                if result["has_value"]:
+                    with_values += 1
+                if completed % 100 == 0:
+                    logging.info(f"  ✓ A/D ratings: {completed}/{len(symbols)}")
+            else:
+                failed += 1
 
-        except Exception as e:
-            logging.error(f"Failed to commit A/D updates: {e}")
-            conn.rollback()
+    logging.info(f" Completed A/D ratings: {with_values} with values, {completed - with_values - failed} NULL, {failed} failed")
 
 
 def load_quality_metrics(conn, cursor, symbols: List[str]):
