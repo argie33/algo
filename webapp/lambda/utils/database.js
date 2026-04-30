@@ -261,22 +261,105 @@ async function initializeDatabase() {
 }
 
 /**
+ * Create materialized views for performance optimization
+ */
+async function initializeMaterializedViews() {
+  try {
+    if (!pool || !dbInitialized) {
+      console.warn("Cannot create materialized views - database not connected");
+      return false;
+    }
+
+    console.log("Creating materialized views for optimized queries...");
+
+    const client = await pool.connect();
+    try {
+      // Drop existing views to refresh them
+      await client.query("DROP MATERIALIZED VIEW IF EXISTS mv_latest_prices CASCADE;");
+
+      // Create materialized view for latest prices (used by /api/price/latest)
+      await client.query(`
+        CREATE MATERIALIZED VIEW mv_latest_prices AS
+        SELECT DISTINCT ON (symbol)
+          symbol,
+          close as price,
+          open,
+          high,
+          low,
+          volume,
+          date
+        FROM price_daily
+        ORDER BY symbol, date DESC;
+      `);
+
+      // Create index on symbol for fast lookups
+      await client.query("CREATE INDEX idx_mv_latest_prices_symbol ON mv_latest_prices (symbol);");
+
+      console.log("OK: mv_latest_prices created with index");
+
+      // Drop and recreate stock scores view
+      await client.query("DROP MATERIALIZED VIEW IF EXISTS mv_stock_scores_full CASCADE;");
+
+      // Create materialized view for stock scores with metrics
+      await client.query(`
+        CREATE MATERIALIZED VIEW mv_stock_scores_full AS
+        SELECT
+          ss.symbol,
+          ss.composite_score,
+          ss.quality_score,
+          ss.growth_score,
+          ss.stability_score,
+          ss.momentum_score,
+          ss.value_score,
+          ss.positioning_score,
+          st.security_name
+        FROM stock_scores ss
+        LEFT JOIN stock_symbols st ON ss.symbol = st.symbol
+        WHERE ss.composite_score IS NOT NULL;
+      `);
+
+      // Create index on symbol
+      await client.query("CREATE INDEX idx_mv_stock_scores_full_symbol ON mv_stock_scores_full (symbol);");
+
+      console.log("OK: mv_stock_scores_full created with index");
+
+      console.log("OK: Materialized views initialized successfully");
+      return true;
+
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.warn("Materialized views initialization warning (non-critical):", error.message);
+    // Don't throw - views might already exist, application can continue
+    return false;
+  }
+}
+
+/**
  * Initialize database schema
  * Market data tables are created by loader scripts
  * Webapp tables are created by webapp-db-init.js
  */
 async function initializeSchema() {
   try {
-    console.log("🚀 Initializing database schema...");
+    console.log("Initializing database schema...");
 
-    // Import and run webapp table initialization
-    const { initializeWebappTables } = require('../webapp-db-init');
-    await initializeWebappTables();
+    // Create materialized views for performance
+    await initializeMaterializedViews();
 
-    console.log("✅ Database schema initialization completed");
+    // Import and run webapp table initialization if available
+    try {
+      const { initializeWebappTables } = require('../webapp-db-init');
+      await initializeWebappTables();
+    } catch (err) {
+      console.warn("Webapp table initialization skipped (not critical):", err.message);
+    }
+
+    console.log("OK: Database schema initialization completed");
     return true;
   } catch (error) {
-    console.error("❌ Schema initialization error:", error);
+    console.error("Schema initialization error:", error);
     // Don't throw - let the application continue with existing tables
     return false;
   }

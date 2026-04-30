@@ -29,7 +29,7 @@ const serverlessHttp = require('serverless-http');
 
 const errorHandler = require("./middleware/errorHandler");
 const requestLogger = require("./middleware/requestLogger");
-const { initializeDatabase, query } = require("./utils/database");
+const { initializeDatabase, initializeSchema, query } = require("./utils/database");
 const { initializeAlpacaSync } = require("./utils/alpacaSyncScheduler");
 const responseNormalizer = require("./middleware/responseNormalizer");
 const { cacheMiddleware } = require("./middleware/cacheMiddleware");
@@ -336,10 +336,17 @@ const ensureDatabase = async () => {
         );
       }),
     ])
-      .then((pool) => {
+      .then(async (pool) => {
         __dbAvailable = true;
         if (process.env.NODE_ENV !== 'test') {
           console.log("Database connection established successfully");
+        }
+        // Initialize schema (materialized views, etc) after connection is established
+        try {
+          await initializeSchema();
+        } catch (err) {
+          console.warn("Schema initialization warning (non-critical):", err.message);
+          // Don't fail - schema initialization is non-critical
         }
         return pool;
       })
