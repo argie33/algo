@@ -2717,7 +2717,7 @@ def load_value_metrics(conn, cursor, symbols: List[str]):
     try:
         cursor.execute("""
             SELECT ticker, trailing_pe, forward_pe, price_to_book, price_to_sales_ttm,
-                   peg_ratio, dividend_yield, market_cap
+                   peg_ratio, dividend_yield
             FROM key_metrics
             WHERE ticker = ANY(%s)
         """, (symbols,))
