@@ -419,6 +419,7 @@ def main():
     BATCH_SIZE = 5000  # Increased from 1000 for 5x less commits
 
     logger.info("Pre-computing all scores...")
+    now = datetime.now()
     for idx, symbol in enumerate(df.index):
         try:
             composite_val = df.iloc[idx]['composite_score']
@@ -437,7 +438,7 @@ def main():
             momentum = None if pd.isna(momentum_val) else float(momentum_val)
             positioning = None if pd.isna(positioning_val) else float(positioning_val)
             stability = None if pd.isna(stability_val) else float(stability_val)
-            batch_rows.append((symbol, composite, quality, growth, value, momentum, positioning, stability))
+            batch_rows.append((symbol, composite, quality, growth, value, momentum, positioning, stability, now))
 
         except Exception as e:
             logger.warning(f"Error processing {symbol}: {e}")
@@ -451,7 +452,7 @@ def main():
             batch = batch_rows[i:i+BATCH_SIZE]
             execute_values(cur, """
                 INSERT INTO stock_scores (symbol, composite_score, quality_score, growth_score, value_score,
-                                          momentum_score, positioning_score, stability_score, score_date, last_updated)
+                                          momentum_score, positioning_score, stability_score, last_updated)
                 VALUES %s
                 ON CONFLICT (symbol) DO UPDATE SET
                     composite_score = EXCLUDED.composite_score,
@@ -461,7 +462,6 @@ def main():
                     momentum_score = EXCLUDED.momentum_score,
                     positioning_score = EXCLUDED.positioning_score,
                     stability_score = EXCLUDED.stability_score,
-                    score_date = CURRENT_DATE,
                     last_updated = CURRENT_TIMESTAMP
             """, batch)
             saved += len(batch)
