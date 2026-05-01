@@ -162,7 +162,7 @@ def get_price_data(conn, symbol, lookback_days=500):
     cur.execute(f"""
         SELECT date, open, high, low, close, volume
         FROM price_daily
-        WHERE symbol = %s
+        WHERE symbol = %s AND close > 0 AND close <= 10000
         ORDER BY date ASC
     """, (symbol,))
     rows = cur.fetchall()
@@ -174,6 +174,10 @@ def get_price_data(conn, symbol, lookback_days=500):
     df = pd.DataFrame(rows, columns=['date', 'open', 'high', 'low', 'close', 'volume'])
     df['symbol'] = symbol
     df['date'] = pd.to_datetime(df['date'])
+    # Additional filter: remove any remaining extreme prices
+    df = df[(df['close'] > 0) & (df['close'] <= 10000)]
+    if len(df) < 50:
+        return None
     return df[['symbol', 'date', 'open', 'high', 'low', 'close', 'volume']].copy()
 
 def compute_indicators(df):
