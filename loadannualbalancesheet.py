@@ -167,20 +167,100 @@ def create_tables(cur):
         cur.execute(create_stmt)
         logging.info("Created annual_balance_sheet with full 75+ column schema to capture all yfinance data")
 
-        # Ensure fiscal_year column exists (for tables created before this update)
-        alter_stmt = """
-        DO $$
-        BEGIN
-            IF NOT EXISTS (
-                SELECT 1 FROM information_schema.columns
-                WHERE table_name='annual_balance_sheet' AND column_name='fiscal_year'
-            ) THEN
-                ALTER TABLE annual_balance_sheet ADD COLUMN fiscal_year INTEGER;
-                RAISE NOTICE 'Added missing fiscal_year column to annual_balance_sheet';
-            END IF;
-        END $$;
-        """
-        cur.execute(alter_stmt)
+        # Add ALL missing columns (schema migration for incomplete tables)
+        missing_columns = [
+            'fiscal_year INT',
+            'treasury_shares_number NUMERIC',
+            'ordinary_shares_number NUMERIC',
+            'share_issued NUMERIC',
+            'net_debt DECIMAL(16,2)',
+            'total_debt DECIMAL(16,2)',
+            'tangible_book_value DECIMAL(16,2)',
+            'invested_capital DECIMAL(16,2)',
+            'working_capital DECIMAL(16,2)',
+            'net_tangible_assets DECIMAL(16,2)',
+            'capital_lease_obligations DECIMAL(16,2)',
+            'common_stock_equity DECIMAL(16,2)',
+            'total_capitalization DECIMAL(16,2)',
+            'total_equity_gross_minority_interest DECIMAL(16,2)',
+            'stockholders_equity DECIMAL(16,2)',
+            'gains_losses_not_affecting_retained_earnings DECIMAL(16,2)',
+            'other_equity_adjustments DECIMAL(16,2)',
+            'retained_earnings DECIMAL(16,2)',
+            'capital_stock DECIMAL(16,2)',
+            'common_stock DECIMAL(16,2)',
+            'total_liabilities_net_minority_interest DECIMAL(16,2)',
+            'total_non_current_liabilities_net_minority_interest DECIMAL(16,2)',
+            'other_non_current_liabilities DECIMAL(16,2)',
+            'tradeand_other_payables_non_current DECIMAL(16,2)',
+            'long_term_debt_and_capital_lease_obligation DECIMAL(16,2)',
+            'long_term_capital_lease_obligation DECIMAL(16,2)',
+            'long_term_debt DECIMAL(16,2)',
+            'current_liabilities DECIMAL(16,2)',
+            'other_current_liabilities DECIMAL(16,2)',
+            'current_deferred_liabilities DECIMAL(16,2)',
+            'current_deferred_revenue DECIMAL(16,2)',
+            'current_debt_and_capital_lease_obligation DECIMAL(16,2)',
+            'current_capital_lease_obligation DECIMAL(16,2)',
+            'current_debt DECIMAL(16,2)',
+            'other_current_borrowings DECIMAL(16,2)',
+            'commercial_paper DECIMAL(16,2)',
+            'payables_and_accrued_expenses DECIMAL(16,2)',
+            'current_accrued_expenses DECIMAL(16,2)',
+            'payables DECIMAL(16,2)',
+            'total_tax_payable DECIMAL(16,2)',
+            'income_tax_payable DECIMAL(16,2)',
+            'accounts_payable DECIMAL(16,2)',
+            'total_non_current_assets DECIMAL(16,2)',
+            'other_non_current_assets DECIMAL(16,2)',
+            'non_current_deferred_assets DECIMAL(16,2)',
+            'non_current_deferred_taxes_assets DECIMAL(16,2)',
+            'investments_and_advances DECIMAL(16,2)',
+            'other_investments DECIMAL(16,2)',
+            'investmentin_financial_assets DECIMAL(16,2)',
+            'available_for_sale_securities DECIMAL(16,2)',
+            'net_ppe DECIMAL(16,2)',
+            'accumulated_depreciation DECIMAL(16,2)',
+            'gross_ppe DECIMAL(16,2)',
+            'leases DECIMAL(16,2)',
+            'other_properties DECIMAL(16,2)',
+            'machinery_furniture_equipment DECIMAL(16,2)',
+            'land_and_improvements DECIMAL(16,2)',
+            'properties DECIMAL(16,2)',
+            'current_assets DECIMAL(16,2)',
+            'other_current_assets DECIMAL(16,2)',
+            'inventory DECIMAL(16,2)',
+            'receivables DECIMAL(16,2)',
+            'other_receivables DECIMAL(16,2)',
+            'accounts_receivable DECIMAL(16,2)',
+            'cash_cash_equivalents_and_short_term_investments DECIMAL(16,2)',
+            'other_short_term_investments DECIMAL(16,2)',
+            'cash_and_cash_equivalents DECIMAL(16,2)',
+            'cash_equivalents DECIMAL(16,2)',
+            'total_assets DECIMAL(16,2)',
+            'total_liabilities DECIMAL(16,2)',
+        ]
+
+        # Add each column if it doesn't exist
+        for col_def in missing_columns:
+            col_name = col_def.split()[0]
+            alter_stmt = f"""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='annual_balance_sheet' AND column_name='{col_name}'
+                ) THEN
+                    ALTER TABLE annual_balance_sheet ADD COLUMN {col_def};
+                END IF;
+            END $$;
+            """
+            try:
+                cur.execute(alter_stmt)
+            except Exception as e:
+                logging.debug(f"Column {col_name} migration: {e}")
+
+        logging.info(f"Schema migration complete: added missing columns to annual_balance_sheet")
 
     except Exception as e:
         logging.error(f"Error creating table: {e}")

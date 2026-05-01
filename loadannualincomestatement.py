@@ -103,18 +103,33 @@ def create_tables(cur):
         )
     """)
 
-    # Ensure fiscal_year column exists
-    cur.execute("""
-    DO $$
-    BEGIN
-        IF NOT EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_name='annual_income_statement' AND column_name='fiscal_year'
-        ) THEN
-            ALTER TABLE annual_income_statement ADD COLUMN fiscal_year INTEGER;
-        END IF;
-    END $$;
-    """)
+    # Add ALL missing columns (comprehensive schema migration)
+    missing_columns = [
+        'fiscal_year INT',
+        'revenue DECIMAL(16,2)',
+        'cost_of_revenue DECIMAL(16,2)',
+        'gross_profit DECIMAL(16,2)',
+        'operating_expenses DECIMAL(16,2)',
+        'operating_income DECIMAL(16,2)',
+        'net_income DECIMAL(16,2)',
+        'earnings_per_share DECIMAL(12,4)',
+        'tax_expense DECIMAL(16,2)',
+        'interest_expense DECIMAL(16,2)',
+    ]
+
+    for col_def in missing_columns:
+        col_name = col_def.split()[0]
+        cur.execute(f"""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name='annual_income_statement' AND column_name='{col_name}'
+            ) THEN
+                ALTER TABLE annual_income_statement ADD COLUMN {col_def};
+            END IF;
+        END $$;
+        """)
 
 def load_symbol_data(symbol: str) -> List[Dict[str, Any]]:
     """Load annual income statement data for one symbol"""

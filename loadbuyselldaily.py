@@ -30,6 +30,14 @@ from importlib import import_module
 from pathlib import Path
 from dotenv import load_dotenv
 
+# Import shared calculation utilities
+try:
+    from signal_utils import detect_market_stage
+    HAS_SIGNAL_UTILS = True
+except ImportError:
+    HAS_SIGNAL_UTILS = False
+    logging.warning("signal_utils not available - will use inline market stage detection")
+
 # Phase 3: S3 Staging for 10x database speedup
 try:
     from s3_staging_helper import S3StagingHelper
@@ -154,19 +162,71 @@ def get_symbols_from_db(limit=None, skip_completed=False):
 def ensure_table_schema(cur, table_name="buy_sell_daily"):
     """Ensure buy_sell tables have all required columns"""
     try:
-        # Add strength column if missing
-        cur.execute(f"""
-        DO $$
-        BEGIN
-            IF NOT EXISTS (
-                SELECT 1 FROM information_schema.columns
-                WHERE table_name='{table_name}' AND column_name='strength'
-            ) THEN
-                ALTER TABLE {table_name} ADD COLUMN strength DECIMAL(10,2) DEFAULT NULL;
-            END IF;
-        END $$;
-        """)
-        logging.info(f"Ensured {table_name} schema includes strength column")
+        # Add all missing signal columns
+        missing_columns = [
+            'strength DECIMAL(10,2)',
+            'signal_strength DECIMAL(10,2)',
+            'signal_type VARCHAR(50)',
+            'pivot_price DECIMAL(16,4)',
+            'buy_zone_start DECIMAL(16,4)',
+            'buy_zone_end DECIMAL(16,4)',
+            'exit_trigger_1_price DECIMAL(16,4)',
+            'exit_trigger_2_price DECIMAL(16,4)',
+            'exit_trigger_3_price DECIMAL(16,4)',
+            'exit_trigger_4_price DECIMAL(16,4)',
+            'initial_stop DECIMAL(16,4)',
+            'trailing_stop DECIMAL(16,4)',
+            'base_type VARCHAR(50)',
+            'base_length_days INTEGER',
+            'avg_volume_50d BIGINT',
+            'volume_surge_pct DECIMAL(10,2)',
+            'rs_rating DECIMAL(10,2)',
+            'breakout_quality VARCHAR(50)',
+            'risk_reward_ratio DECIMAL(10,2)',
+            'current_gain_pct DECIMAL(10,2)',
+            'days_in_position INTEGER',
+            'market_stage VARCHAR(50)',
+            'stage_number INTEGER',
+            'stage_confidence DECIMAL(10,2)',
+            'substage VARCHAR(50)',
+            'entry_quality_score DECIMAL(10,2)',
+            'risk_pct DECIMAL(10,2)',
+            'position_size_recommendation DECIMAL(10,2)',
+            'profit_target_8pct DECIMAL(16,4)',
+            'profit_target_20pct DECIMAL(16,4)',
+            'profit_target_25pct DECIMAL(16,4)',
+            'sell_level DECIMAL(16,4)',
+            'mansfield_rs DECIMAL(10,2)',
+            'sata_score INTEGER',
+            'rsi DECIMAL(10,2)',
+            'adx DECIMAL(10,2)',
+            'atr DECIMAL(16,4)',
+            'sma_50 DECIMAL(16,4)',
+            'sma_200 DECIMAL(16,4)',
+            'ema_21 DECIMAL(16,4)',
+            'pct_from_ema21 DECIMAL(10,2)',
+            'pct_from_sma50 DECIMAL(10,2)',
+            'entry_price DECIMAL(16,4)',
+        ]
+
+        for col_def in missing_columns:
+            col_name = col_def.split()[0]
+            try:
+                cur.execute(f"""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='{table_name}' AND column_name='{col_name}'
+                    ) THEN
+                        ALTER TABLE {table_name} ADD COLUMN {col_def} DEFAULT NULL;
+                    END IF;
+                END $$;
+                """)
+            except Exception as col_error:
+                logging.debug(f"Column {col_name} migration: {col_error}")
+
+        logging.info(f"Schema migration complete for {table_name}")
     except Exception as e:
         logging.warning(f"Schema migration error for {table_name}: {e}")
 
