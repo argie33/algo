@@ -470,7 +470,7 @@ app.get("/api/debug/test-error", (req, res) => {
 });
 
 // Canonical API Routes - all under /api prefix
-app.use("/api/commodities", commoditiesRoutes);
+app.use("/api/commodities", cacheMiddleware(60), commoditiesRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/diagnostics", diagnosticsRoutes);
 app.use("/api/earnings", cacheMiddleware(90), earningsRoutes);
@@ -480,22 +480,22 @@ app.use("/api/health", healthRoutes);
 app.use("/api/industries", cacheMiddleware(120), industriesRoutes);
 app.use("/api/market", cacheMiddleware(60), marketRoutes);
 app.use("/api/optimization", optimizationRoutes);
-app.use("/api/portfolio", portfolioRoutes);
+app.use("/api/portfolio", cacheMiddleware(90), portfolioRoutes);
 app.use("/api/scores", cacheMiddleware(120), scoresRoutes);
 app.use("/api/sectors", cacheMiddleware(60), sectorsRoutes);
 app.use("/api/sentiment", cacheMiddleware(120), sentimentRoutes);
 // Cache signals endpoint: 60 second TTL (signals update periodically)
 app.use("/api/signals", cacheMiddleware(60), signalsRoutes);
 app.use("/api/stocks", cacheMiddleware(30), stocksRoutes);
-app.use("/api/strategies", strategiesRoutes);
-app.use("/api/trades", tradesRoutes);
+app.use("/api/strategies", cacheMiddleware(120), strategiesRoutes);
+app.use("/api/trades", cacheMiddleware(90), tradesRoutes);
 app.use("/api/trades/manual", manualTradesRoutes);
 app.use("/api/user", require("./routes/user"));
 
 // New strategy routes
-app.use("/api/signals/range", rangeSignalsRoutes);
-app.use("/api/signals/mean-reversion", meanReversionSignalsRoutes);
-app.use("/api/research/backtests", backtestsRoutes);
+app.use("/api/signals/range", cacheMiddleware(60), rangeSignalsRoutes);
+app.use("/api/signals/mean-reversion", cacheMiddleware(60), meanReversionSignalsRoutes);
+app.use("/api/research/backtests", cacheMiddleware(120), backtestsRoutes);
 
 // Status and price routes
 app.use("/api/status", cacheMiddleware(30), statusRoutes);
