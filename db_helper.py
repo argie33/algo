@@ -3,6 +3,8 @@
 Database Helper - Clean abstraction for ALL inserts (S3 or standard)
 Loaders don't need to know HOW data is inserted, just WHAT to insert.
 Automatically chooses best method based on environment.
+
+Triggers automatic AWS deployment via GitHub Actions OIDC workflow.
 """
 
 import os
