@@ -325,7 +325,6 @@ if __name__ == "__main__":
             dbname=cfg["dbname"],
             user=cfg["user"]
         )
-    conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     # Create table

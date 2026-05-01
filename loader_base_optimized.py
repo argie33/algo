@@ -77,7 +77,6 @@ class OptimizedLoader:
         """Establish database connection."""
         try:
             self.conn = psycopg2.connect(**self.config)
-            self.conn.autocommit = False
             self.cur = self.conn.cursor()
             logger.info(f"Connected to {self.config['host']}:{self.config['port']}/{self.config['dbname']}")
         except Exception as e:

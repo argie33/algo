@@ -228,7 +228,6 @@ def lambda_handler(event, context):
     if not conn:
         logging.error(" Failed to connect to database")
         return {"error": "Database connection failed"}
-    conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     create_table(cur)

@@ -265,7 +265,6 @@ def lambda_handler(event, context):
                 dbname=cfg["dbname"],
                 user=cfg["user"]
             )
-        conn.autocommit = False
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         logging.info("Database connected successfully")

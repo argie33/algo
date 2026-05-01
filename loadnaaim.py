@@ -368,7 +368,6 @@ def main():
         dbname=cfg["dbname"]
     )
     logging.info(" Database connection established")
-    conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     # Ensure naaim table exists (never drop - avoid data loss)

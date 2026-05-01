@@ -1238,7 +1238,6 @@ if __name__ == "__main__":
         try:
             # Get thread-local database connection
             thread_conn = psycopg2.connect(**connect_params)
-            thread_conn.autocommit = False
             thread_cur = thread_conn.cursor(cursor_factory=RealDictCursor)
 
             # Acquire rate limiter
@@ -1294,7 +1293,6 @@ if __name__ == "__main__":
             # Track failure
             try:
                 thread_conn = psycopg2.connect(**connect_params)
-                thread_conn.autocommit = False
                 thread_cur = thread_conn.cursor(cursor_factory=RealDictCursor)
                 thread_cur.execute("""
                     INSERT INTO loader_run_progress (run_id, loader_name, symbol, completed_at, status, error_msg, elapsed_ms)

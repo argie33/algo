@@ -647,7 +647,6 @@ if __name__ == "__main__":
         connect_timeout=30,
         options='-c statement_timeout=600000'
     )
-    conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     # Create tables if they don't exist (don't drop - allow incremental loading)

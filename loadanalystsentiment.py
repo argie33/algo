@@ -355,7 +355,6 @@ def lambda_handler(event, context):
         user=cfg["user"], password=cfg["password"],
         dbname=cfg["dbname"]
     )
-    conn.autocommit = False
     cur = conn.cursor()
 
     # Get S&P 500 symbols only

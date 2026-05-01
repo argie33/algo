@@ -295,7 +295,6 @@ if __name__ == "__main__":
             dbname=cfg["dbname"]
         )
         logging.info(" Database connection established")
-        conn.autocommit = False
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Ensure aaii_sentiment table exists (never drop - avoid data loss)

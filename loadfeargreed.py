@@ -281,7 +281,6 @@ async def main():
         dbname=cfg["dbname"]
     )
     logging.info(" Database connection established")
-    conn.autocommit = False
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     # Ensure fear_greed_index table exists (never drop - avoid data loss)
