@@ -2,6 +2,7 @@
 """Helper module for logging loader execution metrics"""
 
 import psycopg2
+from db_helper import DatabaseHelper
 import os
 import logging
 from datetime import datetime

@@ -27,6 +27,7 @@ except ImportError:
     pass  # dotenv not available in AWS ECS container - use env vars directly
 
 import psycopg2
+from db_helper import DatabaseHelper
 import numpy as np
 
 # Setup logging

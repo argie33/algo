@@ -71,7 +71,9 @@
       "Bash(PORT=3001 node webapp/lambda/index.js)",
       "Bash(curl -s \"http://localhost:3001/api/stocks/deep-value?limit=15\")",
       "Bash(curl -s \"http://localhost:3001/api/stocks/deep-value?limit=10\")",
-      "Bash(psql -h localhost -U stocks -d stocks -c ' *)"
+      "Bash(psql -h localhost -U stocks -d stocks -c ' *)",
+      "Bash(git push *)",
+      "WebSearch"
     ]
   }
 }

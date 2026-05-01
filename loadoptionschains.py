@@ -22,6 +22,7 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 import psycopg2
+from db_helper import DatabaseHelper
 from psycopg2.extras import execute_values
 import boto3
 import requests

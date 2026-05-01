@@ -18,7 +18,7 @@ from datetime import datetime
 
 import psycopg2
 import boto3
-from psycopg2.extras import execute_values
+from db_helper import DatabaseHelper
 import yfinance as yf
 import pandas as pd
 import requests
@@ -427,41 +427,37 @@ def load_symbol_data(symbol: str) -> List[Dict[str, Any]]:
         logging.error(f"Error loading {symbol}: {e}")
         return []
 
-def batch_insert(cur, data: List[Dict[str, Any]]) -> int:
-    """Insert batch of records - tries to insert, ignores duplicates"""
+def batch_insert(db: DatabaseHelper, data: List[Dict[str, Any]]) -> int:
+    """Insert batch of records using DatabaseHelper (S3 or standard)"""
     if not data:
         return 0
 
-    inserted = 0
-    for row in data:
-        try:
-            cols = ', '.join(row.keys())
-            placeholders = ', '.join(['%s'] * len(row))
-            values = list(row.values())
+    # Get columns from first row (all rows have same columns)
+    if not data:
+        return 0
 
-            cur.execute(f"""
-                INSERT INTO annual_balance_sheet ({cols})
-                VALUES ({placeholders})
-            """, values)
-            inserted += 1
+    columns = list(data[0].keys())
+    rows = [tuple(row.get(col) for col in columns) for row in data]
 
-        except psycopg2.Error as e:
-            error_str = str(e)
-            # Ignore duplicate key errors
-            if 'duplicate' not in error_str.lower() and 'unique' not in error_str.lower():
-                logging.debug(f"Insert error: {error_str[:80]}")
-
-    return inserted
+    return db.insert('annual_balance_sheet', columns, rows)
 
 def main():
     """Main execution with parallel processing"""
-    logging.info("Starting loadannualbalancesheet (PARALLEL) with 5 workers")
+    logging.info("Starting loadannualbalancesheet (PARALLEL) with 5 workers using DatabaseHelper")
     logging.info("Expected time: 5-25 minutes (vs 45-120 minutes serial)")
+
+    db_config = get_db_config()
+    if not db_config:
+        logging.error("Failed to get database config")
+        return False
 
     conn = get_db_connection()
     if not conn:
         logging.error("Failed to connect to database")
         return False
+
+    # Create DatabaseHelper for insertions
+    db = DatabaseHelper(db_config)
 
     try:
         cur = conn.cursor()
@@ -511,7 +507,7 @@ def main():
                         successful += 1
 
                         if len(batch) >= batch_size:
-                            inserted = batch_insert(cur, batch)
+                            inserted = batch_insert(db, batch)
                             total_rows += inserted
                             batch = []
                     else:
@@ -532,8 +528,10 @@ def main():
                     continue
 
         if batch:
-            inserted = batch_insert(cur, batch)
+            inserted = batch_insert(db, batch)
             total_rows += inserted
+
+        db.close()
 
         elapsed = time.time() - start_time
         logging.info(

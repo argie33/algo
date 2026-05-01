@@ -5,6 +5,7 @@ import sys, logging, json, os
 from pathlib import Path
 from datetime import datetime, timedelta
 import psycopg2
+from db_helper import DatabaseHelper
 from psycopg2.extras import execute_values
 import yfinance as yf
 from dotenv import load_dotenv

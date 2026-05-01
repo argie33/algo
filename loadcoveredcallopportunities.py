@@ -22,6 +22,7 @@ import json
 import logging
 from datetime import date, datetime, timedelta
 import psycopg2
+from db_helper import DatabaseHelper
 from psycopg2.extras import execute_values
 import boto3
 

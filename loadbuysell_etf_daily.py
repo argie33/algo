@@ -16,13 +16,8 @@ import logging
 from importlib import import_module
 from dotenv import load_dotenv
 
-# Cloud-native S3 bulk loading (1000x faster)
-try:
-    from s3_staging_helper import S3StagingHelper
-    HAS_S3_STAGING = True
-except ImportError:
-    HAS_S3_STAGING = False
-    logging.warning("S3StagingHelper not available - using standard database inserts")
+# Database abstraction layer (handles S3 or standard inserts automatically)
+from db_helper import DatabaseHelper
 
 # Load environment from .env.local
 load_dotenv(env_file) if (env_file := Path(__file__).parent / '.env.local').exists() else None
@@ -608,7 +603,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
                     "password": DB_PASSWORD,
                     "dbname": DB_NAME
                 }
-                staging = S3StagingHelper(db_config)
+                db = DatabaseHelper(db_config)
                 columns = [
                     'symbol', 'timeframe', 'date',
                     'open', 'high', 'low', 'close', 'volume',
@@ -623,15 +618,8 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
                     'mansfield_rs', 'sata_score',
                     'rsi', 'adx', 'atr', 'sma_50', 'sma_200', 'ema_21', 'pct_from_ema21', 'pct_from_sma50', 'entry_price'
                 ]
-                inserted = staging.insert_bulk(table_name, columns, insert_rows)
-            else:
-                # Fallback: standard executemany if S3 staging not available
-                cur.executemany(insert_q, insert_rows)
-                rows_affected = cur.rowcount
-                conn.commit()
-
-                if rows_affected == 0 and len(insert_rows) > 0:
-                    logging.error(f" SILENT FAILURE: ON CONFLICT skipped ALL {len(insert_rows)} rows for {symbol} {timeframe}")
+                inserted = db.insert(table_name, columns, insert_rows)
+                db.close()
                     inserted = 0
                 else:
                     inserted = rows_affected

@@ -116,6 +116,7 @@ class DatabaseHelper:
             logger.error(f"{table_name}: Failed to connect to database")
             return 0
 
+        cursor = None
         try:
             cursor = self.conn.cursor()
 
@@ -124,27 +125,48 @@ class DatabaseHelper:
             placeholders = ", ".join(["%s"] * len(columns))
             sql = f"INSERT INTO {table_name} ({col_list}) VALUES ({placeholders})"
 
-            # Insert rows
+            # Batch insert for efficiency (even without S3, batching helps)
+            batch_size = 500
             inserted = 0
-            for row in rows:
-                try:
-                    cursor.execute(sql, row)
-                    inserted += 1
-                except psycopg2.IntegrityError:
-                    # Skip duplicates
-                    pass
-                except Exception as e:
-                    logger.debug(f"{table_name}: Row insert error: {str(e)[:50]}")
+            skipped = 0
 
-            self.conn.commit()
-            logger.info(f"{table_name}: Inserted {inserted}/{len(rows)} rows")
+            for i in range(0, len(rows), batch_size):
+                batch = rows[i:i + batch_size]
+                for row in batch:
+                    try:
+                        cursor.execute(sql, row)
+                        inserted += 1
+                    except psycopg2.IntegrityError:
+                        # Skip duplicates silently
+                        skipped += 1
+                    except Exception as e:
+                        logger.debug(f"{table_name}: Row insert error: {str(e)[:50]}")
+                        skipped += 1
+
+                # Commit each batch
+                try:
+                    self.conn.commit()
+                except Exception as e:
+                    logger.error(f"{table_name}: Batch commit failed: {e}")
+                    self.conn.rollback()
+
+            if skipped > 0:
+                logger.info(f"{table_name}: Inserted {inserted}/{len(rows)} rows (skipped {skipped} duplicates)")
+            else:
+                logger.info(f"{table_name}: Inserted {inserted}/{len(rows)} rows")
             return inserted
 
         except Exception as e:
             logger.error(f"{table_name}: Insert failed: {e}")
             if self.conn:
-                self.conn.rollback()
+                try:
+                    self.conn.rollback()
+                except:
+                    pass
             return 0
         finally:
             if cursor:
-                cursor.close()
+                try:
+                    cursor.close()
+                except:
+                    pass

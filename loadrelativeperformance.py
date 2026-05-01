@@ -3,6 +3,7 @@
 import os, json, logging, sys
 from pathlib import Path
 import psycopg2
+from db_helper import DatabaseHelper
 from psycopg2.extras import execute_values
 from dotenv import load_dotenv
 from datetime import datetime

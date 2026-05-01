@@ -38,13 +38,8 @@ except ImportError:
     HAS_SIGNAL_UTILS = False
     logging.warning("signal_utils not available - will use inline market stage detection")
 
-# Phase 3A: Cloud-native S3 bulk loading (1000x faster)
-try:
-    from s3_staging_helper import S3StagingHelper
-    HAS_S3_STAGING = True
-except ImportError:
-    HAS_S3_STAGING = False
-    logging.warning("S3StagingHelper not available - using standard database inserts")
+# Database abstraction layer (handles S3 or standard inserts automatically)
+from db_helper import DatabaseHelper
 
 # Load environment from .env.local
 env_path = Path(__file__).parent / '.env.local'
@@ -56,9 +51,6 @@ if env_path.exists():
 # -------------------------------
 SCRIPT_NAME = "loadbuyselldaily.py"
 
-# Phase 3: S3 Staging Configuration (10x speedup on inserts)
-USE_S3_STAGING = os.environ.get('USE_S3_STAGING', 'false').lower() == 'true'
-S3_STAGING_BUCKET = os.environ.get('S3_STAGING_BUCKET', 'stocks-app-data')
 
 # Setup rotating log file handler to prevent disk exhaustion from excessive logging
 import tempfile
@@ -672,7 +664,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
         try:
             # Cloud-native insertion via S3 (if enabled)
             if HAS_S3_STAGING and USE_S3_STAGING:
-                logging.info(f" Using S3 staging for {len(insert_rows)} rows ({symbol} {timeframe})")
+                logging.info(f"Inserting {len(insert_rows)} rows ({symbol} {timeframe}) via DatabaseHelper")
                 db_config = {
                     "host": os.environ.get("DB_HOST", "localhost"),
                     "port": int(os.environ.get("DB_PORT", "5432")),
@@ -680,7 +672,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
                     "password": os.environ.get("DB_PASSWORD", ""),
                     "dbname": os.environ.get("DB_NAME", "stocks")
                 }
-                staging = S3StagingHelper(db_config)
+                db = DatabaseHelper(db_config)
                 columns = [
                     'symbol', 'timeframe', 'date',
                     'open', 'high', 'low', 'close', 'volume',
@@ -700,23 +692,8 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
                     'rsi', 'adx', 'atr', 'sma_50', 'sma_200', 'ema_21',
                     'pct_from_ema21', 'pct_from_sma50', 'entry_price'
                 ]
-                total_inserted = staging.insert_bulk(table_name, columns, insert_rows)
-            else:
-                # Fallback: chunked standard inserts if S3 staging not available
-                import gc
-                CHUNK_SIZE = 100
-                for i in range(0, len(insert_rows), CHUNK_SIZE):
-                    chunk = insert_rows[i:i + CHUNK_SIZE]
-                    try:
-                        cur.executemany(insert_q, chunk)
-                        rows_affected = cur.rowcount
-                        conn.commit()
-                        total_inserted += rows_affected
-                    except Exception as e:
-                        conn.rollback()
-                        logging.warning(f"Chunk {i//CHUNK_SIZE} insert failed: {e}")
-                del insert_rows
-                gc.collect()
+                total_inserted = db.insert(table_name, columns, insert_rows)
+                db.close()
 
             inserted = total_inserted
 

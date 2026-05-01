@@ -41,6 +41,7 @@ from collections import defaultdict
 
 from dotenv import load_dotenv
 import psycopg2
+from db_helper import DatabaseHelper
 
 # Load environment variables from .env.local if it exists
 env_file = Path(__file__).parent / '.env.local'

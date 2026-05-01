@@ -8,6 +8,7 @@ Target: ~20,000 rows / 4,965 symbols (100%)
 """
 
 import psycopg2
+from db_helper import DatabaseHelper
 from psycopg2.extras import execute_values
 import yfinance as yf
 import pandas as pd
@@ -134,6 +135,7 @@ def insert_earnings_estimates(conn, estimates_list):
 
 def main():
     conn = get_db_connection()
+    conn.autocommit = True  # Prevent transaction abort issues
 
     # Get all symbols
     symbols = get_all_symbols(conn)
@@ -150,12 +152,14 @@ def main():
     symbols_to_load = [s for s in symbols if s not in existing_symbols]
     logging.info(f"Already have {len(existing_symbols)} symbols, need to load {len(symbols_to_load)}")
 
-    # Load in parallel
+    # Load in parallel with better error handling
     total_loaded = 0
-    batch_size = 100
+    batch_size = 50  # Smaller batches for better error recovery
     processed = 0
+    errors = 0
+    rate_limit_wait = 0
 
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=3) as executor:  # Reduced workers to avoid rate limiting
         # Submit all tasks
         futures = {
             executor.submit(fetch_earnings_estimates, symbol): symbol
@@ -174,26 +178,41 @@ def main():
                     batch.append(result)
             except Exception as e:
                 logging.warning(f"Failed to process {symbol}: {e}")
+                errors += 1
 
             # Insert when we have a batch
             if len(batch) >= batch_size:
-                inserted = insert_earnings_estimates(conn, batch)
-                total_loaded += inserted
-                logging.info(f"Progress: {processed}/{len(symbols_to_load)} symbols, {total_loaded:,} rows loaded")
+                try:
+                    inserted = insert_earnings_estimates(conn, batch)
+                    total_loaded += inserted
+                    logging.info(f"Progress: {processed}/{len(symbols_to_load)} symbols, {total_loaded:,} rows loaded")
+                except Exception as e:
+                    logging.error(f"Batch insert failed: {e}, retrying individual inserts...")
+                    # Fallback: insert individually
+                    for est in batch:
+                        try:
+                            inserted = insert_earnings_estimates(conn, [est])
+                            total_loaded += inserted
+                        except Exception as e2:
+                            logging.warning(f"Individual insert failed for {est['symbol']}: {e2}")
                 batch = []
 
             # Show progress every 100 symbols
             if processed % 100 == 0:
-                logging.info(f"Progress: {processed}/{len(symbols_to_load)} ({processed*100//len(symbols_to_load)}%)")
+                pct = processed*100//len(symbols_to_load) if symbols_to_load else 0
+                logging.info(f"Progress: {processed}/{len(symbols_to_load)} ({pct}%) - {total_loaded:,} loaded, {errors} errors")
 
     # Insert remaining batch
     if batch:
-        inserted = insert_earnings_estimates(conn, batch)
-        total_loaded += inserted
+        try:
+            inserted = insert_earnings_estimates(conn, batch)
+            total_loaded += inserted
+        except Exception as e:
+            logging.error(f"Final batch insert failed: {e}")
 
     conn.close()
 
-    logging.info(f"DONE: Loaded earnings estimates for {len(symbols_to_load)} symbols, {total_loaded:,} rows inserted")
+    logging.info(f"DONE: Loaded earnings estimates for {processed} symbols processed, {total_loaded:,} rows inserted, {errors} errors")
 
 if __name__ == '__main__':
     main()

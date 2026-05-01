@@ -17,13 +17,8 @@ from datetime import datetime
 import logging
 from dotenv import load_dotenv
 
-# Cloud-native S3 bulk loading (1000x faster)
-try:
-    from s3_staging_helper import S3StagingHelper
-    HAS_S3_STAGING = True
-except ImportError:
-    HAS_S3_STAGING = False
-    logging.warning("S3StagingHelper not available - using standard database inserts")
+# Database abstraction layer (handles S3 or standard inserts automatically)
+from db_helper import DatabaseHelper
 
 # Load environment from .env.local (cross-platform)
 from pathlib import Path
@@ -859,7 +854,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
                     "password": DB_PASSWORD,
                     "dbname": DB_NAME
                 }
-                staging = S3StagingHelper(db_config)
+                db = DatabaseHelper(db_config)
                 columns = [
                     'symbol', 'timeframe', 'date',
                     'open', 'high', 'low', 'close', 'volume',
@@ -875,13 +870,8 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
                     'mansfield_rs', 'sata_score',
                     'rsi', 'adx', 'atr', 'sma_50', 'sma_200', 'ema_21', 'pct_from_ema21', 'pct_from_sma50', 'entry_price'
                 ]
-                inserted = staging.insert_bulk(table_name, columns, insert_rows)
-            else:
-                # Fallback: use standard execute for each row
-                for row_tuple in insert_rows:
-                    try:
-                        cur.execute(insert_q, row_tuple)
-                    except Exception as e:
+                inserted = db.insert(table_name, columns, insert_rows)
+                db.close()
                         logging.debug(f"Insert error: {e}")
                 cur.connection.commit()
         except Exception as e:

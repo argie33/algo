@@ -14,6 +14,7 @@ Performance improvement target: 50%+ vs serial single-row inserts
 import os
 import logging
 import psycopg2
+from db_helper import DatabaseHelper
 from psycopg2.extras import execute_values
 from typing import List, Tuple, Dict, Any
 import time

@@ -11,6 +11,7 @@ import logging
 import os
 import time
 import psycopg2
+from db_helper import DatabaseHelper
 from psycopg2.extras import execute_values
 from datetime import datetime, timedelta
 import yfinance as yf

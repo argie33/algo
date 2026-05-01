@@ -16,6 +16,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any, Optional
 
 import psycopg2
+from db_helper import DatabaseHelper
 import boto3
 import yfinance as yf
 import pandas as pd

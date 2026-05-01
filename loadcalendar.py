@@ -17,6 +17,7 @@ except ImportError:
 
 import boto3
 import psycopg2
+from db_helper import DatabaseHelper
 from psycopg2.extras import DictCursor
 import yfinance as yf
 import pandas as pd

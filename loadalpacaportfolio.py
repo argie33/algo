@@ -14,6 +14,7 @@ import sys
 import logging
 import os
 import psycopg2
+from db_helper import DatabaseHelper
 from psycopg2.extras import RealDictCursor
 from datetime import datetime, timedelta
 import json

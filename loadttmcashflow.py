@@ -14,6 +14,7 @@ from datetime import datetime, date
 from typing import List, Tuple, Optional
 
 import psycopg2
+from db_helper import DatabaseHelper
 from psycopg2.extras import RealDictCursor, execute_values
 import boto3
 import yfinance as yf

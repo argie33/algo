@@ -13,6 +13,7 @@ from pathlib import Path
 
 import boto3
 import psycopg2
+from db_helper import DatabaseHelper
 import requests
 from dotenv import load_dotenv
 from psycopg2.extras import execute_values

@@ -15,6 +15,7 @@ if env_path.exists():
     load_dotenv(env_path)
 
 import psycopg2
+from db_helper import DatabaseHelper
 from psycopg2.extras import execute_values
 from datetime import datetime, timedelta
 import pandas as pd

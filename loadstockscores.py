@@ -5,6 +5,7 @@ Stock Scores Loader v3.0 COMPREHENSIVE - Uses all available metrics for accurate
 """
 import sys
 import psycopg2
+from db_helper import DatabaseHelper
 import pandas as pd
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed

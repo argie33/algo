@@ -8,6 +8,7 @@ import requests
 import json
 import logging
 import psycopg2
+from db_helper import DatabaseHelper
 import sys
 import os
 import time

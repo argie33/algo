@@ -16,6 +16,7 @@ import math
 import argparse
 
 import psycopg2
+from db_helper import DatabaseHelper
 from psycopg2.extras import RealDictCursor, execute_values
 from datetime import datetime
 
