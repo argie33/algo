@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260501_230100 - Phase 4: Annual balance sheet WITH COMPREHENSIVE SCHEMA FIX (all 75 columns)
+# TRIGGER: 20260501_131300 - Phase 4: Annual balance sheet FIXED SCHEMA MIGRATION (direct ALTER, no DO block)
 """
 Annual Balance Sheet Loader (PARALLEL OPTIMIZED)
 Loads annual balance sheet data with 5-10x speedup using ThreadPoolExecutor.
@@ -241,26 +241,18 @@ def create_tables(cur):
             'total_liabilities DECIMAL(16,2)',
         ]
 
-        # Add each column if it doesn't exist
+        # Add each column if it doesn't exist (simpler approach without DO block)
+        cols_added = 0
         for col_def in missing_columns:
             col_name = col_def.split()[0]
-            alter_stmt = f"""
-            DO $$
-            BEGIN
-                IF NOT EXISTS (
-                    SELECT 1 FROM information_schema.columns
-                    WHERE table_name='annual_balance_sheet' AND column_name='{col_name}'
-                ) THEN
-                    ALTER TABLE annual_balance_sheet ADD COLUMN {col_def};
-                END IF;
-            END $$;
-            """
             try:
-                cur.execute(alter_stmt)
-            except Exception as e:
-                logging.debug(f"Column {col_name} migration: {e}")
+                cur.execute(f"ALTER TABLE annual_balance_sheet ADD COLUMN {col_def}")
+                cols_added += 1
+            except psycopg2.Error as e:
+                if 'already exists' not in str(e):
+                    logging.debug(f"Column {col_name}: {str(e)[:80]}")
 
-        logging.info(f"Schema migration complete: added missing columns to annual_balance_sheet")
+        logging.info(f"Schema migration complete: added {cols_added} columns to annual_balance_sheet")
 
     except Exception as e:
         logging.error(f"Error creating table: {e}")

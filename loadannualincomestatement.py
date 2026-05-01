@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260501_230200 - Phase 4: Annual income WITH COMPREHENSIVE SCHEMA FIX (all columns)
+# TRIGGER: 20260501_131400 - Phase 4: Annual income FIXED SCHEMA MIGRATION (direct ALTER, no DO block)
 """
 Annual Income Statement Loader (PARALLEL OPTIMIZED)
 Loads annual income statement data with 5-10x speedup using ThreadPoolExecutor.
@@ -117,19 +117,15 @@ def create_tables(cur):
         'interest_expense DECIMAL(16,2)',
     ]
 
+    cols_added = 0
     for col_def in missing_columns:
         col_name = col_def.split()[0]
-        cur.execute(f"""
-        DO $$
-        BEGIN
-            IF NOT EXISTS (
-                SELECT 1 FROM information_schema.columns
-                WHERE table_name='annual_income_statement' AND column_name='{col_name}'
-            ) THEN
-                ALTER TABLE annual_income_statement ADD COLUMN {col_def};
-            END IF;
-        END $$;
-        """)
+        try:
+            cur.execute(f"ALTER TABLE annual_income_statement ADD COLUMN {col_def}")
+            cols_added += 1
+        except psycopg2.Error as e:
+            if 'already exists' not in str(e):
+                logging.debug(f"Column {col_name}: {str(e)[:80]}")
 
 def load_symbol_data(symbol: str) -> List[Dict[str, Any]]:
     """Load annual income statement data for one symbol"""

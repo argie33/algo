@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260501_230300 - Phase 4: Annual cash flow WITH COMPREHENSIVE SCHEMA FIX (all columns)
+# TRIGGER: 20260501_131500 - Phase 4: Annual cash flow FIXED SCHEMA MIGRATION (direct ALTER, no DO block)
 """
 Annual Cash Flow Loader (PARALLEL OPTIMIZED)
 Loads annual cash flow data with 5-10x speedup using ThreadPoolExecutor.
@@ -139,19 +139,15 @@ def create_tables(cur):
         'dividends_paid DECIMAL(16,2)',
     ]
 
+    cols_added = 0
     for col_def in missing_columns:
         col_name = col_def.split()[0]
-        cur.execute(f"""
-        DO $$
-        BEGIN
-            IF NOT EXISTS (
-                SELECT 1 FROM information_schema.columns
-                WHERE table_name='annual_cash_flow' AND column_name='{col_name}'
-            ) THEN
-                ALTER TABLE annual_cash_flow ADD COLUMN {col_def};
-            END IF;
-        END $$;
-        """)
+        try:
+            cur.execute(f"ALTER TABLE annual_cash_flow ADD COLUMN {col_def}")
+            cols_added += 1
+        except psycopg2.Error as e:
+            if 'already exists' not in str(e):
+                logging.debug(f"Column {col_name}: {str(e)[:80]}")
 
 def load_symbol_data(symbol: str) -> List[Dict[str, Any]]:
     """Load annual cash flow data for one symbol"""
