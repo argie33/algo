@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TRIGGER: 20260501_210000 - Phase 6: Market data and breadth indicators
 """
 Unified Market Data Loader Script
 
