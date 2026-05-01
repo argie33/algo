@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TRIGGER: 20260501_202500 - Phase 4: Annual income statement (financial statements)
 """
 Annual Income Statement Loader (PARALLEL OPTIMIZED)
 Loads annual income statement data with 5-10x speedup using ThreadPoolExecutor.

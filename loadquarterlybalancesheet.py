@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TRIGGER: 20260501_203500 - Phase 4: Quarterly balance sheet (financial statements)
 """
 Quarterly Balance Sheet Loader (PARALLEL OPTIMIZED)
 Loads quarterly balance sheet data with 5-10x speedup using ThreadPoolExecutor.

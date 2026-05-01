@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TRIGGER: 20260501_202000 - Phase 4: Annual balance sheet (financial statements)
 """
 Annual Balance Sheet Loader (PARALLEL OPTIMIZED)
 Loads annual balance sheet data with 5-10x speedup using ThreadPoolExecutor.

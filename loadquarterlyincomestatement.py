@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TRIGGER: 20260501_204000 - Phase 4: Quarterly income statement (financial statements)
 """
 Quarterly Income Statement Loader (PARALLEL OPTIMIZED)
 Loads quarterly income statement data with 5-10x speedup using ThreadPoolExecutor.
