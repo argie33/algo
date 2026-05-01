@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260429_160300 - Batch 5: Stock scores loader - WITH DB_PASSWORD FIX
+# TRIGGER: 20260501_185000 - Phase 2: Stock scores loader - verify Phase 1 data in AWS
 """
 Stock Scores Loader v3.0 COMPREHENSIVE - Uses all available metrics for accurate scoring
 """
