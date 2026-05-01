@@ -120,8 +120,8 @@ def get_symbols_from_db(limit=None):
         cur.close()
         conn.close()
 
-def get_price_data(symbol, lookback_days=120):
-    """Fetch price data from price_daily table"""
+def get_price_data(symbol, lookback_days=400):
+    """Fetch price data from price_daily table (400 days = ~300 trading days = 200+ bars required)"""
     conn = get_db_connection()
     cur = conn.cursor()
     try:
@@ -157,6 +157,9 @@ def generate_mean_reversion_signals(df):
 
     # === LOCAL INDICATOR CALCULATIONS ===
     df['rsi_2'] = calculate_rsi(df['close'], 2)
+    rsi_2_under_30 = (df['rsi_2'] < 30).sum()
+    if rsi_2_under_30 > 0:
+        logging.debug(f"Symbol has {rsi_2_under_30} bars with RSI(2) < 30")
     df['rsi_14'] = calculate_rsi(df['close'], 14)
     df['sma_5'] = calculate_sma(df['close'], 5)
     df['atr'] = calculate_atr(df['high'], df['low'], df['close'], 14)
@@ -218,24 +221,23 @@ def generate_mean_reversion_signals(df):
     df['profit_target_25pct'] = np.nan
 
     # Generate signals: Connors RSI Oversold
+    signal_count = 0
     for i in range(200, len(df)):
         close = df['close'].iloc[i]
         rsi_2 = df['rsi_2'].iloc[i]
         sma_200 = df['sma_200'].iloc[i]
-        sma_5 = df['sma_5'].iloc[i]
 
-        # Condition 1: Close reasonably near 200 SMA (within 10% below)
-        if close is None or sma_200 is None or close < sma_200 * 0.9:
+        # Condition: RSI(2) < 30 (extreme oversold) - core mean reversion signal
+        if pd.isna(rsi_2) or rsi_2 >= 30:
             continue
 
-        # Condition 2: RSI(2) < 40 (oversold/weak)
-        if rsi_2 is None or rsi_2 >= 40:
-            continue
+        signal_count += 1
 
         # Signal fires
         df.loc[df.index[i], 'signal'] = 'BUY'
         df.loc[df.index[i], 'signal_type'] = 'CONNORS_RSI_OVERSOLD'
-        df.loc[df.index[i], 'pct_above_200sma'] = ((close - sma_200) / sma_200) * 100
+        if sma_200 is not None:
+            df.loc[df.index[i], 'pct_above_200sma'] = ((close - sma_200) / sma_200) * 100
 
         # Entry and stop levels
         df.loc[df.index[i], 'entry_price'] = close
@@ -275,7 +277,8 @@ def generate_mean_reversion_signals(df):
             confluence += 1
 
         df.loc[df.index[i], 'confluence_score'] = confluence
-        df.loc[df.index[i], 'target_estimate'] = sma_5 * 1.02
+        sma_5_val = df['sma_5'].iloc[i] if 'sma_5' in df.columns else close
+        df.loc[df.index[i], 'target_estimate'] = sma_5_val * 1.02
 
     # === QUALITY METRICS ===
     df = compute_signal_strength(df)
@@ -284,6 +287,7 @@ def generate_mean_reversion_signals(df):
     df = compute_position_sizing(df)
     df = compute_sata_scores(df)
 
+    logging.debug(f"Generated {signal_count} mean reversion signals for this dataframe")
     return df
 
 def compute_trade_levels(df):
