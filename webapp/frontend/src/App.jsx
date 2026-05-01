@@ -31,9 +31,6 @@ import MarketOverview from "./pages/MarketOverview";
 import FinancialData from "./pages/FinancialData";
 import DeepValueStocks from "./pages/DeepValueStocks";
 import TradingSignals from "./pages/TradingSignals";
-import RangeSignals from "./pages/RangeSignals";
-import MeanReversionSignals from "./pages/MeanReversionSignals";
-import TradingSignalsConsolidated from "./pages/TradingSignalsConsolidated";
 import BacktestResults from "./pages/BacktestResults";
 import EconomicDashboard from "./pages/EconomicDashboard";
 import EarningsCalendar from "./pages/EarningsCalendar";
@@ -484,8 +481,9 @@ function App() {
           <Route path="/app/deep-value" element={<DeepValueStocks />} />
           <Route path="/app/financial-data" element={<FinancialData />} />
           <Route path="/app/trading-signals" element={<TradingSignals />} />
-          <Route path="/app/range-signals" element={<RangeSignals />} />
-          <Route path="/app/mean-reversion" element={<MeanReversionSignals />} />
+          <Route path="/app/signals" element={<TradingSignals />} />
+          <Route path="/app/range-signals" element={<TradingSignals />} />
+          <Route path="/app/mean-reversion" element={<TradingSignals />} />
           <Route path="/app/etf-signals" element={<ETFSignals />} />
           <Route path="/app/earnings" element={<EarningsCalendar />} />
           <Route path="/app/scores" element={<ScoresDashboard />} />

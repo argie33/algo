@@ -1,780 +1,188 @@
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTheme } from "@mui/material/styles";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import {
-  Badge,
   Box,
   Button,
   Card,
   CardContent,
-  Chip,
   CircularProgress,
   Container,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Divider,
   FormControl,
-  FormControlLabel,
   Grid,
-  IconButton,
-  InputAdornment,
   InputLabel,
   MenuItem,
   Paper,
   Select,
-  Switch,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TablePagination,
-  TableRow,
+  Tab,
+  Tabs,
   TextField,
-  Tooltip,
   Typography,
+  InputAdornment,
+  IconButton,
 } from "@mui/material";
 import {
-  TrendingUp,
-  TrendingDown,
-  Analytics,
-  NewReleases,
   FilterList,
-  Close,
-  Timeline,
   Search,
   Clear,
-  HorizontalRule,
 } from "@mui/icons-material";
-import { formatCurrency, formatPercentage } from "../utils/formatters";
-import { formatCellValue, getCellAlign, getDynamicColumns } from "../utils/signalTableHelpers";
 import api, { getApiConfig, extractResponseData } from "../services/api";
 import { ErrorDisplay, LoadingDisplay } from "../components/ui/ErrorBoundary";
 import ErrorBoundary from "../components/ErrorBoundary";
 import SignalCardAccordion from "../components/SignalCardAccordion";
 
-// Use console logger for now
 const logger = {
   info: (msg) => console.log(`[TradingSignals] ${msg}`),
   error: (msg) => console.error(`[TradingSignals] ${msg}`),
-  warn: (msg) => console.warn(`[TradingSignals] ${msg}`),
 };
 
 function TradingSignals() {
-  useDocumentTitle("Swing Trading Signals");
+  useDocumentTitle("Trading Signals - All Strategies");
   const theme = useTheme();
   const { apiUrl: API_BASE } = getApiConfig();
 
-
-  // Add CSS for pulse animation
-  React.useEffect(() => {
-    const pulseAnimation = `
-      @keyframes pulse {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.05); }
-        100% { transform: scale(1); }
-      }
-    `;
-
-    if (
-      typeof document !== "undefined" &&
-      !document.getElementById("pulse-animation")
-    ) {
-      const style = document.createElement("style");
-      style.id = "pulse-animation";
-      style.textContent = pulseAnimation;
-      document.head.appendChild(style);
-    }
-  }, []);
-  const [signalType, setSignalType] = useState("all");
-  const [timeframe, setTimeframe] = useState("daily");
-  const [page, setPage] = useState(0); // display page only
+  const [strategy, setStrategy] = useState("swing"); // swing, range, mean-reversion
+  const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
-  const [selectedSymbol, setSelectedSymbol] = useState(null);
-  const [historicalDialogOpen, setHistoricalDialogOpen] = useState(false);
   const [symbolFilter, setSymbolFilter] = useState("");
-  const [searchInput, setSearchInput] = useState("");
+  const [days, setDays] = useState(30);
 
-  // Date range filter - defaults to "all" to show all signals
-  const [dateRange, setDateRange] = useState("all"); // Show ALL signals regardless of date
-  const [showActiveOnly, setShowActiveOnly] = useState(false); // Show ALL signals by default (user can toggle to active-only)
-
-  // Asset type filter - Stock or ETF
-  const [assetType, setAssetType] = useState("stock"); // Default to stocks
-
-  // Helper function to check if signal has real data (not all nulls)
-  const hasRealData = (signal) => {
-    if (!signal) return false;
-    if (!signal.symbol) return false; // Must have a symbol
-    if (!signal.signal) return false; // Must have a signal type (Buy/Sell)
-    // Signal is valid if it has a symbol and signal type
-    // Don't filter on strength since weekly/monthly don't have it
-    return true;
-  };
-
-  // Helper function to check if signal matches date range
-  const matchesDateRange = (signalDate) => {
-    if (!signalDate) return false;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Start of today
-    const signal = new Date(signalDate);
-    signal.setHours(0, 0, 0, 0);
-
-    const diffTime = today.getTime() - signal.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    switch(dateRange) {
-      case "today":
-        return diffDays === 0; // Same day
-      case "week":
-        return diffDays <= 7;
-      case "month":
-        return diffDays <= 30;
-      case "all":
-        return true;
-      default:
-        return true;
-    }
-  };
-
-  // Compute API date params from dateRange state
-  const getDateParams = (range) => {
-    const today = new Date();
-    const pad = (n) => String(n).padStart(2, "0");
-    const fmt = (d) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-    const todayStr = fmt(today);
-    if (range === "today") return { date: todayStr };
-    if (range === "week") {
-      const d = new Date(today); d.setDate(d.getDate() - 7);
-      return { from_date: fmt(d), to_date: todayStr };
-    }
-    if (range === "month") {
-      const d = new Date(today); d.setDate(d.getDate() - 30);
-      return { from_date: fmt(d), to_date: todayStr };
-    }
-    return {}; // "all" — no date filter
-  };
-
-  // Fetch buy/sell signals for CURRENT timeframe only (not all three)
-  const {
-    data: signalsData,
-    isLoading: signalsLoading,
-    error: signalsError,
-  } = useQuery({
-    queryKey: [
-      "tradingSignals",
-      assetType,
-      timeframe,
-      signalType,
-      symbolFilter,
-      dateRange,
-    ],
-    queryFn: async () => {
-      try {
-        const params = new URLSearchParams();
-
-        if (signalType !== "all") {
-          params.append("signal_type", signalType);
-        }
-        params.append("timeframe", timeframe);
-
-        // Server-side date filtering — no client-side date filtering needed
-        const dateParams = getDateParams(dateRange);
-        if (dateParams.date) params.append("date", dateParams.date);
-        if (dateParams.from_date) params.append("from_date", dateParams.from_date);
-        if (dateParams.to_date) params.append("to_date", dateParams.to_date);
-
-        if (symbolFilter) params.append("symbol", symbolFilter);
-
-        // For all-time view, always load the most recent 50k signals (page 1)
-        // Display pagination navigates within this loaded set
-        if (dateRange === "all") {
-          params.append("limit", 50000);
-          params.append("page", 1);
-        }
-
-        params.append("_t", Date.now());
-
-        // Use correct endpoint based on asset type
-        const endpoint = assetType === "etf" ? "etf" : "stocks";
-        const url = `/api/signals/${endpoint}?${params}`;
-        const startTime = Date.now();
-
-        logger.info(`📡 Fetching ${timeframe} signals: ${url}`);
-
-        const response = await api.get(url);
-        const data = extractResponseData(response);
-        const duration = Date.now() - startTime;
-        const itemCount = data?.items?.length || 0;
-
-        logger.info(`✅ Loaded ${itemCount} signals in ${duration}ms`, {
-          timeframe,
-          items: itemCount,
-          pagination: data?.pagination,
-        });
-
-        return data;
-      } catch (err) {
-        logger.error("fetchTradingSignals - Error", err);
-        console.error("❌ ERROR LOADING SIGNALS:", err);
-        throw err;
-      }
+  // Map strategy names to API endpoints and titles
+  const strategyConfig = {
+    swing: {
+      endpoint: "/api/signals/buy-sell",
+      title: "Swing Trading Signals",
+      description: "AI-powered swing trading signals with market stage analysis",
+      color: theme.palette.primary.main,
     },
-    refetchOnWindowFocus: false,
-    staleTime: 30000,
-    gcTime: 60000,
-    refetchInterval: 60000,
-    onError: (err) =>
-      logger.queryError("tradingSignals", err, { timeframe, signalType }),
+    range: {
+      endpoint: "/api/signals/range",
+      title: "Range Trading Signals",
+      description: "Range bounce signals with position analysis and breakout quality",
+      color: theme.palette.info.main,
+    },
+    "mean-reversion": {
+      endpoint: "/api/signals/mean-reversion",
+      title: "Mean Reversion Signals",
+      description: "Connors RSI(2) oversold signals with confluence analysis",
+      color: theme.palette.success.main,
+    },
+  };
+
+  const config = strategyConfig[strategy];
+
+  // Fetch signals based on selected strategy
+  const { data: signalsData, isLoading, isError, error } = useQuery({
+    queryKey: ["unifiedSignals", strategy, symbolFilter, days, page],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (symbolFilter) params.append("symbol", symbolFilter);
+      params.append("days", days);
+      params.append("limit", 500);
+      params.append("offset", page * 500);
+
+      const response = await api.get(`${config.endpoint}?${params}`);
+      return extractResponseData(response);
+    },
   });
 
-  // Ensure we have a valid response object, default to empty items
-  const validSignalsData = signalsData || { items: [] };
-  const hasNoSignals = !signalsLoading && (!validSignalsData?.items || validSignalsData.items.length === 0);
+  const filteredSignals = signalsData?.items || [];
 
-  // Show 0 when empty
-  if (hasNoSignals) {
-    console.warn(`⚠️ NO SIGNALS FOUND FOR ${timeframe.toUpperCase()} - Database is empty`);
-  }
-
-  // Filter data based on all filter settings (defined before summaryStats so counts are accurate)
-  const filteredSignals = useMemo(() => {
-    // The API response structure is: { items: [...], pagination, success }
-    const signalsArray = validSignalsData?.items || [];
-
-    // Log when empty
-    if (!signalsArray || signalsArray.length === 0) {
-      console.warn(`📭 No signals in ${timeframe}: returning empty array`);
-      return [];
-    }
-
-    if (!Array.isArray(signalsArray)) {
-      console.log("❌ Signals extraction failed. signalsData keys:", Object.keys(validSignalsData || {}), "signals:", signalsArray);
-      return [];
-    }
-
-    let filtered = signalsArray;
-
-    logger.info("filteredSignals init", `Processing ${signalsArray.length} signals`);
-
-    // Apply active filter - show signals with active positions OR recent signals
-    if (showActiveOnly) {
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-      filtered = filtered.filter((signal) => {
-        // Show if currently in position (API returns 'inposition' lowercase)
-        if (signal.inposition || signal.in_position) return true;
-
-        // Show if signal is from last 7 days and has an actual signal (not "None")
-        if (signal.signal && signal.signal !== "None") {
-          const signalDate = new Date(signal.date);
-          return signalDate >= sevenDaysAgo;
-        }
-
-        return false;
-      });
-    }
-
-    // Always filter out signals with no real data (show only signals with substantial data)
-    filtered = filtered.filter((signal) => hasRealData(signal));
-
-    // Apply signal type filter (Buy/Sell) - API filters, but re-filter on frontend for safety
-    if (signalType !== "all") {
-      const typeToMatch = signalType.charAt(0).toUpperCase() + signalType.slice(1).toLowerCase();
-      filtered = filtered.filter((signal) => signal.signal === typeToMatch);
-    }
-
-    // Date filtering is now server-side — no client-side date filtering needed
-
-    // Symbol filter is server-side too, but keep local filter for search-as-you-type
-    if (symbolFilter && !searchInput) {
-      // Already filtered by API
-    }
-
-    logger.info("filteredSignals", "Data filtered", {
-      originalCount: (validSignalsData?.items)?.length || 0,
-      filteredCount: filtered?.length || 0,
-      filters: {
-        showActiveOnly,
-        dateRange,
-        symbolFilter
-      }
-    });
-
-    // Sort by date DESC (newest first)
-    filtered.sort((a, b) => {
-      const dateA = (a.date || a.signal_triggered_date) ? new Date(a.date || a.signal_triggered_date).getTime() : 0;
-      const dateB = (b.date || b.signal_triggered_date) ? new Date(b.date || b.signal_triggered_date).getTime() : 0;
-      return dateB - dateA; // DESC order
-    });
-
-    return filtered;
-  }, [
-    validSignalsData,
-    signalType,
-    showActiveOnly,
-    dateRange,
-    symbolFilter,
-    timeframe
-  ]);
-
-  // Calculate summary statistics from the already-filtered current timeframe signals
-  const summaryStats = useMemo(() => {
-    const signals = filteredSignals || [];
-    if (!signals.length) return null;
-
-    const totalSignals = signals.length;
-    const currentRangeSignals = signals.length;
-    const buySignals = signals.filter((s) => String(s.signal).toLowerCase() === "buy").length;
-    const sellSignals = signals.filter((s) => String(s.signal).toLowerCase() === "sell").length;
-
-    const stage2Signals = signals.filter((s) => s.market_stage === "Stage 2 - Advancing").length;
-    const highQualitySignals = signals.filter((s) => s.quality_score >= 60).length;
-    const pocketPivots = signals.filter((s) => s.volume_analysis === "Pocket Pivot").length;
-    const swingPatternCompliant = signals.filter((s) => s.passes_minervini_template).length;
-    const inPosition = signals.filter((s) => s.inposition).length;
-
-    const validRRSignals = signals.filter((s) => s.risk_reward_ratio && s.risk_reward_ratio > 0);
-    const avgRiskReward = validRRSignals.length > 0
-      ? (validRRSignals.reduce((sum, s) => sum + parseFloat(s.risk_reward_ratio), 0) / validRRSignals.length).toFixed(1)
-      : null;
-
-    const validQualitySignals = signals.filter((s) => s.quality_score);
-    const avgQualityScore = validQualitySignals.length > 0
-      ? Math.round(validQualitySignals.reduce((sum, s) => sum + parseInt(s.quality_score), 0) / validQualitySignals.length)
-      : null;
-
-    return {
-      totalSignals,
-      currentRangeSignals,
-      buySignals,
-      sellSignals,
-      stage2Signals,
-      highQualitySignals,
-      pocketPivots,
-      swingPatternCompliant,
-      inPosition,
-      avgRiskReward,
-      avgQualityScore,
-    };
-  }, [filteredSignals]);
-
-  // Fetch historical data for selected symbol
-  const { data: historicalData, isLoading: historicalLoading } = useQuery({
-    queryKey: ["historicalSignals", assetType, selectedSymbol],
-    queryFn: async () => {
-      if (!selectedSymbol) return null;
-      try {
-        const endpoint = assetType === "etf" ? "etf" : "stocks";
-        const response = await api.get(
-          `/api/signals/${endpoint}?symbol=${selectedSymbol}&timeframe=daily&limit=5000`
-        );
-        return extractResponseData(response);
-      } catch (err) {
-        logger.error("fetchHistoricalSignals", err, { symbol: selectedSymbol });
-        throw err;
-      }
-    },
-    enabled: !!selectedSymbol && historicalDialogOpen,
-    onError: (err) =>
-      logger.queryError("historicalSignals", err, { symbol: selectedSymbol }),
-  });
-  // Helper functions for search
-  const handleSearch = () => {
-    setSymbolFilter(searchInput.trim());
-    setPage(0); // reset display page on new search
+  const handleStrategyChange = (event, newValue) => {
+    setStrategy(newValue);
+    setPage(0);
   };
 
-  const handleClearSearch = () => {
-    setSearchInput("");
+  const handleSymbolFilterChange = (e) => {
+    setSymbolFilter(e.target.value);
+    setPage(0);
+  };
+
+  const handleDaysChange = (e) => {
+    setDays(e.target.value);
+    setPage(0);
+  };
+
+  const handleClearFilters = () => {
     setSymbolFilter("");
+    setDays(30);
     setPage(0);
-  };
-
-  // Pagination handlers
-  const handleChangePage = (event, newPage) => {
-    setPage(newPage);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
-  };
-
-  // Early return for loading state
-  const isLoading = signalsLoading;
-  if (isLoading && !signalsData) {
-    return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <LoadingDisplay
-          message="Loading trading signals and performance data..."
-          fullPage={true}
-          size="large"
-        />
-      </Container>
-    );
-  }
-
-  const getSignalChip = (signal, signalDate) => {
-    return (
-      <Chip
-        label={signal || "None"}
-        size="medium"
-        sx={{
-          backgroundColor: theme.palette.action.hover,
-          color: theme.palette.text.primary,
-          fontWeight: "500",
-          fontSize: "0.875rem",
-          minWidth: "80px",
-          borderRadius: "4px",
-        }}
-      />
-    );
-  };
-
-  const PerformanceCard = ({
-    title,
-    value,
-    subtitle,
-    icon,
-    color,
-    isHighlight = false,
-    details = null,
-  }) => (
-    <Card
-      sx={{
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        transition: "all 0.3s ease",
-        "&:hover": {
-          transform: "translateY(-4px)",
-          boxShadow: "0 12px 24px rgba(0, 0, 0, 0.15)",
-        },
-        ...(isHighlight && {
-          border: `2px solid ${theme.palette.primary.main}`,
-          boxShadow: `0 4px 20px ${theme.palette.primary.main}25`,
-          background: `linear-gradient(135deg, ${theme.palette.primary.main}10 0%, ${theme.palette.primary.main}00 100%)`,
-        }),
-      }}
-    >
-      <CardContent sx={{ flexGrow: 1 }}>
-        {/* Header with icon and title */}
-        <Box display="flex" alignItems="center" mb={2}>
-          <Box sx={{ color, fontSize: 24 }}>
-            {icon}
-          </Box>
-          <Typography
-            variant="subtitle2"
-            sx={{ ml: 1, fontWeight: 600, color: "text.primary" }}
-          >
-            {title}
-          </Typography>
-        </Box>
-
-        {/* Main value */}
-        <Box sx={{ mb: 1.5 }}>
-          <Typography
-            variant="h3"
-            sx={{
-              color,
-              fontWeight: "bold",
-              fontSize: { xs: "1.8rem", sm: "2.2rem" },
-            }}
-          >
-            {value}
-          </Typography>
-        </Box>
-
-        {/* Subtitle/description */}
-        <Typography
-          variant="body2"
-          color="text.secondary"
-          sx={{ mb: details ? 1.5 : 0 }}
-        >
-          {subtitle}
-        </Typography>
-
-        {/* Additional details if provided */}
-        {details && (
-          <Box sx={{
-            pt: 1.5,
-            borderTop: `1px solid ${theme.palette.divider}`,
-            mt: 1.5,
-          }}>
-            {Array.isArray(details) ? (
-              details.map((detail, idx) => (
-                <Box key={`detail-${detail.label}-${idx}`} sx={{ display: "flex", justifyContent: "space-between", mb: 0.75 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    {detail.label}:
-                  </Typography>
-                  <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                    {detail.value}
-                  </Typography>
-                </Box>
-              ))
-            ) : (
-              <Typography variant="caption" color="text.secondary">
-                {details}
-              </Typography>
-            )}
-          </Box>
-        )}
-      </CardContent>
-    </Card>
-  );
-
-
-  // --- Table for Buy/Sell signals with DYNAMIC columns and PAGINATION ---
-  const BuySellSignalsTable = () => {
-    const columns = getDynamicColumns(filteredSignals);
-
-    const serverPagination = signalsData?.pagination;
-    // For "all time": server handles pagination; for date-constrained: local slicing
-    const isAllTime = dateRange === "all";
-    const totalSignals = isAllTime
-      ? (serverPagination?.total || filteredSignals?.length || 0)
-      : (filteredSignals?.length || 0);
-
-    const startIndex = isAllTime ? 0 : page * rowsPerPage;
-    const endIndex = isAllTime ? rowsPerPage : (startIndex + rowsPerPage);
-    const paginatedSignals = filteredSignals?.slice(startIndex, endIndex) || [];
-
-    const pageOffset = isAllTime ? page * 500 : startIndex;
-    const displayStart = pageOffset + 1;
-    const displayEnd = pageOffset + paginatedSignals.length;
-
-    return (
-      <Box>
-        <TableContainer component={Paper} elevation={0} sx={{ overflowX: "auto" }}>
-          <Table stickyHeader>
-            <TableHead>
-              <TableRow>
-                {columns.map((col) => (
-                  <TableCell
-                    key={col}
-                    align={getCellAlign(col)}
-                    sx={{
-                      fontWeight: "bold",
-                      whiteSpace: "nowrap",
-                      minWidth: "100px",
-                    }}
-                  >
-                    <Tooltip title={col} placement="top">
-                      <span>{col.replace(/_/g, " ").replace(/^./, str => str.toUpperCase())}</span>
-                    </Tooltip>
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {paginatedSignals?.map((signal, index) => (
-                <TableRow
-                  key={`${signal.symbol}-${startIndex + index}`}
-                  hover
-                  sx={{
-                    "&:hover": {
-                      backgroundColor: "action.hover",
-                    },
-                  }}
-                >
-                  {columns.map((col) => {
-                    const value = signal[col];
-                    const isSymbolColumn = col === "symbol";
-                    const isSignalColumn = col === "signal";
-
-                    return (
-                      <TableCell
-                        key={`${signal.symbol}-${col}`}
-                        align={getCellAlign(col)}
-                        sx={{ whiteSpace: "nowrap" }}
-                      >
-                        {isSymbolColumn ? (
-                          <Button
-                            variant="text"
-                            size="small"
-                            sx={{ fontWeight: "bold", minWidth: "auto", p: 0.5 }}
-                            onClick={() => {
-                              setSelectedSymbol(signal.symbol);
-                              setHistoricalDialogOpen(true);
-                            }}
-                          >
-                            {value}
-                          </Button>
-                        ) : isSignalColumn ? (
-                          <Tooltip
-                            title={
-                              matchesDateRange(signal.date)
-                                ? `Signal in ${dateRange === "today" ? "today's" : dateRange === "week" ? "this week's" : dateRange === "month" ? "this month's" : "selected"} range`
-                                : "Signal outside selected range"
-                            }
-                          >
-                            <Box>{getSignalChip(value, signal.date)}</Box>
-                          </Tooltip>
-                        ) : (
-                          <Typography variant="body2">
-                            {formatCellValue(value, col)}
-                          </Typography>
-                        )}
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {filteredSignals?.length === 0 && (
-            <Box sx={{ p: 4, textAlign: "center" }}>
-              <Typography variant="h6" color="text.secondary" gutterBottom>
-                No trading signals found
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {dateRange === "all"
-                  ? "No signals found. Try adjusting your timeframe or other filters."
-                  : "No signals match your current filters. Try adjusting your date range or other filters."}
-              </Typography>
-            </Box>
-          )}
-        </TableContainer>
-
-        {/* Pagination Controls */}
-        {filteredSignals?.length > 0 && (
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 2 }}>
-            <Typography variant="body2" color="text.secondary">
-              Showing {displayStart} to {displayEnd} of {totalSignals.toLocaleString()} signals
-              {dateRange === "all" && serverPagination?.totalPages > 1 && ` (page ${page + 1} of ${serverPagination.totalPages})`}
-            </Typography>
-            {dateRange === "all" ? (
-              // Server-paginated: navigate 500-item pages from server
-              <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-                <Button size="small" variant="outlined" disabled={page === 0}
-                  onClick={() => { setPage(p => p - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
-                  ← Prev 500
-                </Button>
-                <Typography variant="body2">Page {page + 1}{serverPagination?.totalPages ? ` / ${serverPagination.totalPages}` : ""}</Typography>
-                <Button size="small" variant="outlined" disabled={!serverPagination?.hasNext}
-                  onClick={() => { setPage(p => p + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
-                  Next 500 →
-                </Button>
-                <FormControl size="small" sx={{ minWidth: 90, ml: 1 }}>
-                  <Select value={rowsPerPage} onChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); }}>
-                    <MenuItem value={25}>25 / pg</MenuItem>
-                    <MenuItem value={50}>50 / pg</MenuItem>
-                    <MenuItem value={100}>100 / pg</MenuItem>
-                    <MenuItem value={500}>500 / pg</MenuItem>
-                  </Select>
-                </FormControl>
-              </Box>
-            ) : (
-              <TablePagination
-                rowsPerPageOptions={[10, 25, 50, 100, 250]}
-                component="div"
-                count={filteredSignals?.length || 0}
-                rowsPerPage={rowsPerPage}
-                page={page}
-                onPageChange={handleChangePage}
-                onRowsPerPageChange={handleChangeRowsPerPage}
-                sx={{ ml: "auto" }}
-              />
-            )}
-          </Box>
-        )}
-      </Box>
-    );
   };
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
-      {/* Enhanced Header */}
+      {/* Header */}
       <Box sx={{ mb: 4 }}>
-        <Box>
-          <Typography
-            variant="h3"
-            component="h1"
-            gutterBottom
-            sx={{ fontWeight: 700, color: "primary.main" }}
-          >
-            🎯 Swing Trading Signals
+        <Typography
+          variant="h3"
+          component="h1"
+          gutterBottom
+          sx={{ fontWeight: 700, color: "primary.main" }}
+        >
+          📊 Trading Signals
+        </Typography>
+        <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 3 }}>
+          Unified view of all trading strategies with complete metrics and analysis
+        </Typography>
+      </Box>
+
+      {/* Strategy Tabs */}
+      <Paper sx={{ mb: 4 }}>
+        <Tabs
+          value={strategy}
+          onChange={handleStrategyChange}
+          indicatorColor="primary"
+          textColor="primary"
+          sx={{ p: 2 }}
+        >
+          <Tab label="Swing Trading" value="swing" sx={{ fontWeight: 600 }} />
+          <Tab label="Range Trading" value="range" sx={{ fontWeight: 600 }} />
+          <Tab label="Mean Reversion" value="mean-reversion" sx={{ fontWeight: 600 }} />
+        </Tabs>
+
+        {/* Strategy Info */}
+        <Box sx={{ px: 3, py: 2, backgroundColor: theme.palette.action.hover }}>
+          <Typography variant="h5" sx={{ fontWeight: 700, color: config.color, mb: 1 }}>
+            {config.title}
           </Typography>
-          <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 3 }}>
-            AI-powered swing trading signals with real-time market analysis and
-            institutional-grade insights
+          <Typography variant="body2" color="text.secondary">
+            {config.description}
           </Typography>
         </Box>
-      </Box>
+      </Paper>
 
-      <Box
-        display="flex"
-        alignItems="center"
-        justifyContent="space-between"
-        mb={4}
-      >
-      </Box>
-
-      {/* Enhanced Performance Summary */}
-      <Grid container spacing={3} mb={4}>
-        {summaryStats && (
-          <Grid item xs={12} md={3}>
-            <PerformanceCard
-              title="Buy Signals"
-              value={summaryStats.buySignals || 0}
-              subtitle={`${Math.round(((summaryStats.buySignals || 0) / (summaryStats.totalSignals || 1)) * 100)}% of signals`}
-              icon={<TrendingUp />}
-              color="#10B981"
-            />
-          </Grid>
-        )}
-
-        {summaryStats && (
-          <Grid item xs={12} md={3}>
-            <PerformanceCard
-              title="Sell Signals"
-              value={summaryStats.sellSignals || 0}
-              subtitle={`${Math.round(((summaryStats.sellSignals || 0) / (summaryStats.totalSignals || 1)) * 100)}% of signals`}
-              icon={<TrendingDown />}
-              color="#DC2626"
-            />
-          </Grid>
-        )}
-      </Grid>
-
-
-      {/* Filters and Search - Horizontal Layout */}
+      {/* Filters */}
       <Card sx={{ mb: 4 }}>
         <CardContent>
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12}>
-              <Typography variant="h6" gutterBottom>
-                <FilterList sx={{ mr: 1 }} />
-                Filters
+              <Typography variant="h6" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <FilterList />
+                Filters & Search
               </Typography>
               <Divider sx={{ mb: 2 }} />
             </Grid>
 
-            {/* Search */}
+            {/* Symbol Search */}
             <Grid item xs={12} md={4}>
               <TextField
                 fullWidth
                 size="small"
-                placeholder="Search symbols..."
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                onKeyPress={(e) => e.key === "Enter" && handleSearch()}
+                placeholder="Search symbols (e.g., AAPL)..."
+                value={symbolFilter}
+                onChange={handleSymbolFilterChange}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <Search />
+                      <Search fontSize="small" />
                     </InputAdornment>
                   ),
-                  endAdornment: searchInput && (
+                  endAdornment: symbolFilter && (
                     <InputAdornment position="end">
-                      <IconButton size="small" onClick={handleClearSearch}>
-                        <Clear />
+                      <IconButton size="small" onClick={() => setSymbolFilter("")}>
+                        <Clear fontSize="small" />
                       </IconButton>
                     </InputAdornment>
                   ),
@@ -782,379 +190,77 @@ function TradingSignals() {
               />
             </Grid>
 
-            {/* Asset Type Filter */}
-            <Grid item xs={12} md={2}>
+            {/* Days Filter */}
+            <Grid item xs={12} md={3}>
               <FormControl fullWidth size="small">
-                <InputLabel>Asset Type</InputLabel>
+                <InputLabel>Time Period</InputLabel>
                 <Select
-                  value={assetType}
-                  label="Asset Type"
-                  onChange={(e) => {
-                    setAssetType(e.target.value);
-                    setPage(0); // Reset pagination when changing asset type
-                  }}
+                  value={days}
+                  onChange={handleDaysChange}
+                  label="Time Period"
                 >
-                  <MenuItem value="stock">Stocks</MenuItem>
-                  <MenuItem value="etf">ETFs</MenuItem>
+                  <MenuItem value={7}>Last 7 Days</MenuItem>
+                  <MenuItem value={30}>Last 30 Days</MenuItem>
+                  <MenuItem value={90}>Last 90 Days</MenuItem>
+                  <MenuItem value={180}>Last 6 Months</MenuItem>
+                  <MenuItem value={365}>Last Year</MenuItem>
+                  <MenuItem value={3650}>All Time</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
 
-            {/* Signal Type Filter */}
-            <Grid item xs={12} md={2}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Signal Type</InputLabel>
-                <Select
-                  value={signalType}
-                  label="Signal Type"
-                  onChange={(e) => setSignalType(e.target.value)}
-                >
-                  <MenuItem value="all">All Signals</MenuItem>
-                  <MenuItem value="buy">Buy Only</MenuItem>
-                  <MenuItem value="sell">Sell Only</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-
-            {/* Timeframe Filter */}
-            <Grid item xs={12} md={2}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Timeframe</InputLabel>
-                <Select
-                  value={timeframe}
-                  label="Timeframe"
-                  onChange={(e) => setTimeframe(e.target.value)}
-                >
-                  <MenuItem value="daily">Daily</MenuItem>
-                  <MenuItem value="weekly">Weekly</MenuItem>
-                  <MenuItem value="monthly">Monthly</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-
-            {/* Active Signals Filter */}
-            <Grid item xs={12} md={2}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={showActiveOnly}
-                    onChange={(e) => {
-                      setShowActiveOnly(e.target.checked);
-                      setPage(0);
-                    }}
-                    color="primary"
-                  />
-                }
-                label="Active Only"
-                sx={{ mt: 1 }}
-              />
-              <Typography variant="caption" display="block" color="text.secondary">
-                Show current positions & recent signals
-              </Typography>
-            </Grid>
-
-            {/* Date Range Filter */}
-            <Grid item xs={12} md={2}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Date Range</InputLabel>
-                <Select
-                  value={dateRange}
-                  label="Date Range"
-                  onChange={(e) => {
-                    setDateRange(e.target.value);
-                    setPage(0);
-                  }}
-                >
-                  <MenuItem value="today">Today Only</MenuItem>
-                  <MenuItem value="week">This Week</MenuItem>
-                  <MenuItem value="month">This Month</MenuItem>
-                  <MenuItem value="all">All Time</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid item xs={12} md={2}>
+            {/* Clear Button */}
+            <Grid item xs={12} md={3}>
               <Button
+                variant="outlined"
+                startIcon={<Clear />}
+                onClick={handleClearFilters}
                 fullWidth
-                variant="contained"
-                onClick={handleSearch}
-                size="medium"
               >
-                Search
+                Clear Filters
               </Button>
             </Grid>
           </Grid>
         </CardContent>
       </Card>
 
-      {/* Main Signals Table - Full Width */}
-      <Grid container spacing={3}>
-        <Grid item xs={12}>
-          {/* Standardized Error Handling */}
-          {signalsError && (
-            <ErrorDisplay
-              error={{
-                message: signalsError?.message || String(signalsError),
-                context: {
-                  endpoint: `${API_BASE}/api/signals?timeframe=${timeframe}`,
-                  filters: { signalType, dateRange, timeframe },
-                  component: "TradingSignals",
-                },
-              }}
-              title="Failed to Load Trading Signals"
-              onRetry={() => window.location.reload()}
-              severity="error"
-            />
-          )}
-
-          {/* No Data State */}
-          {!signalsError &&
-            !signalsLoading &&
-            (!(signalsData?.items) || (signalsData?.items?.length || 0) === 0) && (
-              <ErrorDisplay
-                error={{
-                  message: "No trading signals data found",
-                  context: {
-                    endpoint: `${API_BASE}/api/signals?timeframe=${timeframe}`,
-                    filters: { signalType, dateRange },
-                    response: signalsData,
-                  },
-                }}
-                title="No Data Available"
-                severity="info"
-                showDetails={true}
-              />
-            )}
-
-          {/* Data Display - Accordion View with Pagination */}
-          <Card>
-            <CardContent>
-              {/* Pagination Controls - Top */}
-              {filteredSignals?.length > rowsPerPage && (
-                <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Showing {page * rowsPerPage + 1} to {Math.min((page + 1) * rowsPerPage, filteredSignals.length)} of {filteredSignals.length} signals
-                  </Typography>
-                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                    <FormControl size="small" sx={{ minWidth: 100 }}>
-                      <InputLabel>Per Page</InputLabel>
-                      <Select
-                        value={rowsPerPage}
-                        onChange={(e) => {
-                          setRowsPerPage(parseInt(e.target.value, 10));
-                          setPage(0);
-                        }}
-                        label="Per Page"
-                      >
-                        <MenuItem value={25}>25</MenuItem>
-                        <MenuItem value={50}>50</MenuItem>
-                        <MenuItem value={100}>100</MenuItem>
-                        <MenuItem value={250}>250</MenuItem>
-                        <MenuItem value={500}>500</MenuItem>
-                        <MenuItem value={1000}>All (1000)</MenuItem>
-                      </Select>
-                    </FormControl>
-                    <TablePagination
-                      rowsPerPageOptions={[]}
-                      component="div"
-                      count={filteredSignals.length}
-                      rowsPerPage={rowsPerPage}
-                      page={page}
-                      onPageChange={(e, newPage) => {
-                        setPage(newPage);
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
-                      sx={{ ml: 'auto' }}
-                    />
-                  </Box>
-                </Box>
-              )}
-
-              {/* Accordion */}
-              <SignalCardAccordion signals={filteredSignals.slice(page * rowsPerPage, (page + 1) * rowsPerPage)} />
-
-              {/* Pagination Controls - Bottom */}
-              {filteredSignals?.length > rowsPerPage && (
-                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
-                  <TablePagination
-                    rowsPerPageOptions={[]}
-                    component="div"
-                    count={filteredSignals.length}
-                    rowsPerPage={rowsPerPage}
-                    page={page}
-                    onPageChange={(e, newPage) => {
-                      setPage(newPage);
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
-                  />
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-
-      {/* Historical Data Dialog */}
-      <Dialog
-        open={historicalDialogOpen}
-        onClose={() => setHistoricalDialogOpen(false)}
-        maxWidth="lg"
-        fullWidth
-      >
-        <DialogTitle>
-          <Box
-            display="flex"
-            alignItems="center"
-            justifyContent="space-between"
-          >
-            <Box display="flex" alignItems="center">
-              <Timeline sx={{ mr: 1 }} />
-              <Typography variant="h6">
-                {selectedSymbol} - Historical Signals
-              </Typography>
-            </Box>
-            <IconButton
-              onClick={() => setHistoricalDialogOpen(false)}
-              size="small"
-            >
-              <Close />
-            </IconButton>
+      {/* Content */}
+      <ErrorBoundary>
+        {isLoading && (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+            <CircularProgress />
           </Box>
-        </DialogTitle>
-        <DialogContent>
-          {historicalLoading ? (
-            <Box display="flex" justifyContent="center" p={4}>
-              <CircularProgress />
-            </Box>
-          ) : (
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Date</TableCell>
-                    <TableCell>Signal</TableCell>
-                    <TableCell align="right">Price</TableCell>
-                    <TableCell align="right">Buy Level</TableCell>
-                    <TableCell align="right">Stop Loss</TableCell>
-                    <TableCell align="right">Target</TableCell>
-                    <TableCell align="right">R/R Ratio</TableCell>
-                    <TableCell>Stage</TableCell>
-                    <TableCell align="right">SATA</TableCell>
-                    <TableCell align="right">Quality</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {historicalData?.items?.map((signal, index) => (
-                    <TableRow key={`${signal.symbol}-${signal.date || signal.signal_triggered_date}-${index}`}>
-                      <TableCell>
-                        {signal.signal_triggered_date
-                          ? new Date(signal.signal_triggered_date).toLocaleDateString()
-                          : signal.date
-                          ? new Date(signal.date).toLocaleDateString()
-                          : ""}
-                      </TableCell>
-                      <TableCell>
-                        {getSignalChip(signal.signal, signal.date)}
-                      </TableCell>
-                      <TableCell align="right">
-                        {formatCurrency(signal.current_price || signal.close)}
-                      </TableCell>
-                      <TableCell align="right">
-                        {signal.buylevel
-                          ? formatCurrency(signal.buylevel)
-                          : "-"}
-                      </TableCell>
-                      <TableCell align="right">
-                        {signal.stoplevel
-                          ? formatCurrency(signal.stoplevel)
-                          : "-"}
-                      </TableCell>
-                      <TableCell align="right">
-                        {signal.target_price
-                          ? formatCurrency(signal.target_price)
-                          : "-"}
-                      </TableCell>
-                      <TableCell align="right">
-                        {signal.risk_reward_ratio
-                          ? `${Number(signal.risk_reward_ratio).toFixed(1)}:1`
-                          : "—"}
-                      </TableCell>
-                      <TableCell>
-                        <Tooltip title={`${signal.market_stage || "Unknown"}\n${signal.substage || ""}`}>
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                            <Chip
-                              label={signal.market_stage?.replace("Stage ", "S") || "—"}
-                              size="small"
-                              sx={{
-                                backgroundColor:
-                                  signal.market_stage === "Stage 2 - Advancing" ? "rgba(5, 150, 105, 0.2)" :
-                                  signal.market_stage === "Stage 1 - Basing" ? "rgba(59, 130, 246, 0.2)" :
-                                  signal.market_stage === "Stage 3 - Topping" ? "rgba(245, 158, 11, 0.2)" :
-                                  signal.market_stage === "Stage 4 - Declining" ? "rgba(220, 38, 38, 0.2)" :
-                                  "rgba(156, 163, 175, 0.2)",
-                                color:
-                                  signal.market_stage === "Stage 2 - Advancing" ? "#059669" :
-                                  signal.market_stage === "Stage 1 - Basing" ? "#3B82F6" :
-                                  signal.market_stage === "Stage 3 - Topping" ? "#F59E0B" :
-                                  signal.market_stage === "Stage 4 - Declining" ? "#DC2626" :
-                                  "#6B7280",
-                                fontWeight: "bold",
-                                fontSize: "0.7rem",
-                              }}
-                            />
-                          </Box>
-                        </Tooltip>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Chip
-                          label={signal.sata_score !== null && signal.sata_score !== undefined ? signal.sata_score : "—"}
-                          size="small"
-                          sx={{
-                            backgroundColor:
-                              signal.sata_score >= 8 ? "rgba(5, 150, 105, 0.2)" :
-                              signal.sata_score >= 4 ? "rgba(59, 130, 246, 0.2)" :
-                              "rgba(220, 38, 38, 0.2)",
-                            color:
-                              signal.sata_score >= 8 ? "#059669" :
-                              signal.sata_score >= 4 ? "#3B82F6" :
-                              "#DC2626",
-                            fontWeight: "bold",
-                            fontSize: "0.7rem",
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        <Chip
-                          label={signal.quality_score || "—"}
-                          size="small"
-                          sx={{
-                            backgroundColor:
-                              signal.quality_score >= 80 ? "rgba(5, 150, 105, 0.2)" :
-                              signal.quality_score >= 60 ? "rgba(59, 130, 246, 0.2)" :
-                              signal.quality_score >= 40 ? "rgba(245, 158, 11, 0.2)" :
-                              "rgba(220, 38, 38, 0.2)",
-                            color:
-                              signal.quality_score >= 80 ? "#059669" :
-                              signal.quality_score >= 60 ? "#3B82F6" :
-                              signal.quality_score >= 40 ? "#F59E0B" :
-                              "#DC2626",
-                            fontWeight: "bold",
-                            fontSize: "0.7rem",
-                          }}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setHistoricalDialogOpen(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
+        )}
+
+        {isError && (
+          <ErrorDisplay
+            error={error?.message || "Failed to load signals"}
+            retry={() => window.location.reload()}
+          />
+        )}
+
+        {!isLoading && !isError && filteredSignals.length === 0 && (
+          <Box sx={{ p: 4, textAlign: "center" }}>
+            <Typography color="text.secondary">
+              No signals found for the selected filters. Try adjusting your search or time period.
+            </Typography>
+          </Box>
+        )}
+
+        {!isLoading && !isError && filteredSignals.length > 0 && (
+          <Box>
+            <Card sx={{ mb: 2 }}>
+              <CardContent>
+                <Typography variant="body2" color="text.secondary">
+                  Showing {filteredSignals.length} of {signalsData?.pagination?.total || 0} signals
+                </Typography>
+              </CardContent>
+            </Card>
+
+            <SignalCardAccordion signals={filteredSignals.slice(0, rowsPerPage)} />
+          </Box>
+        )}
+      </ErrorBoundary>
     </Container>
   );
 }
