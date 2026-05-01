@@ -11,19 +11,13 @@ router.post("/", async (req, res) => {
 
     // Validation
     if (!name || !email || !message) {
-      return res.status(400).json({
-        success: false,
-        error: "Name, email, and message are required"
-      });
+      return sendError(res, 400, "Name, email, and message are required", "MISSING_FIELDS");
     }
 
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid email format"
-      });
+      return sendError(res, 400, "Invalid email format", "INVALID_EMAIL");
     }
 
     // Save to database
@@ -38,21 +32,14 @@ router.post("/", async (req, res) => {
     console.log(`✅ Contact form received from ${email} (${name}) - ID: ${submissionId}`);
 
     // Return success with submission ID
-    return res.status(201).json({
-      success: true,
-      message: "Thank you for your message! We'll get back to you soon.",
-      data: {
-        submission_id: submissionId,
-        submitted_at: result.rows[0].created_at
-      }
-    });
+    return sendSuccess(res, {
+      submission_id: submissionId,
+      submitted_at: result.rows[0].created_at
+    }, "Thank you for your message! We'll get back to you soon.", 201);
 
   } catch (error) {
     console.error("Error processing contact form:", error);
-    return res.status(500).json({
-      success: false,
-      error: "Failed to submit contact form. Please try again later."
-    });
+    return sendError(res, 500, "Failed to submit contact form. Please try again later.", "SUBMIT_ERROR");
   }
 });
 
@@ -73,12 +60,9 @@ router.get("/submissions", async (req, res) => {
 
     if (!tableExists.rows[0]?.exists) {
       // Table doesn't exist - return empty result
-      return res.status(200).json({
-        success: true,
-        data: {
-          submissions: [],
-          total: 0
-        }
+      return sendSuccess(res, {
+        submissions: [],
+        total: 0
       });
     }
 
@@ -89,20 +73,14 @@ router.get("/submissions", async (req, res) => {
        LIMIT 100`
     );
 
-    return res.status(200).json({
-      success: true,
-      data: {
-        submissions: result.rows || [],
-        total: result.rowCount || 0
-      }
+    return sendSuccess(res, {
+      submissions: result.rows || [],
+      total: result.rowCount || 0
     });
 
   } catch (error) {
     console.error("Error fetching submissions:", error);
-    return res.status(500).json({
-      success: false,
-      error: "Failed to fetch submissions"
-    });
+    return sendError(res, 500, "Failed to fetch submissions", "FETCH_ERROR");
   }
 });
 
@@ -119,23 +97,14 @@ router.get("/submissions/:id", async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "Submission not found"
-      });
+      return sendError(res, 404, "Submission not found", "NOT_FOUND");
     }
 
-    return res.status(200).json({
-      success: true,
-      data: result.rows[0]
-    });
+    return sendSuccess(res, result.rows[0]);
 
   } catch (error) {
     console.error("Error fetching submission:", error);
-    return res.status(500).json({
-      success: false,
-      error: "Failed to fetch submission"
-    });
+    return sendError(res, 500, "Failed to fetch submission", "FETCH_ERROR");
   }
 });
 
@@ -146,10 +115,7 @@ router.patch("/submissions/:id", async (req, res) => {
     const { status } = req.body;
 
     if (!['new', 'reviewed', 'archived'].includes(status)) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid status"
-      });
+      return sendError(res, 400, "Invalid status", "INVALID_STATUS");
     }
 
     const result = await query(
@@ -161,23 +127,14 @@ router.patch("/submissions/:id", async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return res.status(404).json({
-        success: false,
-        error: "Submission not found"
-      });
+      return sendError(res, 404, "Submission not found", "NOT_FOUND");
     }
 
-    return res.status(200).json({
-      success: true,
-      data: result.rows[0]
-    });
+    return sendSuccess(res, result.rows[0]);
 
   } catch (error) {
     console.error("Error updating submission:", error);
-    return res.status(500).json({
-      success: false,
-      error: "Failed to update submission"
-    });
+    return sendError(res, 500, "Failed to update submission", "UPDATE_ERROR");
   }
 });
 

@@ -250,23 +250,9 @@ const getSignalFilters = async (req, res) => {
     const countResult = await query(countQuery, params);
     const total = parseInt(countResult.rows[0]?.total || 0);
 
-    // DATA QUERY
-    const selectFields = `
-      ${tableAlias}.id,
-      ${tableAlias}.symbol,
-      ${tableAlias}.date,
-      ${tableAlias}.close,
-      ${tableAlias}.signal,
-      ${tableAlias}.volume,
-      ${tableAlias}.open,
-      ${tableAlias}.high,
-      ${tableAlias}.low
-      ${type === 'swing' ? ', ' + tableAlias + '.buylevel, ' + tableAlias + '.stoplevel' : ''}
-      ${type === 'range' ? ', ' + tableAlias + '.range_position, ' + tableAlias + '.range_high, ' + tableAlias + '.range_low' : ''}
-    `;
-
+    // DATA QUERY - Return ALL columns so frontend can display everything
     const dataQuery = `
-      SELECT ${selectFields}
+      SELECT *
       FROM ${tableName} ${tableAlias}
       ${whereClause}
       ${orderBy}

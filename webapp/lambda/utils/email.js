@@ -1,4 +1,4 @@
-const AWS = require('aws-sdk');
+const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
 
 let sesClient = null;
 let emailConfigured = false;
@@ -6,9 +6,9 @@ let emailConfigured = false;
 const initEmailService = () => {
   try {
     if (process.env.AWS_REGION) {
-      sesClient = new AWS.SES({ region: process.env.AWS_REGION });
+      sesClient = new SESClient({ region: process.env.AWS_REGION });
       emailConfigured = true;
-      console.log('✅ AWS SES email service initialized');
+      console.log('✅ AWS SES email service initialized (AWS SDK v3)');
     } else {
       console.log('⚠️  AWS_REGION not configured - email sending disabled');
     }
@@ -33,7 +33,7 @@ const sendEmail = async ({ to, subject, html, text }) => {
   try {
     const toAddresses = Array.isArray(to) ? to : [to];
 
-    const params = {
+    const command = new SendEmailCommand({
       Source: process.env.EMAIL_FROM || 'noreply@edgebrooke.com',
       Destination: { ToAddresses: toAddresses },
       Message: {
@@ -42,9 +42,9 @@ const sendEmail = async ({ to, subject, html, text }) => {
           ? { Html: { Data: html, Charset: 'UTF-8' } }
           : { Text: { Data: text || subject, Charset: 'UTF-8' } }
       }
-    };
+    });
 
-    const result = await sesClient.sendEmail(params).promise();
+    const result = await sesClient.send(command);
     console.log(`📧 Email sent successfully - MessageId: ${result.MessageId}`);
     return { success: true, messageId: result.MessageId };
   } catch (error) {
