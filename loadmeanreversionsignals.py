@@ -348,34 +348,7 @@ def insert_mean_reversion_signals(cur, symbol, df, table_name="mean_reversion_si
             td_buy_setup_count, td_buy_setup_complete, td_buy_setup_perfected,
             td_buy_countdown_count, td_sell_setup_count, td_sell_setup_complete,
             td_sell_setup_perfected, td_sell_countdown_count, td_pressure
-        ) VALUES (
-            %s, %s, %s,
-            %s, %s, %s, %s, %s,
-            %s, %s,
-            %s, %s, %s, %s,
-            %s, %s, %s, %s,
-            %s, %s, %s, %s,
-            %s, %s,
-            %s, %s,
-            %s, %s, %s, %s, %s,
-            %s, %s, %s,
-            %s, %s, %s,
-            %s, %s, %s,
-            %s, %s, %s, %s,
-            %s, %s, %s,
-            %s, %s, %s,
-            %s, %s, %s,
-            %s, %s,
-            %s, %s, %s, %s,
-            %s,
-            %s, %s, %s,
-            %s, %s, %s,
-            %s, %s, %s
-        )
-        ON CONFLICT (symbol, date) DO UPDATE SET
-            signal = EXCLUDED.signal,
-            signal_strength = EXCLUDED.signal_strength,
-            confluence_score = EXCLUDED.confluence_score
+        ) VALUES %s ON CONFLICT DO NOTHING
     """
 
     values = []
@@ -430,7 +403,7 @@ def insert_mean_reversion_signals(cur, symbol, df, table_name="mean_reversion_si
             safe_val(row.get('td_pressure'))
         ))
 
-    execute_values(cur, insert_q, values)
+    execute_values(cur, insert_q, values, page_size=500)
     return len(values)
 
 def create_table(cur):
