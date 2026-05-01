@@ -34,11 +34,11 @@ import ErrorBoundary from "../components/ErrorBoundary";
 import SignalCardAccordion from "../components/SignalCardAccordion";
 
 const logger = {
-  info: (msg) => console.log(`[UnifiedTradingSignals] ${msg}`),
-  error: (msg) => console.error(`[UnifiedTradingSignals] ${msg}`),
+  info: (msg) => console.log(`[TradingSignals] ${msg}`),
+  error: (msg) => console.error(`[TradingSignals] ${msg}`),
 };
 
-function UnifiedTradingSignals() {
+function TradingSignals() {
   useDocumentTitle("Trading Signals - All Strategies");
   const theme = useTheme();
   const { apiUrl: API_BASE } = getApiConfig();
@@ -265,12 +265,12 @@ function UnifiedTradingSignals() {
   );
 }
 
-function UnifiedTradingSignalsWithErrorBoundary() {
+function TradingSignalsWithErrorBoundary() {
   return (
     <ErrorBoundary>
-      <UnifiedTradingSignals />
+      <TradingSignals />
     </ErrorBoundary>
   );
 }
 
-export default UnifiedTradingSignalsWithErrorBoundary;
+export default TradingSignalsWithErrorBoundary;
