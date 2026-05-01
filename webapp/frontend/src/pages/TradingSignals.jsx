@@ -7,9 +7,13 @@ import {
   Button,
   Card,
   CardContent,
+  Chip,
   CircularProgress,
   Container,
   Divider,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
   FormControl,
   Grid,
   InputLabel,
@@ -22,33 +26,35 @@ import {
   Typography,
   InputAdornment,
   IconButton,
+  Stack,
+  Alert,
 } from "@mui/material";
 import {
   FilterList,
   Search,
   Clear,
+  ExpandMore,
+  TuneOutlined,
+  RestartAlt,
 } from "@mui/icons-material";
 import api, { getApiConfig, extractResponseData } from "../services/api";
-import { ErrorDisplay, LoadingDisplay } from "../components/ui/ErrorBoundary";
+import { ErrorDisplay } from "../components/ui/ErrorBoundary";
 import ErrorBoundary from "../components/ErrorBoundary";
 import SignalCardAccordion from "../components/SignalCardAccordion";
 
-const logger = {
-  info: (msg) => console.log(`[TradingSignals] ${msg}`),
-  error: (msg) => console.error(`[TradingSignals] ${msg}`),
-};
-
 function TradingSignals() {
-  useDocumentTitle("Trading Signals - All Strategies");
+  useDocumentTitle("Trading Signals - Advanced Filtering");
   const theme = useTheme();
-  const { apiUrl: API_BASE } = getApiConfig();
 
-  const [strategy, setStrategy] = useState("swing"); // swing, range, mean-reversion
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(25);
+  // Strategy & Pagination
+  const [strategy, setStrategy] = useState("swing");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(50);
+
+  // Filters
   const [symbolFilter, setSymbolFilter] = useState("");
-  const [signalFilter, setSignalFilter] = useState(""); // BUY, SELL, or empty for all
-  const [days, setDays] = useState(180);
+  const [signalFilter, setSignalFilter] = useState("");
+  const [days, setDays] = useState(3650); // Default: ALL TIME
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [minVolume, setMinVolume] = useState("");
@@ -59,39 +65,43 @@ function TradingSignals() {
   const [sort, setSort] = useState("date");
   const [sortOrder, setSortOrder] = useState("DESC");
 
-  // Map strategy names to API endpoints and titles
+  // Count active filters (3650 = all time default, so don't count it)
+  const activeFilterCount = [
+    symbolFilter, signalFilter, days !== 3650, minPrice, maxPrice,
+    minVolume, maxVolume, minRsi, maxRsi, minAdx
+  ].filter(Boolean).length;
+
+  // Strategy config
   const strategyConfig = {
     swing: {
-      endpoint: "/api/signals",
       title: "Swing Trading Signals",
-      description: "AI-powered swing trading signals with market stage analysis",
+      description: "AI-powered swing trading with market stage analysis, risk/reward ratios, and technical confirmation",
+      icon: "📈",
       color: theme.palette.primary.main,
     },
     range: {
-      endpoint: "/api/signals/range",
       title: "Range Trading Signals",
-      description: "Range bounce signals with position analysis and breakout quality",
+      description: "Range bounce and breakout signals with support/resistance levels and breakout quality metrics",
+      icon: "📊",
       color: theme.palette.info.main,
     },
     "mean-reversion": {
-      endpoint: "/api/signals/mean-reversion",
       title: "Mean Reversion Signals",
-      description: "Connors RSI(2) oversold signals with confluence analysis",
+      description: "Connors RSI(2) oversold signals with confluence analysis and mean reversion probability",
+      icon: "🔄",
       color: theme.palette.success.main,
     },
   };
 
   const config = strategyConfig[strategy];
 
-  // Fetch signals based on selected strategy with all advanced filters
-  const { data: signalsData, isLoading, isError, error } = useQuery({
-    queryKey: ["unifiedSignals", strategy, symbolFilter, signalFilter, days, minPrice, maxPrice, minVolume, maxVolume, minRsi, maxRsi, minAdx, sort, sortOrder, page],
+  // API Query
+  const { data: signalsData, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ["signals", strategy, symbolFilter, signalFilter, days, minPrice, maxPrice, minVolume, maxVolume, minRsi, maxRsi, minAdx, sort, sortOrder, page, limit],
     queryFn: async () => {
       const params = new URLSearchParams();
-
-      // Always use the new unified search endpoint
       params.append("type", strategy);
-      if (symbolFilter) params.append("symbol", symbolFilter);
+      if (symbolFilter) params.append("symbol", symbolFilter.toUpperCase());
       if (signalFilter) params.append("signal", signalFilter);
       params.append("days", days);
       if (minPrice) params.append("min_price", minPrice);
@@ -101,8 +111,8 @@ function TradingSignals() {
       if (minRsi) params.append("min_rsi", minRsi);
       if (maxRsi) params.append("max_rsi", maxRsi);
       if (minAdx) params.append("min_adx", minAdx);
-      params.append("limit", 100);
-      params.append("page", page + 1);
+      params.append("limit", limit);
+      params.append("page", page);
       params.append("sort", sort);
       params.append("sort_order", sortOrder);
 
@@ -111,42 +121,14 @@ function TradingSignals() {
     },
   });
 
-  const filteredSignals = signalsData?.items || [];
+  const signals = signalsData?.items || [];
+  const pagination = signalsData?.pagination || {};
 
-  const handleStrategyChange = (event, newValue) => {
-    setStrategy(newValue);
-    setPage(0);
-  };
-
-  const handleSymbolFilterChange = (e) => {
-    setSymbolFilter(e.target.value);
-    setPage(0);
-  };
-
-  const handleSignalFilterChange = (e) => {
-    setSignalFilter(e.target.value);
-    setPage(0);
-  };
-
-  const handleDaysChange = (e) => {
-    setDays(e.target.value);
-    setPage(0);
-  };
-
-  const handleSortChange = (e) => {
-    setSort(e.target.value);
-    setPage(0);
-  };
-
-  const handleSortOrderChange = (e) => {
-    setSortOrder(e.target.value);
-    setPage(0);
-  };
-
-  const handleClearFilters = () => {
+  // Handlers
+  const handleClearAll = () => {
     setSymbolFilter("");
     setSignalFilter("");
-    setDays(180);
+    setDays(3650); // All time
     setMinPrice("");
     setMaxPrice("");
     setMinVolume("");
@@ -156,43 +138,45 @@ function TradingSignals() {
     setMinAdx("");
     setSort("date");
     setSortOrder("DESC");
-    setPage(0);
+    setPage(1);
+  };
+
+  const handleRemoveFilter = (type) => {
+    const handlers = {
+      symbol: () => setSymbolFilter(""),
+      signal: () => setSignalFilter(""),
+      days: () => setDays(3650), // All time
+      minPrice: () => setMinPrice(""),
+      maxPrice: () => setMaxPrice(""),
+      minRsi: () => setMinRsi(""),
+      maxRsi: () => setMaxRsi(""),
+      minAdx: () => setMinAdx(""),
+    };
+    handlers[type]?.();
+    setPage(1);
   };
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
+    <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Header */}
       <Box sx={{ mb: 4 }}>
-        <Typography
-          variant="h3"
-          component="h1"
-          gutterBottom
-          sx={{ fontWeight: 700, color: "primary.main" }}
-        >
-          📊 Trading Signals
+        <Typography variant="h3" component="h1" sx={{ fontWeight: 700, mb: 1 }}>
+          Trading Signals Dashboard
         </Typography>
-        <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 3 }}>
-          Unified view of all trading strategies with complete metrics and analysis
+        <Typography variant="body1" color="text.secondary">
+          Advanced filtering across 1M+ signals • All strategies • Historical & current data
         </Typography>
       </Box>
 
       {/* Strategy Tabs */}
       <Paper sx={{ mb: 4 }}>
-        <Tabs
-          value={strategy}
-          onChange={handleStrategyChange}
-          indicatorColor="primary"
-          textColor="primary"
-          sx={{ p: 2 }}
-        >
-          <Tab label="Swing Trading" value="swing" sx={{ fontWeight: 600 }} />
-          <Tab label="Range Trading" value="range" sx={{ fontWeight: 600 }} />
-          <Tab label="Mean Reversion" value="mean-reversion" sx={{ fontWeight: 600 }} />
+        <Tabs value={strategy} onChange={(e, v) => { setStrategy(v); setPage(1); }} variant="fullWidth">
+          <Tab label={`${strategyConfig.swing.icon} Swing Trading`} value="swing" />
+          <Tab label={`${strategyConfig.range.icon} Range Trading`} value="range" />
+          <Tab label={`${strategyConfig["mean-reversion"].icon} Mean Reversion`} value="mean-reversion" />
         </Tabs>
-
-        {/* Strategy Info */}
-        <Box sx={{ px: 3, py: 2, backgroundColor: theme.palette.action.hover }}>
-          <Typography variant="h5" sx={{ fontWeight: 700, color: config.color, mb: 1 }}>
+        <Box sx={{ p: 2.5, backgroundColor: `${config.color}12`, borderTop: `2px solid ${config.color}` }}>
+          <Typography variant="h6" sx={{ color: config.color, fontWeight: 700, mb: 0.5 }}>
             {config.title}
           </Typography>
           <Typography variant="body2" color="text.secondary">
@@ -201,242 +185,195 @@ function TradingSignals() {
         </Box>
       </Paper>
 
-      {/* Filters */}
-      <Card sx={{ mb: 4 }}>
-        <CardContent>
-          <Grid container spacing={2} alignItems="flex-end">
-            <Grid item xs={12}>
-              <Typography variant="h6" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <FilterList />
-                Advanced Filters
+      {/* Active Filters Chips */}
+      {activeFilterCount > 0 && (
+        <Card sx={{ mb: 3, backgroundColor: theme.palette.action.hover }}>
+          <CardContent>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1.5 }}>
+              <TuneOutlined fontSize="small" color="primary" />
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                {activeFilterCount} Active Filter{activeFilterCount !== 1 ? 's' : ''}
               </Typography>
-              <Divider sx={{ mb: 2 }} />
-            </Grid>
+            </Box>
+            <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+              {symbolFilter && <Chip label={`Symbol: ${symbolFilter}`} onDelete={() => handleRemoveFilter("symbol")} color="primary" variant="outlined" size="small" />}
+              {signalFilter && <Chip label={`Signal: ${signalFilter}`} onDelete={() => handleRemoveFilter("signal")} color="primary" variant="outlined" size="small" />}
+              {days !== 3650 && <Chip label={`${days}d`} onDelete={() => handleRemoveFilter("days")} color="primary" variant="outlined" size="small" />}
+              {minPrice && <Chip label={`Min: $${minPrice}`} onDelete={() => handleRemoveFilter("minPrice")} color="primary" variant="outlined" size="small" />}
+              {maxPrice && <Chip label={`Max: $${maxPrice}`} onDelete={() => handleRemoveFilter("maxPrice")} color="primary" variant="outlined" size="small" />}
+              {minRsi && <Chip label={`RSI ≥ ${minRsi}`} onDelete={() => handleRemoveFilter("minRsi")} color="primary" variant="outlined" size="small" />}
+              {maxRsi && <Chip label={`RSI ≤ ${maxRsi}`} onDelete={() => handleRemoveFilter("maxRsi")} color="primary" variant="outlined" size="small" />}
+              {minAdx && <Chip label={`ADX ≥ ${minAdx}`} onDelete={() => handleRemoveFilter("minAdx")} color="primary" variant="outlined" size="small" />}
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
 
-            {/* Symbol Search */}
-            <Grid item xs={12} sm={6} md={3}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Symbol"
-                placeholder="e.g., AAPL"
-                value={symbolFilter}
-                onChange={handleSymbolFilterChange}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Search fontSize="small" />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            </Grid>
+      {/* Filter Panel - Accordion */}
+      <Card sx={{ mb: 4 }}>
+        <Accordion defaultExpanded>
+          <AccordionSummary expandIcon={<ExpandMore />}>
+            <FilterList sx={{ mr: 1.5 }} />
+            <Typography sx={{ fontWeight: 600, flex: 1 }}>Advanced Filters</Typography>
+            {activeFilterCount > 0 && <Chip label={activeFilterCount} size="small" color="primary" />}
+          </AccordionSummary>
+          <Divider />
+          <AccordionDetails sx={{ pt: 3, pb: 3 }}>
+            <Grid container spacing={2.5}>
+              {/* Quick Filters */}
+              <Grid item xs={12} sm={6} md={3}>
+                <TextField fullWidth label="Symbol" placeholder="AAPL" value={symbolFilter} onChange={(e) => { setSymbolFilter(e.target.value); setPage(1); }} size="small" InputProps={{ startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment> }} />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Signal</InputLabel>
+                  <Select value={signalFilter} onChange={(e) => { setSignalFilter(e.target.value); setPage(1); }} label="Signal">
+                    <MenuItem value="">All</MenuItem>
+                    <MenuItem value="BUY">📈 BUY</MenuItem>
+                    <MenuItem value="SELL">📉 SELL</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Period</InputLabel>
+                  <Select value={days} onChange={(e) => { setDays(e.target.value); setPage(1); }} label="Period">
+                    <MenuItem value={7}>7 days</MenuItem>
+                    <MenuItem value={30}>30 days</MenuItem>
+                    <MenuItem value={90}>90 days</MenuItem>
+                    <MenuItem value={180}>6 months</MenuItem>
+                    <MenuItem value={365}>1 year</MenuItem>
+                    <MenuItem value={3650}>All time</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Per Page</InputLabel>
+                  <Select value={limit} onChange={(e) => { setLimit(e.target.value); setPage(1); }} label="Per Page">
+                    <MenuItem value={25}>25</MenuItem>
+                    <MenuItem value={50}>50</MenuItem>
+                    <MenuItem value={100}>100</MenuItem>
+                    <MenuItem value={250}>250</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
 
-            {/* Signal Type Filter */}
-            <Grid item xs={12} sm={6} md={2}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Signal</InputLabel>
-                <Select
-                  value={signalFilter}
-                  onChange={handleSignalFilterChange}
-                  label="Signal"
-                >
-                  <MenuItem value="">All Signals</MenuItem>
-                  <MenuItem value="BUY">BUY Only</MenuItem>
-                  <MenuItem value="SELL">SELL Only</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
+              {/* Price Section */}
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: theme.palette.text.secondary }}>Price Range</Typography>
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
+                <TextField fullWidth type="number" label="Min" placeholder="0" value={minPrice} onChange={(e) => { setMinPrice(e.target.value); setPage(1); }} size="small" inputProps={{ step: "0.01" }} />
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
+                <TextField fullWidth type="number" label="Max" placeholder="10000" value={maxPrice} onChange={(e) => { setMaxPrice(e.target.value); setPage(1); }} size="small" inputProps={{ step: "0.01" }} />
+              </Grid>
 
-            {/* Days Filter */}
-            <Grid item xs={12} sm={6} md={2}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Time Period</InputLabel>
-                <Select
-                  value={days}
-                  onChange={handleDaysChange}
-                  label="Time Period"
-                >
-                  <MenuItem value={7}>Last 7 Days</MenuItem>
-                  <MenuItem value={30}>Last 30 Days</MenuItem>
-                  <MenuItem value={90}>Last 90 Days</MenuItem>
-                  <MenuItem value={180}>Last 6 Months</MenuItem>
-                  <MenuItem value={365}>Last Year</MenuItem>
-                  <MenuItem value={3650}>All Time</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
+              {/* Volume Section */}
+              <Grid item xs={12} sm={6} md={2}>
+                <TextField fullWidth type="number" label="Min Vol" placeholder="0" value={minVolume} onChange={(e) => { setMinVolume(e.target.value); setPage(1); }} size="small" />
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
+                <TextField fullWidth type="number" label="Max Vol" placeholder="∞" value={maxVolume} onChange={(e) => { setMaxVolume(e.target.value); setPage(1); }} size="small" />
+              </Grid>
 
-            {/* Sorting */}
-            <Grid item xs={12} sm={6} md={2}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Sort By</InputLabel>
-                <Select
-                  value={sort}
-                  onChange={handleSortChange}
-                  label="Sort By"
-                >
-                  <MenuItem value="date">Date</MenuItem>
-                  <MenuItem value="symbol">Symbol</MenuItem>
-                  <MenuItem value="close">Price</MenuItem>
-                  <MenuItem value="volume">Volume</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
+              {/* Technical Section */}
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: theme.palette.text.secondary }}>Technical Indicators</Typography>
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
+                <TextField fullWidth type="number" label="Min RSI" placeholder="0" value={minRsi} onChange={(e) => { setMinRsi(e.target.value); setPage(1); }} size="small" inputProps={{ min: 0, max: 100 }} />
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
+                <TextField fullWidth type="number" label="Max RSI" placeholder="100" value={maxRsi} onChange={(e) => { setMaxRsi(e.target.value); setPage(1); }} size="small" inputProps={{ min: 0, max: 100 }} />
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
+                <TextField fullWidth type="number" label="Min ADX" placeholder="0" value={minAdx} onChange={(e) => { setMinAdx(e.target.value); setPage(1); }} size="small" />
+              </Grid>
 
-            {/* Sort Order */}
-            <Grid item xs={12} sm={6} md={1}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Order</InputLabel>
-                <Select
-                  value={sortOrder}
-                  onChange={handleSortOrderChange}
-                  label="Order"
-                >
-                  <MenuItem value="DESC">Descending</MenuItem>
-                  <MenuItem value="ASC">Ascending</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
+              {/* Sorting Section */}
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: theme.palette.text.secondary }}>Sorting</Typography>
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Sort By</InputLabel>
+                  <Select value={sort} onChange={(e) => { setSort(e.target.value); setPage(1); }} label="Sort By">
+                    <MenuItem value="date">📅 Date</MenuItem>
+                    <MenuItem value="symbol">🏷️ Symbol</MenuItem>
+                    <MenuItem value="close">💰 Price</MenuItem>
+                    <MenuItem value="volume">📊 Volume</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Order</InputLabel>
+                  <Select value={sortOrder} onChange={(e) => { setSortOrder(e.target.value); setPage(1); }} label="Order">
+                    <MenuItem value="DESC">Newest ↓</MenuItem>
+                    <MenuItem value="ASC">Oldest ↑</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
 
-            {/* Price Range */}
-            <Grid item xs={12} sm={6} md={2}>
-              <TextField
-                fullWidth
-                size="small"
-                type="number"
-                label="Min Price"
-                placeholder="0"
-                value={minPrice}
-                onChange={(e) => { setMinPrice(e.target.value); setPage(0); }}
-              />
+              {/* Buttons */}
+              <Grid item xs={12}>
+                <Box sx={{ display: "flex", gap: 1.5 }}>
+                  <Button variant="contained" onClick={() => refetch()} sx={{ fontWeight: 600 }}>
+                    Apply Filters
+                  </Button>
+                  {activeFilterCount > 0 && (
+                    <Button variant="outlined" startIcon={<RestartAlt />} onClick={handleClearAll} sx={{ fontWeight: 600 }}>
+                      Reset ({activeFilterCount})
+                    </Button>
+                  )}
+                </Box>
+              </Grid>
             </Grid>
-
-            <Grid item xs={12} sm={6} md={2}>
-              <TextField
-                fullWidth
-                size="small"
-                type="number"
-                label="Max Price"
-                placeholder="10000"
-                value={maxPrice}
-                onChange={(e) => { setMaxPrice(e.target.value); setPage(0); }}
-              />
-            </Grid>
-
-            {/* Volume Range */}
-            <Grid item xs={12} sm={6} md={2}>
-              <TextField
-                fullWidth
-                size="small"
-                type="number"
-                label="Min Volume"
-                placeholder="0"
-                value={minVolume}
-                onChange={(e) => { setMinVolume(e.target.value); setPage(0); }}
-              />
-            </Grid>
-
-            <Grid item xs={12} sm={6} md={2}>
-              <TextField
-                fullWidth
-                size="small"
-                type="number"
-                label="Max Volume"
-                placeholder="1000000000"
-                value={maxVolume}
-                onChange={(e) => { setMaxVolume(e.target.value); setPage(0); }}
-              />
-            </Grid>
-
-            {/* RSI Range */}
-            <Grid item xs={12} sm={6} md={2}>
-              <TextField
-                fullWidth
-                size="small"
-                type="number"
-                label="Min RSI"
-                placeholder="0"
-                value={minRsi}
-                onChange={(e) => { setMinRsi(e.target.value); setPage(0); }}
-                inputProps={{ min: 0, max: 100 }}
-              />
-            </Grid>
-
-            <Grid item xs={12} sm={6} md={2}>
-              <TextField
-                fullWidth
-                size="small"
-                type="number"
-                label="Max RSI"
-                placeholder="100"
-                value={maxRsi}
-                onChange={(e) => { setMaxRsi(e.target.value); setPage(0); }}
-                inputProps={{ min: 0, max: 100 }}
-              />
-            </Grid>
-
-            {/* ADX */}
-            <Grid item xs={12} sm={6} md={2}>
-              <TextField
-                fullWidth
-                size="small"
-                type="number"
-                label="Min ADX"
-                placeholder="0"
-                value={minAdx}
-                onChange={(e) => { setMinAdx(e.target.value); setPage(0); }}
-              />
-            </Grid>
-
-            {/* Clear Button */}
-            <Grid item xs={12}>
-              <Button
-                variant="outlined"
-                startIcon={<Clear />}
-                onClick={handleClearFilters}
-              >
-                Clear All Filters
-              </Button>
-            </Grid>
-          </Grid>
-        </CardContent>
+          </AccordionDetails>
+        </Accordion>
       </Card>
 
-      {/* Content */}
+      {/* Results */}
       <ErrorBoundary>
-        {isLoading && (
-          <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
-            <CircularProgress />
-          </Box>
+        {isLoading && <Box sx={{ textAlign: "center", py: 6 }}><CircularProgress /></Box>}
+
+        {isError && <ErrorDisplay error={error?.message || "Failed to load signals"} retry={() => refetch()} />}
+
+        {!isLoading && !isError && signals.length === 0 && (
+          <Card sx={{ p: 4, textAlign: "center" }}>
+            <Typography variant="h6" color="text.secondary" gutterBottom>No Signals Found</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Try adjusting filters or expanding time period</Typography>
+            <Button variant="outlined" onClick={handleClearAll} startIcon={<RestartAlt />}>Reset Filters</Button>
+          </Card>
         )}
 
-        {isError && (
-          <ErrorDisplay
-            error={error?.message || "Failed to load signals"}
-            retry={() => window.location.reload()}
-          />
-        )}
-
-        {!isLoading && !isError && filteredSignals.length === 0 && (
-          <Box sx={{ p: 4, textAlign: "center" }}>
-            <Typography color="text.secondary">
-              No signals found for the selected filters. Try adjusting your search or time period.
-            </Typography>
-          </Box>
-        )}
-
-        {!isLoading && !isError && filteredSignals.length > 0 && (
+        {!isLoading && !isError && signals.length > 0 && (
           <Box>
-            <Card sx={{ mb: 2 }}>
-              <CardContent>
-                <Typography variant="body2" color="text.secondary">
-                  Showing {filteredSignals.length} of {signalsData?.pagination?.total || 0} signals
-                </Typography>
+            <Card sx={{ mb: 3, backgroundColor: theme.palette.action.hover }}>
+              <CardContent sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <Box>
+                  <Typography variant="body2" color="text.secondary">
+                    Showing {signals.length} of {pagination.total?.toLocaleString() || 0} signals
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Page {pagination.page} of {pagination.totalPages}
+                  </Typography>
+                </Box>
+                <Chip label={strategy.toUpperCase()} color="primary" />
               </CardContent>
             </Card>
 
-            <SignalCardAccordion signals={filteredSignals.slice(0, rowsPerPage)} />
+            <SignalCardAccordion signals={signals} />
+
+            {pagination.totalPages > 1 && (
+              <Box sx={{ display: "flex", justifyContent: "center", gap: 1, mt: 4 }}>
+                <Button disabled={page === 1} onClick={() => setPage(page - 1)} variant="outlined">← Prev</Button>
+                <Typography sx={{ display: "flex", alignItems: "center", px: 2 }}>Page {page}/{pagination.totalPages}</Typography>
+                <Button disabled={page === pagination.totalPages} onClick={() => setPage(page + 1)} variant="outlined">Next →</Button>
+              </Box>
+            )}
           </Box>
         )}
       </ErrorBoundary>
@@ -444,12 +381,6 @@ function TradingSignals() {
   );
 }
 
-function TradingSignalsWithErrorBoundary() {
-  return (
-    <ErrorBoundary>
-      <TradingSignals />
-    </ErrorBoundary>
-  );
+export default function TradingSignalsPage() {
+  return <ErrorBoundary><TradingSignals /></ErrorBoundary>;
 }
-
-export default TradingSignalsWithErrorBoundary;
