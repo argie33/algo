@@ -3,13 +3,14 @@ const express = require("express");
 const { query } = require("../utils/database");
 const { getMarketDataPath } = require("../utils/market-data-path");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const logger = require("../utils/logger");
 const router = express.Router();
 
 // ============================================
 // LEADING INDICATORS - Comprehensive overview
 // ============================================
 router.get("/leading-indicators", async (req, res) => {
-  console.log("📈 Leading indicators endpoint called");
+  logger.info("GET /api/economic/leading-indicators called");
 
   try {
     // Get latest AND historical values for trend analysis

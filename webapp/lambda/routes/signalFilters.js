@@ -59,6 +59,7 @@ const router = express.Router();
  */
 
 const getSignalFilters = async (req, res) => {
+  console.log('✅ SIGNALFILTERS: Request received for', req.path, 'with query:', req.query);
   try {
     const {
       type = 'swing',
@@ -260,7 +261,9 @@ const getSignalFilters = async (req, res) => {
     `;
 
     params.push(safeLimit, offset);
+    console.log(`[SIGNALS FILTER] Query: ${dataQuery.substring(0, 100)}... Table: ${tableName}, Limit: ${safeLimit}`);
     const result = await query(dataQuery, params);
+    console.log(`[SIGNALS FILTER] Result: ${result.rows.length} rows, ${result.rows[0] ? Object.keys(result.rows[0]).length : 0} fields per row`);
 
     return sendPaginated(res, result.rows, {
       limit: safeLimit,
