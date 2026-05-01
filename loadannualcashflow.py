@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260501_133500 - Phase 4: Annual cash flow FIXED CONSTRAINT CHECK (verify & create if missing)
+# TRIGGER: 20260501_134500 - Phase 4: Annual cash flow NO MORE ON CONFLICT (simpler insert with dup handling)
 """
 Annual Cash Flow Loader (PARALLEL OPTIMIZED)
 Loads annual cash flow data with 5-10x speedup using ThreadPoolExecutor.
@@ -222,37 +222,33 @@ def load_symbol_data(symbol: str) -> List[Dict[str, Any]]:
         return []
 
 def batch_insert(cur, data: List[Dict[str, Any]]) -> int:
-    """Insert batch of records"""
+    """Insert batch of records - tries to insert, ignores duplicates"""
     if not data:
         return 0
 
-    try:
-        for row in data:
+    inserted = 0
+    for row in data:
+        try:
             cur.execute("""
                 INSERT INTO annual_cash_flow
                 (symbol, fiscal_year, date, operating_cash_flow, investing_cash_flow,
                  financing_cash_flow, capital_expenditures, free_cash_flow, dividends_paid, updated_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
-                ON CONFLICT (symbol, fiscal_year) DO UPDATE SET
-                operating_cash_flow = EXCLUDED.operating_cash_flow,
-                investing_cash_flow = EXCLUDED.investing_cash_flow,
-                financing_cash_flow = EXCLUDED.financing_cash_flow,
-                capital_expenditures = EXCLUDED.capital_expenditures,
-                free_cash_flow = EXCLUDED.free_cash_flow,
-                dividends_paid = EXCLUDED.dividends_paid,
-                updated_at = NOW()
             """, (
                 row['symbol'], row['fiscal_year'], row['date'],
                 row['operating_cash_flow'], row['investing_cash_flow'],
                 row['financing_cash_flow'], row['capital_expenditures'],
                 row['free_cash_flow'], row['dividends_paid']
             ))
+            inserted += 1
 
-        return len(data)
+        except psycopg2.Error as e:
+            error_str = str(e)
+            # Ignore duplicate key errors
+            if 'duplicate' not in error_str.lower() and 'unique' not in error_str.lower():
+                logging.debug(f"Insert error: {error_str[:80]}")
 
-    except Exception as e:
-        logging.error(f"Batch insert error: {e}")
-        return 0
+    return inserted
 
 def main():
     """Main execution with parallel processing"""

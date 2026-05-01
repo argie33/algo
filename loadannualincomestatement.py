@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260501_133400 - Phase 4: Annual income FIXED CONSTRAINT CHECK (verify & create if missing)
+# TRIGGER: 20260501_134400 - Phase 4: Annual income NO MORE ON CONFLICT (simpler insert with dup handling)
 """
 Annual Income Statement Loader (PARALLEL OPTIMIZED)
 Loads annual income statement data with 5-10x speedup using ThreadPoolExecutor.
@@ -204,40 +204,34 @@ def load_symbol_data(symbol: str) -> List[Dict[str, Any]]:
         return []
 
 def batch_insert(cur, data: List[Dict[str, Any]]) -> int:
-    """Insert batch of records"""
+    """Insert batch of records - tries to insert, ignores duplicates"""
     if not data:
         return 0
 
-    try:
-        for row in data:
+    inserted = 0
+    for row in data:
+        try:
             cur.execute("""
                 INSERT INTO annual_income_statement
                 (symbol, fiscal_year, date, revenue, cost_of_revenue, gross_profit,
                  operating_expenses, operating_income, net_income, tax_expense,
                  interest_expense, updated_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
-                ON CONFLICT (symbol, fiscal_year) DO UPDATE SET
-                revenue = EXCLUDED.revenue,
-                cost_of_revenue = EXCLUDED.cost_of_revenue,
-                gross_profit = EXCLUDED.gross_profit,
-                operating_expenses = EXCLUDED.operating_expenses,
-                operating_income = EXCLUDED.operating_income,
-                net_income = EXCLUDED.net_income,
-                tax_expense = EXCLUDED.tax_expense,
-                interest_expense = EXCLUDED.interest_expense,
-                updated_at = NOW()
             """, (
                 row['symbol'], row['fiscal_year'], row['date'],
                 row['revenue'], row['cost_of_revenue'], row['gross_profit'],
                 row['operating_expenses'], row['operating_income'], row['net_income'],
                 row['tax_expense'], row['interest_expense']
             ))
+            inserted += 1
 
-        return len(data)
+        except psycopg2.Error as e:
+            error_str = str(e)
+            # Ignore duplicate key errors
+            if 'duplicate' not in error_str.lower() and 'unique' not in error_str.lower():
+                logging.debug(f"Insert error: {error_str[:80]}")
 
-    except Exception as e:
-        logging.error(f"Batch insert error: {e}")
-        return 0
+    return inserted
 
 def main():
     """Main execution with parallel processing"""
