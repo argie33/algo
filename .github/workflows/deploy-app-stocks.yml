@@ -614,74 +614,22 @@ jobs:
           REPO_NAME=$(echo "$REPOSITORY_URI" | cut -d'/' -f2)
           echo "Repository name: $REPO_NAME"
 
-          # Check if individual Dockerfiles exist for each loader
-          MISSING_DOCKERFILES=""
-          for loader in $LOADERS; do
-            # Map loader names to Dockerfile names
-            case "$loader" in
-              "earningsestimate")
-                DOCKERFILE="Dockerfile.loadearningsestimate"
-                ;;
-              "revenueestimate")
-                DOCKERFILE="Dockerfile.loadrevenueestimate"
-                ;;
-              "calendar")
-                DOCKERFILE="Dockerfile.loadcalendar"
-                ;;
-              "earningshistory")
-                DOCKERFILE="Dockerfile.loadearningshistory"
-                ;;
-              "earningsmetrics")
-                DOCKERFILE="Dockerfile.loadearningsmetrics"
-                ;;
-              "analystupgradedowngrade")
-                DOCKERFILE="Dockerfile.loadanalystupgradedowngrade"
-                ;;
-              "aaiidata")
-                DOCKERFILE="Dockerfile.loadaaiidata"
-                ;;
-              "feargreed")
-                DOCKERFILE="Dockerfile.loadfeargreed"
-                ;;
-              "naaim")
-                DOCKERFILE="Dockerfile.loadnaaim"
-                ;;
-              "revenueestimate")
-                DOCKERFILE="Dockerfile.loadrevenueestimate"
-                ;;
-              "sectordata")
-                DOCKERFILE="Dockerfile.sectordata"
-                ;;
-              "companyprofile")
-                DOCKERFILE="Dockerfile.companyprofile"
-                ;;
-              "financials")
-                DOCKERFILE="Dockerfile.financials"
-                ;;
-              "historical")
-                DOCKERFILE="Dockerfile.historical"
-                ;;
-              "_sp500_earnings")
-                DOCKERFILE="Dockerfile.loadsp500_earnings"
-                ;;
-              "earningsrevisions")
-                DOCKERFILE="Dockerfile.loadearningsrevisions"
-                ;;
-              *)
-                DOCKERFILE="Dockerfile.$loader"
-                ;;
-            esac
-
-            if [[ ! -f "$DOCKERFILE" ]]; then
-              MISSING_DOCKERFILES="$MISSING_DOCKERFILES $loader"
-            fi
-          done
-
-          if [[ -n "$MISSING_DOCKERFILES" ]]; then
-            echo "❌ ERROR: Missing Dockerfiles for loaders:$MISSING_DOCKERFILES"
+          # Check if unified Dockerfile exists (includes all 54 refactored loaders + db_helper.py)
+          if [[ ! -f "Dockerfile" ]]; then
+            echo "❌ ERROR: Unified Dockerfile not found!"
+            echo "Expected: Dockerfile (includes all refactored loaders + db_helper.py)"
             exit 1
           fi
-          echo "✅ All required Dockerfiles found"
+
+          # Verify db_helper.py exists (critical for S3 bulk loading)
+          if [[ ! -f "db_helper.py" ]]; then
+            echo "❌ ERROR: db_helper.py not found!"
+            echo "db_helper.py is required for DatabaseHelper abstraction and S3 bulk loading"
+            exit 1
+          fi
+
+          echo "✅ Unified Dockerfile found (includes all refactored loaders + db_helper.py)"
+          echo "✅ db_helper.py abstraction layer found"
 
           # Login to ECR
           echo "🔑 Logging into ECR..."
@@ -699,135 +647,42 @@ jobs:
           fi
           echo "✅ ECR repository verified"
 
-          # Setup buildx for multi-platform builds with optimization
-          echo "🔧 Setting up Docker buildx for ARM64..."
-          docker buildx create --use --name multiarch --driver docker-container --bootstrap || true
+          # Build unified Docker image (includes all 54 refactored loaders + db_helper.py)
+          echo "🔨 Building unified Docker image with all refactored loaders..."
 
-          # Enable GitHub Actions cache optimization
-          export BUILDX_EXPERIMENTAL=1
+          IMAGE_URI="${REPOSITORY_URI}:latest"
+          CACHE_FROM="type=gha,scope=unified"
+          CACHE_TO="type=gha,mode=max,scope=unified"
 
-          # Build specific images for each loader type that will be executed
-          echo "🔨 Building Docker images for detected loaders..."
+          # Build the unified image (single Dockerfile includes all loaders)
+          timeout 30m docker build \
+            --build-arg AWS_REGION="${{ env.AWS_REGION }}" \
+            -t "$IMAGE_URI" \
+            -f Dockerfile . 2>&1 | tee /tmp/docker_build.log
 
-          # Get the matrix to determine which loaders will run
-          MATRIX='${{ needs.detect-changes.outputs.matrix }}'
-          echo "Matrix: $MATRIX"
-
-          if [[ "$MATRIX" == '{"include":[]}' ]]; then
-            echo "No loaders to build images for"
-            exit 0
+          BUILD_EXIT=$?
+          if [ $BUILD_EXIT -ne 0 ]; then
+            echo "❌ ERROR: Docker build failed!"
+            echo "Build log:"
+            tail -50 /tmp/docker_build.log
+            exit 1
+          else
+            echo "✅ Unified Docker image built successfully"
+            echo "   Image includes: all 54 refactored loaders + db_helper.py abstraction"
           fi
 
-          # Extract unique loaders from matrix
-          LOADERS=$(echo "$MATRIX" | jq -r '.include[].loader' | sort | uniq)
-          echo "Building images for loaders: $LOADERS"
+          # Tag and push the unified image
+          echo "🏷️ Tagging unified image..."
+          docker tag "$IMAGE_URI" "${REPOSITORY_URI}:latest"
 
-          for loader in $LOADERS; do
-            echo "🔨 Building image for $loader loader..."
-
-            # Map loader names to Dockerfile names
-            case "$loader" in
-              "earningsestimate")
-                DOCKERFILE="Dockerfile.loadearningsestimate"
-                ;;
-              "revenueestimate")
-                DOCKERFILE="Dockerfile.loadrevenueestimate"
-                ;;
-              "calendar")
-                DOCKERFILE="Dockerfile.loadcalendar"
-                ;;
-              "earningshistory")
-                DOCKERFILE="Dockerfile.loadearningshistory"
-                ;;
-              "earningsmetrics")
-                DOCKERFILE="Dockerfile.loadearningsmetrics"
-                ;;
-              "analystupgradedowngrade")
-                DOCKERFILE="Dockerfile.loadanalystupgradedowngrade"
-                ;;
-              "aaiidata")
-                DOCKERFILE="Dockerfile.loadaaiidata"
-                ;;
-              "feargreed")
-                DOCKERFILE="Dockerfile.loadfeargreed"
-                ;;
-              "naaim")
-                DOCKERFILE="Dockerfile.loadnaaim"
-                ;;
-              "revenueestimate")
-                DOCKERFILE="Dockerfile.loadrevenueestimate"
-                ;;
-              "sectordata")
-                DOCKERFILE="Dockerfile.sectordata"
-                ;;
-              "companyprofile")
-                DOCKERFILE="Dockerfile.companyprofile"
-                ;;
-              "financials")
-                DOCKERFILE="Dockerfile.financials"
-                ;;
-              "historical")
-                DOCKERFILE="Dockerfile.historical"
-                ;;
-              "_sp500_earnings")
-                DOCKERFILE="Dockerfile.loadsp500_earnings"
-                ;;
-              "earningsrevisions")
-                DOCKERFILE="Dockerfile.loadearningsrevisions"
-                ;;
-              *)
-                DOCKERFILE="Dockerfile.$loader"
-                ;;
-            esac
-
-            # Build image with cache optimization
-            IMAGE_TAG="$REPO_NAME:$loader-latest"
-            CACHE_FROM="type=gha,scope=$loader"
-            CACHE_TO="type=gha,mode=max,scope=$loader"
-
-            echo "🔨 Building $loader with optimizations..."
-            timeout 30m docker buildx build \
-              --platform linux/arm64 \
-              --build-arg ECR_REGISTRY="$REPOSITORY_URI" \
-              --cache-from "$CACHE_FROM" \
-              --cache-to "$CACHE_TO" \
-              --progress=plain \
-              -t "$IMAGE_TAG" \
-              -f $DOCKERFILE . --load
-
-            if [ $? -ne 0 ]; then
-              echo "❌ ERROR: Docker build failed or timed out for $loader!"
-              echo "Checking if image exists anyway..."
-              if docker images | grep -q "$REPO_NAME.*$loader"; then
-                echo "⚠️ Found partial image, continuing..."
-              else
-                exit 1
-              fi
-            else
-              echo "✅ Docker build successful for $loader"
-            fi
-          done
-
-          echo "✅ All loader-specific images built successfully"
-
-          # Tag and push all images
-          echo "🏷️ Tagging and pushing images..."
-
-          # Push loader-specific images
-          for loader in $LOADERS; do
-            echo "🏷️ Tagging $loader image..."
-            LOADER_IMAGE_URI="${REPOSITORY_URI}:$loader-latest"
-            docker tag "$REPO_NAME:$loader-latest" "$LOADER_IMAGE_URI"
-
-            echo "⬆️ Pushing $loader image to ECR..."
-            if ! docker push "$LOADER_IMAGE_URI"; then
-              echo "❌ ERROR: Docker push failed for $loader!"
-              exit 1
-            fi
-            echo "✅ $loader image pushed successfully to: $LOADER_IMAGE_URI"
-          done
-
-          echo "🎯 All loader-specific images pushed to ECR successfully!"
+          echo "⬆️ Pushing unified image to ECR..."
+          if ! docker push "${REPOSITORY_URI}:latest"; then
+            echo "❌ ERROR: Docker push failed!"
+            exit 1
+          fi
+          echo "✅ Unified image pushed successfully to: ${REPOSITORY_URI}:latest"
+          echo ""
+          echo "🎯 All loaders packaged in single optimized image with DatabaseHelper abstraction"
 
   # 3. Execute loaders using matrix strategy
   execute-loaders:
@@ -1136,64 +991,38 @@ jobs:
         run: |
           echo "🚀 Starting ${{ matrix.loader }} loader (priority: ${{ matrix.priority }})"
 
-          # Map loader name to container name (handle special cases)
-          case "${{ matrix.loader }}" in
-            "companyprofile")
-            
-              CONTAINER_NAME="loadcompanyprofile-loader"
-              ;;
-            "feargreed")
-              CONTAINER_NAME="feargreeddata-loader"
-              ;;
-            "naaim")
-              CONTAINER_NAME="naaaimdata-loader"
-              ;;
-            "companyprofile")
-              CONTAINER_NAME="loadcompanyprofile-loader"
-              ;;
-            "financials")
-              CONTAINER_NAME="loadfinancials-loader"
-              ;;
-            "historical")
-              CONTAINER_NAME="loadhistorical-loader"
-              ;;
-            "sectordata")
-              CONTAINER_NAME="sectordata-loader"
-              ;;
-            *)
-              CONTAINER_NAME="${{ matrix.loader }}-loader"
-              ;;
-          esac
-
-          echo "Using container name: $CONTAINER_NAME"
-
-          # Get the correct image URI for this loader
+          # Unified image - all loaders use the same Docker image with db_helper.py
           REPOSITORY_URI=$(aws cloudformation list-exports \
             --query "Exports[?Name=='StocksCore-ContainerRepositoryUri'].Value" \
             --output text --region ${{ env.AWS_REGION }})
 
-          # Use loader-specific image (only image we build)
-          IMAGE_URI="${REPOSITORY_URI}:${{ matrix.loader }}-latest"
-          echo "✅ Using loader-specific image: $IMAGE_URI"
+          IMAGE_URI="${REPOSITORY_URI}:latest"
+          CONTAINER_NAME="stocks-loader"
+          echo "✅ Using unified image: $IMAGE_URI"
+          echo "   Includes: all 54 refactored loaders + db_helper.py abstraction"
 
           # Get the current task definition and update it with the new image
-          echo "🔄 Creating task definition revision with updated image..."
+          echo "🔄 Creating task definition revision with updated image and S3 env vars..."
           TASK_DEF_JSON=$(aws ecs describe-task-definition \
             --task-definition "${{ steps.infra.outputs.task-def }}" \
             --query "taskDefinition" \
             --output json)
 
-          # Update ONLY the container image - keep all CloudFormation-managed environment variables
-          # (CloudFormation already sets DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME from imports)
+          # Update image and add S3 bulk loading environment variables
           UPDATED_TASK_DEF=$(echo "$TASK_DEF_JSON" | jq \
             --arg imageUri "$IMAGE_URI" \
             --arg containerName "$CONTAINER_NAME" \
-            '.containerDefinitions |= map(if .name == $containerName then
-              .image = $imageUri
-            else . end) | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)')
+            '.containerDefinitions |= map(if .name == "stocks-loader" or .name == ($containerName) then (
+              .image = $imageUri |
+              .environment |= map(select(.name != "USE_S3_STAGING" and .name != "S3_STAGING_BUCKET" and .name != "RDS_S3_ROLE_ARN")) |
+              .environment += [
+                {name: "USE_S3_STAGING", value: "true"},
+                {name: "S3_STAGING_BUCKET", value: "stocks-app-data"},
+                {name: "RDS_S3_ROLE_ARN", value: "arn:aws:iam::626216981288:role/RDSBulkInsertRole"}
+              ]
+            ) else . end) | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)')
 
           # Register new task definition revision
-          # Write JSON to temporary file for AWS CLI
           echo "$UPDATED_TASK_DEF" > /tmp/task_def.json
 
           # Validate JSON syntax before sending to AWS
@@ -1210,20 +1039,15 @@ jobs:
             --output text)
 
           echo "📝 Registered new task definition: $NEW_TASK_DEF_ARN"
-
-          # Map loader name to script name (handle special cases)
-          case "${{ matrix.loader }}" in
-            *)
-              SCRIPT_NAME="load${{ matrix.loader }}.py"
-              ;;
-          esac
+          echo "   S3 bulk loading enabled: USE_S3_STAGING=true"
 
           # Run ECS task with the updated task definition
-          # NOTE: Do NOT override container command - let the Dockerfile ENTRYPOINT handle it
+          # ENTRYPOINT: python3, CMD: load$loader.py (set via Dockerfile)
           TASK_ARN=$(aws ecs run-task \
             --cluster "${{ steps.infra.outputs.cluster }}" \
             --task-definition "$NEW_TASK_DEF_ARN" \
             --launch-type FARGATE \
+            --overrides '{"containerOverrides":[{"name":"'$CONTAINER_NAME'","command":["load${{ matrix.loader }}.py"]}]}' \
             --network-configuration "awsvpcConfiguration={subnets=[${{ steps.infra.outputs.subnet1 }},${{ steps.infra.outputs.subnet2 }}],securityGroups=[${{ steps.infra.outputs.security-group }}],assignPublicIp=ENABLED}" \
             --query "tasks[0].taskArn" \
             --output text)
