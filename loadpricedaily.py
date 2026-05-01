@@ -3,6 +3,8 @@
 Daily Price Loader - Cloud-Native with Smart Incremental Loading
 Uses DatabaseHelper for automatic S3 or standard inserts
 Smart mode: queries max(date) per symbol, downloads only missing data
+
+TRIGGER: Deploy all 54 refactored loaders to AWS via GitHub Actions
 """
 
 import sys
