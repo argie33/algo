@@ -52,7 +52,7 @@ import { formatCellValue, getCellAlign, getDynamicColumns } from "../utils/signa
 import api, { getApiConfig, extractResponseData } from "../services/api";
 import { ErrorDisplay, LoadingDisplay } from "../components/ui/ErrorBoundary";
 import ErrorBoundary from "../components/ErrorBoundary";
-import RangeSignalAccordion from "../components/RangeSignalAccordion";
+import SignalCardAccordion from "../components/SignalCardAccordion";
 
 const logger = {
   info: (msg) => console.log(`[RangeSignals] ${msg}`),
@@ -352,7 +352,7 @@ function RangeSignals() {
               </Grid>
             </Paper>
 
-            <RangeSignalAccordion signals={filteredSignals.slice(page * rowsPerPage, (page + 1) * rowsPerPage)} />
+            <SignalCardAccordion signals={filteredSignals.slice(page * rowsPerPage, (page + 1) * rowsPerPage)} />
           </>
         )}
       </ErrorBoundary>
