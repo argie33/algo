@@ -27,10 +27,8 @@ try:
     from signal_utils import (
         compute_moving_averages, compute_volume_analysis, compute_rs_metrics,
         compute_daily_range_pct, compute_base_analysis, compute_relative_position,
-        detect_market_stage, compute_signal_strength, compute_entry_quality,
-        compute_breakout_quality, compute_position_sizing, calculate_macd,
-        calculate_rsi, calculate_atr, calculate_adx, calculate_sma,
-        compute_sata_scores, calculate_sata
+        detect_market_stage, calculate_macd,
+        calculate_rsi, calculate_atr, calculate_adx, calculate_sma
     )
 except ImportError as e:
     logging.error(f"Failed to import signal_utils: {e}")
@@ -147,11 +145,12 @@ def create_table(conn):
 def get_top_symbols(conn, limit=200):
     """Get most traded/liquid symbols"""
     cur = conn.cursor()
+    limit_clause = "" if limit is None else f"LIMIT {limit}"
     cur.execute(f"""
         SELECT symbol FROM stock_symbols
         WHERE symbol NOT LIKE '%.%' AND symbol NOT LIKE '%^%'
         ORDER BY symbol
-        LIMIT {limit}
+        {limit_clause}
     """)
     symbols = [row[0] for row in cur.fetchall()]
     cur.close()
@@ -286,29 +285,32 @@ def detect_range_and_signals(df):
             df.loc[i, 'range_age_days'] = (df.iloc[i]['date'] - df.iloc[i-lookback]['date']).days
             df.loc[i, 'range_strength'] = len(set(pd.cut(df.iloc[i-lookback:i]['high'], bins=5)))
 
-            # Generate signals at support/resistance
+            # Generate signals at support/resistance (RELAXED conditions for more signals)
             current_price = df.iloc[i]['close']
-            td_setup = df.iloc[i].get('td_buy_setup_count', 0) if 'td_buy_setup_count' in df.columns else 0
+            range_position_pct = df.iloc[i]['range_position']
 
-            if current_price < low_20 * 1.02 and td_setup >= 7:
-                df.loc[i, 'signal'] = 'BUY'
-                df.loc[i, 'signal_type'] = 'RANGE_BOUNCE_LOW'
-                df.loc[i, 'entry_price'] = current_price
-                df.loc[i, 'stop_level'] = low_20 * 0.98
-                df.loc[i, 'initial_stop'] = low_20 * 0.98
-                df.loc[i, 'trailing_stop'] = low_20 * 0.98
-                df.loc[i, 'target_1'] = current_price + (high_20 - low_20) * 0.5
-                df.loc[i, 'target_2'] = high_20
+            if range_position_pct is not None:
+                # BUY signal when price is at bottom 20% of range
+                if range_position_pct < 20:
+                    df.loc[i, 'signal'] = 'BUY'
+                    df.loc[i, 'signal_type'] = 'RANGE_SUPPORT'
+                    df.loc[i, 'entry_price'] = current_price
+                    df.loc[i, 'stop_level'] = low_20 * 0.98
+                    df.loc[i, 'initial_stop'] = low_20 * 0.98
+                    df.loc[i, 'trailing_stop'] = low_20 * 0.98
+                    df.loc[i, 'target_1'] = current_price + (high_20 - low_20) * 0.5
+                    df.loc[i, 'target_2'] = high_20
 
-            elif current_price > high_20 * 0.98 and td_setup >= 5:
-                df.loc[i, 'signal'] = 'SELL'
-                df.loc[i, 'signal_type'] = 'RANGE_BOUNCE_HIGH'
-                df.loc[i, 'entry_price'] = current_price
-                df.loc[i, 'stop_level'] = high_20 * 1.02
-                df.loc[i, 'initial_stop'] = high_20 * 1.02
-                df.loc[i, 'trailing_stop'] = high_20 * 1.02
-                df.loc[i, 'target_1'] = current_price - (high_20 - low_20) * 0.5
-                df.loc[i, 'target_2'] = low_20
+                # SELL signal when price is at top 20% of range
+                elif range_position_pct > 80:
+                    df.loc[i, 'signal'] = 'SELL'
+                    df.loc[i, 'signal_type'] = 'RANGE_RESISTANCE'
+                    df.loc[i, 'entry_price'] = current_price
+                    df.loc[i, 'stop_level'] = high_20 * 1.02
+                    df.loc[i, 'initial_stop'] = high_20 * 1.02
+                    df.loc[i, 'trailing_stop'] = high_20 * 1.02
+                    df.loc[i, 'target_1'] = current_price - (high_20 - low_20) * 0.5
+                    df.loc[i, 'target_2'] = low_20
 
     # === PROFIT TARGETS ===
     df['profit_target_8pct'] = df['entry_price'] * 1.08
@@ -334,22 +336,6 @@ def detect_range_and_signals(df):
         and (row['entry_price'] - row['stop_level']) != 0 else None,
         axis=1
     )
-
-    # === QUALITY METRICS ===
-    # Compute signal strength
-    df = compute_signal_strength(df)
-
-    # Compute breakout quality
-    df = compute_breakout_quality(df)
-
-    # Compute entry quality
-    df = compute_entry_quality(df)
-
-    # Compute position sizing
-    df = compute_position_sizing(df)
-
-    # Compute SATA scores
-    df = compute_sata_scores(df)
 
     return df
 
@@ -410,24 +396,16 @@ def insert_signals(conn, signals_df):
             # Market analysis
             safe_val(row.get('market_stage')),
             int(row.get('stage_number')) if pd.notna(row.get('stage_number')) else None,
-            safe_val(row.get('stage_confidence')),
-            safe_val(row.get('substage')),
             safe_val(row.get('daily_range_pct')), safe_val(row.get('base_type')),
             int(row.get('base_length_days')) if pd.notna(row.get('base_length_days')) else None,
 
-            # Quality
-            safe_val(row.get('signal_strength')), safe_val(row.get('entry_quality_score')), safe_val(row.get('breakout_quality')),
-            int(row.get('sata_score')) if pd.notna(row.get('sata_score')) else None,
-            safe_val(row.get('mansfield_rs')),
+            # Rating
             int(row.get('rs_rating')) if pd.notna(row.get('rs_rating')) else None,
 
             # Buy zone & exit triggers
             safe_val(row.get('buy_zone_start')), safe_val(row.get('buy_zone_end')),
             safe_val(row.get('exit_trigger_1_price')), safe_val(row.get('exit_trigger_2_price')),
             safe_val(row.get('exit_trigger_3_price')), safe_val(row.get('exit_trigger_4_price')),
-
-            # Position sizing
-            safe_val(row.get('position_size_recommendation')),
 
             # DeMark indicators
             int(row.get('td_buy_setup_count', 0)) if pd.notna(row.get('td_buy_setup_count')) else None,
@@ -438,7 +416,18 @@ def insert_signals(conn, signals_df):
             bool(row.get('td_sell_setup_perfected', False)) if pd.notna(row.get('td_sell_setup_perfected')) else None,
             int(row.get('td_buy_countdown_count', 0)) if pd.notna(row.get('td_buy_countdown_count')) else None,
             int(row.get('td_sell_countdown_count', 0)) if pd.notna(row.get('td_sell_countdown_count')) else None,
-            safe_val(row.get('td_pressure'))
+            safe_val(row.get('td_pressure')),
+
+            # Position tracking fields
+            safe_val(row.get('entry_price')),  # buylevel
+            safe_val(row.get('stop_level')),   # stoplevel
+            safe_val(row.get('target_2')),     # sell_level
+            False,                              # inposition
+            row['date'] if pd.notna(row['date']) else None,  # signal_triggered_date
+            None,                               # days_in_position
+            None,                               # current_gain_pct
+            'Support level break',              # exit_trigger_3_condition
+            'Key resistance break'              # exit_trigger_4_condition
         )
         for _, row in signal_rows.iterrows()
     ]
@@ -460,17 +449,17 @@ def insert_signals(conn, signals_df):
          pivot_price, macd, signal_line,
          avg_volume_50d, volume_surge_pct, volume_ratio,
          pct_from_ema21, pct_from_sma50, pct_from_sma200,
-         market_stage, stage_number, stage_confidence, substage,
+         market_stage, stage_number,
          daily_range_pct, base_type, base_length_days,
-         signal_strength, entry_quality_score, breakout_quality,
-         sata_score, mansfield_rs, rs_rating,
+         rs_rating,
          buy_zone_start, buy_zone_end,
          exit_trigger_1_price, exit_trigger_2_price, exit_trigger_3_price, exit_trigger_4_price,
-         position_size_recommendation,
          td_buy_setup_count, td_sell_setup_count,
          td_buy_setup_complete, td_sell_setup_complete,
          td_buy_setup_perfected, td_sell_setup_perfected,
-         td_buy_countdown_count, td_sell_countdown_count, td_pressure)
+         td_buy_countdown_count, td_sell_countdown_count, td_pressure,
+         buylevel, stoplevel, sell_level, inposition, signal_triggered_date,
+         days_in_position, current_gain_pct, exit_trigger_3_condition, exit_trigger_4_condition)
         VALUES %s ON CONFLICT DO NOTHING
     """, values, page_size=500)
 
@@ -483,7 +472,7 @@ def main():
     conn = get_db_connection()
     create_table(conn)
 
-    symbols = get_top_symbols(conn, limit=200)
+    symbols = get_top_symbols(conn, limit=None)  # Process ALL symbols
     logging.info(f"Processing {len(symbols)} top symbols")
 
     total_signals = 0
