@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260501_195000 - Phase 3: Daily buy/sell signals (depends on price data)
+# TRIGGER: 20260501_230000 - Phase 3: Daily buy/sell WITH SCHEMA FIX (strength column)
 # AWS DEPLOYMENT: Phase 3A - S3 Bulk COPY optimization for 250k daily buy/sell signals
 # CRITICAL: Buy/Sell signals table missing from database. Must run to enable trading signal pages
 """

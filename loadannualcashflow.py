@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260501_203000 - Phase 4: Annual cash flow (financial statements)
+# TRIGGER: 20260501_220000 - Phase 4: Annual cash flow WITH SCHEMA FIX (fiscal_year column)
 """
 Annual Cash Flow Loader (PARALLEL OPTIMIZED)
 Loads annual cash flow data with 5-10x speedup using ThreadPoolExecutor.
