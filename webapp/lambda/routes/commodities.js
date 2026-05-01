@@ -160,24 +160,36 @@ router.get("/market-summary", async (req, res) => {
   if (dbError) return dbError;
 
   try {
-    // Get all prices for gainers/losers
-    const pricesResult = await query(`
-      SELECT
-        cp.symbol,
-        cp.name,
-        CAST(cp.change_percent AS FLOAT) as change_percent,
-        CAST(cp.price AS FLOAT) as price,
-        cc.category
-      FROM commodity_prices cp
-      LEFT JOIN commodity_categories cc ON cp.symbol = cc.symbol
-      ORDER BY cp.updated_at DESC
-    `);
+    // Parallelize 3 independent queries
+    const [pricesResult, totalVolumeResult, categoryResult] = await Promise.all([
+      query(`
+        SELECT
+          cp.symbol,
+          cp.name,
+          CAST(cp.change_percent AS FLOAT) as change_percent,
+          CAST(cp.price AS FLOAT) as price,
+          cc.category
+        FROM commodity_prices cp
+        LEFT JOIN commodity_categories cc ON cp.symbol = cc.symbol
+        ORDER BY cp.updated_at DESC
+      `),
+      query(`
+        SELECT SUM(CAST(volume AS FLOAT)) as total
+        FROM commodity_prices
+      `),
+      query(`
+        SELECT
+          cc.category,
+          AVG(CAST(cp.change_percent AS FLOAT)) as avg_change_1d,
+          COUNT(DISTINCT cc.symbol) as count
+        FROM commodity_categories cc
+        LEFT JOIN commodity_prices cp ON cc.symbol = cp.symbol
+        GROUP BY cc.category
+      `)
+    ]);
 
     const prices = pricesResult.rows;
-    const totalVolume = await query(`
-      SELECT SUM(CAST(volume AS FLOAT)) as total
-      FROM commodity_prices
-    `);
+    const totalVolume = totalVolumeResult;
 
     // Get top gainers and losers
     const gainers = prices
@@ -187,17 +199,6 @@ router.get("/market-summary", async (req, res) => {
     const losers = prices
       .sort((a, b) => (parseFloat(a.change_percent) || 0) - (parseFloat(b.change_percent) || 0))
       .slice(0, 5);
-
-    // Get category aggregates
-    const categoryResult = await query(`
-      SELECT
-        cc.category,
-        AVG(CAST(cp.change_percent AS FLOAT)) as avg_change_1d,
-        COUNT(DISTINCT cc.symbol) as count
-      FROM commodity_categories cc
-      LEFT JOIN commodity_prices cp ON cc.symbol = cp.symbol
-      GROUP BY cc.category
-    `);
 
     const sectors = categoryResult.rows.map(row => ({
       name: row.category.charAt(0).toUpperCase() + row.category.slice(1),

@@ -11,12 +11,13 @@ async function fetchStocksList(req, res) {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const offset = (page - 1) * limit;
 
-    const result = await query(
-      "SELECT symbol, security_name as name, market_category as category, exchange FROM stock_symbols ORDER BY symbol LIMIT $1 OFFSET $2",
-      [limit, offset]
-    );
-
-    const countResult = await query("SELECT COUNT(*) as total FROM stock_symbols");
+    const [result, countResult] = await Promise.all([
+      query(
+        "SELECT symbol, security_name as name, market_category as category, exchange FROM stock_symbols ORDER BY symbol LIMIT $1 OFFSET $2",
+        [limit, offset]
+      ),
+      query("SELECT COUNT(*) as total FROM stock_symbols")
+    ]);
     const total = parseInt(countResult.rows[0].total);
 
     return sendPaginated(res, result.rows, {
@@ -48,15 +49,16 @@ router.get("/search", async (req, res) => {
     }
 
     const searchTerm = `%${q.toUpperCase()}%`;
-    const result = await query(
-      "SELECT symbol, security_name as name, market_category as category, exchange FROM stock_symbols WHERE symbol ILIKE $1 OR security_name ILIKE $1 ORDER BY symbol LIMIT $2 OFFSET $3",
-      [searchTerm, limit, offset]
-    );
-
-    const countResult = await query(
-      "SELECT COUNT(*) as total FROM stock_symbols WHERE symbol ILIKE $1 OR security_name ILIKE $1",
-      [searchTerm]
-    );
+    const [result, countResult] = await Promise.all([
+      query(
+        "SELECT symbol, security_name as name, market_category as category, exchange FROM stock_symbols WHERE symbol ILIKE $1 OR security_name ILIKE $1 ORDER BY symbol LIMIT $2 OFFSET $3",
+        [searchTerm, limit, offset]
+      ),
+      query(
+        "SELECT COUNT(*) as total FROM stock_symbols WHERE symbol ILIKE $1 OR security_name ILIKE $1",
+        [searchTerm]
+      )
+    ]);
     const total = parseInt(countResult.rows[0].total);
 
     return sendPaginated(res, result.rows, {

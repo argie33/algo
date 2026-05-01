@@ -349,7 +349,7 @@ async function validatePortfolioData(userId) {
   const warnings = [];
 
   try {
-    // 1. Check holdings exist
+    // 1. Check holdings exist (must run first to validate portfolio)
     const holdingsResult = await query(
       `SELECT COUNT(*) as count FROM portfolio_holdings WHERE user_id = $1 AND quantity > 0`,
       [userId]
@@ -361,44 +361,44 @@ async function validatePortfolioData(userId) {
     }
     console.log(`✅ Holdings: ${holdingCount} positions`);
 
-    // 2. Check prices are current
-    const stalePriceResult = await query(
-      `SELECT COUNT(*) as count FROM portfolio_holdings
-       WHERE user_id = $1 AND (current_price IS NULL OR current_price <= 0)`,
-      [userId]
-    );
+    // 2-5. Parallelize 4 independent validation checks
+    const [stalePriceResult, sectorResult, betaResult, perfResult] = await Promise.all([
+      query(
+        `SELECT COUNT(*) as count FROM portfolio_holdings
+         WHERE user_id = $1 AND (current_price IS NULL OR current_price <= 0)`,
+        [userId]
+      ),
+      query(
+        `SELECT COUNT(*) as count FROM portfolio_holdings
+         WHERE user_id = $1 AND sector IS NOT NULL`,
+        [userId]
+      ),
+      query(
+        `SELECT COUNT(*) as count FROM stock_scores
+         WHERE symbol IN (SELECT DISTINCT symbol FROM portfolio_holdings WHERE user_id = $1)`,
+        [userId]
+      ),
+      query(
+        `SELECT COUNT(*) as count FROM portfolio_performance WHERE user_id = $1`,
+        [userId]
+      )
+    ]);
+
     const stalePriceCount = parseInt(stalePriceResult.rows[0]?.count || 0);
     if (stalePriceCount > 0) {
       warnings.push(`⚠️ ${stalePriceCount}/${holdingCount} holdings missing current prices`);
     }
 
-    // 3. Check sector data
-    const sectorResult = await query(
-      `SELECT COUNT(*) as count FROM portfolio_holdings
-       WHERE user_id = $1 AND sector IS NOT NULL`,
-      [userId]
-    );
     const sectorCount = parseInt(sectorResult.rows[0]?.count || 0);
     if (sectorCount < holdingCount) {
       warnings.push(`⚠️ Sector data: ${sectorCount}/${holdingCount} holdings have sector classification`);
     }
 
-    // 4. Check beta data
-    const betaResult = await query(
-      `SELECT COUNT(*) as count FROM stock_scores
-       WHERE symbol IN (SELECT DISTINCT symbol FROM portfolio_holdings WHERE user_id = $1)`,
-      [userId]
-    );
     const betaCount = parseInt(betaResult.rows[0]?.count || 0);
     if (betaCount < holdingCount) {
       warnings.push(`⚠️ Beta data: ${betaCount}/${holdingCount} holdings have beta in stock_scores`);
     }
 
-    // 5. Check historical performance data
-    const perfResult = await query(
-      `SELECT COUNT(*) as count FROM portfolio_performance WHERE user_id = $1`,
-      [userId]
-    );
     const perfCount = parseInt(perfResult.rows[0]?.count || 0);
     if (perfCount === 0) {
       warnings.push(`⚠️ NO historical performance data - Time-series metrics will return NULL`);

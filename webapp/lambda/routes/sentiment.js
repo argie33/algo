@@ -52,10 +52,11 @@ router.get("/data", async (req, res) => {
       params = [symbol.toUpperCase(), limitNum, offset];
     }
 
-    const countResult = await query(countQueryStr, countParams);
+    const [countResult, result] = await Promise.all([
+      query(countQueryStr, countParams),
+      query(queryStr, params)
+    ]);
     const total = parseInt(countResult.rows[0]?.total || 0);
-
-    const result = await query(queryStr, params);
 
     return sendPaginated(res, result.rows || [], {
       limit: limitNum,
@@ -72,44 +73,25 @@ router.get("/data", async (req, res) => {
 // GET /api/sentiment/summary - Consolidated sentiment summary
 router.get("/summary", async (req, res) => {
   try {
-    // Fetch all sentiment data sources
-    let fearGreed = null, naaim = null, aaii = null, analyst = null;
+    // Parallelize 4 sentiment data sources
+    const results = await Promise.allSettled([
+      query(`SELECT fear_greed_value as value, date FROM fear_greed_index ORDER BY date DESC LIMIT 1`),
+      query(`SELECT naaim_number_mean, bullish, bearish, date FROM naaim ORDER BY date DESC LIMIT 1`),
+      query(`SELECT bullish, neutral, bearish, date FROM aaii_sentiment ORDER BY date DESC LIMIT 1`),
+      query(`SELECT analyst_count as analyst_count, bullish_count, bearish_count, neutral_count, date as date FROM analyst_sentiment_analysis ORDER BY date DESC LIMIT 1`)
+    ]);
 
-    try {
-      const fearGreedResult = await query(
-        `SELECT fear_greed_value as value, date FROM fear_greed_index ORDER BY date DESC LIMIT 1`
-      );
-      fearGreed = fearGreedResult.rows[0] || null;
-    } catch (e) {
-      console.warn("fear_greed_index not available:", e.message);
-    }
+    const [fearGreedRes, naaImRes, aaiiRes, analystRes] = results;
 
-    try {
-      const naaImResult = await query(
-        `SELECT naaim_number_mean, bullish, bearish, date FROM naaim ORDER BY date DESC LIMIT 1`
-      );
-      naaim = naaImResult.rows[0] || null;
-    } catch (e) {
-      console.warn("naaim not available:", e.message);
-    }
+    const fearGreed = fearGreedRes.status === 'fulfilled' ? (fearGreedRes.value.rows[0] || null) : null;
+    const naaim = naaImRes.status === 'fulfilled' ? (naaImRes.value.rows[0] || null) : null;
+    const aaii = aaiiRes.status === 'fulfilled' ? (aaiiRes.value.rows[0] || null) : null;
+    const analyst = analystRes.status === 'fulfilled' ? (analystRes.value.rows[0] || null) : null;
 
-    try {
-      const aaiiResult = await query(
-        `SELECT bullish, neutral, bearish, date FROM aaii_sentiment ORDER BY date DESC LIMIT 1`
-      );
-      aaii = aaiiResult.rows[0] || null;
-    } catch (e) {
-      console.warn("aaii_sentiment not available:", e.message);
-    }
-
-    try {
-      const analystResult = await query(
-        `SELECT analyst_count as analyst_count, bullish_count, bearish_count, neutral_count, date as date FROM analyst_sentiment_analysis ORDER BY date DESC LIMIT 1`
-      );
-      analyst = analystResult.rows[0] || null;
-    } catch (e) {
-      console.warn("analyst_sentiment_analysis not available:", e.message);
-    }
+    if (fearGreedRes.status === 'rejected') console.warn("fear_greed_index not available:", fearGreedRes.reason?.message);
+    if (naaImRes.status === 'rejected') console.warn("naaim not available:", naaImRes.reason?.message);
+    if (aaiiRes.status === 'rejected') console.warn("aaii_sentiment not available:", aaiiRes.reason?.message);
+    if (analystRes.status === 'rejected') console.warn("analyst_sentiment_analysis not available:", analystRes.reason?.message);
 
     return res.json({
       success: true,
@@ -234,35 +216,22 @@ router.get("/history", async (req, res) => {
 // GET /api/sentiment/current - Current market sentiment (fear/greed, NAAIM, AAII)
 router.get("/current", async (req, res) => {
   try {
-    // Try to fetch sentiment data from actual tables, handle gracefully if missing
-    let fearGreed = null, naaim = null, aaii = null;
+    // Parallelize 3 sentiment data sources
+    const results = await Promise.allSettled([
+      query(`SELECT fear_greed_value as value, date FROM fear_greed_index ORDER BY date DESC LIMIT 1`),
+      query(`SELECT naaim_number_mean, bullish, bearish, date FROM naaim ORDER BY date DESC LIMIT 1`),
+      query(`SELECT bullish, neutral, bearish, date FROM aaii_sentiment ORDER BY date DESC LIMIT 1`)
+    ]);
 
-    try {
-      const fearGreedResult = await query(
-        `SELECT fear_greed_value as value, date FROM fear_greed_index ORDER BY date DESC LIMIT 1`
-      );
-      fearGreed = fearGreedResult.rows[0] || null;
-    } catch (e) {
-      console.warn("fear_greed_index table not available:", e.message);
-    }
+    const [fearGreedRes, naaImRes, aaiiRes] = results;
 
-    try {
-      const naaImResult = await query(
-        `SELECT naaim_number_mean, bullish, bearish, date FROM naaim ORDER BY date DESC LIMIT 1`
-      );
-      naaim = naaImResult.rows[0] || null;
-    } catch (e) {
-      console.warn("naaim table not available:", e.message);
-    }
+    const fearGreed = fearGreedRes.status === 'fulfilled' ? (fearGreedRes.value.rows[0] || null) : null;
+    const naaim = naaImRes.status === 'fulfilled' ? (naaImRes.value.rows[0] || null) : null;
+    const aaii = aaiiRes.status === 'fulfilled' ? (aaiiRes.value.rows[0] || null) : null;
 
-    try {
-      const aaiiResult = await query(
-        `SELECT bullish, neutral, bearish, date FROM aaii_sentiment ORDER BY date DESC LIMIT 1`
-      );
-      aaii = aaiiResult.rows[0] || null;
-    } catch (e) {
-      console.warn("aaii_sentiment table not available:", e.message);
-    }
+    if (fearGreedRes.status === 'rejected') console.warn("fear_greed_index table not available:", fearGreedRes.reason?.message);
+    if (naaImRes.status === 'rejected') console.warn("naaim table not available:", naaImRes.reason?.message);
+    if (aaiiRes.status === 'rejected') console.warn("aaii_sentiment table not available:", aaiiRes.reason?.message);
 
     return res.json({
       data: {
