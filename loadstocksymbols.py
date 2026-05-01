@@ -372,6 +372,15 @@ def init_db(conn):
             ADD COLUMN IF NOT EXISTS is_sp500 BOOLEAN DEFAULT FALSE;
         """
         )
+        # Delete duplicate symbols in stock_symbols (keep only the first/oldest)
+        cur.execute(
+            """
+            DELETE FROM stock_symbols
+            WHERE ctid NOT IN (
+              SELECT MIN(ctid) FROM stock_symbols GROUP BY symbol
+            );
+        """
+        )
         # Ensure symbol column is UNIQUE (required for ON CONFLICT)
         # Check if constraint exists before creating to avoid errors
         cur.execute(
@@ -402,6 +411,15 @@ def init_db(conn):
                 round_lot_size    INT,
                 etf               CHAR(1),
                 secondary_symbol  VARCHAR(50)
+            );
+        """
+        )
+        # Delete duplicate symbols in etf_symbols (keep only the first/oldest)
+        cur.execute(
+            """
+            DELETE FROM etf_symbols
+            WHERE ctid NOT IN (
+              SELECT MIN(ctid) FROM etf_symbols GROUP BY symbol
             );
         """
         )
