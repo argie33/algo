@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260501_220500 - Phase 4: Annual income WITH SCHEMA FIX (fiscal_year column)
+# TRIGGER: 20260501_230200 - Phase 4: Annual income WITH COMPREHENSIVE SCHEMA FIX (all columns)
 """
 Annual Income Statement Loader (PARALLEL OPTIMIZED)
 Loads annual income statement data with 5-10x speedup using ThreadPoolExecutor.

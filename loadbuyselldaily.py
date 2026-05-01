@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260501_230000 - Phase 3: Daily buy/sell WITH SCHEMA FIX (strength column)
+# TRIGGER: 20260501_230400 - Phase 3: Daily buy/sell WITH COMPREHENSIVE SCHEMA FIX (all signal columns)
 # AWS DEPLOYMENT: Phase 3A - S3 Bulk COPY optimization for 250k daily buy/sell signals
 # CRITICAL: Buy/Sell signals table missing from database. Must run to enable trading signal pages
 """
@@ -1645,61 +1645,45 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     ma_slope_window = 10  # Look at 10-day slope
     df['ma_200_slope'] = df['ma_200'].diff(periods=ma_slope_window)
 
-    def detect_market_stage(row, index):
-        """Classify into Weinstein's 4-Stage model based on price position relative to 200-day MA"""
-        if pd.isna(row.get('close')) or pd.isna(row.get('ma_200')):
+    # Use standardized market stage detection from signal_utils
+    if HAS_SIGNAL_UTILS:
+        # Ensure sma_200 exists for the shared function (use ma_200 if needed)
+        if 'sma_200' not in df.columns and 'ma_200' in df.columns:
+            df['sma_200'] = df['ma_200']
+        df = detect_market_stage(df)
+    else:
+        # Fallback: inline detection (legacy)
+        def detect_market_stage_inline(row, index):
+            if pd.isna(row.get('close')) or pd.isna(row.get('ma_200')):
+                return None
+            close = row['close']
+            ma_200 = row['ma_200']
+            ma_slope = row.get('ma_200_slope')
+            if index < 200:
+                return None
+            price_diff_pct = ((close - ma_200) / ma_200 * 100) if ma_200 > 0 else None
+            if price_diff_pct is None:
+                return None
+            is_ma_rising = ma_slope > 0.15 if pd.notna(ma_slope) else False
+            is_ma_falling = ma_slope < -0.15 if pd.notna(ma_slope) else False
+            is_ma_flat = not is_ma_rising and not is_ma_falling
+            if close < ma_200 and is_ma_falling:
+                return 'Stage 4 - Declining'
+            if is_ma_flat and -5 <= price_diff_pct <= 8:
+                return 'Stage 3 - Topping'
+            elif -8 <= price_diff_pct <= 10 and is_ma_flat:
+                return 'Stage 3 - Topping'
+            if close > ma_200 and is_ma_rising:
+                return 'Stage 2 - Advancing'
+            if close < ma_200 and (is_ma_rising or is_ma_flat):
+                return 'Stage 1 - Basing'
+            if close > ma_200 and not is_ma_rising:
+                return 'Stage 2 - Advancing'
             return None
 
-        close = row['close']
-        ma_200 = row['ma_200']
-        ma_slope = row.get('ma_200_slope')
-
-        # Need sufficient data for MA calculation
-        if index < 200:
-            return None
-
-        # Calculate price position relative to MA
-        price_diff_pct = ((close - ma_200) / ma_200 * 100) if ma_200 > 0 else None
-        if price_diff_pct is None:
-            return None
-
-        # Detect MA direction (tuned threshold to 0.15 for better discrimination)
-        is_ma_rising = ma_slope > 0.15 if pd.notna(ma_slope) else False
-        is_ma_falling = ma_slope < -0.15 if pd.notna(ma_slope) else False
-        is_ma_flat = not is_ma_rising and not is_ma_falling
-
-        # === Weinstein Stage Detection ===
-
-        # Stage 4: Declining - Price below declining MA (most bearish)
-        if close < ma_200 and is_ma_falling:
-            return 'Stage 4 - Declining'
-
-        # Stage 3: Distribution/Topping - Price oscillating near MA
-        # Includes: Price near MA, OR price oscillating around MA, OR MA flattening
-        if is_ma_flat and -5 <= price_diff_pct <= 8:
-            return 'Stage 3 - Topping'
-        # Also catch oscillation pattern: price sometimes above, sometimes below MA (transition state)
-        elif -8 <= price_diff_pct <= 10 and is_ma_flat:
-            return 'Stage 3 - Topping'
-
-        # Stage 2: Advancing - Price above rising MA (most bullish)
-        if close > ma_200 and is_ma_rising:
-            return 'Stage 2 - Advancing'
-
-        # Stage 1: Basing - Price oscillating around flat/rising MA or below rising MA
-        if close < ma_200 and (is_ma_rising or is_ma_flat):
-            return 'Stage 1 - Basing'
-
-        # Default fallback: Only if price is well above MA but MA not clearly rising (anomaly)
-        if close > ma_200 and not is_ma_rising:
-            return 'Stage 2 - Advancing'  # Changed from None - if price > MA, treat as advance
-
-        return None
-
-    # ENABLED: Detect market stage - REQUIRED for complete data
-    df['market_stage'] = df.apply(
-        lambda row: detect_market_stage(row, row.name), axis=1
-    )
+        df['market_stage'] = df.apply(
+            lambda row: detect_market_stage_inline(row, row.name), axis=1
+        )
 
     # === STAGE NUMBER (Extract numeric stage from market_stage) ===
     df['stage_number'] = df['market_stage'].apply(

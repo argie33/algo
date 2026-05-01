@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260501_220000 - Phase 4: Annual balance sheet WITH SCHEMA FIX (fiscal_year column)
+# TRIGGER: 20260501_230100 - Phase 4: Annual balance sheet WITH COMPREHENSIVE SCHEMA FIX (all 75 columns)
 """
 Annual Balance Sheet Loader (PARALLEL OPTIMIZED)
 Loads annual balance sheet data with 5-10x speedup using ThreadPoolExecutor.
