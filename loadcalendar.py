@@ -283,9 +283,6 @@ def main():
             cursor_factory=DictCursor
         )
 
-        # Set a larger cursor size for better performance
-        conn.set_session(autocommit=False)
-
         ensure_tables(conn)
 
         log_mem("Before fetching symbols")
