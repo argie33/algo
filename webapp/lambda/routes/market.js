@@ -810,9 +810,7 @@ router.get("/volatility", async (req, res) => {
         AND open IS NOT NULL
     `;
 
-    const result = await query(volatilityQuery);
-
-    // Calculate market volatility from all stocks
+    // Parallelize VIX and market volatility queries
     const marketVolatilityQuery = `
       SELECT
         STDDEV((close - open) / NULLIF(open, 0) * 100) as market_volatility,
@@ -823,7 +821,10 @@ router.get("/volatility", async (req, res) => {
         AND open IS NOT NULL
     `;
 
-    const marketVolatilityResult = await query(marketVolatilityQuery);
+    const [result, marketVolatilityResult] = await Promise.all([
+      query(volatilityQuery),
+      query(marketVolatilityQuery)
+    ]);
 
     // Use market volatility data if available, fallback to VIX data if available
     let responseData = null;
@@ -866,9 +867,7 @@ router.get("/indicators", async (req, res) => {
       ORDER BY pd.symbol
     `;
 
-    const result = await query(indicatorsQuery);
-
-    // Get market breadth
+    // Parallelize indicators, breadth, and sentiment queries
     const breadthQuery = `
       SELECT
         COUNT(*) as total_stocks,
@@ -881,14 +880,10 @@ router.get("/indicators", async (req, res) => {
         AND open IS NOT NULL
     `;
 
-    const breadthResult = await query(breadthQuery);
-    const breadth = breadthResult.rows[0];
-
-    // Get latest sentiment data
     const sentimentQuery = `
-      SELECT 
+      SELECT
         index_value as value,
-        CASE 
+        CASE
           WHEN index_value >= 75 THEN 'Extreme Greed'
           WHEN index_value >= 55 THEN 'Greed'
           WHEN index_value >= 45 THEN 'Neutral'
@@ -901,13 +896,16 @@ router.get("/indicators", async (req, res) => {
       LIMIT 1
     `;
 
-    let sentiment = null;
-    try {
-      const sentimentResult = await query(sentimentQuery);
-      sentiment = sentimentResult.rows[0] || null;
-    } catch (e) {
-      // Sentiment table might not exist
-    }
+    const results = await Promise.allSettled([
+      query(indicatorsQuery),
+      query(breadthQuery),
+      query(sentimentQuery)
+    ]);
+
+    const result = results[0].status === 'fulfilled' ? results[0].value : null;
+    const breadthResult = results[1].status === 'fulfilled' ? results[1].value : null;
+    const breadth = breadthResult?.rows?.[0] || null;
+    const sentiment = results[2].status === 'fulfilled' ? (results[2].value.rows[0] || null) : null;
 
     if (!result || !Array.isArray(result.rows) || result.rows.length === 0) {
       return sendNotFound(res, "No data found for this query");
