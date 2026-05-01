@@ -280,13 +280,6 @@ def generate_mean_reversion_signals(df):
         sma_5_val = df['sma_5'].iloc[i] if 'sma_5' in df.columns else close
         df.loc[df.index[i], 'target_estimate'] = sma_5_val * 1.02
 
-    # === QUALITY METRICS ===
-    df = compute_signal_strength(df)
-    df = compute_breakout_quality(df)
-    df = compute_entry_quality(df)
-    df = compute_position_sizing(df)
-    df = compute_sata_scores(df)
-
     logging.debug(f"Generated {signal_count} mean reversion signals for this dataframe")
     return df
 
@@ -333,7 +326,7 @@ def insert_mean_reversion_signals(cur, symbol, df, table_name="mean_reversion_si
             symbol, date, timeframe,
             open, high, low, close, volume,
             signal, signal_type,
-            rsi_2, pct_above_200sma, sma_5, confluence_score,
+            rsi_2, pct_above_200sma, sma_5,
             entry_price, stop_level, initial_stop, trailing_stop,
             target_estimate, profit_target_8pct, profit_target_20pct, profit_target_25pct,
             risk_pct, risk_reward_ratio,
@@ -342,13 +335,11 @@ def insert_mean_reversion_signals(cur, symbol, df, table_name="mean_reversion_si
             pivot_price, macd, signal_line,
             avg_volume_50d, volume_surge_pct, volume_ratio,
             pct_from_ema21, pct_from_sma50, pct_from_sma200,
-            market_stage, stage_number, stage_confidence, substage,
+            market_stage, stage_number,
             daily_range_pct, base_type, base_length_days,
-            signal_strength, entry_quality_score, breakout_quality,
-            sata_score, mansfield_rs, rs_rating,
+            rs_rating,
             buy_zone_start, buy_zone_end,
             exit_trigger_1_price, exit_trigger_2_price, exit_trigger_3_price, exit_trigger_4_price,
-            position_size_recommendation,
             td_buy_setup_count, td_buy_setup_complete, td_buy_setup_perfected,
             td_buy_countdown_count, td_sell_setup_count, td_sell_setup_complete,
             td_sell_setup_perfected, td_sell_countdown_count, td_pressure
@@ -363,7 +354,7 @@ def insert_mean_reversion_signals(cur, symbol, df, table_name="mean_reversion_si
             safe_val(row['open']), safe_val(row['high']), safe_val(row['low']), safe_val(row['close']), safe_val(row['volume']),
             safe_val(row['signal']), safe_val(row['signal_type']),
             # Mean reversion specific
-            safe_val(row['rsi_2']), safe_val(row['pct_above_200sma']), safe_val(row['sma_5']), safe_val(row['confluence_score']),
+            safe_val(row['rsi_2']), safe_val(row['pct_above_200sma']), safe_val(row['sma_5']),
             # Entry/Exit
             safe_val(row['entry_price']), safe_val(row['stop_level']), safe_val(row.get('initial_stop')), safe_val(row.get('trailing_stop')),
             safe_val(row['target_estimate']), safe_val(row.get('profit_target_8pct')), safe_val(row.get('profit_target_20pct')), safe_val(row.get('profit_target_25pct')),
@@ -381,20 +372,13 @@ def insert_mean_reversion_signals(cur, symbol, df, table_name="mean_reversion_si
             # Market
             safe_val(row.get('market_stage')),
             int(row.get('stage_number')) if pd.notna(row.get('stage_number')) else None,
-            safe_val(row.get('stage_confidence')),
-            safe_val(row.get('substage')),
             safe_val(row.get('daily_range_pct')), safe_val(row.get('base_type')),
             int(row.get('base_length_days')) if pd.notna(row.get('base_length_days')) else None,
             # Quality
-            safe_val(row.get('signal_strength')), safe_val(row.get('entry_quality_score')), safe_val(row.get('breakout_quality')),
-            int(row.get('sata_score')) if pd.notna(row.get('sata_score')) else None,
-            safe_val(row.get('mansfield_rs')),
             int(row.get('rs_rating')) if pd.notna(row.get('rs_rating')) else None,
             # Zone & triggers
             safe_val(row.get('buy_zone_start')), safe_val(row.get('buy_zone_end')),
             safe_val(row.get('exit_trigger_1_price')), safe_val(row.get('exit_trigger_2_price')), safe_val(row.get('exit_trigger_3_price')), safe_val(row.get('exit_trigger_4_price')),
-            # Position sizing
-            safe_val(row.get('position_size_recommendation')),
             # DeMark
             int(row.get('td_buy_setup_count', 0)) if pd.notna(row.get('td_buy_setup_count')) else None,
             bool(row.get('td_buy_setup_complete', False)) if pd.notna(row.get('td_buy_setup_complete')) else None,
