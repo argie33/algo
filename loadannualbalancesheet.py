@@ -166,6 +166,22 @@ def create_tables(cur):
         """
         cur.execute(create_stmt)
         logging.info("Created annual_balance_sheet with full 75+ column schema to capture all yfinance data")
+
+        # Ensure fiscal_year column exists (for tables created before this update)
+        alter_stmt = """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name='annual_balance_sheet' AND column_name='fiscal_year'
+            ) THEN
+                ALTER TABLE annual_balance_sheet ADD COLUMN fiscal_year INTEGER;
+                RAISE NOTICE 'Added missing fiscal_year column to annual_balance_sheet';
+            END IF;
+        END $$;
+        """
+        cur.execute(alter_stmt)
+
     except Exception as e:
         logging.error(f"Error creating table: {e}")
 

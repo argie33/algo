@@ -128,6 +128,19 @@ def create_tables(cur):
         )
     """)
 
+    # Ensure fiscal_year column exists
+    cur.execute("""
+    DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='annual_cash_flow' AND column_name='fiscal_year'
+        ) THEN
+            ALTER TABLE annual_cash_flow ADD COLUMN fiscal_year INTEGER;
+        END IF;
+    END $$;
+    """)
+
 def load_symbol_data(symbol: str) -> List[Dict[str, Any]]:
     """Load annual cash flow data for one symbol"""
     try:
