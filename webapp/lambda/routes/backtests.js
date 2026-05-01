@@ -46,14 +46,16 @@ router.get('/', async (req, res, next) => {
     q += ` ORDER BY br.${sort_col} ${sort_order}`;
     q += ` LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
 
-    const result = await query(q, [...params, parseInt(limit), parseInt(offset)]);
-
-    // Get total count
+    // Parallelize data and count queries
     let countQ = 'SELECT COUNT(*) as total FROM backtest_runs br';
     if (strategy_name) {
       countQ += ` WHERE br.strategy_name = $1`;
     }
-    const countResult = await query(countQ, strategy_name ? [strategy_name] : []);
+
+    const [result, countResult] = await Promise.all([
+      query(q, [...params, parseInt(limit), parseInt(offset)]),
+      query(countQ, strategy_name ? [strategy_name] : [])
+    ]);
     const total = countResult.rows[0].total;
 
     res.json({
@@ -100,7 +102,7 @@ router.get('/:run_id', async (req, res, next) => {
 
     const run = runResult.rows[0];
 
-    // Get trades for this run
+    // Parallelize trades and trade count queries
     const tradesQ = `
       SELECT
         bt.trade_id, bt.run_id, bt.symbol, bt.signal_date, bt.exit_date,
@@ -111,11 +113,12 @@ router.get('/:run_id', async (req, res, next) => {
       ORDER BY bt.signal_date DESC
       LIMIT $2 OFFSET $3
     `;
-    const tradesResult = await query(tradesQ, [run_id, parseInt(limit), parseInt(offset)]);
-
-    // Get trade count
     const tradeCountQ = `SELECT COUNT(*) as total FROM backtest_trades WHERE run_id = $1`;
-    const tradeCountResult = await query(tradeCountQ, [run_id]);
+
+    const [tradesResult, tradeCountResult] = await Promise.all([
+      query(tradesQ, [run_id, parseInt(limit), parseInt(offset)]),
+      query(tradeCountQ, [run_id])
+    ]);
     const tradeTotal = tradeCountResult.rows[0].total;
 
     res.json({
