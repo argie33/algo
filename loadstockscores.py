@@ -446,10 +446,18 @@ def main():
 
     logger.info(f"Pre-computed {len(batch_rows)} scores, starting single transaction insert...")
 
+    # Deduplicate by symbol (keep latest)
+    unique_rows = {}
+    for row in batch_rows:
+        symbol = row[0]
+        unique_rows[symbol] = row  # Overwrites duplicates with latest
+    deduplicated = list(unique_rows.values())
+    logger.info(f"Deduplicated {len(batch_rows)} rows to {len(deduplicated)} unique symbols")
+
     try:
         # Insert all rows in batches but within single transaction
-        for i in range(0, len(batch_rows), BATCH_SIZE):
-            batch = batch_rows[i:i+BATCH_SIZE]
+        for i in range(0, len(deduplicated), BATCH_SIZE):
+            batch = deduplicated[i:i+BATCH_SIZE]
             execute_values(cur, """
                 INSERT INTO stock_scores (symbol, composite_score, quality_score, growth_score, value_score,
                                           momentum_score, positioning_score, stability_score)
@@ -464,7 +472,7 @@ def main():
                     stability_score = EXCLUDED.stability_score
             """, batch)
             saved += len(batch)
-            logger.info(f"  Inserted batch of {len(batch)}. Total: {saved}/{len(batch_rows)}")
+            logger.info(f"  Inserted batch of {len(batch)}. Total: {saved}/{len(deduplicated)}")
 
         conn.commit()
         logger.info(f"Single transaction committed: {saved} rows inserted")
