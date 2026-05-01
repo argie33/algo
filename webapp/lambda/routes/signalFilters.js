@@ -1,8 +1,11 @@
+console.log('🔧 signalFilters.js module loading...');
+
 const express = require("express");
 const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require("../utils/apiResponse");
 
 const router = express.Router();
+console.log('🔧 signalFilters router created');
 
 /**
  * COMPREHENSIVE SIGNAL FILTERING ENDPOINT

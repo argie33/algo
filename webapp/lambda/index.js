@@ -484,6 +484,57 @@ app.use("/api/portfolio", cacheMiddleware(90), portfolioRoutes);
 app.use("/api/scores", cacheMiddleware(120), scoresRoutes);
 app.use("/api/sectors", cacheMiddleware(60), sectorsRoutes);
 app.use("/api/sentiment", cacheMiddleware(120), sentimentRoutes);
+// STANDALONE signals search endpoint - returns ALL columns from DB, NO CACHING
+app.get("/api/signals/search", async (req, res) => {
+  try {
+    const { type = 'swing', limit = 100, page = 1, days = 3650 } = req.query;
+    const safeLimit = Math.min(parseInt(limit) || 100, 50000);
+    const safePage = Math.max(1, parseInt(page) || 1);
+    const offset = (safePage - 1) * safeLimit;
+
+    const tableMap = {
+      'swing': 'buy_sell_daily',
+      'range': 'range_signals_daily',
+      'mean-reversion': 'mean_reversion_signals_daily'
+    };
+
+    const tableName = tableMap[type];
+    if (!tableName) {
+      return res.status(400).json({ success: false, error: 'Invalid type' });
+    }
+
+    const dayRange = parseInt(days) || 3650;
+    const whereClause = dayRange > 0
+      ? `WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1) AND signal IN ('Buy', 'Sell', 'BUY', 'SELL')`
+      : `WHERE signal IN ('Buy', 'Sell', 'BUY', 'SELL')`;
+
+    const countResult = await query(`SELECT COUNT(*) as total FROM ${tableName} ${whereClause}`, dayRange > 0 ? [dayRange] : []);
+    const total = parseInt(countResult.rows[0]?.total || 0);
+
+    const dataResult = await query(
+      `SELECT * FROM ${tableName} ${whereClause} ORDER BY date DESC LIMIT $${dayRange > 0 ? 2 : 1} OFFSET $${dayRange > 0 ? 3 : 2}`,
+      dayRange > 0 ? [dayRange, safeLimit, offset] : [safeLimit, offset]
+    );
+
+    return res.json({
+      success: true,
+      items: dataResult.rows,
+      pagination: {
+        limit: safeLimit,
+        offset,
+        total,
+        page: safePage,
+        totalPages: Math.ceil(total / safeLimit),
+        hasNext: offset + safeLimit < total,
+        hasPrev: safePage > 1
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Signals search error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
 // Cache signals endpoint: 60 second TTL (signals update periodically)
 app.use("/api/signals", cacheMiddleware(60), signalsRoutes);
 app.use("/api/stocks", cacheMiddleware(30), stocksRoutes);
