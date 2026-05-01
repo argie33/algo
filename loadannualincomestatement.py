@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260501_131400 - Phase 4: Annual income FIXED SCHEMA MIGRATION (direct ALTER, no DO block)
+# TRIGGER: 20260501_132300 - Phase 4: Annual income FIXED UNIQUE CONSTRAINT (on conflict fix)
 """
 Annual Income Statement Loader (PARALLEL OPTIMIZED)
 Loads annual income statement data with 5-10x speedup using ThreadPoolExecutor.
@@ -126,6 +126,17 @@ def create_tables(cur):
         except psycopg2.Error as e:
             if 'already exists' not in str(e):
                 logging.debug(f"Column {col_name}: {str(e)[:80]}")
+
+    # Ensure UNIQUE constraint exists for ON CONFLICT
+    try:
+        cur.execute("""
+            ALTER TABLE annual_income_statement
+            ADD CONSTRAINT unique_symbol_fiscal_year UNIQUE(symbol, fiscal_year)
+        """)
+        logging.info("Added UNIQUE constraint")
+    except psycopg2.Error as e:
+        if 'already exists' not in str(e):
+            logging.debug(f"UNIQUE constraint: {str(e)[:80]}")
 
 def load_symbol_data(symbol: str) -> List[Dict[str, Any]]:
     """Load annual income statement data for one symbol"""

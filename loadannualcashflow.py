@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260501_131500 - Phase 4: Annual cash flow FIXED SCHEMA MIGRATION (direct ALTER, no DO block)
+# TRIGGER: 20260501_132400 - Phase 4: Annual cash flow FIXED UNIQUE CONSTRAINT (on conflict fix)
 """
 Annual Cash Flow Loader (PARALLEL OPTIMIZED)
 Loads annual cash flow data with 5-10x speedup using ThreadPoolExecutor.
@@ -148,6 +148,17 @@ def create_tables(cur):
         except psycopg2.Error as e:
             if 'already exists' not in str(e):
                 logging.debug(f"Column {col_name}: {str(e)[:80]}")
+
+    # Ensure UNIQUE constraint exists for ON CONFLICT
+    try:
+        cur.execute("""
+            ALTER TABLE annual_cash_flow
+            ADD CONSTRAINT unique_symbol_fiscal_year UNIQUE(symbol, fiscal_year)
+        """)
+        logging.info("Added UNIQUE constraint")
+    except psycopg2.Error as e:
+        if 'already exists' not in str(e):
+            logging.debug(f"UNIQUE constraint: {str(e)[:80]}")
 
 def load_symbol_data(symbol: str) -> List[Dict[str, Any]]:
     """Load annual cash flow data for one symbol"""

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260501_131300 - Phase 4: Annual balance sheet FIXED SCHEMA MIGRATION (direct ALTER, no DO block)
+# TRIGGER: 20260501_132200 - Phase 4: Annual balance sheet FIXED UNIQUE CONSTRAINT (on conflict fix)
 """
 Annual Balance Sheet Loader (PARALLEL OPTIMIZED)
 Loads annual balance sheet data with 5-10x speedup using ThreadPoolExecutor.
@@ -251,6 +251,17 @@ def create_tables(cur):
             except psycopg2.Error as e:
                 if 'already exists' not in str(e):
                     logging.debug(f"Column {col_name}: {str(e)[:80]}")
+
+        # Ensure UNIQUE constraint exists for ON CONFLICT
+        try:
+            cur.execute("""
+                ALTER TABLE annual_balance_sheet
+                ADD CONSTRAINT unique_symbol_fiscal_year UNIQUE(symbol, fiscal_year)
+            """)
+            logging.info("Added UNIQUE constraint")
+        except psycopg2.Error as e:
+            if 'already exists' not in str(e):
+                logging.debug(f"UNIQUE constraint: {str(e)[:80]}")
 
         logging.info(f"Schema migration complete: added {cols_added} columns to annual_balance_sheet")
 
