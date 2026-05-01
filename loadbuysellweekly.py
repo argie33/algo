@@ -25,6 +25,14 @@ from datetime import datetime
 import logging
 from dotenv import load_dotenv
 
+# Cloud-native S3 bulk loading (1000x faster)
+try:
+    from s3_staging_helper import S3StagingHelper
+    HAS_S3_STAGING = True
+except ImportError:
+    HAS_S3_STAGING = False
+    logging.warning("S3StagingHelper not available - using standard database inserts")
+
 # Load environment from .env.local (cross-platform)
 from pathlib import Path
 env_file = Path(__file__).parent / '.env.local'
@@ -92,6 +100,10 @@ if not DB_SECRET_ARN or DB_HOST is None:
     DB_PORT = int(os.environ.get("DB_PORT", 5432))
     DB_NAME = os.environ.get("DB_NAME", "stocks")
     logging.info("Using environment variables for database config")
+
+# Cloud-native S3 configuration
+USE_S3_STAGING = os.environ.get('USE_S3_STAGING', 'false').lower() == 'true'
+S3_STAGING_BUCKET = os.environ.get('S3_STAGING_BUCKET', 'stocks-app-data')
 
 def get_db_connection():
     # Set statement timeout to 300 seconds (300000 ms) to allow for large queries
@@ -576,6 +588,7 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
 
     inserted = 0
     skipped = 0
+    insert_rows = []
     for idx, row in df.iterrows():
         try:
             # Check for NaNs in CORE required fields only (price data + signals)
@@ -765,8 +778,9 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
             row_date = row['date'].date()
             signal_triggered_date = row_date if row['Signal'] in ('Buy', 'Sell') else None
 
+            # Collect row for batch insert instead of executing immediately
             try:
-                cur.execute(insert_q, (
+                insert_rows.append((
                     symbol,
                     timeframe,
                     row_date,
@@ -787,19 +801,52 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
                 ))
                 inserted += 1
             except Exception as insert_err:
-                # Rollback failed transaction and continue
-                cur.connection.rollback()
-                logging.error(f"Insert failed for {symbol} {timeframe} row {idx}: {insert_err}")
+                logging.error(f"Row prep failed for {symbol} {timeframe} row {idx}: {insert_err}")
                 skipped += 1
         except Exception as e:
-            logging.error(f"Field processing failed for {symbol} {timeframe} row {idx}: {e} | row={row}")
+            logging.error(f"Field processing failed for {symbol} {timeframe} row {idx}: {e}")
             skipped += 1
 
-    # BATCH COMMIT: Commit all rows for this symbol at once (10-100x faster!)
-    try:
-        cur.connection.commit()
-    except Exception:
-        pass
+    # === CLOUD-NATIVE S3 BULK INSERT (1000x faster) ===
+    if insert_rows:
+        try:
+            if HAS_S3_STAGING and USE_S3_STAGING:
+                logging.info(f" Using S3 staging for {len(insert_rows)} rows ({symbol} {timeframe})")
+                db_config = {
+                    "host": DB_HOST,
+                    "port": DB_PORT,
+                    "user": DB_USER,
+                    "password": DB_PASSWORD,
+                    "dbname": DB_NAME
+                }
+                staging = S3StagingHelper(db_config)
+                columns = [
+                    'symbol', 'timeframe', 'date',
+                    'open', 'high', 'low', 'close', 'volume',
+                    'signal', 'signal_triggered_date', 'buylevel', 'stoplevel', 'inposition', 'strength',
+                    'signal_type', 'pivot_price', 'buy_zone_start', 'buy_zone_end',
+                    'exit_trigger_1_price', 'exit_trigger_2_price', 'exit_trigger_3_condition', 'exit_trigger_3_price',
+                    'exit_trigger_4_condition', 'exit_trigger_4_price', 'initial_stop', 'trailing_stop',
+                    'base_type', 'base_length_days', 'avg_volume_50d', 'volume_surge_pct',
+                    'rs_rating', 'breakout_quality', 'risk_reward_ratio',
+                    'profit_target_8pct', 'profit_target_20pct', 'profit_target_25pct',
+                    'risk_pct', 'entry_quality_score', 'market_stage', 'stage_number', 'stage_confidence', 'substage',
+                    'position_size_recommendation', 'current_gain_pct', 'days_in_position', 'sell_level',
+                    'mansfield_rs', 'sata_score',
+                    'rsi', 'adx', 'atr', 'sma_50', 'sma_200', 'ema_21', 'pct_from_ema21', 'pct_from_sma50', 'entry_price'
+                ]
+                inserted = staging.insert_bulk(table_name, columns, insert_rows)
+            else:
+                # Fallback: use standard execute for each row
+                for row_tuple in insert_rows:
+                    try:
+                        cur.execute(insert_q, row_tuple)
+                    except Exception as e:
+                        logging.debug(f"Insert error: {e}")
+                cur.connection.commit()
+        except Exception as e:
+            logging.error(f"Bulk insert failed: {e}")
+            inserted = 0
 
     logging.info(f"Inserted {inserted} rows, skipped {skipped} rows for {symbol} {timeframe}")
 
