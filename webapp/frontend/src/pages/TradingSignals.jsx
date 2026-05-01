@@ -47,7 +47,7 @@ function TradingSignals() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [symbolFilter, setSymbolFilter] = useState("");
-  const [days, setDays] = useState(30);
+  const [days, setDays] = useState(180);
 
   // Map strategy names to API endpoints and titles
   const strategyConfig = {
@@ -107,7 +107,7 @@ function TradingSignals() {
 
   const handleClearFilters = () => {
     setSymbolFilter("");
-    setDays(30);
+    setDays(180);
     setPage(0);
   };
 
