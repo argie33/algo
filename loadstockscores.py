@@ -454,6 +454,11 @@ def main():
     deduplicated = list(unique_rows.values())
     logger.info(f"Deduplicated {len(batch_rows)} rows to {len(deduplicated)} unique symbols")
 
+    # Data quality validation: ensure we have minimum expected data
+    if len(deduplicated) < 100:
+        logger.error(f"VALIDATION FAILED: Expected 100+ scores, got {len(deduplicated)}. Skipping insert to prevent data corruption.")
+        return False
+
     try:
         # Insert all rows in batches but within single transaction
         for i in range(0, len(deduplicated), BATCH_SIZE):

@@ -437,9 +437,20 @@ def batch_insert(db: DatabaseHelper, data: List[Dict[str, Any]]) -> int:
         return 0
 
     columns = list(data[0].keys())
+
+    # Validate that we have core financial columns (data quality check)
+    core_columns = {'total_assets', 'total_liabilities', 'stockholders_equity', 'symbol', 'period_ending'}
+    missing = core_columns - set(columns)
+    if missing:
+        logging.error(f"[VALIDATION] Missing core columns: {missing}. Skipping batch of {len(data)} rows to prevent data corruption.")
+        return 0
+
     rows = [tuple(row.get(col) for col in columns) for row in data]
 
-    return db.insert('annual_balance_sheet', columns, rows)
+    inserted = db.insert('annual_balance_sheet', columns, rows)
+    if inserted == 0 and len(data) > 0:
+        logging.warning(f"[VALIDATION] Inserted 0 rows from {len(data)} prepared rows. Database may be rejecting data.")
+    return inserted
 
 def main():
     """Main execution with parallel processing"""
