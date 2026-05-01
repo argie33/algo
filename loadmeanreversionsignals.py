@@ -228,8 +228,8 @@ def generate_mean_reversion_signals(df):
         if close is None or sma_200 is None or close <= sma_200:
             continue
 
-        # Condition 2: RSI(2) < 10 (extreme oversold)
-        if rsi_2 is None or rsi_2 >= 10:
+        # Condition 2: RSI(2) < 30 (oversold)
+        if rsi_2 is None or rsi_2 >= 30:
             continue
 
         # Condition 3: Not extreme volume (avoid panic selling)

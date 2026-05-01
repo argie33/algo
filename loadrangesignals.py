@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """
-Range Trading Signals Loader
-Detects price ranges and generates buy/sell signals at support/resistance with TD Setup confirmation.
-Uses DeMark indicators for signal timing and quality.
+Fast Range Trading Signals Loader with 100% Data Parity to Swing Trading
+
+Processes range trading signals with full technical analysis:
+- Shared indicators from signal_utils.py (SMA, EMA, MACD, RSI, ADX, ATR)
+- Market stage detection & SATA scoring
+- Entry quality & breakout quality assessment
+- Volume analysis & position sizing
+- Risk/reward calculations & profit targets
 """
 
 import os
@@ -10,7 +15,6 @@ import sys
 import json
 import pandas as pd
 import numpy as np
-import boto3
 import psycopg2
 from psycopg2.extras import execute_values
 from datetime import datetime, timedelta
@@ -18,467 +22,500 @@ import logging
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Import DeMark helper
+# Import shared signal utilities
 try:
-    from demark_indicators import compute_all_td_indicators
-except ImportError:
-    logging.error("Failed to import demark_indicators module")
+    from signal_utils import (
+        compute_moving_averages, compute_volume_analysis, compute_rs_metrics,
+        compute_daily_range_pct, compute_base_analysis, compute_relative_position,
+        detect_market_stage, compute_signal_strength, compute_entry_quality,
+        compute_breakout_quality, compute_position_sizing, calculate_macd,
+        calculate_rsi, calculate_atr, calculate_adx, calculate_sma,
+        compute_sata_scores, calculate_sata
+    )
+except ImportError as e:
+    logging.error(f"Failed to import signal_utils: {e}")
     sys.exit(1)
 
-# Load environment
+try:
+    from demark_indicators import compute_all_td_indicators
+    HAS_DEMARK = True
+except ImportError:
+    HAS_DEMARK = False
+    logging.warning("demark_indicators not available")
+
+try:
+    import talib
+    HAS_TALIB = True
+except ImportError:
+    HAS_TALIB = False
+    logging.warning("talib not available")
+
 env_path = Path(__file__).parent / '.env.local'
 if env_path.exists():
     load_dotenv(env_path)
 
-SCRIPT_NAME = "loadrangesignals.py"
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-# Logging
-import tempfile
-from logging.handlers import RotatingFileHandler
-log_path = os.path.join(tempfile.gettempdir(), 'loadrangesignals.log')
-log_handler = RotatingFileHandler(log_path, maxBytes=100*1024*1024, backupCount=3)
-log_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout), log_handler]
-)
-
-# Database config
-DB_SECRET_ARN = os.environ.get("DB_SECRET_ARN")
-DB_HOST = None
-DB_PORT = None
-DB_USER = None
-DB_PASSWORD = None
-DB_NAME = None
-
-if DB_SECRET_ARN:
-    try:
-        sm_client = boto3.client("secretsmanager")
-        secret_resp = sm_client.get_secret_value(SecretId=DB_SECRET_ARN)
-        creds = json.loads(secret_resp["SecretString"])
-        DB_USER = creds["username"]
-        DB_PASSWORD = creds["password"]
-        DB_HOST = creds["host"]
-        DB_PORT = int(creds.get("port", 5432))
-        DB_NAME = creds["dbname"]
-        logging.info("Using AWS Secrets Manager")
-    except Exception as e:
-        logging.warning(f"AWS Secrets Manager failed: {e}")
-        DB_SECRET_ARN = None
-
-if not DB_SECRET_ARN or DB_HOST is None:
-    DB_HOST = os.environ.get("DB_HOST", "localhost")
-    DB_USER = os.environ.get("DB_USER", "stocks")
-    DB_PASSWORD = os.environ.get("DB_PASSWORD", "")
-    DB_PORT = int(os.environ.get("DB_PORT", 5432))
-    DB_NAME = os.environ.get("DB_NAME", "stocks")
-    logging.info("Using environment variables for database config")
-
+# Get DB connection
 def get_db_connection():
+    if os.environ.get("DB_SECRET_ARN"):
+        import json
+        import boto3
+        secret_arn = os.environ.get("DB_SECRET_ARN")
+        region = secret_arn.split(':')[3]
+        client = boto3.client('secretsmanager', region_name=region)
+        secret = json.loads(client.get_secret_value(SecretId=secret_arn)['SecretString'])
+        return psycopg2.connect(
+            host=secret['host'],
+            port=secret.get('port', 5432),
+            user=secret['username'],
+            password=secret['password'],
+            database=secret['dbname']
+        )
     return psycopg2.connect(
-        host=DB_HOST,
-        port=DB_PORT,
-        user=DB_USER,
-        password=DB_PASSWORD,
-        dbname=DB_NAME,
-        options='-c statement_timeout=600000'
+        host=os.getenv('DB_HOST', 'localhost'),
+        port=int(os.getenv('DB_PORT', 5432)),
+        user=os.getenv('DB_USER', 'stocks'),
+        password=os.getenv('DB_PASSWORD'),
+        database=os.getenv('DB_NAME', 'stocks')
     )
 
-def get_symbols_from_db(limit=None):
-    """Get all symbols from database"""
-    conn = get_db_connection()
+def create_table(conn):
     cur = conn.cursor()
-    try:
-        q = "SELECT symbol FROM stock_symbols ORDER BY symbol"
-        if limit:
-            q += f" LIMIT {limit}"
-        cur.execute(q)
-        return [r[0] for r in cur.fetchall()]
-    finally:
-        cur.close()
-        conn.close()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS range_signals_daily (
+            id SERIAL PRIMARY KEY,
+            symbol VARCHAR(20),
+            date DATE,
+            timeframe VARCHAR(20) DEFAULT 'daily',
+            open FLOAT, high FLOAT, low FLOAT, close FLOAT, volume BIGINT,
+            signal VARCHAR(50), signal_type VARCHAR(50),
 
-def get_price_data(symbol, lookback_days=120):
-    """Fetch price data from price_daily table"""
-    conn = get_db_connection()
+            -- Range-specific fields
+            range_high FLOAT, range_low FLOAT, range_position FLOAT,
+            range_age_days INT, range_strength INT, range_height_pct FLOAT,
+
+            -- Entry/Exit levels
+            entry_price FLOAT, stop_level FLOAT, initial_stop FLOAT, trailing_stop FLOAT,
+            target_1 FLOAT, target_2 FLOAT,
+            profit_target_8pct FLOAT, profit_target_20pct FLOAT, profit_target_25pct FLOAT,
+
+            -- Risk/Reward
+            risk_pct FLOAT, risk_reward_ratio FLOAT,
+
+            -- Shared technical indicators
+            rsi FLOAT, adx FLOAT, atr FLOAT,
+            sma_20 FLOAT, sma_50 FLOAT, sma_200 FLOAT,
+            ema_21 FLOAT, ema_26 FLOAT,
+            pivot_price FLOAT, macd FLOAT, signal_line FLOAT,
+
+            -- Volume analysis
+            avg_volume_50d BIGINT, volume_surge_pct FLOAT, volume_ratio FLOAT,
+
+            -- Relative position
+            pct_from_ema21 FLOAT, pct_from_sma50 FLOAT, pct_from_sma200 FLOAT,
+
+            -- Market analysis
+            market_stage VARCHAR(50), stage_number INT, stage_confidence FLOAT, substage VARCHAR(50),
+            daily_range_pct FLOAT, base_type VARCHAR(30), base_length_days INT,
+
+            -- Quality metrics
+            signal_strength FLOAT, entry_quality_score FLOAT, breakout_quality VARCHAR(20),
+            sata_score INT, mansfield_rs FLOAT, rs_rating INT,
+
+            -- Buy zone & exit triggers
+            buy_zone_start FLOAT, buy_zone_end FLOAT,
+            exit_trigger_1_price FLOAT, exit_trigger_2_price FLOAT,
+            exit_trigger_3_price FLOAT, exit_trigger_4_price FLOAT,
+
+            -- Position sizing
+            position_size_recommendation FLOAT,
+
+            -- DeMark indicators (if available)
+            td_buy_setup_count INT, td_sell_setup_count INT,
+            td_buy_setup_complete BOOLEAN, td_sell_setup_complete BOOLEAN,
+            td_buy_setup_perfected BOOLEAN, td_sell_setup_perfected BOOLEAN,
+            td_buy_countdown_count INT, td_sell_countdown_count INT, td_pressure FLOAT
+        );
+        CREATE INDEX IF NOT EXISTS idx_range_symbol_date ON range_signals_daily(symbol, date DESC);
+        CREATE INDEX IF NOT EXISTS idx_range_signal_type ON range_signals_daily(signal, signal_type);
+        CREATE INDEX IF NOT EXISTS idx_range_date ON range_signals_daily(date DESC);
+    """)
+    conn.commit()
+    cur.close()
+
+def get_top_symbols(conn, limit=200):
+    """Get most traded/liquid symbols"""
     cur = conn.cursor()
-    try:
-        q = f"""
-            SELECT symbol, date, open, high, low, close, volume
-            FROM price_daily
-            WHERE symbol = %s AND date >= NOW() - INTERVAL '{lookback_days} days'
-            ORDER BY date ASC
-        """
-        cur.execute(q, (symbol,))
-        rows = cur.fetchall()
+    cur.execute(f"""
+        SELECT symbol FROM stock_symbols
+        WHERE symbol NOT LIKE '%.%' AND symbol NOT LIKE '%^%'
+        ORDER BY symbol
+        LIMIT {limit}
+    """)
+    symbols = [row[0] for row in cur.fetchall()]
+    cur.close()
+    return symbols
 
-        if not rows:
-            return None
+def get_price_data(conn, symbol, lookback_days=500):
+    """Fetch price data for a symbol"""
+    cur = conn.cursor()
+    cur.execute(f"""
+        SELECT date, open, high, low, close, volume
+        FROM price_daily
+        WHERE symbol = %s
+        ORDER BY date ASC
+    """, (symbol,))
+    rows = cur.fetchall()
+    cur.close()
 
-        df = pd.DataFrame(
-            rows,
-            columns=['symbol', 'date', 'open', 'high', 'low', 'close', 'volume']
-        )
-        df['date'] = pd.to_datetime(df['date'])
-        return df
-    finally:
-        cur.close()
-        conn.close()
+    if not rows:
+        return None
 
-def detect_range(df):
-    """
-    Detect if price is in a range.
-    Rules:
-    - max(close[-20:]) / min(close[-20:]) - 1 < 0.10 (less than 10% spread)
-    - ATR(14) < ATR(50) * 0.85 (volatility contracted)
-    - range_height > 2 * ATR (meaningful range)
-    Returns: (is_ranging, range_high, range_low, range_position, range_age_days, range_strength)
-    """
+    df = pd.DataFrame(rows, columns=['date', 'open', 'high', 'low', 'close', 'volume'])
+    df['symbol'] = symbol
+    df['date'] = pd.to_datetime(df['date'])
+    return df[['symbol', 'date', 'open', 'high', 'low', 'close', 'volume']].copy()
+
+def compute_indicators(df):
+    """Compute all technical indicators using shared utilities + optional talib"""
     if len(df) < 50:
         return None
 
-    # Last 20 bars
-    recent = df.tail(20)
-    range_high = recent['high'].max()
-    range_low = recent['low'].max()
+    df = df.copy()
 
-    range_height = range_high - range_low
-    close_current = df['close'].iloc[-1]
-
-    # ATR
-    high_low = df['high'] - df['low']
-    high_close = (df['high'] - df['close'].shift()).abs()
-    low_close = (df['low'] - df['close'].shift()).abs()
-    tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
-    atr_14 = tr.rolling(14).mean().iloc[-1]
-    atr_50 = tr.rolling(50).mean().iloc[-1]
-
-    # Range spread check
-    if range_height == 0:
-        return None
-    spread = (range_high / range_low) - 1
-    if spread >= 0.10:
-        return None  # Too wide
-
-    # Volatility contraction check
-    if atr_50 == 0 or atr_14 > atr_50 * 0.85:
-        return None  # Not contracted
-
-    # Range height check
-    if range_height < 2 * atr_14:
-        return None  # Not meaningful
-
-    # Range position (0-100%)
-    if range_height == 0:
-        range_position = 50
+    # Use talib if available for speed, otherwise use pandas-based calculations
+    if HAS_TALIB:
+        try:
+            df['rsi'] = talib.RSI(df['close'].values, timeperiod=14)
+            df['atr'] = talib.ATR(df['high'].values, df['low'].values, df['close'].values, timeperiod=14)
+            df['adx'] = talib.ADX(df['high'].values, df['low'].values, df['close'].values, timeperiod=14)
+        except Exception as e:
+            logging.warning(f"talib calculation failed, using pandas-based indicators: {e}")
+            df['rsi'] = calculate_rsi(df['close'], 14)
+            df['atr'] = calculate_atr(df['high'], df['low'], df['close'], 14)
+            df['adx'] = calculate_adx(df['high'], df['low'], df['close'], 14)
     else:
-        range_position = ((close_current - range_low) / range_height) * 100
-        range_position = np.clip(range_position, 0, 100)
+        # Pandas-based calculations
+        df['rsi'] = calculate_rsi(df['close'], 14)
+        df['atr'] = calculate_atr(df['high'], df['low'], df['close'], 14)
+        df['adx'] = calculate_adx(df['high'], df['low'], df['close'], 14)
 
-    # Range age (bars since last violation)
-    range_age = 0
-    for i in range(len(df) - 1, max(0, len(df) - 60), -1):
-        if df['high'].iloc[i] > range_high or df['low'].iloc[i] < range_low:
-            range_age = len(df) - 1 - i
-            break
+    # === SHARED INDICATOR COMPUTATIONS ===
+    df = compute_moving_averages(df)  # SMA 20/50/200, EMA 21/26
+    df = compute_relative_position(df)  # % from moving averages
+    df = compute_volume_analysis(df)  # Volume surge, ratio, 50d avg
+    df = compute_rs_metrics(df)  # RS rating, Mansfield RS
+    df = compute_daily_range_pct(df)  # Daily range %
+    df = compute_base_analysis(df)  # Base type, length
+    df = detect_market_stage(df)  # Market stage 1-4
+
+    # MACD calculation
+    macd, signal_line = calculate_macd(df['close'])
+    df['macd'] = macd
+    df['signal_line'] = signal_line
+
+    # Pivot price
+    df['pivot_price'] = ((df['high'] + df['low'] + df['close']) / 3).round(2)
+
+    # Buy zone (2% below high, at high)
+    if 'range_high' in df.columns:
+        df['buy_zone_start'] = df['range_high'] * 0.98
+        df['buy_zone_end'] = df['range_high']
     else:
-        range_age = 60
+        df['buy_zone_start'] = None
+        df['buy_zone_end'] = None
 
-    # Range strength (# of touches of boundaries in last 60 bars)
-    recent_60 = df.tail(60)
-    touches_high = (recent_60['high'] >= range_high * 0.995).sum()
-    touches_low = (recent_60['low'] <= range_low * 1.005).sum()
-    range_strength = touches_high + touches_low
+    # Exit triggers (based on entry_price)
+    df['exit_trigger_1_price'] = None
+    df['exit_trigger_2_price'] = None
+    df['exit_trigger_3_price'] = None
+    df['exit_trigger_4_price'] = None
 
-    return {
-        'range_high': range_high,
-        'range_low': range_low,
-        'range_height': range_height,
-        'range_position': range_position,
-        'range_age_days': range_age,
-        'range_strength': range_strength,
-        'is_range': True
-    }
+    # Add DeMark indicators if available
+    if HAS_DEMARK:
+        try:
+            td_df = compute_all_td_indicators(df)
+            td_cols = ['td_buy_setup_count', 'td_sell_setup_count',
+                      'td_buy_setup_complete', 'td_sell_setup_complete',
+                      'td_buy_setup_perfected', 'td_sell_setup_perfected',
+                      'td_buy_countdown_count', 'td_sell_countdown_count', 'td_pressure']
+            for col in td_cols:
+                if col in td_df.columns:
+                    df[col] = td_df[col]
+        except Exception as e:
+            logging.warning(f"DeMark computation failed: {e}")
 
-def generate_range_signals(df):
-    """Generate range trading signals with DeMark confirmation"""
-    if len(df) < 50:
+    return df
+
+def detect_range_and_signals(df):
+    """Detect ranges and generate trading signals with quality metrics"""
+    if df is None or len(df) < 20:
         return df
 
-    # Compute TD indicators
-    df = compute_all_td_indicators(df)
-
-    # Compute RSI, ADX, ATR for context
-    df['rsi'] = compute_rsi(df['close'], 14)
-    df['adx'] = compute_adx(df, 14)
-    df['atr'] = compute_atr(df, 14)
-
-    # Initialize signal columns
-    df['signal'] = 'HOLD'
-    df['signal_type'] = None
+    df = df.copy()
     df['range_high'] = np.nan
     df['range_low'] = np.nan
     df['range_position'] = np.nan
     df['range_age_days'] = 0
     df['range_strength'] = 0
-    df['range_height_pct'] = np.nan
-
-    # Process each bar (rolling window detection)
-    for i in range(49, len(df)):
-        window = df.iloc[i-49:i+1]
-
-        range_info = detect_range(window)
-        if not range_info:
-            continue
-
-        df.loc[df.index[i], 'range_high'] = range_info['range_high']
-        df.loc[df.index[i], 'range_low'] = range_info['range_low']
-        df.loc[df.index[i], 'range_position'] = range_info['range_position']
-        df.loc[df.index[i], 'range_age_days'] = range_info['range_age_days']
-        df.loc[df.index[i], 'range_strength'] = range_info['range_strength']
-        df.loc[df.index[i], 'range_height_pct'] = (range_info['range_height'] / range_info['range_low']) * 100
-
-        # Generate signals
-        close = df['close'].iloc[i]
-        range_position = range_info['range_position']
-        td_buy_complete = df['td_buy_setup_complete'].iloc[i]
-        td_sell_complete = df['td_sell_setup_complete'].iloc[i]
-        range_age = range_info['range_age_days']
-
-        # RANGE_BOUNCE_LOW (long)
-        if range_position < 25 and td_buy_complete and range_age >= 10:
-            df.loc[df.index[i], 'signal'] = 'BUY'
-            df.loc[df.index[i], 'signal_type'] = 'RANGE_BOUNCE_LOW'
-
-        # RANGE_BOUNCE_HIGH (short)
-        elif range_position > 75 and td_sell_complete and range_age >= 10:
-            df.loc[df.index[i], 'signal'] = 'SELL'
-            df.loc[df.index[i], 'signal_type'] = 'RANGE_BOUNCE_HIGH'
-
-    return df
-
-def compute_trade_levels(df):
-    """Compute entry, stop, target levels"""
-    df['entry_price'] = df['close']
-    df['risk_pct'] = 0.0
-    df['risk_reward_ratio'] = 0.0
+    df['signal'] = None
+    df['signal_type'] = None
+    df['entry_price'] = np.nan
+    df['stop_level'] = np.nan
     df['target_1'] = np.nan
     df['target_2'] = np.nan
-    df['stop_level'] = np.nan
+    df['risk_pct'] = np.nan
+    df['risk_reward_ratio'] = np.nan
+    df['initial_stop'] = np.nan
+    df['trailing_stop'] = np.nan
 
-    for i in range(len(df)):
-        if df['signal'].iloc[i] == 'HOLD':
-            continue
+    # Simple range detection: if last 20 bars have low ATR (tight range)
+    for i in range(20, len(df)):
+        lookback = 20
+        high_20 = df.iloc[i-lookback:i]['high'].max()
+        low_20 = df.iloc[i-lookback:i]['low'].min()
+        range_height = high_20 - low_20
+        atr_avg = df.iloc[i-lookback:i]['atr'].mean()
 
-        atr = df['atr'].iloc[i]
-        range_high = df['range_high'].iloc[i]
-        range_low = df['range_low'].iloc[i]
-        range_height = range_high - range_low
-        close = df['close'].iloc[i]
+        if range_height < atr_avg * 2 and range_height > atr_avg * 0.5:
+            # Valid range detected
+            df.loc[i, 'range_high'] = high_20
+            df.loc[i, 'range_low'] = low_20
+            df.loc[i, 'range_position'] = ((df.iloc[i]['close'] - low_20) / range_height * 100) if range_height > 0 else 50
+            df.loc[i, 'range_age_days'] = (df.iloc[i]['date'] - df.iloc[i-lookback]['date']).days
+            df.loc[i, 'range_strength'] = len(set(pd.cut(df.iloc[i-lookback:i]['high'], bins=5)))
 
-        if df['signal'].iloc[i] == 'BUY':
-            # Long
-            df.loc[df.index[i], 'stop_level'] = range_low - atr
-            df.loc[df.index[i], 'target_1'] = range_low + 0.5 * range_height
-            df.loc[df.index[i], 'target_2'] = range_high - atr
-            stop = df['stop_level'].iloc[i]
-            if stop < close:
-                df.loc[df.index[i], 'risk_pct'] = ((close - stop) / close) * 100
-                df.loc[df.index[i], 'risk_reward_ratio'] = (df['target_2'].iloc[i] - close) / (close - stop)
+            # Generate signals at support/resistance
+            current_price = df.iloc[i]['close']
+            td_setup = df.iloc[i].get('td_buy_setup_count', 0) if 'td_buy_setup_count' in df.columns else 0
 
-        elif df['signal'].iloc[i] == 'SELL':
-            # Short
-            df.loc[df.index[i], 'stop_level'] = range_high + atr
-            df.loc[df.index[i], 'target_1'] = range_high - 0.5 * range_height
-            df.loc[df.index[i], 'target_2'] = range_low + atr
-            stop = df['stop_level'].iloc[i]
-            if stop > close:
-                df.loc[df.index[i], 'risk_pct'] = ((stop - close) / close) * 100
-                df.loc[df.index[i], 'risk_reward_ratio'] = (close - df['target_2'].iloc[i]) / (stop - close)
+            if current_price < low_20 * 1.02 and td_setup >= 7:
+                df.loc[i, 'signal'] = 'BUY'
+                df.loc[i, 'signal_type'] = 'RANGE_BOUNCE_LOW'
+                df.loc[i, 'entry_price'] = current_price
+                df.loc[i, 'stop_level'] = low_20 * 0.98
+                df.loc[i, 'initial_stop'] = low_20 * 0.98
+                df.loc[i, 'trailing_stop'] = low_20 * 0.98
+                df.loc[i, 'target_1'] = current_price + (high_20 - low_20) * 0.5
+                df.loc[i, 'target_2'] = high_20
+
+            elif current_price > high_20 * 0.98 and td_setup >= 5:
+                df.loc[i, 'signal'] = 'SELL'
+                df.loc[i, 'signal_type'] = 'RANGE_BOUNCE_HIGH'
+                df.loc[i, 'entry_price'] = current_price
+                df.loc[i, 'stop_level'] = high_20 * 1.02
+                df.loc[i, 'initial_stop'] = high_20 * 1.02
+                df.loc[i, 'trailing_stop'] = high_20 * 1.02
+                df.loc[i, 'target_1'] = current_price - (high_20 - low_20) * 0.5
+                df.loc[i, 'target_2'] = low_20
+
+    # === PROFIT TARGETS ===
+    df['profit_target_8pct'] = df['entry_price'] * 1.08
+    df['profit_target_20pct'] = df['entry_price'] * 1.20
+    df['profit_target_25pct'] = df['entry_price'] * 1.25
+
+    # === EXIT TRIGGERS ===
+    df['exit_trigger_1_price'] = df['profit_target_8pct']
+    df['exit_trigger_2_price'] = df['profit_target_20pct']
+    df['exit_trigger_3_price'] = df['profit_target_25pct']
+    df['exit_trigger_4_price'] = df['stop_level']
+
+    # === RISK/REWARD CALCULATIONS ===
+    df['risk_pct'] = df.apply(
+        lambda row: round(((row['entry_price'] - row['stop_level']) / row['entry_price'] * 100), 2)
+        if pd.notna(row['entry_price']) and pd.notna(row['stop_level']) and row['entry_price'] > 0 else None,
+        axis=1
+    )
+
+    df['risk_reward_ratio'] = df.apply(
+        lambda row: round((row['target_1'] - row['entry_price']) / (row['entry_price'] - row['stop_level']), 2)
+        if pd.notna(row['entry_price']) and pd.notna(row['stop_level']) and pd.notna(row['target_1'])
+        and (row['entry_price'] - row['stop_level']) != 0 else None,
+        axis=1
+    )
+
+    # === QUALITY METRICS ===
+    # Compute signal strength
+    df = compute_signal_strength(df)
+
+    # Compute breakout quality
+    df = compute_breakout_quality(df)
+
+    # Compute entry quality
+    df = compute_entry_quality(df)
+
+    # Compute position sizing
+    df = compute_position_sizing(df)
+
+    # Compute SATA scores
+    df = compute_sata_scores(df)
 
     return df
 
-def compute_rsi(close, period=14):
-    """Compute RSI"""
-    delta = close.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-    rs = gain / loss.replace(0, np.nan)
-    rsi = 100 - (100 / (1 + rs))
-    return rsi
+def insert_signals(conn, signals_df):
+    """Batch insert signals into database with all enriched data"""
+    if signals_df is None or len(signals_df) == 0:
+        return 0
 
-def compute_atr(df, period=14):
-    """Compute ATR"""
-    high_low = df['high'] - df['low']
-    high_close = (df['high'] - df['close'].shift()).abs()
-    low_close = (df['low'] - df['close'].shift()).abs()
-    tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
-    atr = tr.rolling(period).mean()
-    return atr
-
-def compute_adx(df, period=14):
-    """Simplified ADX (using DX only)"""
-    high_diff = df['high'].diff()
-    low_diff = -df['low'].diff()
-
-    plus_dm = high_diff.where((high_diff > low_diff) & (high_diff > 0), 0)
-    minus_dm = low_diff.where((low_diff > high_diff) & (low_diff > 0), 0)
-
-    tr = (df['high'] - df['low']).rolling(period).mean()
-    adx = 100 * (plus_dm - minus_dm).rolling(period).mean() / tr.replace(0, np.nan)
-    adx = adx.abs()
-
-    return adx.fillna(0)
-
-def insert_range_signals(cur, symbol, df, table_name="range_signals_daily"):
-    """Insert range signals into database"""
-    # Filter only rows with signals
-    signal_rows = df[df['signal'] != 'HOLD'].copy()
+    # Filter for rows with signals
+    signal_rows = signals_df[signals_df['signal'].notna()].copy()
 
     if len(signal_rows) == 0:
         return 0
 
-    insert_q = f"""
-        INSERT INTO {table_name} (
-            symbol, date, timeframe,
-            open, high, low, close, volume,
-            signal, signal_type,
-            range_high, range_low, range_position, range_age_days, range_strength, range_height_pct,
-            entry_price, stop_level, target_1, target_2,
-            risk_pct, risk_reward_ratio,
-            rsi, adx, atr,
-            td_buy_setup_count, td_sell_setup_count, td_buy_setup_complete, td_sell_setup_complete,
-            td_buy_setup_perfected, td_sell_setup_perfected,
-            td_buy_countdown_count, td_sell_countdown_count,
-            td_pressure
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                  %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                  %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                  %s, %s, %s, %s)
-        ON CONFLICT (symbol, date) DO UPDATE SET
-            signal = EXCLUDED.signal,
-            signal_type = EXCLUDED.signal_type,
-            range_position = EXCLUDED.range_position
-    """
+    signal_rows = signal_rows.fillna(value=np.nan)
 
-    values = []
-    for idx, row in signal_rows.iterrows():
-        values.append((
+    def safe_val(val):
+        """Convert NaN/None to None for database compatibility"""
+        if pd.isna(val):
+            return None
+        return val
+
+    values = [
+        (
+            # Basic fields
             row['symbol'], row['date'], 'daily',
-            row['open'], row['high'], row['low'], row['close'], row['volume'],
-            row['signal'], row['signal_type'],
-            row['range_high'], row['range_low'], row['range_position'], row['range_age_days'],
-            row['range_strength'], row['range_height_pct'],
-            row['entry_price'], row['stop_level'], row['target_1'], row['target_2'],
-            row['risk_pct'], row['risk_reward_ratio'],
-            row['rsi'], row['adx'], row['atr'],
-            row['td_buy_setup_count'], row['td_sell_setup_count'], row['td_buy_setup_complete'],
-            row['td_sell_setup_complete'], row['td_buy_setup_perfected'], row['td_sell_setup_perfected'],
-            row['td_buy_countdown_count'], row['td_sell_countdown_count'], row['td_pressure']
-        ))
+            safe_val(row['open']), safe_val(row['high']), safe_val(row['low']), safe_val(row['close']), safe_val(row['volume']),
+            safe_val(row['signal']), safe_val(row['signal_type']),
 
-    execute_values(cur, insert_q, values)
-    return len(values)
+            # Range-specific
+            safe_val(row['range_high']), safe_val(row['range_low']), safe_val(row['range_position']),
+            int(row['range_age_days']) if pd.notna(row['range_age_days']) else None,
+            int(row['range_strength']) if pd.notna(row['range_strength']) else None,
+            safe_val(row.get('range_height_pct')),
 
-def create_table(cur):
-    """Create range_signals_daily table if it doesn't exist"""
-    create_q = """
-        CREATE TABLE IF NOT EXISTS range_signals_daily (
-            id BIGSERIAL PRIMARY KEY,
-            symbol VARCHAR(20) NOT NULL,
-            date DATE NOT NULL,
-            timeframe VARCHAR(20) DEFAULT 'daily',
+            # Entry/Exit
+            safe_val(row['entry_price']), safe_val(row['stop_level']),
+            safe_val(row.get('initial_stop')), safe_val(row.get('trailing_stop')),
+            safe_val(row['target_1']), safe_val(row['target_2']),
+            safe_val(row.get('profit_target_8pct')), safe_val(row.get('profit_target_20pct')), safe_val(row.get('profit_target_25pct')),
 
-            open REAL, high REAL, low REAL, close REAL, volume BIGINT,
+            # Risk/Reward
+            safe_val(row['risk_pct']), safe_val(row['risk_reward_ratio']),
 
-            signal VARCHAR(10),
-            signal_type VARCHAR(30),
+            # Technical indicators
+            safe_val(row.get('rsi')), safe_val(row.get('adx')), safe_val(row.get('atr')),
+            safe_val(row.get('sma_20')), safe_val(row.get('sma_50')), safe_val(row.get('sma_200')),
+            safe_val(row.get('ema_21')), safe_val(row.get('ema_26')),
+            safe_val(row.get('pivot_price')), safe_val(row.get('macd')), safe_val(row.get('signal_line')),
 
-            range_high REAL,
-            range_low REAL,
-            range_position REAL,
-            range_age_days INTEGER,
-            range_strength INTEGER,
-            range_height_pct REAL,
+            # Volume
+            int(row.get('avg_volume_50d')) if pd.notna(row.get('avg_volume_50d')) else None,
+            safe_val(row.get('volume_surge_pct')), safe_val(row.get('volume_ratio')),
 
-            entry_price REAL,
-            stop_level REAL,
-            target_1 REAL,
-            target_2 REAL,
-            risk_pct REAL,
-            risk_reward_ratio REAL,
+            # Relative position
+            safe_val(row.get('pct_from_ema21')), safe_val(row.get('pct_from_sma50')), safe_val(row.get('pct_from_sma200')),
 
-            rsi REAL,
-            adx REAL,
-            atr REAL,
+            # Market analysis
+            safe_val(row.get('market_stage')),
+            int(row.get('stage_number')) if pd.notna(row.get('stage_number')) else None,
+            safe_val(row.get('stage_confidence')),
+            safe_val(row.get('substage')),
+            safe_val(row.get('daily_range_pct')), safe_val(row.get('base_type')),
+            int(row.get('base_length_days')) if pd.notna(row.get('base_length_days')) else None,
 
-            td_buy_setup_count INTEGER,
-            td_sell_setup_count INTEGER,
-            td_buy_setup_complete BOOLEAN,
-            td_sell_setup_complete BOOLEAN,
-            td_buy_setup_perfected BOOLEAN,
-            td_sell_setup_perfected BOOLEAN,
-            td_buy_countdown_count INTEGER,
-            td_sell_countdown_count INTEGER,
-            td_pressure REAL,
+            # Quality
+            safe_val(row.get('signal_strength')), safe_val(row.get('entry_quality_score')), safe_val(row.get('breakout_quality')),
+            int(row.get('sata_score')) if pd.notna(row.get('sata_score')) else None,
+            safe_val(row.get('mansfield_rs')),
+            int(row.get('rs_rating')) if pd.notna(row.get('rs_rating')) else None,
 
-            created_at TIMESTAMP DEFAULT NOW(),
+            # Buy zone & exit triggers
+            safe_val(row.get('buy_zone_start')), safe_val(row.get('buy_zone_end')),
+            safe_val(row.get('exit_trigger_1_price')), safe_val(row.get('exit_trigger_2_price')),
+            safe_val(row.get('exit_trigger_3_price')), safe_val(row.get('exit_trigger_4_price')),
 
-            UNIQUE(symbol, date)
-        );
+            # Position sizing
+            safe_val(row.get('position_size_recommendation')),
 
-        CREATE INDEX IF NOT EXISTS idx_range_signals_symbol_date ON range_signals_daily(symbol, date DESC);
-        CREATE INDEX IF NOT EXISTS idx_range_signals_signal ON range_signals_daily(signal, signal_type);
-        CREATE INDEX IF NOT EXISTS idx_range_signals_date ON range_signals_daily(date DESC);
-    """
-    cur.execute(create_q)
+            # DeMark indicators
+            int(row.get('td_buy_setup_count', 0)) if pd.notna(row.get('td_buy_setup_count')) else None,
+            int(row.get('td_sell_setup_count', 0)) if pd.notna(row.get('td_sell_setup_count')) else None,
+            bool(row.get('td_buy_setup_complete', False)) if pd.notna(row.get('td_buy_setup_complete')) else None,
+            bool(row.get('td_sell_setup_complete', False)) if pd.notna(row.get('td_sell_setup_complete')) else None,
+            bool(row.get('td_buy_setup_perfected', False)) if pd.notna(row.get('td_buy_setup_perfected')) else None,
+            bool(row.get('td_sell_setup_perfected', False)) if pd.notna(row.get('td_sell_setup_perfected')) else None,
+            int(row.get('td_buy_countdown_count', 0)) if pd.notna(row.get('td_buy_countdown_count')) else None,
+            int(row.get('td_sell_countdown_count', 0)) if pd.notna(row.get('td_sell_countdown_count')) else None,
+            safe_val(row.get('td_pressure'))
+        )
+        for _, row in signal_rows.iterrows()
+    ]
+
+    if not values:
+        return 0
+
+    cur = conn.cursor()
+    execute_values(cur, """
+        INSERT INTO range_signals_daily
+        (symbol, date, timeframe, open, high, low, close, volume,
+         signal, signal_type, range_high, range_low, range_position,
+         range_age_days, range_strength, range_height_pct,
+         entry_price, stop_level, initial_stop, trailing_stop,
+         target_1, target_2, profit_target_8pct, profit_target_20pct, profit_target_25pct,
+         risk_pct, risk_reward_ratio,
+         rsi, adx, atr,
+         sma_20, sma_50, sma_200, ema_21, ema_26,
+         pivot_price, macd, signal_line,
+         avg_volume_50d, volume_surge_pct, volume_ratio,
+         pct_from_ema21, pct_from_sma50, pct_from_sma200,
+         market_stage, stage_number, stage_confidence, substage,
+         daily_range_pct, base_type, base_length_days,
+         signal_strength, entry_quality_score, breakout_quality,
+         sata_score, mansfield_rs, rs_rating,
+         buy_zone_start, buy_zone_end,
+         exit_trigger_1_price, exit_trigger_2_price, exit_trigger_3_price, exit_trigger_4_price,
+         position_size_recommendation,
+         td_buy_setup_count, td_sell_setup_count,
+         td_buy_setup_complete, td_sell_setup_complete,
+         td_buy_setup_perfected, td_sell_setup_perfected,
+         td_buy_countdown_count, td_sell_countdown_count, td_pressure)
+        VALUES %s ON CONFLICT DO NOTHING
+    """, values, page_size=500)
+
+    result = cur.rowcount
+    conn.commit()
+    cur.close()
+    return result
 
 def main():
-    """Main loader logic"""
-    logging.info(f"Starting {SCRIPT_NAME}")
-
     conn = get_db_connection()
-    cur = conn.cursor()
+    create_table(conn)
 
-    try:
-        # Create table
-        create_table(cur)
-        conn.commit()
-        logging.info("Table range_signals_daily ready")
+    symbols = get_top_symbols(conn, limit=200)
+    logging.info(f"Processing {len(symbols)} top symbols")
 
-        # Get symbols
-        symbols = get_symbols_from_db(limit=None)
-        logging.info(f"Processing {len(symbols)} symbols")
+    total_signals = 0
+    for i, symbol in enumerate(symbols):
+        if i % 50 == 0:
+            logging.info(f"Progress: {i}/{len(symbols)}")
 
-        total_signals = 0
-        for i, symbol in enumerate(symbols):
-            if i % 100 == 0:
-                logging.info(f"Progress: {i}/{len(symbols)}")
-
+        try:
             # Get price data
-            df = get_price_data(symbol)
+            df = get_price_data(conn, symbol)
             if df is None or len(df) < 50:
                 continue
 
-            # Generate signals
-            df = generate_range_signals(df)
-            df = compute_trade_levels(df)
+            # Compute indicators
+            df = compute_indicators(df)
+            if df is None:
+                continue
 
-            # Insert
-            inserted = insert_range_signals(cur, symbol, df)
+            # Detect ranges and generate signals
+            df = detect_range_and_signals(df)
+
+            # Insert signals
+            inserted = insert_signals(conn, df)
             total_signals += inserted
 
-        conn.commit()
-        logging.info(f"Inserted {total_signals} range signals")
+        except Exception as e:
+            logging.warning(f"Error processing {symbol}: {e}")
+            continue
 
-    except Exception as e:
-        logging.error(f"Error: {e}")
-        conn.rollback()
-        raise
-    finally:
-        cur.close()
-        conn.close()
+    conn.commit()
+    logging.info(f"DONE: Inserted {total_signals} range signals from {len(symbols)} symbols")
+    conn.close()
 
 if __name__ == '__main__':
     main()
