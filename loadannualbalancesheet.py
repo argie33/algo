@@ -435,13 +435,19 @@ def main():
         cur = conn.cursor()
         create_tables(cur)
 
-        cur.execute("""
-            SELECT DISTINCT ss.symbol FROM stock_symbols ss
-            WHERE NOT EXISTS (
-                SELECT 1 FROM annual_balance_sheet abs WHERE abs.symbol = ss.symbol
-            )
-            ORDER BY ss.symbol
-        """)
+        force_reload = os.environ.get("FORCE_RELOAD", "false").lower() == "true"
+
+        if force_reload:
+            logging.info("FORCE_RELOAD mode enabled - reloading ALL stocks")
+            cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
+        else:
+            cur.execute("""
+                SELECT DISTINCT ss.symbol FROM stock_symbols ss
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM annual_balance_sheet abs WHERE abs.symbol = ss.symbol
+                )
+                ORDER BY ss.symbol
+            """)
         symbols = [row[0] for row in cur.fetchall()]
         total_symbols = len(symbols)
 
