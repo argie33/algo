@@ -372,6 +372,22 @@ def init_db(conn):
             ADD COLUMN IF NOT EXISTS is_sp500 BOOLEAN DEFAULT FALSE;
         """
         )
+        # Ensure symbol column is UNIQUE (required for ON CONFLICT)
+        # Check if constraint exists before creating to avoid errors
+        cur.execute(
+            """
+            DO $$
+            BEGIN
+              IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint
+                WHERE conname = 'stock_symbols_symbol_key'
+                AND conrelid = 'stock_symbols'::regclass
+              ) THEN
+                ALTER TABLE stock_symbols ADD UNIQUE (symbol);
+              END IF;
+            END $$;
+        """
+        )
         # etf_symbols
         cur.execute(
             """
@@ -387,6 +403,21 @@ def init_db(conn):
                 etf               CHAR(1),
                 secondary_symbol  VARCHAR(50)
             );
+        """
+        )
+        # Ensure symbol column is UNIQUE for etf_symbols (required for ON CONFLICT)
+        cur.execute(
+            """
+            DO $$
+            BEGIN
+              IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint
+                WHERE conname = 'etf_symbols_symbol_key'
+                AND conrelid = 'etf_symbols'::regclass
+              ) THEN
+                ALTER TABLE etf_symbols ADD UNIQUE (symbol);
+              END IF;
+            END $$;
         """
         )
         # last_updated
