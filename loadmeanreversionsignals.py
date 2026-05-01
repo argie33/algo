@@ -319,7 +319,11 @@ def insert_mean_reversion_signals(cur, symbol, df, table_name="mean_reversion_si
         return 0
 
     def safe_val(val):
-        """Convert NaN/None to None for database compatibility"""
+        """Convert NaN/None/numpy types to database-compatible Python types"""
+        if val is None or (isinstance(val, float) and np.isnan(val)):
+            return None
+        if isinstance(val, (np.integer, np.floating)):
+            return val.item()  # Convert numpy types to Python native types
         if pd.isna(val):
             return None
         return val
