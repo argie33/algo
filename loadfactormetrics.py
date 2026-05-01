@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260501_205500 - Phase 5: Factor metrics (financial ratios and indicators)
+# TRIGGER: 20260501_084523 - Phase 5: Factor metrics (financial ratios and indicators)
 """
 Factor Metrics Loader - Consolidated ALL Metric Loaders
 Populates ALL derived factor metrics from key_metrics, financial statements, and price data.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260501_192500 - Phase 2: ETF daily price data
+# TRIGGER: 20260501_084523 - Phase 2: ETF daily price data
 # ETF Daily Price Data Loader - fetches OHLCV data for ETFs only
 # Cloud Strategy: Concurrent ECS Fargate + Lambda for event-driven jobs
 """

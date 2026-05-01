@@ -1,4 +1,4 @@
-# TRIGGER: 20260501_192000 - Phase 2: Daily price data (essential for signals)
+# TRIGGER: 20260501_084523 - Phase 2: Daily price data (essential for signals)
 # Cloud Deployment: AWS ECS Fargate with OIDC authentication
 # Strategy: Incremental loading (MAX(date) optimization) for optimal cloud sync
 # ============================================================================

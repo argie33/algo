@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260501_191500 - Phase 1B: Market indices loader (part of foundational data)
+# TRIGGER: 20260501_084523 - Phase 1B: Market indices loader (part of foundational data)
 # Loads market index data (S&P 500, Dow Jones, Nasdaq, Russell, etc.)
 import sys, logging, json, os
 from pathlib import Path
