@@ -13,9 +13,9 @@ provider:
     DB_HOST: ${env:DB_HOST, 'localhost'}
     DB_PORT: ${env:DB_PORT, '5432'}
     DB_USER: ${env:DB_USER, 'stocks'}
-    DB_PASSWORD: ${env:DB_PASSWORD, 'bed0elAn'}
+    DB_PASSWORD: ${env:DB_PASSWORD}
     DB_NAME: ${env:DB_NAME, 'stocks'}
-    NODE_ENV: production
+    NODE_ENV: ${env:NODE_ENV, 'production'}
     # Email Configuration
     CONTACT_NOTIFICATION_EMAIL: ${env:CONTACT_NOTIFICATION_EMAIL, 'edgebrookecapital@gmail.com'}
     EMAIL_FROM: ${env:EMAIL_FROM, 'noreply@bullseyefinancial.com'}
@@ -82,11 +82,21 @@ resources:
         ProtocolType: HTTP
         CorsConfiguration:
           AllowOrigins:
-            - '*'
+            - ${env:CORS_ORIGIN, 'http://localhost:5174'}
           AllowMethods:
-            - '*'
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - PATCH
+            - OPTIONS
           AllowHeaders:
-            - '*'
+            - Content-Type
+            - Authorization
+            - X-Amz-Date
+            - X-Api-Key
+            - X-Amz-Security-Token
+          MaxAge: 86400
 
 package:
   patterns:

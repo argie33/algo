@@ -509,6 +509,7 @@ def main():
                         if len(batch) >= batch_size:
                             inserted = batch_insert(db, batch)
                             total_rows += inserted
+                            logging.info(f"[BATCH] Inserted {inserted} rows, total so far: {total_rows}")
                             batch = []
                     else:
                         failed += 1
@@ -530,6 +531,7 @@ def main():
         if batch:
             inserted = batch_insert(db, batch)
             total_rows += inserted
+            logging.info(f"[FINAL BATCH] Inserted {inserted} rows, final total: {total_rows}")
 
         db.close()
 

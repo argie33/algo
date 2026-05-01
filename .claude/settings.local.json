@@ -67,13 +67,29 @@
       "Bash(npm run *)",
       "Bash(git commit -m 'Fix: Clean up AI slop - add missing route imports, remove deleted endpoint references, fix /portfolio/positions *)",
       "Bash(git commit *)",
-      "Bash(export DB_HOST=localhost DB_PORT=5432 DB_USER=stocks DB_PASSWORD=bed0elAn DB_NAME=stocks DB_SSL=false)",
+      "Bash(export DB_HOST=localhost DB_PORT=5432 DB_USER=stocks DB_PASSWORD=<set_in_env> DB_NAME=stocks DB_SSL=false)",
       "Bash(PORT=3001 node webapp/lambda/index.js)",
       "Bash(curl -s \"http://localhost:3001/api/stocks/deep-value?limit=15\")",
       "Bash(curl -s \"http://localhost:3001/api/stocks/deep-value?limit=10\")",
       "Bash(psql -h localhost -U stocks -d stocks -c ' *)",
       "Bash(git push *)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(aws logs *)",
+      "Bash(grep -E \"\\\\.\\(log|json|txt\\)$\")",
+      "Bash(xargs grep *)",
+      "Bash(curl -s https://api.github.com/repos/argie33/algo/actions/runs?per_page=1)",
+      "Bash(curl -s https://api.github.com/repos/argie33/algo/actions/runs/25230945648/jobs)",
+      "Bash(curl -s https://api.github.com/repos/argie33/algo/actions/jobs/73986060852/logs)",
+      "Bash(curl -s \"https://api.github.com/repos/argie33/algo/actions/runs/25230945648\")",
+      "Bash(curl -s \"https://api.github.com/repos/argie33/algo/actions/runs/25230945648/jobs\")",
+      "Bash(curl -s \"https://api.github.com/repos/argie33/algo/actions/runs/25230945648/jobs?per_page=100\")",
+      "Bash(env)",
+      "Bash(export AWS_ACCESS_KEY_ID=<redacted>)",
+      "Bash(export AWS_SECRET_ACCESS_KEY=<redacted>)",
+      "Bash(export AWS_DEFAULT_REGION=\"us-east-1\")",
+      "Bash(aws sts *)",
+      "Bash(export AWS_ACCESS_KEY_ID=$\\(grep -A1 \"^\\\\[default\\\\]\" ~/.aws/credentials)",
+      "Bash(git rm *)"
     ]
   }
 }

@@ -2,6 +2,7 @@ const express = require("express");
 
 const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const signalFilters = require("./signalFilters");
 const router = express.Router();
 
 // Helper function to safely convert values to float
@@ -581,5 +582,8 @@ router.get("/etf", async (req, res) => {
     return sendError(res, "Failed to fetch signals data", 500);
   }
 });
+
+// Mount comprehensive signal filtering endpoint
+router.use('/search', signalFilters);
 
 module.exports = router;
