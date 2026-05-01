@@ -111,16 +111,23 @@ jobs:
           else
             # Auto-detect based on file changes (even if infrastructure changed)
             echo "Debug: Checking for changed loader files..."
-            # Use GitHub's push event context for reliable detection on push events
-            if [[ "${{ github.event_name }}" == "push" && "${{ github.event.before }}" != "" ]]; then
-              ALL_CHANGED_FILES=$(git diff --name-only ${{ github.event.before }}..${{ github.event.after }} 2>/dev/null || echo "")
-              echo "Debug: Using push event context (${{ github.event.before }}..${{ github.event.after }})"
+            # For push events, git diff against the commit range
+            if [[ "${{ github.event_name }}" == "push" ]]; then
+              # Use the commit before the push for comparison
+              if [[ -n "${{ github.event.before }}" && "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]]; then
+                ALL_CHANGED_FILES=$(git diff --name-only ${{ github.event.before }}..HEAD 2>/dev/null || echo "")
+                echo "Debug: Using push event (before->HEAD)"
+              else
+                # Initial push or no before ref, compare with main
+                ALL_CHANGED_FILES=$(git diff --name-only origin/main..HEAD 2>/dev/null || git log --name-only -1 --format=%B 2>/dev/null || echo "")
+                echo "Debug: Initial push, comparing with origin/main"
+              fi
             else
-              # Fallback for other events (PR, manual trigger, etc.)
-              ALL_CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || git diff --name-only HEAD 2>/dev/null || echo "")
-              echo "Debug: Using HEAD-based diff (event: ${{ github.event_name }})"
+              # Fallback for manual trigger
+              ALL_CHANGED_FILES=$(git log --name-only -1 --format=%B 2>/dev/null || echo "")
+              echo "Debug: Manual trigger, showing last commit files"
             fi
-            echo "Debug: All changed files: $ALL_CHANGED_FILES"
+            echo "Debug: All changed files: [$ALL_CHANGED_FILES]"
 
             # Check for direct loader file changes (must start with "load")
             LOADER_FILES=$(echo "$ALL_CHANGED_FILES" | grep '^load.*\.py$\|/load.*\.py$' || true)
