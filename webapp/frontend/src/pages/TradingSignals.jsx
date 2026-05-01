@@ -52,7 +52,7 @@ function TradingSignals() {
   // Map strategy names to API endpoints and titles
   const strategyConfig = {
     swing: {
-      endpoint: "/api/signals/buy-sell",
+      endpoint: "/api/signals",
       title: "Swing Trading Signals",
       description: "AI-powered swing trading signals with market stage analysis",
       color: theme.palette.primary.main,
