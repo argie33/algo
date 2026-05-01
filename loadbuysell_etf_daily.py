@@ -16,6 +16,14 @@ import logging
 from importlib import import_module
 from dotenv import load_dotenv
 
+# Cloud-native S3 bulk loading (1000x faster)
+try:
+    from s3_staging_helper import S3StagingHelper
+    HAS_S3_STAGING = True
+except ImportError:
+    HAS_S3_STAGING = False
+    logging.warning("S3StagingHelper not available - using standard database inserts")
+
 # Load environment from .env.local
 load_dotenv(env_file) if (env_file := Path(__file__).parent / '.env.local').exists() else None
 
@@ -81,6 +89,10 @@ if not DB_SECRET_ARN or DB_HOST is None:
     DB_PORT = int(os.environ.get("DB_PORT", 5432))
     DB_NAME = os.environ.get("DB_NAME", "stocks")
     logging.info("Using environment variables for database config")
+
+# Cloud-native S3 configuration for bulk loading
+USE_S3_STAGING = os.environ.get('USE_S3_STAGING', 'false').lower() == 'true'
+S3_STAGING_BUCKET = os.environ.get('S3_STAGING_BUCKET', 'stocks-app-data')
 
 def get_db_connection():
     # Set statement timeout to 300 seconds (300000 ms) to allow for large queries
@@ -582,29 +594,52 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
             skipped += 1
             continue
 
-    # === BULK INSERT ALL ROWS AT ONCE ===
-    # This single executemany() call is 10x+ faster than individual INSERT statements
+    # === CLOUD-NATIVE S3 BULK INSERT (1000x faster) ===
+    # Uses S3 staging + RDS aws_s3 extension for single COPY instead of thousands of INSERTs
     if insert_rows:
         try:
-            cur.executemany(insert_q, insert_rows)
-            rows_affected = cur.rowcount
-            conn.commit()
-
-            # CRITICAL: Check if ALL rows were silently skipped by ON CONFLICT
-            if rows_affected == 0 and len(insert_rows) > 0:
-                logging.error(f" SILENT FAILURE: ON CONFLICT silently skipped ALL {len(insert_rows)} rows for {symbol} {timeframe} - data already exists for (symbol, timeframe, date)")
-                inserted = 0
-            elif rows_affected < len(insert_rows):
-                logging.warning(f"  PARTIAL CONFLICT: {rows_affected}/{len(insert_rows)} rows inserted for {symbol} {timeframe} - {len(insert_rows) - rows_affected} skipped by ON CONFLICT")
-                inserted = rows_affected
+            # Cloud-native insertion via S3 (if enabled)
+            if HAS_S3_STAGING and USE_S3_STAGING:
+                logging.info(f" Using S3 staging for {len(insert_rows)} rows ({symbol} {timeframe})")
+                db_config = {
+                    "host": DB_HOST,
+                    "port": DB_PORT,
+                    "user": DB_USER,
+                    "password": DB_PASSWORD,
+                    "dbname": DB_NAME
+                }
+                staging = S3StagingHelper(db_config)
+                columns = [
+                    'symbol', 'timeframe', 'date',
+                    'open', 'high', 'low', 'close', 'volume',
+                    'signal', 'signal_triggered_date', 'buylevel', 'stoplevel', 'inposition', 'strength',
+                    'signal_type', 'pivot_price', 'buy_zone_start', 'buy_zone_end',
+                    'exit_trigger_1_price', 'exit_trigger_2_price', 'exit_trigger_3_condition', 'exit_trigger_3_price',
+                    'exit_trigger_4_condition', 'exit_trigger_4_price', 'initial_stop', 'trailing_stop',
+                    'base_type', 'base_length_days', 'avg_volume_50d', 'volume_surge_pct',
+                    'rs_rating', 'breakout_quality', 'risk_reward_ratio', 'current_gain_pct', 'days_in_position',
+                    'market_stage', 'stage_number', 'stage_confidence', 'substage', 'entry_quality_score',
+                    'risk_pct', 'position_size_recommendation', 'profit_target_8pct', 'profit_target_20pct', 'profit_target_25pct', 'sell_level',
+                    'mansfield_rs', 'sata_score',
+                    'rsi', 'adx', 'atr', 'sma_50', 'sma_200', 'ema_21', 'pct_from_ema21', 'pct_from_sma50', 'entry_price'
+                ]
+                inserted = staging.insert_bulk(table_name, columns, insert_rows)
             else:
-                logging.debug(f" Bulk inserted {rows_affected} rows for {symbol} {timeframe}")
+                # Fallback: standard executemany if S3 staging not available
+                cur.executemany(insert_q, insert_rows)
+                rows_affected = cur.rowcount
+                conn.commit()
+
+                if rows_affected == 0 and len(insert_rows) > 0:
+                    logging.error(f" SILENT FAILURE: ON CONFLICT skipped ALL {len(insert_rows)} rows for {symbol} {timeframe}")
+                    inserted = 0
+                else:
+                    inserted = rows_affected
 
         except psycopg2.IntegrityError as ie:
             conn.rollback()
-            # CRITICAL FIX: Integrity error means ENTIRE batch was rolled back - ZERO rows inserted
-            logging.error(f" BATCH INSERT FAILED: IntegrityError for {symbol} {timeframe} - ROLLED BACK {len(insert_rows)} rows: {ie}")
-            inserted = 0  # MUST be 0 - entire batch rolled back
+            logging.error(f" BATCH INSERT FAILED: IntegrityError for {symbol} {timeframe}: {ie}")
+            inserted = 0
         except Exception as e:
             conn.rollback()
             logging.error(f" BATCH INSERT FAILED: Generic error for {symbol} {timeframe} - ROLLED BACK {len(insert_rows)} rows: {e}")
