@@ -473,17 +473,17 @@ app.get("/api/debug/test-error", (req, res) => {
 app.use("/api/commodities", commoditiesRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/diagnostics", diagnosticsRoutes);
-app.use("/api/earnings", earningsRoutes);
-app.use("/api/economic", economicRoutes);
-app.use("/api/financials", financialRoutes);
+app.use("/api/earnings", cacheMiddleware(90), earningsRoutes);
+app.use("/api/economic", cacheMiddleware(120), economicRoutes);
+app.use("/api/financials", cacheMiddleware(90), financialRoutes);
 app.use("/api/health", healthRoutes);
-app.use("/api/industries", industriesRoutes);
+app.use("/api/industries", cacheMiddleware(120), industriesRoutes);
 app.use("/api/market", cacheMiddleware(60), marketRoutes);
 app.use("/api/optimization", optimizationRoutes);
 app.use("/api/portfolio", portfolioRoutes);
 app.use("/api/scores", cacheMiddleware(120), scoresRoutes);
 app.use("/api/sectors", cacheMiddleware(60), sectorsRoutes);
-app.use("/api/sentiment", sentimentRoutes);
+app.use("/api/sentiment", cacheMiddleware(120), sentimentRoutes);
 // Cache signals endpoint: 60 second TTL (signals update periodically)
 app.use("/api/signals", cacheMiddleware(60), signalsRoutes);
 app.use("/api/stocks", cacheMiddleware(30), stocksRoutes);
