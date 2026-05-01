@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260501_132200 - Phase 4: Annual balance sheet FIXED UNIQUE CONSTRAINT (on conflict fix)
+# TRIGGER: 20260501_133300 - Phase 4: Annual balance sheet FIXED CONSTRAINT CHECK (verify & create if missing)
 """
 Annual Balance Sheet Loader (PARALLEL OPTIMIZED)
 Loads annual balance sheet data with 5-10x speedup using ThreadPoolExecutor.
@@ -252,16 +252,24 @@ def create_tables(cur):
                 if 'already exists' not in str(e):
                     logging.debug(f"Column {col_name}: {str(e)[:80]}")
 
-        # Ensure UNIQUE constraint exists for ON CONFLICT
+        # Ensure UNIQUE constraint exists - check existing constraints
         try:
             cur.execute("""
-                ALTER TABLE annual_balance_sheet
-                ADD CONSTRAINT unique_symbol_fiscal_year UNIQUE(symbol, fiscal_year)
+                SELECT constraint_name FROM information_schema.table_constraints
+                WHERE table_name='annual_balance_sheet' AND constraint_type='UNIQUE'
             """)
-            logging.info("Added UNIQUE constraint")
-        except psycopg2.Error as e:
-            if 'already exists' not in str(e):
-                logging.debug(f"UNIQUE constraint: {str(e)[:80]}")
+            existing = cur.fetchall()
+
+            if not existing:
+                cur.execute("""
+                    ALTER TABLE annual_balance_sheet
+                    ADD CONSTRAINT uq_annual_balance_sheet UNIQUE(symbol, fiscal_year)
+                """)
+                logging.info("Created UNIQUE constraint")
+            else:
+                logging.info(f"UNIQUE constraint exists: {existing[0][0]}")
+        except Exception as e:
+            logging.warning(f"Constraint check error: {str(e)[:100]}")
 
         logging.info(f"Schema migration complete: added {cols_added} columns to annual_balance_sheet")
 

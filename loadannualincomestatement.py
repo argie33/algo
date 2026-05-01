@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260501_132300 - Phase 4: Annual income FIXED UNIQUE CONSTRAINT (on conflict fix)
+# TRIGGER: 20260501_133400 - Phase 4: Annual income FIXED CONSTRAINT CHECK (verify & create if missing)
 """
 Annual Income Statement Loader (PARALLEL OPTIMIZED)
 Loads annual income statement data with 5-10x speedup using ThreadPoolExecutor.
@@ -127,16 +127,24 @@ def create_tables(cur):
             if 'already exists' not in str(e):
                 logging.debug(f"Column {col_name}: {str(e)[:80]}")
 
-    # Ensure UNIQUE constraint exists for ON CONFLICT
+    # Ensure UNIQUE constraint exists - check existing constraints
     try:
         cur.execute("""
-            ALTER TABLE annual_income_statement
-            ADD CONSTRAINT unique_symbol_fiscal_year UNIQUE(symbol, fiscal_year)
+            SELECT constraint_name FROM information_schema.table_constraints
+            WHERE table_name='annual_income_statement' AND constraint_type='UNIQUE'
         """)
-        logging.info("Added UNIQUE constraint")
-    except psycopg2.Error as e:
-        if 'already exists' not in str(e):
-            logging.debug(f"UNIQUE constraint: {str(e)[:80]}")
+        existing = cur.fetchall()
+
+        if not existing:
+            cur.execute("""
+                ALTER TABLE annual_income_statement
+                ADD CONSTRAINT uq_annual_income_statement UNIQUE(symbol, fiscal_year)
+            """)
+            logging.info("Created UNIQUE constraint")
+        else:
+            logging.info(f"UNIQUE constraint exists: {existing[0][0]}")
+    except Exception as e:
+        logging.warning(f"Constraint check error: {str(e)[:100]}")
 
 def load_symbol_data(symbol: str) -> List[Dict[str, Any]]:
     """Load annual income statement data for one symbol"""
