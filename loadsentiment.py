@@ -34,6 +34,7 @@ except ImportError:
     HAS_RESOURCE = False
 import re
 import signal
+import threading
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Tuple, Any
 from collections import defaultdict
@@ -95,23 +96,28 @@ def get_ticker_news_with_timeout(symbol):
     """Fetch ticker news with timeout to prevent hanging on yfinance API."""
     try:
         yf_symbol = symbol.replace('.', '-').replace('$', '-').upper()
+        result = {'news': None, 'error': None}
 
-        if not hasattr(signal, 'SIGALRM'):
-            ticker = yf.Ticker(yf_symbol)
-            return ticker.news
+        def fetch_news():
+            try:
+                ticker = yf.Ticker(yf_symbol)
+                result['news'] = ticker.news
+            except Exception as e:
+                result['error'] = e
 
-        signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(NEWS_FETCH_TIMEOUT)
-        ticker = yf.Ticker(yf_symbol)
-        news_data = ticker.news
-        signal.alarm(0)
-        return news_data
-    except TimeoutException:
-        logging.warning(f"News fetch timeout for {symbol} after {NEWS_FETCH_TIMEOUT}s")
-        return None
+        thread = threading.Thread(target=fetch_news, daemon=True)
+        thread.start()
+        thread.join(timeout=NEWS_FETCH_TIMEOUT)
+
+        if thread.is_alive():
+            logging.warning(f"News fetch timeout for {symbol} after {NEWS_FETCH_TIMEOUT}s")
+            return None
+
+        if result['error']:
+            raise result['error']
+
+        return result['news']
     except Exception as e:
-        if hasattr(signal, 'SIGALRM'):
-            signal.alarm(0)
         logging.error(f"Error fetching news for {symbol}: {e}")
         return None
 

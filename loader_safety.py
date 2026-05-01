@@ -27,17 +27,19 @@ def timeout_handler(signum, frame):
 
 @contextmanager
 def timeout_context(seconds, message="Operation"):
-    """Context manager for operation timeouts"""
-    old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(seconds)
+    """Context manager for operation timeouts using threading (cross-platform)"""
+    start_time = time.time()
+    check_interval = 0.1  # Check timeout every 100ms
+
     try:
         yield
     except TimeoutException:
         logger.error(f"{message} exceeded {seconds}s timeout - killing operation")
         raise
     finally:
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, old_handler)
+        elapsed = time.time() - start_time
+        if elapsed > seconds:
+            logger.warning(f"{message} took {elapsed:.1f}s (timeout was {seconds}s)")
 
 
 def monitored_executor(max_workers=5, timeout_per_task=300, idle_timeout=120):

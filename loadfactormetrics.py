@@ -51,6 +51,7 @@ try:
 except ImportError:
     HAS_RESOURCE = False
 import signal
+import threading
 import time
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Tuple
@@ -79,31 +80,28 @@ def timeout_handler(signum, frame):
     raise TimeoutException("API call timed out")
 
 def get_ticker_info_with_timeout(ticker, timeout_sec=15):
-    """Safely get ticker.info with timeout protection."""
-    # SIGALRM not available on Windows - skip timeout protection
-    if not hasattr(signal, 'SIGALRM'):
+    """Safely get ticker.info with timeout protection using threading."""
+    result = {'info': None, 'error': None}
+
+    def fetch_info():
         try:
-            return ticker.info
-
+            result['info'] = ticker.info
         except Exception as e:
-            logging.warning(f"Error fetching ticker.info: {str(e)[:50]}")
-            return {}
+            result['error'] = e
 
-    try:
-        signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(timeout_sec)
-        info = ticker.info
-        signal.alarm(0)  # Cancel alarm
-        return info
+    thread = threading.Thread(target=fetch_info, daemon=True)
+    thread.start()
+    thread.join(timeout=timeout_sec)
 
-    except TimeoutException:
+    if thread.is_alive():
         logging.warning(f"ticker.info call timed out after {timeout_sec}s")
-        signal.alarm(0)
         return {}
-    except Exception as e:
-        signal.alarm(0)
-        logging.warning(f"Error fetching ticker.info: {str(e)[:50]}")
+
+    if result['error']:
+        logging.warning(f"Error fetching ticker.info: {str(result['error'])[:50]}")
         return {}
+
+    return result['info'] if result['info'] else {}
 
 # Rate limiting for yfinance (disabled - use calculate_missing_beta.py for beta calculations)
 # YFINANCE_RATE_LIMIT_DELAY = 0.1  # 100ms between requests
@@ -2853,7 +2851,6 @@ def load_value_metrics(conn, cursor, symbols: List[str]):
             raise
     else:
         logging.warning(f"No value_rows to insert! km_rows was likely empty.")
-            raise
 
 
 def load_positioning_metrics(conn, cursor, symbols: List[str]):

@@ -11,6 +11,7 @@ import os
 import gc
 import math
 import signal
+import threading
 import argparse
 from datetime import timedelta
 from collections import defaultdict
@@ -38,43 +39,36 @@ def timeout_handler(signum, frame):
     raise TimeoutException("Download timed out - forcing kill")
 
 def download_with_timeout(tickers, period="3mo", interval="1mo", timeout_seconds=90):
-    """Wrapper that FORCIBLY kills downloads after timeout_seconds"""
-    # SIGALRM not available on Windows - skip timeout protection
-    if not hasattr(signal, 'SIGALRM'):
-        return yf.download(
-            tickers=tickers,
-            period=period,
-            interval=interval,
-            group_by="ticker",
-            auto_adjust=False,
-            actions=True,
-            threads=True,
-            progress=False,
-            timeout=60
-        )
+    """Wrapper that downloads with timeout protection using threading (cross-platform)"""
+    result = {'df': None, 'error': None}
 
-    signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(timeout_seconds)  # Set alarm
-    try:
-        df = yf.download(
-            tickers=tickers,
-            period=period,
-            interval=interval,
-            group_by="ticker",
-            auto_adjust=False,
-            actions=True,
-            threads=True,
-            progress=False,
-            timeout=60
-        )
-        signal.alarm(0)  # Cancel alarm
-        return df
-    except TimeoutException:
-        signal.alarm(0)  # Cancel alarm
+    def fetch_data():
+        try:
+            result['df'] = yf.download(
+                tickers=tickers,
+                period=period,
+                interval=interval,
+                group_by="ticker",
+                auto_adjust=False,
+                actions=True,
+                threads=True,
+                progress=False,
+                timeout=60
+            )
+        except Exception as e:
+            result['error'] = e
+
+    thread = threading.Thread(target=fetch_data, daemon=True)
+    thread.start()
+    thread.join(timeout=timeout_seconds)
+
+    if thread.is_alive():
         raise TimeoutException(f"Download timeout after {timeout_seconds}s")
-    except Exception as e:
-        signal.alarm(0)  # Cancel alarm
-        raise
+
+    if result['error']:
+        raise result['error']
+
+    return result['df']
 
 # -------------------------------
 # Script metadata & logging setup

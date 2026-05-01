@@ -31,6 +31,7 @@ import json
 import os
 import gc
 import signal
+import threading
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Tuple, Any
 
@@ -58,29 +59,28 @@ def timeout_handler(signum, frame):
     raise TimeoutException("API call timed out")
 
 def get_ticker_info_with_timeout(ticker, timeout_sec=15):
-    """Safely get ticker.info with timeout protection."""
-    # SIGALRM not available on Windows - skip timeout protection
-    if not hasattr(signal, 'SIGALRM'):
-        try:
-            return ticker.info
-        except Exception as e:
-            logging.warning(f"Error fetching ticker.info: {str(e)[:50]}")
-            return {}
+    """Safely get ticker.info with timeout protection using threading."""
+    result = {'info': None, 'error': None}
 
-    try:
-        signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(timeout_sec)
-        info = ticker.info
-        signal.alarm(0)  # Cancel alarm
-        return info
-    except TimeoutException:
+    def fetch_info():
+        try:
+            result['info'] = ticker.info
+        except Exception as e:
+            result['error'] = e
+
+    thread = threading.Thread(target=fetch_info, daemon=True)
+    thread.start()
+    thread.join(timeout=timeout_sec)
+
+    if thread.is_alive():
         logging.warning(f"ticker.info call timed out after {timeout_sec}s")
-        signal.alarm(0)
         return {}
-    except Exception as e:
-        signal.alarm(0)
-        logging.warning(f"Error fetching ticker.info: {str(e)[:50]}")
+
+    if result['error']:
+        logging.warning(f"Error fetching ticker.info: {str(result['error'])[:50]}")
         return {}
+
+    return result['info'] if result['info'] else {}
 
 # Script configuration
 SCRIPT_NAME = "loadmarket.py"
