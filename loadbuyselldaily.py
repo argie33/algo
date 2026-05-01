@@ -151,8 +151,30 @@ def get_symbols_from_db(limit=None, skip_completed=False):
         cur.close()
         conn.close()
 
+def ensure_table_schema(cur, table_name="buy_sell_daily"):
+    """Ensure buy_sell tables have all required columns"""
+    try:
+        # Add strength column if missing
+        cur.execute(f"""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name='{table_name}' AND column_name='strength'
+            ) THEN
+                ALTER TABLE {table_name} ADD COLUMN strength DECIMAL(10,2) DEFAULT NULL;
+            END IF;
+        END $$;
+        """)
+        logging.info(f"Ensured {table_name} schema includes strength column")
+    except Exception as e:
+        logging.warning(f"Schema migration error for {table_name}: {e}")
+
 def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell_daily"):
     """Insert symbol results with memory optimization - process in chunks"""
+    # Ensure schema is correct before inserting
+    ensure_table_schema(cur, table_name)
+
     # Free memory immediately - don't keep full dataframe
     import gc
 
