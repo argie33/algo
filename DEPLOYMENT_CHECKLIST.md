@@ -1,280 +1,167 @@
-# AWS Deployment - Step-by-Step Checklist
+# Deployment Checklist — Ready for AWS
 
-## Current Status
-```
-❌ Bootstrap Stack: NOT DEPLOYED
-❌ Infrastructure: NOT DEPLOYED
-❌ Data Loaders: NOT EXECUTED
-✅ Application Code: READY (all loaders syntax-validated)
-✅ GitHub Actions: CONFIGURED
-```
+## Pre-Deployment Verification
+
+### ✅ Credentials & Secrets
+- [x] No hardcoded passwords in any config files
+- [x] No hardcoded API keys in source code
+- [x] `.env.local` in `.gitignore` 
+- [x] Only `.env.example` files committed
+- [x] All credentials read from environment variables
+- [x] Database uses AWS Secrets Manager ARN (production)
+
+### ✅ Configuration
+- [x] serverless.yml: DB_PASSWORD not hardcoded
+- [x] serverless.yml: CORS restricted (not wildcard)
+- [x] docker-compose.yml: Postgres password from `${DB_PASSWORD}`
+- [x] Dockerfile: Port is 3001 (not 3000)
+- [x] API Gateway: Uses HTTP (not REST) for performance
+
+### ✅ API Configuration  
+- [x] vite.config.js: Proxy only in development mode
+- [x] api.js: 3-level URL resolution (runtime → build → default)
+- [x] CORS_ORIGIN configurable via environment
+- [x] Frontend API points to localhost:3001 in dev
+- [x] Frontend API points to CloudFront in production
+
+### ✅ Security
+- [x] Error handling doesn't expose sensitive data
+- [x] Stack traces hidden in production
+- [x] Authentication middleware working
+- [x] CORS properly restricted
+- [x] IAM permissions scoped correctly
+- [x] Non-root user in Docker (nodejs)
+
+### ✅ Database
+- [x] Connection uses Secrets Manager (AWS)
+- [x] Connection uses env vars (local)
+- [x] Pool configuration present
+- [x] Timeouts configured appropriately
+
+### ✅ Loaders  
+- [x] All use `os.getenv()` for credentials
+- [x] Check for missing credentials and exit
+- [x] No hardcoded database connection strings
+- [x] Use db_helper.py for database access
 
 ---
 
-## Prerequisites Needed
+## Local Development Setup
 
-### What You Have
-- ✅ GitHub repository with workflows configured
-- ✅ AWS Account (account ID: 626216981288)
-- ✅ All 39 loaders ready to go
-- ✅ CloudFormation templates ready
-- ✅ Docker images prepared
+```bash
+# 1. Create environment file
+cp .env.example .env.local
 
-### What You Need
-1. **AWS Access Key ID** (from your AWS IAM user)
-2. **AWS Secret Access Key** (from your AWS IAM user)
-3. **GitHub repository** (to add secrets to)
+# 2. Edit with your credentials
+nano .env.local
+# Set: DB_PASSWORD, ALPACA_API_KEY, ALPACA_SECRET_KEY
+
+# 3. Start database
+docker-compose up -d postgres
+
+# 4. Start API server
+PORT=3001 node webapp/lambda/index.js
+
+# 5. Start frontend (in another terminal)
+cd webapp/frontend
+npm run dev
+```
+
+Open http://localhost:5173
 
 ---
 
-## Deployment Steps
+## AWS Production Deployment
 
-### STEP 1: Add AWS Credentials to GitHub Secrets
+### Step 1: Set up Secrets Manager
 ```bash
-1. Go to: https://github.com/YOUR_ORG/YOUR_REPO/settings/secrets/actions
-2. Click "New repository secret"
-3. Add two secrets:
-   - Name: AWS_ACCESS_KEY_ID
-     Value: (your AWS access key)
-   - Name: AWS_SECRET_ACCESS_KEY
-     Value: (your AWS secret key)
-   - Name: AWS_ACCOUNT_ID
-     Value: 626216981288
-   - Name: FRED_API_KEY
-     Value: (your FRED API key if you have one)
-```
-
-### STEP 2: Trigger Bootstrap Stack Deployment
-```bash
-# Option A: Via GitHub UI
-1. Go to Actions → "Bootstrap OIDC Provider & Deploy Role"
-2. Click "Run workflow" → "Run workflow"
-3. Wait ~2 minutes for completion
-4. Check workflow logs for success
-
-# Option B: Via Git commit
-git push origin main
-# Workflow will auto-trigger
-```
-
-**What It Does:**
-- Creates OIDC provider for GitHub Actions federation
-- Creates GitHubActionsDeployRole with AdministratorAccess
-- Enables future deployments without exposing static credentials
-
-### STEP 3: Deploy Infrastructure (RDS, ECS, etc.)
-Once bootstrap completes:
-```bash
-# Option A: Via GitHub UI
-1. Go to Actions → "Deploy Infrastructure"
-2. Click "Run workflow" → "Run workflow"
-3. Wait ~15-20 minutes for completion
-
-# Option B: Via Git commit (automatic)
-git commit -m "trigger: deploy infrastructure"
-git push origin main
-```
-
-**What It Deploys:**
-- VPC with public/private subnets
-- RDS PostgreSQL database (stocks database)
-- ECS cluster for running data loaders
-- CloudWatch monitoring
-- Secrets Manager for API keys
-
-**Monitor Progress:**
-```bash
-# Check AWS CloudFormation in console:
-# https://console.aws.amazon.com/cloudformation/home?region=us-east-1
-
-# Or via AWS CLI:
-aws cloudformation describe-stacks \
-  --stack-name stocks-app-stack \
+aws secretsmanager create-secret \
+  --name rds-stocks-secret \
+  --secret-string '{
+    "username": "stocks",
+    "password": "SECURE_PASSWORD_HERE",
+    "engine": "postgres",
+    "host": "stocks-db.xxxxx.rds.amazonaws.com",
+    "port": 5432,
+    "dbname": "stocks"
+  }' \
   --region us-east-1
 ```
 
-### STEP 4: Run Data Loaders
-Once infrastructure is ready:
-
-**Option A: Run Phase 1 (Core Data)**
+### Step 2: Set Lambda Environment Variables
+In AWS Lambda console or via AWS CLI:
 ```bash
-# Via GitHub Actions UI:
-1. Go to Actions → "Data Loaders Pipeline"
-2. Click "Run workflow"
-3. Input loaders: "stocksymbols,dailycompanydata,marketindices"
-4. Environment: prod
-5. Click "Run workflow"
-6. Wait ~10 minutes
-
-# Or commit to trigger:
-git add load*.py
-git commit -m "data: run phase 1 loaders"
-git push
+DB_SECRET_ARN=arn:aws:secretsmanager:us-east-1:ACCOUNT:secret:rds-stocks-secret
+ALPACA_API_KEY=your_alpaca_key
+ALPACA_SECRET_KEY=your_alpaca_secret
+CORS_ORIGIN=https://YOUR_CLOUDFRONT_DOMAIN
+NODE_ENV=production
 ```
 
-**Option B: Run Phase 2 (Prices)**
-```
-loaders: "pricedaily,priceweekly,pricemonthly,etfpricedaily,etfpriceweekly"
+### Step 3: Deploy
+```bash
+cd webapp/lambda
+serverless deploy --stage prod
+
+# Or with AWS SAM:
+sam build --template template-webapp-lambda.yml
+sam deploy --guided
 ```
 
-**Option C: Run Phase 3 (Signals)**
-```
-loaders: "buyselldaily,buysellweekly,buysellmonthly,buysell_etf_daily,buysell_etf_weekly"
-```
+### Step 4: Update CloudFront Origin
+Point CloudFront to the new API Gateway URL from deployment output
 
-**Option D: Run Phase 4-5 (Everything)**
-```
-Run in separate batches (max 5 loaders per batch):
-- Fundamentals: "annualbalancesheet,quarterlybalancesheet,annualincomestatement,quarterlyincomestatement,annualcashflow"
-- Earnings: "earningshistory,earningsrevisions,earningssurprise,stockscores,factormetrics"
-- Market: "market,econdata,commodities,seasonality,analystsentiment"
+### Step 5: Update Cognito
+Configure Cognito redirect URIs to CloudFront domain
+
+---
+
+## Post-Deployment Verification
+
+```bash
+# Test API health
+curl https://YOUR_CLOUDFRONT_DOMAIN/api/health
+
+# Test stocks endpoint
+curl https://YOUR_CLOUDFRONT_DOMAIN/api/stocks?limit=5
+
+# Check CloudWatch logs
+aws logs tail /aws/lambda/stocks-algo-api --follow
 ```
 
 ---
 
-## What Each Workflow Does
+## Rollback Plan
 
-### bootstrap-oidc.yml
-- **Triggers**: Any push to any branch
-- **Uses**: AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY
-- **Creates**: OIDC provider + GitHubActionsDeployRole
-- **Runs**: ~2 minutes
-- **After**: Subsequent workflows use OIDC (no static keys needed)
-
-### deploy-infrastructure.yml
-- **Triggers**: Changes to template-app-stocks.yml or manual trigger
-- **Uses**: OIDC role assumption (no static keys)
-- **Deploys**: VPC, RDS, ECS, Secrets Manager
-- **Runs**: ~15-20 minutes
-- **Monitoring**: CloudFormation in AWS console
-
-### deploy-app-stocks.yml
-- **Triggers**: Changes to load*.py files or manual trigger
-- **Uses**: OIDC role assumption
-- **Runs**: Data loader ECS tasks
-- **Batch Size**: Max 5 loaders per execution
-- **Duration**: Depends on loader complexity (5-30 min per batch)
+If deployment fails:
+1. Revert Lambda function code: `serverless rollback`
+2. Check CloudWatch logs for errors
+3. Verify Secrets Manager is accessible
+4. Verify security group allows RDS connection
+5. Re-deploy: `serverless deploy --stage prod`
 
 ---
 
-## GitHub Actions Monitoring
+## Monitoring
 
-### Check Workflow Status
-```bash
-# SSH into your repo and run:
-gh run list --branch main --status completed --limit 10
+### CloudWatch Metrics
+- Lambda: Duration, Errors, Throttles, ConcurrentExecutions
+- RDS: DatabaseConnections, CPUUtilization, FreeableMemory
+- API Gateway: Count, 4XX, 5XX
 
-# Or use GitHub UI:
-# Repository → Actions → View all workflows
-```
-
-### Check Loader Logs
-```bash
-# After data loaders complete, check ECS logs:
-aws logs get-log-events \
-  --log-group-name /ecs/stocks-loader \
-  --log-stream-name ecs/stocks-loader/task-id \
-  --region us-east-1
-```
+### Alarms to Set
+- Lambda errors > 5 per minute
+- Lambda duration > 30 seconds
+- RDS CPU > 80%
+- RDS connections > 80% of max
 
 ---
 
-## Troubleshooting
+## Summary
 
-### Bootstrap Fails with "AccessDenied"
-**Problem**: IAM user doesn't have CloudFormation permissions
-**Solution**: 
-```bash
-# Verify IAM user has these permissions:
-- cloudformation:CreateStack
-- cloudformation:UpdateStack
-- cloudformation:DescribeStacks
-- iam:CreateRole
-- iam:CreateOIDCProvider
-- iam:AttachRolePolicy
-```
-
-### Infrastructure Fails to Deploy
-**Problem**: Role or permissions issue
-**Solution**:
-```bash
-# Verify bootstrap completed successfully
-# Check CloudFormation console for stocks-oidc-bootstrap stack
-# It should be in CREATE_COMPLETE status
-```
-
-### Loaders Won't Start
-**Problem**: ECS task definition not deployed
-**Solution**:
-```bash
-# Re-run deploy-infrastructure workflow:
-# Actions → Deploy Infrastructure → Run workflow
-```
-
-### CloudFormation Stack Stuck
-**Problem**: Stack in UPDATE_ROLLBACK_COMPLETE
-**Solution**:
-```bash
-# Manually continue stack update:
-aws cloudformation continue-update-rollback \
-  --stack-name stocks-app-stack \
-  --region us-east-1
-```
-
----
-
-## After Deployment
-
-### Verify Everything Works
-```bash
-# Check API health:
-curl http://your-api-url/api/health
-
-# Check database:
-aws rds describe-db-instances \
-  --db-instance-identifier stocks \
-  --region us-east-1
-
-# Check loader data:
-aws rds-data execute-statement \
-  --resource-arn "arn:aws:rds:us-east-1:626216981288:db:stocks" \
-  --database "stocks" \
-  --sql "SELECT COUNT(*) FROM stock_symbols"
-```
-
-### Monitor Data Loading Progress
-```bash
-# CloudWatch Logs:
-# https://console.aws.amazon.com/cloudwatch/
-
-# Or via CLI:
-aws logs tail /ecs/stocks-loader --follow
-```
-
----
-
-## Time Estimates
-
-| Step | Duration | Notes |
-|------|----------|-------|
-| Bootstrap Stack | 2-3 min | One-time setup |
-| Infrastructure Deploy | 15-20 min | RDS database creation takes most time |
-| Phase 1 Loaders | 10-15 min | Core metadata (symbols, company data) |
-| Phase 2 Loaders | 20-30 min | Price history (large datasets) |
-| Phase 3 Loaders | 15-20 min | Trading signals |
-| Phase 4 Loaders | 30-40 min | Fundamentals (balance sheets, etc.) |
-| Phase 5 Loaders | 20-30 min | Earnings, scores, sentiment |
-| **Total** | **~2 hours** | From bootstrap to fully loaded system |
-
----
-
-## Success Indicators
-
-✅ Bootstrap stack in CREATE_COMPLETE
-✅ Infrastructure stack in CREATE_COMPLETE
-✅ RDS database accessible
-✅ ECS cluster has running tasks
-✅ Data appearing in CloudWatch logs
-✅ Database queries returning rows
-✅ API endpoints responding with data
+✅ All systems ready for AWS deployment
+✅ Credentials properly managed
+✅ CORS and security configured
+✅ Configuration environment-specific
+✅ Monitoring and rollback planned
 
