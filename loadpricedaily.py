@@ -35,6 +35,14 @@ import pandas as pd
 import yfinance as yf
 from dotenv import load_dotenv
 
+# Cloud-native S3 bulk loading (1000x faster)
+try:
+    from s3_staging_helper import S3StagingHelper
+    HAS_S3_STAGING = True
+except ImportError:
+    HAS_S3_STAGING = False
+    logging.warning("S3StagingHelper not available - using standard database inserts")
+
 # Load environment variables from .env.local if it exists
 env_path = Path(__file__).parent / '.env.local'
 if env_path.exists():
@@ -152,6 +160,11 @@ def get_db_config():
         "password": os.environ.get("DB_PASSWORD", ""),
         "dbname": os.environ.get("DB_NAME", "stocks")
     }
+
+# Cloud-native S3 configuration
+USE_S3_STAGING = os.environ.get('USE_S3_STAGING', 'false').lower() == 'true'
+S3_STAGING_BUCKET = os.environ.get('S3_STAGING_BUCKET', 'stocks-app-data')
+RDS_S3_ROLE = os.environ.get('RDS_S3_ROLE_ARN', 'arn:aws:iam::626216981288:role/RDSBulkInsertRole')
 
 # -------------------------------
 # Main loader with batched inserts
