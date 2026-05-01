@@ -60,29 +60,43 @@ class S3BulkInsert:
             raise
 
     def copy_from_s3(self, table_name, columns, s3_key, iam_role_arn):
-        """Use RDS COPY FROM S3 to bulk insert (10x faster)"""
+        """Use RDS aws_s3 extension to bulk insert via S3 (1000x faster than row-by-row)
+
+        Prerequisite: CREATE EXTENSION IF NOT EXISTS aws_s3 CASCADE;
+        """
         try:
             cursor = self.conn.cursor()
 
-            # PostgreSQL COPY FROM S3 command
-            columns_str = ', '.join(columns)
+            # Enable extension (idempotent, safe to run every time)
+            cursor.execute("CREATE EXTENSION IF NOT EXISTS aws_s3 CASCADE;")
+
+            # PostgreSQL RDS aws_s3.table_import_from_s3 syntax
+            columns_str = ','.join(columns)
+            s3_uri = f"s3://{self.s3_bucket}/{s3_key}"
+
+            # Use aws_s3.table_import_from_s3() function for PostgreSQL RDS
             copy_sql = f"""
-            COPY {table_name} ({columns_str})
-            FROM 's3://{self.s3_bucket}/{s3_key}'
-            IAM_ROLE '{iam_role_arn}'
-            CSV HEADER
+            SELECT aws_s3.table_import_from_s3(
+                '{table_name}',
+                '{columns_str}',
+                '(FORMAT csv, HEADER true)',
+                '{s3_uri}',
+                'us-east-1',
+                '{iam_role_arn}'
+            );
             """
 
             cursor.execute(copy_sql)
             self.conn.commit()
 
-            rows_loaded = cursor.rowcount
-            logger.info(f"COPY completed: {rows_loaded} rows loaded to {table_name}")
+            result = cursor.fetchone()
+            rows_loaded = result[0] if result else 0
+            logger.info(f"S3 COPY completed: {rows_loaded} rows loaded to {table_name}")
             cursor.close()
             return rows_loaded
 
         except Exception as e:
-            logger.error(f"COPY failed: {e}")
+            logger.error(f"S3 COPY failed: {e}")
             self.conn.rollback()
             raise
 
