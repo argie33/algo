@@ -1,4 +1,4 @@
-# TRIGGER: 20260501_150000 - Phase 1 prerequisite loader - stock_symbols must be populated first (with fixed RDS hostname)
+# TRIGGER: 20260501_160000 - Phase 1 prerequisite loader - stock_symbols must be populated first (with fixed constraints)
 # FIX: Simplified workflow - use += to append env vars instead of complex filtering
 #!/usr/bin/env python3
 # Updated: 2026-01-28 15:30 - CRITICAL FIX: Removed DROP TABLE vulnerability
