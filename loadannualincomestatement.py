@@ -11,10 +11,12 @@ import sys
 import time
 import logging
 import os
+import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any, Optional
 
 import psycopg2
+import boto3
 import yfinance as yf
 import pandas as pd
 import requests
@@ -28,23 +30,51 @@ logging.basicConfig(
 REQUEST_DELAY = 0.1  # Reduced from 0.5 since parallel
 
 def get_db_connection():
-    """Get database connection with retry logic"""
-    db_host = os.environ.get("DB_HOST", "localhost")
-    db_port = int(os.environ.get("DB_PORT", "5432"))
-    db_user = os.environ.get("DB_USER", "stocks")
-    db_password = os.environ.get("DB_PASSWORD", "")
-    db_name = os.environ.get("DB_NAME", "stocks")
+    """Get database connection with retry logic - supports AWS Secrets Manager"""
+    aws_region = os.environ.get("AWS_REGION")
+    db_secret_arn = os.environ.get("DB_SECRET_ARN")
+
+    db_config = {}
+
+    # Try AWS Secrets Manager first
+    if db_secret_arn and aws_region:
+        try:
+            secret_str = boto3.client("secretsmanager", region_name=aws_region).get_secret_value(
+                SecretId=db_secret_arn
+            )["SecretString"]
+            sec = json.loads(secret_str)
+            logging.info("Using AWS Secrets Manager for database config")
+            db_config = {
+                "host": sec["host"],
+                "port": int(sec.get("port", 5432)),
+                "user": sec["username"],
+                "password": sec["password"],
+                "dbname": sec["dbname"]
+            }
+        except Exception as e:
+            logging.warning(f"AWS Secrets Manager failed: {str(e)[:100]}")
+
+    # Fall back to environment variables
+    if not db_config:
+        logging.info("Using environment variables for database config")
+        db_config = {
+            "host": os.environ.get("DB_HOST", "localhost"),
+            "port": int(os.environ.get("DB_PORT", "5432")),
+            "user": os.environ.get("DB_USER", "stocks"),
+            "password": os.environ.get("DB_PASSWORD", ""),
+            "dbname": os.environ.get("DB_NAME", "stocks")
+        }
 
     max_retries = 3
     for attempt in range(max_retries):
         try:
             logging.info(f"DB connection attempt {attempt+1}/{max_retries}")
             conn = psycopg2.connect(
-                host=db_host,
-                port=db_port,
-                user=db_user,
-                password=db_password,
-                dbname=db_name,
+                host=db_config["host"],
+                port=db_config["port"],
+                user=db_config["user"],
+                password=db_config["password"],
+                dbname=db_config["dbname"],
                 connect_timeout=10
             )
             conn.autocommit = True

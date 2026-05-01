@@ -256,6 +256,19 @@ Resources:
               - Effect: Allow
                 Action: kms:Decrypt
                 Resource: '*'
+        - PolicyName: AllowS3StagingAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:DeleteObject
+                Resource:
+                  - arn:aws:s3:::stocks-app-data
+                  - arn:aws:s3:::stocks-app-data/*
 
   ECSTaskRole:
     Type: AWS::IAM::Role
@@ -345,6 +358,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -406,6 +423,10 @@ Resources:
               Value: /ecs/econdata-loader
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -467,6 +488,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -526,6 +551,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -585,6 +614,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -646,6 +679,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -703,6 +740,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -760,6 +801,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -825,6 +870,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -884,6 +933,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -943,6 +996,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -1002,6 +1059,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -1061,6 +1122,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -1120,6 +1185,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -1179,6 +1248,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -1238,6 +1311,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -1297,6 +1374,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -1401,6 +1482,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -1462,6 +1547,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -1521,6 +1610,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -1580,6 +1673,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -1639,6 +1736,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -1704,6 +1805,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -1763,6 +1868,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -1823,6 +1932,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -1879,6 +1992,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -1938,6 +2055,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -1997,6 +2118,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -2056,6 +2181,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -2115,6 +2244,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -2174,6 +2307,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -2233,6 +2370,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -2292,6 +2433,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -2351,6 +2496,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -2410,6 +2559,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -2469,6 +2622,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -2528,6 +2685,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -2587,6 +2748,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -2643,6 +2808,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -2702,6 +2871,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -2761,6 +2934,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -2819,6 +2996,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -2879,6 +3060,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -2938,6 +3123,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -2999,6 +3188,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -3065,6 +3258,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -3131,6 +3328,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -3211,6 +3412,10 @@ Resources:
               Value: !Ref RDSPassword
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
   StockScoresService:
     Type: AWS::ECS::Service
     DependsOn: StockScoresLogGroup
@@ -3265,6 +3470,10 @@ Resources:
               Value: !Ref RDSPassword
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
   BenchmarksService:
     Type: AWS::ECS::Service
     DependsOn: BenchmarksLogGroup
@@ -3308,6 +3517,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -3364,6 +3577,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -3421,6 +3638,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
@@ -3478,6 +3699,10 @@ Resources:
           Environment:
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
             - Name: DB_HOST
               Value: !ImportValue StocksApp-DBEndpoint
             - Name: DB_PORT
