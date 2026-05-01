@@ -9,18 +9,17 @@ router.get("/latest", async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 100, 10000);
     const offset = Math.max(0, parseInt(req.query.offset) || 0);
 
-    // OPTIMIZATION: Use materialized view for O(1) latest prices lookup
-    const result = await query(
-      `SELECT symbol, price, open, high, low, volume, date
-       FROM mv_latest_prices
-       ORDER BY symbol
-       LIMIT $1 OFFSET $2`,
-      [limit, offset]
-    );
-
-    const countResult = await query(
-      "SELECT COUNT(*) as total FROM mv_latest_prices"
-    );
+    // OPTIMIZATION: Parallelize materialized view queries
+    const [result, countResult] = await Promise.all([
+      query(
+        `SELECT symbol, price, open, high, low, volume, date
+         FROM mv_latest_prices
+         ORDER BY symbol
+         LIMIT $1 OFFSET $2`,
+        [limit, offset]
+      ),
+      query("SELECT COUNT(*) as total FROM mv_latest_prices")
+    ]);
     const total = parseInt(countResult.rows[0].total);
 
     return sendPaginated(res, result.rows, {
