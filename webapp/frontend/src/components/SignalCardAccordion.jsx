@@ -307,40 +307,26 @@ const SignalCardAccordion = ({ signals = [] }) => {
                   </Box>
                   <DataField label="Risk/Reward Ratio" value={signal.risk_reward_ratio} format="number" />
                   <DataField label="Risk %" value={signal.risk_pct} format="percent" />
-                  <DataField label="Signal Strength" value={signal.signal_strength} format="number" />
-                </Grid>
-
-                {/* ENTRY QUALITY */}
-                <Grid item xs={12} sm={6} md={4} lg={2.4}>
-                  <Box sx={{ mb: 2 }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.primary', display: 'block', fontSize: '0.8rem', letterSpacing: '0.3px', textTransform: 'uppercase' }}>
-                      Entry Quality
-                    </Typography>
-                  </Box>
-                  <DataField label="Entry Quality Score" value={signal.entry_quality_score} format="number" />
-                  <DataField label="Breakout Quality" value={signal.breakout_quality} />
-                  <Box sx={{ mt: 1.5 }}>
-                    <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 0.5 }}>
-                      Swing Pattern
-                    </Typography>
-                    <Chip
-                      label={signal.signal_type || '—'}
-                      size="small"
-                      color={signal.signal_type === 'Buy' ? 'success' : signal.signal_type === 'Sell' ? 'error' : 'default'}
-                      variant="outlined"
-                    />
-                  </Box>
                 </Grid>
 
                 {/* MARKET STAGE */}
                 <Grid item xs={12} sm={6} md={4} lg={2.4}>
                   <Typography variant="overline" sx={{ fontWeight: 700, color: 'primary.main', display: 'block', mb: 2 }}>
-                    Market Stage
+                    Signal Details
                   </Typography>
                   <DataField label="Market Stage" value={signal.market_stage} />
                   <DataField label="Stage Number" value={signal.stage_number} format="number" />
-                  <DataField label="Stage Confidence" value={signal.stage_confidence} format="percent" />
-                  <DataField label="Substage" value={signal.substage} />
+                  <Box sx={{ mt: 1.5 }}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 0.5 }}>
+                      Signal Type
+                    </Typography>
+                    <Chip
+                      label={signal.signal_type || '—'}
+                      size="small"
+                      color={signal.signal_type?.includes('BUY') ? 'success' : signal.signal_type?.includes('SELL') ? 'error' : 'default'}
+                      variant="outlined"
+                    />
+                  </Box>
                 </Grid>
 
                 {/* PROFIT TARGETS */}
@@ -366,17 +352,15 @@ const SignalCardAccordion = ({ signals = [] }) => {
                   </Grid>
                 )}
 
-                {/* TRADE QUALITY */}
+                {/* POSITION STATUS */}
                 <Grid item xs={12} sm={6} md={4} lg={2.4}>
                   <Typography variant="overline" sx={{ fontWeight: 700, color: 'primary.main', display: 'block', mb: 2 }}>
-                    Trade Quality
+                    Position
                   </Typography>
-                  <DataField label="Base Type" value={signal.base_type} />
-                  <DataField label="Base Length" value={signal.base_length_days} unit="days" format="number" />
                   <DataField label="Timeframe" value={signal.timeframe} />
                   <Box sx={{ mt: 1.5 }}>
                     <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 0.5 }}>
-                      In Position
+                      Status
                     </Typography>
                     <Chip
                       label={signal.inposition || signal.in_position ? 'Active' : 'Inactive'}
