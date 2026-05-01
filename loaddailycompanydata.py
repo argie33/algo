@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Triggered: 2026-04-28 14:45 UTC - Batch 3 Parallel Load
+# TRIGGER: 20260501_191000 - Phase 1B: Company data loader (part of foundational data)
 """
 Daily Company Data Loader - Enhanced Positioning Analytics
 Consolidates daily-update loaders into single efficient loader
