@@ -1,4 +1,4 @@
-# TRIGGER: 20260501_170000 - Phase 1 prerequisite loader - stock_symbols must be populated first (with duplicate cleanup)
+# TRIGGER: 20260501_180000 - Phase 1 prerequisite loader (with fixed workflow git diff detection)
 # FIX: Simplified workflow - use += to append env vars instead of complex filtering
 #!/usr/bin/env python3
 # Updated: 2026-01-28 15:30 - CRITICAL FIX: Removed DROP TABLE vulnerability
