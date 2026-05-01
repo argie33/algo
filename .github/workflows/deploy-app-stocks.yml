@@ -1124,26 +1124,6 @@ jobs:
           echo "subnet2=$SUBNET2" >> $GITHUB_OUTPUT
           echo "security-group=$SECURITY_GROUP" >> $GITHUB_OUTPUT
 
-      - name: Get RDS endpoint from CloudFormation
-        id: rds
-        run: |
-          # Fetch RDS endpoint dynamically from CloudFormation output (not hardcoded)
-          RDS_ENDPOINT=$(aws cloudformation describe-stacks \
-            --stack-name stocks-app-stack \
-            --query 'Stacks[0].Outputs[?OutputKey==`RDSEndpoint`].OutputValue' \
-            --output text --region us-east-1)
-
-          if [[ -z "$RDS_ENDPOINT" ]]; then
-            # Fallback: query RDS directly
-            RDS_ENDPOINT=$(aws rds describe-db-instances \
-              --db-instance-identifier stocks \
-              --query 'DBInstances[0].Endpoint.Address' \
-              --output text --region us-east-1)
-          fi
-
-          echo "rds-endpoint=$RDS_ENDPOINT" >> $GITHUB_OUTPUT
-          echo "RDS Endpoint: $RDS_ENDPOINT"
-
       - name: Execute loader task
         id: task
         run: |
@@ -1196,23 +1176,13 @@ jobs:
             --query "taskDefinition" \
             --output json)
 
-          # Update the container image AND set environment variables for AWS RDS access
-          # RDS endpoint is fetched dynamically from CloudFormation (not hardcoded)
+          # Update ONLY the container image - keep all CloudFormation-managed environment variables
+          # (CloudFormation already sets DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME from imports)
           UPDATED_TASK_DEF=$(echo "$TASK_DEF_JSON" | jq \
             --arg imageUri "$IMAGE_URI" \
             --arg containerName "$CONTAINER_NAME" \
-            --arg dbHost "${{ steps.rds.outputs.rds-endpoint }}" \
-            --arg dbPassword "${{ secrets.RDS_PASSWORD }}" \
             '.containerDefinitions |= map(if .name == $containerName then
-              .image = $imageUri |
-              .environment += [
-                {"name": "AWS_REGION", "value": "us-east-1"},
-                {"name": "DB_HOST", "value": $dbHost},
-                {"name": "DB_PORT", "value": "5432"},
-                {"name": "DB_USER", "value": "stocks"},
-                {"name": "DB_PASSWORD", "value": $dbPassword},
-                {"name": "DB_NAME", "value": "stocks"}
-              ]
+              .image = $imageUri
             else . end) | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)')
 
           # Register new task definition revision
