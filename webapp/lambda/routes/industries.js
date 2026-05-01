@@ -11,8 +11,9 @@ async function fetchIndustries(req, res) {
     const pageNum = Math.max(parseInt(page) || 1, 1);
     const offset = (pageNum - 1) * limitNum;
 
-    // Single 60-day scan for all price performance — 60 days ensures 21+ trading days for 20d lookback
-    const result = await query(`
+    // Parallelize data and count queries
+    const [result, countResult] = await Promise.all([
+      query(`
       WITH recent_prices AS (
         SELECT symbol, date, close,
           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
@@ -78,9 +79,10 @@ async function fetchIndustries(req, res) {
       LEFT JOIN industry_pe_ranked ipe ON ipe.industry = r.industry
       ORDER BY r.current_rank, r.stock_count DESC
       LIMIT $1 OFFSET $2
-    `, [limitNum, offset]);
+    `, [limitNum, offset]),
+      query(`SELECT COUNT(DISTINCT industry) as count FROM company_profile WHERE industry IS NOT NULL`)
+    ]);
 
-    const countResult = await query(`SELECT COUNT(DISTINCT industry) as count FROM company_profile WHERE industry IS NOT NULL`);
     const total = parseInt(countResult?.rows[0]?.count || 0);
 
     const sf = v => (v !== null && v !== undefined) ? parseFloat(v) : null;

@@ -11,8 +11,9 @@ router.get("/", async (req, res) => {
     const pageNum = Math.max(parseInt(page) || 1, 1);
     const offset = (pageNum - 1) * limitNum;
 
-    // Single 30-day scan for all price performance — avoids 4x full-table scans on 22M rows
-    const result = await query(`
+    // Parallelize data and count queries
+    const [result, countResult] = await Promise.all([
+      query(`
       WITH recent_prices AS (
         SELECT symbol, date, close,
           ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
@@ -104,9 +105,10 @@ router.get("/", async (req, res) => {
       ) sr_12w ON true
       ORDER BY r.current_rank, r.stock_count DESC
       LIMIT $1 OFFSET $2
-    `, [limitNum, offset]);
+    `, [limitNum, offset]),
+      query("SELECT COUNT(DISTINCT sector) as count FROM company_profile WHERE sector IS NOT NULL")
+    ]);
 
-    const countResult = await query("SELECT COUNT(DISTINCT sector) as count FROM company_profile WHERE sector IS NOT NULL");
     const total = parseInt(countResult?.rows[0]?.count || 0);
 
     const sf = v => (v !== null && v !== undefined) ? parseFloat(v) : null;
