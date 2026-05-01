@@ -6,6 +6,7 @@ Description: >
   technicalsweekly & technicalsmonthly. Includes buysell_etf_daily and factormetrics loaders.
   FIXED: Added CloudWatch log groups with explicit DependsOn relationships to prevent
   CreateLogStream failures. Services now wait for log groups to be created first.
+  UPDATED: 2026-05-01 Force re-deployment to register fresh task definitions with correct RDS endpoint from CloudFormation exports
 
 Parameters:
   StockSymbolsImageTag:
