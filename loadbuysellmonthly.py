@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TRIGGER: 20260501_200500 - Phase 3: Monthly buy/sell signals (depends on price data)
 """
 Monthly Buy/Sell Signals Loader
 Loads monthly buy/sell trading signals from multiple sources

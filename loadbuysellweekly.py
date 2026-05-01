@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TRIGGER: 20260501_195500 - Phase 3: Weekly buy/sell signals (depends on price data)
 """
 Weekly Buy/Sell Signals Loader
 Loads weekly buy/sell trading signals from multiple sources

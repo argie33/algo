@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
+# TRIGGER: 20260501_201000 - Phase 3: ETF weekly buy/sell signals (depends on price data)
 from pathlib import Path
-# Trigger: 2026-01-28-020300 - ETF weekly signals to AWS with task definitions
 import os
 import sys
 import json

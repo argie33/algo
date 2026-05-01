@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
+# TRIGGER: 20260501_195000 - Phase 3: Daily buy/sell signals (depends on price data)
 # AWS DEPLOYMENT: Phase 3A - S3 Bulk COPY optimization for 250k daily buy/sell signals
 # CRITICAL: Buy/Sell signals table missing from database. Must run to enable trading signal pages
-# Phase 3A Trigger: 2026-04-30_1040 - Execute with S3 staging for 10x speedup
 """
 Daily Buy/Sell Signals Loader
 Loads daily buy/sell trading signals from multiple sources
