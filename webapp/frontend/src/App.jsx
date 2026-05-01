@@ -405,8 +405,6 @@ function App() {
           <Route path="/app/financial-data" element={<FinancialData />} />
           <Route path="/app/trading-signals" element={<TradingSignals />} />
           <Route path="/app/signals" element={<TradingSignals />} />
-          <Route path="/app/range-signals" element={<TradingSignals />} />
-          <Route path="/app/mean-reversion" element={<TradingSignals />} />
           <Route path="/app/etf-signals" element={<ETFSignals />} />
           <Route path="/app/earnings" element={<EarningsCalendar />} />
           <Route path="/app/scores" element={<ScoresDashboard />} />
