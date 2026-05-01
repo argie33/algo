@@ -540,9 +540,14 @@ async function queryScores(options = {}) {
   const isBulkRequest = validatedLimit > 50 && !singleSymbol;
   const emptyMap = { data: {}, errors: [], partialSuccess: true };
 
-  const metricsMap = isBulkRequest ? emptyMap : await getFactorMetricsInBatch(symbolList);
-  const insiderMap = isBulkRequest ? emptyMap : await getInsiderDataInBatch(symbolList);
-  const rsiMacdMap = isBulkRequest ? emptyMap : await getRSIAndMACDDataInBatch(symbolList);
+  // OPTIMIZED: Parallelize all batch metric fetches (they were sequential before)
+  const [metricsMap, insiderMap, rsiMacdMap] = isBulkRequest
+    ? [emptyMap, emptyMap, emptyMap]
+    : await Promise.all([
+        getFactorMetricsInBatch(symbolList),
+        getInsiderDataInBatch(symbolList),
+        getRSIAndMACDDataInBatch(symbolList)
+      ]);
 
   if (!isBulkRequest) {
     if (metricsMap.errors && metricsMap.errors.length > 0) {

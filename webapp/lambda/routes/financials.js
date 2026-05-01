@@ -218,14 +218,16 @@ router.get("/all", async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 50, 200);
     const offset = parseInt(req.query.offset) || 0;
 
-    const result = await query(`
-      SELECT ticker as symbol, short_name as name, sector, industry
-      FROM key_metrics
-      ORDER BY ticker ASC
-      LIMIT $1 OFFSET $2
-    `, [limit, offset]);
-
-    const countResult = await query(`SELECT COUNT(DISTINCT ticker) as total FROM key_metrics`);
+    // OPTIMIZED: Parallelize data and count queries
+    const [result, countResult] = await Promise.all([
+      query(`
+        SELECT ticker as symbol, short_name as name, sector, industry
+        FROM key_metrics
+        ORDER BY ticker ASC
+        LIMIT $1 OFFSET $2
+      `, [limit, offset]),
+      query(`SELECT COUNT(DISTINCT ticker) as total FROM key_metrics`)
+    ]);
     const total = parseInt(countResult.rows[0]?.total || 0);
 
     return sendPaginated(res, result.rows || [], {
