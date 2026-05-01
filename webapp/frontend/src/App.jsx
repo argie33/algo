@@ -71,7 +71,7 @@ import AppLayout from "./components/AppLayout";
 const drawerWidth = 240;
 
 const menuItems = [
-  // Markets & Analysis Section
+  // Markets Section
   {
     text: "Market Overview",
     icon: <TrendingUpIcon />,
@@ -79,21 +79,9 @@ const menuItems = [
     category: "markets",
   },
   {
-    text: "Economic Dashboard",
-    icon: <PublicIcon />,
-    path: "/app/economic",
-    category: "markets",
-  },
-  {
-    text: "Sector Analysis",
+    text: "Sectors",
     icon: <BusinessIcon />,
     path: "/app/sectors",
-    category: "markets",
-  },
-  {
-    text: "Sentiment Analysis",
-    icon: <PsychologyIcon />,
-    path: "/app/sentiment",
     category: "markets",
   },
   {
@@ -103,65 +91,23 @@ const menuItems = [
     category: "markets",
   },
 
-  // Stock Analysis Section
-  {
-    text: "Deep Value Picks",
-    icon: <Stars />,
-    path: "/app/deep-value",
-    category: "stocks",
-  },
-  {
-    text: "Financial Data",
-    icon: <StorageIcon />,
-    path: "/app/financial-data",
-    category: "stocks",
-  },
+  // Trading Signals Section
   {
     text: "Trading Signals",
     icon: <TrendingUpIcon />,
     path: "/app/trading-signals",
-    category: "stocks",
-  },
-  {
-    text: "Range Signals",
-    icon: <TrendingUpIcon />,
-    path: "/app/range-signals",
-    category: "stocks",
-  },
-  {
-    text: "Mean Reversion",
-    icon: <TrendingDownIcon />,
-    path: "/app/mean-reversion",
-    category: "stocks",
-  },
-  {
-    text: "ETF Signals",
-    icon: <TrendingUpIcon />,
-    path: "/app/etf-signals",
-    category: "stocks",
+    category: "signals",
   },
   {
     text: "Earnings Calendar",
     icon: <EventIcon />,
     path: "/app/earnings",
-    category: "stocks",
-  },
-  {
-    text: "Stock Scores",
-    icon: <Stars />,
-    path: "/app/scores",
-    category: "stocks",
-  },
-  {
-    text: "Factor Metrics",
-    icon: <TrendingUpIcon />,
-    path: "/app/metrics",
-    category: "stocks",
+    category: "signals",
   },
 
-  // Portfolio & Trading Section
+  // Portfolio Section
   {
-    text: "Portfolio Dashboard",
+    text: "Portfolio",
     icon: <SwapHorizIcon />,
     path: "/app/portfolio",
     category: "portfolio",
@@ -172,39 +118,19 @@ const menuItems = [
     path: "/app/trades",
     category: "portfolio",
   },
-  {
-    text: "Portfolio Optimizer",
-    icon: <Stars />,
-    path: "/app/optimizer",
-    category: "portfolio",
-  },
-  {
-    text: "Hedge Helper",
-    icon: <BusinessIcon />,
-    path: "/app/hedge-helper",
-    category: "portfolio",
-  },
 
-  // Research & Testing Section
+  // Analysis Section
   {
-    text: "Backtest Results",
+    text: "Financials",
+    icon: <StorageIcon />,
+    path: "/app/financial-data",
+    category: "analysis",
+  },
+  {
+    text: "Backtest",
     icon: <TrendingUpIcon />,
     path: "/app/backtests",
-    category: "research",
-  },
-
-  // Admin & Settings Section
-  {
-    text: "System Health",
-    icon: <BusinessIcon />,
-    path: "/app/health",
-    category: "admin",
-  },
-  {
-    text: "Settings",
-    icon: <BusinessIcon />,
-    path: "/app/settings",
-    category: "admin",
+    category: "analysis",
   },
 
 ];
@@ -301,12 +227,9 @@ function App() {
   const sectionTitles = {
     main: "Dashboard",
     markets: "Markets",
-    stocks: "Stocks",
-    portfolio: "Portfolio & Trading",
-    admin: "Admin & Settings",
-    sentiment: "Sentiment Analysis",
-    research: "Research & Education",
-    tools: "Tools",
+    signals: "Trading Signals",
+    portfolio: "Portfolio",
+    analysis: "Analysis",
   };
 
   const drawer = (
