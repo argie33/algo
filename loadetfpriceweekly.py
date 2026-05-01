@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TRIGGER: 20260501_194000 - Phase 2: ETF weekly price data
 # Triggered: 2026-04-28 14:45 UTC - Batch 3 Parallel Load
 """
 ETF Weekly Price Loader
