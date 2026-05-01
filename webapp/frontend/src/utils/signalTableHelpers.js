@@ -91,66 +91,37 @@ export const getDynamicColumns = (signals, customPriorityColumns = null) => {
     return [];
   }
 
-  // Default priority columns - customize via parameter if needed
-  // Organized for 100% data parity across Swing Trading, Range, and Mean Reversion strategies
+  // Default priority columns - real, established trading metrics only
   const defaultPriorityColumns = [
     // Core identification
     "symbol", "company_name", "signal", "signal_type", "date",
 
     // Price data
-    "current_price", "close", "open", "high", "low",
+    "close", "open", "high", "low", "current_price",
 
     // Entry/Exit levels
-    "entry_price", "buylevel", "stoplevel", "sell_level",
-    "initial_stop", "trailing_stop",
-    "pivot_price", "buy_zone_start", "buy_zone_end",
-
-    // Profit targets & exit triggers
-    "target_price", "target_estimate",
+    "entry_price", "initial_stop", "trailing_stop",
     "profit_target_8pct", "profit_target_20pct", "profit_target_25pct",
-    "exit_trigger_1_price", "exit_trigger_2_price", "exit_trigger_3_price", "exit_trigger_4_price",
 
-    // Risk/Reward
-    "risk_pct", "risk_reward_ratio", "position_size_recommendation",
+    // Range-specific signals
+    "range_high", "range_low", "range_position", "range_age_days",
 
-    // Market stage & quality
-    "market_stage", "stage_number", "stage_confidence", "substage",
-    "quality_score", "signal_strength", "entry_quality_score", "breakout_quality",
-    "sata_score", "strength", "bull_percentage",
+    // Mean reversion specific
+    "rsi_2", "pct_above_200sma", "sma_5",
 
-    // Range-specific (for range trading strategy)
-    "range_high", "range_low", "range_position", "range_age_days", "range_strength", "range_height_pct",
-
-    // Mean reversion specific (for mean reversion strategy)
-    "rsi_2", "pct_above_200sma", "sma_5", "confluence_score",
-    "target_1", "target_2",
-
-    // Technical indicators
+    // Technical indicators (established TA)
     "rsi", "rsi_14", "adx", "atr",
     "sma_20", "sma_50", "sma_200", "ema_21", "ema_26",
     "macd", "signal_line",
-    "daily_range_pct", "base_type", "base_length_days",
 
-    // Relative position
-    "pct_from_ema21", "pct_from_sma50", "pct_from_sma200",
+    // Risk metrics
+    "risk_pct", "risk_reward_ratio",
 
-    // Volume analysis
-    "volume", "avg_volume_50d", "volume_surge_pct", "volume_ratio", "volume_analysis",
+    // Volume
+    "volume", "avg_volume_50d", "volume_surge_pct",
 
-    // RS metrics
-    "rs_rating", "mansfield_rs",
-
-    // DeMark indicators
-    "td_buy_setup_count", "td_sell_setup_count",
-    "td_buy_setup_complete", "td_sell_setup_complete",
-    "td_buy_setup_perfected", "td_sell_setup_perfected",
-    "td_buy_countdown_count", "td_sell_countdown_count",
-    "td_pressure",
-
-    // Position state (swing trading)
-    "inposition", "signal_state", "days_in_current_state",
-    "current_gain_loss_pct", "current_gain_pct", "current_pnl_pct", "days_in_position",
-    "close_price"
+    // Position tracking
+    "market_stage", "stage_number", "inposition", "days_in_position", "current_gain_pct"
   ];
 
   const priorityColumns = customPriorityColumns || defaultPriorityColumns;
