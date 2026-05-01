@@ -224,17 +224,12 @@ def generate_mean_reversion_signals(df):
         sma_200 = df['sma_200'].iloc[i]
         sma_5 = df['sma_5'].iloc[i]
 
-        # Condition 1: Close > 200 SMA (uptrend filter)
-        if close is None or sma_200 is None or close <= sma_200:
+        # Condition 1: Close reasonably near 200 SMA (within 10% below)
+        if close is None or sma_200 is None or close < sma_200 * 0.9:
             continue
 
-        # Condition 2: RSI(2) < 30 (oversold)
-        if rsi_2 is None or rsi_2 >= 30:
-            continue
-
-        # Condition 3: Not extreme volume (avoid panic selling)
-        avg_vol = df['volume'].iloc[max(0, i-50):i].mean()
-        if df['volume'].iloc[i] > avg_vol * 3:
+        # Condition 2: RSI(2) < 40 (oversold/weak)
+        if rsi_2 is None or rsi_2 >= 40:
             continue
 
         # Signal fires
