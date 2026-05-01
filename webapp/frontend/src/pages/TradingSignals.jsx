@@ -47,7 +47,17 @@ function TradingSignals() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [symbolFilter, setSymbolFilter] = useState("");
+  const [signalFilter, setSignalFilter] = useState(""); // BUY, SELL, or empty for all
   const [days, setDays] = useState(180);
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const [minVolume, setMinVolume] = useState("");
+  const [maxVolume, setMaxVolume] = useState("");
+  const [minRsi, setMinRsi] = useState("");
+  const [maxRsi, setMaxRsi] = useState("");
+  const [minAdx, setMinAdx] = useState("");
+  const [sort, setSort] = useState("date");
+  const [sortOrder, setSortOrder] = useState("DESC");
 
   // Map strategy names to API endpoints and titles
   const strategyConfig = {
@@ -73,17 +83,30 @@ function TradingSignals() {
 
   const config = strategyConfig[strategy];
 
-  // Fetch signals based on selected strategy
+  // Fetch signals based on selected strategy with all advanced filters
   const { data: signalsData, isLoading, isError, error } = useQuery({
-    queryKey: ["unifiedSignals", strategy, symbolFilter, days, page],
+    queryKey: ["unifiedSignals", strategy, symbolFilter, signalFilter, days, minPrice, maxPrice, minVolume, maxVolume, minRsi, maxRsi, minAdx, sort, sortOrder, page],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (symbolFilter) params.append("symbol", symbolFilter);
-      params.append("days", days);
-      params.append("limit", 500);
-      params.append("offset", page * 500);
 
-      const response = await api.get(`${config.endpoint}?${params}`);
+      // Always use the new unified search endpoint
+      params.append("type", strategy);
+      if (symbolFilter) params.append("symbol", symbolFilter);
+      if (signalFilter) params.append("signal", signalFilter);
+      params.append("days", days);
+      if (minPrice) params.append("min_price", minPrice);
+      if (maxPrice) params.append("max_price", maxPrice);
+      if (minVolume) params.append("min_volume", minVolume);
+      if (maxVolume) params.append("max_volume", maxVolume);
+      if (minRsi) params.append("min_rsi", minRsi);
+      if (maxRsi) params.append("max_rsi", maxRsi);
+      if (minAdx) params.append("min_adx", minAdx);
+      params.append("limit", 100);
+      params.append("page", page + 1);
+      params.append("sort", sort);
+      params.append("sort_order", sortOrder);
+
+      const response = await api.get(`/api/signals/search?${params}`);
       return extractResponseData(response);
     },
   });
@@ -100,14 +123,39 @@ function TradingSignals() {
     setPage(0);
   };
 
+  const handleSignalFilterChange = (e) => {
+    setSignalFilter(e.target.value);
+    setPage(0);
+  };
+
   const handleDaysChange = (e) => {
     setDays(e.target.value);
     setPage(0);
   };
 
+  const handleSortChange = (e) => {
+    setSort(e.target.value);
+    setPage(0);
+  };
+
+  const handleSortOrderChange = (e) => {
+    setSortOrder(e.target.value);
+    setPage(0);
+  };
+
   const handleClearFilters = () => {
     setSymbolFilter("");
+    setSignalFilter("");
     setDays(180);
+    setMinPrice("");
+    setMaxPrice("");
+    setMinVolume("");
+    setMaxVolume("");
+    setMinRsi("");
+    setMaxRsi("");
+    setMinAdx("");
+    setSort("date");
+    setSortOrder("DESC");
     setPage(0);
   };
 
@@ -156,21 +204,22 @@ function TradingSignals() {
       {/* Filters */}
       <Card sx={{ mb: 4 }}>
         <CardContent>
-          <Grid container spacing={2} alignItems="center">
+          <Grid container spacing={2} alignItems="flex-end">
             <Grid item xs={12}>
               <Typography variant="h6" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 <FilterList />
-                Filters & Search
+                Advanced Filters
               </Typography>
               <Divider sx={{ mb: 2 }} />
             </Grid>
 
             {/* Symbol Search */}
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} sm={6} md={3}>
               <TextField
                 fullWidth
                 size="small"
-                placeholder="Search symbols (e.g., AAPL)..."
+                label="Symbol"
+                placeholder="e.g., AAPL"
                 value={symbolFilter}
                 onChange={handleSymbolFilterChange}
                 InputProps={{
@@ -179,19 +228,28 @@ function TradingSignals() {
                       <Search fontSize="small" />
                     </InputAdornment>
                   ),
-                  endAdornment: symbolFilter && (
-                    <InputAdornment position="end">
-                      <IconButton size="small" onClick={() => setSymbolFilter("")}>
-                        <Clear fontSize="small" />
-                      </IconButton>
-                    </InputAdornment>
-                  ),
                 }}
               />
             </Grid>
 
+            {/* Signal Type Filter */}
+            <Grid item xs={12} sm={6} md={2}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Signal</InputLabel>
+                <Select
+                  value={signalFilter}
+                  onChange={handleSignalFilterChange}
+                  label="Signal"
+                >
+                  <MenuItem value="">All Signals</MenuItem>
+                  <MenuItem value="BUY">BUY Only</MenuItem>
+                  <MenuItem value="SELL">SELL Only</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
             {/* Days Filter */}
-            <Grid item xs={12} md={3}>
+            <Grid item xs={12} sm={6} md={2}>
               <FormControl fullWidth size="small">
                 <InputLabel>Time Period</InputLabel>
                 <Select
@@ -209,15 +267,136 @@ function TradingSignals() {
               </FormControl>
             </Grid>
 
+            {/* Sorting */}
+            <Grid item xs={12} sm={6} md={2}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Sort By</InputLabel>
+                <Select
+                  value={sort}
+                  onChange={handleSortChange}
+                  label="Sort By"
+                >
+                  <MenuItem value="date">Date</MenuItem>
+                  <MenuItem value="symbol">Symbol</MenuItem>
+                  <MenuItem value="close">Price</MenuItem>
+                  <MenuItem value="volume">Volume</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            {/* Sort Order */}
+            <Grid item xs={12} sm={6} md={1}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Order</InputLabel>
+                <Select
+                  value={sortOrder}
+                  onChange={handleSortOrderChange}
+                  label="Order"
+                >
+                  <MenuItem value="DESC">Descending</MenuItem>
+                  <MenuItem value="ASC">Ascending</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            {/* Price Range */}
+            <Grid item xs={12} sm={6} md={2}>
+              <TextField
+                fullWidth
+                size="small"
+                type="number"
+                label="Min Price"
+                placeholder="0"
+                value={minPrice}
+                onChange={(e) => { setMinPrice(e.target.value); setPage(0); }}
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={2}>
+              <TextField
+                fullWidth
+                size="small"
+                type="number"
+                label="Max Price"
+                placeholder="10000"
+                value={maxPrice}
+                onChange={(e) => { setMaxPrice(e.target.value); setPage(0); }}
+              />
+            </Grid>
+
+            {/* Volume Range */}
+            <Grid item xs={12} sm={6} md={2}>
+              <TextField
+                fullWidth
+                size="small"
+                type="number"
+                label="Min Volume"
+                placeholder="0"
+                value={minVolume}
+                onChange={(e) => { setMinVolume(e.target.value); setPage(0); }}
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={2}>
+              <TextField
+                fullWidth
+                size="small"
+                type="number"
+                label="Max Volume"
+                placeholder="1000000000"
+                value={maxVolume}
+                onChange={(e) => { setMaxVolume(e.target.value); setPage(0); }}
+              />
+            </Grid>
+
+            {/* RSI Range */}
+            <Grid item xs={12} sm={6} md={2}>
+              <TextField
+                fullWidth
+                size="small"
+                type="number"
+                label="Min RSI"
+                placeholder="0"
+                value={minRsi}
+                onChange={(e) => { setMinRsi(e.target.value); setPage(0); }}
+                inputProps={{ min: 0, max: 100 }}
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={2}>
+              <TextField
+                fullWidth
+                size="small"
+                type="number"
+                label="Max RSI"
+                placeholder="100"
+                value={maxRsi}
+                onChange={(e) => { setMaxRsi(e.target.value); setPage(0); }}
+                inputProps={{ min: 0, max: 100 }}
+              />
+            </Grid>
+
+            {/* ADX */}
+            <Grid item xs={12} sm={6} md={2}>
+              <TextField
+                fullWidth
+                size="small"
+                type="number"
+                label="Min ADX"
+                placeholder="0"
+                value={minAdx}
+                onChange={(e) => { setMinAdx(e.target.value); setPage(0); }}
+              />
+            </Grid>
+
             {/* Clear Button */}
-            <Grid item xs={12} md={3}>
+            <Grid item xs={12}>
               <Button
                 variant="outlined"
                 startIcon={<Clear />}
                 onClick={handleClearFilters}
-                fullWidth
               >
-                Clear Filters
+                Clear All Filters
               </Button>
             </Grid>
           </Grid>
