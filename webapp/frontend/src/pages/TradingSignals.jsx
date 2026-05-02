@@ -55,6 +55,7 @@ function TradingSignals() {
   const [symbolFilter, setSymbolFilter] = useState("");
   const [signalFilter, setSignalFilter] = useState("");
   const [baseTypeFilter, setBaseTypeFilter] = useState("");
+  const [timeframeFilter, setTimeframeFilter] = useState("daily");
   const [days, setDays] = useState(3650); // Default: ALL TIME
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
@@ -98,10 +99,11 @@ function TradingSignals() {
 
   // API Query
   const { data: signalsData, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["signals", strategy, symbolFilter, signalFilter, baseTypeFilter, days, minPrice, maxPrice, minVolume, maxVolume, minRsi, maxRsi, minAdx, sort, sortOrder, page, limit],
+    queryKey: ["signals", strategy, symbolFilter, signalFilter, baseTypeFilter, timeframeFilter, days, minPrice, maxPrice, minVolume, maxVolume, minRsi, maxRsi, minAdx, sort, sortOrder, page, limit],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append("type", strategy);
+      params.append("timeframe", timeframeFilter);
       if (symbolFilter) params.append("symbol", symbolFilter.toUpperCase());
       if (signalFilter) params.append("signal", signalFilter);
       if (baseTypeFilter) params.append("base_type", baseTypeFilter);
@@ -131,6 +133,7 @@ function TradingSignals() {
     setSymbolFilter("");
     setSignalFilter("");
     setBaseTypeFilter("");
+    setTimeframeFilter("daily");
     setDays(3650); // All time
     setMinPrice("");
     setMaxPrice("");
@@ -261,6 +264,16 @@ function TradingSignals() {
                     <MenuItem value={180}>Last 6 months</MenuItem>
                     <MenuItem value={365}>Last year</MenuItem>
                     <MenuItem value={3650}>All time</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Timeframe</InputLabel>
+                  <Select value={timeframeFilter} onChange={(e) => { setTimeframeFilter(e.target.value); setPage(1); }} label="Timeframe">
+                    <MenuItem value="daily">📊 Daily</MenuItem>
+                    <MenuItem value="weekly">📈 Weekly</MenuItem>
+                    <MenuItem value="monthly">📅 Monthly</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>

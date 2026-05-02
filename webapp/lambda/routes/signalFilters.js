@@ -69,6 +69,7 @@ const getSignalFilters = async (req, res) => {
       timeframe = 'daily',
       symbol,
       signal,
+      base_type,
       date,
       from_date,
       to_date,
@@ -165,6 +166,13 @@ const getSignalFilters = async (req, res) => {
       const signalValue = signal.toUpperCase();
       whereConditions.push(`UPPER(${tableAlias}.signal) = $${paramIndex}`);
       params.push(signalValue);
+      paramIndex++;
+    }
+
+    // BASE TYPE FILTER (Pattern type)
+    if (base_type) {
+      whereConditions.push(`${tableAlias}.base_type = $${paramIndex}`);
+      params.push(base_type);
       paramIndex++;
     }
 
