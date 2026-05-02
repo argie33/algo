@@ -381,9 +381,15 @@ app.use(async (req, res, next) => {
     return next();
   }
 
-  // For endpoints that need database, try to ensure connection
+  // For endpoints that need database, try to ensure connection with timeout
   try {
-    await ensureDatabase();
+    // Use shorter timeout for database initialization (10 seconds max)
+    await Promise.race([
+      ensureDatabase(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("DB init timeout")), 10000)
+      )
+    ]);
     if (process.env.NODE_ENV !== 'test') {
       console.log("Database connection verified for database-dependent endpoint");
     }
