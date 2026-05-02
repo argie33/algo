@@ -9,6 +9,7 @@ const {
   safeFloat,
 } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const logger = require('../utils/logger');
 const router = express.Router();
 
 // Health endpoints - Updated 2025-10-01 - CloudWatch Logs integration for ECS tasks
@@ -35,30 +36,25 @@ router.get("/", async (req, res) => {
       });
     }
     // Full health check with database
-    console.log("Starting health check with database...");
+    logger.info("Starting full health check with database");
     // Initialize database if not already done
     try {
       getPool(); // This will throw if not initialized
     } catch (initError) {
-      console.log("Database not initialized, initializing now...");
+      logger.info("Database not initialized, initializing now");
       try {
         await initializeDatabase();
       } catch (dbInitError) {
-        console.error("Failed to initialize database:", dbInitError.message);
+        logger.error("Failed to initialize database", dbInitError);
         // In test mode, return 200 with error details for graceful handling
         const statusCode = process.env.NODE_ENV === "test" ? 200 : 503;
-        return res.status(statusCode).json({
-          error: "Database initialization failed",
-          success: false
-        });
+        return sendError(res, statusCode, "Database initialization failed", "DB_INIT_ERROR");
       }
     }
     // Check if database error was passed from middleware
     if (req.dbError) {
-      return res.status(500).json({
-        error: "Database unavailable",
-        success: false
-      });
+      logger.error("Database unavailable from middleware", null, { error: req.dbError });
+      return sendError(res, 500, "Database unavailable", "DB_UNAVAILABLE");
     }
     // In test environment, use the healthCheck function if available
     if (process.env.NODE_ENV === "test") {
@@ -90,14 +86,11 @@ router.get("/", async (req, res) => {
             uptime: process.uptime(),
           });
         } catch (testDbError) {
-          console.log("Test database error:", testDbError.message);
+          logger.warn("Test database error", testDbError);
           // Return unhealthy status when database query fails in test
           // In test mode, return 200 with error details for graceful handling
           const statusCode = process.env.NODE_ENV === "test" ? 200 : 503;
-          return res.status(statusCode).json({
-            error: "Database disconnected",
-            success: false
-          });
+          return sendError(res, statusCode, "Database disconnected", "DB_ERROR");
         }
       }
 
@@ -132,7 +125,7 @@ router.get("/", async (req, res) => {
             });
           }
         } catch (testDbError) {
-          console.log("Test database error:", testDbError.message);
+          logger.info("Test database error:", testDbError.message);
           // Return unhealthy status when database query fails in test
           // In test mode, return 200 with error details for graceful handling
           const statusCode = process.env.NODE_ENV === "test" ? 200 : 503;
@@ -166,7 +159,7 @@ router.get("/", async (req, res) => {
 
       // Handle when database returns null or invalid result
       if (!_result || !_result.rows) {
-        console.warn(
+        logger.warn(
           "Database query returned invalid result - database not available"
         );
         return res.status(500).json({
@@ -176,7 +169,7 @@ router.get("/", async (req, res) => {
       }
     } catch (dbError) {
       // Enhanced error logging
-      console.error("Database health check query failed:", dbError);
+      logger.error("Database health check query failed:", dbError);
       return res.status(500).json({
         error: "Database health check failed",
         success: false
@@ -186,7 +179,7 @@ router.get("/", async (req, res) => {
     try {
       await query("SELECT COUNT(*) FROM stock_symbols");
     } catch (tableError) {
-      console.error("Table query failed:", tableError);
+      logger.error("Table query failed:", tableError);
       return res.status(500).json({
         error: "Table query failed",
         success: false
@@ -349,7 +342,7 @@ router.get("/", async (req, res) => {
       success: true
     });
   } catch (error) {
-    console.error("Health check failed:", error);
+    logger.error("Health check failed:", error);
     return res.status(500).json({
       error: "Health check failed",
       success: false
@@ -359,17 +352,17 @@ router.get("/", async (req, res) => {
 
 // Comprehensive database health check endpoint (RESTORED health_status logic)
 router.get("/database", async (req, res) => {
-  console.log("Received request for /health/database");
+  logger.info("Received request for /health/database");
   try {
     // Ensure database pool is initialized before running any queries
     try {
       getPool(); // Throws if not initialized
     } catch (initError) {
-      console.log("Database not initialized, initializing now...");
+      logger.info("Database not initialized, initializing now...");
       try {
         await initializeDatabase();
       } catch (dbInitError) {
-        console.error("Failed to initialize database:", dbInitError.message);
+        logger.error("Failed to initialize database:", dbInitError.message);
         // In test mode, return 200 with error details for graceful handling
         const statusCode = process.env.NODE_ENV === "test" ? 200 : 503;
         return res.status(statusCode).json({
@@ -461,7 +454,7 @@ router.get("/database", async (req, res) => {
         summary.total_records += recordCount;
       }
     } catch (err) {
-      console.error("Error querying database tables:", err.message);
+      logger.error("Error querying database tables:", err.message);
       return res.status(500).json({
         error: "Database tables query failed",
         success: false
@@ -485,7 +478,7 @@ router.get("/database", async (req, res) => {
       uptime: process.uptime(),
     });
   } catch (error) {
-    console.error("Error in database health check:", error);
+    logger.error("Error in database health check:", error);
     return res.status(500).json({
       error: "Database health check failed",
       success: false
@@ -495,13 +488,13 @@ router.get("/database", async (req, res) => {
 
 // ECS task monitoring endpoint - check status of scheduled tasks
 router.get("/ecs-tasks", async (req, res) => {
-  console.log("Received request for /health/ecs-tasks");
+  logger.info("Received request for /health/ecs-tasks");
 
   // In local development, AWS SDK may not be available
   // Check for AWS Lambda environment or DB_SECRET_ARN to detect AWS
   const isAWS = process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.DB_SECRET_ARN;
   if (process.env.NODE_ENV === "development" && !isAWS) {
-    console.log("Running in local development - ECS task monitoring not available");
+    logger.info("Running in local development - ECS task monitoring not available");
     return res.status(200).json({
       data: {
         environment: "local",
@@ -523,7 +516,7 @@ router.get("/ecs-tasks", async (req, res) => {
       ecsClient = new ECSClient({ region: process.env.AWS_REGION || "us-east-1" });
       logsClient = new CloudWatchLogsClient({ region: process.env.AWS_REGION || "us-east-1" });
     } catch (awsSdkError) {
-      console.log("AWS SDK packages not available, skipping ECS monitoring");
+      logger.info("AWS SDK packages not available, skipping ECS monitoring");
       ecsClient = null;
       logsClient = null;
     }
@@ -690,10 +683,10 @@ router.get("/ecs-tasks", async (req, res) => {
           log_stream: streamName
         };
       } catch (taskError) {
-        console.error(`Error checking ${taskName} task:`, taskError);
-        console.error(`  - Log group: ${logGroupName}`);
-        console.error(`  - Error code: ${taskError.name}`);
-        console.error(`  - Error message: ${taskError.message}`);
+        logger.error(`Error checking ${taskName} task:`, taskError);
+        logger.error(`  - Log group: ${logGroupName}`);
+        logger.error(`  - Error code: ${taskError.name}`);
+        logger.error(`  - Error message: ${taskError.message}`);
 
         // Handle specific error cases
         if (taskError.name === "ResourceNotFoundException") {
@@ -735,7 +728,7 @@ router.get("/ecs-tasks", async (req, res) => {
     } // Close if (ecsClient && logsClient)
 
   } catch (error) {
-    console.error("Error in ECS tasks monitoring:", error);
+    logger.error("Error in ECS tasks monitoring:", error);
     return res.status(500).json({
       error: "ECS tasks monitoring failed",
       success: false
@@ -745,7 +738,7 @@ router.get("/ecs-tasks", async (req, res) => {
 
 // API endpoints health check - verify all routes are responding
 router.get("/api-endpoints", async (req, res) => {
-  console.log("Received request for /health/api-endpoints");
+  logger.info("Received request for /health/api-endpoints");
 
   try {
     const apiEndpoints = [
@@ -826,7 +819,7 @@ router.get("/api-endpoints", async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Error in API endpoints health check:", error);
+    logger.error("Error in API endpoints health check:", error);
     return res.status(500).json({
       error: "API endpoints health check failed",
       success: false
