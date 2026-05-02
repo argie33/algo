@@ -374,7 +374,7 @@ app.use(async (req, res, next) => {
   }
 
   // Endpoints that don't require database
-  const nonDbEndpoints = ["/"];
+  const nonDbEndpoints = ["/", "/api/health"];
 
   if (nonDbEndpoints.includes(req.path)) {
     console.log("Endpoint does not require database connection");

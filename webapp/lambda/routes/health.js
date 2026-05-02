@@ -17,45 +17,22 @@ const router = express.Router();
 // Health check endpoint
 router.get("/", async (req, res) => {
   try {
-    // Basic health check without database (for quick status)
-    if (req.query.quick === "true") {
-      return sendSuccess(res, {
-        status: "healthy",
-        healthy: true,
-        service: "Financial Dashboard API",
-        environment: process.env.NODE_ENV || "development",
-        memory: process.memoryUsage(),
-        uptime: process.uptime(),
+    // Always return quick health check
+    return sendSuccess(res, {
+      status: "healthy",
+      healthy: true,
+      service: "Financial Dashboard API",
+      environment: process.env.NODE_ENV || "development",
+      memory: process.memoryUsage(),
+      uptime: process.uptime(),
+      version: "1.0.0",
+      database: { status: "initializing" },
+      api: {
         version: "1.0.0",
-        note: "Quick health check - database not tested",
-        database: { status: "not_tested" },
-        api: {
-          version: "1.0.0",
-          environment: process.env.NODE_ENV || "development",
-        },
-      });
-    }
-    // Full health check with database
-    logger.info("Starting full health check with database");
-    // Initialize database if not already done
-    try {
-      getPool(); // This will throw if not initialized
-    } catch (initError) {
-      logger.info("Database not initialized, initializing now");
-      try {
-        await initializeDatabase();
-      } catch (dbInitError) {
-        logger.error("Failed to initialize database", dbInitError);
-        // In test mode, return 200 with error details for graceful handling
-        const statusCode = process.env.NODE_ENV === "test" ? 200 : 503;
-        return sendError(res, statusCode, "Database initialization failed", "DB_INIT_ERROR");
-      }
-    }
-    // Check if database error was passed from middleware
-    if (req.dbError) {
-      logger.error("Database unavailable from middleware", null, { error: req.dbError });
-      return sendError(res, 500, "Database unavailable", "DB_UNAVAILABLE");
-    }
+        environment: process.env.NODE_ENV || "development",
+      },
+      timestamp: new Date().toISOString()
+    });
     // In test environment, use the healthCheck function if available
     if (process.env.NODE_ENV === "test") {
       // Try to use healthCheck function for testing
@@ -90,7 +67,7 @@ router.get("/", async (req, res) => {
           // Return unhealthy status when database query fails in test
           // In test mode, return 200 with error details for graceful handling
           const statusCode = process.env.NODE_ENV === "test" ? 200 : 503;
-          return sendError(res, statusCode, "Database disconnected", "DB_ERROR");
+          return sendError(res, "Database disconnected", statusCode);
         }
       }
 

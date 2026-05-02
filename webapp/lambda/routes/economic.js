@@ -9,8 +9,7 @@ const router = express.Router();
 // GET /api/economic - Root endpoint
 router.get("/", async (req, res) => {
   try {
-    // Return leading indicators summary
-    return res.redirect(307, '/api/economic/leading-indicators');
+    return sendSuccess(res, { message: "Economic API - use /leading-indicators, /calendar for specific data" });
   } catch (error) {
     return sendError(res, error.message, 500);
   }

@@ -7,8 +7,7 @@ const router = express.Router();
 // GET /api/sentiment - Root endpoint
 router.get("/", async (req, res) => {
   try {
-    // Return summary sentiment data
-    return res.redirect(307, '/api/sentiment/summary');
+    return sendSuccess(res, { message: "Sentiment API - use /summary, /data, /analyst for specific endpoints" });
   } catch (error) {
     return sendError(res, error.message, 500);
   }

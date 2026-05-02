@@ -303,7 +303,11 @@ router.get("/prices", async (req, res) => {
  * Alias for /market-summary
  */
 router.get("/summary", async (req, res) => {
-  return res.redirect(307, '/api/commodities/market-summary');
+  try {
+    return res.redirect(307, './market-summary');
+  } catch (error) {
+    return sendError(res, error.message, 500);
+  }
 });
 
 /**
