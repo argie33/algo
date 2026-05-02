@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260502_173001 - Phase A: Test S3 staging enabled
+# TRIGGER: 20260502_203400 - Phase A: Price loader test with S3 staging
 """
 Daily Price Loader - Cloud-Native with Smart Incremental Loading
 Uses DatabaseHelper for automatic S3 or standard inserts
 Smart mode: queries max(date) per symbol, downloads only missing data
 
-TRIGGER: Deploy all 54 refactored loaders to AWS via GitHub Actions
+Phase A enabled: USE_S3_STAGING=true, Fargate Spot 80%, max-parallel=10
 """
 
 import sys
