@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260502_213500 - FULL TEST: Phase A + Dedup verification + Measurement
+# TRIGGER: 20260502_214300 - Phase A + Workflow Fix + Full Measurement
 """
 Stock Scores Loader v3.0 COMPREHENSIVE - Uses all available metrics for accurate scoring
 Phase A Active: S3 staging, Fargate Spot 80%, dedup fix verified
