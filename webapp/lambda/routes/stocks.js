@@ -121,6 +121,9 @@ router.get("/deep-value", async (req, res) => {
           vm.ev_to_ebitda, vm.peg_ratio, vm.dividend_yield
         FROM value_metrics vm
         JOIN sp500 st ON vm.symbol = st.symbol
+        LEFT JOIN forward_earnings fe ON vm.symbol = fe.symbol
+        LEFT JOIN latest_ttm_fcf lf ON vm.symbol = lf.symbol
+        LEFT JOIN market_caps mc ON vm.symbol = mc.symbol
         WHERE vm.trailing_pe > 0 AND vm.trailing_pe < 200
           AND vm.price_to_book > 0 AND vm.price_to_book < 50
         ORDER BY vm.symbol, vm.date DESC
@@ -189,6 +192,34 @@ router.get("/deep-value", async (req, res) => {
         JOIN sp500 st ON gm.symbol = st.symbol
         ORDER BY gm.symbol, gm.date DESC
       ),
+      forward_earnings AS (
+        SELECT DISTINCT ON (ee.symbol)
+          ee.symbol,
+          ee.eps_estimate AS forward_eps,
+          ee.quarter AS estimate_quarter
+        FROM earnings_estimates ee
+        JOIN sp500 st ON ee.symbol = st.symbol
+        WHERE ee.eps_estimate IS NOT NULL
+        ORDER BY ee.symbol, ee.quarter DESC
+      ),
+      latest_ttm_fcf AS (
+        SELECT DISTINCT ON (tcf.symbol)
+          tcf.symbol,
+          tcf.value AS ttm_fcf
+        FROM ttm_cash_flow tcf
+        JOIN sp500 st ON tcf.symbol = st.symbol
+        WHERE tcf.value IS NOT NULL
+        ORDER BY tcf.symbol, tcf.date DESC
+      ),
+      market_caps AS (
+        SELECT DISTINCT ON (km.ticker)
+          km.ticker AS symbol,
+          km.market_cap
+        FROM key_metrics km
+        JOIN sp500 st ON km.ticker = st.symbol
+        WHERE km.market_cap > 0
+        ORDER BY km.ticker, km.updated_at DESC
+      ),
       combined AS (
         SELECT
           v.symbol,
@@ -219,6 +250,16 @@ router.get("/deep-value", async (req, res) => {
           gr.roe_trend,
           gr.sustainable_growth_rate,
           gr.quarterly_growth_momentum,
+          fe.forward_eps,
+          fe.estimate_quarter,
+          CASE
+            WHEN fe.forward_eps > 0 THEN ROUND(CAST(pd.current_price_pd / fe.forward_eps AS NUMERIC), 2)
+            ELSE NULL
+          END AS forward_pe,
+          CASE
+            WHEN lf.ttm_fcf > 0 AND mc.market_cap > 0 THEN ROUND(CAST(lf.ttm_fcf / mc.market_cap * 100 AS NUMERIC), 2)
+            ELSE NULL
+          END AS fcf_yield,
           -- 2-STAGE DCF MODEL (accurate, conservative):
           -- Stage 1: 5-year explicit forecast at company's growth rate (capped 12%)
           -- Stage 2: Terminal value at 3% perpetual growth
