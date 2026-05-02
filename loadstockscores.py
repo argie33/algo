@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260501_084523 - Phase 2: Stock scores loader - verify Phase 1 data in AWS
+# TRIGGER: 20260502_173000 - Phase A: Enable S3 staging + Fargate Spot + 10x parallelism
 """
 Stock Scores Loader v3.0 COMPREHENSIVE - Uses all available metrics for accurate scoring
 """

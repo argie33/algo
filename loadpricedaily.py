@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TRIGGER: 20260502_173001 - Phase A: Test S3 staging enabled
 """
 Daily Price Loader - Cloud-Native with Smart Incremental Loading
 Uses DatabaseHelper for automatic S3 or standard inserts
