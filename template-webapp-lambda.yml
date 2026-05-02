@@ -150,10 +150,11 @@ Resources:
           DataTraceEnabled: false
           MetricsEnabled: true
       Cors:
-        AllowMethods: "'GET,POST,OPTIONS,PUT,DELETE,PATCH'"
-        AllowHeaders: "'*'"
-        AllowOrigin: "'*'"
+        AllowMethods: "'GET,POST,OPTIONS,PUT,DELETE,PATCH,HEAD'"
+        AllowHeaders: "'Content-Type,Authorization,X-Requested-With,X-Api-Key,X-Amz-Date,X-Amz-Security-Token,X-Request-ID,Accept,Accept-Language,Cache-Control,Origin'"
+        AllowOrigin: "'https://d1copuy2oqlazx.cloudfront.net,http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174'"
         AllowCredentials: "'true'"
+        MaxAge: "'86400'"
 
   # Main API Lambda function (handles all routes)
   ApiFunction:
