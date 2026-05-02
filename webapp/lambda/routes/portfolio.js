@@ -4,6 +4,7 @@ const { query, safeFloat, safeInt } = require("../utils/database");
 const { authenticateToken } = require("../middleware/auth");
 const PortfolioAutoInit = require("../utils/portfolioAutoInit");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const logger = require("../utils/logger");
 const router = express.Router();
 
 // ============================================================================
@@ -17,15 +18,16 @@ async function fetchAlpacaData(apiKey, secretKey, baseURL) {
    */
   try {
     if (!apiKey || !secretKey) {
-      console.warn('⚠️ Alpaca credentials NOT configured');
+      logger.warn('Alpaca credentials NOT configured');
       return { success: false, status: 401, error: 'Alpaca credentials not configured' };
     }
 
-    console.log(`📡 Fetching Alpaca data from: ${baseURL}`);
+    logger.info(`Fetching Alpaca data from: ${baseURL}`);
 
     // Create abort controller with 5 second timeout
+    const ALPACA_API_TIMEOUT_MS = 5000;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
+    const timeout = setTimeout(() => controller.abort(), ALPACA_API_TIMEOUT_MS);
 
     try {
       const [accountRes, positionsRes] = await Promise.all([
@@ -47,37 +49,37 @@ async function fetchAlpacaData(apiKey, secretKey, baseURL) {
 
       clearTimeout(timeout);
 
-      console.log(`📊 Alpaca Account API Response:`, accountRes.status);
+      logger.debug(`Alpaca Account API Response: ${accountRes.status}`);
 
       if (!accountRes.ok) {
-        console.error('❌ Failed to fetch Alpaca account:', accountRes.status);
+        logger.error('Failed to fetch Alpaca account', null, { status: accountRes.status });
         return { success: false, status: accountRes.status, error: `Alpaca API returned ${accountRes.status}` };
       }
 
       const account = await accountRes.json();
-      console.log(`✅ Account fetched: portfolio_value=$${account.portfolio_value}`);
+      logger.info(`Account fetched: portfolio_value=$${account.portfolio_value}`);
 
       let positions = [];
       if (positionsRes.ok) {
         positions = await positionsRes.json();
-        console.log(`✅ Positions fetched:`, positions.length, 'positions');
+        logger.debug(`Positions fetched: ${positions.length} positions`);
       } else {
-        console.warn(`⚠️ Positions fetch returned:`, positionsRes.status);
+        logger.warn(`Positions fetch returned ${positionsRes.status}`);
       }
 
       return { success: true, data: { account, positions } };
     } catch (error) {
       clearTimeout(timeout);
       if (error.name === 'AbortError') {
-        console.error('❌ Alpaca API timeout (5s)');
+        logger.error('Alpaca API timeout', error);
         return { success: false, status: 503, error: 'Alpaca API timeout' };
       } else {
-        console.error("❌ Alpaca fetch error:", error.message);
+        logger.error("Alpaca fetch error", error);
         return { success: false, status: 503, error: error.message };
       }
     }
   } catch (error) {
-    console.error("❌ Error in fetchAlpacaData:", error.message);
+    logger.error("Error in fetchAlpacaData", error);
     return { success: false, status: 500, error: error.message };
   }
 }
@@ -1252,10 +1254,7 @@ router.post("/import/alpaca", authenticateToken, async (req, res) => {
     const alpacaResult = await fetchAlpacaData(apiKey, secretKey, baseURL);
 
     if (!alpacaResult.success) {
-      return res.status(alpacaResult.status).json({
-        error: alpacaResult.error,
-        success: false
-      });
+      return sendError(res, alpacaResult.status, alpacaResult.error, "ALPACA_API_ERROR");
     }
 
     const { account, positions } = alpacaResult.data;

@@ -1,5 +1,7 @@
 const express = require('express');
 const { query } = require('../utils/database');
+const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const logger = require('../utils/logger');
 
 const router = express.Router();
 
@@ -58,22 +60,18 @@ router.get('/', async (req, res, next) => {
     ]);
     const total = countResult.rows[0].total;
 
-    res.json({
-      success: true,
-      items: result.rows,
-      pagination: {
-        limit: parseInt(limit),
-        offset: parseInt(offset),
-        total,
-        page: Math.floor(parseInt(offset) / parseInt(limit)) + 1,
-        totalPages: Math.ceil(total / parseInt(limit)),
-        hasNext: parseInt(offset) + parseInt(limit) < total,
-        hasPrev: parseInt(offset) > 0
-      },
-      timestamp: new Date().toISOString()
+    return sendPaginated(res, result.rows, {
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      total,
+      page: Math.floor(parseInt(offset) / parseInt(limit)) + 1,
+      totalPages: Math.ceil(total / parseInt(limit)),
+      hasNext: parseInt(offset) + parseInt(limit) < total,
+      hasPrev: parseInt(offset) > 0
     });
   } catch (error) {
-    next(error);
+    logger.error("Error fetching backtests", error);
+    return sendError(res, 500, "Failed to fetch backtests", "DB_ERROR");
   }
 });
 
@@ -93,11 +91,7 @@ router.get('/:run_id', async (req, res, next) => {
     const runResult = await query(runQ, [run_id]);
 
     if (runResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'Backtest run not found',
-        timestamp: new Date().toISOString()
-      });
+      return sendError(res, 404, 'Backtest run not found', 'NOT_FOUND');
     }
 
     const run = runResult.rows[0];
@@ -137,7 +131,8 @@ router.get('/:run_id', async (req, res, next) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    next(error);
+    logger.error("Error fetching backtest run", error);
+    return sendError(res, 500, "Failed to fetch backtest run", "DB_ERROR");
   }
 });
 
@@ -193,13 +188,12 @@ router.post('/', async (req, res, next) => {
       sharpe, sortino, profit_factor, JSON.stringify(equity_curve), notes, 'completed'
     ]);
 
-    res.json({
-      success: true,
-      run_id: result.rows[0].run_id,
-      timestamp: new Date().toISOString()
-    });
+    return sendSuccess(res, {
+      run_id: result.rows[0].run_id
+    }, "Backtest created successfully", 201);
   } catch (error) {
-    next(error);
+    logger.error("Error creating backtest", error);
+    return sendError(res, 500, "Failed to create backtest", "DB_ERROR");
   }
 });
 
