@@ -200,6 +200,18 @@ const SignalCardAccordion = ({ signals = [] }) => {
                       </Box>
                     </Grid>
 
+                    {/* ATR - Volatility Indicator */}
+                    <Grid item xs={6} sm="auto">
+                      <Box sx={{ minWidth: 70 }}>
+                        <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: "block", fontSize: "0.7rem", mb: 0.25 }}>
+                          ATR
+                        </Typography>
+                        <Typography variant="caption" fontWeight={700} sx={{ fontSize: "0.9rem" }}>
+                          {signal.atr ? signal.atr.toFixed(2) : '—'}
+                        </Typography>
+                      </Box>
+                    </Grid>
+
                     {/* Base Type Pattern */}
                     {signal.base_type && (
                       <Grid item xs={6} sm="auto">
