@@ -91,7 +91,8 @@
       "Bash(export AWS_ACCESS_KEY_ID=$\\(grep -A1 \"^\\\\[default\\\\]\" ~/.aws/credentials)",
       "Bash(git rm *)",
       "Bash(git checkout *)",
-      "Bash(tee -a /tmp/system_monitor.log)"
+      "Bash(tee -a /tmp/system_monitor.log)",
+      "Bash(node *)"
     ]
   }
 }

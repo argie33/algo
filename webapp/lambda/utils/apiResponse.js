@@ -2,8 +2,27 @@
 // Format: { success, data?, items?, pagination?, error?, timestamp }
 
 module.exports = {
-  // Standard success response
+  // Standard success response - auto-detect list responses
   sendSuccess: (res, data, statusCode = 200) => {
+    // If data is an array, return as paginated response for frontend compatibility
+    if (Array.isArray(data)) {
+      return res.status(statusCode).json({
+        success: true,
+        items: data,
+        pagination: {
+          limit: data.length,
+          offset: 0,
+          total: data.length,
+          page: 1,
+          totalPages: 1,
+          hasNext: false,
+          hasPrev: false
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // For objects, return as single object response
     res.status(statusCode).json({
       success: true,
       data: data || null,
