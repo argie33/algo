@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260502_173000 - Phase A: Enable S3 staging + Fargate Spot + 10x parallelism
+# TRIGGER: 20260502_213500 - FULL TEST: Phase A + Dedup verification + Measurement
 """
 Stock Scores Loader v3.0 COMPREHENSIVE - Uses all available metrics for accurate scoring
+Phase A Active: S3 staging, Fargate Spot 80%, dedup fix verified
 """
 import sys
 import psycopg2
