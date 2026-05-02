@@ -4,7 +4,7 @@ let query;
 try {
   ({ query } = require("../utils/database"));
 } catch (error) {
-  logger.info("Database service not available in financials routes:", error.message);
+  console.log("Database service not available in financials routes:", error.message);
   query = null;
 }
 
