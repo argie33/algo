@@ -383,11 +383,11 @@ app.use(async (req, res, next) => {
 
   // For endpoints that need database, try to ensure connection with timeout
   try {
-    // Use shorter timeout for database initialization (10 seconds max)
+    // Use longer timeout for database initialization (60 seconds max to allow schema creation)
     await Promise.race([
       ensureDatabase(),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("DB init timeout")), 10000)
+        setTimeout(() => reject(new Error("DB init timeout")), 60000)
       )
     ]);
     if (process.env.NODE_ENV !== 'test') {

@@ -599,4 +599,159 @@ router.get("/correlations", async (req, res) => {
   }
 });
 
+/**
+ * GET /commodities/technicals/:symbol
+ * Get technical indicators (RSI, MACD, SMA, Bollinger Bands, ATR)
+ */
+router.get("/technicals/:symbol", async (req, res) => {
+  const dbError = checkDatabaseAvailable(res);
+  if (dbError) return dbError;
+
+  const { symbol } = req.params;
+
+  try {
+    const result = await query(`
+      SELECT
+        date,
+        rsi,
+        macd,
+        macd_signal,
+        macd_hist,
+        sma_20,
+        sma_50,
+        sma_200,
+        bb_upper,
+        bb_lower,
+        bb_pct,
+        atr,
+        signal
+      FROM commodity_technicals
+      WHERE symbol = $1
+      ORDER BY date DESC
+      LIMIT 252
+    `, [symbol]);
+
+    const technicals = result.rows
+      .reverse()
+      .map(row => ({
+        date: row.date,
+        rsi: safeFixed(row.rsi, 2),
+        macd: safeFixed(row.macd, 4),
+        macdSignal: safeFixed(row.macd_signal, 4),
+        macdHist: safeFixed(row.macd_hist, 4),
+        sma20: safeFixed(row.sma_20, 2),
+        sma50: safeFixed(row.sma_50, 2),
+        sma200: safeFixed(row.sma_200, 2),
+        bbUpper: safeFixed(row.bb_upper, 2),
+        bbLower: safeFixed(row.bb_lower, 2),
+        bbPct: safeFixed(row.bb_pct, 2),
+        atr: safeFixed(row.atr, 4),
+        signal: row.signal
+      }));
+
+    if (technicals.length === 0) {
+      return sendNotFound(res, `No technical data available for symbol: ${symbol}`);
+    }
+
+    return sendSuccess(res, {
+      symbol: symbol,
+      technicals: technicals,
+      latest: technicals[technicals.length - 1]
+    });
+  } catch (error) {
+    console.error("❌ Error fetching technicals:", error.message);
+    return sendError(res, "Technical data not available.", 503);
+  }
+});
+
+/**
+ * GET /commodities/macro
+ * Get macro economic drivers (USD, rates, CPI)
+ */
+router.get("/macro", async (req, res) => {
+  const dbError = checkDatabaseAvailable(res);
+  if (dbError) return dbError;
+
+  try {
+    const result = await query(`
+      SELECT
+        series_id,
+        series_name,
+        date,
+        CAST(value AS FLOAT) as value
+      FROM commodity_macro_drivers
+      ORDER BY series_id, date DESC
+    `);
+
+    const macroBySeriesAndDate = {};
+
+    result.rows.forEach(row => {
+      if (!macroBySeriesAndDate[row.series_id]) {
+        macroBySeriesAndDate[row.series_id] = {
+          seriesId: row.series_id,
+          seriesName: row.series_name,
+          history: []
+        };
+      }
+      macroBySeriesAndDate[row.series_id].history.push({
+        date: row.date,
+        value: safeFixed(row.value, 4)
+      });
+    });
+
+    // Reverse history so oldest first
+    Object.keys(macroBySeriesAndDate).forEach(key => {
+      macroBySeriesAndDate[key].history.reverse();
+    });
+
+    return sendSuccess(res, {
+      lastUpdated: new Date(),
+      macroDrivers: Object.values(macroBySeriesAndDate)
+    });
+  } catch (error) {
+    console.error("❌ Error fetching macro data:", error.message);
+    return sendError(res, "Macro data not available.", 503);
+  }
+});
+
+/**
+ * GET /commodities/events
+ * Get economic event calendar
+ */
+router.get("/events", async (req, res) => {
+  const dbError = checkDatabaseAvailable(res);
+  if (dbError) return dbError;
+
+  try {
+    const result = await query(`
+      SELECT
+        event_name,
+        event_date,
+        event_type,
+        description,
+        impact
+      FROM commodity_events
+      WHERE event_date > NOW()
+      ORDER BY event_date ASC
+      LIMIT 50
+    `);
+
+    const events = result.rows.map(row => ({
+      name: row.event_name,
+      date: row.event_date,
+      type: row.event_type,
+      description: row.description,
+      impact: row.impact
+    }));
+
+    return sendSuccess(res, {
+      events: events,
+      total: events.length
+    });
+  } catch (error) {
+    console.error("❌ Error fetching events:", error.message);
+    return sendError(res, "Event calendar not available.", 503);
+  }
+});
+
 module.exports = router;

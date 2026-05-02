@@ -1,0 +1,36 @@
+﻿2026-05-02T17:47:09.3303202Z ##[group]Run # Check if stack already exists
+2026-05-02T17:47:09.3303666Z [36;1m# Check if stack already exists[0m
+2026-05-02T17:47:09.3304051Z [36;1mSTACK_STATUS=$(aws cloudformation describe-stacks \[0m
+2026-05-02T17:47:09.3304442Z [36;1m  --stack-name stocks-oidc-bootstrap \[0m
+2026-05-02T17:47:09.3304762Z [36;1m  --query 'Stacks[0].StackStatus' \[0m
+2026-05-02T17:47:09.3305105Z [36;1m  --output text 2>/dev/null || echo "STACK_NOT_FOUND")[0m
+2026-05-02T17:47:09.3305416Z [36;1m[0m
+2026-05-02T17:47:09.3305643Z [36;1mif [ "$STACK_STATUS" == "STACK_NOT_FOUND" ]; then[0m
+2026-05-02T17:47:09.3305993Z [36;1m  echo "Creating bootstrap stack..."[0m
+2026-05-02T17:47:09.3306283Z [36;1m  aws cloudformation deploy \[0m
+2026-05-02T17:47:09.3306579Z [36;1m    --stack-name stocks-oidc-bootstrap \[0m
+2026-05-02T17:47:09.3306908Z [36;1m    --template-file template-bootstrap.yml \[0m
+2026-05-02T17:47:09.3307253Z [36;1m    --capabilities CAPABILITY_NAMED_IAM \[0m
+2026-05-02T17:47:09.3307547Z [36;1m    --no-fail-on-empty-changeset[0m
+2026-05-02T17:47:09.3307836Z [36;1melse[0m
+2026-05-02T17:47:09.3308125Z [36;1m  echo "Bootstrap stack already exists with status: $STACK_STATUS"[0m
+2026-05-02T17:47:09.3308640Z [36;1m  if [ "$STACK_STATUS" == "CREATE_COMPLETE" ] || [ "$STACK_STATUS" == "UPDATE_COMPLETE" ]; then[0m
+2026-05-02T17:47:09.3309094Z [36;1m    echo "✅ Stack is healthy, no action needed"[0m
+2026-05-02T17:47:09.3309381Z [36;1m  else[0m
+2026-05-02T17:47:09.3309951Z [36;1m    echo "⚠️ Stack is in state: $STACK_STATUS, attempting update..."[0m
+2026-05-02T17:47:09.3310607Z [36;1m    aws cloudformation deploy \[0m
+2026-05-02T17:47:09.3310922Z [36;1m      --stack-name stocks-oidc-bootstrap \[0m
+2026-05-02T17:47:09.3311275Z [36;1m      --template-file template-bootstrap.yml \[0m
+2026-05-02T17:47:09.3311592Z [36;1m      --capabilities CAPABILITY_NAMED_IAM \[0m
+2026-05-02T17:47:09.3311901Z [36;1m      --no-fail-on-empty-changeset || true[0m
+2026-05-02T17:47:09.3312157Z [36;1m  fi[0m
+2026-05-02T17:47:09.3312354Z [36;1mfi[0m
+2026-05-02T17:47:09.3338805Z shell: /usr/bin/bash -e {0}
+2026-05-02T17:47:09.3339070Z env:
+2026-05-02T17:47:09.3339261Z   AWS_DEFAULT_REGION: us-east-1
+2026-05-02T17:47:09.3339508Z   AWS_REGION: us-east-1
+2026-05-02T17:47:09.3340045Z   AWS_ACCESS_KEY_ID: ***
+2026-05-02T17:47:09.3340374Z   AWS_SECRET_ACCESS_KEY: ***
+2026-05-02T17:47:09.3340602Z ##[endgroup]
+2026-05-02T17:47:12.2492883Z Bootstrap stack already exists with status: UPDATE_COMPLETE
+2026-05-02T17:47:12.2493953Z ✅ Stack is healthy, no action needed

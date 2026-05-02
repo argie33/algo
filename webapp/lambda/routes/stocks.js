@@ -219,30 +219,46 @@ router.get("/deep-value", async (req, res) => {
           gr.roe_trend,
           gr.sustainable_growth_rate,
           gr.quarterly_growth_momentum,
-          -- DCF / Earnings Power Value Calculation
-          -- EPV = (Earnings * (1 + growth)) / (discount_rate - growth)
-          -- Growth rate stored as percentage (e.g., 8 = 8%), convert to decimal /100
-          -- Cap at 8% for sustainability, floor at -5%, default 5%
-          -- Discount rate = 10%
+          -- 2-STAGE DCF MODEL (accurate, conservative):
+          -- Stage 1: 5-year explicit forecast at company's growth rate (capped 12%)
+          -- Stage 2: Terminal value at 3% perpetual growth
+          -- Discount rate: 11% (long-term S&P 500 average return)
+          -- E = price / trailing_pe; g1 = min(eps_3y_cagr/100, 12%) floor -2%
           CASE
             WHEN v.trailing_pe > 0 AND v.trailing_pe < 200 THEN
               ROUND(CAST(
-                (1.0 / v.trailing_pe) *
-                (1.0 + LEAST(GREATEST(COALESCE(gr.eps_growth_3y_cagr, 5.0) / 100.0, -0.05), 0.08)) /
-                NULLIF(0.10 - LEAST(GREATEST(COALESCE(gr.eps_growth_3y_cagr, 5.0) / 100.0, -0.05), 0.08), 0)
-                * pd.current_price_pd
+                (
+                  (pd.current_price_pd / v.trailing_pe) *
+                  ((1.0 + LEAST(GREATEST(COALESCE(gr.eps_growth_3y_cagr, 5.0) / 100.0, -0.02), 0.12)) / 1.11) *
+                  (POWER((1.0 + LEAST(GREATEST(COALESCE(gr.eps_growth_3y_cagr, 5.0) / 100.0, -0.02), 0.12)) / 1.11, 5) - 1) /
+                  NULLIF(((1.0 + LEAST(GREATEST(COALESCE(gr.eps_growth_3y_cagr, 5.0) / 100.0, -0.02), 0.12)) / 1.11) - 1, 0)
+                ) +
+                (
+                  (pd.current_price_pd / v.trailing_pe) *
+                  POWER(1.0 + LEAST(GREATEST(COALESCE(gr.eps_growth_3y_cagr, 5.0) / 100.0, -0.02), 0.12), 5) *
+                  1.03 / (0.11 - 0.03) /
+                  POWER(1.11, 5)
+                )
                 AS NUMERIC), 2)
             ELSE NULL
           END AS intrinsic_value_epv,
-          -- Margin of Safety = (Intrinsic - Current) / Intrinsic
+          -- Margin of Safety = (Intrinsic - Current) / Intrinsic (using 2-stage DCF)
           CASE
             WHEN v.trailing_pe > 0 AND v.trailing_pe < 200 THEN
               ROUND(CAST(
                 (1.0 - pd.current_price_pd / NULLIF(
-                  (1.0 / v.trailing_pe) *
-                  (1.0 + LEAST(GREATEST(COALESCE(gr.eps_growth_3y_cagr, 5.0) / 100.0, -0.05), 0.08)) /
-                  NULLIF(0.10 - LEAST(GREATEST(COALESCE(gr.eps_growth_3y_cagr, 5.0) / 100.0, -0.05), 0.08), 0)
-                  * pd.current_price_pd
+                  (
+                    (pd.current_price_pd / v.trailing_pe) *
+                    ((1.0 + LEAST(GREATEST(COALESCE(gr.eps_growth_3y_cagr, 5.0) / 100.0, -0.02), 0.12)) / 1.11) *
+                    (POWER((1.0 + LEAST(GREATEST(COALESCE(gr.eps_growth_3y_cagr, 5.0) / 100.0, -0.02), 0.12)) / 1.11, 5) - 1) /
+                    NULLIF(((1.0 + LEAST(GREATEST(COALESCE(gr.eps_growth_3y_cagr, 5.0) / 100.0, -0.02), 0.12)) / 1.11) - 1, 0)
+                  ) +
+                  (
+                    (pd.current_price_pd / v.trailing_pe) *
+                    POWER(1.0 + LEAST(GREATEST(COALESCE(gr.eps_growth_3y_cagr, 5.0) / 100.0, -0.02), 0.12), 5) *
+                    1.03 / (0.11 - 0.03) /
+                    POWER(1.11, 5)
+                  )
                 , 0)) * 100
                 AS NUMERIC), 1)
             ELSE NULL

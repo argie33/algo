@@ -99,7 +99,27 @@
       "PowerShell($headers = @{\"Accept\" = \"application/vnd.github+json\"}; $response = Invoke-WebRequest -Uri \"https://api.github.com/repos/argie33/algo/actions/workflows/deploy-app-stocks.yml/runs?per_page=1\" -Headers $headers -ErrorAction SilentlyContinue; $json = $response.Content | ConvertFrom-Json; $run_id = $json.workflow_runs[0].id; $jobs_response = Invoke-WebRequest -Uri \"https://api.github.com/repos/argie33/algo/actions/runs/$run_id/jobs\" -Headers $headers -ErrorAction SilentlyContinue; $jobs_json = $jobs_response.Content | ConvertFrom-Json; $jobs_json.jobs | Select-Object name, status, conclusion, @{Name=\"completed_at\"; Expression={$_.completed_at}} | ConvertTo-Json)",
       "PowerShell($headers = @{\"Accept\" = \"application/vnd.github+json\"}; $response = Invoke-WebRequest -Uri \"https://api.github.com/repos/argie33/algo/actions/workflows/deploy-app-stocks.yml/runs?per_page=1\" -Headers $headers -ErrorAction SilentlyContinue; $json = $response.Content | ConvertFrom-Json; $run_id = $json.workflow_runs[0].id; $jobs_response = Invoke-WebRequest -Uri \"https://api.github.com/repos/argie33/algo/actions/runs/$run_id/jobs\" -Headers $headers -ErrorAction SilentlyContinue; $jobs_json = $jobs_response.Content | ConvertFrom-Json; $infra_job = $jobs_json.jobs | Where-Object {$_.name -eq \"Deploy Infrastructure\"}; $logs_url = $infra_job.logs_url; Invoke-WebRequest -Uri $logs_url -Headers $headers -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Content | Select-Object -Last 3000)",
       "Bash(chmod +x /tmp/run_loaders.sh)",
-      "PowerShell($ErrorActionPreference = 'SilentlyContinue'; $token = $env:GITHUB_TOKEN; if \\(-not $token\\) { \"No GITHUB_TOKEN in environment\" } else { \"Token found, fetching workflow runs...\"; $headers = @{\"Authorization\" = \"token $token\"; \"Accept\" = \"application/vnd.github+json\"}; $response = Invoke-WebRequest -Uri \"https://api.github.com/repos/argie33/algo/actions/workflows/deploy-app-stocks.yml/runs?per_page=1\" -Headers $headers; $json = $response.Content | ConvertFrom-Json; $run = $json.workflow_runs[0]; \"Latest run: $\\($run.id\\)\"; \"Status: $\\($run.status\\)\"; \"Conclusion: $\\($run.conclusion\\)\"; \"Created: $\\($run.created_at\\)\"; \"Updated: $\\($run.updated_at\\)\" })"
+      "PowerShell($ErrorActionPreference = 'SilentlyContinue'; $token = $env:GITHUB_TOKEN; if \\(-not $token\\) { \"No GITHUB_TOKEN in environment\" } else { \"Token found, fetching workflow runs...\"; $headers = @{\"Authorization\" = \"token $token\"; \"Accept\" = \"application/vnd.github+json\"}; $response = Invoke-WebRequest -Uri \"https://api.github.com/repos/argie33/algo/actions/workflows/deploy-app-stocks.yml/runs?per_page=1\" -Headers $headers; $json = $response.Content | ConvertFrom-Json; $run = $json.workflow_runs[0]; \"Latest run: $\\($run.id\\)\"; \"Status: $\\($run.status\\)\"; \"Conclusion: $\\($run.conclusion\\)\"; \"Created: $\\($run.created_at\\)\"; \"Updated: $\\($run.updated_at\\)\" })",
+      "PowerShell(Get-Content *)",
+      "Bash(curl -s -H 'Authorization: token __TRACKED_VAR__' -H 'Accept: application/vnd.github.v3+json' https://api.github.com/repos/argie33/algo/actions/runs/25254418195)",
+      "Bash(curl -s -L -H 'Authorization: token __TRACKED_VAR__' https://api.github.com/repos/argie33/algo/actions/runs/25254418195/logs -o /tmp/logs.zip)",
+      "Bash(unzip -l /tmp/logs.zip)",
+      "Bash(unzip -o logs.zip)",
+      "Bash(curl -s -H 'Authorization: token __TRACKED_VAR__' 'https://api.github.com/repos/argie33/algo/actions/runs?event=push')",
+      "Bash(curl -s -H 'Authorization: token __TRACKED_VAR__' https://api.github.com/repos/argie33/algo/actions/runs)",
+      "Bash(curl -s -H 'Authorization: token __TRACKED_VAR__' https://api.github.com/repos/argie33/algo/actions/runs/25257604889)",
+      "Bash(curl -s -L -H 'Authorization: token __TRACKED_VAR__' https://api.github.com/repos/argie33/algo/actions/runs/25257604889/logs -o /tmp/logs_phase_a.zip)",
+      "Bash(unzip -l /tmp/logs_phase_a.zip)",
+      "Bash(unzip -o logs_phase_a.zip)",
+      "Bash(curl -s -H 'Authorization: token __TRACKED_VAR__' https://api.github.com/repos/argie33/algo/actions/runs/25257996228)",
+      "Bash(curl -s -L -H 'Authorization: token __TRACKED_VAR__' https://api.github.com/repos/argie33/algo/actions/runs/25257996228/logs -o /tmp/logs_phase_a_test.zip)",
+      "Bash(unzip -o /tmp/logs_phase_a_test.zip)",
+      "Bash(unzip -l /tmp/logs_phase_a_test.zip)",
+      "Bash(curl -s -H 'Authorization: token __TRACKED_VAR__' 'https://api.github.com/repos/argie33/algo/actions/runs?status=completed&event=push')",
+      "Bash(curl -s -L -H 'Authorization: token __TRACKED_VAR__' https://api.github.com/repos/argie33/algo/actions/runs/25257996206/logs -o /tmp/logs_phase_a_failure.zip)",
+      "Bash(unzip -l /tmp/logs_phase_a_failure.zip)",
+      "Bash(unzip -o logs_phase_a_failure.zip)",
+      "Bash(curl -s -H 'Authorization: token __TRACKED_VAR__' https://api.github.com/repos/argie33/algo/actions/runs/25257996206)"
     ]
   }
 }
