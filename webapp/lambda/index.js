@@ -61,7 +61,35 @@ const pricesRoutes = require("./routes/prices");
 
 const app = express();
 
+// CRITICAL: Catch unhandled errors to prevent orphaned processes
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Promise Rejection:', reason);
+  if (reason && reason.stack) console.error('Stack:', reason.stack);
+});
 
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  console.error('Stack:', error.stack);
+  console.error('⚠️ Server continues running (DO NOT EXIT - prevents orphaned processes)');
+});
+
+// Global request timeout to prevent hanging requests
+const REQUEST_TIMEOUT = 60000;
+app.use((req, res, next) => {
+  req.socket.setTimeout(REQUEST_TIMEOUT);
+  req.socket.on('timeout', () => {
+    console.error(`⏱️ Request timeout: ${req.method} ${req.path}`);
+    if (!res.headersSent) {
+      res.status(503).json({
+        success: false,
+        error: 'Request timeout - server busy',
+        timestamp: new Date().toISOString()
+      });
+    }
+    req.socket.destroy();
+  });
+  next();
+});
 
 // Trust proxy when running behind API Gateway/CloudFront
 app.set("trust proxy", true);
@@ -149,34 +177,31 @@ app.use((req, res, next) => {
 
 // Global OPTIONS handler for CORS preflight requests (MUST be before CORS middleware)
 app.options('*', (req, res) => {
-  console.log(`ðŸ”„ Global OPTIONS handler for: ${req.path} from origin: ${req.headers.origin}`);
-
-  // Ensure CORS headers are explicitly set for AWS API Gateway compatibility
   const origin = req.headers.origin;
-  const cloudFrontDomain = process.env.CLOUDFRONT_DOMAIN;
 
-  // If origin is CloudFront or localhost, allow it; otherwise use configured domain or deny
-  let allowedOrigin = false;
-  if (origin && (origin.includes(".cloudfront.net") || origin.includes("localhost"))) {
-    allowedOrigin = origin;
-  } else if (cloudFrontDomain && origin === cloudFrontDomain) {
-    allowedOrigin = origin;
+  // Allow CloudFront, localhost, and any configured domain
+  let allowedOrigin = '*'; // Default to allow all for API Gateway
+
+  if (origin) {
+    // Explicitly allow CloudFront domains and localhost
+    if (origin.includes('.cloudfront.net') || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      allowedOrigin = origin;
+    }
+    // Allow configured CloudFront domain from env
+    else if (process.env.CLOUDFRONT_DOMAIN && origin === process.env.CLOUDFRONT_DOMAIN) {
+      allowedOrigin = origin;
+    }
+    // In development, allow any origin for local testing
+    else if (process.env.NODE_ENV === 'development') {
+      allowedOrigin = origin;
+    }
   }
 
-  if (!allowedOrigin && process.env.NODE_ENV === "development") {
-    // In development, allow more origins for testing
-    allowedOrigin = origin || false;
-  }
-
-  res.header("Access-Control-Allow-Origin", allowedOrigin);
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS,HEAD,PATCH");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Content-Type,Authorization,X-Requested-With,X-Api-Key,X-Amz-Date,X-Amz-Security-Token,X-Request-ID,Accept,Accept-Language,Cache-Control,Origin"
-  );
-  res.header("Access-Control-Max-Age", "86400");
-  res.header("Vary", "Origin,Access-Control-Request-Method,Access-Control-Request-Headers");
+  res.header('Access-Control-Allow-Origin', allowedOrigin);
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,HEAD,PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,X-Api-Key,X-Amz-Date,X-Amz-Security-Token,X-Request-ID,Accept,Accept-Language,Cache-Control,Origin');
+  res.header('Access-Control-Max-Age', '86400');
 
   res.status(200).end();
 });
