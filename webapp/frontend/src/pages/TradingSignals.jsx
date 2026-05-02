@@ -98,12 +98,13 @@ function TradingSignals() {
 
   // API Query
   const { data: signalsData, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["signals", strategy, symbolFilter, signalFilter, days, minPrice, maxPrice, minVolume, maxVolume, minRsi, maxRsi, minAdx, sort, sortOrder, page, limit],
+    queryKey: ["signals", strategy, symbolFilter, signalFilter, baseTypeFilter, days, minPrice, maxPrice, minVolume, maxVolume, minRsi, maxRsi, minAdx, sort, sortOrder, page, limit],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append("type", strategy);
       if (symbolFilter) params.append("symbol", symbolFilter.toUpperCase());
       if (signalFilter) params.append("signal", signalFilter);
+      if (baseTypeFilter) params.append("base_type", baseTypeFilter);
       params.append("days", days);
       if (minPrice) params.append("min_price", minPrice);
       if (maxPrice) params.append("max_price", maxPrice);
@@ -129,6 +130,7 @@ function TradingSignals() {
   const handleClearAll = () => {
     setSymbolFilter("");
     setSignalFilter("");
+    setBaseTypeFilter("");
     setDays(3650); // All time
     setMinPrice("");
     setMaxPrice("");
@@ -146,6 +148,7 @@ function TradingSignals() {
     const handlers = {
       symbol: () => setSymbolFilter(""),
       signal: () => setSignalFilter(""),
+      baseType: () => setBaseTypeFilter(""),
       days: () => setDays(3650), // All time
       minPrice: () => setMinPrice(""),
       maxPrice: () => setMaxPrice(""),

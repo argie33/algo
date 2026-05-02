@@ -493,37 +493,37 @@ def populate_categories():
 def fetch_cot_data(symbol: str) -> List[Dict[str, Any]]:
     """Fetch COT data from CFTC using official cot_reports library (best practice)"""
     if not COT_LIBRARY_AVAILABLE:
-        logging.warning(f"cot_reports library not available for {symbol}")
+        logging.debug(f"cot_reports library not available for {symbol}")
         return []
 
     try:
-        # Map Yahoo Finance symbols to CFTC report market names
-        cftc_market_names = {
-            'CL=F': 'Crude Oil, Light Sweet',
+        # Map Yahoo Finance symbols to CFTC contract names used by cot_reports
+        cftc_contracts = {
+            'CL=F': 'Crude Oil WTI',
             'NG=F': 'Natural Gas',
             'GC=F': 'Gold',
             'SI=F': 'Silver',
             'HG=F': 'Copper',
             'ZC=F': 'Corn',
-            'ZS=F': 'Soybean',
+            'ZS=F': 'Soybeans',
             'ZW=F': 'Wheat',
             'LE=F': 'Live Cattle',
             'HE=F': 'Lean Hogs',
         }
 
-        if symbol not in cftc_market_names:
-            logging.debug(f"No CFTC market mapping for {symbol}")
+        if symbol not in cftc_contracts:
+            logging.debug(f"No CFTC contract mapping for {symbol}")
             return []
 
-        market_name = cftc_market_names[symbol]
+        contract_name = cftc_contracts[symbol]
 
         try:
-            # Fetch using cot_reports library - fetches latest COT data
-            # This library handles all CFTC API details properly
-            cot_df = cot_reports.cot_reports(market_name)
+            # Use cot_hist from cot_reports library
+            # This fetches the full history of COT data for the contract
+            cot_df = cot_hist(contract_name)
 
             if cot_df is None or cot_df.empty:
-                logging.debug(f"No COT data returned for {market_name}")
+                logging.debug(f"No COT data returned for {contract_name}")
                 return []
 
             cot_records = []
@@ -531,65 +531,80 @@ def fetch_cot_data(symbol: str) -> List[Dict[str, Any]]:
             # Parse dataframe to our format
             for idx, row in cot_df.iterrows():
                 try:
-                    # Extract date from index or column
+                    # Extract date - could be index or column
+                    report_date = None
+
+                    # Try getting from index first
                     if hasattr(idx, 'date'):
                         report_date = idx.date()
-                    elif 'date' in str(row.index).lower():
-                        report_date = pd.to_datetime(idx).date()
                     else:
-                        # Try to find date column
-                        date_cols = [col for col in cot_df.columns if 'date' in col.lower()]
-                        if date_cols:
-                            report_date = pd.to_datetime(row[date_cols[0]]).date()
-                        else:
-                            report_date = datetime.now().date()
+                        try:
+                            report_date = pd.to_datetime(idx).date()
+                        except:
+                            pass
 
-                    # Extract position columns (field names vary by report type)
+                    # If not in index, try columns
+                    if not report_date:
+                        for date_col in ['Date', 'date', 'Report Date', 'report_date']:
+                            if date_col in row.index and pd.notna(row[date_col]):
+                                try:
+                                    report_date = pd.to_datetime(row[date_col]).date()
+                                    break
+                                except:
+                                    pass
+
+                    if not report_date:
+                        continue
+
+                    # Extract position columns
                     def safe_val(col_names, default=0):
                         for col in col_names:
-                            if col in row and pd.notna(row[col]):
+                            if col in row.index and pd.notna(row[col]):
                                 try:
-                                    return int(float(row[col]))
+                                    val = row[col]
+                                    return int(float(val)) if val else 0
                                 except:
                                     pass
                         return default
 
-                    # Try multiple field name variations
-                    comm_long = safe_val(['Commercial Long', 'comm_long', 'commercial_long'])
-                    comm_short = safe_val(['Commercial Short', 'comm_short', 'commercial_short'])
-                    noncomm_long = safe_val(['Non-Commercial Long', 'noncomm_long', 'non_commercial_long'])
-                    noncomm_short = safe_val(['Non-Commercial Short', 'noncomm_short', 'non_commercial_short'])
-                    open_int = safe_val(['Open Interest', 'open_interest'])
+                    # Field names from cot_reports library output
+                    comm_long = safe_val(['COM_Long', 'Comm Long', 'Commercial Long'], 0)
+                    comm_short = safe_val(['COM_Short', 'Comm Short', 'Commercial Short'], 0)
+                    noncomm_long = safe_val(['NONCOM_Long', 'NonComm Long', 'Non-Commercial Long'], 0)
+                    noncomm_short = safe_val(['NONCOM_Short', 'NonComm Short', 'Non-Commercial Short'], 0)
+                    open_int = safe_val(['Open_Interest', 'Open Interest'], 0)
 
-                    cot_records.append({
-                        'symbol': symbol,
-                        'report_date': report_date,
-                        'commercial_long': comm_long,
-                        'commercial_short': comm_short,
-                        'commercial_net': comm_long - comm_short,
-                        'non_commercial_long': noncomm_long,
-                        'non_commercial_short': noncomm_short,
-                        'non_commercial_net': noncomm_long - noncomm_short,
-                        'non_reportable_long': 0,
-                        'non_reportable_short': 0,
-                        'non_reportable_net': 0,
-                        'open_interest': open_int
-                    })
+                    # Only add if we have position data
+                    if comm_long or comm_short or noncomm_long or noncomm_short:
+                        cot_records.append({
+                            'symbol': symbol,
+                            'report_date': report_date,
+                            'commercial_long': comm_long,
+                            'commercial_short': comm_short,
+                            'commercial_net': comm_long - comm_short,
+                            'non_commercial_long': noncomm_long,
+                            'non_commercial_short': noncomm_short,
+                            'non_commercial_net': noncomm_long - noncomm_short,
+                            'non_reportable_long': 0,
+                            'non_reportable_short': 0,
+                            'non_reportable_net': 0,
+                            'open_interest': open_int
+                        })
 
                 except Exception as e:
                     logging.debug(f"Error parsing COT row for {symbol}: {e}")
                     continue
 
             if cot_records:
-                logging.info(f" Fetched {len(cot_records)} COT records for {symbol} from cot_reports library")
+                logging.info(f" ✅ Fetched {len(cot_records)} COT records for {symbol}")
             return cot_records
 
         except Exception as e:
-            logging.warning(f"cot_reports library error for {symbol}: {e}")
+            logging.debug(f"cot_hist error for {symbol}: {e}")
             return []
 
     except Exception as e:
-        logging.error(f"Unexpected error fetching COT data for {symbol}: {e}")
+        logging.debug(f"Error fetching COT data for {symbol}: {e}")
         return []
 
 def save_cot_data(cot_records: List[Dict[str, Any]]):

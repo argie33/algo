@@ -177,10 +177,17 @@ router.get("/deep-value", async (req, res) => {
           c.roe, c.roa, c.gross_margin, c.op_margin, c.net_margin,
           c.debt_to_equity, c.current_ratio, c.hist_avg_pe, c.hist_avg_pb, c.hist_max_pe,
           ROUND(CAST((c.hist_avg_pe - c.trailing_pe) / NULLIF(c.hist_avg_pe, 0) * 100 AS NUMERIC), 1) AS discount_vs_historical_pe_pct,
-          ROUND(CAST((c.hist_avg_pb - c.price_to_book) / NULLIF(c.hist_avg_pb, 0) * 100 AS NUMERIC), 1) AS discount_vs_historical_pb_pct
+          ROUND(CAST((c.hist_avg_pb - c.price_to_book) / NULLIF(c.hist_avg_pb, 0) * 100 AS NUMERIC), 1) AS discount_vs_historical_pb_pct,
+          CASE
+            WHEN (c.hist_avg_pe - c.trailing_pe) / NULLIF(c.hist_avg_pe, 0) >= 0.40 THEN 90
+            WHEN (c.hist_avg_pb - c.price_to_book) / NULLIF(c.hist_avg_pb, 0) >= 0.40 THEN 85
+            WHEN (c.hist_avg_pe - c.trailing_pe) / NULLIF(c.hist_avg_pe, 0) >= 0.30 THEN 70
+            WHEN (c.hist_max_pe - c.trailing_pe) / NULLIF(c.hist_max_pe, 0) >= 0.50 THEN 75
+            ELSE 0
+          END AS discount_strength
         FROM combined c
-        WHERE (c.hist_avg_pe - c.trailing_pe) / NULLIF(c.hist_avg_pe, 0) >= 0.40
-          OR (c.hist_avg_pb - c.price_to_book) / NULLIF(c.hist_avg_pb, 0) >= 0.40
+        WHERE (c.hist_avg_pe - c.trailing_pe) / NULLIF(c.hist_avg_pe, 0) >= 0.30
+          OR (c.hist_max_pe - c.trailing_pe) / NULLIF(c.hist_max_pe, 0) >= 0.50
       ),
       sector_medians AS (
         SELECT
@@ -208,9 +215,10 @@ router.get("/deep-value", async (req, res) => {
           d.debt_to_equity, d.current_ratio, d.hist_avg_pe, d.hist_avg_pb,
           sm.sector_median_pe, ms.market_median_pe,
           d.discount_vs_historical_pe_pct, d.discount_vs_historical_pb_pct,
+          d.discount_strength,
           ROUND(CAST((sm.sector_median_pe - d.trailing_pe) / NULLIF(sm.sector_median_pe, 0) * 100 AS NUMERIC), 1) AS discount_vs_sector_pe_pct,
           ROUND(CAST((ms.market_median_pe - d.trailing_pe) / NULLIF(ms.market_median_pe, 0) * 100 AS NUMERIC), 1) AS discount_vs_market_pe_pct,
-          PERCENT_RANK() OVER (ORDER BY d.discount_vs_historical_pe_pct DESC) * 100 AS anomaly_intensity_pct
+          PERCENT_RANK() OVER (ORDER BY d.discount_vs_historical_pe_pct DESC NULLS LAST) * 100 AS anomaly_intensity_pct
         FROM discount_calc d
         JOIN company_profile cp ON d.symbol = cp.ticker
         LEFT JOIN sector_medians sm ON cp.sector = sm.sector
