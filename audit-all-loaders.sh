@@ -1,8 +1,6 @@
 #!/bin/bash
-"""
-Comprehensive Loader Audit Script
-Verify all 39 official loaders meet quality standards
-"""
+# Comprehensive Loader Audit Script
+# Verify all 39 official loaders meet quality standards
 
 set -e
 

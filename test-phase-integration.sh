@@ -1,8 +1,6 @@
 #!/bin/bash
-"""
-Test Script: Verify all optimization phases (A-E) work correctly
-Run this to validate end-to-end pipeline before production deployment
-"""
+# Test Script: Verify all optimization phases (A-E) work correctly
+# Run this to validate end-to-end pipeline before production deployment
 
 set -e
 
