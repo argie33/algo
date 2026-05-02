@@ -68,17 +68,17 @@ const getStocksSignals = async (req, res) => {
       whereClause = `WHERE bsd.date >= '1990-01-01'`;
     }
 
-    // Always exclude 'None' signals - only show Buy/Sell
-    whereClause += ` AND bsd.signal IN ('Buy', 'Sell')`;
+    // Always exclude 'None' signals - only show Buy/Sell (case-insensitive)
+    whereClause += ` AND UPPER(bsd.signal) IN ('BUY', 'SELL')`;
 
     // Handle signal_type parameter
     if (signalType) {
-      const signalTypes = signalType.split(',').map(s => s.trim());
+      const signalTypes = signalType.split(',').map(s => s.trim().toUpperCase());
       const signalPlaceholders = signalTypes.map((_, idx) => `$${paramIndex + idx}`).join(',');
-      whereClause += ` AND bsd.signal IN (${signalPlaceholders})`;
+      whereClause += ` AND UPPER(bsd.signal) IN (${signalPlaceholders})`;
 
       signalTypes.forEach(signal => {
-        queryParams.push(signal.charAt(0).toUpperCase() + signal.slice(1).toLowerCase());
+        queryParams.push(signal);
       });
       paramIndex += signalTypes.length;
     }
@@ -184,7 +184,11 @@ const getStocksSignals = async (req, res) => {
         offset,
         timeframe,
         tableName,
-        paramCount: [...queryParams, limit, offset].length
+        useEarningsJoin,
+        useTechJoin,
+        symbolFilter,
+        paramCount: [...queryParams, limit, offset].length,
+        whereClause: whereClause.substring(0, 100)
       });
       signalsResult = await query(signalsQuery, [...queryParams, limit, offset]);
       console.log(`[${timeframe.toUpperCase()}] Query succeeded, rows returned:`, signalsResult.rows?.length || 0);

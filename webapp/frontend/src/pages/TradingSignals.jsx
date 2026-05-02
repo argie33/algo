@@ -209,59 +209,59 @@ function TradingSignals() {
         </Card>
       )}
 
-      {/* Filter Panel - Accordion */}
-      <Card sx={{ mb: 4 }}>
-        <Accordion defaultExpanded>
-          <AccordionSummary expandIcon={<ExpandMore />}>
-            <FilterList sx={{ mr: 1.5 }} />
-            <Typography sx={{ fontWeight: 600, flex: 1 }}>Advanced Filters</Typography>
-            {activeFilterCount > 0 && <Chip label={activeFilterCount} size="small" color="primary" />}
+      {/* Filter Panel - Clean & Sleek */}
+      <Card sx={{ mb: 4, background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.action.hover} 100%)`, boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
+        <Accordion defaultExpanded sx={{ "&:before": { display: "none" } }}>
+          <AccordionSummary expandIcon={<ExpandMore />} sx={{ py: 2 }}>
+            <FilterList sx={{ mr: 2, color: theme.palette.primary.main }} />
+            <Typography sx={{ fontWeight: 700, flex: 1, fontSize: "1.05rem" }}>Filter Signals</Typography>
+            {activeFilterCount > 0 && <Chip label={activeFilterCount} size="small" color="primary" variant="filled" sx={{ fontWeight: 700 }} />}
           </AccordionSummary>
           <Divider />
-          <AccordionDetails sx={{ pt: 3, pb: 3 }}>
-            <Grid container spacing={2.5}>
-              {/* Quick Filters */}
+          <AccordionDetails sx={{ pt: 4, pb: 4, background: theme.palette.background.paper }}>
+            <Grid container spacing={3}>
+              {/* Quick Filters - Top Row */}
               <Grid item xs={12} sm={6} md={3}>
-                <TextField fullWidth label="Symbol" placeholder="AAPL" value={symbolFilter} onChange={(e) => { setSymbolFilter(e.target.value); setPage(1); }} size="small" InputProps={{ startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment> }} />
+                <TextField fullWidth label="Symbol" placeholder="AAPL" value={symbolFilter} onChange={(e) => { setSymbolFilter(e.target.value); setPage(1); }} size="small" variant="outlined" InputProps={{ startAdornment: <InputAdornment position="start"><Search fontSize="small" sx={{ color: theme.palette.text.secondary }} /></InputAdornment> }} sx={{ "& .MuiOutlinedInput-root": { borderRadius: 1.5 } }} />
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
                 <FormControl fullWidth size="small">
-                  <InputLabel>Signal</InputLabel>
-                  <Select value={signalFilter} onChange={(e) => { setSignalFilter(e.target.value); setPage(1); }} label="Signal">
-                    <MenuItem value="">All</MenuItem>
-                    <MenuItem value="BUY">📈 BUY</MenuItem>
-                    <MenuItem value="SELL">📉 SELL</MenuItem>
+                  <InputLabel>Signal Type</InputLabel>
+                  <Select value={signalFilter} onChange={(e) => { setSignalFilter(e.target.value); setPage(1); }} label="Signal Type">
+                    <MenuItem value="">All Signals</MenuItem>
+                    <MenuItem value="BUY">📈 BUY Signals</MenuItem>
+                    <MenuItem value="SELL">📉 SELL Signals</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
                 <FormControl fullWidth size="small">
-                  <InputLabel>Period</InputLabel>
-                  <Select value={days} onChange={(e) => { setDays(e.target.value); setPage(1); }} label="Period">
-                    <MenuItem value={7}>7 days</MenuItem>
-                    <MenuItem value={30}>30 days</MenuItem>
-                    <MenuItem value={90}>90 days</MenuItem>
-                    <MenuItem value={180}>6 months</MenuItem>
-                    <MenuItem value={365}>1 year</MenuItem>
+                  <InputLabel>Time Period</InputLabel>
+                  <Select value={days} onChange={(e) => { setDays(e.target.value); setPage(1); }} label="Time Period">
+                    <MenuItem value={7}>Last 7 days</MenuItem>
+                    <MenuItem value={30}>Last 30 days</MenuItem>
+                    <MenuItem value={90}>Last 90 days</MenuItem>
+                    <MenuItem value={180}>Last 6 months</MenuItem>
+                    <MenuItem value={365}>Last year</MenuItem>
                     <MenuItem value={3650}>All time</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
                 <FormControl fullWidth size="small">
-                  <InputLabel>Per Page</InputLabel>
-                  <Select value={limit} onChange={(e) => { setLimit(e.target.value); setPage(1); }} label="Per Page">
-                    <MenuItem value={25}>25</MenuItem>
-                    <MenuItem value={50}>50</MenuItem>
-                    <MenuItem value={100}>100</MenuItem>
-                    <MenuItem value={250}>250</MenuItem>
+                  <InputLabel>Results Per Page</InputLabel>
+                  <Select value={limit} onChange={(e) => { setLimit(e.target.value); setPage(1); }} label="Results Per Page">
+                    <MenuItem value={25}>25 results</MenuItem>
+                    <MenuItem value={50}>50 results</MenuItem>
+                    <MenuItem value={100}>100 results</MenuItem>
+                    <MenuItem value={250}>250 results</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
 
               {/* Price Section */}
               <Grid item xs={12}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: theme.palette.text.secondary }}>Price Range</Typography>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: "0.95rem", color: theme.palette.primary.main, textTransform: "uppercase", letterSpacing: 0.5 }}>💰 Price Range</Typography>
               </Grid>
               <Grid item xs={12} sm={6} md={2}>
                 <TextField fullWidth type="number" label="Min" placeholder="0" value={minPrice} onChange={(e) => { setMinPrice(e.target.value); setPage(1); }} size="small" inputProps={{ step: "0.01" }} />
@@ -272,15 +272,15 @@ function TradingSignals() {
 
               {/* Volume Section */}
               <Grid item xs={12} sm={6} md={2}>
-                <TextField fullWidth type="number" label="Min Vol" placeholder="0" value={minVolume} onChange={(e) => { setMinVolume(e.target.value); setPage(1); }} size="small" />
+                <TextField fullWidth type="number" label="Min Volume" placeholder="0" value={minVolume} onChange={(e) => { setMinVolume(e.target.value); setPage(1); }} size="small" />
               </Grid>
               <Grid item xs={12} sm={6} md={2}>
-                <TextField fullWidth type="number" label="Max Vol" placeholder="∞" value={maxVolume} onChange={(e) => { setMaxVolume(e.target.value); setPage(1); }} size="small" />
+                <TextField fullWidth type="number" label="Max Volume" placeholder="Unlimited" value={maxVolume} onChange={(e) => { setMaxVolume(e.target.value); setPage(1); }} size="small" />
               </Grid>
 
               {/* Technical Section */}
               <Grid item xs={12}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: theme.palette.text.secondary }}>Technical Indicators</Typography>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: "0.95rem", color: theme.palette.primary.main, textTransform: "uppercase", letterSpacing: 0.5 }}>📊 Technical Indicators</Typography>
               </Grid>
               <Grid item xs={12} sm={6} md={2}>
                 <TextField fullWidth type="number" label="Min RSI" placeholder="0" value={minRsi} onChange={(e) => { setMinRsi(e.target.value); setPage(1); }} size="small" inputProps={{ min: 0, max: 100 }} />
@@ -294,7 +294,7 @@ function TradingSignals() {
 
               {/* Sorting Section */}
               <Grid item xs={12}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: theme.palette.text.secondary }}>Sorting</Typography>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: "0.95rem", color: theme.palette.primary.main, textTransform: "uppercase", letterSpacing: 0.5 }}>📍 Sorting & Display</Typography>
               </Grid>
               <Grid item xs={12} sm={6} md={2}>
                 <FormControl fullWidth size="small">
@@ -317,15 +317,15 @@ function TradingSignals() {
                 </FormControl>
               </Grid>
 
-              {/* Buttons */}
+              {/* Buttons - Sleek Footer */}
               <Grid item xs={12}>
-                <Box sx={{ display: "flex", gap: 1.5 }}>
-                  <Button variant="contained" onClick={() => refetch()} sx={{ fontWeight: 600 }}>
-                    Apply Filters
+                <Box sx={{ display: "flex", gap: 2, pt: 2 }}>
+                  <Button variant="contained" onClick={() => refetch()} sx={{ fontWeight: 700, px: 3, py: 1, borderRadius: 1.5, boxShadow: "0 4px 12px rgba(25,103,210,0.3)" }}>
+                    🔍 Apply Filters
                   </Button>
                   {activeFilterCount > 0 && (
-                    <Button variant="outlined" startIcon={<RestartAlt />} onClick={handleClearAll} sx={{ fontWeight: 600 }}>
-                      Reset ({activeFilterCount})
+                    <Button variant="outlined" startIcon={<RestartAlt />} onClick={handleClearAll} sx={{ fontWeight: 700, px: 3, py: 1, borderRadius: 1.5 }}>
+                      Reset All ({activeFilterCount})
                     </Button>
                   )}
                 </Box>

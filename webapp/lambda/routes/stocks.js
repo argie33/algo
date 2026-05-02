@@ -283,6 +283,7 @@ router.get("/deep-value", async (req, res) => {
       WHERE s.quality_rank IN ('tier1', 'tier2')
         AND s.current_ratio > 1.5
         AND s.debt_to_equity < 2.0
+        AND s.pe_cheapness_pct < 60
       ORDER BY generational_score DESC
       LIMIT $1 OFFSET $2`,
       [limit, offset]
