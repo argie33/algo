@@ -16,7 +16,7 @@ function safeFloat(value) {
 const getStocksSignals = async (req, res) => {
   try {
     const timeframe = req.query.timeframe || "daily";
-    const signalType = req.query.signal_type;
+    const signalType = req.query.signal_type || req.query.signal;  // Support both parameter names
     const symbolFilter = req.query.symbol;
     const baseType = req.query.base_type;    // Pattern type filter (Cup, Flat Base, etc)
     const dateFilter = req.query.date;       // Single exact date: YYYY-MM-DD
