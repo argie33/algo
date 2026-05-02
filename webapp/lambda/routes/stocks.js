@@ -171,6 +171,11 @@ router.get("/deep-value", async (req, res) => {
           AND q.operating_margin_pct >= 15
           AND q.current_ratio > 2.0
           AND q.debt_to_equity < 1.5
+          AND (
+            v.trailing_pe < 20
+            OR v.price_to_book < 8
+            OR (v.peg_ratio < 0.7 AND v.peg_ratio > 0)
+          )
       ),
       discount_calc AS (
         SELECT
@@ -253,18 +258,21 @@ router.get("/deep-value", async (req, res) => {
         s.discount_vs_historical_pb_pct,
         s.discount_vs_sector_pe_pct,
         s.discount_vs_market_pe_pct,
-        -- BULLETPROOF SCORE: Historical discount + Quality/Valuation mismatch + Fortress rating
+        -- BULLETPROOF SCORE: ONLY TRUE ANOMALIES
+        -- Quality + Valuation mismatch is PRIMARY signal, not historical discount
         ROUND(CAST(
-          COALESCE(s.discount_vs_historical_pe_pct, 0) * 0.40 +
-          COALESCE(s.discount_strength, 40) * 0.30 +
           (CASE
-            WHEN s.trailing_pe < 20 AND s.roe >= 30 THEN 95
-            WHEN s.trailing_pe < 25 AND s.roe >= 30 THEN 85
-            WHEN s.trailing_pe < 30 AND s.roe >= 35 THEN 90
-            WHEN s.trailing_pe < (s.market_median_pe * 0.8) AND s.roe >= 25 THEN 80
-            WHEN s.trailing_pe < s.market_median_pe AND s.op_margin >= 30 THEN 75
-            ELSE 40
-          END) * 0.30
+            WHEN s.trailing_pe < 12 AND s.roe >= 30 THEN 100
+            WHEN s.trailing_pe < 15 AND s.roe >= 30 THEN 95
+            WHEN s.trailing_pe < 18 AND s.roe >= 30 THEN 90
+            WHEN s.trailing_pe < 20 AND s.roe >= 35 THEN 95
+            WHEN s.peg_ratio < 0.6 AND s.roe >= 25 THEN 85
+            WHEN s.price_to_book < 5 AND s.roe >= 35 THEN 90
+            WHEN s.trailing_pe < (s.market_median_pe * 0.7) AND s.roe >= 30 THEN 85
+            ELSE 50
+          END) * 0.70 +
+          COALESCE(s.discount_vs_historical_pe_pct, 0) * 0.20 +
+          COALESCE(s.discount_strength, 30) * 0.10
           AS NUMERIC), 1) AS generational_score
       FROM scored s
       LEFT JOIN company_profile cp ON s.symbol = cp.ticker
