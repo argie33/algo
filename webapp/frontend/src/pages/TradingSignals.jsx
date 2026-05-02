@@ -54,6 +54,7 @@ function TradingSignals() {
   // Filters
   const [symbolFilter, setSymbolFilter] = useState("");
   const [signalFilter, setSignalFilter] = useState("");
+  const [baseTypeFilter, setBaseTypeFilter] = useState("");
   const [days, setDays] = useState(3650); // Default: ALL TIME
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
@@ -67,7 +68,7 @@ function TradingSignals() {
 
   // Count active filters (3650 = all time default, so don't count it)
   const activeFilterCount = [
-    symbolFilter, signalFilter, days !== 3650, minPrice, maxPrice,
+    symbolFilter, signalFilter, baseTypeFilter, days !== 3650, minPrice, maxPrice,
     minVolume, maxVolume, minRsi, maxRsi, minAdx
   ].filter(Boolean).length;
 

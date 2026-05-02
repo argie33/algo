@@ -97,7 +97,7 @@ const menuItems = [
     category: 'stocks',
   },
   {
-    text: 'Swing Trading Signals',
+    text: 'Trading Signals',
     icon: <TrendingUpIcon />,
     path: '/app/trading-signals',
     category: 'stocks',
@@ -106,18 +106,6 @@ const menuItems = [
     text: 'ETF Signals',
     icon: <AnalyticsIcon />,
     path: '/app/etf-signals',
-    category: 'stocks',
-  },
-  {
-    text: 'Range Signals',
-    icon: <TrendingUpIcon />,
-    path: '/app/range-signals',
-    category: 'stocks',
-  },
-  {
-    text: 'Mean Reversion',
-    icon: <TrendingUpIcon />,
-    path: '/app/mean-reversion',
     category: 'stocks',
   },
   {

@@ -20,6 +20,14 @@ import xml.etree.ElementTree as ET
 from io import StringIO
 from pathlib import Path
 
+# COT data library
+try:
+    from cot_reports.cot_reports import cot_hist
+    COT_LIBRARY_AVAILABLE = True
+except ImportError:
+    COT_LIBRARY_AVAILABLE = False
+    logging.warning("cot_reports library not installed. Run: pip install cot-reports")
+
 def get_ticker_info_with_timeout(ticker, timeout_sec=15):
     """Safely get ticker.info (no timeout on Windows)."""
     try:
@@ -483,74 +491,103 @@ def populate_categories():
         conn.close()
 
 def fetch_cot_data(symbol: str) -> List[Dict[str, Any]]:
-    """Fetch COT data from CFTC for a specific commodity"""
-    try:
-        # Map commodity symbols to CFTC commodity codes
-        cftc_codes = {
-            'CL=F': '067651',  # Crude Oil
-            'NG=F': '023651',  # Natural Gas
-            'GC=F': '088691',  # Gold
-            'SI=F': '084691',  # Silver
-            'HG=F': '085692',  # Copper
-            'ZC=F': '002602',  # Corn
-            'ZS=F': '005602',  # Soybeans
-            'ZW=F': '001602',  # Wheat
-            'LE=F': '057642',  # Live Cattle
-            'HE=F': '054642',  # Lean Hogs
-        }
-        
-        if symbol not in cftc_codes:
-            logging.warning(f"No CFTC code found for {symbol}")
-            return []
-            
-        cftc_code = cftc_codes[symbol]
-        
-        # CFTC API URL for COT data
-        url = f"https://publicreporting.cftc.gov/resource/jun7-fc8e.json?commodity_code={cftc_code}&$limit=52"
-        
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-        
-        response = requests.get(url, headers=headers, timeout=30)
-        response.raise_for_status()
-        
-        data = response.json()
-        if not data:
-            logging.warning(f"No COT data returned for {symbol}")
-            return []
-            
-        cot_records = []
-        for record in data:
-            try:
-                # Parse the record
-                report_date = datetime.strptime(record['report_date_as_yyyy_mm_dd'], '%Y-%m-%d').date()
-                
-                cot_records.append({
-                    'symbol': symbol,
-                    'report_date': report_date,
-                    'commercial_long': int(record.get('comm_positions_long_all', 0)),
-                    'commercial_short': int(record.get('comm_positions_short_all', 0)),
-                    'commercial_net': int(record.get('comm_positions_long_all', 0)) - int(record.get('comm_positions_short_all', 0)),
-                    'non_commercial_long': int(record.get('noncomm_positions_long_all', 0)),
-                    'non_commercial_short': int(record.get('noncomm_positions_short_all', 0)),
-                    'non_commercial_net': int(record.get('noncomm_positions_long_all', 0)) - int(record.get('noncomm_positions_short_all', 0)),
-                    'non_reportable_long': int(record.get('nonrept_positions_long_all', 0)),
-                    'non_reportable_short': int(record.get('nonrept_positions_short_all', 0)),
-                    'non_reportable_net': int(record.get('nonrept_positions_long_all', 0)) - int(record.get('nonrept_positions_short_all', 0)),
-                    'open_interest': int(record.get('open_interest_all', 0))
-                })
-                
-            except (ValueError, KeyError) as e:
-                logging.error(f"Error parsing COT record for {symbol}: {e}")
-                continue
-                
-        logging.info(f" Fetched {len(cot_records)} COT records for {symbol}")
-        return cot_records
-        
-    except requests.RequestException as e:
-        logging.error(f"Error fetching COT data for {symbol}: {e}")
+    """Fetch COT data from CFTC using official cot_reports library (best practice)"""
+    if not COT_LIBRARY_AVAILABLE:
+        logging.warning(f"cot_reports library not available for {symbol}")
         return []
+
+    try:
+        # Map Yahoo Finance symbols to CFTC report market names
+        cftc_market_names = {
+            'CL=F': 'Crude Oil, Light Sweet',
+            'NG=F': 'Natural Gas',
+            'GC=F': 'Gold',
+            'SI=F': 'Silver',
+            'HG=F': 'Copper',
+            'ZC=F': 'Corn',
+            'ZS=F': 'Soybean',
+            'ZW=F': 'Wheat',
+            'LE=F': 'Live Cattle',
+            'HE=F': 'Lean Hogs',
+        }
+
+        if symbol not in cftc_market_names:
+            logging.debug(f"No CFTC market mapping for {symbol}")
+            return []
+
+        market_name = cftc_market_names[symbol]
+
+        try:
+            # Fetch using cot_reports library - fetches latest COT data
+            # This library handles all CFTC API details properly
+            cot_df = cot_reports.cot_reports(market_name)
+
+            if cot_df is None or cot_df.empty:
+                logging.debug(f"No COT data returned for {market_name}")
+                return []
+
+            cot_records = []
+
+            # Parse dataframe to our format
+            for idx, row in cot_df.iterrows():
+                try:
+                    # Extract date from index or column
+                    if hasattr(idx, 'date'):
+                        report_date = idx.date()
+                    elif 'date' in str(row.index).lower():
+                        report_date = pd.to_datetime(idx).date()
+                    else:
+                        # Try to find date column
+                        date_cols = [col for col in cot_df.columns if 'date' in col.lower()]
+                        if date_cols:
+                            report_date = pd.to_datetime(row[date_cols[0]]).date()
+                        else:
+                            report_date = datetime.now().date()
+
+                    # Extract position columns (field names vary by report type)
+                    def safe_val(col_names, default=0):
+                        for col in col_names:
+                            if col in row and pd.notna(row[col]):
+                                try:
+                                    return int(float(row[col]))
+                                except:
+                                    pass
+                        return default
+
+                    # Try multiple field name variations
+                    comm_long = safe_val(['Commercial Long', 'comm_long', 'commercial_long'])
+                    comm_short = safe_val(['Commercial Short', 'comm_short', 'commercial_short'])
+                    noncomm_long = safe_val(['Non-Commercial Long', 'noncomm_long', 'non_commercial_long'])
+                    noncomm_short = safe_val(['Non-Commercial Short', 'noncomm_short', 'non_commercial_short'])
+                    open_int = safe_val(['Open Interest', 'open_interest'])
+
+                    cot_records.append({
+                        'symbol': symbol,
+                        'report_date': report_date,
+                        'commercial_long': comm_long,
+                        'commercial_short': comm_short,
+                        'commercial_net': comm_long - comm_short,
+                        'non_commercial_long': noncomm_long,
+                        'non_commercial_short': noncomm_short,
+                        'non_commercial_net': noncomm_long - noncomm_short,
+                        'non_reportable_long': 0,
+                        'non_reportable_short': 0,
+                        'non_reportable_net': 0,
+                        'open_interest': open_int
+                    })
+
+                except Exception as e:
+                    logging.debug(f"Error parsing COT row for {symbol}: {e}")
+                    continue
+
+            if cot_records:
+                logging.info(f" Fetched {len(cot_records)} COT records for {symbol} from cot_reports library")
+            return cot_records
+
+        except Exception as e:
+            logging.warning(f"cot_reports library error for {symbol}: {e}")
+            return []
+
     except Exception as e:
         logging.error(f"Unexpected error fetching COT data for {symbol}: {e}")
         return []
