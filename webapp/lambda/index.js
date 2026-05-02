@@ -76,18 +76,21 @@ process.on('uncaughtException', (error) => {
 // Global request timeout to prevent hanging requests
 const REQUEST_TIMEOUT = 60000;
 app.use((req, res, next) => {
-  req.socket.setTimeout(REQUEST_TIMEOUT);
-  req.socket.on('timeout', () => {
-    console.error(`⏱️ Request timeout: ${req.method} ${req.path}`);
-    if (!res.headersSent) {
-      res.status(503).json({
-        success: false,
-        error: 'Request timeout - server busy',
-        timestamp: new Date().toISOString()
-      });
-    }
-    req.socket.destroy();
-  });
+  // Only set socket timeout if socket exists (not in Lambda)
+  if (req.socket && typeof req.socket.setTimeout === 'function') {
+    req.socket.setTimeout(REQUEST_TIMEOUT);
+    req.socket.on('timeout', () => {
+      console.error(`⏱️ Request timeout: ${req.method} ${req.path}`);
+      if (!res.headersSent) {
+        res.status(503).json({
+          success: false,
+          error: 'Request timeout - server busy',
+          timestamp: new Date().toISOString()
+        });
+      }
+      req.socket.destroy();
+    });
+  }
   next();
 });
 
