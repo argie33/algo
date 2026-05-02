@@ -73,10 +73,11 @@ def get_db_config() -> dict:
     }
 
 def fetch_symbol_data(symbol: str, period: str = "max") -> List[Tuple]:
-    """Fetch daily price data for one symbol"""
+    """Fetch daily price data for one symbol (with timeout protection)"""
     try:
         ticker = yf.Ticker(symbol.replace(".", "-").upper())
-        hist = ticker.history(period=period)
+        # Add timeout protection - yfinance has no native timeout, so we catch hangs
+        hist = ticker.history(period=period, timeout=30)
 
         if hist.empty:
             return []
@@ -141,22 +142,30 @@ def load_table(db: DatabaseHelper, table_name: str, symbols: List[str], use_smar
             logger.info(f"{table_name}: full={len(need_full)}, incremental={len(need_incr)}")
 
             # Fetch data for symbols needing full history
+            processed = 0
             with ThreadPoolExecutor(max_workers=5) as executor:
                 futures = {executor.submit(fetch_symbol_data, s, "max"): s for s in need_full}
                 for future in as_completed(futures):
                     try:
                         rows = future.result()
                         all_rows.extend(rows)
+                        processed += 1
+                        if processed % 50 == 0:
+                            logger.info(f"{table_name}: Progress {processed}/{len(need_full)} symbols")
                     except Exception as e:
                         logger.error(f"Task error: {e}")
 
             # Fetch incremental data for existing symbols
+            processed_incr = 0
             with ThreadPoolExecutor(max_workers=5) as executor:
                 futures = {executor.submit(fetch_symbol_data, s, "3mo"): s for s in need_incr}
                 for future in as_completed(futures):
                     try:
                         rows = future.result()
                         all_rows.extend(rows)
+                        processed_incr += 1
+                        if processed_incr % 50 == 0:
+                            logger.info(f"{table_name}: Incremental progress {processed_incr}/{len(need_incr)} symbols")
                     except Exception as e:
                         logger.error(f"Task error: {e}")
 

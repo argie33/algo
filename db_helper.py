@@ -127,8 +127,8 @@ class DatabaseHelper:
             placeholders = ", ".join(["%s"] * len(columns))
             sql = f"INSERT INTO {table_name} ({col_list}) VALUES ({placeholders})"
 
-            # Batch insert for efficiency (even without S3, batching helps)
-            batch_size = 500
+            # Batch insert for efficiency (1000-row batches = fewer roundtrips)
+            batch_size = 1000
             inserted = 0
             skipped = 0
 
