@@ -1158,26 +1158,51 @@ def identify_base_pattern(df, current_idx, lookback_days=65):
         return None, 0  # Too short to be valid consolidation
     duration_days = days_in_consolidation
 
+    # ATR VALIDATION - Volatility expansion confirms breakout quality
+    # Low ATR during consolidation + High ATR at breakout = strong signal
+    if len(window) >= 20:
+        try:
+            atr_vals = calculate_atr(window['high'], window['low'], window['close'], period=14)
+            consol_atr = atr_vals.iloc[:-5].mean() if len(atr_vals) >= 20 else 0  # Consolidation: first part
+            recent_atr = atr_vals.iloc[-5:].mean() if len(atr_vals) >= 5 else 0   # Recent: last 5 days
+            atr_expansion = recent_atr / consol_atr if consol_atr > 0 else 0
+        except:
+            atr_expansion = 0
+    else:
+        atr_expansion = 0
+
+    # ATR EXPANSION BONUS: Volatility expansion at breakout boosts confidence
+    # Expected: atr_expansion > 1.2 (20%+ increase) = strong breakout signal
+    atr_bonus = 0
+    if atr_expansion > 1.5:
+        atr_bonus = 10  # Strong volatility expansion
+    elif atr_expansion > 1.2:
+        atr_bonus = 5   # Moderate expansion
+
     # TRY CUP & HANDLE DETECTION (12-28% depth)
     if 12 <= depth_pct <= 28:
         confidence = _score_cup_pattern(window, depth_pct, vol_ratio, duration_days)
+        confidence = min(100, confidence + atr_bonus)
         if confidence >= 60:  # Confidence threshold
             return 'Cup', confidence
 
     # TRY FLAT BASE DETECTION (6-15% depth)
     if 6 <= depth_pct <= 15:
         confidence = _score_flat_base(window, depth_pct, vol_ratio, duration_days)
+        confidence = min(100, confidence + atr_bonus)
         if confidence >= 60:
             return 'Flat Base', confidence
 
     # TRY DOUBLE BOTTOM DETECTION (15-35% depth)
     if 15 <= depth_pct <= 35:
         confidence = _score_double_bottom(window, depth_pct, vol_ratio, duration_days)
+        confidence = min(100, confidence + atr_bonus)
         if confidence >= 60:
             return 'Double Bottom', confidence
 
     # TRY BASE ON BASE (nested consolidations)
     confidence = _score_base_on_base(window, lookback_days // 2)
+    confidence = min(100, confidence + atr_bonus)
     if confidence >= 70:  # Higher bar for BOB
         return 'Base on Base', confidence
 
