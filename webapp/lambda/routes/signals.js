@@ -18,6 +18,7 @@ const getStocksSignals = async (req, res) => {
     const timeframe = req.query.timeframe || "daily";
     const signalType = req.query.signal_type;
     const symbolFilter = req.query.symbol;
+    const baseType = req.query.base_type;    // Pattern type filter (Cup, Flat Base, etc)
     const dateFilter = req.query.date;       // Single exact date: YYYY-MM-DD
     const fromDate = req.query.from_date;    // Range start: YYYY-MM-DD
     const toDate = req.query.to_date;        // Range end: YYYY-MM-DD
@@ -86,6 +87,12 @@ const getStocksSignals = async (req, res) => {
     if (symbolFilter) {
       whereClause += ` AND bsd.symbol = $${paramIndex}`;
       queryParams.push(symbolFilter.toUpperCase());
+      paramIndex++;
+    }
+
+    if (baseType) {
+      whereClause += ` AND bsd.base_type = $${paramIndex}`;
+      queryParams.push(baseType);
       paramIndex++;
     }
 
