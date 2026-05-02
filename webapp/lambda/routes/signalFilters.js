@@ -162,11 +162,16 @@ const getSignalFilters = async (req, res) => {
     }
 
     // SIGNAL FILTER
+    console.log(`[SIGNAL FILTER] Raw signal param: "${signal}", typeof: ${typeof signal}`);
     if (signal) {
       const signalValue = signal.toUpperCase();
+      console.log(`[SIGNAL FILTER] Adding filter: UPPER(${tableAlias}.signal) = $${paramIndex} with value: ${signalValue}`);
       whereConditions.push(`UPPER(${tableAlias}.signal) = $${paramIndex}`);
       params.push(signalValue);
       paramIndex++;
+      console.log(`[SIGNAL FILTER] Updated paramIndex: ${paramIndex}`);
+    } else {
+      console.log(`[SIGNAL FILTER] Signal is null/empty, skipping filter`);
     }
 
     // BASE TYPE FILTER (Pattern type)
@@ -257,10 +262,19 @@ const getSignalFilters = async (req, res) => {
     const sortDir = ['ASC', 'DESC'].includes(sort_order.toUpperCase()) ? sort_order.toUpperCase() : 'DESC';
     const orderBy = `ORDER BY ${tableAlias}.${sortField} ${sortDir}`;
 
+    // DEBUG: Log the query construction
+    console.log(`[QUERY BUILD] Type: ${type}, Timeframe: ${timeframe}, Table: ${tableName}`);
+    console.log(`[QUERY BUILD] Where conditions: ${JSON.stringify(whereConditions)}`);
+    console.log(`[QUERY BUILD] Params: ${JSON.stringify(params)}`);
+    console.log(`[QUERY BUILD] Where clause: ${whereClause}`);
+    console.log(`[QUERY BUILD] Signal param: ${signal}`);
+
     // COUNT QUERY
     const countQuery = `SELECT COUNT(*) as total FROM ${tableName} ${tableAlias} ${whereClause}`;
+    console.log(`[COUNT QUERY] ${countQuery.substring(0, 150)}...`);
     const countResult = await query(countQuery, params);
     const total = parseInt(countResult.rows[0]?.total || 0);
+    console.log(`[COUNT RESULT] Total: ${total}`);
 
     // DATA QUERY - Return ALL columns so frontend can display everything
     const dataQuery = `

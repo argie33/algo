@@ -515,37 +515,142 @@ app.use("/api/portfolio", cacheMiddleware(90), portfolioRoutes);
 app.use("/api/scores", cacheMiddleware(120), scoresRoutes);
 app.use("/api/sectors", cacheMiddleware(60), sectorsRoutes);
 app.use("/api/sentiment", cacheMiddleware(120), sentimentRoutes);
-// STANDALONE signals search endpoint - NO CACHING (must return fresh data always)
+// STANDALONE signals search endpoint - FULL FILTERING SUPPORT
 app.get("/api/signals/search", async (req, res) => {
   try {
-    const { type = 'swing', limit = 100, page = 1, days = 3650 } = req.query;
+    const {
+      type = 'swing',
+      timeframe = 'daily',
+      symbol,
+      signal,
+      base_type,
+      limit = 100,
+      page = 1,
+      days = 3650,
+      min_price,
+      max_price,
+      min_volume,
+      max_volume,
+      min_rsi,
+      max_rsi,
+      min_adx,
+      sort = 'date',
+      sort_order = 'DESC'
+    } = req.query;
+
     const safeLimit = Math.min(parseInt(limit) || 100, 50000);
     const safePage = Math.max(1, parseInt(page) || 1);
     const offset = (safePage - 1) * safeLimit;
 
-    const tableMap = {
-      'swing': 'buy_sell_daily',
-      'range': 'range_signals_daily',
-      'mean-reversion': 'mean_reversion_signals_daily'
-    };
-
-    const tableName = tableMap[type];
-    if (!tableName) {
+    // Map type and timeframe to table
+    let tableName;
+    if (type === 'swing') {
+      const timeframeMap = { daily: 'buy_sell_daily', weekly: 'buy_sell_weekly', monthly: 'buy_sell_monthly' };
+      tableName = timeframeMap[timeframe] || 'buy_sell_daily';
+    } else if (type === 'range') {
+      tableName = 'range_signals_daily';
+    } else if (type === 'mean-reversion') {
+      tableName = 'mean_reversion_signals_daily';
+    } else {
       return res.status(400).json({ success: false, error: 'Invalid type' });
     }
 
-    const dayRange = parseInt(days) || 3650;
-    const whereClause = dayRange > 0
-      ? `WHERE date >= CURRENT_DATE - MAKE_INTERVAL(days => $1) AND signal IN ('Buy', 'Sell', 'BUY', 'SELL')`
-      : `WHERE signal IN ('Buy', 'Sell', 'BUY', 'SELL')`;
+    // Build WHERE clause with ALL filters
+    const whereConditions = [];
+    const params = [];
+    let paramIndex = 1;
 
-    const countResult = await query(`SELECT COUNT(*) as total FROM ${tableName} ${whereClause}`, dayRange > 0 ? [dayRange] : []);
+    // Date filter
+    const dayRange = parseInt(days) || 3650;
+    if (dayRange > 0) {
+      whereConditions.push(`date >= CURRENT_DATE - MAKE_INTERVAL(days => $${paramIndex})`);
+      params.push(dayRange);
+      paramIndex++;
+    }
+
+    // Always filter to BUY/SELL
+    whereConditions.push(`UPPER(signal) IN ('BUY', 'SELL')`);
+
+    // Signal type filter (overrides the above if specified)
+    if (signal) {
+      whereConditions.pop(); // Remove generic BUY/SELL filter
+      whereConditions.push(`UPPER(signal) = $${paramIndex}`);
+      params.push(signal.toUpperCase());
+      paramIndex++;
+    }
+
+    // Symbol filter
+    if (symbol) {
+      whereConditions.push(`symbol = $${paramIndex}`);
+      params.push(symbol.toUpperCase());
+      paramIndex++;
+    }
+
+    // Base type filter
+    if (base_type) {
+      whereConditions.push(`base_type = $${paramIndex}`);
+      params.push(base_type);
+      paramIndex++;
+    }
+
+    // Price filters
+    if (min_price) {
+      whereConditions.push(`close >= $${paramIndex}`);
+      params.push(parseFloat(min_price));
+      paramIndex++;
+    }
+    if (max_price) {
+      whereConditions.push(`close <= $${paramIndex}`);
+      params.push(parseFloat(max_price));
+      paramIndex++;
+    }
+
+    // Volume filters
+    if (min_volume) {
+      whereConditions.push(`volume >= $${paramIndex}`);
+      params.push(parseInt(min_volume));
+      paramIndex++;
+    }
+    if (max_volume) {
+      whereConditions.push(`volume <= $${paramIndex}`);
+      params.push(parseInt(max_volume));
+      paramIndex++;
+    }
+
+    // Technical filters
+    if (min_rsi) {
+      whereConditions.push(`rsi >= $${paramIndex}`);
+      params.push(parseFloat(min_rsi));
+      paramIndex++;
+    }
+    if (max_rsi) {
+      whereConditions.push(`rsi <= $${paramIndex}`);
+      params.push(parseFloat(max_rsi));
+      paramIndex++;
+    }
+    if (min_adx) {
+      whereConditions.push(`adx >= $${paramIndex}`);
+      params.push(parseFloat(min_adx));
+      paramIndex++;
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    // Sorting
+    const validSortFields = ['date', 'symbol', 'close', 'volume'];
+    const sortField = validSortFields.includes(sort) ? sort : 'date';
+    const sortDir = ['ASC', 'DESC'].includes(sort_order.toUpperCase()) ? sort_order.toUpperCase() : 'DESC';
+    const orderBy = `ORDER BY ${sortField} ${sortDir}`;
+
+    // Count query
+    params.push(safeLimit, offset);
+    const countQuery = `SELECT COUNT(*) as total FROM ${tableName} ${whereClause}`;
+    const countResult = await query(countQuery, params.slice(0, -2));
     const total = parseInt(countResult.rows[0]?.total || 0);
 
-    const dataResult = await query(
-      `SELECT * FROM ${tableName} ${whereClause} ORDER BY date DESC LIMIT $${dayRange > 0 ? 2 : 1} OFFSET $${dayRange > 0 ? 3 : 2}`,
-      dayRange > 0 ? [dayRange, safeLimit, offset] : [safeLimit, offset]
-    );
+    // Data query
+    const dataQuery = `SELECT * FROM ${tableName} ${whereClause} ${orderBy} LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    const dataResult = await query(dataQuery, params);
 
     return res.json({
       success: true,
