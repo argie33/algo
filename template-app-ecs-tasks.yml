@@ -372,6 +372,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -385,7 +387,11 @@ Resources:
     Properties:
       ServiceName: stocksymbols-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref StockSymbolsTaskDefinition
       NetworkConfiguration:
@@ -437,6 +443,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
             - Name: FRED_API_KEY
               Value: !Ref FREDApiKey
           LogConfiguration:
@@ -452,7 +460,11 @@ Resources:
     Properties:
       ServiceName: econdata-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref EconDataTaskDefinition
       NetworkConfiguration:
@@ -502,6 +514,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -515,7 +529,11 @@ Resources:
     Properties:
       ServiceName: pricedaily-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref PriceTaskDefinition
       NetworkConfiguration:
@@ -565,6 +583,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -578,7 +598,11 @@ Resources:
     Properties:
       ServiceName: priceweekly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref PriceWeeklyTaskDefinition
       NetworkConfiguration:
@@ -628,6 +652,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -641,7 +667,11 @@ Resources:
     Properties:
       ServiceName: pricemonthly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref PriceMonthlyTaskDefinition
       NetworkConfiguration:
@@ -693,6 +723,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -706,7 +738,11 @@ Resources:
     Properties:
       ServiceName: etfpricedaily-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref EtfPriceDailyTaskDefinition
       NetworkConfiguration:
@@ -754,6 +790,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -767,7 +805,11 @@ Resources:
     Properties:
       ServiceName: etfpriceweekly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref EtfPriceWeeklyTaskDefinition
       NetworkConfiguration:
@@ -815,6 +857,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -828,7 +872,11 @@ Resources:
     Properties:
       ServiceName: etfpricemonthly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref EtfPriceMonthlyTaskDefinition
       NetworkConfiguration:
@@ -884,6 +932,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -897,7 +947,11 @@ Resources:
     Properties:
       ServiceName: technicalsdaily-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref TechnicalsDailyTaskDefinition
       NetworkConfiguration:
@@ -947,6 +1001,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -960,7 +1016,11 @@ Resources:
     Properties:
       ServiceName: calendar-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref CalendarTaskDefinition
       NetworkConfiguration:
@@ -1010,6 +1070,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1023,7 +1085,11 @@ Resources:
     Properties:
       ServiceName: earningsestimate-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref EarningsEstimateTaskDefinition
       NetworkConfiguration:
@@ -1073,6 +1139,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1086,7 +1154,11 @@ Resources:
     Properties:
       ServiceName: earningshistory-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref EarningsHistoryTaskDefinition
       NetworkConfiguration:
@@ -1136,6 +1208,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1149,7 +1223,11 @@ Resources:
     Properties:
       ServiceName: earningsmetrics-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref EarningsMetricsTaskDefinition
       NetworkConfiguration:
@@ -1199,6 +1277,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1212,7 +1292,11 @@ Resources:
     Properties:
       ServiceName: analystupgradedowngrade-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref AnalystUpgradeDowngradeTaskDefinition
       NetworkConfiguration:
@@ -1262,6 +1346,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1275,7 +1361,11 @@ Resources:
     Properties:
       ServiceName: revenueestimate-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref RevenueEstimateTaskDefinition
       NetworkConfiguration:
@@ -1325,6 +1415,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1338,7 +1430,11 @@ Resources:
     Properties:
       ServiceName: technicalsweekly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref TechnicalsWeeklyTaskDefinition
       NetworkConfiguration:
@@ -1388,6 +1484,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1401,7 +1499,11 @@ Resources:
     Properties:
       ServiceName: technicalsmonthly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref TechnicalsMonthlyTaskDefinition
       NetworkConfiguration:
@@ -1447,7 +1549,11 @@ Resources:
     Properties:
       ServiceName: swingtrader-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref SwingTraderTaskDefinition
       NetworkConfiguration:
@@ -1496,6 +1602,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
             - Name: FRED_API_KEY
               Value: !Ref FREDApiKey
           LogConfiguration:
@@ -1511,7 +1619,11 @@ Resources:
     Properties:
       ServiceName: buysell-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref BuySellTaskDefinition
       NetworkConfiguration:
@@ -1561,6 +1673,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1574,7 +1688,11 @@ Resources:
     Properties:
       ServiceName: latestpricedaily-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref LatestPriceDailyTaskDefinition
       NetworkConfiguration:
@@ -1624,6 +1742,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1637,7 +1757,11 @@ Resources:
     Properties:
       ServiceName: latestpriceweekly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref LatestPriceWeeklyTaskDefinition
       NetworkConfiguration:
@@ -1687,6 +1811,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1700,7 +1826,11 @@ Resources:
     Properties:
       ServiceName: latestpricemonthly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref LatestPriceMonthlyTaskDefinition
       NetworkConfiguration:
@@ -1750,6 +1880,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
             - Name: ECS_MEMORY_MB
               Value: "512"
             - Name: MEMORY_THRESHOLD_MB
@@ -1769,7 +1901,11 @@ Resources:
     Properties:
       ServiceName: latesttechnicalsdaily-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref LatestTechnicalsDailyTaskDefinition
       NetworkConfiguration:
@@ -1819,6 +1955,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1832,7 +1970,11 @@ Resources:
     Properties:
       ServiceName: latesttechnicalsweekly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref LatestTechnicalsWeeklyTaskDefinition
       NetworkConfiguration:
@@ -1882,6 +2024,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1895,7 +2039,11 @@ Resources:
     Properties:
       ServiceName: latesttechnicalsmonthly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref LatestTechnicalsMonthlyTaskDefinition
       NetworkConfiguration:
@@ -1946,6 +2094,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -1959,7 +2109,11 @@ Resources:
     Properties:
       ServiceName: aaiidata-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref AaiiDataTaskDefinition
       NetworkConfiguration:
@@ -2006,6 +2160,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2019,7 +2175,11 @@ Resources:
     Properties:
       ServiceName: feargreeddata-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref FearGreedDataTaskDefinition
       NetworkConfiguration:
@@ -2069,6 +2229,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2082,7 +2244,11 @@ Resources:
     Properties:
       ServiceName: naaimdata-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref NaaaimDataTaskDefinition
       NetworkConfiguration:
@@ -2132,6 +2298,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2145,7 +2313,11 @@ Resources:
     Properties:
       ServiceName: quarterlybalancesheet-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref QuarterlyBalanceSheetTaskDefinition
       NetworkConfiguration:
@@ -2195,6 +2367,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2208,7 +2382,11 @@ Resources:
     Properties:
       ServiceName: annualbalancesheet-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref AnnualBalanceSheetTaskDefinition
       NetworkConfiguration:
@@ -2258,6 +2436,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2271,7 +2451,11 @@ Resources:
     Properties:
       ServiceName: quarterlyincomestatement-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref QuarterlyIncomeStatementTaskDefinition
       NetworkConfiguration:
@@ -2321,6 +2505,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2334,7 +2520,11 @@ Resources:
     Properties:
       ServiceName: annualincomestatement-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref AnnualIncomeStatementTaskDefinition
       NetworkConfiguration:
@@ -2384,6 +2574,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2397,7 +2589,11 @@ Resources:
     Properties:
       ServiceName: quarterlycashflow-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref QuarterlyCashFlowTaskDefinition
       NetworkConfiguration:
@@ -2447,6 +2643,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2460,7 +2658,11 @@ Resources:
     Properties:
       ServiceName: annualcashflow-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref AnnualCashFlowTaskDefinition
       NetworkConfiguration:
@@ -2510,6 +2712,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2523,7 +2727,11 @@ Resources:
     Properties:
       ServiceName: ttmincomestatement-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref TTMIncomeStatementTaskDefinition
       NetworkConfiguration:
@@ -2573,6 +2781,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2586,7 +2796,11 @@ Resources:
     Properties:
       ServiceName: ttmcashflow-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref TTMCashFlowTaskDefinition
       NetworkConfiguration:
@@ -2636,6 +2850,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2649,7 +2865,11 @@ Resources:
     Properties:
       ServiceName: buyselldaily-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref BuySellDailyTaskDefinition
       NetworkConfiguration:
@@ -2699,6 +2919,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2712,7 +2934,11 @@ Resources:
     Properties:
       ServiceName: buysellweekly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref BuySellWeeklyTaskDefinition
       NetworkConfiguration:
@@ -2762,6 +2988,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2775,7 +3003,11 @@ Resources:
     Properties:
       ServiceName: buysellmonthly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref BuySellMonthlyTaskDefinition
       NetworkConfiguration:
@@ -2822,6 +3054,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2835,7 +3069,11 @@ Resources:
     Properties:
       ServiceName: buysell_etf_daily-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref BuySellEtfDailyTaskDefinition
       NetworkConfiguration:
@@ -2885,6 +3123,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2898,7 +3138,11 @@ Resources:
     Properties:
       ServiceName: buysell_etf_weekly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref BuySellEtfWeeklyTaskDefinition
       NetworkConfiguration:
@@ -2948,6 +3192,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2961,7 +3207,11 @@ Resources:
     Properties:
       ServiceName: buysell_etf_monthly-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref BuySellEtfMonthlyTaskDefinition
       NetworkConfiguration:
@@ -3010,6 +3260,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -3024,7 +3276,11 @@ Resources:
     Properties:
       ServiceName: factormetrics-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref FactormetricsTaskDefinition
       NetworkConfiguration:
@@ -3074,6 +3330,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -3087,7 +3345,11 @@ Resources:
     Properties:
       ServiceName: sentiment-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref SentimentTaskDefinition
       NetworkConfiguration:
@@ -3137,6 +3399,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -3150,7 +3414,11 @@ Resources:
     Properties:
       ServiceName: analystsentiment-loader-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref AnalystSentimentTaskDefinition
       NetworkConfiguration:
@@ -3202,6 +3470,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
             - Name: NODE_ENV
               Value: production
             - Name: WEBAPP_AWS_REGION
@@ -3220,7 +3490,11 @@ Resources:
     Properties:
       ServiceName: quality-metrics-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref QualityMetricsTaskDefinition
       NetworkConfiguration:
@@ -3272,6 +3546,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
             - Name: NODE_ENV
               Value: production
             - Name: WEBAPP_AWS_REGION
@@ -3290,7 +3566,11 @@ Resources:
     Properties:
       ServiceName: growth-metrics-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref GrowthMetricsTaskDefinition
       NetworkConfiguration:
@@ -3342,6 +3622,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
             - Name: NODE_ENV
               Value: production
             - Name: WEBAPP_AWS_REGION
@@ -3359,7 +3641,11 @@ Resources:
     Properties:
       ServiceName: value-metrics-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref ValueMetricsTaskDefinition
       NetworkConfiguration:
@@ -3410,6 +3696,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
             - Name: AWS_REGION
@@ -3422,7 +3710,11 @@ Resources:
     Properties:
       ServiceName: stock-scores-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref StockScoresTaskDefinition
       NetworkConfiguration:
@@ -3468,6 +3760,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
             - Name: AWS_REGION
@@ -3480,7 +3774,11 @@ Resources:
     Properties:
       ServiceName: benchmarks-service
       Cluster: !ImportValue StocksApp-ClusterArn
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       DesiredCount: 0
       TaskDefinition: !Ref BenchmarksTaskDefinition
       NetworkConfiguration:
@@ -3531,6 +3829,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -3546,7 +3846,11 @@ Resources:
       Cluster: !ImportValue StocksApp-ClusterArn
       TaskDefinition: !Ref LoadDailyCompanyDataTaskDefinition
       DesiredCount: 0
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:
@@ -3591,6 +3895,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -3606,7 +3912,11 @@ Resources:
       Cluster: !ImportValue StocksApp-ClusterArn
       TaskDefinition: !Ref LoadFinancialsTaskDefinition
       DesiredCount: 0
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       TaskDefinition: !Ref LoadFinancialsTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -3652,6 +3962,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -3667,7 +3979,11 @@ Resources:
       Cluster: !ImportValue StocksApp-ClusterArn
       TaskDefinition: !Ref LoadHistoricalTaskDefinition
       DesiredCount: 0
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       TaskDefinition: !Ref LoadHistoricalTaskDefinition
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -3713,6 +4029,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -3728,7 +4046,11 @@ Resources:
       Cluster: !ImportValue StocksApp-ClusterArn
       TaskDefinition: !Ref SectorDataTaskDefinition
       DesiredCount: 0
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:
@@ -3770,6 +4092,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -3785,7 +4109,11 @@ Resources:
       Cluster: !ImportValue StocksApp-ClusterArn
       TaskDefinition: !Ref SectorsTaskDefinition
       DesiredCount: 0
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:
@@ -3829,6 +4157,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -3845,7 +4175,11 @@ Resources:
       Cluster: !ImportValue StocksApp-ClusterArn
       TaskDefinition: !Ref PositioningTaskDefinition
       DesiredCount: 0
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:
@@ -3889,6 +4223,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -3905,7 +4241,11 @@ Resources:
       Cluster: !ImportValue StocksApp-ClusterArn
       TaskDefinition: !Ref MomentumTaskDefinition
       DesiredCount: 0
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:
@@ -3947,6 +4287,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -3962,7 +4304,11 @@ Resources:
       Cluster: !ImportValue StocksApp-ClusterArn
       TaskDefinition: !Ref RiskMetricsTaskDefinition
       DesiredCount: 0
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:
@@ -4004,6 +4350,8 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -4019,7 +4367,11 @@ Resources:
       Cluster: !ImportValue StocksApp-ClusterArn
       TaskDefinition: !Ref FundamentalMetricsTaskDefinition
       DesiredCount: 0
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets:
