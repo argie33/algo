@@ -6,6 +6,16 @@ const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse'
 const logger = require("../utils/logger");
 const router = express.Router();
 
+// GET /api/economic - Root endpoint
+router.get("/", async (req, res) => {
+  try {
+    // Return leading indicators summary
+    return res.redirect(307, '/api/economic/leading-indicators');
+  } catch (error) {
+    return sendError(res, error.message, 500);
+  }
+});
+
 // ============================================
 // LEADING INDICATORS - Comprehensive overview
 // ============================================

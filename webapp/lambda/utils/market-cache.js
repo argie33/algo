@@ -61,7 +61,8 @@ class MarketCache {
     console.log('Preloading market cache...');
     try {
       await this.getLatestMarketDate('price_daily', 'WHERE close IS NOT NULL');
-      await this.getLatestMarketDate('technical_data_daily');
+      // technical_data_daily doesn't have 'close' column, use empty WHERE for latest date
+      await this.getLatestMarketDate('technical_data_daily', 'WHERE TRUE');
       console.log('Market cache preloaded');
     } catch (err) {
       console.warn('Could not preload market cache:', err.message);

@@ -4,6 +4,16 @@ const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
 const router = express.Router();
 
+// GET /api/sentiment - Root endpoint
+router.get("/", async (req, res) => {
+  try {
+    // Return summary sentiment data
+    return res.redirect(307, '/api/sentiment/summary');
+  } catch (error) {
+    return sendError(res, error.message, 500);
+  }
+});
+
 // GET /api/sentiment/data - Get sentiment data (stocks with analyst sentiment)
 router.get("/data", async (req, res) => {
   try {

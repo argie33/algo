@@ -63,13 +63,13 @@ router.get("/", async (req, res) => {
     { name: "technical_data_daily", large: true }
   ];
 
-  // For large tables, use reltuples estimate instead of COUNT(*)
+  // For large tables, use n_live_tup estimate instead of COUNT(*)
   const countQueries = tables.map(table => {
     let q;
     if (table.large) {
-      // Use pg_stat_user_tables for large tables (much faster, estimates)
+      // Use pg_class for large tables (much faster, estimates)
       q = `SELECT '${table.name}'::text as name,
-           COALESCE(reltuples::bigint, 0) as count FROM pg_stat_user_tables
+           COALESCE(n_live_tup::bigint, 0) as count FROM pg_stat_user_tables
            WHERE relname = '${table.name}'`;
     } else {
       q = `SELECT '${table.name}'::text as name, COUNT(*) as count FROM ${table.name}`;

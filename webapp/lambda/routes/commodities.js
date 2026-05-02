@@ -51,6 +51,40 @@ function checkDatabaseAvailable(res) {
 const router = express.Router();
 
 /**
+ * GET /api/commodities - Root endpoint
+ * Returns list of commodities
+ */
+router.get("/", async (req, res) => {
+  const dbError = checkDatabaseAvailable(res);
+  if (dbError) return dbError;
+
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 25, 500);
+    const offset = Math.max(0, parseInt(req.query.offset) || 0);
+
+    const [result, countResult] = await Promise.all([
+      query(`
+        SELECT symbol, category
+        FROM commodity_categories
+        ORDER BY category, symbol
+        LIMIT $1 OFFSET $2
+      `, [limit, offset]),
+      query("SELECT COUNT(*) as total FROM commodity_categories")
+    ]);
+
+    return sendPaginated(res, result.rows, {
+      limit,
+      offset,
+      total: parseInt(countResult.rows[0]?.total || 0),
+      page: Math.ceil((offset / limit) + 1)
+    });
+  } catch (error) {
+    console.error("Error fetching commodities:", error.message);
+    return sendError(res, "Failed to fetch commodities", 500);
+  }
+});
+
+/**
  * GET /commodities/categories
  * Get commodity categories with aggregate performance data
  */
@@ -262,6 +296,14 @@ router.get("/prices", async (req, res) => {
     console.error("❌ Error fetching commodity prices:", error.message);
     return sendError(res, "Commodity data not available. Requires commodity tables and data loader.", 503);
   }
+});
+
+/**
+ * GET /commodities/summary
+ * Alias for /market-summary
+ */
+router.get("/summary", async (req, res) => {
+  return res.redirect(307, '/api/commodities/market-summary');
 });
 
 /**

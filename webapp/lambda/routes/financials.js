@@ -9,6 +9,7 @@ try {
 }
 
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const logger = require('../utils/logger');
 const router = express.Router();
 
 router.get("/:symbol/balance-sheet", async (req, res) => {

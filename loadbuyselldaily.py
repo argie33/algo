@@ -1152,9 +1152,11 @@ def identify_base_pattern(df, current_idx, lookback_days=65):
     vol_ratio = current_volume / avg_volume if avg_volume > 0 else 0
 
     # Duration validation (consolidation must be meaningful)
-    duration_days = len(window[window['low'] < (high_price * 0.95)])
-    if duration_days < 7:
+    # Count days where price dipped below 95% of window high
+    days_in_consolidation = (window['low'] < (high_price * 0.95)).sum()
+    if days_in_consolidation < 7:
         return None, 0  # Too short to be valid consolidation
+    duration_days = days_in_consolidation
 
     # TRY CUP & HANDLE DETECTION (12-28% depth)
     if 12 <= depth_pct <= 28:
@@ -1189,12 +1191,24 @@ def _score_cup_pattern(window, depth_pct, vol_ratio, duration_days):
     # 1. VOLUME SURGE (CRITICAL - no volume = no pattern)
     if vol_ratio < 0.8:
         return 0  # Reject low volume - breakout won't hold
+    elif vol_ratio >= 2.0:
+        score += 40  # Exceptional volume (best)
     elif vol_ratio >= 1.5:
         score += 35  # Strong volume confirmation
     elif vol_ratio >= 1.0:
         score += 20  # Acceptable volume
     else:
         score += 10
+
+    # TIER 1.5: Price action at cup bottom (must close near high of day)
+    last_close = window['close'].iloc[-1]
+    last_low = window['low'].iloc[-1]
+    last_high = window['high'].iloc[-1]
+    close_position = (last_close - last_low) / (last_high - last_low) if (last_high - last_low) > 0 else 0
+    if close_position >= 0.75:
+        score += 8  # Closing near highs = strength
+    elif close_position < 0.25:
+        score -= 5  # Closing near lows = weakness
 
     # 2. SYMMETRY CHECK (Cup must be balanced L/R)
     mid_idx = len(window) // 2
@@ -1260,7 +1274,7 @@ def _score_flat_base(window, depth_pct, vol_ratio, duration_days):
         return 0  # No volume increase = no breakout coming
 
     # 2. VOLATILITY CHECK (Must be TIGHT consolidation)
-    daily_ranges = (window['high'] - window['low']) / window['close'].rolling(2).shift(1)
+    daily_ranges = (window['high'] - window['low']) / window['close'].shift(1)
     daily_ranges = daily_ranges[~daily_ranges.isna()]
 
     avg_range = daily_ranges.mean() if len(daily_ranges) > 0 else 0
@@ -1318,7 +1332,10 @@ def _score_double_bottom(window, depth_pct, vol_ratio, duration_days):
     # 2. DAYS BETWEEN LOWS (must be 5+ days apart)
     low1_idx = window_sorted.index[0]
     low2_idx = window_sorted.index[1]
-    days_between = abs(low1_idx - low2_idx)
+    # Find actual row positions instead of dealing with datetime indices
+    low1_pos = window.index.get_loc(low1_idx) if low1_idx in window.index else 0
+    low2_pos = window.index.get_loc(low2_idx) if low2_idx in window.index else 0
+    days_between = abs(low1_pos - low2_pos)
 
     if days_between < 5:
         return 0  # Too close together
@@ -1648,28 +1665,21 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     df['exit_trigger_4_condition'] = 'STOP_LOSS_HIT'  # Hard stop condition
     df['exit_trigger_4_price'] = df['stopLevel']  # Stop loss price (pivot low)
 
-    # === BASE/CONSOLIDATION ANALYSIS ===
-    # base_type: Detect consolidation patterns by looking at price volatility (VECTORIZED)
-    # Daily range % = (high - low) / close * 100 (standard formula to avoid infinity on penny stocks)
+    # === BASE/CONSOLIDATION ANALYSIS (TIER 1 PROFESSIONAL-GRADE) ===
+    # base_type: Detect O'Neill patterns (Cup, Flat Base, Double Bottom, Base on Base)
+    # Uses Tier 1 accurate algorithm with volume validation and confidence scoring
     df['daily_range_pct'] = ((df['high'] - df['low']) / df['close']) * 100
-    df['base_type'] = df['daily_range_pct'].apply(
-        lambda x: 'TIGHT_RANGE' if x < 1.0 else ('NORMAL_RANGE' if x < 2.5 else 'WIDE_RANGE')
-    )
-
-    # base_length_days: Count consecutive days in consolidation (simplified - count at signal)
-    # Calculate for all signals (Buy/Sell), showing consolidation length before signal
+    df['base_type'] = None
     df['base_length_days'] = None
-    for i in range(1, len(df)):
-        signal = df.iloc[i]['Signal']
-        if signal in ['Buy', 'Sell']:
-            # Count consecutive consolidation days before this signal (max 20 days)
-            length = 0
-            for j in range(i - 1, max(-1, i - 21), -1):
-                if df.iloc[j]['base_type'] in ['TIGHT_RANGE', 'NORMAL_RANGE']:
-                    length += 1
-                else:
-                    break
-            df.at[i, 'base_length_days'] = length if length > 0 else None
+
+    # Apply Tier 1 pattern detection for each row
+    for i in range(65, len(df)):  # Need 65+ days of lookback data
+        base_type, confidence = identify_base_pattern(df, i, lookback_days=65)
+        if base_type:
+            df.at[i, 'base_type'] = base_type
+            # Estimate base_length_days from the pattern
+            # Most patterns are between 20-65 days, use confidence to estimate
+            df.at[i, 'base_length_days'] = int(20 + (confidence / 100) * 45)
 
     # === CALCULATE REAL METRICS ===
     # Calculate 50-day rolling average volume

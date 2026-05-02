@@ -2376,35 +2376,50 @@ async function getMarketDataHandler(req, res) {
 
       // 7. AAII Sentiment
       (async () => {
-        const result = await query(`
-          SELECT DISTINCT ON (date)
-            date, bullish, neutral, bearish
-          FROM aaii_sentiment
-          ORDER BY date DESC LIMIT 30
-        `);
-        return result.rows || [];
+        try {
+          const result = await query(`
+            SELECT DISTINCT ON (date)
+              date, bullish, neutral, bearish
+            FROM aaii_sentiment
+            ORDER BY date DESC LIMIT 30
+          `);
+          return result.rows || [];
+        } catch (err) {
+          console.warn('AAII sentiment data unavailable:', err.message);
+          return [];
+        }
       })(),
 
       // 8. Fear & Greed Index
       (async () => {
-        const result = await query(`
-          SELECT DISTINCT ON (date)
-            date, index_value, rating
-          FROM fear_greed_index
-          ORDER BY date DESC LIMIT 30
-        `);
-        return result.rows || [];
+        try {
+          const result = await query(`
+            SELECT DISTINCT ON (date)
+              date, index_value, rating
+            FROM fear_greed_index
+            ORDER BY date DESC LIMIT 30
+          `);
+          return result.rows || [];
+        } catch (err) {
+          console.warn('Fear & Greed index data unavailable:', err.message);
+          return [];
+        }
       })(),
 
       // 9. NAAIM
       (async () => {
-        const result = await query(`
-          SELECT DISTINCT ON (date)
-            date, bullish, bearish, naaim_number_mean
-          FROM naaim
-          ORDER BY date DESC LIMIT 30
-        `);
-        return result.rows || [];
+        try {
+          const result = await query(`
+            SELECT DISTINCT ON (date)
+              date, bullish, bearish, naaim_number_mean
+            FROM naaim
+            ORDER BY date DESC LIMIT 30
+          `);
+          return result.rows || [];
+        } catch (err) {
+          console.warn('NAAIM data unavailable:', err.message);
+          return [];
+        }
       })(),
 
       // 10. Seasonality - Full seasonality data

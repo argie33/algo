@@ -550,7 +550,7 @@ app.use("/api/research/backtests", cacheMiddleware(120), backtestsRoutes);
 
 // Status and price routes
 app.use("/api/status", cacheMiddleware(30), statusRoutes);
-app.use("/api/price", cacheMiddleware(30), pricesRoutes);
+app.use("/api/prices", cacheMiddleware(30), pricesRoutes);
 
 // API info endpoint
 app.get("/api", (req, res) => {
