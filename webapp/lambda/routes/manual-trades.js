@@ -5,6 +5,7 @@ const express = require('express');
 const { query: dbQuery } = require('../utils/database');
 const { authenticateToken } = require('../middleware/auth');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const logger = require('../utils/logger');
 const router = express.Router();
 
 // Require authentication for all manual trades operations
@@ -26,17 +27,13 @@ router.get('/', async (req, res) => {
       []
     );
 
-    return res.json({
-      data: result.rows || [],
-      count: result.rowCount || 0,
-      success: true
+    return sendSuccess(res, {
+      trades: result.rows || [],
+      count: result.rowCount || 0
     });
   } catch (err) {
-    console.error('Error fetching manual trades:', err.message);
-    return res.status(500).json({
-      error: 'Failed to fetch trades',
-      success: false
-    });
+    logger.error('Error fetching manual trades', err);
+    return sendError(res, 500, 'Failed to fetch trades', 'DB_ERROR');
   }
 });
 
@@ -59,22 +56,13 @@ router.get('/:id', async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return res.status(404).json({
-        error: 'Trade not found',
-        success: false
-      });
+      return sendError(res, 404, 'Trade not found', 'NOT_FOUND');
     }
 
-    return res.json({
-      data: result.rows[0],
-      success: true
-    });
+    return sendSuccess(res, result.rows[0]);
   } catch (err) {
-    console.error('Error fetching trade:', err.message);
-    return res.status(500).json({
-      error: 'Failed to fetch trade',
-      success: false
-    });
+    logger.error('Error fetching trade', err);
+    return sendError(res, 500, 'Failed to fetch trade', 'DB_ERROR');
   }
 });
 
