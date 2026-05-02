@@ -67,10 +67,10 @@ def get_db_config() -> dict:
     }
 
 def fetch_symbol_data(symbol: str, period: str = "max") -> List[Tuple]:
-    """Fetch weekly price data for one symbol"""
+    """Fetch weekly price data for one symbol (with timeout protection)"""
     try:
         ticker = yf.Ticker(symbol.replace(".", "-").upper())
-        hist = ticker.history(period=period, interval="1wk")
+        hist = ticker.history(period=period, interval="1wk", timeout=30)
 
         if hist.empty:
             return []
