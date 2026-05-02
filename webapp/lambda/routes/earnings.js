@@ -181,4 +181,29 @@ router.get("/fresh-data", async (req, res) => {
   }
 });
 
+// Root route - earnings summary
+router.get("/", async (req, res) => {
+  try {
+    const { limit = 50 } = req.query;
+    const limitNum = Math.min(parseInt(limit), 5000);
+    const result = await query(`
+      SELECT symbol, quarter, fiscal_quarter, fiscal_year,
+             eps_actual, eps_estimate, eps_surprise_pct, created_at
+      FROM earnings_history
+      WHERE quarter IS NOT NULL
+      ORDER BY quarter DESC LIMIT $1
+    `, [limitNum]);
+
+    return sendPaginated(res, result.rows || [], {
+      limit: limitNum,
+      offset: 0,
+      total: result.rows?.length || 0,
+      page: 1,
+      totalPages: 1
+    });
+  } catch (error) {
+    return sendError(res, `Failed to fetch earnings: ${error.message}`, 500);
+  }
+});
+
 module.exports = router;

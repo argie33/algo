@@ -3090,4 +3090,26 @@ router.get("/cap-distribution", async (req, res) => {
   }
 });
 
+// Root route - market overview
+router.get("/", async (req, res) => {
+  try {
+    if (!query) {
+      return sendSuccess(res, { message: "Market data available - use /status or other sub-endpoints" });
+    }
+
+    const breadthResult = await query(`
+      SELECT COUNT(*) as total_stocks,
+             SUM(CASE WHEN volume > 0 THEN 1 ELSE 0 END) as active_stocks
+      FROM market_data LIMIT 1
+    `);
+
+    return sendSuccess(res, {
+      overview: breadthResult.rows[0] || { total_stocks: 0, active_stocks: 0 },
+      message: "Market overview - use /status or other sub-endpoints for detailed data"
+    });
+  } catch (error) {
+    return sendSuccess(res, { message: "Market data not available" });
+  }
+});
+
 module.exports = router;

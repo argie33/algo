@@ -137,7 +137,7 @@ router.get("/deep-value", async (req, res) => {
         WHERE vm.trailing_pe > 0 AND vm.trailing_pe < 200
           AND vm.price_to_book > 0 AND vm.price_to_book < 50
         GROUP BY vm.symbol
-        HAVING COUNT(*) >= 5
+        HAVING COUNT(*) >= 10
       ),
       latest_quality AS (
         SELECT DISTINCT ON (qm.symbol)
@@ -165,16 +165,18 @@ router.get("/deep-value", async (req, res) => {
           q.debt_to_equity,
           q.current_ratio
         FROM latest_value v
-        LEFT JOIN historical_value h ON v.symbol = h.symbol
+        INNER JOIN historical_value h ON v.symbol = h.symbol
         INNER JOIN latest_quality q ON v.symbol = q.symbol
-        WHERE q.return_on_equity_pct >= 25
-          AND q.operating_margin_pct >= 15
-          AND q.current_ratio > 2.0
-          AND q.debt_to_equity < 1.5
+        WHERE q.return_on_equity_pct >= 35
+          AND q.operating_margin_pct >= 20
+          AND q.gross_margin_pct >= 42
+          AND q.current_ratio > 2.3
+          AND q.debt_to_equity < 0.9
+          AND h.hist_data_points >= 10
           AND (
-            v.trailing_pe < 20
-            OR v.price_to_book < 8
-            OR (v.peg_ratio < 0.7 AND v.peg_ratio > 0)
+            (v.trailing_pe < h.hist_avg_pe * 0.75)
+            OR (v.price_to_book < h.hist_avg_pb * 0.75)
+            OR (v.trailing_pe < h.hist_max_pe * 0.50)
           )
       ),
       discount_calc AS (
@@ -289,20 +291,45 @@ router.get("/deep-value", async (req, res) => {
     );
 
     const countResult = await query(
-      `WITH sp500 AS (SELECT symbol FROM stock_symbols WHERE is_sp500 = true)
-       SELECT COUNT(*) as total
-       FROM (
-         SELECT DISTINCT v.symbol
-         FROM value_metrics v
-         JOIN sp500 st ON v.symbol = st.symbol
-         JOIN quality_metrics q ON v.symbol = q.symbol
-         WHERE v.trailing_pe > 0 AND v.trailing_pe < 200
-           AND v.price_to_book > 0 AND v.price_to_book < 50
-           AND q.return_on_equity_pct >= 25
-           AND q.operating_margin_pct >= 15
-           AND q.current_ratio > 2.0
-           AND q.debt_to_equity < 1.5
-       ) subq`
+      `WITH sp500 AS (SELECT symbol FROM stock_symbols WHERE is_sp500 = true),
+       latest_value AS (
+         SELECT DISTINCT ON (vm.symbol)
+           vm.symbol, vm.trailing_pe, vm.price_to_book
+         FROM value_metrics vm
+         JOIN sp500 st ON vm.symbol = st.symbol
+         WHERE vm.trailing_pe > 0 AND vm.trailing_pe < 200 AND vm.price_to_book > 0 AND vm.price_to_book < 50
+         ORDER BY vm.symbol, vm.date DESC
+       ),
+       historical_value AS (
+         SELECT vm.symbol,
+           ROUND(CAST(AVG(vm.trailing_pe) AS NUMERIC), 2) AS hist_avg_pe,
+           ROUND(CAST(AVG(vm.price_to_book) AS NUMERIC), 2) AS hist_avg_pb,
+           ROUND(CAST(MAX(vm.trailing_pe) AS NUMERIC), 2) AS hist_max_pe
+         FROM value_metrics vm JOIN sp500 st ON vm.symbol = st.symbol
+         WHERE vm.trailing_pe > 0 AND vm.trailing_pe < 200 AND vm.price_to_book > 0 AND vm.price_to_book < 50
+         GROUP BY vm.symbol HAVING COUNT(*) >= 10
+       ),
+       latest_quality AS (
+         SELECT DISTINCT ON (qm.symbol)
+           qm.symbol, qm.return_on_equity_pct, qm.operating_margin_pct, qm.gross_margin_pct, qm.current_ratio, qm.debt_to_equity
+         FROM quality_metrics qm JOIN sp500 st ON qm.symbol = st.symbol
+         WHERE qm.return_on_equity_pct > 0 AND qm.operating_margin_pct > 0
+         ORDER BY qm.symbol, qm.date DESC
+       )
+       SELECT COUNT(DISTINCT v.symbol) as total
+       FROM latest_value v
+       INNER JOIN historical_value h ON v.symbol = h.symbol
+       INNER JOIN latest_quality q ON v.symbol = q.symbol
+       WHERE q.return_on_equity_pct >= 35
+         AND q.operating_margin_pct >= 20
+         AND q.gross_margin_pct >= 42
+         AND q.current_ratio > 2.3
+         AND q.debt_to_equity < 0.9
+         AND (
+           (v.trailing_pe < h.hist_avg_pe * 0.75)
+           OR (v.price_to_book < h.hist_avg_pb * 0.75)
+           OR (v.trailing_pe < h.hist_max_pe * 0.50)
+         )`
     );
     const total = parseInt(countResult.rows[0].total);
 
