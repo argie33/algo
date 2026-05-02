@@ -565,3 +565,5 @@ if __name__ == '__main__':
         logger.error(f"Unhandled exception: {e}", exc_info=True)
         sys.exit(1)
 
+
+# TRIGGER: Deploying with dedup fix - GitHub Actions will auto-run
