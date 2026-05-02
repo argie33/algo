@@ -1,0 +1,231 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'Phase C: Lambda Fan-Out Architecture for High-Speed Data Loading'
+
+Parameters:
+  RDSSecretArn:
+    Type: String
+    Description: ARN of RDS database credentials in Secrets Manager
+  S3StagingBucket:
+    Type: String
+    Default: stocks-app-data
+    Description: S3 bucket for staging data
+  LambdaConcurrency:
+    Type: Number
+    Default: 100
+    Description: Reserved concurrency for Lambda workers
+
+Globals:
+  Function:
+    Timeout: 900
+    MemorySize: 1024
+    Runtime: python3.11
+    Architectures:
+      - arm64
+    Environment:
+      Variables:
+        DB_SECRET_ARN: !Ref RDSSecretArn
+        S3_STAGING_BUCKET: !Ref S3StagingBucket
+        AWS_REGION: !Ref AWS::Region
+
+Resources:
+  # ============================================================================
+  # LAMBDA WORKERS - Symbol Batch Processing
+  # ============================================================================
+
+  BuySellDailyWorkerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                Resource:
+                  - !Sub 'arn:aws:s3:::${S3StagingBucket}/*'
+        - PolicyName: SecretsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref RDSSecretArn
+        - PolicyName: RDSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - rds-db:connect
+                Resource: 'arn:aws:rds:*:*:db/*'
+
+  BuySellDailyWorkerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: buyselldaily-worker-lambda
+      CodeUri: ./
+      Handler: lambda_buyselldaily_worker.lambda_handler
+      Role: !GetAtt BuySellDailyWorkerRole.Arn
+      ReservedConcurrentExecutions: !Ref LambdaConcurrency
+      Layers:
+        - !GetAtt PythonDependenciesLayer.OutputSampleProperty
+      LoggingConfig:
+        LogGroup: !Sub '/aws/lambda/buyselldaily-worker'
+
+  BuySellDailyWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/buyselldaily-worker'
+      RetentionInDays: 7
+
+  # ============================================================================
+  # LAMBDA LAYER - Shared Dependencies
+  # ============================================================================
+
+  PythonDependenciesLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: stocks-python-dependencies
+      ContentUri: ./lambda-layers/python-deps
+      CompatibleRuntimes:
+        - python3.11
+      RetentionPolicy: Delete
+
+  # ============================================================================
+  # SQS QUEUE - Work Distribution
+  # ============================================================================
+
+  BuySellDailyWorkQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: buyselldaily-work-queue
+      VisibilityTimeout: 1200
+      MessageRetentionPeriod: 86400
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt BuySellDailyDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  BuySellDailyDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: buyselldaily-dlq
+      MessageRetentionPeriod: 1209600
+
+  # ============================================================================
+  # LAMBDA EVENT SOURCE MAPPING - Auto-invoke on SQS
+  # ============================================================================
+
+  BuySellDailyEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt BuySellDailyWorkQueue.Arn
+      FunctionName: !Ref BuySellDailyWorkerFunction
+      BatchSize: 1
+      MaximumBatchingWindowInSeconds: 10
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
+
+  # ============================================================================
+  # ORCHESTRATOR LAMBDA - Fan-out and Merge
+  # ============================================================================
+
+  OrchestratorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: SQSAndLambdaAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: !GetAtt BuySellDailyWorkQueue.Arn
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !GetAtt BuySellDailyWorkerFunction.Arn
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub 'arn:aws:s3:::${S3StagingBucket}/*'
+                  - !Sub 'arn:aws:s3:::${S3StagingBucket}'
+        - PolicyName: SecretsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref RDSSecretArn
+
+  OrchestratorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: buyselldaily-orchestrator
+      CodeUri: ./
+      Handler: lambda_buyselldaily_orchestrator.lambda_handler
+      Role: !GetAtt OrchestratorRole.Arn
+      Timeout: 1200
+      MemorySize: 512
+      Environment:
+        Variables:
+          WORKER_QUEUE_URL: !Ref BuySellDailyWorkQueue
+          WORKER_FUNCTION: !Ref BuySellDailyWorkerFunction
+
+  OrchestratorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/buyselldaily-orchestrator'
+      RetentionInDays: 7
+
+  # ============================================================================
+  # OUTPUTS
+  # ============================================================================
+
+Outputs:
+  BuySellDailyWorkerFunctionArn:
+    Description: ARN of the BuySellDaily worker Lambda function
+    Value: !GetAtt BuySellDailyWorkerFunction.Arn
+    Export:
+      Name: BuySellDailyWorkerFunctionArn
+
+  BuySellDailyWorkQueueUrl:
+    Description: URL of the work distribution SQS queue
+    Value: !Ref BuySellDailyWorkQueue
+    Export:
+      Name: BuySellDailyWorkQueueUrl
+
+  OrchestratorFunctionArn:
+    Description: ARN of the orchestrator Lambda function
+    Value: !GetAtt OrchestratorFunction.Arn
+    Export:
+      Name: BuySellDailyOrchestratorFunctionArn
