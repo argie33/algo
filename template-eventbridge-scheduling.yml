@@ -1,0 +1,243 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EventBridge Scheduling: Automated daily data loading pipeline execution'
+
+Parameters:
+  StateMachineArn:
+    Type: String
+    Description: ARN of Step Functions state machine to execute
+    Default: ''
+  ScheduleTime:
+    Type: String
+    Description: UTC time to run pipeline (cron format)
+    Default: '0 2 * * ? *'  # 2 AM UTC daily
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Environment for scheduling
+
+Conditions:
+  HasStateMachineArn: !Not [!Equals [!Ref StateMachineArn, '']]
+
+Resources:
+  # IAM Role for EventBridge to invoke Step Functions
+  EventBridgeStepFunctionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: EventBridgeStepFunctionsExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StartStepFunctionExecution
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - states:StartExecution
+                Resource: !Sub 'arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:*'
+
+  # EventBridge Rule: Daily pipeline execution
+  DailyDataLoadingRule:
+    Type: AWS::Events::Rule
+    Condition: HasStateMachineArn
+    Properties:
+      Name: daily-data-loading-pipeline
+      Description: Trigger data loading pipeline daily
+      ScheduleExpression: !Sub 'cron(${ScheduleTime})'
+      State: ENABLED
+      Targets:
+        - Arn: !Ref StateMachineArn
+          RoleArn: !GetAtt EventBridgeStepFunctionsRole.Arn
+          Id: DataLoadingPipeline
+          Input: !Sub |
+            {
+              "source": "eventbridge",
+              "scheduled": true,
+              "timestamp": "$$.time",
+              "environment": "${Environment}"
+            }
+
+  # EventBridge Rule: Trigger on demand (for manual execution)
+  OnDemandExecutionRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: on-demand-data-loading
+      Description: Allow manual triggering of data loading pipeline
+      EventPattern:
+        source:
+          - custom.dataLoading
+        detail-type:
+          - ExecutePipeline
+      State: ENABLED
+      Targets:
+        - !If
+          - HasStateMachineArn
+          - Arn: !Ref StateMachineArn
+            RoleArn: !GetAtt EventBridgeStepFunctionsRole.Arn
+            Id: OnDemandDataLoadingPipeline
+            Input: !Sub |
+              {
+                "source": "eventbridge-on-demand",
+                "scheduled": false,
+                "timestamp": "$$.time",
+                "environment": "${Environment}"
+              }
+          - !Ref AWS::NoValue
+
+  # SNS Topic for pipeline notifications
+  PipelineNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: data-loading-pipeline-notifications
+      DisplayName: Data Loading Pipeline Notifications
+      Subscription:
+        - Endpoint: !Sub 'arn:aws:events:${AWS::Region}::rule/daily-data-loading-pipeline'
+          Protocol: events
+
+  # CloudWatch Log Group for pipeline execution logs
+  PipelineLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /stepfunctions/data-loading-pipeline
+      RetentionInDays: 30
+
+  # CloudWatch Dashboard: Pipeline execution metrics
+  PipelineExecutionDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: DataLoadingPipeline-Metrics
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/States", "ExecutionsStarted", {"stat": "Sum", "period": 3600}],
+                  [".", "ExecutionsSucceeded", {"stat": "Sum", "period": 3600}],
+                  [".", "ExecutionsFailed", {"stat": "Sum", "period": 3600}],
+                  [".", "ExecutionTime", {"stat": "Average", "period": 3600}]
+                ],
+                "period": 3600,
+                "stat": "Average",
+                "region": "${AWS::Region}",
+                "title": "Step Functions Pipeline Execution Metrics"
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "Duration", {"stat": "Average"}],
+                  [".", "Invocations", {"stat": "Sum"}],
+                  [".", "Errors", {"stat": "Sum"}],
+                  [".", "Throttles", {"stat": "Sum"}]
+                ],
+                "period": 3600,
+                "stat": "Average",
+                "region": "${AWS::Region}",
+                "title": "Lambda Execution Metrics (Phase C)"
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/ECS", "RunningCount", {"stat": "Average"}],
+                  [".", "PendingCount", {"stat": "Average"}]
+                ],
+                "period": 300,
+                "stat": "Average",
+                "region": "${AWS::Region}",
+                "title": "ECS Task Execution (Phase A)"
+              }
+            },
+            {
+              "type": "metric",
+              "properties": {
+                "metrics": [
+                  ["AWS/DynamoDB", "ConsumedWriteCapacityUnits", {"stat": "Sum"}],
+                  [".", "ConsumedReadCapacityUnits", {"stat": "Sum"}]
+                ],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}",
+                "title": "DynamoDB Usage (Phase E Metadata)"
+              }
+            }
+          ]
+        }
+
+  # CloudWatch Alarm: Pipeline failures
+  PipelineFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasStateMachineArn
+    Properties:
+      AlarmName: data-loading-pipeline-failures
+      AlarmDescription: Alert when data loading pipeline fails
+      MetricName: ExecutionsFailed
+      Namespace: AWS/States
+      Statistic: Sum
+      Period: 3600
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:data-loading-pipeline-notifications'
+
+  # CloudWatch Alarm: Execution time exceeds threshold (15 minutes)
+  PipelineSlowAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasStateMachineArn
+    Properties:
+      AlarmName: data-loading-pipeline-slow-execution
+      AlarmDescription: Alert when pipeline takes longer than 15 minutes
+      MetricName: ExecutionTime
+      Namespace: AWS/States
+      Statistic: Average
+      Period: 3600
+      EvaluationPeriods: 1
+      Threshold: 900000  # 15 minutes in milliseconds
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:data-loading-pipeline-notifications'
+
+Outputs:
+  DailyScheduleArn:
+    Condition: HasStateMachineArn
+    Description: ARN of the daily pipeline execution rule
+    Value: !GetAtt DailyDataLoadingRule.Arn
+    Export:
+      Name: DataLoadingPipeline-DailyScheduleArn
+
+  PipelineNotificationTopicArn:
+    Description: ARN of SNS topic for pipeline notifications
+    Value: !Ref PipelineNotificationTopic
+    Export:
+      Name: DataLoadingPipeline-NotificationTopic
+
+  PipelineLogGroupName:
+    Description: CloudWatch log group for pipeline execution logs
+    Value: !Ref PipelineLogGroup
+    Export:
+      Name: DataLoadingPipeline-LogGroupName
+
+  DashboardURL:
+    Description: URL to CloudWatch Dashboard for pipeline metrics
+    Value: !Sub 'https://console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=DataLoadingPipeline-Metrics'
+
+  ManualTriggerCommand:
+    Description: AWS CLI command to manually trigger pipeline execution
+    Value: !Sub |
+      aws events put-events \
+        --entries "[{\"Source\":\"custom.dataLoading\",\"DetailType\":\"ExecutePipeline\",\"Detail\":\"{}\"}]" \
+        --region ${AWS::Region}
