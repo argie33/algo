@@ -150,7 +150,7 @@ router.get("/", async (req, res) => {
     const totalPages = Math.ceil(total / limitNum);
     return sendPaginated(res, sectors, {page: pageNum, limit: limitNum, total, totalPages, hasNext: pageNum < totalPages, hasPrev: pageNum > 1});
   } catch (error) {
-    console.error("Error fetching sectors:", error.message);
+    logger.error("Error fetching sectors:", error.message);
     return sendError(res, `Failed to fetch sectors: ${error.message.substring(0, 100)}`, 500);
   }
 });
@@ -195,7 +195,7 @@ router.get("/:sector/trend", async (req, res) => {
       }))
     });
   } catch (error) {
-    console.error("Error fetching sector trend:", error.message);
+    logger.error("Error fetching sector trend:", error.message);
     return sendError(res, `Failed to fetch sector trend: ${error.message.substring(0, 100)}`, 500);
   }
 });
@@ -239,7 +239,7 @@ router.get("/trend/sector/:sectorName", async (req, res) => {
 
     return sendSuccess(res, { sector: sectorName, trendData });
   } catch (error) {
-    console.error("Error fetching sector trend:", error.message);
+    logger.error("Error fetching sector trend:", error.message);
     return sendError(res, `Failed to fetch sector trend: ${error.message.substring(0, 100)}`, 500);
   }
 });

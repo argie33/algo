@@ -121,7 +121,7 @@ async function fetchIndustries(req, res) {
     const totalPages = Math.ceil(total / limitNum);
     return sendPaginated(res, industries, {page: pageNum, limit: limitNum, total, totalPages, hasNext: pageNum < totalPages, hasPrev: pageNum > 1});
   } catch (error) {
-    console.error("Error fetching industries:", error.message);
+    logger.error("Error fetching industries:", error.message);
     return sendError(res, `Failed to fetch industries: ${error.message.substring(0, 100)}`, 500);
   }
 }
@@ -172,7 +172,7 @@ router.get("/:industry/trend", async (req, res) => {
       }))
     });
   } catch (error) {
-    console.error("Error fetching industry trend:", error.message);
+    logger.error("Error fetching industry trend:", error.message);
     return sendError(res, `Failed to fetch industry trend: ${error.message.substring(0, 100)}`, 500);
   }
 });
@@ -216,7 +216,7 @@ router.get("/trend/industry/:industryName", async (req, res) => {
 
     return sendSuccess(res, { industry: industryName, trendData });
   } catch (error) {
-    console.error("Error fetching industry trend:", error.message);
+    logger.error("Error fetching industry trend:", error.message);
     return sendError(res, `Failed to fetch industry trend: ${error.message.substring(0, 100)}`, 500);
   }
 });

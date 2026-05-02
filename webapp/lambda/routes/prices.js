@@ -30,7 +30,7 @@ router.get("/latest", async (req, res) => {
     });
   } catch (error) {
     const errorMsg = error && typeof error === 'object' ? (error.message || String(error)) : String(error);
-    console.error("Error fetching latest prices:", errorMsg);
+    logger.error("Error fetching latest prices:", errorMsg);
     return sendError(res, `Failed to fetch latest prices: ${errorMsg}`, 500);
   }
 });
@@ -63,7 +63,7 @@ router.get("/history/:symbol", async (req, res) => {
     });
   } catch (error) {
     const errorMsg = error && typeof error === 'object' ? (error.message || String(error)) : String(error);
-    console.error("Error fetching price history:", errorMsg);
+    logger.error("Error fetching price history:", errorMsg);
     return sendError(res, `Failed to fetch price history: ${errorMsg}`, 500);
   }
 });
