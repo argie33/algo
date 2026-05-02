@@ -1435,11 +1435,120 @@ jobs:
             --statistics Average,Maximum,Minimum \
             --region ${{ env.AWS_REGION }} || echo "Metrics not yet available"
 
+  # 3F. Phase D: Step Functions DAG Orchestration (Full Pipeline)
+  # Deploy Step Functions state machine for complete pipeline DAG
+  deploy-phase-d-step-functions:
+    name: Deploy Phase D - Step Functions DAG
+    runs-on: ubuntu-latest
+    needs: [detect-changes]
+    # Deploy Phase D on any push or manual trigger (optional feature)
+    if: |
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch'
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+
+      - name: Prepare Phase D Template
+        id: template
+        run: |
+          echo "📋 Preparing Step Functions template..."
+
+          # Get cluster ARN from CloudFormation exports
+          CLUSTER_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
+            --output text)
+
+          echo "✅ Cluster ARN: $CLUSTER_ARN"
+          echo "cluster-arn=$CLUSTER_ARN" >> $GITHUB_OUTPUT
+
+      - name: Deploy Phase D CloudFormation Stack
+        id: deploy
+        run: |
+          echo "🚀 Deploying Phase D Step Functions state machine..."
+
+          # Get S3 bucket for CloudFormation templates
+          CF_BUCKET=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
+            --output text)
+
+          echo "Using CloudFormation bucket: $CF_BUCKET"
+
+          # Upload template to S3
+          echo "Uploading template-step-functions-phase-d.yml to S3..."
+          aws s3 cp template-step-functions-phase-d.yml s3://$CF_BUCKET/template-step-functions-phase-d.yml
+
+          # Deploy Step Functions stack
+          echo "Deploying Step Functions stack..."
+          aws cloudformation deploy \
+            --stack-name stocks-stepfunctions-phase-d \
+            --template-url https://${CF_BUCKET}.s3.amazonaws.com/template-step-functions-phase-d.yml \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --parameter-overrides \
+              ECSClusterArn=${{ steps.template.outputs.cluster-arn }} \
+              RDSSecretArn=arn:aws:secretsmanager:us-east-1:${{ env.AWS_ACCOUNT_ID }}:secret:stocks-prod-postgres-creds
+
+          # Get state machine ARN
+          STATE_MACHINE_ARN=$(aws cloudformation describe-stack-resource \
+            --stack-name stocks-stepfunctions-phase-d \
+            --logical-resource-id DataLoadingStateMachine \
+            --query 'StackResourceDetail.PhysicalResourceId' \
+            --output text)
+
+          echo "✅ Phase D State Machine deployed"
+          echo "State Machine ARN: $STATE_MACHINE_ARN"
+          echo "state-machine-arn=$STATE_MACHINE_ARN" >> $GITHUB_OUTPUT
+
+      - name: Register Phase D State Machine
+        run: |
+          echo "📝 Registering Phase D state machine for scheduling..."
+          echo "Step Functions ARN: ${{ steps.deploy.outputs.state-machine-arn }}"
+
+          # List exports to show what's available
+          aws cloudformation list-exports \
+            --query "Exports[?Name=='DataLoadingStateMachineArn'].Value" \
+            --output text || echo "Machine not yet exported"
+
+      - name: Phase D Architecture Overview
+        run: |
+          echo "📊 Phase D Architecture:"
+          echo ""
+          echo "Flow:"
+          echo "  1. LoadStockSymbols (sequential)"
+          echo "     └─> LoadPriceDataParallel (3 branches)"
+          echo "         ├─> PriceDailyLoad (S3 staging + Spot)"
+          echo "         ├─> PriceWeeklyLoad (S3 staging + Spot)"
+          echo "         └─> PriceMonthlyLoad (S3 staging + Spot)"
+          echo "             └─> LoadSignalsParallel (2 branches)"
+          echo "                 ├─> BuySellDailyLoad (Phase C Lambda)"
+          echo "                 └─> TechnicalsDailyLoad (S3 staging + Spot)"
+          echo "                     └─> LoadScores (sequential, final)"
+          echo ""
+          echo "Retry Policy:"
+          echo "  - Interval: 2 seconds"
+          echo "  - Backoff: 2.0x"
+          echo "  - Max attempts: 2-3"
+          echo ""
+          echo "Timeouts:"
+          echo "  - Symbols: 3600s (1 hour)"
+          echo "  - Price loaders: 1800s (30 min)"
+          echo "  - Signal loaders: 2700s (45 min)"
+          echo "  - Score loader: 1800s (30 min)"
+
   # 4. Summary and notifications
   deployment-summary:
     name: Deployment Summary
     runs-on: ubuntu-latest
-    needs: [detect-changes, deploy-infrastructure, execute-loaders, execute-phase2-parallel, execute-phase3a-s3bulk, execute-phase3b-lambda, execute-phase-c-lambda-orchestrator]
+    needs: [detect-changes, deploy-infrastructure, execute-loaders, execute-phase2-parallel, execute-phase3a-s3bulk, execute-phase3b-lambda, execute-phase-c-lambda-orchestrator, deploy-phase-d-step-functions]
     if: always()
     
     steps:
@@ -1449,6 +1558,7 @@ jobs:
           echo "- **Infrastructure**: ${{ needs.deploy-infrastructure.result || 'skipped' }}"
           echo "- **Loaders executed**: ${{ needs.execute-loaders.result || 'skipped' }}"
           echo "- **Phase C Lambda**: ${{ needs.execute-phase-c-lambda-orchestrator.result || 'skipped' }}"
+          echo "- **Phase D Step Functions**: ${{ needs.deploy-phase-d-step-functions.result || 'skipped' }}"
           echo "- **Changes detected**: ${{ needs.detect-changes.outputs.has-changes }}"
 
           if [[ "${{ needs.execute-loaders.result }}" == "success" ]]; then
@@ -1467,15 +1577,27 @@ jobs:
             echo "   Expected cost: \$2.50 per load (vs \$5-10 ECS Fargate)"
           fi
 
+          if [[ "${{ needs.deploy-phase-d-step-functions.result }}" == "success" ]]; then
+            echo ""
+            echo "### 📊 Phase D Step Functions DAG"
+            echo "✅ State machine deployed successfully"
+            echo "   - Full pipeline orchestration with automatic retries"
+            echo "   - Integrates Phase A (ECS S3 staging) + Phase C (Lambda fan-out)"
+            echo "   - Ready for scheduled execution via EventBridge"
+          fi
+
           echo ""
           echo "**Matrix used:**"
           echo '${{ needs.detect-changes.outputs.matrix }}' | jq -r '.include[] | "- \(.loader) (\(.priority) priority, \(.timeout)m timeout)"' || echo "No matrix generated"
 
       - name: Report status
         run: |
-          if [[ "${{ needs.execute-loaders.result }}" == "failure" || "${{ needs.execute-phase-c-lambda-orchestrator.result }}" == "failure" ]]; then
+          if [[ "${{ needs.execute-loaders.result }}" == "failure" || "${{ needs.execute-phase-c-lambda-orchestrator.result }}" == "failure" || "${{ needs.deploy-phase-d-step-functions.result }}" == "failure" ]]; then
             echo "❌ Deployment had failures"
             exit 1
           else
             echo "✅ Deployment completed successfully"
+            echo ""
+            echo "📈 Next: Monitor Phase A/C execution and Phase D state machine"
+            echo "🎯 Target: 10-15 min total pipeline, <0.1% error rate, -70% cost"
           fi
