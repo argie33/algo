@@ -202,6 +202,7 @@ function TradingSignals() {
             <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
               {symbolFilter && <Chip label={`Symbol: ${symbolFilter}`} onDelete={() => handleRemoveFilter("symbol")} color="primary" variant="outlined" size="small" />}
               {signalFilter && <Chip label={`Signal: ${signalFilter}`} onDelete={() => handleRemoveFilter("signal")} color="primary" variant="outlined" size="small" />}
+              {baseTypeFilter && <Chip label={`Pattern: ${baseTypeFilter}`} onDelete={() => handleRemoveFilter("baseType")} color="primary" variant="outlined" size="small" />}
               {days !== 3650 && <Chip label={`${days}d`} onDelete={() => handleRemoveFilter("days")} color="primary" variant="outlined" size="small" />}
               {minPrice && <Chip label={`Min: $${minPrice}`} onDelete={() => handleRemoveFilter("minPrice")} color="primary" variant="outlined" size="small" />}
               {maxPrice && <Chip label={`Max: $${maxPrice}`} onDelete={() => handleRemoveFilter("maxPrice")} color="primary" variant="outlined" size="small" />}
@@ -235,6 +236,18 @@ function TradingSignals() {
                     <MenuItem value="">All Signals</MenuItem>
                     <MenuItem value="BUY">📈 BUY Signals</MenuItem>
                     <MenuItem value="SELL">📉 SELL Signals</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Base Type</InputLabel>
+                  <Select value={baseTypeFilter} onChange={(e) => { setBaseTypeFilter(e.target.value); setPage(1); }} label="Base Type">
+                    <MenuItem value="">All Patterns</MenuItem>
+                    <MenuItem value="Cup">🏆 Cup & Handle</MenuItem>
+                    <MenuItem value="Flat Base">📦 Flat Base</MenuItem>
+                    <MenuItem value="Double Bottom">V Double Bottom</MenuItem>
+                    <MenuItem value="Base on Base">🔄 Base on Base</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>

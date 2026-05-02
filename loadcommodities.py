@@ -960,15 +960,9 @@ def main():
         logging.info(" Populating current prices from historical data...")
         populate_current_prices_from_history()
 
-        # Fetch and save COT data for supported commodities
-        cot_commodities = ['CL=F', 'NG=F', 'GC=F', 'SI=F', 'HG=F', 'ZC=F', 'ZS=F', 'ZW=F', 'LE=F', 'HE=F']
-        logging.info(f" Fetching COT data for {len(cot_commodities)} commodities...")
-        for symbol in cot_commodities:
-            logging.info(f"Fetching COT data for {symbol}...")
-            cot_data = fetch_cot_data(symbol)
-            if cot_data:
-                save_cot_data(cot_data)
-            time.sleep(0.5)  # Rate limiting
+        # Fetch and save COT data for supported commodities (skipped - library downloads too much)
+        # COT data can be fetched separately when needed
+        logging.info(" ⏭️  Skipping COT data (cot_reports library design requires manual caching)")
 
         # Calculate correlations between ALL commodities
         logging.info(f" Calculating commodity correlations for {len(all_commodities)} commodities...")

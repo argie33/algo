@@ -154,7 +154,9 @@ router.get("/deep-value", async (req, res) => {
           v.symbol,
           v.trailing_pe, v.price_to_book, v.price_to_sales_ttm,
           v.ev_to_ebitda, v.peg_ratio, v.dividend_yield,
-          h.hist_avg_pe, h.hist_avg_pb, h.hist_max_pe,
+          COALESCE(h.hist_avg_pe, v.trailing_pe) AS hist_avg_pe,
+          COALESCE(h.hist_avg_pb, v.price_to_book) AS hist_avg_pb,
+          COALESCE(h.hist_max_pe, v.trailing_pe) AS hist_max_pe,
           q.return_on_equity_pct AS roe,
           q.return_on_assets_pct AS roa,
           q.gross_margin_pct AS gross_margin,
@@ -163,7 +165,7 @@ router.get("/deep-value", async (req, res) => {
           q.debt_to_equity,
           q.current_ratio
         FROM latest_value v
-        INNER JOIN historical_value h ON v.symbol = h.symbol
+        LEFT JOIN historical_value h ON v.symbol = h.symbol
         INNER JOIN latest_quality q ON v.symbol = q.symbol
         WHERE q.return_on_equity_pct >= 25
           AND q.operating_margin_pct >= 15
@@ -179,15 +181,14 @@ router.get("/deep-value", async (req, res) => {
           ROUND(CAST((c.hist_avg_pe - c.trailing_pe) / NULLIF(c.hist_avg_pe, 0) * 100 AS NUMERIC), 1) AS discount_vs_historical_pe_pct,
           ROUND(CAST((c.hist_avg_pb - c.price_to_book) / NULLIF(c.hist_avg_pb, 0) * 100 AS NUMERIC), 1) AS discount_vs_historical_pb_pct,
           CASE
-            WHEN (c.hist_avg_pe - c.trailing_pe) / NULLIF(c.hist_avg_pe, 0) >= 0.40 THEN 90
-            WHEN (c.hist_avg_pb - c.price_to_book) / NULLIF(c.hist_avg_pb, 0) >= 0.40 THEN 85
-            WHEN (c.hist_avg_pe - c.trailing_pe) / NULLIF(c.hist_avg_pe, 0) >= 0.30 THEN 70
-            WHEN (c.hist_max_pe - c.trailing_pe) / NULLIF(c.hist_max_pe, 0) >= 0.50 THEN 75
-            ELSE 0
+            WHEN (c.hist_avg_pe - c.trailing_pe) / NULLIF(c.hist_avg_pe, 0) >= 0.40 THEN 95
+            WHEN (c.hist_avg_pe - c.trailing_pe) / NULLIF(c.hist_avg_pe, 0) >= 0.30 THEN 80
+            WHEN (c.hist_max_pe - c.trailing_pe) / NULLIF(c.hist_max_pe, 0) >= 0.50 THEN 85
+            WHEN (c.hist_avg_pe - c.trailing_pe) / NULLIF(c.hist_avg_pe, 0) >= 0.20 THEN 60
+            WHEN (c.hist_max_pe - c.trailing_pe) / NULLIF(c.hist_max_pe, 0) >= 0.35 THEN 70
+            ELSE 40
           END AS discount_strength
         FROM combined c
-        WHERE (c.hist_avg_pe - c.trailing_pe) / NULLIF(c.hist_avg_pe, 0) >= 0.30
-          OR (c.hist_max_pe - c.trailing_pe) / NULLIF(c.hist_max_pe, 0) >= 0.50
       ),
       sector_medians AS (
         SELECT
@@ -252,11 +253,18 @@ router.get("/deep-value", async (req, res) => {
         s.discount_vs_historical_pb_pct,
         s.discount_vs_sector_pe_pct,
         s.discount_vs_market_pe_pct,
-        -- BULLETPROOF SCORE: Favors extreme historical discounts (40%+)
+        -- BULLETPROOF SCORE: Historical discount + Quality/Valuation mismatch + Fortress rating
         ROUND(CAST(
-          s.discount_vs_historical_pe_pct * 0.50 +
-          s.discount_vs_sector_pe_pct * 0.25 +
-          s.anomaly_intensity_pct * 0.25
+          COALESCE(s.discount_vs_historical_pe_pct, 0) * 0.40 +
+          COALESCE(s.discount_strength, 40) * 0.30 +
+          (CASE
+            WHEN s.trailing_pe < 20 AND s.roe >= 30 THEN 95
+            WHEN s.trailing_pe < 25 AND s.roe >= 30 THEN 85
+            WHEN s.trailing_pe < 30 AND s.roe >= 35 THEN 90
+            WHEN s.trailing_pe < (s.market_median_pe * 0.8) AND s.roe >= 25 THEN 80
+            WHEN s.trailing_pe < s.market_median_pe AND s.op_margin >= 30 THEN 75
+            ELSE 40
+          END) * 0.30
           AS NUMERIC), 1) AS generational_score
       FROM scored s
       LEFT JOIN company_profile cp ON s.symbol = cp.ticker

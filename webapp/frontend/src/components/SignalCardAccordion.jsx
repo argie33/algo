@@ -200,6 +200,35 @@ const SignalCardAccordion = ({ signals = [] }) => {
                       </Box>
                     </Grid>
 
+                    {/* Base Type Pattern */}
+                    {signal.base_type && (
+                      <Grid item xs={6} sm="auto">
+                        <Box sx={{ minWidth: 80 }}>
+                          <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ display: "block", fontSize: "0.7rem", mb: 0.25 }}>
+                            PATTERN
+                          </Typography>
+                          <Chip
+                            label={signal.base_type}
+                            size="small"
+                            variant="outlined"
+                            sx={{
+                              height: 24,
+                              fontSize: "0.75rem",
+                              fontWeight: 600,
+                              borderColor: signal.base_type === 'Cup' ? theme.palette.success.main :
+                                          signal.base_type === 'Flat Base' ? theme.palette.info.main :
+                                          signal.base_type === 'Double Bottom' ? theme.palette.warning.main :
+                                          theme.palette.text.secondary,
+                              color: signal.base_type === 'Cup' ? theme.palette.success.main :
+                                    signal.base_type === 'Flat Base' ? theme.palette.info.main :
+                                    signal.base_type === 'Double Bottom' ? theme.palette.warning.main :
+                                    theme.palette.text.secondary,
+                            }}
+                          />
+                        </Box>
+                      </Grid>
+                    )}
+
                     {/* Signal Triggered Date */}
                     <Grid item xs={6} sm="auto">
                       <Box sx={{ minWidth: 80 }}>
@@ -255,6 +284,22 @@ const SignalCardAccordion = ({ signals = [] }) => {
                   <DataField label="Initial Stop" value={signal.initial_stop} format="currency" />
                   <DataField label="Trailing Stop" value={signal.trailing_stop} format="currency" />
                 </Grid>
+
+                {/* PATTERN ANALYSIS */}
+                {signal.base_type && (
+                  <Grid item xs={12} sm={6} md={4} lg={2.4}>
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.primary', display: 'block', fontSize: '0.8rem', letterSpacing: '0.3px', textTransform: 'uppercase' }}>
+                        Pattern Analysis
+                      </Typography>
+                    </Box>
+                    <DataField label="Base Type" value={signal.base_type} />
+                    <DataField label="Base Length Days" value={signal.base_length_days} format="number" unit="days" />
+                    <DataField label="Buy Zone Start" value={signal.buy_zone_start} format="currency" />
+                    <DataField label="Buy Zone End" value={signal.buy_zone_end} format="currency" />
+                    <DataField label="Breakout Quality" value={signal.breakout_quality} />
+                  </Grid>
+                )}
 
                 {/* TECHNICAL INDICATORS */}
                 <Grid item xs={12} sm={6} md={4} lg={2.4}>

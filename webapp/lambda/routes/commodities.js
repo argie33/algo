@@ -83,7 +83,7 @@ router.get("/categories", async (req, res) => {
       name: row.category.charAt(0).toUpperCase() + row.category.slice(1)
     }));
 
-    return sendSuccess(res, categories);
+    return sendPaginated(res, categories, { limit: categories.length, offset: 0, total: categories.length });
   } catch (error) {
     console.error("❌ Error fetching commodity categories:", error.message);
     return sendError(res, "Commodity data not available. Requires commodity tables and data loader.", 503);
@@ -257,7 +257,7 @@ router.get("/prices", async (req, res) => {
       updatedAt: row.updated_at
     }));
 
-    return sendSuccess(res, prices);
+    return sendPaginated(res, prices, { limit: prices.length, offset: 0, total: prices.length });
   } catch (error) {
     console.error("❌ Error fetching commodity prices:", error.message);
     return sendError(res, "Commodity data not available. Requires commodity tables and data loader.", 503);
