@@ -2,6 +2,7 @@ const express = require("express");
 
 const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const logger = require("../utils/logger");
 const router = express.Router();
 
 // Helper function to fetch stocks list
@@ -28,7 +29,7 @@ async function fetchStocksList(req, res) {
     });
   } catch (error) {
     const errorMsg = error && typeof error === 'object' ? (error.message || String(error)) : String(error);
-    console.error("❌ Error fetching stocks:", errorMsg);
+    logger.error("Error fetching stocks", null, { error: errorMsg });
     return sendError(res, `Failed to fetch stocks: ${errorMsg}`, 500);
   }
 }
@@ -69,7 +70,7 @@ router.get("/search", async (req, res) => {
     });
   } catch (error) {
     const errorMsg = error && typeof error === 'object' ? (error.message || String(error)) : String(error);
-    console.error("❌ Error searching stocks:", errorMsg);
+    logger.error("Error searching stocks", null, { error: errorMsg });
     return sendError(res, `Failed to search stocks: ${errorMsg}`, 500);
   }
 });
@@ -92,7 +93,7 @@ router.get("/gainers", async (req, res) => {
       page: 1
     });
   } catch (error) {
-    console.error("Error fetching gainers:", error.message);
+    logger.error("Error fetching gainers", error);
     return sendError(res, `Failed to fetch gainers: ${error.message}`, 500);
   }
 });
@@ -213,7 +214,7 @@ router.get("/deep-value", async (req, res) => {
       hasPrev: offset > 0
     });
   } catch (error) {
-    console.error("Error fetching deep value stocks:", error.message);
+    logger.error("Error fetching deep value stocks", error);
     return sendError(res, `Failed to fetch deep value stocks: ${error.message}`, 500);
   }
 });
@@ -234,7 +235,7 @@ router.get("/:symbol", async (req, res) => {
 
     return sendSuccess(res, result.rows[0]);
   } catch (error) {
-    console.error("Error fetching stock:", error);
+    logger.error("Error fetching stock", error);
     return sendError(res, error.message, 500);
   }
 });
