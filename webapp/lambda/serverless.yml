@@ -82,7 +82,12 @@ resources:
         ProtocolType: HTTP
         CorsConfiguration:
           AllowOrigins:
-            - ${env:CORS_ORIGIN, 'http://localhost:5174'}
+            - 'https://d1copuy2oqlazx.cloudfront.net'  # Production CloudFront
+            - 'http://localhost:5173'  # Local frontend port
+            - 'http://localhost:5174'  # Admin site port
+            - 'http://127.0.0.1:5173'
+            - 'http://127.0.0.1:5174'
+            - ${env:CORS_ORIGIN, ''}  # Additional custom origins from env
           AllowMethods:
             - GET
             - POST
@@ -90,12 +95,20 @@ resources:
             - DELETE
             - PATCH
             - OPTIONS
+            - HEAD
           AllowHeaders:
             - Content-Type
             - Authorization
-            - X-Amz-Date
+            - X-Requested-With
             - X-Api-Key
+            - X-Amz-Date
             - X-Amz-Security-Token
+            - X-Request-ID
+            - Accept
+            - Accept-Language
+            - Cache-Control
+            - Origin
+          AllowCredentials: true
           MaxAge: 86400
 
 package:
