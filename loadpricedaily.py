@@ -73,7 +73,8 @@ def get_db_config() -> dict:
     }
 
 def fetch_symbol_data(symbol: str, period: str = "max") -> List[Tuple]:
-    """Fetch daily price data for one symbol (with timeout protection)"""
+    """Fetch daily price data for one symbol (with timeout protection)
+    Wave 1: Includes 30s timeout, batch optimization (1000 rows), progress logging"""
     try:
         ticker = yf.Ticker(symbol.replace(".", "-").upper())
         # Add timeout protection - yfinance has no native timeout, so we catch hangs
