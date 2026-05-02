@@ -194,6 +194,13 @@ function initializeAlpacaSync() {
       return null;
     }
 
+    // DISABLED: Alpaca scheduler causing server crashes due to invalid credentials (401 errors)
+    // Re-enable only after verifying Alpaca API credentials are valid
+    if (process.env.NODE_ENV === 'production') {
+      console.warn("⚠️  Alpaca scheduler disabled due to credential issues");
+      return null;
+    }
+
     // Schedule sync every 10 minutes (*/10 * * * *)
     // Run sync asynchronously WITHOUT awaiting to prevent blocking the scheduler
     syncScheduler = cron.schedule("*/10 * * * *", () => {
