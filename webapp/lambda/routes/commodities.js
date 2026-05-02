@@ -61,30 +61,137 @@ router.get("/categories", async (req, res) => {
   try {
     const result = await query(`
       SELECT
+        cc.symbol,
         cc.category,
-        COUNT(DISTINCT cc.symbol) as commodity_count,
+        cc.subcategory,
+        cc.unit,
+        cc.exchange,
         AVG(CAST(cp.change_percent AS FLOAT)) as avg_change_1d,
-        MAX(CAST(cp.price AS FLOAT)) as highest_price,
-        MIN(CAST(cp.price AS FLOAT)) as lowest_price
+        COUNT(DISTINCT cc.symbol) as commodity_count
       FROM commodity_categories cc
       LEFT JOIN commodity_prices cp ON cc.symbol = cp.symbol
-      GROUP BY cc.category
-      ORDER BY cc.category
+      GROUP BY cc.symbol, cc.category, cc.subcategory, cc.unit, cc.exchange
+      ORDER BY cc.category, cc.symbol
     `);
 
     const categories = result.rows.map(row => ({
+      symbol: row.symbol,
       category: row.category,
-      name: row.category.charAt(0).toUpperCase() + row.category.slice(1),
-      commodityCount: safeInt(row.commodity_count),
-      avgChange1d: safeFixed(row.avg_change_1d, 2),
-      highestPrice: safeFloat(row.highest_price),
-      lowestPrice: safeFloat(row.lowest_price)
+      subcategory: row.subcategory,
+      unit: row.unit,
+      exchange: row.exchange,
+      name: row.category.charAt(0).toUpperCase() + row.category.slice(1)
     }));
 
     return sendSuccess(res, categories);
   } catch (error) {
     console.error("❌ Error fetching commodity categories:", error.message);
     return sendError(res, "Commodity data not available. Requires commodity tables and data loader.", 503);
+  }
+});
+
+/**
+ * GET /commodities/full/:symbol
+ * Get comprehensive commodity data including price, COT, seasonality, correlations
+ */
+router.get("/full/:symbol", async (req, res) => {
+  const dbError = checkDatabaseAvailable(res);
+  if (dbError) return dbError;
+
+  const { symbol } = req.params;
+
+  try {
+    // Fetch price data
+    const priceResult = await query(`
+      SELECT
+        cp.symbol,
+        cp.name,
+        CAST(cp.price AS FLOAT) as price,
+        CAST(cp.change_amount AS FLOAT) as change_amount,
+        CAST(cp.change_percent AS FLOAT) as change_percent,
+        CAST(cp.volume AS FLOAT) as volume,
+        CAST(cp.high_52w AS FLOAT) as high_52w,
+        CAST(cp.low_52w AS FLOAT) as low_52w,
+        cc.category,
+        cc.subcategory,
+        cc.unit,
+        cc.exchange,
+        cp.updated_at
+      FROM commodity_prices cp
+      LEFT JOIN commodity_categories cc ON cp.symbol = cc.symbol
+      WHERE cp.symbol = $1
+    `, [symbol]);
+
+    if (priceResult.rows.length === 0) {
+      return sendNotFound(res, `No data available for symbol: ${symbol}`);
+    }
+
+    const priceData = priceResult.rows[0];
+
+    // Fetch latest COT data if available
+    const cotResult = await query(`
+      SELECT
+        commercial_long,
+        commercial_short,
+        commercial_net,
+        non_commercial_long,
+        non_commercial_short,
+        non_commercial_net,
+        open_interest,
+        report_date
+      FROM cot_data
+      WHERE symbol = $1
+      ORDER BY report_date DESC
+      LIMIT 1
+    `, [symbol]);
+
+    const cotData = cotResult.rows.length > 0 ? {
+      reportDate: cotResult.rows[0].report_date,
+      commercial: {
+        long: safeInt(cotResult.rows[0].commercial_long),
+        short: safeInt(cotResult.rows[0].commercial_short),
+        net: safeInt(cotResult.rows[0].commercial_net)
+      },
+      nonCommercial: {
+        long: safeInt(cotResult.rows[0].non_commercial_long),
+        short: safeInt(cotResult.rows[0].non_commercial_short),
+        net: safeInt(cotResult.rows[0].non_commercial_net)
+      },
+      openInterest: safeInt(cotResult.rows[0].open_interest)
+    } : null;
+
+    // Fetch seasonality
+    const seasonalityResult = await query(`
+      SELECT month, CAST(avg_return AS FLOAT) as avg_return, CAST(win_rate AS FLOAT) as win_rate
+      FROM commodity_seasonality
+      WHERE symbol = $1
+      ORDER BY month
+    `, [symbol]);
+
+    return sendSuccess(res, {
+      symbol: symbol,
+      name: priceData.name,
+      price: safeFloat(priceData.price),
+      change: safeFloat(priceData.change_amount),
+      changePercent: safeFixed(priceData.change_percent, 2),
+      volume: safeInt(priceData.volume),
+      high52w: safeFloat(priceData.high_52w),
+      low52w: safeFloat(priceData.low_52w),
+      category: priceData.category,
+      subcategory: priceData.subcategory,
+      unit: priceData.unit,
+      exchange: priceData.exchange,
+      updatedAt: priceData.updated_at,
+      cot: cotData,
+      seasonality: seasonalityResult.rows.map(row => ({
+        month: safeInt(row.month),
+        avgReturn: safeFixed(row.avg_return, 4),
+        winRate: safeFixed(row.win_rate, 1)
+      }))
+    });
+  } catch (error) {
+    console.error("❌ Error fetching full commodity data:", error.message);
+    return sendError(res, "Commodity data not available.", 503);
   }
 });
 
@@ -111,6 +218,7 @@ router.get("/prices", async (req, res) => {
         CAST(cp.high_52w AS FLOAT) as high_52w,
         CAST(cp.low_52w AS FLOAT) as low_52w,
         cc.category,
+        cc.subcategory,
         cc.unit,
         cc.exchange,
         cp.updated_at
@@ -134,12 +242,17 @@ router.get("/prices", async (req, res) => {
       name: row.name,
       price: safeFloat(row.price),
       change: safeFloat(row.change_amount),
+      change_amount: safeFloat(row.change_amount),
+      change_percent: safeFixed(row.change_percent, 2),
       changePercent: safeFixed(row.change_percent, 2),
       volume: safeInt(row.volume),
+      high_52w: safeFloat(row.high_52w),
       high52w: safeFloat(row.high_52w),
+      low_52w: safeFloat(row.low_52w),
       low52w: safeFloat(row.low_52w),
       category: row.category,
       unit: row.unit,
+      subcategory: row.subcategory,
       exchange: row.exchange,
       updatedAt: row.updated_at
     }));

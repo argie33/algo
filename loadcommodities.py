@@ -886,20 +886,21 @@ def main():
         # Populate categories
         populate_categories()
 
-        # Fetch and save historical data for key commodities
-        key_commodities = ['GC=F', 'SI=F', 'CL=F', 'NG=F', 'ZC=F', 'ZS=F', 'HG=F', 'LE=F', 'HE=F']
-        logging.info(" Fetching historical data for key commodities...")
+        # Fetch and save historical data for ALL commodities
+        all_commodities = list(COMMODITY_SYMBOLS.keys())
+        logging.info(f" Fetching historical data for {len(all_commodities)} commodities...")
 
-        for symbol in key_commodities:
+        for symbol in all_commodities:
             logging.info(f"Fetching historical data for {symbol}...")
             historical_data = fetch_historical_data(symbol, period="2y")
             if historical_data:
                 save_historical_data(historical_data)
 
-                # Calculate and save seasonality data
-                seasonality_data = calculate_seasonality(symbol, historical_data)
-                if seasonality_data:
-                    save_seasonality_data(seasonality_data)
+                # Calculate and save seasonality data (only for primary commodities)
+                if symbol in ['GC=F', 'SI=F', 'CL=F', 'NG=F', 'ZC=F', 'ZS=F', 'HG=F', 'LE=F', 'HE=F', 'BZ=F', 'RB=F']:
+                    seasonality_data = calculate_seasonality(symbol, historical_data)
+                    if seasonality_data:
+                        save_seasonality_data(seasonality_data)
 
             time.sleep(0.5)  # Rate limiting
 
@@ -907,9 +908,19 @@ def main():
         logging.info(" Populating current prices from historical data...")
         populate_current_prices_from_history()
 
-        # Calculate correlations between commodities
-        logging.info(" Calculating commodity correlations...")
-        correlations = calculate_correlations(key_commodities)
+        # Fetch and save COT data for supported commodities
+        cot_commodities = ['CL=F', 'NG=F', 'GC=F', 'SI=F', 'HG=F', 'ZC=F', 'ZS=F', 'ZW=F', 'LE=F', 'HE=F']
+        logging.info(f" Fetching COT data for {len(cot_commodities)} commodities...")
+        for symbol in cot_commodities:
+            logging.info(f"Fetching COT data for {symbol}...")
+            cot_data = fetch_cot_data(symbol)
+            if cot_data:
+                save_cot_data(cot_data)
+            time.sleep(0.5)  # Rate limiting
+
+        # Calculate correlations between ALL commodities
+        logging.info(f" Calculating commodity correlations for {len(all_commodities)} commodities...")
+        correlations = calculate_correlations(all_commodities)
         if correlations:
             save_correlation_data(correlations)
 

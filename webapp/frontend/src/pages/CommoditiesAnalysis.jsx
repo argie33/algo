@@ -269,12 +269,15 @@ function CommoditiesAnalysis() {
                 <TableCell sx={{ fontWeight: 600 }}>Symbol</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
                 <TableCell sx={{ fontWeight: 600 }}>Category</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Unit</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Exchange</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 600 }}>Price</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 600 }}>Change</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 600 }}>Change %</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 600 }}>52W High</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 600 }}>52W Low</TableCell>
                 <TableCell align="right" sx={{ fontWeight: 600 }}>Volume</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 600 }}>COT Data</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -301,6 +304,8 @@ function CommoditiesAnalysis() {
                         variant="outlined"
                       />
                     </TableCell>
+                    <TableCell>{category?.unit || "—"}</TableCell>
+                    <TableCell>{category?.exchange || "—"}</TableCell>
                     <TableCell align="right">{formatCurrency(commodity.price)}</TableCell>
                     <TableCell align="right" sx={{ color: changeColor }}>
                       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 0.5 }}>
@@ -314,6 +319,14 @@ function CommoditiesAnalysis() {
                     <TableCell align="right">{formatCurrency(commodity.high_52w)}</TableCell>
                     <TableCell align="right">{formatCurrency(commodity.low_52w)}</TableCell>
                     <TableCell align="right">{commodity.volume ? (commodity.volume / 1000000).toFixed(1) + "M" : "N/A"}</TableCell>
+                    <TableCell align="center">
+                      <Chip
+                        label={['CL=F', 'NG=F', 'GC=F', 'SI=F', 'HG=F', 'ZC=F', 'ZS=F', 'ZW=F', 'LE=F', 'HE=F'].includes(commodity.symbol) ? "✓" : "—"}
+                        size="small"
+                        variant={['CL=F', 'NG=F', 'GC=F', 'SI=F', 'HG=F', 'ZC=F', 'ZS=F', 'ZW=F', 'LE=F', 'HE=F'].includes(commodity.symbol) ? "filled" : "outlined"}
+                        color={['CL=F', 'NG=F', 'GC=F', 'SI=F', 'HG=F', 'ZC=F', 'ZS=F', 'ZW=F', 'LE=F', 'HE=F'].includes(commodity.symbol) ? "success" : "default"}
+                      />
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -387,6 +400,22 @@ function CommoditiesAnalysis() {
                       </Typography>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         {selectedCommodityCategory?.unit || "Unknown"}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography color="textSecondary" variant="caption">
+                        Exchange
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {selectedCommodityCategory?.exchange || "Unknown"}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography color="textSecondary" variant="caption">
+                        Subcategory
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {selectedCommodityCategory?.subcategory || "—"}
                       </Typography>
                     </Grid>
                   </Grid>

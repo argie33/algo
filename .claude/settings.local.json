@@ -89,7 +89,8 @@
       "Bash(export AWS_DEFAULT_REGION=\"us-east-1\")",
       "Bash(aws sts *)",
       "Bash(export AWS_ACCESS_KEY_ID=$\\(grep -A1 \"^\\\\[default\\\\]\" ~/.aws/credentials)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(git checkout *)"
     ]
   }
 }

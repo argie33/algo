@@ -2,7 +2,6 @@ const express = require("express");
 
 const { query } = require("../utils/database");
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
-const signalFilters = require("./signalFilters");
 const router = express.Router();
 
 // Helper function to safely convert values to float
@@ -93,6 +92,8 @@ const getStocksSignals = async (req, res) => {
     // Only JOIN technical_data_daily when filtering by a specific symbol (fast single-symbol query)
     // Skip the JOIN for all-symbol queries to avoid the 28s full-table JOIN
     const useTechJoin = timeframe === 'daily' && !!symbolFilter;
+    // Skip LATERAL earnings join for bulk queries - too slow for large result sets
+    const useEarningsJoin = !!symbolFilter;
 
     const actualColumns = useTechJoin ? `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
@@ -126,8 +127,7 @@ const getStocksSignals = async (req, res) => {
       t.ema_26,
       bsd.pct_from_ema21, bsd.pct_from_sma50,
       ss.security_name as company_name,
-      eh_next.next_earnings_date,
-      (eh_next.next_earnings_date - CURRENT_DATE) AS days_to_earnings
+      ${useEarningsJoin ? 'eh_next.next_earnings_date, (eh_next.next_earnings_date - CURRENT_DATE) AS days_to_earnings' : "NULL::date as next_earnings_date, NULL::integer as days_to_earnings"}
     ` : `
       bsd.id, bsd.symbol, bsd.timeframe, bsd.date,
       COALESCE(bsd.signal_triggered_date, bsd.date) as signal_triggered_date,
@@ -156,8 +156,7 @@ const getStocksSignals = async (req, res) => {
       NULL::numeric as ema_26,
       bsd.pct_from_ema21, bsd.pct_from_sma50,
       ss.security_name as company_name,
-      eh_next.next_earnings_date,
-      (eh_next.next_earnings_date - CURRENT_DATE) AS days_to_earnings
+      ${useEarningsJoin ? 'eh_next.next_earnings_date, (eh_next.next_earnings_date - CURRENT_DATE) AS days_to_earnings' : "NULL::date as next_earnings_date, NULL::integer as days_to_earnings"}
     `;
 
     const signalsQuery = `
@@ -166,11 +165,11 @@ const getStocksSignals = async (req, res) => {
       FROM ${tableName} bsd
       ${useTechJoin ? 'LEFT JOIN technical_data_daily t ON bsd.symbol = t.symbol AND DATE(t.date) = DATE(bsd.date)' : ''}
       LEFT JOIN stock_symbols ss ON bsd.symbol = ss.symbol
-      LEFT JOIN LATERAL (
+      ${useEarningsJoin ? `LEFT JOIN LATERAL (
         SELECT (MAX(COALESCE(earnings_date, quarter)) + (CEIL(GREATEST((CURRENT_DATE - MAX(COALESCE(earnings_date, quarter)))::numeric, 1) / 91.0) * INTERVAL '91 days'))::date AS next_earnings_date
         FROM earnings_history
         WHERE symbol = bsd.symbol AND COALESCE(earnings_date, quarter) IS NOT NULL
-      ) eh_next ON true
+      ) eh_next ON true` : ''}
       ${whereClause}
       ORDER BY bsd.date DESC, (bsd.rsi IS NOT NULL)::int DESC, bsd.id ASC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -582,8 +581,5 @@ router.get("/etf", async (req, res) => {
     return sendError(res, "Failed to fetch signals data", 500);
   }
 });
-
-// Mount comprehensive signal filtering endpoint
-router.use('/search', signalFilters);
 
 module.exports = router;

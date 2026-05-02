@@ -484,7 +484,7 @@ app.use("/api/portfolio", cacheMiddleware(90), portfolioRoutes);
 app.use("/api/scores", cacheMiddleware(120), scoresRoutes);
 app.use("/api/sectors", cacheMiddleware(60), sectorsRoutes);
 app.use("/api/sentiment", cacheMiddleware(120), sentimentRoutes);
-// STANDALONE signals search endpoint - returns ALL columns from DB, NO CACHING
+// STANDALONE signals search endpoint - NO CACHING (must return fresh data always)
 app.get("/api/signals/search", async (req, res) => {
   try {
     const { type = 'swing', limit = 100, page = 1, days = 3650 } = req.query;
@@ -535,8 +535,8 @@ app.get("/api/signals/search", async (req, res) => {
     return res.status(500).json({ success: false, error: error.message });
   }
 });
-// Cache signals endpoint: 60 second TTL (signals update periodically)
-app.use("/api/signals", cacheMiddleware(60), signalsRoutes);
+// Cache signals endpoint: 15 second TTL (short cache for data freshness)
+app.use("/api/signals", cacheMiddleware(15), signalsRoutes);
 app.use("/api/stocks", cacheMiddleware(30), stocksRoutes);
 app.use("/api/strategies", cacheMiddleware(120), strategiesRoutes);
 app.use("/api/trades", cacheMiddleware(90), tradesRoutes);
