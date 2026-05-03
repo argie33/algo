@@ -606,6 +606,314 @@ class SignalComputer:
         }
 
     # ============================================================
+    # STAGE-2 PHASE DETECTION (Early / Mid / Late)
+    # ============================================================
+
+    def stage2_phase(self, symbol, eval_date):
+        """
+        Identify where in Stage 2 a stock is, since R/R differs sharply by phase.
+
+        EARLY STAGE 2: 1-8 weeks since first valid breakout from Stage 1 base
+                       1st-stage base count
+                       price within ~5% above 50-DMA
+                       30-week MA just turned up (last 4-12 weeks)
+                       BEST RISK/REWARD — full position size
+
+        MID STAGE 2:   8-30 weeks post-breakout
+                       2nd-stage base
+                       price 5-15% above 50-DMA
+                       50 > 150 > 200 alignment
+                       STANDARD POSITION SIZE
+
+        LATE STAGE 2:  30+ weeks post-breakout, or 3rd-4th stage base
+                       price >25% extended above 50-DMA (climax-run risk)
+                       wide bases, declining volume on advances
+                       REDUCE OR SKIP
+
+        Returns: {
+          'phase': 'early' | 'mid' | 'late' | 'unknown',
+          'weeks_since_30wk_uptrend': int,
+          'price_above_50dma_pct': float,
+          'estimated_base_count': int,
+          'size_multiplier': float (1.0 / 1.0 / 0.5 / 0.0),
+        }
+        """
+        self.connect()
+        # 30-week MA history — find when its slope first turned up sustainably
+        self.cur.execute(
+            """
+            WITH d AS (
+                SELECT date, close,
+                       AVG(close) OVER (ORDER BY date ROWS BETWEEN 149 PRECEDING AND CURRENT ROW) AS sma_150,
+                       COUNT(*) OVER (ORDER BY date ROWS BETWEEN 149 PRECEDING AND CURRENT ROW) AS pts
+                FROM price_daily
+                WHERE symbol = %s AND date <= %s
+            )
+            SELECT date, close, sma_150, pts FROM d
+            WHERE pts >= 150
+            ORDER BY date DESC LIMIT 200
+            """,
+            (symbol, eval_date),
+        )
+        rows = self.cur.fetchall()
+        if len(rows) < 50:
+            return {'phase': 'unknown', 'reason': 'Insufficient history'}
+
+        cur_close = float(rows[0][1])
+        cur_sma = float(rows[0][2])
+
+        # Walk back to find when 30-week MA started rising (slope positive)
+        weeks_uptrend = 0
+        for i in range(1, len(rows)):
+            if rows[i][2] is None:
+                continue
+            prior_sma = float(rows[i][2])
+            if cur_sma > prior_sma:
+                # Still rising
+                weeks_uptrend = (rows[0][0] - rows[i][0]).days // 7
+            else:
+                break
+
+        # Get 50-DMA
+        self.cur.execute(
+            "SELECT sma_50 FROM technical_data_daily WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1",
+            (symbol, eval_date),
+        )
+        rsma = self.cur.fetchone()
+        sma_50 = float(rsma[0]) if rsma and rsma[0] is not None else cur_close
+        price_vs_50 = (cur_close - sma_50) / sma_50 * 100.0 if sma_50 > 0 else 0
+
+        # Estimate base count by counting distinct consolidations in last 9 months
+        # A new base forms when price retraces > 8% from a recent peak
+        self.cur.execute(
+            """
+            SELECT date, high, low FROM price_daily
+            WHERE symbol = %s AND date <= %s
+              AND date >= %s::date - INTERVAL '270 days'
+            ORDER BY date
+            """,
+            (symbol, eval_date, eval_date),
+        )
+        bars = self.cur.fetchall()
+        base_count = 1
+        if len(bars) > 30:
+            highs = [float(b[1]) for b in bars]
+            running_peak = highs[0]
+            in_drawdown = False
+            for h in highs[1:]:
+                if h > running_peak * 1.005:
+                    if in_drawdown:
+                        base_count += 1
+                    running_peak = h
+                    in_drawdown = False
+                elif h < running_peak * 0.92:  # 8% drawdown = new base forming
+                    in_drawdown = True
+
+        # Classify
+        if weeks_uptrend < 4:
+            phase = 'unknown'  # too new
+            mult = 0.5
+        elif weeks_uptrend <= 8 and price_vs_50 < 8 and base_count <= 1:
+            phase = 'early'
+            mult = 1.0
+        elif weeks_uptrend <= 30 and price_vs_50 < 20 and base_count <= 2:
+            phase = 'mid'
+            mult = 1.0
+        elif weeks_uptrend > 30 or price_vs_50 > 25 or base_count >= 3:
+            phase = 'late'
+            mult = 0.5
+        else:
+            phase = 'mid'
+            mult = 1.0
+
+        # Hard cap: 4+ base = skip
+        if base_count >= 4:
+            mult = 0.0
+            phase = 'late_climax'
+
+        return {
+            'phase': phase,
+            'weeks_since_30wk_uptrend': weeks_uptrend,
+            'price_above_50dma_pct': round(price_vs_50, 2),
+            'estimated_base_count': base_count,
+            'size_multiplier': mult,
+        }
+
+    # ============================================================
+    # BASE TYPE CLASSIFICATION
+    # ============================================================
+
+    def classify_base_type(self, symbol, eval_date):
+        """
+        Classify the current base into canonical chart pattern types:
+
+          - cup_with_handle   (O'Neil): U-shape body + small handle pullback
+          - flat_base         (Minervini): tight rectangle, depth <= 15%
+          - vcp               (Minervini): 2-4 progressively tighter contractions
+          - double_bottom     (W-shape): two lows within 3-5% of each other
+          - ascending_base    (Minervini): three higher lows + higher highs
+          - saucer            (rounded U with no handle, longer duration)
+          - wide_and_loose    (AVOID): large erratic swings, > 35% depth
+
+        Returns: {
+          'type': str,
+          'quality': 'A' | 'B' | 'C' | 'D' (D = avoid),
+          'depth_pct': float,
+          'duration_weeks': int,
+          'pivot_high': float,
+          'breakout_imminent': bool,
+          'characteristics': dict
+        }
+        """
+        self.connect()
+
+        # Use the existing base_detection as starting point
+        base_info = self.base_detection(symbol, eval_date)
+        if not base_info.get('in_base'):
+            return {
+                'type': 'no_base',
+                'quality': 'D',
+                'characteristics': base_info,
+            }
+
+        # Pull last 60 bars
+        self.cur.execute(
+            """
+            SELECT date, high, low, close, volume FROM price_daily
+            WHERE symbol = %s AND date <= %s
+            ORDER BY date DESC LIMIT 60
+            """,
+            (symbol, eval_date),
+        )
+        rows = list(reversed(self.cur.fetchall()))
+        if len(rows) < 20:
+            return {'type': 'no_base', 'quality': 'D'}
+
+        highs = [float(r[1]) for r in rows]
+        lows = [float(r[2]) for r in rows]
+        closes = [float(r[3]) for r in rows]
+        volumes = [float(r[4]) for r in rows]
+
+        depth = base_info['base_depth_pct']
+        duration = base_info['weeks_in_base']
+
+        characteristics = {
+            'depth_pct': depth,
+            'duration_weeks': duration,
+            'pivot_high': base_info['pivot_high'],
+            'breakout_imminent': base_info['breakout_imminent'],
+            'volume_dryup': base_info['volume_dryup'],
+        }
+
+        # Wide-and-loose: large erratic swings >35% — AVOID
+        if depth > 35:
+            return {
+                'type': 'wide_and_loose',
+                'quality': 'D',
+                'characteristics': characteristics,
+                **characteristics,
+            }
+
+        # Try VCP first (multiple tightening contractions)
+        vcp = self.vcp_detection(symbol, eval_date)
+        if vcp.get('is_vcp'):
+            return {
+                'type': 'vcp',
+                'quality': 'A' if vcp.get('tight_pattern') else 'B',
+                'characteristics': {**characteristics, **vcp},
+                **characteristics,
+                'vcp': vcp,
+            }
+
+        # Flat base: depth <= 15%, duration >= 5 weeks, low spread
+        spread = (max(highs) - min(lows)) / max(highs) * 100.0 if max(highs) > 0 else 0
+        # Tight = closes within narrow range
+        recent_closes = closes[-25:] if len(closes) >= 25 else closes
+        recent_high = max(recent_closes)
+        recent_low = min(recent_closes)
+        recent_spread = (recent_high - recent_low) / recent_high * 100.0 if recent_high > 0 else 0
+        if depth <= 15 and duration >= 5 and recent_spread <= 12:
+            return {
+                'type': 'flat_base',
+                'quality': 'A' if duration >= 7 and depth <= 10 else 'B',
+                'characteristics': characteristics,
+                **characteristics,
+            }
+
+        # Cup-with-handle detection: U-shape (low in middle) + smaller pullback at end
+        if duration >= 7 and 12 <= depth <= 35:
+            mid_idx = len(lows) // 2
+            mid_third_low = min(lows[len(lows)//3 : 2*len(lows)//3])
+            full_low = min(lows)
+            # Low must be roughly in middle third
+            mid_low_match = abs(mid_third_low - full_low) / full_low < 0.02
+            # Handle: last 5-15 bars show shallow pullback (<10%) from recent high
+            handle_high = max(highs[-15:-5]) if len(highs) >= 15 else max(highs[-5:])
+            recent_dip = (handle_high - min(lows[-7:])) / handle_high * 100.0 if handle_high > 0 else 0
+            handle_present = 5 < recent_dip < 12
+            if mid_low_match and handle_present:
+                return {
+                    'type': 'cup_with_handle',
+                    'quality': 'A' if depth <= 30 and recent_dip <= 10 else 'B',
+                    'characteristics': {**characteristics, 'handle_dip_pct': round(recent_dip, 1)},
+                    'handle_dip_pct': round(recent_dip, 1),
+                    **characteristics,
+                }
+            # Saucer (cup without handle)
+            if mid_low_match:
+                return {
+                    'type': 'saucer',
+                    'quality': 'B' if duration >= 12 else 'C',
+                    'characteristics': characteristics,
+                    **characteristics,
+                }
+
+        # Double bottom: two distinct lows within 3-5% of each other
+        # Find two local minima
+        min_indices = []
+        for i in range(3, len(lows) - 3):
+            if lows[i] == min(lows[max(0, i-3):min(len(lows), i+4)]):
+                min_indices.append(i)
+        if len(min_indices) >= 2:
+            low1 = lows[min_indices[0]]
+            low2 = lows[min_indices[-1]]
+            diff_pct = abs(low2 - low1) / low1 * 100.0 if low1 > 0 else 100
+            if diff_pct <= 5 and (min_indices[-1] - min_indices[0]) >= 10:
+                return {
+                    'type': 'double_bottom',
+                    'quality': 'B' if diff_pct <= 3 else 'C',
+                    'characteristics': {**characteristics, 'low_diff_pct': round(diff_pct, 2)},
+                    'low_diff_pct': round(diff_pct, 2),
+                    **characteristics,
+                }
+
+        # Ascending base: three higher lows
+        if len(lows) >= 30:
+            third_thirds = [
+                min(lows[:len(lows)//3]),
+                min(lows[len(lows)//3:2*len(lows)//3]),
+                min(lows[2*len(lows)//3:]),
+            ]
+            if third_thirds[0] < third_thirds[1] < third_thirds[2]:
+                rise_pct = (third_thirds[2] - third_thirds[0]) / third_thirds[0] * 100.0
+                if 6 <= rise_pct <= 25:
+                    return {
+                        'type': 'ascending_base',
+                        'quality': 'B',
+                        'characteristics': {**characteristics, 'rise_pct': round(rise_pct, 1)},
+                        'rise_pct': round(rise_pct, 1),
+                        **characteristics,
+                    }
+
+        # Generic consolidation
+        return {
+            'type': 'consolidation',
+            'quality': 'C' if depth <= 25 else 'D',
+            'characteristics': characteristics,
+            **characteristics,
+        }
+
+    # ============================================================
     # POWER TREND (Minervini)
     # ============================================================
 
