@@ -399,12 +399,12 @@ function App() {
           <Route path="/app/sentiment" element={<Sentiment />} />
           <Route path="/app/commodities" element={<CommoditiesAnalysis />} />
 
-          {/* Stocks Analysis */}
+          {/* Stocks Analysis & Signals */}
           <Route path="/app/deep-value" element={<DeepValueStocks />} />
           <Route path="/app/financial-data" element={<FinancialData />} />
           <Route path="/app/trading-signals" element={<TradingSignals />} />
           <Route path="/app/signals" element={<TradingSignals />} />
-          <Route path="/app/etf-signals" element={<ETFSignals />} />
+          <Route path="/app/etf-signals" element={<TradingSignals />} />
           <Route path="/app/earnings" element={<EarningsCalendar />} />
           <Route path="/app/scores" element={<ScoresDashboard />} />
           <Route path="/app/metrics" element={<MetricsDashboard />} />
