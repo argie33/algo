@@ -121,9 +121,6 @@ router.get("/deep-value", async (req, res) => {
           vm.ev_to_ebitda, vm.peg_ratio, vm.dividend_yield
         FROM value_metrics vm
         JOIN sp500 st ON vm.symbol = st.symbol
-        LEFT JOIN forward_earnings fe ON vm.symbol = fe.symbol
-        LEFT JOIN latest_ttm_fcf lf ON vm.symbol = lf.symbol
-        LEFT JOIN market_caps mc ON vm.symbol = mc.symbol
         WHERE vm.trailing_pe > 0 AND vm.trailing_pe < 200
           AND vm.price_to_book > 0 AND vm.price_to_book < 50
         ORDER BY vm.symbol, vm.date DESC
@@ -309,6 +306,9 @@ router.get("/deep-value", async (req, res) => {
         INNER JOIN latest_quality q ON v.symbol = q.symbol
         INNER JOIN price_dislocation pd ON v.symbol = pd.symbol
         LEFT JOIN latest_growth gr ON v.symbol = gr.symbol
+        LEFT JOIN forward_earnings fe ON v.symbol = fe.symbol
+        LEFT JOIN latest_ttm_fcf lf ON v.symbol = lf.symbol
+        LEFT JOIN market_caps mc ON v.symbol = mc.symbol
         WHERE q.return_on_equity_pct >= 30
           AND q.operating_margin_pct >= 18
           AND q.gross_margin_pct >= 40
@@ -340,6 +340,7 @@ router.get("/deep-value", async (req, res) => {
           c.fcf_growth_yoy, c.operating_margin_trend, c.gross_margin_trend,
           c.roe_trend, c.sustainable_growth_rate, c.quarterly_growth_momentum,
           c.intrinsic_value_epv, c.margin_of_safety_pct,
+          c.forward_eps, c.estimate_quarter, c.forward_pe, c.fcf_yield,
           ROUND(CAST((c.hist_avg_pe - c.trailing_pe) / NULLIF(c.hist_avg_pe, 0) * 100 AS NUMERIC), 1) AS discount_vs_historical_pe_pct,
           ROUND(CAST((c.hist_avg_pb - c.price_to_book) / NULLIF(c.hist_avg_pb, 0) * 100 AS NUMERIC), 1) AS discount_vs_historical_pb_pct,
           CASE
@@ -383,6 +384,7 @@ router.get("/deep-value", async (req, res) => {
           d.fcf_growth_yoy, d.operating_margin_trend, d.gross_margin_trend,
           d.roe_trend, d.sustainable_growth_rate, d.quarterly_growth_momentum,
           d.intrinsic_value_epv, d.margin_of_safety_pct,
+          d.forward_eps, d.estimate_quarter, d.forward_pe, d.fcf_yield,
           sm.sector_median_pe, ms.market_median_pe,
           d.discount_vs_historical_pe_pct, d.discount_vs_historical_pb_pct,
           d.discount_strength,
@@ -437,6 +439,10 @@ router.get("/deep-value", async (req, res) => {
         ROUND(CAST(s.sustainable_growth_rate AS NUMERIC), 1) AS sustainable_growth_pct,
         ROUND(CAST(s.intrinsic_value_epv AS NUMERIC), 2) AS intrinsic_value_per_share,
         s.margin_of_safety_pct,
+        ROUND(CAST(s.forward_pe AS NUMERIC), 2) AS forward_pe,
+        ROUND(CAST(s.forward_eps AS NUMERIC), 4) AS forward_eps,
+        CAST(s.estimate_quarter AS TEXT) AS estimate_quarter,
+        ROUND(CAST(s.fcf_yield AS NUMERIC), 2) AS fcf_yield_pct,
         -- BULLETPROOF SCORE: ONLY TRUE ANOMALIES
         -- Quality + Valuation mismatch is PRIMARY signal, not historical discount
         ROUND(CAST(

@@ -527,7 +527,7 @@ app.get("/api/signals/search", async (req, res) => {
       symbol,
       signal,
       base_type,
-      limit = 100,
+      limit = 50,  // Reduce default limit from 100 to 50 for faster queries on AWS
       page = 1,
       days = '365', // Default to 1 year instead of 10 years to prevent timeout
       min_price,
@@ -646,13 +646,16 @@ app.get("/api/signals/search", async (req, res) => {
     const orderBy = `ORDER BY ${sortField} ${sortDir}`;
 
     // Data query - select only needed columns for performance
+    // For large result sets, use LIMIT to prevent table scans
     const columns = [
       'id', 'symbol', 'date', 'signal', 'timeframe', 'open', 'high', 'low', 'close', 'volume',
       'rsi', 'adx', 'buylevel', 'stoplevel', 'signal_strength', 'base_type', 'market_stage',
       'entry_quality_score', 'profit_target_20pct', 'profit_target_25pct', 'atr', 'mansfield_rs'
     ].join(',');
 
-    const maxRows = Math.min(safeLimit + 1, 5000);
+    // More aggressive limit for AWS to prevent 504 timeouts - scan max 2000 rows
+    const maxRowsToScan = 2000;
+    const maxRows = Math.min(safeLimit + 1, maxRowsToScan);
     params.push(maxRows, offset);
     const dataQuery = `SELECT ${columns} FROM ${tableName} ${whereClause} ${orderBy} LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
 

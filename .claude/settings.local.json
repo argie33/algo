@@ -119,7 +119,16 @@
       "Bash(curl -s -L -H 'Authorization: token __TRACKED_VAR__' https://api.github.com/repos/argie33/algo/actions/runs/25257996206/logs -o /tmp/logs_phase_a_failure.zip)",
       "Bash(unzip -l /tmp/logs_phase_a_failure.zip)",
       "Bash(unzip -o logs_phase_a_failure.zip)",
-      "Bash(curl -s -H 'Authorization: token __TRACKED_VAR__' https://api.github.com/repos/argie33/algo/actions/runs/25257996206)"
+      "Bash(curl -s -H 'Authorization: token __TRACKED_VAR__' https://api.github.com/repos/argie33/algo/actions/runs/25257996206)",
+      "Bash(chmod +x SETUP_EVERYTHING.sh)",
+      "Bash(gh auth *)",
+      "Bash(chmod +x setup_github_secrets.py DEPLOY_NOW.sh)",
+      "Bash(chmod +x CHECK_AWS_STATUS.sh)",
+      "Bash(command -v aws)",
+      "Bash(command -v psql)",
+      "Bash(command -v python3)",
+      "Bash(git config *)",
+      "Bash(gh --version)"
     ]
   }
 }

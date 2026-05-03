@@ -199,6 +199,20 @@ def ensure_table_schema(cur, table_name="buy_sell_daily"):
             'pct_from_ema21 DECIMAL(10,2)',
             'pct_from_sma50 DECIMAL(10,2)',
             'entry_price DECIMAL(16,4)',
+            'r_multiple_t1 DECIMAL(10,2)',
+            'r_multiple_t2 DECIMAL(10,2)',
+            'r_multiple_t3 DECIMAL(10,2)',
+            'target_t1_price DECIMAL(16,4)',
+            'target_t2_price DECIMAL(16,4)',
+            'target_t3_price DECIMAL(16,4)',
+            'stop_method VARCHAR(50)',
+            'exit_21ema_break BOOLEAN DEFAULT FALSE',
+            'exit_50dma_light_volume BOOLEAN DEFAULT FALSE',
+            'exit_50dma_heavy_volume BOOLEAN DEFAULT FALSE',
+            'exit_power_trend_flag BOOLEAN DEFAULT FALSE',
+            'distance_to_pivot_pct DECIMAL(10,2)',
+            'base_count INTEGER',
+            'distribution_days_4w INTEGER',
         ]
 
         for col_def in missing_columns:
@@ -255,7 +269,12 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
         profit_target_8pct, profit_target_20pct, profit_target_25pct,
         sell_level, mansfield_rs, sata_score,
         rsi, adx, atr, sma_50, sma_200, ema_21,
-        pct_from_ema21, pct_from_sma50, entry_price
+        pct_from_ema21, pct_from_sma50, entry_price,
+        r_multiple_t1, r_multiple_t2, r_multiple_t3,
+        target_t1_price, target_t2_price, target_t3_price,
+        stop_method,
+        exit_21ema_break, exit_50dma_light_volume, exit_50dma_heavy_volume, exit_power_trend_flag,
+        distance_to_pivot_pct, base_count, distribution_days_4w
       ) VALUES (
         %s,%s,%s,%s,%s,%s,%s,%s,
         %s,%s,%s,%s,%s,
@@ -271,6 +290,11 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
         %s,%s,%s,
         %s,%s,%s,%s,%s,%s,
         %s,%s,%s,%s,%s,%s,
+        %s,%s,%s,
+        %s,%s,%s,
+        %s,%s,%s,
+        %s,
+        %s,%s,%s,%s,
         %s,%s,%s
       )
       ON CONFLICT (symbol, timeframe, date) DO UPDATE SET
@@ -306,7 +330,13 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
         rsi = EXCLUDED.rsi, adx = EXCLUDED.adx, atr = EXCLUDED.atr,
         sma_50 = EXCLUDED.sma_50, sma_200 = EXCLUDED.sma_200, ema_21 = EXCLUDED.ema_21,
         pct_from_ema21 = EXCLUDED.pct_from_ema21, pct_from_sma50 = EXCLUDED.pct_from_sma50,
-        entry_price = EXCLUDED.entry_price
+        entry_price = EXCLUDED.entry_price,
+        r_multiple_t1 = EXCLUDED.r_multiple_t1, r_multiple_t2 = EXCLUDED.r_multiple_t2, r_multiple_t3 = EXCLUDED.r_multiple_t3,
+        target_t1_price = EXCLUDED.target_t1_price, target_t2_price = EXCLUDED.target_t2_price, target_t3_price = EXCLUDED.target_t3_price,
+        stop_method = EXCLUDED.stop_method,
+        exit_21ema_break = EXCLUDED.exit_21ema_break, exit_50dma_light_volume = EXCLUDED.exit_50dma_light_volume,
+        exit_50dma_heavy_volume = EXCLUDED.exit_50dma_heavy_volume, exit_power_trend_flag = EXCLUDED.exit_power_trend_flag,
+        distance_to_pivot_pct = EXCLUDED.distance_to_pivot_pct, base_count = EXCLUDED.base_count, distribution_days_4w = EXCLUDED.distribution_days_4w
       RETURNING xmax;
     """
     inserted = 0
@@ -628,6 +658,22 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
             pct_from_sma50_val = row.get('pct_from_sma50')
             entry_price_val = buyLevel_val if signal_val == 'Buy' else None  # Entry price is buyLevel when Buy signal triggers
 
+            # New tiered target fields
+            target_t1 = safe_float(row.get('target_t1_price'))
+            target_t2 = safe_float(row.get('target_t2_price'))
+            target_t3 = safe_float(row.get('target_t3_price'))
+            r_mult_t1 = safe_float(row.get('r_multiple_t1'))
+            r_mult_t2 = safe_float(row.get('r_multiple_t2'))
+            r_mult_t3 = safe_float(row.get('r_multiple_t3'))
+            stop_meth = row.get('stop_method') or 'pattern'
+            exit_21ema = bool(row.get('exit_21ema_break', False))
+            exit_50light = bool(row.get('exit_50dma_light_volume', False))
+            exit_50heavy = bool(row.get('exit_50dma_heavy_volume', False))
+            exit_power_trend = bool(row.get('exit_power_trend_flag', False))
+            dist_pivot = safe_float(row.get('distance_to_pivot_pct'))
+            base_ct = row.get('base_count') or 1
+            dist_days = row.get('distribution_days_4w') or 0
+
             # BULK INSERT: Append to list instead of executing immediately
             insert_rows.append((
                 symbol, timeframe, date_val,
@@ -646,7 +692,12 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
                 profit_8pct, profit_20pct, profit_25pct,
                 sell_lvl, mansfield_rs, sata_score,
                 rsi_val, adx_val, atr_val, sma_50_val, sma_200_val, ema_21_val,
-                pct_from_ema21_val, pct_from_sma50_val, entry_price_val
+                pct_from_ema21_val, pct_from_sma50_val, entry_price_val,
+                r_mult_t1, r_mult_t2, r_mult_t3,
+                target_t1, target_t2, target_t3,
+                stop_meth,
+                exit_21ema, exit_50light, exit_50heavy, exit_power_trend,
+                dist_pivot, base_ct, dist_days
             ))
             inserted += 1
 
@@ -690,7 +741,12 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
                     'profit_target_8pct', 'profit_target_20pct', 'profit_target_25pct',
                     'sell_level', 'mansfield_rs', 'sata_score',
                     'rsi', 'adx', 'atr', 'sma_50', 'sma_200', 'ema_21',
-                    'pct_from_ema21', 'pct_from_sma50', 'entry_price'
+                    'pct_from_ema21', 'pct_from_sma50', 'entry_price',
+                    'r_multiple_t1', 'r_multiple_t2', 'r_multiple_t3',
+                    'target_t1_price', 'target_t2_price', 'target_t3_price',
+                    'stop_method',
+                    'exit_21ema_break', 'exit_50dma_light_volume', 'exit_50dma_heavy_volume', 'exit_power_trend_flag',
+                    'distance_to_pivot_pct', 'base_count', 'distribution_days_4w'
                 ]
                 total_inserted = db.insert(table_name, columns, insert_rows)
                 db.close()
@@ -1827,6 +1883,126 @@ def generate_signals(df, atrMult=1.0, useADX=True, adxS=30, adxW=20):
     df['profit_target_8pct'] = df['buyLevel'] * 1.08  # 8% above buy level
     df['profit_target_20pct'] = df['buyLevel'] * 1.20  # 20% above buy level
     df['profit_target_25pct'] = df['buyLevel'] * 1.25  # 25% above buy level (standard)
+
+    # === TIERED TARGETS WITH R-MULTIPLES (Swing Trading Framework) ===
+    # T1: 8% or 1.5R (sell 1/3)
+    # T2: 20% or 3R (sell 1/3)
+    # T3: 25% or 4R (sell 1/3, runner)
+    def calc_r_multiple(profit, risk):
+        """Calculate R-multiple from profit and risk amounts"""
+        if risk is None or risk == 0:
+            return None
+        return round(profit / risk, 2)
+
+    def calc_tiered_targets(row):
+        """Calculate T1, T2, T3 prices and R-multiples"""
+        buy = row['buyLevel']
+        stop = row['stopLevel']
+        if buy is None or stop is None or buy <= stop:
+            return None, None, None, None, None, None, None
+
+        risk = buy - stop
+
+        # Profit targets in dollars
+        profit_8pct_dollars = buy * 0.08
+        profit_20pct_dollars = buy * 0.20
+        profit_25pct_dollars = buy * 0.25
+        profit_1_5r = risk * 1.5
+        profit_3r = risk * 3.0
+        profit_4r = risk * 4.0
+
+        # T1: MAX(8%, 1.5R) - whichever gives larger profit
+        t1_profit = max(profit_8pct_dollars, profit_1_5r)
+        t1_price = buy + t1_profit
+        t1_r = calc_r_multiple(t1_profit, risk)
+
+        # T2: MAX(20%, 3R) - whichever gives larger profit
+        t2_profit = max(profit_20pct_dollars, profit_3r)
+        t2_price = buy + t2_profit
+        t2_r = calc_r_multiple(t2_profit, risk)
+
+        # T3: MAX(25%, 4R) - whichever gives larger profit (runner)
+        t3_profit = max(profit_25pct_dollars, profit_4r)
+        t3_price = buy + t3_profit
+        t3_r = calc_r_multiple(t3_profit, risk)
+
+        return t1_price, t2_price, t3_price, t1_r, t2_r, t3_r, risk
+
+    tier_results = df.apply(calc_tiered_targets, axis=1)
+    df['target_t1_price'] = tier_results.apply(lambda x: x[0] if x is not None else None)
+    df['target_t2_price'] = tier_results.apply(lambda x: x[1] if x is not None else None)
+    df['target_t3_price'] = tier_results.apply(lambda x: x[2] if x is not None else None)
+    df['r_multiple_t1'] = tier_results.apply(lambda x: x[3] if x is not None else None)
+    df['r_multiple_t2'] = tier_results.apply(lambda x: x[4] if x is not None else None)
+    df['r_multiple_t3'] = tier_results.apply(lambda x: x[5] if x is not None else None)
+
+    # === INITIAL STOP METHOD (Tighter of: pattern low, 7-8%, or 2×ATR) ===
+    def determine_stop_method(row):
+        """Determine which stop method produces the tightest (highest) stop price"""
+        stop_methods = {}
+        buy = row['buyLevel']
+
+        # Pattern-based stop (pivot low)
+        if row['stopLevel'] is not None:
+            stop_methods['pattern'] = row['stopLevel']
+
+        # Percentage-based stop (7% below entry)
+        if buy is not None and buy > 0:
+            stop_methods['pct'] = buy * 0.93
+
+        # ATR-based stop (2× ATR below entry)
+        if buy is not None and row.get('atr') is not None and row['atr'] > 0:
+            stop_methods['atr'] = buy - (2.0 * row['atr'])
+
+        if not stop_methods:
+            return None, 'none'
+
+        # Return the HIGHEST stop price (tightest loss) and which method it came from
+        best_method = max(stop_methods, key=stop_methods.get)
+        return stop_methods[best_method], best_method
+
+    stop_results = df.apply(determine_stop_method, axis=1)
+    df['initial_stop'] = stop_results.apply(lambda x: x[0] if x is not None else None)
+    df['stop_method'] = stop_results.apply(lambda x: x[1] if x is not None else 'none')
+
+    # === EXIT TRIGGER CONDITIONS (Swing Trading Signals) ===
+    # 🟡 Yellow: 21-EMA break
+    # 🟠 Orange: 50-DMA light volume
+    # 🔴 Red: 50-DMA heavy volume
+    df['exit_21ema_break'] = df.apply(
+        lambda row: (row['close'] is not None and row['ema_21'] is not None and row['close'] < row['ema_21']),
+        axis=1
+    )
+
+    df['exit_50dma_light_volume'] = df.apply(
+        lambda row: (
+            row['close'] is not None and row['sma_50'] is not None and row['close'] < row['sma_50'] and
+            (row.get('volume') is None or row.get('avg_volume_50d') is None or row['volume'] < row['avg_volume_50d'] * 1.2)
+        ),
+        axis=1
+    )
+
+    df['exit_50dma_heavy_volume'] = df.apply(
+        lambda row: (
+            row['close'] is not None and row['sma_50'] is not None and row['close'] < row['sma_50'] and
+            row.get('volume') is not None and row.get('avg_volume_50d') is not None and
+            row['volume'] >= row['avg_volume_50d'] * 1.2
+        ),
+        axis=1
+    )
+
+    # Power Trend flag: if stock gains 20%+ within 21 days of breakout, hold for 8 weeks
+    df['exit_power_trend_flag'] = False  # Placeholder - would need cumulative tracking
+
+    # === DISTANCE CALCULATIONS ===
+    df['distance_to_pivot_pct'] = df.apply(
+        lambda row: round(((row['close'] - row['pivot_price']) / row['pivot_price'] * 100), 2) if (row['close'] is not None and row['pivot_price'] is not None and row['pivot_price'] > 0) else None,
+        axis=1
+    )
+
+    # === PLACEHOLDER COLUMNS (Need additional data sources) ===
+    df['base_count'] = 1  # Placeholder - would need base history analysis
+    df['distribution_days_4w'] = 0  # Placeholder - would need market-wide distribution data
 
     # === RISK PERCENT (Risk = entry - stop loss / entry) ===
     df['risk_pct'] = df.apply(

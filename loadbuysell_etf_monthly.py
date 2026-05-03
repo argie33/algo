@@ -519,8 +519,13 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
         risk_pct, entry_quality_score, market_stage, stage_number, stage_confidence, substage,
         position_size_recommendation, current_gain_pct, days_in_position, sell_level,
         mansfield_rs, sata_score,
-        rsi, adx, atr, sma_50, sma_200, ema_21, pct_from_ema21, pct_from_sma50, entry_price
-      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        rsi, adx, atr, sma_50, sma_200, ema_21, pct_from_ema21, pct_from_sma50, entry_price,
+        r_multiple_t1, r_multiple_t2, r_multiple_t3,
+        target_t1_price, target_t2_price, target_t3_price,
+        stop_method,
+        exit_21ema_break, exit_50dma_light_volume, exit_50dma_heavy_volume, exit_power_trend_flag,
+        distance_to_pivot_pct, base_count, distribution_days_4w
+      ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
       ON CONFLICT (symbol, timeframe, date) DO UPDATE SET
         open = EXCLUDED.open, high = EXCLUDED.high, low = EXCLUDED.low, close = EXCLUDED.close, volume = EXCLUDED.volume,
         signal = EXCLUDED.signal, signal_triggered_date = EXCLUDED.signal_triggered_date, buylevel = EXCLUDED.buylevel, stoplevel = EXCLUDED.stoplevel, inposition = EXCLUDED.inposition, strength = EXCLUDED.strength,
@@ -532,7 +537,12 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_month
         market_stage = EXCLUDED.market_stage, stage_number = EXCLUDED.stage_number, stage_confidence = EXCLUDED.stage_confidence, substage = EXCLUDED.substage, entry_quality_score = EXCLUDED.entry_quality_score,
         risk_pct = EXCLUDED.risk_pct, position_size_recommendation = EXCLUDED.position_size_recommendation, profit_target_8pct = EXCLUDED.profit_target_8pct, profit_target_20pct = EXCLUDED.profit_target_20pct, profit_target_25pct = EXCLUDED.profit_target_25pct, sell_level = EXCLUDED.sell_level,
         mansfield_rs = EXCLUDED.mansfield_rs, sata_score = EXCLUDED.sata_score,
-        rsi = EXCLUDED.rsi, adx = EXCLUDED.adx, atr = EXCLUDED.atr, sma_50 = EXCLUDED.sma_50, sma_200 = EXCLUDED.sma_200, ema_21 = EXCLUDED.ema_21, pct_from_ema21 = EXCLUDED.pct_from_ema21, pct_from_sma50 = EXCLUDED.pct_from_sma50, entry_price = EXCLUDED.entry_price
+        rsi = EXCLUDED.rsi, adx = EXCLUDED.adx, atr = EXCLUDED.atr, sma_50 = EXCLUDED.sma_50, sma_200 = EXCLUDED.sma_200, ema_21 = EXCLUDED.ema_21, pct_from_ema21 = EXCLUDED.pct_from_ema21, pct_from_sma50 = EXCLUDED.pct_from_sma50, entry_price = EXCLUDED.entry_price,
+        r_multiple_t1 = EXCLUDED.r_multiple_t1, r_multiple_t2 = EXCLUDED.r_multiple_t2, r_multiple_t3 = EXCLUDED.r_multiple_t3,
+        target_t1_price = EXCLUDED.target_t1_price, target_t2_price = EXCLUDED.target_t2_price, target_t3_price = EXCLUDED.target_t3_price,
+        stop_method = EXCLUDED.stop_method,
+        exit_21ema_break = EXCLUDED.exit_21ema_break, exit_50dma_light_volume = EXCLUDED.exit_50dma_light_volume, exit_50dma_heavy_volume = EXCLUDED.exit_50dma_heavy_volume, exit_power_trend_flag = EXCLUDED.exit_power_trend_flag,
+        distance_to_pivot_pct = EXCLUDED.distance_to_pivot_pct, base_count = EXCLUDED.base_count, distribution_days_4w = EXCLUDED.distribution_days_4w
       RETURNING xmax;
     """
     # === POSITION SIZE RECOMMENDATION (based on risk) ===

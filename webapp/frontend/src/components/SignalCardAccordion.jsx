@@ -396,6 +396,65 @@ const SignalCardAccordion = ({ signals = [] }) => {
                   <DataField label="Target +25%" value={signal.profit_target_25pct} format="currency" />
                 </Grid>
 
+                {/* TIERED TARGETS & R-MULTIPLES (Swing Trading Framework) */}
+                <Grid item xs={12} sm={6} md={4} lg={2.4}>
+                  <Typography variant="overline" sx={{ fontWeight: 700, color: theme.palette.success.main, display: 'block', mb: 2 }}>
+                    Tiered Exit Targets
+                  </Typography>
+                  <Box sx={{ mb: 1.5, p: 1, backgroundColor: alpha(theme.palette.success.main, 0.08), borderRadius: 1 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary', fontSize: '0.75rem' }}>
+                      T1: Sell 1/3
+                    </Typography>
+                    <DataField label="Price" value={signal.target_t1_price} format="currency" />
+                    <DataField label="R-Multiple" value={signal.r_multiple_t1} format="number" unit="R" />
+                  </Box>
+                  <Box sx={{ mb: 1.5, p: 1, backgroundColor: alpha(theme.palette.info.main, 0.08), borderRadius: 1 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary', fontSize: '0.75rem' }}>
+                      T2: Sell 1/3
+                    </Typography>
+                    <DataField label="Price" value={signal.target_t2_price} format="currency" />
+                    <DataField label="R-Multiple" value={signal.r_multiple_t2} format="number" unit="R" />
+                  </Box>
+                  <Box sx={{ p: 1, backgroundColor: alpha(theme.palette.warning.main, 0.08), borderRadius: 1 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary', fontSize: '0.75rem' }}>
+                      T3: Trail Runner
+                    </Typography>
+                    <DataField label="Price" value={signal.target_t3_price} format="currency" />
+                    <DataField label="R-Multiple" value={signal.r_multiple_t3} format="number" unit="R" />
+                  </Box>
+                </Grid>
+
+                {/* STOP LOSS & EXIT ZONES */}
+                <Grid item xs={12} sm={6} md={4} lg={2.4}>
+                  <Typography variant="overline" sx={{ fontWeight: 700, color: theme.palette.error.main, display: 'block', mb: 2 }}>
+                    Stop & Exit Zones
+                  </Typography>
+                  <DataField label="Stop Method" value={signal.stop_method} />
+                  <DataField label="Distance to Pivot %" value={signal.distance_to_pivot_pct} format="percent" />
+                  <Box sx={{ mt: 1.5, p: 1, backgroundColor: alpha(theme.palette.error.main, 0.08), borderRadius: 1 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.7rem', display: 'block', mb: 0.5 }}>
+                      EXIT TRIGGER STATUS:
+                    </Typography>
+                    {signal.exit_21ema_break && (
+                      <Chip label="🟡 21-EMA Break" size="small" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
+                    )}
+                    {signal.exit_50dma_light_volume && (
+                      <Chip label="🟠 50-DMA (Light Vol)" size="small" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
+                    )}
+                    {signal.exit_50dma_heavy_volume && (
+                      <Chip label="🔴 50-DMA (Heavy Vol)" size="small" variant="outlined" color="error" sx={{ mr: 0.5, mb: 0.5 }} />
+                    )}
+                    {signal.exit_power_trend_flag && (
+                      <Chip label="⚡ Power Trend (8-Week Hold)" size="small" variant="outlined" color="warning" sx={{ mr: 0.5, mb: 0.5 }} />
+                    )}
+                    {!signal.exit_21ema_break && !signal.exit_50dma_light_volume && !signal.exit_50dma_heavy_volume && (
+                      <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
+                        No exit triggers active
+                      </Typography>
+                    )}
+                  </Box>
+                </Grid>
+
                 {/* CURRENT PERFORMANCE */}
                 {signal.days_in_position > 0 && (
                   <Grid item xs={12} sm={6} md={4} lg={2.4}>

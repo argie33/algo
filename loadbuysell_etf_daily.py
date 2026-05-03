@@ -320,6 +320,107 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
 
     df['sata_score'] = None  # FAST MODE
 
+    # === TIERED EXIT TARGETS & STOP METHOD ===
+    def calc_r_multiple(profit, risk):
+        """Calculate R-multiple from profit and risk amounts"""
+        if risk is None or risk == 0:
+            return None
+        return round(profit / risk, 2)
+
+    def calc_tiered_targets(row):
+        """Calculate T1, T2, T3 prices and R-multiples"""
+        buy = row['buyLevel']
+        stop = row['stopLevel']
+        if buy is None or stop is None or buy <= stop:
+            return None, None, None, None, None, None, None
+
+        risk = buy - stop
+
+        profit_8pct_dollars = buy * 0.08
+        profit_20pct_dollars = buy * 0.20
+        profit_25pct_dollars = buy * 0.25
+        profit_1_5r = risk * 1.5
+        profit_3r = risk * 3.0
+        profit_4r = risk * 4.0
+
+        t1_profit = max(profit_8pct_dollars, profit_1_5r)
+        t1_price = buy + t1_profit
+        t1_r = calc_r_multiple(t1_profit, risk)
+
+        t2_profit = max(profit_20pct_dollars, profit_3r)
+        t2_price = buy + t2_profit
+        t2_r = calc_r_multiple(t2_profit, risk)
+
+        t3_profit = max(profit_25pct_dollars, profit_4r)
+        t3_price = buy + t3_profit
+        t3_r = calc_r_multiple(t3_profit, risk)
+
+        return t1_price, t2_price, t3_price, t1_r, t2_r, t3_r, risk
+
+    tier_results = df.apply(calc_tiered_targets, axis=1)
+    df['target_t1_price'] = tier_results.apply(lambda x: x[0] if x is not None else None)
+    df['target_t2_price'] = tier_results.apply(lambda x: x[1] if x is not None else None)
+    df['target_t3_price'] = tier_results.apply(lambda x: x[2] if x is not None else None)
+    df['r_multiple_t1'] = tier_results.apply(lambda x: x[3] if x is not None else None)
+    df['r_multiple_t2'] = tier_results.apply(lambda x: x[4] if x is not None else None)
+    df['r_multiple_t3'] = tier_results.apply(lambda x: x[5] if x is not None else None)
+
+    def determine_stop_method(row):
+        """Determine which stop method produces the tightest (highest) stop price"""
+        stop_methods = {}
+        buy = row['buyLevel']
+
+        if row['stopLevel'] is not None:
+            stop_methods['pattern'] = row['stopLevel']
+
+        if buy is not None and buy > 0:
+            stop_methods['pct'] = buy * 0.93
+
+        if buy is not None and row.get('atr') is not None and row['atr'] > 0:
+            stop_methods['atr'] = buy - (2.0 * row['atr'])
+
+        if not stop_methods:
+            return None, 'none'
+
+        best_method = max(stop_methods, key=stop_methods.get)
+        return stop_methods[best_method], best_method
+
+    stop_results = df.apply(determine_stop_method, axis=1)
+    df['initial_stop'] = stop_results.apply(lambda x: x[0] if x is not None else None)
+    df['stop_method'] = stop_results.apply(lambda x: x[1] if x is not None else 'none')
+
+    df['exit_21ema_break'] = df.apply(
+        lambda row: (row['close'] is not None and row['ema_21'] is not None and row['close'] < row['ema_21']),
+        axis=1
+    )
+
+    df['exit_50dma_light_volume'] = df.apply(
+        lambda row: (
+            row['close'] is not None and row['sma_50'] is not None and row['close'] < row['sma_50'] and
+            (row.get('volume') is None or row.get('avg_volume_50d') is None or row['volume'] < row['avg_volume_50d'] * 1.2)
+        ),
+        axis=1
+    )
+
+    df['exit_50dma_heavy_volume'] = df.apply(
+        lambda row: (
+            row['close'] is not None and row['sma_50'] is not None and row['close'] < row['sma_50'] and
+            row.get('volume') is not None and row.get('avg_volume_50d') is not None and
+            row['volume'] >= row['avg_volume_50d'] * 1.2
+        ),
+        axis=1
+    )
+
+    df['exit_power_trend_flag'] = False
+
+    df['distance_to_pivot_pct'] = df.apply(
+        lambda row: round(((row['close'] - row['pivot_price']) / row['pivot_price'] * 100), 2) if (row['close'] is not None and row['pivot_price'] is not None and row['pivot_price'] > 0) else None,
+        axis=1
+    )
+
+    df['base_count'] = 1
+    df['distribution_days_4w'] = 0
+
     # === BUILD BULK INSERT DATA (instead of row-by-row inserts) ===
     # This replaces the slow iterrows() with bulk executemany() - 10x+ faster
     insert_rows = []
@@ -566,6 +667,22 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
             pct_from_sma50_val = row.get('pct_from_sma50')
             entry_price_val = buyLevel_val if signal_val == 'Buy' else None  # Entry price is buyLevel when Buy signal triggers
 
+            # New tiered target fields
+            target_t1 = safe_float(row.get('target_t1_price'))
+            target_t2 = safe_float(row.get('target_t2_price'))
+            target_t3 = safe_float(row.get('target_t3_price'))
+            r_mult_t1 = safe_float(row.get('r_multiple_t1'))
+            r_mult_t2 = safe_float(row.get('r_multiple_t2'))
+            r_mult_t3 = safe_float(row.get('r_multiple_t3'))
+            stop_meth = row.get('stop_method') or 'pattern'
+            exit_21ema = bool(row.get('exit_21ema_break', False))
+            exit_50light = bool(row.get('exit_50dma_light_volume', False))
+            exit_50heavy = bool(row.get('exit_50dma_heavy_volume', False))
+            exit_power_trend = bool(row.get('exit_power_trend_flag', False))
+            dist_pivot = safe_float(row.get('distance_to_pivot_pct'))
+            base_ct = row.get('base_count') or 1
+            dist_days = row.get('distribution_days_4w') or 0
+
             # BULK INSERT: Append to list instead of executing immediately
             insert_rows.append((
                 symbol, timeframe, date_val,
@@ -579,7 +696,12 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
                 market_stage_val, stage_num, stage_conf, substage_val, entry_quality,
                 risk_pct_val, pos_size_rec, profit_8pct, profit_20pct, profit_25pct, sell_lvl,
                 mansfield_rs, sata_score,
-                rsi_val, adx_val, atr_val, sma_50_val, sma_200_val, ema_21_val, pct_from_ema21_val, pct_from_sma50_val, entry_price_val
+                rsi_val, adx_val, atr_val, sma_50_val, sma_200_val, ema_21_val, pct_from_ema21_val, pct_from_sma50_val, entry_price_val,
+                r_mult_t1, r_mult_t2, r_mult_t3,
+                target_t1, target_t2, target_t3,
+                stop_meth,
+                exit_21ema, exit_50light, exit_50heavy, exit_power_trend,
+                dist_pivot, base_ct, dist_days
             ))
             inserted += 1
 
@@ -616,7 +738,12 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
                     'market_stage', 'stage_number', 'stage_confidence', 'substage', 'entry_quality_score',
                     'risk_pct', 'position_size_recommendation', 'profit_target_8pct', 'profit_target_20pct', 'profit_target_25pct', 'sell_level',
                     'mansfield_rs', 'sata_score',
-                    'rsi', 'adx', 'atr', 'sma_50', 'sma_200', 'ema_21', 'pct_from_ema21', 'pct_from_sma50', 'entry_price'
+                    'rsi', 'adx', 'atr', 'sma_50', 'sma_200', 'ema_21', 'pct_from_ema21', 'pct_from_sma50', 'entry_price',
+                    'r_multiple_t1', 'r_multiple_t2', 'r_multiple_t3',
+                    'target_t1_price', 'target_t2_price', 'target_t3_price',
+                    'stop_method',
+                    'exit_21ema_break', 'exit_50dma_light_volume', 'exit_50dma_heavy_volume', 'exit_power_trend_flag',
+                    'distance_to_pivot_pct', 'base_count', 'distribution_days_4w'
                 ]
                 inserted = db.insert(table_name, columns, insert_rows)
                 db.close()
