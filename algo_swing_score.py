@@ -343,13 +343,16 @@ class SwingTraderScore:
         r3 = self._signals._period_return(symbol, eval_date, 63) or 0
         r6 = self._signals._period_return(symbol, eval_date, 126) or 0
         # Each up to 8 pts max combined: weight 3/3/2
+        # Thresholds calibrated for Stage-2 swing setups, which often consolidate
+        # mid-rally rather than running straight up — original 30%/15%/5% bands
+        # excluded most candidates with 6-12 month uptrends in their resting phase.
         blend_pts = 0.0
         for ret, weight in [(r1, 3), (r3, 3), (r6, 2)]:
-            if ret > 0.30:
+            if ret > 0.20:
                 blend_pts += weight
-            elif ret > 0.15:
+            elif ret > 0.10:
                 blend_pts += weight * 0.7
-            elif ret > 0.05:
+            elif ret > 0.03:
                 blend_pts += weight * 0.4
             elif ret > 0:
                 blend_pts += weight * 0.2
@@ -554,37 +557,90 @@ class SwingTraderScore:
         }
 
     def _multi_timeframe_component(self, symbol, eval_date):
-        """5 pts: weekly + monthly buy_sell alignment with daily."""
+        """5 pts: weekly + monthly buy_sell alignment with daily.
+
+        Stage-2 stocks usually had their weekly BUY weeks before the daily setup
+        is ripe (the rally already started). So we look back further than the
+        original 30-day window — research shows trend continuity matters across
+        ~3 months on weekly, ~9 months on monthly.
+
+        Also falls back to "price above weekly/monthly MA" if no fresh BUY is
+        found — that still confirms the larger timeframe is in the buyer's favor.
+        """
         weekly_buy = False
+        weekly_above_ma = False
         monthly_up = False
+        monthly_above_ma = False
         try:
+            # Weekly BUY signal in last 90 days (~13 weeks, captures most active uptrends)
             self.cur.execute(
                 """SELECT 1 FROM buy_sell_weekly WHERE symbol = %s AND signal = 'BUY'
-                   AND date >= %s::date - INTERVAL '30 days' AND date <= %s LIMIT 1""",
+                   AND date >= %s::date - INTERVAL '90 days' AND date <= %s LIMIT 1""",
                 (symbol, eval_date, eval_date),
             )
             weekly_buy = self.cur.fetchone() is not None
 
-            # Monthly: any BUY in last 90 days OR price > monthly MA
+            # Fallback: weekly close above 30-week SMA — Stage-2 condition (Weinstein)
+            self.cur.execute(
+                """WITH w AS (
+                       SELECT close,
+                              AVG(close) OVER (ORDER BY date
+                                               ROWS BETWEEN 29 PRECEDING AND CURRENT ROW) AS sma30,
+                              ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
+                       FROM price_weekly WHERE symbol = %s AND date <= %s
+                   )
+                   SELECT close, sma30 FROM w WHERE rn = 1""",
+                (symbol, eval_date),
+            )
+            row = self.cur.fetchone()
+            if row and row[0] and row[1]:
+                weekly_above_ma = float(row[0]) > float(row[1])
+
+            # Monthly BUY in last 270 days (~9 months — long-term confirmation window)
             self.cur.execute(
                 """SELECT 1 FROM buy_sell_monthly WHERE symbol = %s AND signal = 'BUY'
-                   AND date >= %s::date - INTERVAL '90 days' AND date <= %s LIMIT 1""",
+                   AND date >= %s::date - INTERVAL '270 days' AND date <= %s LIMIT 1""",
                 (symbol, eval_date, eval_date),
             )
             monthly_up = self.cur.fetchone() is not None
+
+            # Fallback: monthly close above 10-month MA — long-term uptrend (Faber)
+            self.cur.execute(
+                """WITH m AS (
+                       SELECT close,
+                              AVG(close) OVER (ORDER BY date
+                                               ROWS BETWEEN 9 PRECEDING AND CURRENT ROW) AS sma10,
+                              ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
+                       FROM price_monthly WHERE symbol = %s AND date <= %s
+                   )
+                   SELECT close, sma10 FROM m WHERE rn = 1""",
+                (symbol, eval_date),
+            )
+            row = self.cur.fetchone()
+            if row and row[0] and row[1]:
+                monthly_above_ma = float(row[0]) > float(row[1])
         except Exception:
             pass
 
+        # Treat MA fallback as a softer confirmation than a fresh BUY signal
+        weekly_aligned = weekly_buy or weekly_above_ma
+        monthly_aligned = monthly_up or monthly_above_ma
+
         # Documented edge: aligned timeframes 58% win rate vs 39% non-aligned
         pts = 0.0
-        if weekly_buy and monthly_up:
-            pts = 5.0
-        elif weekly_buy:
-            pts = 3.0
-        elif monthly_up:
-            pts = 1.5
+        if weekly_aligned and monthly_aligned:
+            pts = 5.0 if (weekly_buy and monthly_up) else 4.0  # MA-only = slight discount
+        elif weekly_aligned:
+            pts = 3.0 if weekly_buy else 2.0
+        elif monthly_aligned:
+            pts = 1.5 if monthly_up else 1.0
 
-        return pts, {'weekly_buy_recent': weekly_buy, 'monthly_buy_recent': monthly_up}
+        return pts, {
+            'weekly_buy_recent': weekly_buy,
+            'weekly_above_ma': weekly_above_ma,
+            'monthly_buy_recent': monthly_up,
+            'monthly_above_ma': monthly_above_ma,
+        }
 
     # ============= helpers =============
 
