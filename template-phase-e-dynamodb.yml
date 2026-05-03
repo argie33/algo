@@ -26,6 +26,9 @@ Resources:
           KeyType: RANGE
       StreamSpecification:
         StreamViewType: NEW_AND_OLD_IMAGES
+      TimeToLiveSpecification:
+        Enabled: true
+        AttributeName: ttl
       Tags:
         - Key: Phase
           Value: E
@@ -33,13 +36,6 @@ Resources:
           Value: IncrementalLoadingMetadata
         - Key: Environment
           Value: !Ref Environment
-
-  # TTL configuration to auto-expire old execution records (7 days)
-  LoaderExecutionMetadataTTL:
-    Type: AWS::DynamoDB::TTL
-    Properties:
-      TableName: !Ref LoaderExecutionMetadata
-      AttributeName: ttl
 
   # S3 bucket for caching API responses (leverages existing stocks-app-data)
   CacheBucketPolicy:
