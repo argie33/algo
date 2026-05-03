@@ -518,8 +518,8 @@ app.use("/api/portfolio", cacheMiddleware(90), portfolioRoutes);
 app.use("/api/scores", cacheMiddleware(120), scoresRoutes);
 app.use("/api/sectors", cacheMiddleware(60), sectorsRoutes);
 app.use("/api/sentiment", cacheMiddleware(120), sentimentRoutes);
-// STANDALONE signals search endpoint - FULL FILTERING SUPPORT
-app.get("/api/signals/search", async (req, res) => {
+// STANDALONE signals search endpoint - FULL FILTERING SUPPORT with aggressive caching for AWS stability
+app.get("/api/signals/search", cacheMiddleware(60), async (req, res) => {
   try {
     const {
       type = 'swing',
