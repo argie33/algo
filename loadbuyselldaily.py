@@ -20,6 +20,9 @@ import sys
 from datetime import date, timedelta
 from typing import List, Optional
 
+import pandas as pd
+import numpy as np
+
 from optimal_loader import OptimalLoader
 
 logging.basicConfig(
@@ -30,7 +33,7 @@ logging.basicConfig(
 
 class BuySellDailyLoader(OptimalLoader):
     table_name = "buy_sell_daily"
-    primary_key = ("symbol", "date")
+    primary_key = ("symbol", "timeframe", "date")
     watermark_field = "date"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
@@ -135,14 +138,23 @@ class BuySellDailyLoader(OptimalLoader):
             signal_type = "SELL"
 
         if signal_type:
+            # Map to actual buy_sell_daily schema. The table uses 'signal' (BUY/SELL)
+            # in addition to 'signal_type'. We don't have 'macd'/'signal_line' columns
+            # — those are intermediate computations. Persist what the table accepts.
+            close = row.get("close")
             return {
                 "symbol": symbol,
                 "date": date_val if isinstance(date_val, str) else str(date_val),
-                "signal_type": signal_type,
+                "signal": signal_type,
+                "signal_type": "buy_signal" if signal_type == "BUY" else "sell_signal",
+                "timeframe": "daily",
+                "close": float(close) if close is not None and not pd.isna(close) else None,
+                "open": float(row.get("open")) if row.get("open") is not None and not pd.isna(row.get("open")) else None,
+                "high": float(row.get("high")) if row.get("high") is not None and not pd.isna(row.get("high")) else None,
+                "low": float(row.get("low")) if row.get("low") is not None and not pd.isna(row.get("low")) else None,
+                "volume": int(row.get("volume")) if row.get("volume") is not None and not pd.isna(row.get("volume")) else None,
                 "rsi": float(rsi) if not pd.isna(rsi) else None,
-                "macd": float(macd) if not pd.isna(macd) else None,
-                "atr": float(row.get("atr")) if not pd.isna(row.get("atr")) else None,
-                "confidence": 0.5,
+                "atr": float(row.get("atr")) if row.get("atr") is not None and not pd.isna(row.get("atr")) else None,
             }
         return None
 
@@ -154,7 +166,7 @@ class BuySellDailyLoader(OptimalLoader):
         """Validate signal row."""
         if not super()._validate_row(row):
             return False
-        return row.get("signal_type") in ("BUY", "SELL")
+        return row.get("signal") in ("BUY", "SELL")
 
 
 def get_active_symbols() -> List[str]:

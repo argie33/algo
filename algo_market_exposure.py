@@ -656,8 +656,20 @@ class MarketExposure:
 
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Compute market exposure for a date")
+    parser.add_argument("--date", type=str, default=None,
+                        help="Eval date YYYY-MM-DD. Default = latest trading date in price_daily.")
+    args = parser.parse_args()
     me = MarketExposure()
-    result = me.compute(_date(2026, 4, 24))
+    if args.date:
+        eval_d = _date.fromisoformat(args.date)
+    else:
+        # Use latest trading date in price_daily
+        me.connect()
+        me.cur.execute("SELECT MAX(date) FROM price_daily WHERE symbol='SPY'")
+        eval_d = me.cur.fetchone()[0]
+    result = me.compute(eval_d)
     print(f"\n{'='*70}")
     print(f"MARKET EXPOSURE — {result['eval_date']}")
     print(f"{'='*70}\n")

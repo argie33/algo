@@ -20,8 +20,11 @@ fi
 echo "$LOG_PREFIX 2. Loading EOD data..."
 
 # Phase 1: Foundation — price, technicals, Pine signals
-echo "$LOG_PREFIX   1/6 loadpricedaily.py"
-python3 loadpricedaily.py || echo "$LOG_PREFIX WARN: loadpricedaily.py failed"
+# Use the bulk loader for daily EOD top-up (5000 syms in ~5 min via batched
+# yfinance). The per-symbol loadpricedaily.py is reserved for backfilling
+# years of history because yfinance throttles per-symbol calls.
+echo "$LOG_PREFIX   1/6 load_eod_bulk.py (price_daily)"
+python3 load_eod_bulk.py --days 10 || echo "$LOG_PREFIX WARN: load_eod_bulk.py failed"
 
 echo "$LOG_PREFIX   2/6 loadtechnicalsdaily.py"
 python3 loadtechnicalsdaily.py || echo "$LOG_PREFIX WARN: loadtechnicalsdaily.py failed"
