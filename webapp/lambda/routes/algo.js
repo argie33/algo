@@ -327,7 +327,7 @@ router.get('/config', async (req, res) => {
       } else if (row.value_type === 'float') {
         parsedValue = parseFloat(row.value);
       } else if (row.value_type === 'bool') {
-        parsedValue = row.value.toLowerCase() in ('true', '1', 'yes');
+        parsedValue = ['true', '1', 'yes'].includes(row.value.toLowerCase());
       }
       config[row.key] = {
         value: parsedValue,
