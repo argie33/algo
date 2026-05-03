@@ -655,7 +655,9 @@ class Orchestrator:
             print(f"  (warning: couldn't write lock file: {e})")
 
         try:
-            if not self.phase_1_data_freshness():
+            if getattr(self, 'skip_freshness', False):
+                print("\nNOTE: Phase 1 freshness gate skipped (--skip-freshness flag set).")
+            elif not self.phase_1_data_freshness():
                 print("\nFAIL-CLOSED: Data freshness check failed. Halting pipeline.")
                 return self._final_report()
 
@@ -732,9 +734,14 @@ if __name__ == "__main__":
     parser.add_argument('--date', type=str, help='Run date (YYYY-MM-DD)', default=None)
     parser.add_argument('--dry-run', action='store_true', help='Plan only, no real trades')
     parser.add_argument('--quiet', action='store_true', help='Reduce output')
+    parser.add_argument('--skip-freshness', action='store_true',
+                        help='Skip phase 1 data freshness gate (testing only — never use for live trading)')
     args = parser.parse_args()
 
     run_date = _date.fromisoformat(args.date) if args.date else None
     orch = Orchestrator(run_date=run_date, dry_run=args.dry_run, verbose=not args.quiet)
+    if args.skip_freshness:
+        orch.skip_freshness = True
+        print("WARNING: --skip-freshness is set. Data may be stale. Do NOT use for live trading.")
     final = orch.run()
     sys.exit(0 if final['success'] else 1)
