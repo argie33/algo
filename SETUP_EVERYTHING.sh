@@ -17,10 +17,16 @@ echo ""
 
 # 1. GET AWS ACCOUNT INFO
 echo -e "${YELLOW}Step 1: Verify AWS Credentials${NC}"
+
+# Create aws command wrapper if not in PATH
 if ! command -v aws &> /dev/null; then
-    echo -e "${RED}ERROR: AWS CLI not installed${NC}"
-    echo "Install: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
-    exit 1
+    if ! python3 -m awscli --version &> /dev/null; then
+        echo -e "${RED}ERROR: AWS CLI not installed${NC}"
+        echo "Install: pip3 install awscli"
+        exit 1
+    fi
+    # Use Python module version
+    aws() { python3 -m awscli "$@"; }
 fi
 
 if ! aws sts get-caller-identity &>/dev/null; then

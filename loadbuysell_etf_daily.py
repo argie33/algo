@@ -88,6 +88,7 @@ if not DB_SECRET_ARN or DB_HOST is None:
 # Cloud-native S3 configuration for bulk loading
 USE_S3_STAGING = os.environ.get('USE_S3_STAGING', 'false').lower() == 'true'
 S3_STAGING_BUCKET = os.environ.get('S3_STAGING_BUCKET', 'stocks-app-data')
+HAS_S3_STAGING = True  # DatabaseHelper supports S3 staging
 
 def get_db_connection():
     # Set statement timeout to 300 seconds (300000 ms) to allow for large queries
@@ -747,9 +748,6 @@ def insert_symbol_results(cur, symbol, timeframe, df, conn, table_name="buy_sell
                 ]
                 inserted = db.insert(table_name, columns, insert_rows)
                 db.close()
-                    inserted = 0
-                else:
-                    inserted = rows_affected
 
         except psycopg2.IntegrityError as ie:
             conn.rollback()

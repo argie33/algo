@@ -80,6 +80,11 @@ if not DB_SECRET_ARN or DB_HOST is None:
     DB_NAME = os.environ.get("DB_NAME", "stocks")
     logging.info("Using environment variables for database config")
 
+# Cloud-native S3 configuration for bulk loading
+HAS_S3_STAGING = True  # DatabaseHelper supports S3 staging
+USE_S3_STAGING = os.environ.get('USE_S3_STAGING', 'false').lower() == 'true'
+S3_STAGING_BUCKET = os.environ.get('S3_STAGING_BUCKET', 'stocks-app-data')
+
 def get_db_connection():
     # Set statement timeout to 30 seconds (30000 ms)
     conn = psycopg2.connect(

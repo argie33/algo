@@ -128,7 +128,17 @@
       "Bash(command -v psql)",
       "Bash(command -v python3)",
       "Bash(git config *)",
-      "Bash(gh --version)"
+      "Bash(gh --version)",
+      "Bash(bash SETUP_EVERYTHING.sh)",
+      "Bash(tee setup_run.log)",
+      "PowerShell(choco install *)",
+      "Bash(aws --version)",
+      "Bash(/usr/bin/aws --version)",
+      "Bash(find /c -name \"aws.exe\" -type f)",
+      "Bash(chmod +x /usr/local/bin/aws)",
+      "Bash(mkdir -p /usr/local/bin)",
+      "Bash(export PATH=\"/usr/local/bin:$PATH\")",
+      "Bash(git remote *)"
     ]
   }
 }
