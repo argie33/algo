@@ -53,6 +53,10 @@ echo "$LOG_PREFIX 3. Post-load patrol..."
 python3 algo_data_patrol.py
 PATROL_EXIT=$?
 
+# 3b. Automatic remediation on findings
+echo "$LOG_PREFIX 3b. Auto-remediation..."
+python3 algo_data_remediation.py || echo "$LOG_PREFIX WARN: remediation failed"
+
 # 4. If patrol passed, run orchestrator
 if [ $PATROL_EXIT -eq 0 ]; then
     echo "$LOG_PREFIX 4. Running orchestrator..."
