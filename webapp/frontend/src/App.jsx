@@ -43,7 +43,6 @@ import TradeHistory from "./pages/TradeHistory";
 import PortfolioDashboard from "./pages/PortfolioDashboard";
 import HedgeHelper from "./pages/HedgeHelper";
 import PortfolioOptimizerNew from "./pages/PortfolioOptimizerNew";
-import ETFSignals from "./pages/ETFSignals";
 import ServiceHealth from "./pages/ServiceHealth";
 import Settings from "./pages/Settings";
 
