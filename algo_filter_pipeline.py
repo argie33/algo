@@ -18,6 +18,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
 from algo_config import get_config
+from algo_advanced_filters import AdvancedFilters
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -44,6 +45,7 @@ class FilterPipeline:
         self._portfolio_state_cache = None
         self._sector_cache = {}
         self._candidate_holdings = {}  # symbols that passed T5 in this run, for sector counting
+        self.advanced = None  # AdvancedFilters instance, lazy-init
 
     def connect(self):
         self.conn = psycopg2.connect(**DB_CONFIG)
@@ -85,7 +87,18 @@ class FilterPipeline:
             signals = self.cur.fetchall()
             print(f"Found {len(signals)} BUY signals to evaluate\n")
 
+            # Initialize advanced filters and pre-load market context once
+            if self.advanced is None:
+                self.advanced = AdvancedFilters(self.config, cur=self.cur)
+            ctx = self.advanced.load_market_context(eval_date)
+            print(f"Market context: top sectors = {ctx['strong_sectors']}")
+            if ctx['market_breadth']:
+                print(f"  AAII bull/bear spread: {ctx['market_breadth']['bull_bear_spread']:+.1f}")
+            print()
+
             tier_pass_counts = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+            advanced_passed = 0
+            advanced_blocked = 0
             passed_all_tiers = []
 
             for symbol, signal_date, _signal, entry_price in signals:
@@ -95,43 +108,80 @@ class FilterPipeline:
                         tier_pass_counts[t] += 1
 
                 if result['passed_all_tiers']:
-                    passed_all_tiers.append({
-                        'symbol': symbol,
-                        'entry_price': float(entry_price),
-                        'stop_loss_price': result.get('stop_loss_price'),
-                        'sqs': result.get('sqs', 0),
-                        'trend_score': result.get('trend_score', 0),
-                        'completeness_pct': result.get('completeness_pct', 0),
-                        'shares': result.get('shares', 0),
-                        'risk_dollars': result.get('risk_dollars', 0.0),
-                        'all_tiers_pass': True,
-                    })
+                    # Run advanced filters
+                    sector_info = self._get_sector_info(symbol) or {'sector': '', 'industry': ''}
+                    adv = self.advanced.evaluate_candidate(
+                        symbol, signal_date, float(entry_price),
+                        sector_info['sector'], sector_info['industry'],
+                    )
+                    result['advanced'] = adv
+
+                    if adv['pass']:
+                        advanced_passed += 1
+                        passed_all_tiers.append({
+                            'symbol': symbol,
+                            'entry_price': float(entry_price),
+                            'stop_loss_price': result.get('stop_loss_price'),
+                            'sqs': result.get('sqs', 0),
+                            'trend_score': result.get('trend_score', 0),
+                            'completeness_pct': result.get('completeness_pct', 0),
+                            'shares': result.get('shares', 0),
+                            'risk_dollars': result.get('risk_dollars', 0.0),
+                            'composite_score': adv['composite_score'],
+                            'sector': sector_info['sector'],
+                            'industry': sector_info['industry'],
+                            'advanced_components': adv['components'],
+                            'all_tiers_pass': True,
+                        })
+                    else:
+                        advanced_blocked += 1
+                        result['advanced_block_reason'] = adv['reason']
 
                 self._log_signal_evaluation(result)
                 self._persist_signal_evaluation(result, eval_date)
 
             print(f"\n{'='*70}")
             print("Tier pass-through summary:")
-            print(f"  T1 Data Quality:    {tier_pass_counts[1]:3d}/{len(signals)}")
-            print(f"  T2 Market Health:   {tier_pass_counts[2]:3d}/{len(signals)}")
-            print(f"  T3 Trend Template:  {tier_pass_counts[3]:3d}/{len(signals)}")
-            print(f"  T4 Signal Quality:  {tier_pass_counts[4]:3d}/{len(signals)}")
-            print(f"  T5 Portfolio:       {tier_pass_counts[5]:3d}/{len(signals)}")
+            print(f"  T1 Data Quality:     {tier_pass_counts[1]:3d}/{len(signals)}")
+            print(f"  T2 Market Health:    {tier_pass_counts[2]:3d}/{len(signals)}")
+            print(f"  T3 Trend Template:   {tier_pass_counts[3]:3d}/{len(signals)}")
+            print(f"  T4 Signal Quality:   {tier_pass_counts[4]:3d}/{len(signals)}")
+            print(f"  T5 Portfolio:        {tier_pass_counts[5]:3d}/{len(signals)}")
+            print(f"  T6 Advanced Filters: {advanced_passed:3d}/{tier_pass_counts[5]} passed, "
+                  f"{advanced_blocked} blocked")
             print(f"{'='*70}")
 
-            passed_all_tiers.sort(key=lambda x: x['sqs'], reverse=True)
+            # Final ranking: weighted blend of SQS + composite_score
+            # SQS measures signal quality, composite measures full context.
+            sqs_weight = float(self.config.get('rank_weight_sqs', 0.4))
+            composite_weight = float(self.config.get('rank_weight_composite', 0.6))
+
+            for t in passed_all_tiers:
+                t['final_score'] = round(
+                    (t['sqs'] / 100.0) * sqs_weight * 100.0 +
+                    t['composite_score'] * composite_weight,
+                    1,
+                )
+
+            passed_all_tiers.sort(key=lambda x: x['final_score'], reverse=True)
             max_positions = int(self.config.get('max_positions', 12))
             final_trades = passed_all_tiers[:max_positions]
 
-            print(f"\nFinal Trades (Top {max_positions} by SQS):")
-            print("=" * 70)
+            print(f"\nFinal Trades (Top {max_positions} by composite ranking):")
+            print("=" * 90)
+            print(f"{'#':<3}{'Sym':<8}{'Entry':>10}{'Stop':>9}{'SQS':>5}{'Trend':>7}"
+                  f"{'Comp':>6}{'Final':>7}  {'Sector':<22}")
+            print("-" * 90)
             for i, trade in enumerate(final_trades, 1):
                 print(
-                    f"{i:2d}. {trade['symbol']:6s} @ ${trade['entry_price']:8.2f} | "
-                    f"Stop ${trade['stop_loss_price']:7.2f} | "
-                    f"SQS {int(trade['sqs']):3d} | Trend {int(trade['trend_score']):2d}/10 | "
-                    f"Shares {trade['shares']}"
+                    f"{i:<3d}{trade['symbol']:<8}${trade['entry_price']:>9.2f}"
+                    f"${trade['stop_loss_price']:>8.2f}{int(trade['sqs']):>5d}"
+                    f"{int(trade['trend_score']):>5d}/10"
+                    f"{trade['composite_score']:>6.1f}{trade['final_score']:>7.1f}  "
+                    f"{(trade.get('sector') or 'N/A')[:22]:<22}"
                 )
+            if not final_trades:
+                print("(no qualifying trades)")
             if not final_trades:
                 print("(no qualifying trades)")
             print(f"\n{'='*70}\n")
