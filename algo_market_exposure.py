@@ -254,7 +254,14 @@ class MarketExposure:
         }
 
     def _distribution_days(self, eval_date):
-        """IBD distribution day count over last 25 trading sessions on SPY."""
+        """IBD distribution day count over last 25 trading sessions on SPY.
+
+        Canonical IBD definition: a session where close declines >= 0.2%
+        AND volume is heavier than the prior day. Counted in a rolling
+        25-session window. (We previously also used > prev_vol; the IBD
+        canon specifically uses prior-day comparison, not 50d avg, so this
+        is correct as-is. Window size now strictly 25, not 30.)
+        """
         self.cur.execute(
             """
             WITH d AS (
@@ -263,7 +270,7 @@ class MarketExposure:
                        LAG(volume) OVER (ORDER BY date) AS prev_vol
                 FROM price_daily
                 WHERE symbol = 'SPY' AND date <= %s
-                ORDER BY date DESC LIMIT 30
+                ORDER BY date DESC LIMIT 25
             )
             SELECT COUNT(*) FROM d
             WHERE prev_close IS NOT NULL

@@ -379,9 +379,9 @@ function App() {
     <ErrorBoundary>
       <AppLayout>
         <Routes>
-          {/* Markets & Analysis */}
+          {/* Markets & Analysis — both routes serve the rebuilt comprehensive page */}
           <Route path="/app/markets" element={<MarketsHealth />} />
-          <Route path="/app/market" element={<MarketOverview />} />
+          <Route path="/app/market" element={<MarketsHealth />} />
           <Route path="/app/economic" element={<EconomicDashboard />} />
           <Route path="/app/sectors" element={<SectorAnalysis />} />
           <Route path="/app/sentiment" element={<Sentiment />} />

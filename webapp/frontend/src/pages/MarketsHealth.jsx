@@ -10,7 +10,7 @@
  *   4. Breadth — participation indicators
  *   5. Sectors — full ranking with momentum + acceleration
  *   6. Sentiment — AAII bull/bear with contrarian read
- *   7. Distribution days — IBD-style market health
+ *   7. Distribution days — institutional selling pressure indicator
  *   8. Economic — VIX and key macro
  *
  * Each card loads independently — no single failure blocks the page.
@@ -242,7 +242,7 @@ function RegimeBanner({ markets, policy }) {
 function ExposureBreakdownCard({ markets }) {
   const factors = markets?.current?.factors || {};
   const factorList = [
-    ['ibd_state', 'IBD MARKET STATE', 20],
+    ['ibd_state', 'MARKET STATE', 20],
     ['trend_30wk', '30-WEEK MA TREND', 15],
     ['breadth_50dma', '% > 50-DMA (BREADTH)', 15],
     ['breadth_200dma', '% > 200-DMA (HEALTH)', 10],
@@ -426,7 +426,7 @@ function DistributionDaysCard({ markets }) {
   const ftd = cur.factors?.ibd_state?.follow_through_day;
 
   return (
-    <SectionCard title="IBD Market Pulse">
+    <SectionCard title="Market Pulse">
       <Stack spacing={2}>
         <Box sx={{ textAlign: 'center', py: 2 }}>
           <Box sx={{
@@ -466,8 +466,8 @@ function DistributionDaysCard({ markets }) {
         </Box>
 
         <Box sx={{ fontSize: F.xs, color: C.textDim }}>
-          IBD methodology: 5+ DDs in 4 wk = market in correction. Confirmed
-          uptrend requires &lt; 4 DDs and a follow-through day after a rally attempt.
+          5+ distribution days in 4 weeks signals market correction. Confirmed
+          uptrend requires &lt; 4 distribution days and a follow-through day after a rally attempt.
         </Box>
       </Stack>
     </SectionCard>
