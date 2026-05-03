@@ -11,7 +11,7 @@
  */
 
 const express = require('express');
-const { getPool } = require('../db');
+const { getPool } = require('../utils/database');
 
 const router = express.Router();
 

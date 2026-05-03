@@ -104,56 +104,56 @@ class AlgoMetricsLoader:
             # 1. Market health
             print("1. Market Health Daily...", end=" ")
             if self.load_market_health(process_date):
-                print(f"✓ ({self.stats['market_health']})")
+                print(f"OK ({self.stats['market_health']})")
             else:
-                print("✗")
+                print("FAILED")
 
             # 2. Trend template for all symbols
             print("2. Trend Template Fields...", end=" ")
             if self.load_trend_template(symbols, process_date):
-                print(f"✓ ({self.stats['trend_template']})")
+                print(f"OK ({self.stats['trend_template']})")
             else:
-                print("✗")
+                print("FAILED")
 
             # 3. Distribution days
             print("3. Distribution Days...", end=" ")
             if self.load_distribution_days(symbols, process_date):
-                print(f"✓ ({self.stats['distribution_days']})")
+                print(f"OK ({self.stats['distribution_days']})")
             else:
-                print("✗")
+                print("FAILED")
 
             # 4. Base count
             print("4. Base Count per Symbol...", end=" ")
             if self.load_base_count(symbols, process_date):
-                print(f"✓ ({self.stats['base_count']})")
+                print(f"OK ({self.stats['base_count']})")
             else:
-                print("✗")
+                print("FAILED")
 
             # 5. Power trend flag
             print("5. Power Trend Flag...", end=" ")
             if self.load_power_trend(symbols, process_date):
-                print(f"✓ ({self.stats['power_trend']})")
+                print(f"OK ({self.stats['power_trend']})")
             else:
-                print("✗")
+                print("FAILED")
 
             # 6. Data completeness
             print("6. Data Completeness...", end=" ")
             if self.load_data_completeness(symbols):
-                print(f"✓ ({self.stats['completeness']})")
+                print(f"OK ({self.stats['completeness']})")
             else:
-                print("✗")
+                print("FAILED")
 
             # 7. Signal Quality Scores
             print("7. Signal Quality Scores...", end=" ")
             if self.load_signal_quality_scores(symbols, process_date):
-                print(f"✓ ({self.stats['sqs']})")
+                print(f"OK ({self.stats['sqs']})")
             else:
-                print("✗")
+                print("FAILED")
 
             self.conn.commit()
 
             print(f"\n{'='*70}")
-            print("✓ All metrics loaded successfully!")
+            print("All metrics loaded successfully!")
             print(f"{'='*70}\n")
 
             print("Summary:")
