@@ -219,28 +219,40 @@ async function initializeDatabase() {
       pool = new Pool(config);
       const client = await pool.connect();
       await client.query("SELECT NOW()");
-
-      // Create indexes for signals queries to improve performance
-      try {
-        const indexQueries = [
-          "CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_date_signal ON buy_sell_daily (date DESC, UPPER(signal))",
-          "CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_symbol_date ON buy_sell_daily (symbol, date DESC)",
-          "CREATE INDEX IF NOT EXISTS idx_buy_sell_weekly_date_signal ON buy_sell_weekly (date DESC, UPPER(signal))",
-          "CREATE INDEX IF NOT EXISTS idx_buy_sell_weekly_symbol_date ON buy_sell_weekly (symbol, date DESC)",
-          "CREATE INDEX IF NOT EXISTS idx_buy_sell_monthly_date_signal ON buy_sell_monthly (date DESC, UPPER(signal))",
-          "CREATE INDEX IF NOT EXISTS idx_buy_sell_monthly_symbol_date ON buy_sell_monthly (symbol, date DESC)"
-        ];
-        for (const indexQuery of indexQueries) {
-          await client.query(indexQuery);
-        }
-        console.log("✅ Signal table indexes created/verified");
-      } catch (indexErr) {
-        console.warn("Warning: Could not create indexes:", indexErr.message);
-      }
-
       client.release();
       dbInitialized = true;
       console.log("✅ Database connection pool initialized successfully");
+
+      // Create indexes asynchronously in background (don't block initialization)
+      setImmediate(async () => {
+        try {
+          const indexClient = await pool.connect();
+          const indexQueries = [
+            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_daily_date_signal ON buy_sell_daily (date DESC, UPPER(signal))",
+            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_daily_symbol_date ON buy_sell_daily (symbol, date DESC)",
+            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_weekly_date_signal ON buy_sell_weekly (date DESC, UPPER(signal))",
+            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_weekly_symbol_date ON buy_sell_weekly (symbol, date DESC)",
+            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_monthly_date_signal ON buy_sell_monthly (date DESC, UPPER(signal))",
+            "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_buy_sell_monthly_symbol_date ON buy_sell_monthly (symbol, date DESC)"
+          ];
+          console.log("Starting background index creation...");
+          for (const indexQuery of indexQueries) {
+            try {
+              await indexClient.query(indexQuery);
+            } catch (err) {
+              if (err.message?.includes("already exists")) {
+                console.log("Index already exists, skipping");
+              } else {
+                console.warn("Index creation warning:", err.message);
+              }
+            }
+          }
+          indexClient.release();
+          console.log("✅ All indexes created/verified");
+        } catch (err) {
+          console.warn("Warning: Background index creation failed:", err.message);
+        }
+      });
 
       pool.on("error", (err) => {
         console.error("Database pool error:", err);
