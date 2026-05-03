@@ -91,19 +91,81 @@ guarantee that.
 0 23 * * *  cd /c/Users/arger/code/algo && python3 algo_data_patrol.py --validate-alpaca >> /var/log/algo/patrol.log 2>&1
 ```
 
-## AWS Production (EventBridge rules)
+## AWS Production — IaC via GitHub Actions
 
-For AWS deployment, translate the above cron to EventBridge schedule
-expressions targeting Lambda or ECS tasks:
+The same loaders that run locally must work identically in AWS. Architecture:
 
 ```
-INTRADAY:    rate(90 minutes)        + filter for market hours
+GitHub Actions (CI/CD)
+      │ pushes IaC + container images
+      ▼
+AWS CodeBuild → ECR (loader Docker images, 1 per loader phase)
+      │
+      ▼
+EventBridge (cron schedules, mirrors local cron)
+      │ triggers
+      ▼
+ECS Fargate Tasks (run loader containers)
+      │ writes to
+      ▼
+RDS PostgreSQL (same schema as local)
+      │ algo reads from
+      ▼
+Lambda (webapp/lambda/index.js — Express via serverless-http)
+      │ serves
+      ▼
+CloudFront → S3 static frontend
+```
+
+### EventBridge Schedule Rules
+
+```
+INTRADAY:    rate(90 minutes)         + filter Mon-Fri 9:30-16:00 ET
 EOD:         cron(30 17 ? * MON-FRI *)
 WEEKLY:      cron(0 8 ? * SAT *)
 MONTHLY:     cron(0 9 1-7 ? * SAT *)
 PATROL_4H:   cron(0 0/4 ? * MON-FRI *)
 PATROL_FULL: cron(0 23 ? * * *)
 ```
+
+### GitHub Actions Workflow
+
+A single workflow file (`.github/workflows/deploy.yml`) triggers on push to
+`main`. It:
+
+1. Runs `python3 FULL_BUILD_VERIFICATION.py` and `python3 algo_data_patrol.py --quick`
+   — fail the build if either reports critical issues
+2. Builds one Docker image per loader phase (`Dockerfile.eod`, `Dockerfile.intraday`)
+3. Pushes images to ECR (one per phase, tagged with commit SHA)
+4. Deploys CloudFormation/SAM updates to update EventBridge rules + ECS task defs
+5. Deploys Lambda updates for the webapp API
+6. Deploys static frontend to S3 + invalidates CloudFront
+
+Reference templates already exist in repo:
+- `template-webapp-lambda.yml` (SAM)
+- `template-step-functions-phase-d.yml`
+- `template-tier1-api-lambda.yml`
+- `template-tier1-cost-optimization.yml`
+
+### Local-vs-AWS Parity Rules
+
+To guarantee that local-tested code runs identically in production:
+
+1. **Same Python version** (3.11 in local, 3.11 in ECS task definition)
+2. **Same environment variables** loaded from `.env.local` locally and AWS
+   Secrets Manager / Parameter Store in production
+3. **Same DB schema** — migrations applied via single canonical SQL files in
+   `migrations/` (run by both local setup script and AWS CodeBuild step)
+4. **No local-only paths** — every loader uses `Path(__file__).parent` to
+   resolve relative paths
+5. **All output to stdout/stderr** — never write logs to local-only files;
+   ECS captures stdout/stderr to CloudWatch
+6. **Database connection from env only** — both local and AWS read DB_HOST etc.
+   from environment, never hardcoded
+7. **Idempotent loaders** — every loader uses `ON CONFLICT DO UPDATE` so
+   re-runs don't duplicate
+8. **Patrol-gated** — every wrapper script (local + ECS task) calls
+   `algo_data_patrol.py --quick` before AND after loaders; fails closed
 
 ## The Wrapper Script Pattern
 
