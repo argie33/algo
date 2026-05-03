@@ -914,6 +914,180 @@ class SignalComputer:
         }
 
     # ============================================================
+    # IBD CONTINUATION PATTERNS — research-backed setups
+    # ============================================================
+
+    def three_weeks_tight(self, symbol, eval_date):
+        """
+        IBD's "3-Weeks-Tight" (3WT) — high-probability continuation pattern.
+
+        After a stock has rallied from a base, it consolidates for 3 weeks where
+        each weekly close is within ~1.5% of the prior weekly close. The weekly
+        ranges are also tight. Breakout above the 3-week high signals continuation.
+
+        Per O'Neil's leading-stock studies: 3WT patterns formed by the strongest
+        stocks during their advance phases — high reliability for adding to
+        existing winners or initiating new positions.
+
+        Returns: {
+          'is_3wt': bool,
+          'weekly_close_spread_pct': float,   # spread of 3 closes
+          'weekly_range_avg_pct': float,      # avg range as % of price
+          'pivot_high': float,                # breakout level
+          'breakout_imminent': bool,
+        }
+        """
+        self.connect()
+        # Need 4+ weeks of weekly data
+        self.cur.execute(
+            """
+            SELECT date, high, low, close FROM price_weekly
+            WHERE symbol = %s AND date <= %s
+            ORDER BY date DESC LIMIT 5
+            """,
+            (symbol, eval_date),
+        )
+        rows = self.cur.fetchall()
+        if len(rows) < 4:
+            return {'is_3wt': False, 'reason': 'insufficient weekly history'}
+        # rows[0]=most recent, rows[1..3] = 3 weeks back
+        # Take last 3 weekly closes
+        last3 = rows[:3]
+        closes = [float(r[3]) for r in last3]
+        highs = [float(r[1]) for r in last3]
+        lows = [float(r[2]) for r in last3]
+
+        # All 3 closes within 1.5% of each other (spread of max-min)
+        cmax = max(closes)
+        cmin = min(closes)
+        spread_pct = (cmax - cmin) / cmin * 100.0 if cmin > 0 else 100
+        is_tight = spread_pct <= 1.5
+
+        # Each weekly range is small (< 5% of price)
+        ranges_pct = [(h - l) / l * 100.0 for h, l in zip(highs, lows) if l > 0]
+        avg_range = sum(ranges_pct) / len(ranges_pct) if ranges_pct else 100
+        is_quiet = avg_range <= 6.0
+
+        # Must be in a rising trend (close above 3 weeks ago)
+        if len(rows) >= 4:
+            week_ago_close = float(rows[3][3])
+            in_uptrend = closes[0] > week_ago_close * 1.02
+        else:
+            in_uptrend = False
+
+        is_3wt = is_tight and is_quiet and in_uptrend
+        pivot_high = max(highs)
+
+        # Latest daily close
+        self.cur.execute(
+            "SELECT close FROM price_daily WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1",
+            (symbol, eval_date),
+        )
+        r = self.cur.fetchone()
+        cur_close = float(r[0]) if r else 0
+        breakout_imminent = is_3wt and cur_close >= pivot_high * 0.98
+
+        return {
+            'is_3wt': is_3wt,
+            'weekly_close_spread_pct': round(spread_pct, 2),
+            'weekly_range_avg_pct': round(avg_range, 2),
+            'in_uptrend': in_uptrend,
+            'pivot_high': round(pivot_high, 2),
+            'breakout_imminent': breakout_imminent,
+        }
+
+    def high_tight_flag(self, symbol, eval_date):
+        """
+        IBD's "High Tight Flag" (HTF) — rare but highly explosive continuation.
+
+        Definition (O'Neil's leading-stock study):
+          1. Stock advances 100%+ in 4-8 weeks (parabolic move)
+          2. Then consolidates in a tight 1-3 week range (max ~25% pullback)
+          3. Volume dries up during consolidation
+          4. Breakout above the consolidation high signals continuation
+
+        Per O'Neil's CAN SLIM research, HTF stocks have produced some of the
+        biggest gains in market history (think early-stage biotech, tech IPOs).
+        Rare pattern — most stocks won't show it. When it appears, it's a tier-1
+        setup for swing traders willing to take the heat.
+
+        Returns: {
+          'is_htf': bool,
+          'prior_advance_pct': float,
+          'consolidation_pct': float,
+          'consolidation_weeks': int,
+          'pivot_high': float,
+        }
+        """
+        self.connect()
+        # Need ~12 weeks of weekly data
+        self.cur.execute(
+            """
+            SELECT date, high, low, close FROM price_weekly
+            WHERE symbol = %s AND date <= %s
+            ORDER BY date DESC LIMIT 12
+            """,
+            (symbol, eval_date),
+        )
+        rows = self.cur.fetchall()
+        if len(rows) < 8:
+            return {'is_htf': False, 'reason': 'insufficient weekly history'}
+
+        rows = list(reversed(rows))  # chronological
+        highs = [float(r[1]) for r in rows]
+        lows = [float(r[2]) for r in rows]
+        closes = [float(r[3]) for r in rows]
+
+        # Look for last 1-3 weeks (consolidation) and prior 4-8 weeks (advance)
+        # Try different consolidation lengths
+        best_htf = None
+        for cons_weeks in (1, 2, 3):
+            if len(rows) < 4 + cons_weeks:
+                continue
+            cons_section = closes[-cons_weeks:]
+            cons_highs = highs[-cons_weeks:]
+            cons_lows = lows[-cons_weeks:]
+            cons_high = max(cons_highs)
+            cons_low = min(cons_lows)
+            cons_pct = (cons_high - cons_low) / cons_high * 100.0 if cons_high > 0 else 100
+
+            # Tight consolidation: <= 25% range (HTF is allowed wider than other bases)
+            if cons_pct > 25:
+                continue
+
+            # Prior advance: 4-8 weeks before consolidation
+            for adv_weeks in (4, 5, 6, 7, 8):
+                if len(rows) < adv_weeks + cons_weeks:
+                    continue
+                advance_section = closes[-(adv_weeks + cons_weeks):-cons_weeks]
+                if not advance_section:
+                    continue
+                start_close = advance_section[0]
+                end_close = advance_section[-1]
+                if start_close <= 0:
+                    continue
+                advance_pct = (end_close - start_close) / start_close * 100.0
+                # 100%+ advance qualifies
+                if advance_pct >= 100:
+                    if best_htf is None or advance_pct > best_htf['advance']:
+                        best_htf = {
+                            'advance': advance_pct,
+                            'cons_pct': cons_pct,
+                            'cons_weeks': cons_weeks,
+                            'pivot_high': cons_high,
+                        }
+
+        if best_htf:
+            return {
+                'is_htf': True,
+                'prior_advance_pct': round(best_htf['advance'], 1),
+                'consolidation_pct': round(best_htf['cons_pct'], 1),
+                'consolidation_weeks': best_htf['cons_weeks'],
+                'pivot_high': round(best_htf['pivot_high'], 2),
+            }
+        return {'is_htf': False}
+
+    # ============================================================
     # POWER TREND (Minervini)
     # ============================================================
 

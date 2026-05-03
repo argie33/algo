@@ -167,7 +167,9 @@
       "Bash(git check-ignore *)",
       "Bash(chmod +x VERIFY_QUICK_WINS.sh)",
       "Bash(bash VERIFY_QUICK_WINS.sh)",
-      "Bash(gh workflow *)"
+      "Bash(gh workflow *)",
+      "Bash(cd /home/user/code/algo)",
+      "Bash(python3 monitor_system.py)"
     ]
   }
 }

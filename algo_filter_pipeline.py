@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
 from algo_config import get_config
 from algo_advanced_filters import AdvancedFilters
+from algo_swing_score import SwingTraderScore
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -118,21 +119,44 @@ class FilterPipeline:
 
                     if adv['pass']:
                         advanced_passed += 1
-                        passed_all_tiers.append({
-                            'symbol': symbol,
-                            'entry_price': float(entry_price),
-                            'stop_loss_price': result.get('stop_loss_price'),
-                            'sqs': result.get('sqs', 0),
-                            'trend_score': result.get('trend_score', 0),
-                            'completeness_pct': result.get('completeness_pct', 0),
-                            'shares': result.get('shares', 0),
-                            'risk_dollars': result.get('risk_dollars', 0.0),
-                            'composite_score': adv['composite_score'],
-                            'sector': sector_info['sector'],
-                            'industry': sector_info['industry'],
-                            'advanced_components': adv['components'],
-                            'all_tiers_pass': True,
-                        })
+
+                        # NEW: compute the SWING-SPECIFIC score (research-weighted)
+                        if not hasattr(self, '_swing'):
+                            self._swing = SwingTraderScore(cur=self.cur)
+                        swing = self._swing.compute(
+                            symbol, signal_date,
+                            sector=sector_info['sector'], industry=sector_info['industry'],
+                        )
+
+                        # Hard gate: must pass swing-score gates AND meet min score
+                        min_swing = float(self.config.get('min_swing_score', 60.0))
+                        if not swing['pass']:
+                            result['swing_block_reason'] = swing['reason']
+                            advanced_blocked += 1
+                        elif swing['swing_score'] < min_swing:
+                            result['swing_block_reason'] = (
+                                f'swing_score {swing["swing_score"]} < {min_swing}'
+                            )
+                            advanced_blocked += 1
+                        else:
+                            passed_all_tiers.append({
+                                'symbol': symbol,
+                                'entry_price': float(entry_price),
+                                'stop_loss_price': result.get('stop_loss_price'),
+                                'sqs': result.get('sqs', 0),
+                                'trend_score': result.get('trend_score', 0),
+                                'completeness_pct': result.get('completeness_pct', 0),
+                                'shares': result.get('shares', 0),
+                                'risk_dollars': result.get('risk_dollars', 0.0),
+                                'composite_score': adv['composite_score'],
+                                'swing_score': swing['swing_score'],
+                                'swing_grade': swing['grade'],
+                                'swing_components': swing['components'],
+                                'sector': sector_info['sector'],
+                                'industry': sector_info['industry'],
+                                'advanced_components': adv['components'],
+                                'all_tiers_pass': True,
+                            })
                     else:
                         advanced_blocked += 1
                         result['advanced_block_reason'] = adv['reason']
@@ -151,37 +175,36 @@ class FilterPipeline:
                   f"{advanced_blocked} blocked")
             print(f"{'='*70}")
 
-            # Final ranking: weighted blend of SQS + composite_score
-            # SQS measures signal quality, composite measures full context.
-            sqs_weight = float(self.config.get('rank_weight_sqs', 0.4))
-            composite_weight = float(self.config.get('rank_weight_composite', 0.6))
-
+            # PRIMARY RANKING: swing_score (research-weighted, swing-specific)
             for t in passed_all_tiers:
-                t['final_score'] = round(
-                    (t['sqs'] / 100.0) * sqs_weight * 100.0 +
-                    t['composite_score'] * composite_weight,
-                    1,
-                )
+                t['final_score'] = t.get('swing_score', 0)
 
             passed_all_tiers.sort(key=lambda x: x['final_score'], reverse=True)
-            max_positions = int(self.config.get('max_positions', 12))
+            max_positions = int(self.config.get('max_positions', 6))
             final_trades = passed_all_tiers[:max_positions]
 
-            print(f"\nFinal Trades (Top {max_positions} by composite ranking):")
-            print("=" * 90)
-            print(f"{'#':<3}{'Sym':<8}{'Entry':>10}{'Stop':>9}{'SQS':>5}{'Trend':>7}"
-                  f"{'Comp':>6}{'Final':>7}  {'Sector':<22}")
-            print("-" * 90)
+            print(f"\nFinal Trades (Top {max_positions} by swing_score):")
+            print("=" * 100)
+            print(f"{'#':<3}{'Sym':<8}{'Grade':<6}{'Score':>6}  {'Entry':>9}{'Stop':>9}{'Setup':>6}"
+                  f"{'Trend':>6}{'Mom':>5}{'Vol':>5}{'Fund':>5}{'Sec':>5}{'MTF':>5}  {'Sector':<20}")
+            print("-" * 100)
             for i, trade in enumerate(final_trades, 1):
+                comp = trade.get('swing_components', {})
+                gr = trade.get('swing_grade', 'D')
                 print(
-                    f"{i:<3d}{trade['symbol']:<8}${trade['entry_price']:>9.2f}"
-                    f"${trade['stop_loss_price']:>8.2f}{int(trade['sqs']):>5d}"
-                    f"{int(trade['trend_score']):>5d}/10"
-                    f"{trade['composite_score']:>6.1f}{trade['final_score']:>7.1f}  "
-                    f"{(trade.get('sector') or 'N/A')[:22]:<22}"
+                    f"{i:<3d}{trade['symbol']:<8}{gr:<6}{trade['final_score']:>6.1f}  "
+                    f"${trade['entry_price']:>8.2f}${trade['stop_loss_price']:>8.2f}"
+                    f"{comp.get('setup_quality', {}).get('pts', 0):>6.1f}"
+                    f"{comp.get('trend_quality', {}).get('pts', 0):>6.1f}"
+                    f"{comp.get('momentum_rs', {}).get('pts', 0):>5.1f}"
+                    f"{comp.get('volume', {}).get('pts', 0):>5.1f}"
+                    f"{comp.get('fundamentals', {}).get('pts', 0):>5.1f}"
+                    f"{comp.get('sector_industry', {}).get('pts', 0):>5.1f}"
+                    f"{comp.get('multi_timeframe', {}).get('pts', 0):>5.1f}  "
+                    f"{(trade.get('sector') or 'N/A')[:20]:<20}"
                 )
             if not final_trades:
-                print("(no qualifying trades)")
+                print("(no qualifying trades — gates too strict for current market)")
             if not final_trades:
                 print("(no qualifying trades)")
             print(f"\n{'='*70}\n")

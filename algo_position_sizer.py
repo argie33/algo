@@ -122,23 +122,46 @@ class PositionSizer:
             return 0.0
 
     def get_risk_adjustment(self):
-        """Get risk adjustment factor based on drawdown."""
+        """Get risk adjustment factor based on drawdown.
+
+        Combined with market_exposure_pct multiplier for dynamic risk:
+            effective_risk = base_risk × dd_adjustment × (exposure_pct / 100)
+        """
         dd = self.get_current_drawdown()
 
         if dd >= 20:
-            # Halt all trading
-            return 0.0
+            return 0.0  # Halt all trading
         elif dd >= 15:
-            # Reduce to 25% of base risk
-            return self.config.get('risk_reduction_at_minus_15', 0.25)
+            return float(self.config.get('risk_reduction_at_minus_15', 0.25))
         elif dd >= 10:
-            # Reduce to 50% of base risk
-            return self.config.get('risk_reduction_at_minus_10', 0.5)
+            return float(self.config.get('risk_reduction_at_minus_10', 0.5))
         elif dd >= 5:
-            # Reduce to 75% of base risk
-            return self.config.get('risk_reduction_at_minus_5', 0.75)
+            return float(self.config.get('risk_reduction_at_minus_5', 0.75))
         else:
-            # Full base risk
+            return 1.0
+
+    def get_market_exposure_multiplier(self):
+        """Look up the most recent market exposure pct (0-100). Returns multiplier 0.0-1.0."""
+        try:
+            self.cur.execute(
+                "SELECT exposure_pct FROM market_exposure_daily ORDER BY date DESC LIMIT 1"
+            )
+            row = self.cur.fetchone()
+            if row and row[0] is not None:
+                return float(row[0]) / 100.0
+        except Exception:
+            pass
+        return 1.0  # neutral if not computed yet
+
+    def get_phase_size_multiplier(self, symbol):
+        """Stage-2 phase mult: Early=1.0, Mid=1.0, Late=0.5, Climax=0.0."""
+        try:
+            from algo_signals import SignalComputer
+            from datetime import date as _date
+            sc = SignalComputer(cur=self.cur)
+            phase = sc.stage2_phase(symbol, _date.today())
+            return phase.get('size_multiplier', 1.0)
+        except Exception:
             return 1.0
 
     def get_active_positions_value(self):
@@ -206,10 +229,20 @@ class PositionSizer:
                     'reason': f'Drawdown >= 20%, trading halted'
                 }
 
-            # Calculate base risk
-            base_risk_pct = self.config.get('base_risk_pct', 0.75) / 100
-            adjusted_risk_pct = base_risk_pct * risk_adjustment
+            # Dynamic risk = base × drawdown × market_exposure × stage_phase
+            base_risk_pct = float(self.config.get('base_risk_pct', 0.75)) / 100
+            exposure_mult = self.get_market_exposure_multiplier()
+            phase_mult = self.get_phase_size_multiplier(symbol)
+            adjusted_risk_pct = base_risk_pct * risk_adjustment * exposure_mult * phase_mult
             risk_dollars = portfolio_value * adjusted_risk_pct
+
+            # If stage phase says zero, halt this entry
+            if phase_mult == 0.0:
+                return {
+                    'shares': 0, 'position_size_pct': 0, 'risk_dollars': 0,
+                    'status': 'phase_climax',
+                    'reason': f'{symbol} in Stage-2 climax phase — skip entry',
+                }
 
             # Calculate shares based on stop loss
             if entry_price <= 0 or stop_loss_price >= entry_price:
