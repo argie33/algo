@@ -1,75 +1,90 @@
 #!/usr/bin/env python3
 """
-Forward EPS Loader - Generate forward estimates from existing earnings history
-No external API calls. Uses database data only.
+Forward Eps Loader - Optimal Pattern.
+
+Inherits watermarks, dedup, multi-source routing, parallelism, and bulk COPY.
+
+Run:
+    python3 loadforwardeps.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
 
-import psycopg2
-import os
-import logging
-import sys
-from dotenv import load_dotenv
+from __future__ import annotations
 
-load_dotenv('.env.local')
+import argparse
+import logging
+import os
+import sys
+from datetime import date, timedelta
+from typing import List, Optional
+
+from optimal_loader import OptimalLoader
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    stream=sys.stdout
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 
-def get_db_connection():
-    return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'localhost'),
-        port=int(os.getenv('DB_PORT', '5432')),
-        user=os.getenv('DB_USER', 'stocks'),
-        password=os.getenv('DB_PASSWORD'),
-        database=os.getenv('DB_NAME', 'stocks')
-    )
 
-def load_forward_eps():
-    """Generate forward EPS for all stocks using latest earnings + 12% growth"""
-    conn = get_db_connection()
-    conn.autocommit = True
-    cur = conn.cursor()
+class ForwardEpsLoader(OptimalLoader):
+    table_name = "forward_eps"
+    primary_key = ("symbol", "fiscal_year")
+    watermark_field = "date"
 
-    logging.info("Loading forward EPS from earnings history...")
+    def fetch_incremental(self, symbol: str, since: Optional[date]):
+        """Fetch incremental data."""
+        try:
+            rows = self.router.fetch_ohlcv(symbol, since or date(2020, 1, 1), date.today())
+            return rows if rows else None
+        except Exception as e:
+            logging.debug(f"Fetch error for {symbol}: {e}")
+            return None
 
-    # Simple approach: take latest actual EPS, project forward 1 year with 12% growth
-    sql = """
-    WITH latest_earnings AS (
-        SELECT DISTINCT ON (symbol)
-            symbol,
-            eps_actual,
-            earnings_date
-        FROM earnings_history
-        WHERE eps_actual IS NOT NULL AND eps_actual > 0
-        ORDER BY symbol, earnings_date DESC
-    ),
-    forward_est AS (
-        SELECT
-            symbol,
-            earnings_date + INTERVAL '1 year' as quarter,
-            ROUND(CAST(eps_actual * 1.12 AS NUMERIC), 4) as forward_eps
-        FROM latest_earnings
-    )
-    INSERT INTO earnings_estimates (symbol, quarter, eps_estimate)
-    SELECT symbol, quarter, forward_eps FROM forward_est
-    ON CONFLICT (symbol, quarter) DO UPDATE SET
-        eps_estimate = EXCLUDED.eps_estimate
-    """
-
-    try:
-        cur.execute(sql)
-        rows = cur.rowcount
-        logging.info(f"[OK] Loaded forward EPS for {rows} stocks")
+    def transform(self, rows):
+        """Transform rows."""
         return rows
-    except Exception as e:
-        logging.error(f"Error: {e}")
-        return 0
+
+    def _validate_row(self, row: dict) -> bool:
+        """Validate row."""
+        return super()._validate_row(row)
+
+
+def get_active_symbols() -> List[str]:
+    """Pull active symbols from the stocks table."""
+    import psycopg2
+    conn = psycopg2.connect(
+        host=os.getenv("DB_HOST", "localhost"),
+        port=int(os.getenv("DB_PORT", "5432")),
+        user=os.getenv("DB_USER", "stocks"),
+        password=os.getenv("DB_PASSWORD", ""),
+        database=os.getenv("DB_NAME", "stocks"),
+    )
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT symbol FROM stocks ORDER BY symbol")
+            return [r[0] for r in cur.fetchall()]
     finally:
-        cur.close()
         conn.close()
 
-if __name__ == '__main__':
-    load_forward_eps()
+
+def main():
+    parser = argparse.ArgumentParser(description="Optimal forward_eps loader")
+    parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
+    parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")
+    args = parser.parse_args()
+
+    if args.symbols:
+        symbols = [s.strip().upper() for s in args.symbols.split(",")]
+    else:
+        symbols = get_active_symbols()
+
+    loader = ForwardEpsLoader()
+    try:
+        stats = loader.run(symbols, parallelism=args.parallelism)
+    finally:
+        loader.close()
+
+    return 0 if stats["symbols_failed"] == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

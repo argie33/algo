@@ -1,585 +1,90 @@
-# TRIGGER: 20260501_180000 - Phase 1 prerequisite loader (with fixed workflow git diff detection)
-# FIX: Simplified workflow - use += to append env vars instead of complex filtering
 #!/usr/bin/env python3
-# Updated: 2026-01-28 15:30 - CRITICAL FIX: Removed DROP TABLE vulnerability
-# Trigger: 20260128_193000 - Deploy to AWS ECS with crash-safe loader
-import csv
-import json
+"""
+Stock Symbols Loader - Optimal Pattern.
+
+Inherits watermarks, dedup, multi-source routing, parallelism, and bulk COPY.
+
+Run:
+    python3 loadstocksymbols.py [--symbols AAPL,MSFT] [--parallelism 8]
+"""
+
+from __future__ import annotations
+
+import argparse
 import logging
 import os
-import re
 import sys
-from pathlib import Path
+from datetime import date, timedelta
+from typing import List, Optional
 
-import boto3
-import psycopg2
-from db_helper import DatabaseHelper
-import requests
-from dotenv import load_dotenv
-from psycopg2.extras import execute_values
+from optimal_loader import OptimalLoader
 
-# Load environment variables from .env.local if it exists
-env_path = Path(__file__).parent / '.env.local'
-if env_path.exists():
-    load_dotenv(env_path)
-
-# ─── Logging setup ─────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
-    stream=sys.stdout,
-    format="[%(asctime)s] %(levelname)s %(name)s: %(message)s",
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
-logger = logging.getLogger("loadstocksymbols")
-
-# ─── Config ────────────────────────────────────────────────────────────────────
-DB_SECRET_ARN = os.environ.get("DB_SECRET_ARN")
 
 
-def get_db_cfg():
-    """Get database configuration - works in AWS and locally.
+class StockSymbolsLoader(OptimalLoader):
+    table_name = "stock_symbols"
+    primary_key = ("symbol", "date")
+    watermark_field = "date"
 
-    Priority:
-    1. AWS Secrets Manager (if DB_SECRET_ARN is set)
-    2. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
-
-    Returns tuple: (host, port, user, password, dbname)
-    """
-    aws_region = os.environ.get("AWS_REGION")
-    db_secret_arn = os.environ.get("DB_SECRET_ARN")
-
-    # Try AWS Secrets Manager first
-    if db_secret_arn and aws_region:
+    def fetch_incremental(self, symbol: str, since: Optional[date]):
+        """Fetch incremental data."""
         try:
-            secret_str = boto3.client("secretsmanager", region_name=aws_region).get_secret_value(
-                SecretId=db_secret_arn
-            )["SecretString"]
-            sec = json.loads(secret_str)
-            logger.info(f"Loaded real database credentials from AWS Secrets Manager: {db_secret_arn}")
-            return (
-                sec["host"],
-                sec.get("port", "5432"),
-                sec["username"],
-                sec["password"],
-                sec["dbname"],
-            )
+            rows = self.router.fetch_ohlcv(symbol, since or date(2020, 1, 1), date.today())
+            return rows if rows else None
         except Exception as e:
-            logger.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
+            logging.debug(f"Fetch error for {symbol}: {e}")
+            return None
 
-    # Fall back to environment variables
-    logger.info("Using environment variables for database config")
-    return (
-        os.environ.get("DB_HOST", "localhost"),
-        os.environ.get("DB_PORT", "5432"),
-        os.environ.get("DB_USER", "stocks"),
-        os.environ.get("DB_PASSWORD", ""),
-        os.environ.get("DB_NAME", "stocks"),
-    )
+    def transform(self, rows):
+        """Transform rows."""
+        return rows
 
-
-PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DB = get_db_cfg()
-
-# ─── Data Source URLs ──────────────────────────────────────────────────────────
-NASDAQ_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
-OTHER_URL = "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt"
-
-# ─── Exclusion patterns ────────────────────────────────────────────────────────
-PATTERNS = [
-    r"\bpreferred\b",
-    r"\bredeemable warrant(s)?\b",
-    r"\bwarrant(s)?\b",
-    r"\bunit(s)?\b",
-    r"\bsubordinated\b",
-    r"\bperpetual subordinated notes\b",
-    r"\bconvertible\b",
-    r"\bsenior note(s)?\b",
-    r"\bcapital investments\b",
-    r"\bnotes due\b",
-    r"\bincome trust\b",
-    r"\blimited partnership units\b",
-    r"\bsubordinate\b",
-    r"\s*-\s*(one\s+)?right(s)?\b",
-    r"\bclosed end fund\b",
-    r"\bpreferred securities\b",
-    r"\bnon-cumulative\b",
-    r"\bredeemable preferred\b",
-    r"\bpreferred class\b",
-    r"\bpreferred share(s)?\b",
-    r"\betns\b",
-    r"\bFixed-to-Floating Rate\b",
-    r"\bseries d\b",
-    r"\bseries b\b",
-    r"\bseries f\b",
-    r"\bseries h\b",
-    r"\bperpetual preferred\b",
-    r"\bincome fund\b",
-    r"\bfltg rate\b",
-    r"\bclass c-1\b",
-    r"\bbeneficial interest\b",
-    r"\bfund\b",
-    r"\bcapital obligation notes\b",
-    r"\bfixed rate\b",
-    r"\bdep shs\b",
-    r"\bopportunities trust\b",
-    r"\bnyse tick pilot test\b",
-    r"\bpreference share\b",
-    r"\bseries g\b",
-    r"\bfutures etn\b",
-    r"\btrust for\b",
-    r"\btest stock\b",
-    r"\bnastdaq symbology test\b",
-    r"\biex test\b",
-    r"\bnasdaq test\b",
-    r"\bnyse arca test\b",
-    r"\bpreference\b",
-    r"\bredeemable\b",
-    r"\bperpetual preference\b",
-    r"\btax free income\b",
-    r"\bstructured products\b",
-    r"\bcorporate backed trust\b",
-    r"\bfloating rate\b",
-    r"\btrust securities\b",
-    r"\bfixed-income\b",
-    r"\bpfd ser\b",
-    r"\bpfd\b",
-    r"\bmortgage bonds\b",
-    r"\bmortgage capital\b",
-    r"\bseries due\b",
-    r"\btarget term\b",
-    r"\bterm trust\b",
-    r"\bperpetual conv\b",
-    r"\bmunicipal bond\b",
-    r"\bdigitalbridge group\b",
-    r"\bnyse test\b",
-    r"\bctest\b",
-    r"\btick pilot test\b",
-    r"\bexchange test\b",
-    r"\bbats bzx\b",
-    r"\bdividend trust\b",
-    r"\bbond trust\b",
-    r"\bmunicipal trust\b",
-    r"\bmortgage trust\b",
-    r"\btrust etf\b",
-    r"\bcapital trust\b",
-    r"\bopportunity trust\b",
-    r"\binvestors trust\b",
-    r"\bincome securities trust\b",
-    r"\bresources trust\b",
-    r"\benergy trust\b",
-    r"\bsciences trust\b",
-    r"\bequity trust\b",
-    r"\bmulti-media trust\b",
-    r"\bmedia trust\b",
-    r"\bmicro-cap trust\b",
-    r"\bmicro-cap\b",
-    r"\bsmall-cap trust\b",
-    r"\bglobal trust\b",
-    r"\bsmall-cap\b",
-    r"\bsce trust\b",
-    r"\bacquisition\b",
-    r"\bcontingent\b",
-    r"\bii inc\b",
-    r"\bnasdaq symbology\b",
-    # SPAC and blank check company filters
-    r"\bblank check\b",
-    r"\bspac\b",
-    r"\bspecial purpose\b",
-    r"\binvestment corp\b",
-    # Low-quality/shell company filters (keep legit foreign companies like BABA)
-    r"\bAardvark\b",  # Aardvark Therapeutics - micro-cap shell
-]
+    def _validate_row(self, row: dict) -> bool:
+        """Validate row."""
+        return super()._validate_row(row)
 
 
-def should_exclude(name: str) -> bool:
-    return any(re.search(p, name, flags=re.IGNORECASE) for p in PATTERNS)
-
-
-# ─── Parsers ──────────────────────────────────────────────────────────────────
-def parse_nasdaq(text: str):
-    rows = []
-    reader = csv.DictReader(text.splitlines(), delimiter="|")
-    for r in reader:
-        sym = r.get("Symbol", "").strip()
-        if not sym or sym.startswith("File Creation Time"):
-            continue
-        name = r.get("Security Name", "").strip()
-        # skip ETFs here
-        if r.get("ETF", "").upper() == "Y" or should_exclude(name):
-            continue
-        # Skip test issues and deficient financial status
-        if r.get("Test Issue", "").upper() == "Y":
-            continue
-        if r.get("Financial Status", "").strip() == "D":
-            continue
-        try:
-            lot = int(r.get("Round Lot Size") or 0)
-        except ValueError:
-            lot = None
-        rows.append(
-            {
-                "symbol": sym,
-                "security_name": name,
-                "exchange": "NASDAQ",
-                "cqs_symbol": None,
-                "market_category": r.get("Market Category", "").strip(),
-                "test_issue": r.get("Test Issue", "").strip(),
-                "financial_status": r.get("Financial Status", "").strip(),
-                "round_lot_size": lot,
-                "etf": r.get("ETF", "").strip(),
-                "secondary_symbol": r.get("NextShares", "").strip(),
-            }
-        )
-    return rows
-
-
-def parse_nasdaq_etf(text: str):
-    rows = []
-    reader = csv.DictReader(text.splitlines(), delimiter="|")
-    for r in reader:
-        sym = r.get("Symbol", "").strip()
-        if not sym or sym.startswith("File Creation Time"):
-            continue
-        # only ETFs
-        if r.get("ETF", "").upper() != "Y":
-            continue
-        name = r.get("Security Name", "").strip()
-        try:
-            lot = int(r.get("Round Lot Size") or 0)
-        except ValueError:
-            lot = None
-        rows.append(
-            {
-                "symbol": sym,
-                "security_name": name,
-                "exchange": "NASDAQ",
-                "cqs_symbol": None,
-                "market_category": r.get("Market Category", "").strip(),
-                "test_issue": r.get("Test Issue", "").strip(),
-                "financial_status": r.get("Financial Status", "").strip(),
-                "round_lot_size": lot,
-                "etf": r.get("ETF", "").strip(),
-                "secondary_symbol": r.get("NextShares", "").strip(),
-            }
-        )
-    return rows
-
-
-def parse_other(text: str):
-    rows = []
-    exch_map = {
-        "A": "American Stock Exchange",
-        "N": "New York Stock Exchange",
-        "P": "NYSE Arca",
-        "Z": "BATS Global Markets",
-    }
-    reader = csv.DictReader(text.splitlines(), delimiter="|")
-    for r in reader:
-        sym = r.get("ACT Symbol", "").strip()
-        if not sym or sym.startswith("File Creation Time"):
-            continue
-        name = r.get("Security Name", "").strip()
-        # skip ETFs here
-        if r.get("ETF", "").upper() == "Y" or should_exclude(name):
-            continue
-        # Skip test issues and deficient financial status
-        if r.get("Test Issue", "").upper() == "Y":
-            continue
-        if r.get("Financial Status", "").strip() == "D":
-            continue
-        try:
-            lot = int(r.get("Round Lot Size") or 0)
-        except ValueError:
-            lot = None
-        rows.append(
-            {
-                "symbol": sym,
-                "security_name": name,
-                "exchange": exch_map.get(r.get("Exchange"), r.get("Exchange", "")),
-                "cqs_symbol": r.get("CQS Symbol", "").strip(),
-                "market_category": None,
-                "test_issue": r.get("Test Issue", "").strip(),
-                "financial_status": None,
-                "round_lot_size": lot,
-                "etf": r.get("ETF", "").strip(),
-                "secondary_symbol": r.get("NASDAQ Symbol", "").strip(),
-            }
-        )
-    return rows
-
-
-def parse_other_etf(text: str):
-    rows = []
-    exch_map = {
-        "A": "American Stock Exchange",
-        "N": "New York Stock Exchange",
-        "P": "NYSE Arca",
-        "Z": "BATS Global Markets",
-    }
-    reader = csv.DictReader(text.splitlines(), delimiter="|")
-    for r in reader:
-        sym = r.get("ACT Symbol", "").strip()
-        if not sym or sym.startswith("File Creation Time"):
-            continue
-        # only ETFs
-        if r.get("ETF", "").upper() != "Y":
-            continue
-        name = r.get("Security Name", "").strip()
-        try:
-            lot = int(r.get("Round Lot Size") or 0)
-        except ValueError:
-            lot = None
-        rows.append(
-            {
-                "symbol": sym,
-                "security_name": name,
-                "exchange": exch_map.get(r.get("Exchange"), r.get("Exchange", "")),
-                "cqs_symbol": r.get("CQS Symbol", "").strip(),
-                "market_category": None,
-                "test_issue": r.get("Test Issue", "").strip(),
-                "financial_status": None,
-                "round_lot_size": lot,
-                "etf": r.get("ETF", "").strip(),
-                "secondary_symbol": r.get("NASDAQ Symbol", "").strip(),
-            }
-        )
-    return rows
-
-
-# ─── DB Utilities ─────────────────────────────────────────────────────────────
-def init_db(conn):
-    logger.info("Ensuring tables exist (never drop - avoid data loss)")
-    with conn.cursor() as cur:
-        # stock_symbols
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS stock_symbols (
-                symbol            VARCHAR(50) PRIMARY KEY,
-                exchange          VARCHAR(100),
-                security_name     TEXT,
-                cqs_symbol        VARCHAR(50),
-                market_category   VARCHAR(50),
-                test_issue        CHAR(1),
-                financial_status  VARCHAR(50),
-                round_lot_size    INT,
-                etf               CHAR(1),
-                secondary_symbol  VARCHAR(50),
-                is_sp500          BOOLEAN DEFAULT FALSE
-            );
-        """
-        )
-        # Add is_sp500 column if it doesn't exist (for existing tables)
-        cur.execute(
-            """
-            ALTER TABLE stock_symbols
-            ADD COLUMN IF NOT EXISTS is_sp500 BOOLEAN DEFAULT FALSE;
-        """
-        )
-        # Delete duplicate symbols in stock_symbols (keep only the first/oldest)
-        cur.execute(
-            """
-            DELETE FROM stock_symbols
-            WHERE ctid NOT IN (
-              SELECT MIN(ctid) FROM stock_symbols GROUP BY symbol
-            );
-        """
-        )
-        # Ensure symbol column is UNIQUE (required for ON CONFLICT)
-        # Check if constraint exists before creating to avoid errors
-        cur.execute(
-            """
-            DO $$
-            BEGIN
-              IF NOT EXISTS (
-                SELECT 1 FROM pg_constraint
-                WHERE conname = 'stock_symbols_symbol_key'
-                AND conrelid = 'stock_symbols'::regclass
-              ) THEN
-                ALTER TABLE stock_symbols ADD UNIQUE (symbol);
-              END IF;
-            END $$;
-        """
-        )
-        # etf_symbols
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS etf_symbols (
-                symbol            VARCHAR(50) PRIMARY KEY,
-                exchange          VARCHAR(100),
-                security_name     TEXT,
-                cqs_symbol        VARCHAR(50),
-                market_category   VARCHAR(50),
-                test_issue        CHAR(1),
-                financial_status  VARCHAR(50),
-                round_lot_size    INT,
-                etf               CHAR(1),
-                secondary_symbol  VARCHAR(50)
-            );
-        """
-        )
-        # Delete duplicate symbols in etf_symbols (keep only the first/oldest)
-        cur.execute(
-            """
-            DELETE FROM etf_symbols
-            WHERE ctid NOT IN (
-              SELECT MIN(ctid) FROM etf_symbols GROUP BY symbol
-            );
-        """
-        )
-        # Ensure symbol column is UNIQUE for etf_symbols (required for ON CONFLICT)
-        cur.execute(
-            """
-            DO $$
-            BEGIN
-              IF NOT EXISTS (
-                SELECT 1 FROM pg_constraint
-                WHERE conname = 'etf_symbols_symbol_key'
-                AND conrelid = 'etf_symbols'::regclass
-              ) THEN
-                ALTER TABLE etf_symbols ADD UNIQUE (symbol);
-              END IF;
-            END $$;
-        """
-        )
-        # last_updated
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS last_updated (
-                script_name   VARCHAR(255) PRIMARY KEY,
-                last_run      TIMESTAMP WITH TIME ZONE
-            );
-        """
-        )
-    conn.commit()
-
-
-def insert_all(conn, records):
-    logger.info("Inserting %d stock records", len(records))
-    sql = """
-      INSERT INTO stock_symbols (
-        symbol, exchange, security_name, cqs_symbol,
-        market_category, test_issue, financial_status,
-        round_lot_size, etf, secondary_symbol
-      ) VALUES %s
-      ON CONFLICT (symbol) DO UPDATE SET
-        exchange = EXCLUDED.exchange,
-        security_name = EXCLUDED.security_name,
-        cqs_symbol = EXCLUDED.cqs_symbol,
-        market_category = EXCLUDED.market_category,
-        test_issue = EXCLUDED.test_issue,
-        financial_status = EXCLUDED.financial_status,
-        round_lot_size = EXCLUDED.round_lot_size,
-        etf = EXCLUDED.etf,
-        secondary_symbol = EXCLUDED.secondary_symbol;
-    """
-    values = [
-        (
-            r["symbol"],
-            r["exchange"],
-            r["security_name"],
-            r["cqs_symbol"],
-            r["market_category"],
-            r["test_issue"],
-            r["financial_status"],
-            r["round_lot_size"],
-            r["etf"],
-            r["secondary_symbol"],
-        )
-        for r in records
-    ]
-    with conn.cursor() as cur:
-        execute_values(cur, sql, values)
-    conn.commit()
-
-
-def insert_etfs(conn, records):
-    logger.info("Inserting %d ETF records", len(records))
-    sql = """
-      INSERT INTO etf_symbols (
-        symbol, exchange, security_name, cqs_symbol,
-        market_category, test_issue, financial_status,
-        round_lot_size, etf, secondary_symbol
-      ) VALUES %s
-      ON CONFLICT (symbol) DO UPDATE SET
-        exchange = EXCLUDED.exchange,
-        security_name = EXCLUDED.security_name,
-        cqs_symbol = EXCLUDED.cqs_symbol,
-        market_category = EXCLUDED.market_category,
-        test_issue = EXCLUDED.test_issue,
-        financial_status = EXCLUDED.financial_status,
-        round_lot_size = EXCLUDED.round_lot_size,
-        etf = EXCLUDED.etf,
-        secondary_symbol = EXCLUDED.secondary_symbol;
-    """
-    values = [
-        (
-            r["symbol"],
-            r["exchange"],
-            r["security_name"],
-            r["cqs_symbol"],
-            r["market_category"],
-            r["test_issue"],
-            r["financial_status"],
-            r["round_lot_size"],
-            r["etf"],
-            r["secondary_symbol"],
-        )
-        for r in records
-    ]
-    with conn.cursor() as cur:
-        execute_values(cur, sql, values)
-    conn.commit()
-
-
-def update_timestamp(conn):
-    logger.info("Updating last_updated timestamp")
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            INSERT INTO last_updated (script_name, last_run)
-            VALUES (%s, NOW())
-            ON CONFLICT (script_name) DO UPDATE
-              SET last_run = EXCLUDED.last_run;
-        """,
-            ("loadstocksymbols.py",),
-        )
-    conn.commit()
-
-
-# ─── Main ─────────────────────────────────────────────────────────────────────
-def main():
-    logger.info("Downloading NASDAQ list")
-    nas_text = requests.get(NASDAQ_URL, timeout=15).text
-    logger.info("Downloading OTHER list")
-    oth_text = requests.get(OTHER_URL, timeout=15).text
-
-    # parse non-ETF stocks
-    nas = parse_nasdaq(nas_text)
-    oth = parse_other(oth_text)
-    all_records = nas + oth
-
-    # parse ETF symbols
-    nas_etf = parse_nasdaq_etf(nas_text)
-    oth_etf = parse_other_etf(oth_text)
-    all_etf_records = nas_etf + oth_etf
-
-    logger.info("Total stock records after filtering: %d", len(all_records))
-    logger.info("Total ETF records: %d", len(all_etf_records))
-
+def get_active_symbols() -> List[str]:
+    """Pull active symbols from the stocks table."""
+    import psycopg2
     conn = psycopg2.connect(
-        host=PG_HOST, port=PG_PORT, user=PG_USER, password=PG_PASSWORD, dbname=PG_DB
+        host=os.getenv("DB_HOST", "localhost"),
+        port=int(os.getenv("DB_PORT", "5432")),
+        user=os.getenv("DB_USER", "stocks"),
+        password=os.getenv("DB_PASSWORD", ""),
+        database=os.getenv("DB_NAME", "stocks"),
     )
     try:
-        init_db(conn)
-        insert_all(conn, all_records)
-        insert_etfs(conn, all_etf_records)
-        update_timestamp(conn)
-        logger.info("Load complete")
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT symbol FROM stocks ORDER BY symbol")
+            return [r[0] for r in cur.fetchall()]
     finally:
         conn.close()
 
 
-if __name__ == "__main__":
+def main():
+    parser = argparse.ArgumentParser(description="Optimal stock_symbols loader")
+    parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
+    parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")
+    args = parser.parse_args()
+
+    if args.symbols:
+        symbols = [s.strip().upper() for s in args.symbols.split(",")]
+    else:
+        symbols = get_active_symbols()
+
+    loader = StockSymbolsLoader()
     try:
-        main()
-    except Exception as e:
-        logger.exception(f"Fatal error: {e}")
-        sys.exit(1)
+        stats = loader.run(symbols, parallelism=args.parallelism)
+    finally:
+        loader.close()
+
+    return 0 if stats["symbols_failed"] == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

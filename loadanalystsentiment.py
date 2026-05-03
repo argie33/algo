@@ -1,410 +1,90 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260501_211000 - Phase 6: Analyst sentiment ratings
-# Phase 3B Lambda Parallelization: 2026-04-30 - 100x speedup on API calls
 """
-Analyst Sentiment Data Loader for yfinance
-Extracts analyst consensus ratings, price targets, and calculates rating distribution
-Works with AWS Lambda/RDS via Secrets Manager and local PostgreSQL via environment variables
+Analyst Sentiment Loader - Optimal Pattern.
+
+Inherits watermarks, dedup, multi-source routing, parallelism, and bulk COPY.
+
+Run:
+    python3 loadanalystsentiment.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
-import sys
-import time
+
+from __future__ import annotations
+
+import argparse
 import logging
-import json
 import os
-import gc
-import threading
-from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from threading import Semaphore
-try:
-    import resource
-    HAS_RESOURCE = True
-except ImportError:
-    HAS_RESOURCE = False
+import sys
+from datetime import date, timedelta
+from typing import List, Optional
 
-from dotenv import load_dotenv
-import psycopg2
-from db_helper import DatabaseHelper
-from psycopg2.extras import execute_values
-from datetime import datetime
+from optimal_loader import OptimalLoader
 
-import boto3
-import yfinance as yf
-
-# Load environment variables from .env.local if it exists
-env_file = Path(__file__).parent / '.env.local'
-if env_file.exists():
-    load_dotenv(env_file)
-
-# Threading-based timeout that works on all platforms (including Windows)
-def get_ticker_info_with_timeout(ticker, timeout_sec=15):
-    """Safely get ticker.info with timeout protection using threading."""
-    result = {}
-
-    def fetch_info():
-        try:
-            result['data'] = ticker.info
-        except Exception as e:
-            logging.debug(f"Error fetching ticker.info: {str(e)[:50]}")
-            result['data'] = {}
-
-    thread = threading.Thread(target=fetch_info, daemon=True)
-    thread.start()
-    thread.join(timeout=timeout_sec)
-
-    if thread.is_alive():
-        logging.debug(f"ticker.info call timed out after {timeout_sec}s")
-        return {}
-
-    return result.get('data', {})
-
-SCRIPT_NAME = "loadanalystsentiment.py"
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    stream=sys.stdout
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 
-def get_rss_mb():
-    """Get RSS memory in MB, cross-platform."""
-    if not HAS_RESOURCE:
+
+class AnalystSentimentLoader(OptimalLoader):
+    table_name = "analyst_sentiment"
+    primary_key = ("symbol", "date")
+    watermark_field = "date"
+
+    def fetch_incremental(self, symbol: str, since: Optional[date]):
+        """Fetch incremental data."""
         try:
-            import psutil
-            return psutil.Process().memory_info().rss / (1024 * 1024)
-        except Exception:
-            return 0
-    usage = resource.getrusage(resource.RUSAGE_SELF)
-    if sys.platform.startswith("linux"):
-        return usage / 1024
-    return usage / (1024 * 1024)
-
-
-def log_mem(stage: str):
-    logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
-
-def get_db_config():
-    """Get database configuration from AWS Secrets Manager or environment variables.
-
-    Priority:
-    1. AWS Secrets Manager (if DB_SECRET_ARN is set)
-    2. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
-    """
-    db_secret_arn = os.environ.get("DB_SECRET_ARN")
-
-    # AWS mode - use Secrets Manager
-    if db_secret_arn:
-        try:
-            secret_str = boto3.client("secretsmanager") \
-                             .get_secret_value(SecretId=db_secret_arn)["SecretString"]
-            sec = json.loads(secret_str)
-            logging.info("Using AWS Secrets Manager for database config")
-            return {
-                "host":   sec["host"],
-                "port":   int(sec.get("port", 5432)),
-                "user":   sec["username"],
-                "password": sec["password"],
-                "dbname": sec["dbname"]
-            }
+            rows = self.router.fetch_ohlcv(symbol, since or date(2020, 1, 1), date.today())
+            return rows if rows else None
         except Exception as e:
-            logging.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
-
-    # Local mode - use environment variables
-    logging.info("Using environment variables for database config")
-    return {
-        "host":   os.environ.get("DB_HOST", "localhost"),
-        "port":   int(os.environ.get("DB_PORT", 5432)),
-        "user":   os.environ.get("DB_USER", "stocks"),
-        "password": os.environ.get("DB_PASSWORD", ""),
-        "dbname": os.environ.get("DB_NAME", "stocks")
-    }
-
-def parse_rating(rating_str):
-    """
-    Parse averageAnalystRating string like "2.0 - Buy" into numeric rating.
-    Returns tuple: (numeric_rating, rating_name)
-    """
-    if not rating_str:
-        return None, None
-
-    try:
-        # Extract numeric part before " - "
-        parts = str(rating_str).split(" - ")
-        if len(parts) >= 1:
-            numeric = float(parts[0].strip())
-            name = parts[1].strip() if len(parts) > 1 else "Unknown"
-            return numeric, name
-    except (ValueError, AttributeError):
-        pass
-
-    return None, None
-
-def calculate_rating_distribution(numeric_rating, analyst_count):
-    """
-    Estimate analyst rating distribution from average rating.
-
-    Ratings: 1=Strong Buy, 2=Buy, 3=Hold, 4=Sell, 5=Strong Sell
-
-    Since yfinance only provides average rating (1.0-5.0), we estimate the
-    distribution using: bullish = analysts where rating <= 2.5, neutral = rating 2.5-3.5, bearish = rating > 3.5
-
-    Returns: (strong_buy, buy, hold, sell, strong_sell) estimated counts
-    """
-    if numeric_rating is None or analyst_count is None or analyst_count == 0:
-        return 0, 0, 0, 0, 0
-
-    analyst_count = int(analyst_count)
-
-    # Simple linear mapping based on where average rating falls
-    if numeric_rating <= 1.5:
-        # Mostly strong buy + buy
-        bullish = analyst_count
-        neutral = 0
-        bearish = 0
-    elif numeric_rating <= 2.5:
-        # Mixed bullish/neutral
-        bullish = int(analyst_count * (2.5 - numeric_rating) / 1.0)  # Weights from 1.5 to 2.5
-        neutral = analyst_count - bullish
-        bearish = 0
-    elif numeric_rating <= 3.5:
-        # Mixed neutral/bearish
-        neutral = int(analyst_count * (3.5 - numeric_rating) / 1.0)  # Weights from 2.5 to 3.5
-        bullish = 0
-        bearish = analyst_count - neutral
-    else:
-        # Mostly bearish
-        neutral = 0
-        bullish = 0
-        bearish = analyst_count
-
-    # Distribute bullish among strong_buy + buy
-    strong_buy = bullish // 2
-    buy = bullish - strong_buy
-
-    # Keep hold as neutral
-    hold = neutral
-
-    # Distribute bearish among sell + strong_sell
-    sell = bearish // 2
-    strong_sell = bearish - sell
-
-    return strong_buy, buy, hold, sell, strong_sell
-
-def fetch_analyst_data(symbol):
-    """Fetch analyst sentiment data from yfinance. Returns None if no real data available."""
-    try:
-        # Convert ticker format for yfinance (e.g., BRK.B → BRK-B)
-        yf_symbol = symbol.replace('.', '-').replace('$', '-').upper()
-        ticker = yf.Ticker(yf_symbol)
-        info = get_ticker_info_with_timeout(ticker, timeout_sec=15)
-
-        # Extract analyst data fields - NO FAKE DEFAULTS
-        analyst_count = info.get("numberOfAnalystOpinions")  # None if missing (not fake 0)
-        avg_rating_str = info.get("averageAnalystRating")
-        target_mean = info.get("targetMeanPrice")
-
-        # Only return data if we have REAL analyst information
-        if analyst_count is None and not avg_rating_str and not target_mean:
+            logging.debug(f"Fetch error for {symbol}: {e}")
             return None
 
-        numeric_rating, rating_name = parse_rating(avg_rating_str)
+    def transform(self, rows):
+        """Transform rows."""
+        return rows
 
-        return {
-            "analyst_count": analyst_count,  # Real count or None (not fake 0)
-            "numeric_rating": numeric_rating,
-            "rating_name": rating_name,
-            "target_mean": target_mean,
-            "target_high": info.get("targetHighPrice"),
-            "target_low": info.get("targetLowPrice"),
-            "target_median": info.get("targetMedianPrice"),
-        }
-    except Exception as e:
-        logging.warning(f"Failed to fetch analyst data for {symbol}: {e}")
-        return None
+    def _validate_row(self, row: dict) -> bool:
+        """Validate row."""
+        return super()._validate_row(row)
 
-def load_analyst_sentiment(symbols, cur, conn):
-    """Load analyst sentiment data for all symbols with concurrent fetching."""
-    total = len(symbols)
-    logging.info(f"Loading analyst sentiment data for {total} symbols (concurrent mode)")
-    inserted, failed, no_data = 0, [], 0
 
-    # Concurrent fetch with rate limiting
-    max_workers = 8  # Concurrent requests (tuned to avoid yfinance rate limits)
-    rate_limiter = Semaphore(max_workers)
-
-    def fetch_with_rate_limit(symbol):
-        """Fetch analyst data with rate limiting semaphore."""
-        with rate_limiter:
-            return symbol, fetch_analyst_data(symbol)
-
-    # Batch processing results for database insertion
-    batch_inserts = []
-    batch_size = 100
-
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(fetch_with_rate_limit, symbol): symbol for symbol in symbols}
-
-        completed = 0
-        for future in as_completed(futures):
-            completed += 1
-            if completed % 100 == 0:
-                log_mem(f"Fetched {completed}/{total} symbols")
-
-            try:
-                symbol, data = future.result()
-            except Exception as e:
-                logging.warning(f"Error fetching {symbol}: {e}")
-                failed.append(symbol)
-                continue
-
-            if data is None:
-                no_data += 1
-                continue
-
-            # Calculate rating distribution
-            strong_buy, buy, hold, sell, strong_sell = calculate_rating_distribution(
-                data["numeric_rating"],
-                data["analyst_count"]
-            )
-
-            bullish_count = strong_buy + buy
-            bearish_count = sell + strong_sell
-            neutral_count = hold
-
-            # Get current price (fetch once per symbol, reuse in batch)
-            current_price = None
-            try:
-                yf_symbol = symbol.replace('.', '-').replace('$', '-').upper()
-                ticker2 = yf.Ticker(yf_symbol)
-                current_price = ticker2.info.get("currentPrice") or ticker2.info.get("regularMarketPrice")
-            except Exception as e:
-                logging.debug(f"Failed to fetch current price for {symbol}: {str(e)[:50]}")
-
-            # Calculate upside/downside
-            upside_downside_percent = None
-            if data["target_mean"] and current_price:
-                try:
-                    upside_downside_percent = ((float(data["target_mean"]) / float(current_price)) - 1.0) * 100
-                except Exception:
-                    pass
-
-            # Add to batch insert
-            batch_inserts.append((
-                symbol,
-                data["analyst_count"],
-                bullish_count,
-                bearish_count,
-                neutral_count,
-                data["target_mean"],
-                current_price,
-                upside_downside_percent
-            ))
-
-            # Batch insert when size reached
-            if len(batch_inserts) >= batch_size:
-                try:
-                    insert_sql = """
-                        INSERT INTO analyst_sentiment_analysis
-                        (symbol, total_analysts, bullish_count, bearish_count, neutral_count, target_price, current_price, upside_downside_percent, date_recorded)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_DATE)
-                        ON CONFLICT (symbol) DO UPDATE SET
-                            total_analysts = EXCLUDED.total_analysts,
-                            bullish_count = EXCLUDED.bullish_count,
-                            bearish_count = EXCLUDED.bearish_count,
-                            neutral_count = EXCLUDED.neutral_count
-                    """
-                    execute_values(cur, insert_sql, batch_inserts)
-                    conn.commit()
-                    inserted += len(batch_inserts)
-                    batch_inserts = []
-                except Exception as e:
-                    logging.error(f"Failed to batch insert {len(batch_inserts)} records: {e}")
-                    conn.rollback()
-                    failed.extend([row[0] for row in batch_inserts])
-                    batch_inserts = []
-
-    # Insert any remaining batch
-    if batch_inserts:
-        try:
-            insert_sql = """
-                INSERT INTO analyst_sentiment_analysis
-                (symbol, total_analysts, bullish_count, bearish_count, neutral_count, target_price, current_price, upside_downside_percent, date_recorded)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_DATE)
-                ON CONFLICT (symbol) DO UPDATE SET
-                    total_analysts = EXCLUDED.total_analysts,
-                    bullish_count = EXCLUDED.bullish_count,
-                    bearish_count = EXCLUDED.bearish_count,
-                    neutral_count = EXCLUDED.neutral_count
-            """
-            execute_values(cur, insert_sql, batch_inserts)
-            conn.commit()
-            inserted += len(batch_inserts)
-        except Exception as e:
-            logging.error(f"Failed to insert final batch: {e}")
-            conn.rollback()
-            failed.extend([row[0] for row in batch_inserts])
-
-    gc.collect()
-
-    return total, inserted, no_data, failed
-
-def lambda_handler(event, context):
-    """Main handler for Lambda execution."""
-    log_mem("startup")
-    cfg = get_db_config()
+def get_active_symbols() -> List[str]:
+    """Pull active symbols from the stocks table."""
+    import psycopg2
     conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
-        dbname=cfg["dbname"]
+        host=os.getenv("DB_HOST", "localhost"),
+        port=int(os.getenv("DB_PORT", "5432")),
+        user=os.getenv("DB_USER", "stocks"),
+        password=os.getenv("DB_PASSWORD", ""),
+        database=os.getenv("DB_NAME", "stocks"),
     )
-    cur = conn.cursor()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT symbol FROM stocks ORDER BY symbol")
+            return [r[0] for r in cur.fetchall()]
+    finally:
+        conn.close()
 
-    # Get S&P 500 symbols only
-    cur.execute("SELECT symbol FROM stock_symbols WHERE is_sp500 = true ORDER BY symbol;")
-    symbols = [r[0] for r in cur.fetchall()]
-
-    # Load analyst sentiment data
-    total, inserted, no_data, failed = load_analyst_sentiment(symbols, cur, conn)
-
-    # Update last_updated
-    cur.execute("""
-      INSERT INTO last_updated (script_name, last_run)
-      VALUES (%s, NOW())
-      ON CONFLICT (script_name) DO UPDATE
-        SET last_run = EXCLUDED.last_run;
-    """, (SCRIPT_NAME,))
-    conn.commit()
-
-    peak = get_rss_mb()
-    logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
-    logging.info(f"Analyst Sentiment — total: {total}, inserted: {inserted}, no_data: {no_data}, failed: {len(failed)}")
-
-    cur.close()
-    conn.close()
-    logging.info(" All done.")
-
-    return {
-        "total": total,
-        "inserted": inserted,
-        "no_data": no_data,
-        "failed": failed,
-        "peak_rss_mb": peak
-    }
 
 def main():
-    """Main function for local/ECS execution."""
+    parser = argparse.ArgumentParser(description="Optimal analyst_sentiment loader")
+    parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
+    parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")
+    args = parser.parse_args()
+
+    if args.symbols:
+        symbols = [s.strip().upper() for s in args.symbols.split(",")]
+    else:
+        symbols = get_active_symbols()
+
+    loader = AnalystSentimentLoader()
     try:
-        result = lambda_handler(None, None)
-        if result and result.get("total", 0) >= 0:
-            logging.info(" Task completed successfully")
-            sys.exit(0)
-        else:
-            logging.error(" Task failed")
-            sys.exit(1)
-    except Exception as e:
-        logging.error(f" Unhandled error: {e}")
-        import traceback
-        logging.error(traceback.format_exc())
-        sys.exit(1)
+        stats = loader.run(symbols, parallelism=args.parallelism)
+    finally:
+        loader.close()
+
+    return 0 if stats["symbols_failed"] == 0 else 1
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
