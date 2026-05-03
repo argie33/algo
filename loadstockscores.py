@@ -37,7 +37,7 @@ class StockScoresLoader(OptimalLoader):
         if since is None:
             start = end - timedelta(days=5 * 365)
         else:
-            start = since + timedelta(days=1)
+            start = since + timedelta(days=1) if isinstance(since, date) else date.fromisoformat(str(since).split('T')[0]) + timedelta(days=1)
 
         if start >= end:
             return None
