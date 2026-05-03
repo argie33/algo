@@ -1338,7 +1338,7 @@ jobs:
           echo "Deploying Lambda stack via CloudFormation..."
           aws cloudformation deploy \
             --stack-name stocks-lambda-phase-c \
-            --template-url https://${CF_BUCKET}.s3.amazonaws.com/template-lambda-phase-c.yml \
+            --template-file template-lambda-phase-c.yml \
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --parameter-overrides \
               Environment=prod \
