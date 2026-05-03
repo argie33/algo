@@ -128,7 +128,6 @@ class DataPatrol:
             ('insider_transactions', 'transaction_date', 'daily', 14, WARN),
             ('analyst_upgrade_downgrade', 'action_date', 'daily', 14, INFO),
             ('stock_scores', 'score_date', 'weekly', 14, ERROR),
-            ('value_trap_scores', 'updated_at', 'weekly', 14, WARN),
             ('aaii_sentiment', 'date', 'weekly', 14, WARN),
             ('growth_metrics', 'date', 'monthly', 45, WARN),
             ('earnings_history', 'quarter', 'quarterly', 120, INFO),

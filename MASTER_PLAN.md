@@ -120,7 +120,6 @@ toast on new alerts. Polls `/algo/markets` and `/algo/notifications` every 30s.
 | W10 | `/app/stocks` Stock Universe | Not started |
 | W11 | `/app/stock/:symbol` Detail | Not started |
 | W12.a | `/app/swing` Swing candidates | New page modeled on DeepValueStocks (planned) |
-| W12.b | `/app/value-traps` Value-trap risk | New page (planned) |
 | W12.c | `/app/portfolio` | Not started (#63) |
 | W12.d | `/app/health` Service health | Not started (#65) |
 | W12.e | `/app/research` Hub | Not started |
@@ -151,8 +150,8 @@ own dedicated pages.
 
 6. **MASTER_PLAN.md update** (#86) — done in this commit.
 
-7. **Frontend page rebuilds** — `/app/swing`, `/app/value-traps`,
-   `/app/portfolio`, `/app/health`, then drilldowns.
+7. **Frontend page rebuilds** — `/app/swing`, `/app/portfolio`, `/app/health`,
+   then drilldowns.
 
 ---
 

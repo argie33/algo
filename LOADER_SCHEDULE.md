@@ -31,7 +31,6 @@ guarantee that.
    │    loader_pricing_loader.py --weekly                   │
    │    loader_buysell_loader.py --weekly                   │
    │    loader_stock_scores_loader.py    (IBD composite)    │
-   │    loader_value_trap_scores_loader.py                  │
    │    loader_aaii_sentiment_loader.py                     │
    │    loader_insider_loader.py                            │
    │    loader_analyst_upgrade_loader.py                    │

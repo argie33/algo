@@ -16,7 +16,6 @@ gates that block obvious mistakes.
 HARD-FAIL gates:
     H1. Earnings within block window           (default <= 5 days)
     H2. Over-extended above 50-DMA              (default >  15%)
-    H3. High value-trap risk                    (default >= 75)
     H4. Insufficient liquidity                  (avg $vol < min, default $5M)
     H5. Strong sector requirement (configurable, default off)
 
@@ -65,8 +64,7 @@ class AdvancedFilters:
     W_CATALYST_ANALYST = 5
     W_CATALYST_INSIDER = 3
 
-    W_RISK_EXTENSION = 8
-    W_RISK_TRAP = 5
+    W_RISK_EXTENSION = 13
     W_RISK_EARNINGS_PROX = 2
 
     def __init__(self, config, cur=None):
@@ -188,13 +186,6 @@ class AdvancedFilters:
         if ext_pct is not None and ext_pct > max_extension:
             hard_fail = hard_fail or f'{ext_pct:.1f}% above 50-DMA (max {max_extension:.0f})'
 
-        # H3. Value trap
-        trap_risk, trap_components = self._trap_metrics(symbol)
-        components['trap_metrics'] = trap_components
-        max_trap = float(self.config.get('max_value_trap_risk', 75.0))
-        if trap_risk is not None and trap_risk >= max_trap:
-            hard_fail = hard_fail or f'Value-trap risk {trap_risk:.0f} >= {max_trap:.0f}'
-
         # H4. Liquidity (institutional must)
         avg_dollar_vol = self._avg_dollar_volume(symbol, signal_date)
         components['avg_dollar_volume'] = avg_dollar_vol
@@ -267,10 +258,6 @@ class AdvancedFilters:
         ext_pts = self._extension_risk_score(ext_pct)
         components['extension_pts'] = round(ext_pts, 1)
         subscores['risk'] += ext_pts
-
-        trap_pts = self._trap_risk_score(trap_risk)
-        components['trap_pts'] = round(trap_pts, 1)
-        subscores['risk'] += trap_pts
 
         ep_pts = self._earnings_proximity_score(days_to_earnings, block_window)
         components['earnings_proximity_pts'] = round(ep_pts, 1)
@@ -460,12 +447,11 @@ class AdvancedFilters:
         }
 
     def _financial_quality_score(self, symbol):
-        """Combine stock_scores.quality_score + balance_sheet_score."""
+        """Use stock_scores.quality_score as the financial quality signal."""
         self.cur.execute(
             """
-            SELECT s.quality_score, v.balance_sheet_score, v.cash_quality_score
+            SELECT s.quality_score
             FROM stock_scores s
-            LEFT JOIN value_trap_scores v ON v.symbol = s.symbol
             WHERE s.symbol = %s LIMIT 1
             """,
             (symbol,),
@@ -474,8 +460,8 @@ class AdvancedFilters:
         if not row:
             return 0.0, None
         q = float(row[0]) if row[0] is not None else 50.0
-        bs = float(row[1]) if row[1] is not None else 50.0
-        cash = float(row[2]) if row[2] is not None else 50.0
+        bs = 50.0
+        cash = 50.0
         # Weighted average; 50 = neutral, 100 = full points
         avg = (q * 0.5) + (bs * 0.3) + (cash * 0.2)
         pts = max(0.0, min(self.W_QUALITY_FIN, (avg - 50.0) * self.W_QUALITY_FIN / 30.0))
@@ -599,32 +585,6 @@ class AdvancedFilters:
             return self.W_RISK_EXTENSION * (1.0 - (ext_pct - 5) / 5.0 * 0.5)
         if ext_pct <= 15:
             return self.W_RISK_EXTENSION * 0.25
-        return 0.0
-
-    def _trap_metrics(self, symbol):
-        self.cur.execute(
-            """SELECT trap_risk_score, balance_sheet_score, cash_quality_score
-               FROM value_trap_scores WHERE symbol = %s LIMIT 1""",
-            (symbol,),
-        )
-        row = self.cur.fetchone()
-        if not row or row[0] is None:
-            return None, None
-        return float(row[0]), {
-            'trap_risk': float(row[0]),
-            'balance_sheet': float(row[1]) if row[1] is not None else None,
-            'cash_quality': float(row[2]) if row[2] is not None else None,
-        }
-
-    def _trap_risk_score(self, trap_risk):
-        if trap_risk is None:
-            return self.W_RISK_TRAP * 0.6   # neutral when missing
-        if trap_risk < 30:
-            return self.W_RISK_TRAP
-        if trap_risk < 50:
-            return self.W_RISK_TRAP * 0.7
-        if trap_risk < 70:
-            return self.W_RISK_TRAP * 0.4
         return 0.0
 
     def _earnings_proximity_score(self, days_to_earnings, block_window):

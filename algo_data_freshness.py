@@ -16,7 +16,7 @@ Each table has a documented refresh frequency:
                            signal_quality_scores, sector_ranking, industry_ranking,
                            insider_transactions, analyst_upgrade_downgrade
   WEEKLY:                  price_weekly, buy_sell_weekly, stock_scores,
-                           value_trap_scores, aaii_sentiment
+                           aaii_sentiment
   MONTHLY:                 price_monthly, buy_sell_monthly, growth_metrics,
                            key_metrics
   QUARTERLY:               earnings_history, earnings_metrics, earnings_estimates
@@ -71,7 +71,6 @@ DATA_SOURCES = [
     ('price_weekly',               'date',              'weekly',    'CRITICAL: Weekly OHLCV',             14),
     ('buy_sell_weekly',            'date',              'weekly',    'IMPORTANT: Weekly Pine signals',     14),
     ('stock_scores',               'score_date',        'weekly',    'IMPORTANT: IBD composite',           14),
-    ('value_trap_scores',          'updated_at',        'weekly',    'IMPORTANT: Value trap risk',         14),
     ('aaii_sentiment',             'date',              'weekly',    'OPTIONAL: Investor sentiment',       14),
     # -- MONTHLY --
     ('price_monthly',              'date',              'monthly',   'IMPORTANT: Monthly OHLCV',           45),
@@ -239,7 +238,6 @@ def loader_schedule_summary():
     - load_pricing_loader.py --weekly
     - load_buysell_loader.py --weekly
     - load_stock_scores_loader.py   (IBD composite score)
-    - load_value_trap_scores_loader.py
     - load_aaii_sentiment_loader.py
 
   MONTHLY (1st of month):

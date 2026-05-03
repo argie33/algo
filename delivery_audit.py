@@ -59,7 +59,6 @@ audit = [
     ('ENTRY', 'Earnings 5-day blackout',                                'DONE', 'days_to_earnings'),
     ('ENTRY', 'Liquidity gate $5M',                                     'DONE', '_avg_dollar_volume'),
     ('ENTRY', 'Extension cap 15%',                                      'DONE', 'over-extended block'),
-    ('ENTRY', 'Value-trap risk cap',                                    'DONE', 'value_trap_scores'),
     ('ENTRY', 'Multi-timeframe alignment',                              'DONE', 'weekly+monthly Pine'),
     ('ENTRY', 'Idempotency',                                            'DONE', 'trade_executor'),
     ('ENTRY', 'Bracket orders Alpaca',                                  'DONE', 'order_class=bracket'),

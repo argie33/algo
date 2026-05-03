@@ -29,12 +29,10 @@ import {
 // Dashboard pages - ALL 18 pages
 import MarketOverview from "./pages/MarketOverview";
 import MarketsHealth from "./pages/MarketsHealth";
-import FinancialData from "./pages/FinancialData";
 import DeepValueStocks from "./pages/DeepValueStocks";
 import TradingSignals from "./pages/TradingSignals";
 import BacktestResults from "./pages/BacktestResults";
 import EconomicDashboard from "./pages/EconomicDashboard";
-import EarningsCalendar from "./pages/EarningsCalendar";
 import SectorAnalysis from "./pages/SectorAnalysis";
 import Sentiment from "./pages/Sentiment";
 import CommoditiesAnalysis from "./pages/CommoditiesAnalysis";
@@ -98,12 +96,6 @@ const menuItems = [
     path: "/app/trading-signals",
     category: "signals",
   },
-  {
-    text: "Earnings Calendar",
-    icon: <EventIcon />,
-    path: "/app/earnings",
-    category: "signals",
-  },
 
   // Portfolio Section
   {
@@ -120,12 +112,6 @@ const menuItems = [
   },
 
   // Analysis Section
-  {
-    text: "Financials",
-    icon: <StorageIcon />,
-    path: "/app/financial-data",
-    category: "analysis",
-  },
   {
     text: "Backtest",
     icon: <TrendingUpIcon />,
@@ -403,11 +389,9 @@ function App() {
 
           {/* Stocks Analysis & Signals */}
           <Route path="/app/deep-value" element={<DeepValueStocks />} />
-          <Route path="/app/financial-data" element={<FinancialData />} />
           <Route path="/app/trading-signals" element={<TradingSignals />} />
           <Route path="/app/signals" element={<TradingSignals />} />
           <Route path="/app/etf-signals" element={<TradingSignals />} />
-          <Route path="/app/earnings" element={<EarningsCalendar />} />
           <Route path="/app/scores" element={<ScoresDashboard />} />
           <Route path="/app/metrics" element={<MetricsDashboard />} />
 

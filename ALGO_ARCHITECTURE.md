@@ -260,7 +260,7 @@ Persists to `data_patrol_log` with severity. Orchestrator phase 1 uses this.
 |---|---|---|
 | **Multiple times/day** | `price_daily`, `technical_data_daily`, `buy_sell_daily` | Price/signal-driven decisions; freshness matters |
 | **Daily** | `trend_template_data`, `signal_quality_scores`, `market_health_daily`, `data_completeness_scores`, `sector_ranking`, `industry_ranking`, `analyst_upgrade_downgrade`, `insider_transactions` | Computed scores need fresh inputs |
-| **Weekly** | `price_weekly`, `buy_sell_weekly`, `stock_scores`, `value_trap_scores`, `aaii_sentiment` | These data points naturally update weekly |
+| **Weekly** | `price_weekly`, `buy_sell_weekly`, `stock_scores`, `aaii_sentiment` | These data points naturally update weekly |
 | **Monthly** | `price_monthly`, `buy_sell_monthly`, `growth_metrics`, `key_metrics` | Fundamentals don't change rapidly |
 | **Quarterly** | `earnings_history`, `earnings_metrics`, `earnings_estimates` | Tied to earnings cycles |
 | **Static** | `company_profile`, `stock_symbols` | Universe meta — refresh on demand |
@@ -319,7 +319,7 @@ Step 4: Tier 3 — Trend Template + Stage
 Step 5: Tier 4 — Signal Quality Score ≥ 60 ✓
 Step 6: Tier 5 — Portfolio (concentration, sector caps) ✓
 Step 7: Tier 6 — Advanced Filters
-  ├─ Hard fails: earnings? extension? value-trap? liquidity? ✓
+  ├─ Hard fails: earnings? extension? liquidity? ✓
   └─ swing_score = 50.3 (D grade)
 
 Step 8: Tier swing_score gate
