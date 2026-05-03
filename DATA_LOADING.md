@@ -1,231 +1,187 @@
-# Data Loading Process — Local First, Then AWS
+# Data Loading — Source of Truth
 
-## Overview
-We load ALL data locally using Python loader scripts, verify completeness, then deploy to AWS. **No partial patches. No fake data. Full loads only.**
+This is the **canonical inventory** of every data loader. If a loader exists
+on disk but isn't in this document, either add it here or delete it.
 
----
-
-## The 39 Official Data Loaders
-
-These are the ONLY loaders that should exist. Run them locally to populate the database:
-
-### Core Data (Must Run First)
-1. **loadstocksymbols.py** - Stock/ETF symbols and metadata
-2. **loaddailycompanydata.py** - Company profile, sector, industry
-3. **loadmarketindices.py** - Market indices and benchmarks
-
-### Price Data (By Timeframe)
-4. **loadpricedaily.py** - Daily OHLCV data
-5. **loadpriceweekly.py** - Weekly aggregates
-6. **loadpricemonthly.py** - Monthly aggregates
-7. **loadlatestpricedaily.py** - Current day prices
-8. **loadlatestpriceweekly.py** - Latest weekly
-9. **loadlatestpricemonthly.py** - Latest monthly
-
-### ETF Data
-10. **loadetfpricedaily.py** - ETF daily prices
-11. **loadetfpriceweekly.py** - ETF weekly prices
-12. **loadetfpricemonthly.py** - ETF monthly prices
-13. **loadefsignals.py** - ETF trading signals
-
-### Trading Signals (Must Have Price Data First)
-14. **loadbuyselldaily.py** - Daily Buy/Sell signals
-15. **loadbuysellweekly.py** - Weekly Buy/Sell signals
-16. **loadbuysellmonthly.py** - Monthly Buy/Sell signals
-17. **loadbuysell_etf_daily.py** - ETF daily signals
-18. **loadbuysell_etf_weekly.py** - ETF weekly signals
-19. **loadbuysell_etf_monthly.py** - ETF monthly signals
-
-### Fundamental Data
-20. **loadannualbalancesheet.py** - Annual balance sheets
-21. **loadquarterlybalancesheet.py** - Quarterly balance sheets
-22. **loadannualincomestatement.py** - Annual income statements
-23. **loadquarterlyincomestatement.py** - Quarterly income statements
-24. **loadannualcashflow.py** - Annual cash flow
-25. **loadquarterlycashflow.py** - Quarterly cash flow
-26. **loadttmincomestatement.py** - TTM income statement
-27. **loadttmcashflow.py** - TTM cash flow
-
-### Earnings Data
-28. **loadearningshistory.py** - Historical earnings & surprises
-29. **loadearningsrevisions.py** - Earnings estimate revisions
-30. **loadearningssurprise.py** - Earnings surprise metrics
-
-### Stock Scores & Metrics
-31. **loadstockscores.py** - Composite scores (growth, value, quality)
-32. **loadfactormetrics.py** - Factor-based metrics
-33. **loadrelativeperformance.py** - Performance rankings
-
-### Market Data
-34. **loadmarket.py** - Market summary & breadth
-35. **loadecondata.py** - Economic indicators (FRED)
-36. **loadcommodities.py** - Commodity prices
-37. **loadseasonality.py** - Seasonal patterns
-
-### Analyst/Sentiment
-38. **loadanalystsentiment.py** - Analyst ratings & sentiment
-39. **loadanalystupgradedowngrade.py** - Upgrade/downgrade activity
-
-### Optional Loaders (Advanced/Real-time)
-- loadalpacaportfolio.py - Real Alpaca account data
-- loadbenchmark.py - Performance benchmarks
-- loadcalendar.py - Economic calendar
-- loadcoveredcallopportunities.py - Options analysis
-- loadfeargreed.py - Fear & Greed index
-- loadguidance.py - Company guidance
-- loadinsidertransactions.py - Insider trading
-- loadmarket.py - Market indicators
-- loadnaaim.py - NAAIM data
-- loadnews.py - News sentiment
-- loadoptionschains.py - Options chains
-- load_sp500_earnings.py - S&P 500 earnings
+**Last reconciled:** 2026-05-03 — 59 .py loaders, 39 official + 20 supplementary.
 
 ---
 
-## Local Loading Process
+## Process — Local First, Then AWS
 
-### 1. Prerequisites
-```bash
-# Install dependencies
-pip install -r requirements.txt
+1. **Load locally** with these loader scripts.
+2. **Verify** with `python3 algo_data_patrol.py`.
+3. **Run algo** with `python3 algo_orchestrator.py`.
+4. **Deploy** to AWS via Docker / Lambda.
 
-# Set .env.local with database credentials
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=stocks
-DB_PASSWORD=<password>
-DB_NAME=stocks
-
-# API Keys (optional but recommended)
-FRED_API_KEY=<key>
-ALPACA_API_KEY=<key>
-ALPACA_API_SECRET=<secret>
-```
-
-### 2. Load Data in Order
-
-**Phase 1: Metadata (MUST run first)**
-```bash
-python3 loadstocksymbols.py
-python3 loaddailycompanydata.py
-python3 loadmarketindices.py
-```
-
-**Phase 2: Price Data (MUST run before signals)**
-```bash
-python3 loadpricedaily.py
-python3 loadpriceweekly.py
-python3 loadpricemonthly.py
-python3 loadlatestpricedaily.py
-python3 loadlatestpriceweekly.py
-python3 loadlatestpricemonthly.py
-python3 loadetfpricedaily.py
-python3 loadetfpriceweekly.py
-python3 loadetfpricemonthly.py
-```
-
-**Phase 3: Signals (Depends on Phase 1 & 2)**
-```bash
-python3 loadbuyselldaily.py
-python3 loadbuysellweekly.py
-python3 loadbuysellmonthly.py
-python3 loadbuysell_etf_daily.py
-python3 loadbuysell_etf_weekly.py
-python3 loadbuysell_etf_monthly.py
-```
-
-**Phase 4: Fundamentals**
-```bash
-python3 loadannualbalancesheet.py
-python3 loadquarterlybalancesheet.py
-python3 loadannualincomestatement.py
-python3 loadquarterlyincomestatement.py
-python3 loadannualcashflow.py
-python3 loadquarterlycashflow.py
-python3 loadttmincomestatement.py
-python3 loadttmcashflow.py
-```
-
-**Phase 5: Earnings & Scores**
-```bash
-python3 loadearningshistory.py
-python3 loadearningsrevisions.py
-python3 loadearningssurprise.py
-python3 loadstockscores.py
-python3 loadfactormetrics.py
-python3 loadrelativeperformance.py
-```
-
-**Phase 6: Market Data**
-```bash
-python3 loadmarket.py
-python3 loadecondata.py
-python3 loadcommodities.py
-python3 loadseasonality.py
-python3 loadanalystsentiment.py
-python3 loadanalystupgradedowngrade.py
-```
-
-### 3. Verify Data Loaded
-```bash
-node /path/to/verify-data-complete.js
-```
-
-### 4. Deploy to AWS
-Once verified locally, commit changes and push:
-```bash
-git add .
-git commit -m "Load all data with proper loaders - [date]"
-git push origin main
-# CI/CD will handle AWS deployment
-```
+**No partial patches. No fake data. Full loads only.**
 
 ---
 
-## Rules to Prevent Sloppy Loading
+## The 39 Official Loaders
+
+These are the ONLY canonical loaders. Run them in dependency order.
+
+### Phase 1 — Universe & Symbols
+1. **loadstocksymbols.py** — Stock/ETF symbols
+2. **loaddailycompanydata.py** — Company profile, sector, industry
+3. **loadmarketindices.py** — Market indices (^GSPC, etc.)
+
+### Phase 2 — Price Data
+4. **loadpricedaily.py** — Daily OHLCV
+5. **loadpriceweekly.py** — Weekly aggregates
+6. **loadpricemonthly.py** — Monthly aggregates
+7. **loadlatestpricedaily.py** — Real-time daily
+8. **loadlatestpriceweekly.py** — Real-time weekly
+9. **loadlatestpricemonthly.py** — Real-time monthly
+
+### Phase 3 — ETF Data
+10. **loadetfpricedaily.py** — ETF daily
+11. **loadetfpriceweekly.py** — ETF weekly
+12. **loadetfpricemonthly.py** — ETF monthly
+13. **loadetfsignals.py** — ETF signals (Pine)
+
+### Phase 4 — Pine BUY/SELL Signals (CRITICAL — algo entry source of truth)
+14. **loadbuyselldaily.py** — Daily Pine signals
+15. **loadbuysellweekly.py** — Weekly Pine signals
+16. **loadbuysellmonthly.py** — Monthly Pine signals
+17. **loadbuysell_etf_daily.py** — ETF daily Pine
+18. **loadbuysell_etf_weekly.py** — ETF weekly Pine
+19. **loadbuysell_etf_monthly.py** — ETF monthly Pine
+
+### Phase 5 — Technical Indicators
+20. **loadtechnicalsdaily.py** — Daily SMA/RSI/MACD/ATR
+
+### Phase 6 — Fundamentals (Quarterly + Annual)
+21. **loadannualbalancesheet.py**
+22. **loadquarterlybalancesheet.py**
+23. **loadannualincomestatement.py**
+24. **loadquarterlyincomestatement.py**
+25. **loadannualcashflow.py**
+26. **loadquarterlycashflow.py**
+27. **loadttmincomestatement.py**
+28. **loadttmcashflow.py**
+
+### Phase 7 — Earnings
+29. **loadearningshistory.py** — Historical earnings + surprises
+30. **loadearningsrevisions.py** — Estimate revisions
+31. **loadearningssurprise.py** — Surprise metrics
+
+### Phase 8 — Stock Scoring & Metrics
+32. **loadstockscores.py** — IBD-style composite (quality/growth/value/momentum)
+33. **loadfactormetrics.py** — Factor metrics (growth, profitability, etc)
+34. **loadrelativeperformance.py** — RS rankings
+
+### Phase 9 — Market Data
+35. **loadmarket.py** — Market summary
+36. **loadecondata.py** — Economic indicators (FRED)
+37. **loadcommodities.py** — Commodity prices
+38. **loadseasonality.py** — Seasonal patterns
+
+### Phase 10 — Analyst Sentiment
+39. **loadanalystupgradedowngrade.py** — Upgrade/downgrade activity
+
+---
+
+## Algo-Required Supplementary Loaders (20)
+
+These were added as the algo system grew. They are NOT removable — the
+orchestrator depends on them. Treat them as canonical, just newer than the
+original 39.
+
+### Algo Computed Metrics
+- **load_algo_metrics_daily.py** — orchestrates: trend_template, market_health, SQS, completeness
+- **load_market_health_daily.py** — IBD-style market state
+- **load_trend_template_data.py** — Minervini 8-pt + Weinstein stage
+
+### Algo Operational
+- **loadalpacaportfolio.py** — Live Alpaca position sync
+- **algo_data_patrol.py** — 10-check watchdog
+- **algo_data_freshness.py** — 23-source staleness monitor
+- **backfill_historical_scores.py** — historical score backfill
+
+### Sentiment & Behavioral
+- **loadaaiidata.py** — AAII bull/bear sentiment
+- **loadnaaim.py** — NAAIM exposure
+- **loadfeargreed.py** — CNN Fear & Greed
+- **loadnews.py** — News sentiment
+- **loadanalystsentiment.py** — Analyst sentiment composite
+
+### Specialized Signals & Data
+- **loadetfsignals.py** — ETF-specific signals
+- **loadmeanreversionsignals.py** — Mean-reversion strategy signals
+- **loadrangesignals.py** — Range-bound signals
+- **loadcoveredcallopportunities.py** — Options income strategy
+- **loadoptionschains.py** — Options chains (used by covered call)
+- **loadforwardeps.py** — Forward earnings estimates
+- **loadearningsestimates.py** — Earnings consensus
+
+### Calendar & Reference
+- **loadcalendar.py** — Economic + earnings calendar
+- **loadbenchmark.py** — Custom benchmark portfolios
+- **loadsectors.py** — Sector classifications
+- **loadsentiment.py** — Sentiment aggregator
+- **loadsecfilings.py** — SEC filings metadata
+- **loadmultisource_ohlcv.py** — Multi-source price reconciliation
+
+### Loader Infrastructure (NOT trade-related, used as base classes)
+- **loader_base_optimized.py** — Base class for optimized loaders
+- **loader_metrics.py** — Loader runtime metrics
+- **loader_polars_base.py** — Polars-based fast loader base
+- **loader_safety.py** — Safety wrappers for upserts
+
+---
+
+## Recently Deleted (2026-05-03)
+
+These were duplicates and have been removed:
+- ❌ loadpricedaily_optimal.py — duplicate of loadpricedaily.py
+- ❌ loadpricedaily_refactored.py — duplicate of loadpricedaily.py
+- ❌ loadcommodities_enhanced.py — duplicate of loadcommodities.py
+- ❌ loadquarterlyincomestatement_parallel.py — duplicate of loadquarterlyincomestatement.py
+
+---
+
+## Run Schedule (see LOADER_SCHEDULE.md for full detail)
+
+| Frequency | Loaders | Why |
+|---|---|---|
+| **Intraday** (every 90min) | loadlatestpricedaily | Live decisions need live prices |
+| **End of Day** (5:30pm ET) | All Phase 2-5 daily loaders + load_algo_metrics_daily | Algo decisions on EOD data |
+| **Weekly** (Sat 8am) | All Phase 2-5 weekly + loadstockscores + loadaaiidata + loadnaaim | Compute weekly metrics |
+| **Monthly** (1st Sat) | All Phase 2-5 monthly + loadfactormetrics | Slow-changing metrics |
+| **Quarterly** (post-earnings) | Phase 6 fundamentals + Phase 7 earnings | Tied to earnings cycles |
+
+---
+
+## DO / DON'T (Cleanup discipline)
 
 ### ✅ DO
-- Use the 39 official loaders only
-- Load ALL data locally first before pushing to AWS
-- Verify data completeness with checks
-- Document what data each loader provides
-- Run loaders in dependency order (Phase 1 → Phase 6)
+- Add new loaders to this document FIRST, then build
+- Delete duplicates immediately when noticed
+- Run `python3 algo_data_patrol.py` after every loader run
+- Use the loader_base_optimized.py base class for new loaders
 
 ### ❌ DON'T
-- Create new loaders without adding them to this list
-- Create fake populate scripts (populate-*.js, generate-*.js)
-- Insert hardcoded default values (COALESCE to 0, 'None')
-- Insert records with missing critical data
-- Patch data in routes instead of using loaders
-- Add test/debug scripts in root directory
-
-### No More Weird Patches
-If data is missing, **FIX THE LOADER**, don't patch with:
-- Fake populate-all-signals.js scripts ❌
-- Default values in routes ❌
-- Test queries in root directory ❌
-- Ad-hoc SQL inserts ❌
+- Create `loaderX_optimal.py` / `loaderX_refactored.py` versions (commit to one)
+- Insert default values (0, 'None') when data is missing — skip the row
+- Patch data in API routes — fix the loader
+- Commit `loaderX_test.py` or `loaderX_debug.py` to the repo
 
 ---
 
-## Current Status
+## Health Check
 
-**Last Updated:** 2026-04-26
+```bash
+# Show which loaders are stale
+python3 algo_data_freshness.py
 
-| Loader | Status | Last Run | Notes |
-|--------|--------|----------|-------|
-| loadstocksymbols | ✅ | ? | Core data |
-| loadpricedaily | ✅ | ? | Needed by signals |
-| loadbuyselldaily | ⚠️ | ? | Inserting 97.8% "None" signals - NEEDS FIX |
-| loadstockscores | ⚠️ | ? | Check coverage |
-| loadecondata | ⚠️ | ? | FRED integration |
+# Run integrity patrol (catches NULL spikes, identical OHLC, etc.)
+python3 algo_data_patrol.py
 
----
+# Run end-of-day pipeline (patrol → loaders → patrol → orchestrator)
+bash run_eod_loaders.sh
+```
 
-## Next Steps
-
-1. Check which loaders are failing/incomplete
-2. Fix loaders to ensure complete data (no "None" defaults)
-3. Run all loaders locally
-4. Verify all data in frontend
-5. Deploy to AWS
+The frontend's "DATA HEALTH" tab surfaces all of this in real-time at
+`/app/health`.

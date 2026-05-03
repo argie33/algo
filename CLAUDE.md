@@ -280,3 +280,101 @@ PORT=3002 node webapp/lambda/index.js
 2. **Check diagnostics** — Hit `/api/diagnostics` to see table health
 3. **Deploy to AWS** — Use SAM or Serverless Framework to deploy Lambda
 4. **Monitor** — Check CloudWatch logs for errors
+
+---
+
+## Algo Architecture (added 2026-05-03)
+
+The system grew beyond stock analytics — there is now a **production-grade
+swing trading algorithm**. Single source of truth in `ALGO_ARCHITECTURE.md`.
+
+The algo:
+1. Reads BUY signals from `buy_sell_daily` (Pine Script — UNTOUCHED)
+2. Filters through 6 tiers (data, market, trend, SQS, portfolio, advanced)
+3. Scores each candidate via swing-specific composite (`swing_trader_scores`)
+4. Sizes via dynamic risk × market exposure × stage phase
+5. Executes bracket orders to Alpaca (paper account by default)
+6. Manages exits via 11-rule hierarchy (stop / Minervini break / RS-line /
+   T1/T2/T3 / chandelier trail / TD-9 / TD-Combo-13 / etc)
+
+### Documentation map
+- **`ALGO_ARCHITECTURE.md`** — design + research citations (Minervini, O'Neil, Weinstein, Tharp, IBD, Bulkowski)
+- **`DATA_LOADING.md`** — 39 official + 20 algo-required loaders, run order
+- **`LOADER_SCHEDULE.md`** — when each loader runs (intraday/EOD/weekly/monthly/quarterly)
+- **`MASTER_PLAN.md`** — 12 workstreams, current execution order
+- **`FRONTEND_DESIGN_SYSTEM.md`** — IA consolidation (24→8 pages), light theme, design tokens
+
+### Key new tables
+
+```
+algo_config                hot-reload config (53+ params)
+algo_signals_evaluated     tier-by-tier evaluation per signal
+algo_trades                trades with 15+ reasoning fields
+algo_positions             open with current_stop_price, target_levels_hit
+algo_portfolio_snapshots   daily state
+algo_audit_log             every algo decision
+algo_notifications         UI toast alerts
+algo_trade_adds            pyramid additions (Livermore)
+market_exposure_daily      9-factor IBD-style 0-100 composite
+sector_rotation_signal     defensive vs cyclical leadership
+swing_trader_scores        research-weighted composite (A+/A/B/C/D/F)
+data_loader_status         freshness per source
+data_patrol_log            integrity findings
+```
+
+### Algo endpoints
+
+```
+/api/algo/status           system + portfolio
+/api/algo/markets          9-factor exposure + sectors + sentiment
+/api/algo/swing-scores     ranked candidates with components
+/api/algo/positions        open with R-multiple, stop, targets
+/api/algo/trades           closed with full reasoning
+/api/algo/performance      Sharpe/Sortino/Calmar/MaxDD
+/api/algo/audit-log        every decision
+/api/algo/data-status      23-source freshness
+/api/algo/exposure-policy  5-tier action matrix
+/api/algo/notifications    unseen alerts (poll for toasts)
+/api/algo/run              POST trigger orchestrator
+/api/algo/patrol           POST trigger data patrol
+/api/algo/simulate         POST dry-run preview
+/api/algo/trade/:id        full reasoning detail
+```
+
+### Operating commands
+
+```bash
+# Daily workflow (patrol → loaders → patrol → orchestrator)
+bash run_eod_loaders.sh
+
+# Intraday refresh
+bash run_intraday.sh
+
+# Audit data
+python3 algo_data_freshness.py
+python3 algo_data_patrol.py --validate-alpaca
+
+# Manual orchestrator
+python3 algo_orchestrator.py --dry-run
+python3 algo_orchestrator.py        # LIVE if execution_mode=auto
+
+# Verify everything
+python3 FULL_BUILD_VERIFICATION.py
+python3 delivery_audit.py
+```
+
+### Frontend (rebuild in progress)
+
+Per `FRONTEND_DESIGN_SYSTEM.md`, consolidating 24 pages → 8:
+- `/app/algo` — Command Center (existing AlgoTradingDashboard)
+- `/app/markets` — Market Health (merges 5 old pages)
+- `/app/stocks` — Stock Universe (merges 4 old pages)
+- `/app/stock/:symbol` — Stock Detail (new)
+- `/app/portfolio` — Portfolio (merges 4 old pages)
+- `/app/research` — Research Hub
+- `/app/health` — System Health
+- `/` — Marketing landing
+
+Light theme default (Bloomberg/Stripe/Koyfin-inspired). Dark optional via
+toggle. All component primitives in `components/ui/AlgoUI.jsx`. All design
+tokens in `theme/algoTheme.js`.
