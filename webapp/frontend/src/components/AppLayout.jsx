@@ -1,10 +1,14 @@
 /**
  * AppLayout — Bullseye Trading platform shell
  *
- * Sleek dark left nav, header status bar with live market exposure indicator,
- * footer with build info. Foundation for the institutional brand experience.
+ * Light-theme-default platform shell (Stripe / Koyfin / IBM Carbon aesthetic),
+ * with dark mode optional via toggle. Per FRONTEND_DESIGN_SYSTEM.md, retail/
+ * end-customer fintech defaults light (NN/g + Apple HIG + finance industry
+ * convention).
  *
- * Imports tokens from ../theme/algoTheme.js — single source of truth.
+ * Sleek left nav, header status bar with live market exposure indicator,
+ * footer with build info. All visual tokens come from algoTheme.js's `C` proxy
+ * which resolves to the active palette (light or dark).
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
