@@ -123,7 +123,7 @@ function AlgoTradingDashboard() {
   const fetchAll = async () => {
     try {
       setError(null);
-      const [statusR, marketsR, scoresR, posR, tradesR, configR, dataR, policyR, evalR, patrolR] =
+      const [statusR, marketsR, scoresR, posR, tradesR, configR, dataR, policyR, evalR, patrolR, perfR, auditR, notifR] =
         await Promise.all([
           api.get('/algo/status').catch(() => null),
           api.get('/algo/markets').catch(() => null),
@@ -135,6 +135,9 @@ function AlgoTradingDashboard() {
           api.get('/algo/exposure-policy').catch(() => null),
           api.get('/algo/evaluate').catch(() => null),
           api.get('/algo/patrol-log?limit=30&min_severity=info').catch(() => null),
+          api.get('/algo/performance').catch(() => null),
+          api.get('/algo/audit-log?limit=200').catch(() => null),
+          api.get('/algo/notifications').catch(() => null),
         ]);
       setData({
         status: statusR?.data?.data,
@@ -147,6 +150,9 @@ function AlgoTradingDashboard() {
         policy: policyR?.data?.data,
         evaluated: evalR?.data?.data,
         patrolLog: patrolR?.data?.items || [],
+        performance: perfR?.data?.data,
+        auditLog: auditR?.data?.items || [],
+        notifications: notifR?.data?.items || [],
       });
       setLoading(false);
     } catch (err) {
@@ -355,6 +361,8 @@ function AlgoTradingDashboard() {
           <Tab label={`SETUPS (${(data.scores || []).filter(s => s.pass_gates).length})`} />
           <Tab label={`POSITIONS (${data.positions?.length || 0})`} />
           <Tab label={`TRADES (${data.trades?.length || 0})`} />
+          <Tab label="PERFORMANCE" />
+          <Tab label="AUDIT" />
           <Tab label="WORKFLOW" />
           <Tab label="DATA HEALTH" />
           <Tab label="CONFIG" />
@@ -363,9 +371,11 @@ function AlgoTradingDashboard() {
         {tab === 1 && <SetupsTab scores={data.scores} evaluated={data.evaluated} />}
         {tab === 2 && <PositionsTab positions={data.positions} />}
         {tab === 3 && <TradesTab trades={data.trades} />}
-        {tab === 4 && <WorkflowTab policy={data.policy} markets={market} />}
-        {tab === 5 && <DataStatusTab dataStatus={data.dataStatus} patrolLog={data.patrolLog} />}
-        {tab === 6 && <ConfigTab config={data.config} />}
+        {tab === 4 && <PerformanceTab performance={data.performance} />}
+        {tab === 5 && <AuditTab auditLog={data.auditLog} />}
+        {tab === 6 && <WorkflowTab policy={data.policy} markets={market} />}
+        {tab === 7 && <DataStatusTab dataStatus={data.dataStatus} patrolLog={data.patrolLog} />}
+        {tab === 8 && <ConfigTab config={data.config} />}
       </Paper>
     </Box>
   );
@@ -1140,6 +1150,180 @@ function ConfigTab({ config }) {
           </Grid>
         ))}
       </Grid>
+    </Box>
+  );
+}
+
+// ============================================================================
+// PERFORMANCE TAB
+// ============================================================================
+function PerformanceTab({ performance }) {
+  if (!performance) {
+    return <Box sx={{ p: 2 }}><Alert severity="info" sx={{ bgcolor: C.cardAlt, color: C.text }}>
+      No performance data — needs closed trades + portfolio snapshots
+    </Alert></Box>;
+  }
+  const p = performance;
+  const PerfCard = ({ label, value, color, hint }) => (
+    <Box sx={{
+      p: 2, bgcolor: C.cardAlt, border: `1px solid ${C.border}`, borderRadius: 1,
+      borderLeft: `4px solid ${color || C.blue}`,
+    }}>
+      <Typography variant="caption" sx={{ color: C.textDim, fontSize: '0.65rem', letterSpacing: 1.2, fontWeight: 600 }}>
+        {label}
+      </Typography>
+      <Typography variant="h5" sx={{
+        color: color || C.textBright, fontFamily: 'monospace', fontWeight: 700, lineHeight: 1.2,
+      }}>
+        {value}
+      </Typography>
+      {hint && <Typography variant="caption" sx={{ color: C.textDim, fontSize: '0.7rem' }}>{hint}</Typography>}
+    </Box>
+  );
+  const numColor = (n, threshold = 0) => (n > threshold ? C.green : n < threshold ? C.red : C.textDim);
+
+  return (
+    <Box sx={{ p: 2 }}>
+      <Typography variant="h6" sx={{ color: C.textBright, mb: 2 }}>Trade Statistics</Typography>
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={6} sm={3}>
+          <PerfCard label="TOTAL TRADES" value={p.total_trades} hint={`${p.winning_trades}W / ${p.losing_trades}L`} />
+        </Grid>
+        <Grid item xs={6} sm={3}>
+          <PerfCard label="WIN RATE" value={`${p.win_rate_pct}%`}
+            color={numColor(p.win_rate_pct, 50)} hint="of closed trades" />
+        </Grid>
+        <Grid item xs={6} sm={3}>
+          <PerfCard label="EXPECTANCY" value={`${p.expectancy_r >= 0 ? '+' : ''}${p.expectancy_r}R`}
+            color={numColor(p.expectancy_r)} hint="per trade" />
+        </Grid>
+        <Grid item xs={6} sm={3}>
+          <PerfCard label="PROFIT FACTOR" value={p.profit_factor || '∞'}
+            color={numColor((p.profit_factor || 0) - 1)} hint="gross win / gross loss" />
+        </Grid>
+        <Grid item xs={6} sm={3}>
+          <PerfCard label="AVG WIN" value={`${p.avg_win_r >= 0 ? '+' : ''}${p.avg_win_r}R`}
+            color={C.green} hint={`${p.avg_win_pct}%`} />
+        </Grid>
+        <Grid item xs={6} sm={3}>
+          <PerfCard label="AVG LOSS" value={`${p.avg_loss_r}R`}
+            color={C.red} hint={`${p.avg_loss_pct}%`} />
+        </Grid>
+        <Grid item xs={6} sm={3}>
+          <PerfCard label="AVG HOLD" value={`${p.avg_hold_days}d`} hint="days per trade" />
+        </Grid>
+        <Grid item xs={6} sm={3}>
+          <PerfCard label="TOTAL P&L" value={`$${(p.total_pnl_dollars || 0).toLocaleString()}`}
+            color={numColor(p.total_pnl_dollars)} />
+        </Grid>
+      </Grid>
+
+      <Typography variant="h6" sx={{ color: C.textBright, mb: 2 }}>Risk-Adjusted Returns (annualized)</Typography>
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={6} sm={3}>
+          <PerfCard label="SHARPE RATIO" value={p.sharpe_annualized}
+            color={numColor(p.sharpe_annualized - 1)} hint="(>1 good, >2 great)" />
+        </Grid>
+        <Grid item xs={6} sm={3}>
+          <PerfCard label="SORTINO RATIO" value={p.sortino_annualized}
+            color={numColor(p.sortino_annualized - 1)} hint="downside-only volatility" />
+        </Grid>
+        <Grid item xs={6} sm={3}>
+          <PerfCard label="MAX DRAWDOWN" value={`${p.max_drawdown_pct}%`}
+            color={p.max_drawdown_pct > 20 ? C.red : p.max_drawdown_pct > 10 ? C.yellow : C.green} hint="peak-to-trough" />
+        </Grid>
+        <Grid item xs={6} sm={3}>
+          <PerfCard label="CALMAR RATIO" value={p.calmar_ratio}
+            color={numColor(p.calmar_ratio - 1)} hint="return / max DD" />
+        </Grid>
+      </Grid>
+
+      <Typography variant="h6" sx={{ color: C.textBright, mb: 2 }}>Streaks</Typography>
+      <Grid container spacing={2}>
+        <Grid item xs={6} sm={3}>
+          <PerfCard label="CURRENT STREAK"
+            value={p.current_streak >= 0 ? `+${p.current_streak} W` : `${Math.abs(p.current_streak)} L`}
+            color={p.current_streak >= 0 ? C.green : C.red} />
+        </Grid>
+        <Grid item xs={6} sm={3}>
+          <PerfCard label="BEST WIN STREAK" value={p.best_win_streak} color={C.green} />
+        </Grid>
+        <Grid item xs={6} sm={3}>
+          <PerfCard label="WORST LOSS STREAK" value={p.worst_loss_streak} color={C.red} />
+        </Grid>
+        <Grid item xs={6} sm={3}>
+          <PerfCard label="SAMPLE SIZE" value={`${p.portfolio_snapshots} snapshots`}
+            hint={p.portfolio_snapshots < 30 ? '(too few for solid stats)' : ''} />
+        </Grid>
+      </Grid>
+    </Box>
+  );
+}
+
+// ============================================================================
+// AUDIT TAB
+// ============================================================================
+function AuditTab({ auditLog }) {
+  if (!auditLog || auditLog.length === 0) {
+    return <Box sx={{ p: 2 }}><Alert severity="info" sx={{ bgcolor: C.cardAlt, color: C.text }}>
+      No audit entries yet
+    </Alert></Box>;
+  }
+  return (
+    <Box sx={{ p: 2 }}>
+      <Typography variant="caption" sx={{ color: C.textDim, mb: 2, display: 'block' }}>
+        Every algo decision logged with timestamp, actor, status, and full details JSON.
+      </Typography>
+      <SectionCard title={`Audit Trail (${auditLog.length} most recent)`}>
+        <TableContainer sx={{ maxHeight: 600 }}>
+          <Table size="small" stickyHeader>
+            <TableHead>
+              <TableRow>
+                {['WHEN', 'ACTION', 'SYMBOL', 'ACTOR', 'STATUS', 'DETAILS'].map(h => (
+                  <TableCell key={h} sx={{
+                    bgcolor: C.cardAlt, color: C.textDim, borderColor: C.border,
+                    fontSize: '0.65rem', letterSpacing: 1, fontWeight: 700,
+                  }}>{h}</TableCell>
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {auditLog.map(a => (
+                <TableRow key={a.id}>
+                  <TableCell sx={{ color: C.textDim, fontFamily: 'monospace', fontSize: '0.7rem', borderColor: C.border }}>
+                    {new Date(a.created_at).toLocaleString()}
+                  </TableCell>
+                  <TableCell sx={{ color: C.text, fontWeight: 600, fontFamily: 'monospace', fontSize: '0.75rem', borderColor: C.border }}>
+                    {a.action_type}
+                  </TableCell>
+                  <TableCell sx={{ color: C.textBright, fontWeight: 700, fontFamily: 'monospace', borderColor: C.border }}>
+                    {a.symbol || '-'}
+                  </TableCell>
+                  <TableCell sx={{ color: C.textDim, fontSize: '0.75rem', borderColor: C.border }}>
+                    {a.actor || '-'}
+                  </TableCell>
+                  <TableCell sx={{ borderColor: C.border }}>
+                    <Chip size="small" label={a.status || '-'}
+                      sx={{
+                        bgcolor: a.status === 'success' ? C.green :
+                                 a.status === 'halt' ? C.orange :
+                                 a.status === 'error' ? C.red : C.cardAlt,
+                        color: 'white', height: 18, fontSize: '0.65rem',
+                      }} />
+                  </TableCell>
+                  <TableCell sx={{
+                    color: C.textDim, fontFamily: 'monospace', fontSize: '0.65rem',
+                    maxWidth: 500, overflow: 'hidden', textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap', borderColor: C.border,
+                  }}>
+                    {a.details ? JSON.stringify(a.details).substring(0, 200) : '-'}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </SectionCard>
     </Box>
   );
 }

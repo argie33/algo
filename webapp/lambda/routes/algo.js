@@ -808,6 +808,290 @@ router.get('/patrol-log', async (req, res) => {
 });
 
 // ============================================================
+// NOTIFICATIONS — surface CRITICAL events to UI as toasts
+// ============================================================
+router.get('/notifications', async (req, res) => {
+  try {
+    const pool = getPool();
+    const limit = parseInt(req.query.limit) || 50;
+    const result = await pool.query(
+      `SELECT id, kind, severity, title, message, symbol, details, seen, created_at
+       FROM algo_notifications
+       WHERE seen = FALSE
+       ORDER BY
+         CASE severity
+           WHEN 'critical' THEN 1
+           WHEN 'error' THEN 2
+           WHEN 'warning' THEN 3
+           ELSE 4 END,
+         created_at DESC
+       LIMIT $1`,
+      [limit]
+    );
+    return res.json({
+      success: true,
+      items: result.rows,
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    return res.json({ success: true, items: [], timestamp: new Date() });
+  }
+});
+
+router.post('/notifications/seen', async (req, res) => {
+  try {
+    const pool = getPool();
+    const ids = req.body?.ids || [];
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.json({ success: true, marked: 0 });
+    }
+    const result = await pool.query(
+      `UPDATE algo_notifications SET seen = TRUE, seen_at = CURRENT_TIMESTAMP WHERE id = ANY($1)`,
+      [ids]
+    );
+    return res.json({ success: true, marked: result.rowCount, timestamp: new Date() });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================
+// PRE-TRADE SIMULATION — what would the algo do?
+// ============================================================
+router.post('/simulate', async (req, res) => {
+  const { spawn } = require('child_process');
+  const path = require('path');
+  try {
+    const date = req.body?.date || null;
+    const args = ['algo_orchestrator.py', '--dry-run'];
+    if (date) args.push('--date', date);
+
+    const repoRoot = path.resolve(__dirname, '../../..');
+    const child = spawn('python3', args, { cwd: repoRoot, env: process.env });
+    const output = [];
+    const result = await new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        try { child.kill('SIGTERM'); } catch (e) {}
+        resolve({ timeout: true, exitCode: -1, output });
+      }, 120000);
+      child.stdout.on('data', (c) => output.push(c.toString()));
+      child.stderr.on('data', (c) => output.push(c.toString()));
+      child.on('exit', (code) => {
+        clearTimeout(timeout);
+        resolve({ timeout: false, exitCode: code, output });
+      });
+    });
+
+    return res.json({
+      success: result.exitCode === 0,
+      exit_code: result.exitCode,
+      output: result.output.join(''),
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================
+// PERFORMANCE METRICS — Sharpe, Sortino, Calmar, max DD, profit factor
+// ============================================================
+router.get('/performance', async (req, res) => {
+  try {
+    const pool = getPool();
+
+    // Get all closed trades for trade-based metrics
+    const tradesResult = await pool.query(`
+      SELECT trade_id, exit_date, profit_loss_dollars, profit_loss_pct,
+             exit_r_multiple, trade_duration_days, entry_price, exit_price
+      FROM algo_trades WHERE status = 'closed' AND exit_date IS NOT NULL
+      ORDER BY exit_date ASC
+    `);
+    const trades = tradesResult.rows;
+
+    // Get portfolio snapshots for return-series-based metrics
+    const snapsResult = await pool.query(`
+      SELECT snapshot_date, total_portfolio_value, daily_return_pct
+      FROM algo_portfolio_snapshots
+      ORDER BY snapshot_date ASC
+    `);
+    const snaps = snapsResult.rows;
+
+    // ---- Trade-based metrics ----
+    const wins = trades.filter(t => parseFloat(t.profit_loss_dollars) > 0);
+    const losses = trades.filter(t => parseFloat(t.profit_loss_dollars) <= 0);
+
+    const totalPnl = trades.reduce((s, t) => s + parseFloat(t.profit_loss_dollars || 0), 0);
+    const grossWin = wins.reduce((s, t) => s + parseFloat(t.profit_loss_dollars || 0), 0);
+    const grossLoss = Math.abs(losses.reduce((s, t) => s + parseFloat(t.profit_loss_dollars || 0), 0));
+
+    const winRate = trades.length > 0 ? wins.length / trades.length : 0;
+    const profitFactor = grossLoss > 0 ? grossWin / grossLoss : (grossWin > 0 ? Infinity : 0);
+
+    const avgWinR = wins.length > 0
+      ? wins.reduce((s, t) => s + parseFloat(t.exit_r_multiple || 0), 0) / wins.length : 0;
+    const avgLossR = losses.length > 0
+      ? losses.reduce((s, t) => s + parseFloat(t.exit_r_multiple || 0), 0) / losses.length : 0;
+    const expectancyR = (winRate * avgWinR) + ((1 - winRate) * avgLossR);
+
+    const avgWinPct = wins.length > 0
+      ? wins.reduce((s, t) => s + parseFloat(t.profit_loss_pct || 0), 0) / wins.length : 0;
+    const avgLossPct = losses.length > 0
+      ? losses.reduce((s, t) => s + parseFloat(t.profit_loss_pct || 0), 0) / losses.length : 0;
+
+    const avgHoldDays = trades.length > 0
+      ? trades.reduce((s, t) => s + (parseInt(t.trade_duration_days) || 0), 0) / trades.length : 0;
+
+    // ---- Snapshot-based metrics (annualized Sharpe/Sortino + max DD) ----
+    let sharpe = 0, sortino = 0, calmar = 0, maxDD = 0, totalReturn = 0;
+    if (snaps.length >= 2) {
+      const dailyReturns = snaps.map(s => parseFloat(s.daily_return_pct || 0) / 100);
+      const validReturns = dailyReturns.filter(r => !isNaN(r) && Number.isFinite(r));
+
+      if (validReturns.length > 1) {
+        const meanReturn = validReturns.reduce((a, b) => a + b, 0) / validReturns.length;
+        const stdDev = Math.sqrt(
+          validReturns.reduce((s, r) => s + Math.pow(r - meanReturn, 2), 0) / validReturns.length
+        );
+        const downside = validReturns.filter(r => r < 0);
+        const downStdDev = downside.length > 0
+          ? Math.sqrt(downside.reduce((s, r) => s + r * r, 0) / downside.length) : 0;
+
+        // Annualize: 252 trading days
+        sharpe = stdDev > 0 ? (meanReturn / stdDev) * Math.sqrt(252) : 0;
+        sortino = downStdDev > 0 ? (meanReturn / downStdDev) * Math.sqrt(252) : 0;
+      }
+
+      // Max drawdown
+      let peak = parseFloat(snaps[0].total_portfolio_value || 0);
+      for (const s of snaps) {
+        const v = parseFloat(s.total_portfolio_value || 0);
+        peak = Math.max(peak, v);
+        if (peak > 0) {
+          const dd = (peak - v) / peak * 100;
+          maxDD = Math.max(maxDD, dd);
+        }
+      }
+
+      const startValue = parseFloat(snaps[0].total_portfolio_value || 0);
+      const endValue = parseFloat(snaps[snaps.length - 1].total_portfolio_value || 0);
+      totalReturn = startValue > 0 ? (endValue - startValue) / startValue * 100 : 0;
+
+      // Calmar = total return / max DD
+      calmar = maxDD > 0 ? totalReturn / maxDD : 0;
+    }
+
+    // ---- Streak analysis ----
+    let currentStreak = 0;
+    let bestWinStreak = 0;
+    let worstLossStreak = 0;
+    let tempWin = 0, tempLoss = 0;
+    for (const t of trades) {
+      if (parseFloat(t.profit_loss_dollars) > 0) {
+        tempWin++; tempLoss = 0;
+        bestWinStreak = Math.max(bestWinStreak, tempWin);
+        currentStreak = tempWin;
+      } else {
+        tempLoss++; tempWin = 0;
+        worstLossStreak = Math.max(worstLossStreak, tempLoss);
+        currentStreak = -tempLoss;
+      }
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        // Trade counts
+        total_trades: trades.length,
+        winning_trades: wins.length,
+        losing_trades: losses.length,
+
+        // Win/loss profile
+        win_rate_pct: Math.round(winRate * 1000) / 10,
+        avg_win_pct: Math.round(avgWinPct * 100) / 100,
+        avg_loss_pct: Math.round(avgLossPct * 100) / 100,
+        avg_win_r: Math.round(avgWinR * 100) / 100,
+        avg_loss_r: Math.round(avgLossR * 100) / 100,
+
+        // Expectancy
+        expectancy_r: Math.round(expectancyR * 1000) / 1000,
+        profit_factor: profitFactor === Infinity ? null : Math.round(profitFactor * 100) / 100,
+
+        // Total
+        total_pnl_dollars: Math.round(totalPnl * 100) / 100,
+        gross_win_dollars: Math.round(grossWin * 100) / 100,
+        gross_loss_dollars: Math.round(grossLoss * 100) / 100,
+        total_return_pct: Math.round(totalReturn * 100) / 100,
+
+        // Risk-adjusted
+        sharpe_annualized: Math.round(sharpe * 100) / 100,
+        sortino_annualized: Math.round(sortino * 100) / 100,
+        calmar_ratio: Math.round(calmar * 100) / 100,
+        max_drawdown_pct: Math.round(maxDD * 100) / 100,
+
+        // Streaks + duration
+        current_streak: currentStreak,
+        best_win_streak: bestWinStreak,
+        worst_loss_streak: worstLossStreak,
+        avg_hold_days: Math.round(avgHoldDays * 10) / 10,
+
+        // Sample sizes
+        portfolio_snapshots: snaps.length,
+      },
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error in /algo/performance:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================
+// AUDIT LOG — every algo decision logged
+// ============================================================
+router.get('/audit-log', async (req, res) => {
+  try {
+    const pool = getPool();
+    const limit = parseInt(req.query.limit) || 100;
+    const actionFilter = req.query.action_type || null;
+
+    let query_str = `
+      SELECT id, action_type, symbol, action_date, details, actor, status,
+             error_message, created_at
+      FROM algo_audit_log
+    `;
+    const params = [];
+    if (actionFilter) {
+      query_str += ' WHERE action_type LIKE $1';
+      params.push(`%${actionFilter}%`);
+    }
+    query_str += ` ORDER BY created_at DESC LIMIT $${params.length + 1}`;
+    params.push(limit);
+
+    const result = await pool.query(query_str, params);
+
+    return res.json({
+      success: true,
+      items: result.rows.map(r => ({
+        id: r.id,
+        action_type: r.action_type,
+        symbol: r.symbol,
+        action_date: r.action_date,
+        details: r.details,
+        actor: r.actor,
+        status: r.status,
+        error: r.error_message,
+        created_at: r.created_at,
+      })),
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error in /algo/audit-log:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================
 // TRADE DETAIL — full reasoning for a single trade
 // ============================================================
 router.get('/trade/:tradeId', async (req, res) => {

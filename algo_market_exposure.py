@@ -151,6 +151,37 @@ class MarketExposure:
 
             score = max(0.0, min(100.0, score))
 
+            # --- SECTOR ROTATION OVERLAY ---
+            # If defensive sectors are leading cyclicals, reduce score
+            # (Mansfield rotation research: this precedes broad-market tops)
+            try:
+                from algo_sector_rotation import SectorRotationDetector
+                detector = SectorRotationDetector()
+                detector.cur = self.cur  # share connection
+                detector._owned = None
+                rotation = detector.compute(eval_date)
+                if rotation:
+                    rot_penalty = rotation.get('reduce_exposure_pts', 0)
+                    if rot_penalty > 0:
+                        score = max(0.0, score - rot_penalty)
+                        factors['sector_rotation'] = {
+                            'signal': rotation['signal'],
+                            'defensive_lead_score': rotation['defensive_lead_score'],
+                            'penalty_applied': rot_penalty,
+                            'pts': -rot_penalty,
+                            'max': 0,
+                        }
+                    else:
+                        factors['sector_rotation'] = {
+                            'signal': rotation['signal'],
+                            'defensive_lead_score': rotation['defensive_lead_score'],
+                            'penalty_applied': 0,
+                            'pts': 0,
+                            'max': 0,
+                        }
+            except Exception as e:
+                factors['sector_rotation'] = {'error': str(e)[:60]}
+
             # --- HARD VETOES ---
             halt_reasons = []
             cap = 100.0

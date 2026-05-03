@@ -290,6 +290,18 @@ class CircuitBreaker:
             self.conn.commit()
         except Exception:
             pass
+        # Surface to notifications for UI
+        try:
+            from algo_notifications import notify
+            notify(
+                kind='circuit_breaker',
+                severity='critical',
+                title='Trading Halted by Circuit Breaker',
+                message='; '.join(results.get('halt_reasons', [])),
+                details=results.get('checks'),
+            )
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
