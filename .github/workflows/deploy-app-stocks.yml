@@ -1304,7 +1304,7 @@ jobs:
     # Trigger when loadbuyselldaily.py is changed or manually requested
     if: |
       github.event_name == 'push' ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.loaders != '')
+      github.event_name == 'workflow_dispatch'
     timeout-minutes: 30
 
     steps:
