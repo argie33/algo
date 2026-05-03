@@ -529,7 +529,7 @@ app.get("/api/signals/search", async (req, res) => {
       base_type,
       limit = 100,
       page = 1,
-      days = 3650,
+      days = '365', // Default to 1 year instead of 10 years to prevent timeout
       min_price,
       max_price,
       min_volume,
@@ -645,11 +645,27 @@ app.get("/api/signals/search", async (req, res) => {
     const sortDir = ['ASC', 'DESC'].includes(sort_order.toUpperCase()) ? sort_order.toUpperCase() : 'DESC';
     const orderBy = `ORDER BY ${sortField} ${sortDir}`;
 
-    // Data query - fetch limit+1 rows to determine hasNext
-    const fetchLimit = safeLimit + 1;
-    params.push(fetchLimit, offset);
+    // Data query - with fallback for timeout
+    const maxRows = Math.min(safeLimit + 1, 5000);
+    params.push(maxRows, offset);
     const dataQuery = `SELECT * FROM ${tableName} ${whereClause} ${orderBy} LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-    const dataResult = await query(dataQuery, params);
+
+    let dataResult;
+    try {
+      dataResult = await query(dataQuery, params);
+    } catch (err) {
+      // If query times out due to large date range, try again with shorter range
+      if ((err.message?.includes('timeout') || err.message?.includes('CANCEL')) && dayRange > 365) {
+        console.log(`Query timeout with ${dayRange} days, retrying with 365 days`);
+        whereConditions[0] = `date >= CURRENT_DATE - MAKE_INTERVAL(days => 365)`;
+        const retryQuery = `SELECT * FROM ${tableName} ${whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''} ${orderBy} LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+        const retryParams = params.slice(0, -2);
+        retryParams.push(maxRows, offset);
+        dataResult = await query(retryQuery, retryParams);
+      } else {
+        throw err;
+      }
+    }
 
     // Check if there are more results
     const hasMore = dataResult.rows.length > safeLimit;
