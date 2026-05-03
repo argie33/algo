@@ -1,117 +1,209 @@
 /**
  * Bullseye Trading — Unified Design System
  *
- * Single source of truth for colors, typography, spacing, and component styles.
- * Every page imports tokens from here. This is the foundation of the dark
- * institutional aesthetic that gives the platform its brand identity.
+ * Hybrid light/dark theme inspired by Bloomberg Terminal, Koyfin, Stripe.
+ * Default: clean light palette for max data clarity.
+ * Optional: dark mode toggle for low-light/long-session use.
+ *
+ * Each page builds with these tokens — purpose-designed, not template-driven.
+ * Mobile-responsive from the foundation.
  *
  * Usage:
  *   import { C, F, S, comp } from '@/theme/algoTheme';
  *   <Box sx={{ bgcolor: C.card, color: C.text }} />
- *   <SectionCard title="Market Exposure" />
  */
 
 // ============================================================================
-// COLOR TOKENS
+// THEME MODE — controlled via localStorage 'algo-theme' = 'light' | 'dark'
 // ============================================================================
-export const C = {
-  // Background hierarchy (darker → lighter for layered depth)
-  bg:        '#0a0d12',   // page background
-  bgElev:    '#0e1116',   // elevated surface
-  card:      '#161b22',   // primary card
-  cardAlt:   '#1c232c',   // secondary card / hovered row
-  cardLift:  '#222a35',   // hovered card / focused element
+const getMode = () => {
+  if (typeof window === 'undefined') return 'light';
+  return localStorage.getItem('algo-theme') || 'light';
+};
 
-  // Borders / dividers
-  border:    '#30363d',
-  borderLight: '#21262d',
+const setMode = (mode) => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('algo-theme', mode);
+    window.dispatchEvent(new Event('algo-theme-change'));
+  }
+};
 
-  // Text hierarchy
-  textBright: '#f0f6fc',  // headers, key values
-  text:       '#c9d1d9',  // body
-  textDim:    '#8b949e',  // captions, secondary info
-  textFaint:  '#6e7681',  // hints, placeholders
+// ============================================================================
+// COLOR TOKENS — light is default, dark is opt-in
+// ============================================================================
+const lightTokens = {
+  // Page hierarchy (lightest -> medium for elevation)
+  bg:        '#f6f8fa',   // page background (Stripe-like)
+  bgElev:    '#ffffff',   // sidebar / header
+  card:      '#ffffff',   // primary content card
+  cardAlt:   '#f6f8fa',   // alt rows / hovered
+  cardLift:  '#eceff3',   // pressed / focused
 
-  // Brand
-  brand:     '#3fb950',   // Bullseye green (primary brand)
-  brandDark: '#238636',
-  brandSoft: '#0d2818',   // bg for brand-flavored sections
+  // Borders
+  border:    '#d0d7de',
+  borderLight: '#eaeef2',
+  borderStrong: '#afb8c1',
 
-  // Semantic — financial
-  bull:      '#3fb950',   // gains, success
-  bullDeep:  '#1f6f3b',
-  bear:      '#f85149',   // losses, errors
-  bearDeep:  '#a32028',
-  warn:      '#d29922',   // caution
-  warnDeep:  '#7d5c1d',
+  // Text hierarchy (Github/Stripe palette)
+  textBright: '#1f2328',  // headers, key values
+  text:       '#1f2328',  // body
+  textDim:    '#656d76',  // captions, secondary
+  textFaint:  '#8c959f',  // hints
+
+  // Brand — Bullseye green (kept consistent)
+  brand:     '#0d8a3e',
+  brandDark: '#0a6d31',
+  brandSoft: '#dafbe1',
+
+  // Semantic — financial (cleaner than dark mode)
+  bull:      '#1a7f37',
+  bullDeep:  '#0d8a3e',
+  bullSoft:  '#dafbe1',
+  bear:      '#cf222e',
+  bearDeep:  '#a40e26',
+  bearSoft:  '#ffebe9',
+  warn:      '#9a6700',
+  warnSoft:  '#fff8c5',
 
   // Accents
-  blue:      '#388bfd',   // information, links
-  blueSoft:  '#0c2d6b',
-  purple:    '#a371f7',   // partial exits, special
-  cyan:      '#39c5cf',   // multi-timeframe
-  pink:      '#db61a2',   // sector rotation alerts
-  amber:     '#fb950c',   // approaching threshold
+  blue:      '#0969da',
+  blueSoft:  '#ddf4ff',
+  purple:    '#8250df',
+  purpleSoft: '#fbefff',
+  cyan:      '#1f6feb',
+  pink:      '#bf3989',
+  amber:     '#bc4c00',
+  amberSoft: '#fff1e5',
 
-  // Pure utilities
+  // Shadows (light mode uses subtle shadows for elevation)
+  shadow1:   '0 1px 0 rgba(31,35,40,0.04), 0 0 1px rgba(31,35,40,0.06)',
+  shadow2:   '0 3px 6px rgba(31,35,40,0.04), 0 0 1px rgba(31,35,40,0.08)',
+  shadow3:   '0 8px 24px rgba(31,35,40,0.08), 0 0 1px rgba(31,35,40,0.1)',
+
   white:     '#ffffff',
   black:     '#000000',
   transparent: 'transparent',
 };
 
-// Tier colors for market exposure / regime
-export const tierColor = (name) => ({
-  confirmed_uptrend: C.bull,
-  healthy_uptrend:   '#56b97a',
-  pressure:          C.warn,
-  caution:           C.amber,
-  correction:        C.bear,
-}[name] || C.textDim);
+const darkTokens = {
+  bg:        '#0d1117',
+  bgElev:    '#161b22',
+  card:      '#21262d',
+  cardAlt:   '#1c232c',
+  cardLift:  '#2d333b',
 
-// Letter grade colors
-export const gradeColor = (g) => ({
-  'A+': C.bull,
-  'A':  C.bullDeep,
-  'B':  C.blue,
-  'C':  C.warn,
-  'D':  C.amber,
-  'F':  C.bear,
-}[g] || C.textDim);
+  border:    '#30363d',
+  borderLight: '#21262d',
+  borderStrong: '#484f58',
 
-// Severity colors
-export const severityColor = (s) => ({
-  info:     C.blue,
-  warn:     C.warn,
-  warning:  C.warn,
-  error:    C.bear,
-  critical: C.bearDeep,
-  ok:       C.bull,
-  success:  C.bull,
-  stale:    C.warn,
-  empty:    C.bear,
-}[s] || C.textDim);
+  textBright: '#f0f6fc',
+  text:       '#c9d1d9',
+  textDim:    '#8b949e',
+  textFaint:  '#6e7681',
+
+  brand:     '#3fb950',
+  brandDark: '#238636',
+  brandSoft: '#0d2818',
+
+  bull:      '#3fb950',
+  bullDeep:  '#1a7f37',
+  bullSoft:  '#0c2818',
+  bear:      '#f85149',
+  bearDeep:  '#cf222e',
+  bearSoft:  '#3a1414',
+  warn:      '#d29922',
+  warnSoft:  '#3a2a00',
+
+  blue:      '#388bfd',
+  blueSoft:  '#0c2d6b',
+  purple:    '#a371f7',
+  purpleSoft: '#2c1c5b',
+  cyan:      '#39c5cf',
+  pink:      '#db61a2',
+  amber:     '#fb950c',
+  amberSoft: '#3a1d00',
+
+  shadow1:   'none',
+  shadow2:   'none',
+  shadow3:   'none',
+
+  white:     '#ffffff',
+  black:     '#000000',
+  transparent: 'transparent',
+};
+
+// Active palette — dynamically switches based on localStorage
+let _mode = getMode();
+let _tokens = _mode === 'dark' ? darkTokens : lightTokens;
+
+// Listen for theme changes
+if (typeof window !== 'undefined') {
+  window.addEventListener('algo-theme-change', () => {
+    _mode = getMode();
+    _tokens = _mode === 'dark' ? darkTokens : lightTokens;
+  });
+}
+
+// Expose tokens via Proxy so consumers always read live values
+export const C = new Proxy({}, {
+  get: (target, prop) => _tokens[prop],
+});
+
+export const isDarkMode = () => _mode === 'dark';
+export const setThemeMode = setMode;
+export const getCurrentMode = () => _mode;
 
 // ============================================================================
-// TYPOGRAPHY
+// HELPER COLORS
+// ============================================================================
+export const tierColor = (name) => ({
+  confirmed_uptrend: _tokens.bull,
+  healthy_uptrend:   _tokens.brand,
+  pressure:          _tokens.warn,
+  caution:           _tokens.amber,
+  correction:        _tokens.bear,
+}[name] || _tokens.textDim);
+
+export const gradeColor = (g) => ({
+  'A+': _tokens.bull,
+  'A':  _tokens.bullDeep,
+  'B':  _tokens.blue,
+  'C':  _tokens.warn,
+  'D':  _tokens.amber,
+  'F':  _tokens.bear,
+}[g] || _tokens.textDim);
+
+export const severityColor = (s) => ({
+  info:     _tokens.blue,
+  warn:     _tokens.warn,
+  warning:  _tokens.warn,
+  error:    _tokens.bear,
+  critical: _tokens.bearDeep,
+  ok:       _tokens.bull,
+  success:  _tokens.bull,
+  stale:    _tokens.warn,
+  empty:    _tokens.bear,
+}[s] || _tokens.textDim);
+
+// ============================================================================
+// TYPOGRAPHY — Inter for body, JetBrains Mono for numbers
 // ============================================================================
 export const F = {
-  // Font families
   body: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-  mono: '"JetBrains Mono", "Fira Code", "Cascadia Code", "SF Mono", Consolas, monospace',
+  mono: '"JetBrains Mono", "Fira Code", "SF Mono", Consolas, monospace',
   display: '"Inter", -apple-system, BlinkMacSystemFont, sans-serif',
 
-  // Sizes (semantic)
-  xxs:   '0.65rem',
-  xs:    '0.7rem',
-  sm:    '0.75rem',
-  base:  '0.875rem',
-  md:    '1rem',
-  lg:    '1.125rem',
-  xl:    '1.5rem',
-  xxl:   '2rem',
-  xxxl:  '2.5rem',
+  xxs:  '0.65rem',
+  xs:   '0.7rem',
+  sm:   '0.8125rem',
+  base: '0.875rem',
+  md:   '0.9375rem',
+  lg:   '1.125rem',
+  xl:   '1.5rem',
+  xxl:  '2rem',
+  xxxl: '2.5rem',
+  hero: '3.25rem',
 
-  // Weights
   weight: {
     regular: 400,
     medium: 500,
@@ -120,10 +212,9 @@ export const F = {
     black: 800,
   },
 
-  // Common label style
   overline: {
-    fontSize: '0.65rem',
-    letterSpacing: '0.1em',
+    fontSize: '0.7rem',
+    letterSpacing: '0.06em',
     fontWeight: 600,
     textTransform: 'uppercase',
   },
@@ -133,74 +224,81 @@ export const F = {
 // SPACING & LAYOUT
 // ============================================================================
 export const S = {
-  // Standard spacing scale (matches MUI but documented)
-  xs: 0.5,
-  sm: 1,
-  md: 2,
-  lg: 3,
-  xl: 4,
+  xs: 0.5, sm: 1, md: 2, lg: 3, xl: 4, xxl: 6,
 
-  // Layout dimensions
-  navWidth: 240,
-  navWidthCollapsed: 64,
+  navWidth: 232,
+  navWidthCollapsed: 60,
   headerHeight: 56,
   footerHeight: 32,
 
-  // Border radii
   radiusSm: 4,
-  radius:   6,
+  radius:   8,
   radiusLg: 12,
+  radiusXl: 16,
+
+  // Responsive breakpoints (matches MUI but documented)
+  bp: {
+    xs: 0,    // mobile
+    sm: 600,  // tablet
+    md: 900,  // small desktop
+    lg: 1200, // desktop
+    xl: 1536, // wide desktop
+  },
 };
 
 // ============================================================================
-// COMPONENT STYLE MIXINS
+// COMPONENT MIXINS — used by AlgoUI primitives
 // ============================================================================
 export const comp = {
-  // Card with subtle border + dark background
   card: {
-    bgcolor: C.card,
-    color: C.text,
-    border: `1px solid ${C.border}`,
-    borderRadius: S.radius / 8,
+    bgcolor: _tokens.card,
+    color: _tokens.text,
+    border: `1px solid ${_tokens.border}`,
+    borderRadius: 1,
+    boxShadow: _mode === 'dark' ? 'none' : _tokens.shadow1,
   },
 
-  // Card header strip
+  cardLifted: {
+    bgcolor: _tokens.card,
+    color: _tokens.text,
+    border: `1px solid ${_tokens.border}`,
+    borderRadius: 1,
+    boxShadow: _mode === 'dark' ? 'none' : _tokens.shadow2,
+  },
+
   cardHeader: {
     px: 2,
-    py: 1,
-    borderBottom: `1px solid ${C.border}`,
-    bgcolor: C.cardAlt,
+    py: 1.25,
+    borderBottom: `1px solid ${_tokens.borderLight}`,
+    bgcolor: _tokens.cardAlt,
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
 
-  // Table header cell
   thCell: {
-    bgcolor: C.cardAlt,
-    color: C.textDim,
-    borderColor: C.border,
+    bgcolor: _tokens.cardAlt,
+    color: _tokens.textDim,
+    borderColor: _tokens.borderLight,
     fontSize: F.xxs,
-    letterSpacing: '0.1em',
-    fontWeight: F.weight.bold,
+    letterSpacing: '0.06em',
+    fontWeight: F.weight.semibold,
+    py: 1,
   },
 
-  // Table data cell
   tdCell: {
-    color: C.text,
-    borderColor: C.border,
+    color: _tokens.text,
+    borderColor: _tokens.borderLight,
     fontSize: F.sm,
   },
 
-  // Monospace number cell
   monoCell: {
-    color: C.text,
-    borderColor: C.border,
+    color: _tokens.text,
+    borderColor: _tokens.borderLight,
     fontFamily: F.mono,
     fontSize: F.sm,
   },
 
-  // Chip / badge
   chip: (bg, fg = 'white') => ({
     bgcolor: bg,
     color: fg,
@@ -212,15 +310,11 @@ export const comp = {
 };
 
 // ============================================================================
-// HELPER FUNCTIONS
+// FORMATTERS
 // ============================================================================
-// P&L color from a number
-export const pnlColor = (n) => (n > 0 ? C.bull : n < 0 ? C.bear : C.textDim);
-
-// Direction arrow
+export const pnlColor = (n) => (n > 0 ? _tokens.bull : n < 0 ? _tokens.bear : _tokens.textDim);
 export const arrowFor = (n) => (n > 0 ? '▲' : n < 0 ? '▼' : '·');
 
-// Format big numbers
 export const fmt$ = (n, decimals = 2) => {
   if (n === null || n === undefined || isNaN(n)) return '-';
   if (Math.abs(n) >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
@@ -243,4 +337,37 @@ export const fmtNum = (n, decimals = 0) => {
   });
 };
 
-export default { C, F, S, comp, tierColor, gradeColor, severityColor, pnlColor, arrowFor, fmt$, fmtPct, fmtNum };
+export const fmtDate = (d) => {
+  if (!d) return '-';
+  const date = typeof d === 'string' ? new Date(d) : d;
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+};
+
+export const fmtTime = (d) => {
+  if (!d) return '-';
+  const date = typeof d === 'string' ? new Date(d) : d;
+  return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+};
+
+// ============================================================================
+// MOBILE / RESPONSIVE HELPERS
+// ============================================================================
+export const responsive = {
+  // Hide on small screens
+  hideOnMobile: { display: { xs: 'none', sm: 'block' } },
+  hideOnTablet: { display: { xs: 'none', md: 'block' } },
+  showOnlyMobile: { display: { xs: 'block', sm: 'none' } },
+
+  // Stack to column on mobile, row on desktop
+  stackOnMobile: { flexDirection: { xs: 'column', md: 'row' } },
+
+  // Padding scale by breakpoint
+  pageX: { xs: 1.5, sm: 2, md: 3 },
+  pageY: { xs: 1.5, sm: 2, md: 2 },
+};
+
+export default {
+  C, F, S, comp, tierColor, gradeColor, severityColor, pnlColor,
+  arrowFor, fmt$, fmtPct, fmtNum, fmtDate, fmtTime,
+  isDarkMode, setThemeMode, getCurrentMode, responsive,
+};
