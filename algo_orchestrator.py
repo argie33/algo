@@ -219,6 +219,66 @@ class Orchestrator:
             self._position_recs = []
             return True   # fail-open
 
+    def phase_3b_exposure_policy(self):
+        """Apply market exposure tier policy to existing positions.
+
+        Tighten stops on extended winners, force partial profits, and force-exit
+        losers when in CORRECTION tier — all per the active exposure regime.
+        """
+        self.log_phase_start('3b', 'EXPOSURE POLICY ACTIONS')
+        try:
+            # Refresh market exposure first
+            from algo_market_exposure import MarketExposure
+            from algo_market_exposure_policy import ExposurePolicy
+            me = MarketExposure()
+            exposure = me.compute(self.run_date)
+            print(f"  Exposure: {exposure['exposure_pct']}% ({exposure['regime']})")
+            if exposure.get('halt_reasons'):
+                print(f"  Halt reasons: {'; '.join(exposure['halt_reasons'])}")
+
+            policy = ExposurePolicy(self.config)
+            constraints = policy.get_entry_constraints(self.run_date)
+            self._exposure_constraints = constraints
+            if constraints:
+                print(f"  Tier: {constraints['tier_name']} — {constraints['description']}")
+                print(f"    risk_mult={constraints['risk_multiplier']}, "
+                      f"max_new/day={constraints['max_new_positions_today']}, "
+                      f"min_grade={constraints['min_swing_grade']}, "
+                      f"halt_entries={constraints['halt_new_entries']}")
+
+            actions = policy.review_existing_positions(self.run_date)
+            self._exposure_actions = actions
+
+            if not actions:
+                print(f"  No exposure-policy actions for {len(getattr(self, '_position_recs', []))} open positions")
+                self.log_phase_result('3b', 'exposure_policy', 'success',
+                                      f'tier={constraints["tier_name"] if constraints else "n/a"}, no actions')
+                return True
+
+            counts = {'tighten_stop': 0, 'partial_exit': 0, 'force_exit': 0}
+            for action in actions:
+                counts[action['action']] = counts.get(action['action'], 0) + 1
+
+            print(f"\n  {len(actions)} exposure-policy actions:")
+            for a in actions:
+                print(f"    {a['symbol']:6s} -> {a['action'].upper():15s} "
+                      f"R={a.get('r_multiple', 0):+.2f}  {a['reason']}")
+
+            self.log_phase_result(
+                '3b', 'exposure_policy', 'success',
+                f"tier={constraints['tier_name']}, "
+                f"{counts.get('tighten_stop', 0)} tighten, "
+                f"{counts.get('partial_exit', 0)} partial, "
+                f"{counts.get('force_exit', 0)} force_exit"
+            )
+            return True
+        except Exception as e:
+            traceback.print_exc()
+            self.log_phase_result('3b', 'exposure_policy', 'error', str(e))
+            self._exposure_actions = []
+            self._exposure_constraints = None
+            return True  # fail-open
+
     def phase_4_exit_execution(self):
         self.log_phase_start(4, 'EXIT EXECUTION')
         try:
@@ -229,6 +289,76 @@ class Orchestrator:
             exit_count = 0
             stop_raises = 0
             errors = 0
+
+            # 4a-prime. Apply exposure-policy actions FIRST (highest priority)
+            for action in getattr(self, '_exposure_actions', []):
+                try:
+                    if self.dry_run:
+                        if self.verbose:
+                            print(f"  [DRY-RUN] {action['symbol']}: {action['action'].upper()} "
+                                  f"({action['reason']})")
+                        continue
+
+                    if action['action'] == 'force_exit':
+                        result = executor.exit_trade(
+                            trade_id=action['trade_id'],
+                            exit_price=0,  # filled at market — we'll compute current price below
+                            exit_reason=action['reason'],
+                            exit_fraction=1.0,
+                            exit_stage='exposure_force_exit',
+                        )
+                        if result.get('success'):
+                            exit_count += 1
+                            print(f"  EXPOSURE FORCE-EXIT: {result.get('message', action['symbol'])}")
+                        else:
+                            errors += 1
+
+                    elif action['action'] == 'partial_exit':
+                        # Need current price — fetch
+                        try:
+                            conn = psycopg2.connect(**DB_CONFIG)
+                            cur = conn.cursor()
+                            cur.execute(
+                                "SELECT current_price FROM algo_positions WHERE position_id = %s",
+                                (action['position_id'],),
+                            )
+                            row = cur.fetchone()
+                            cur.close(); conn.close()
+                            cur_price = float(row[0]) if row and row[0] else 0
+                        except Exception:
+                            cur_price = 0
+                        if cur_price > 0:
+                            result = executor.exit_trade(
+                                trade_id=action['trade_id'],
+                                exit_price=cur_price,
+                                exit_reason=action['reason'],
+                                exit_fraction=action.get('exit_fraction', 0.5),
+                                exit_stage='exposure_partial',
+                                new_stop_price=action.get('new_stop'),
+                            )
+                            if result.get('success'):
+                                exit_count += 1
+                                print(f"  EXPOSURE PARTIAL: {result['message']}")
+
+                    elif action['action'] == 'tighten_stop':
+                        try:
+                            conn = psycopg2.connect(**DB_CONFIG)
+                            cur = conn.cursor()
+                            cur.execute(
+                                "UPDATE algo_positions SET current_stop_price = %s WHERE position_id = %s",
+                                (action['new_stop'], action['position_id']),
+                            )
+                            conn.commit()
+                            cur.close(); conn.close()
+                            stop_raises += 1
+                            if self.verbose:
+                                print(f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}")
+                        except Exception as e:
+                            errors += 1
+                            print(f"  Tighten failed for {action['symbol']}: {e}")
+                except Exception as e:
+                    errors += 1
+                    print(f"  Error on exposure action {action.get('symbol')}: {e}")
 
             # 4a. Apply position monitor recommendations (early exits + stop raises)
             for rec in getattr(self, '_position_recs', []):
@@ -316,6 +446,31 @@ class Orchestrator:
             from algo_trade_executor import TradeExecutor
             executor = TradeExecutor(self.config)
             qualified = getattr(self, '_qualified_trades', [])
+            constraints = getattr(self, '_exposure_constraints', None)
+
+            # Apply exposure tier entry constraints
+            if constraints and constraints.get('halt_new_entries'):
+                self.log_phase_result(
+                    6, 'entry_execution', 'success',
+                    f"Tier '{constraints['tier_name']}' halts new entries — 0 entries"
+                )
+                return True
+
+            # Filter qualified trades by min_swing_grade and min_swing_score
+            if constraints:
+                min_score = constraints.get('min_swing_score', 60.0)
+                grade_order = ['F', 'D', 'C', 'B', 'A', 'A+']
+                min_grade = constraints.get('min_swing_grade', 'B')
+                min_grade_idx = grade_order.index(min_grade) if min_grade in grade_order else 3
+                before = len(qualified)
+                qualified = [
+                    t for t in qualified
+                    if (t.get('swing_score', 0) >= min_score and
+                        grade_order.index(t.get('swing_grade', 'F')) >= min_grade_idx)
+                ]
+                if len(qualified) < before:
+                    print(f"  Tier filter: {before} -> {len(qualified)} "
+                          f"(min_score={min_score}, min_grade={min_grade})")
 
             # Determine open slots
             try:
@@ -327,17 +482,25 @@ class Orchestrator:
                 conn.close()
             except Exception:
                 open_count = 0
-            max_positions = int(self.config.get('max_positions', 12))
+            max_positions = int(self.config.get('max_positions', 6))
             open_slots = max(0, max_positions - open_count)
 
+            # Apply daily entry cap from exposure tier
+            if constraints:
+                daily_cap = constraints.get('max_new_positions_today', 5)
+                open_slots = min(open_slots, daily_cap)
+
             print(f"  Open positions: {open_count}/{max_positions}, slots available: {open_slots}")
+            if constraints:
+                print(f"  Tier '{constraints['tier_name']}' caps daily entries at {constraints['max_new_positions_today']}")
 
             if open_slots == 0:
                 self.log_phase_result(6, 'entry_execution', 'success',
-                                      f'No room (already {open_count}/{max_positions})')
+                                      f'No room (already {open_count}/{max_positions} or daily cap)')
                 return True
             if not qualified:
-                self.log_phase_result(6, 'entry_execution', 'success', 'No qualified trades')
+                self.log_phase_result(6, 'entry_execution', 'success',
+                                      'No qualified trades meet tier requirements')
                 return True
 
             entered = 0
@@ -417,11 +580,13 @@ class Orchestrator:
         if not self.phase_2_circuit_breakers():
             print("\nHALT: Circuit breaker fired. Will still review positions but skip new entries.")
             self.phase_3_position_monitor()
+            self.phase_3b_exposure_policy()
             self.phase_4_exit_execution()
             self.phase_7_reconcile()
             return self._final_report()
 
         self.phase_3_position_monitor()
+        self.phase_3b_exposure_policy()
         self.phase_4_exit_execution()
         self.phase_5_signal_generation()
         self.phase_6_entry_execution()
@@ -433,7 +598,7 @@ class Orchestrator:
         print(f"\n{'#'*70}")
         print(f"#   FINAL REPORT — {self.run_id}")
         print(f"{'#'*70}")
-        for n, info in sorted(self.phase_results.items()):
+        for n, info in sorted(self.phase_results.items(), key=lambda x: str(x[0])):
             status_flag = {
                 'success': '[OK] ',
                 'halt':    '[HALT]',
