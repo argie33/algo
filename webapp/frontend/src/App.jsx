@@ -38,7 +38,7 @@ import Sentiment from "./pages/Sentiment";
 import CommoditiesAnalysis from "./pages/CommoditiesAnalysis";
 import ScoresDashboard from "./pages/ScoresDashboard";
 import MetricsDashboard from "./pages/MetricsDashboard";
-import TradeHistory from "./pages/TradeHistory";
+import TradeTracker from "./pages/TradeTracker";
 import PortfolioDashboard from "./pages/PortfolioDashboard";
 import HedgeHelper from "./pages/HedgeHelper";
 import PortfolioOptimizerNew from "./pages/PortfolioOptimizerNew";
@@ -397,7 +397,7 @@ function App() {
 
           {/* Portfolio & Trading */}
           <Route path="/app/portfolio" element={<PortfolioDashboard />} />
-          <Route path="/app/trades" element={<TradeHistory />} />
+          <Route path="/app/trades" element={<TradeTracker />} />
           <Route path="/app/optimizer" element={<PortfolioOptimizerNew />} />
           <Route path="/app/hedge-helper" element={<HedgeHelper />} />
 

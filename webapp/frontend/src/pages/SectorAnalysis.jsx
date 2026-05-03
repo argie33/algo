@@ -1563,7 +1563,7 @@ const SectorAnalysis = () => {
                               • Forward P/E: {sector.pe?.forward ? sector.pe.forward.toFixed(2) : "—"}
                             </Typography>
                             <Typography variant="body2">
-                              • Percentile: {sector.pe?.percentile ? `${sector.pe.percentile}th` : "—"}
+                              • Percentile: {sector.pe?.percentile != null ? `${Math.round(sector.pe.percentile)}th` : "—"}
                             </Typography>
                           </Box>
                         </Box>
@@ -1832,7 +1832,7 @@ const SectorAnalysis = () => {
                               • Forward P/E: {industry.pe?.forward ? industry.pe.forward.toFixed(2) : "—"}
                             </Typography>
                             <Typography variant="body2">
-                              • Percentile: {industry.pe?.percentile ? `${industry.pe.percentile}th` : "—"}
+                              • Percentile: {industry.pe?.percentile != null ? `${Math.round(industry.pe.percentile)}th` : "—"}
                             </Typography>
                           </Box>
                         </Box>

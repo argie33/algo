@@ -41,12 +41,6 @@ const drawerWidth = S.navWidth;
 // ============================================================================
 const navSections = [
   {
-    title: 'Algo Control',
-    items: [
-      { text: 'Algo Dashboard', icon: <ShieldOutlined />, path: '/app/algo', accent: 'brand' },
-    ],
-  },
-  {
     title: 'Markets',
     items: [
       { text: 'Market Overview', icon: <TrendingUpIcon />, path: '/app/market' },
@@ -63,15 +57,13 @@ const navSections = [
       { text: 'Trading Signals', icon: <Bolt />, path: '/app/trading-signals' },
       { text: 'Deep Value Picks', icon: <AccountBalance />, path: '/app/deep-value' },
       { text: 'ETF Signals', icon: <AnalyticsIcon />, path: '/app/etf-signals' },
-      { text: 'Earnings Calendar', icon: <EventIcon />, path: '/app/earnings' },
-      { text: 'Financial Data', icon: <StorageIcon />, path: '/app/financial-data' },
     ],
   },
   {
     title: 'Portfolio & Trading',
     items: [
       { text: 'Portfolio', icon: <SwapHorizIcon />, path: '/app/portfolio' },
-      { text: 'Trade History', icon: <TimelineIcon />, path: '/app/trades' },
+      { text: 'Trade Tracker', icon: <TimelineIcon />, path: '/app/trades' },
       { text: 'Optimizer', icon: <Stars />, path: '/app/optimizer' },
       { text: 'Hedge Helper', icon: <BusinessIcon />, path: '/app/hedge-helper' },
     ],
