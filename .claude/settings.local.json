@@ -138,7 +138,28 @@
       "Bash(chmod +x /usr/local/bin/aws)",
       "Bash(mkdir -p /usr/local/bin)",
       "Bash(export PATH=\"/usr/local/bin:$PATH\")",
-      "Bash(git remote *)"
+      "Bash(git remote *)",
+      "Bash(curl -s -H 'Authorization: token __CMDSUB_OUTPUT__' 'https://api.github.com/repos/argie33/algo/actions/runs?event=push')",
+      "Bash(curl -X POST -H 'Authorization: token __CMDSUB_OUTPUT__' -H 'Accept: application/vnd.github.v3+json' https://api.github.com/repos/argie33/algo/actions/workflows/deploy-app-stocks.yml/dispatches -d '{\"ref\":\"main\",\"inputs\":{\"loaders\":\"\"}}')",
+      "Bash(curl -s -H 'Authorization: token __CMDSUB_OUTPUT__' 'https://api.github.com/repos/argie33/algo/actions/runs?event=workflow_dispatch&per_page=1')",
+      "Bash(curl -s -H 'Authorization: token __CMDSUB_OUTPUT__' 'https://api.github.com/repos/argie33/algo/actions/runs?per_page=3')",
+      "Bash(curl -s -H 'Authorization: token __CMDSUB_OUTPUT__' 'https://api.github.com/repos/argie33/algo/actions/runs?per_page=1')",
+      "Bash(curl -s -H 'Authorization: token __CMDSUB_OUTPUT__' https://api.github.com/repos/argie33/algo/actions/runs/25266293309/jobs)",
+      "Bash(curl -s -H 'Authorization: token __CMDSUB_OUTPUT__' 'https://api.github.com/repos/argie33/algo/actions/runs/25266293309/jobs?per_page=20')",
+      "Bash(curl -s -H 'Authorization: token __CMDSUB_OUTPUT__' https://api.github.com/repos/argie33/algo/actions/jobs/74081325013/logs)",
+      "Bash(curl -s -H 'Authorization: token __CMDSUB_OUTPUT__' 'https://api.github.com/repos/argie33/algo/actions/runs/25266609517/jobs?per_page=50')",
+      "Bash(curl -s -H 'Authorization: token __CMDSUB_OUTPUT__' 'https://api.github.com/repos/argie33/algo/actions/runs/25267950995/jobs?per_page=50')",
+      "Bash(curl -s -H 'Authorization: token __CMDSUB_OUTPUT__' https://api.github.com/repos/argie33/algo/actions/runs/25267950995)",
+      "Bash(curl -s -H 'Authorization: token __CMDSUB_OUTPUT__' 'https://api.github.com/repos/argie33/algo/actions/runs?per_page=5')",
+      "Bash(curl -s -H 'Authorization: token __CMDSUB_OUTPUT__' https://api.github.com/repos/argie33/algo/actions/runs/25266609517)",
+      "Bash(curl -s -H 'Authorization: token __CMDSUB_OUTPUT__' https://api.github.com/repos/argie33/algo/actions/runs)",
+      "Bash(curl -X POST -H 'Authorization: token __CMDSUB_OUTPUT__' -H 'Accept: application/vnd.github.v3+json' https://api.github.com/repos/argie33/algo/actions/workflows/deploy-app-stocks.yml/dispatches -d '{\"ref\":\"main\",\"inputs\":{\"loaders\":\"\",\"environment\":\"dev\"}}')",
+      "Bash(curl -s -H 'Authorization: token __CMDSUB_OUTPUT__' 'https://api.github.com/repos/argie33/algo/actions/runs?event=workflow_dispatch&per_page=2')",
+      "Bash(curl -s -H 'Authorization: token __CMDSUB_OUTPUT__' https://api.github.com/repos/argie33/algo/actions/runs/25267987584)",
+      "Bash(curl -s -H 'Authorization: token __CMDSUB_OUTPUT__' 'https://api.github.com/repos/argie33/algo/actions/runs?event=workflow_dispatch&per_page=1')",
+      "Bash(curl -s -H 'Authorization: token __CMDSUB_OUTPUT__' https://api.github.com/repos/argie33/algo/actions/runs/__TRACKED_VAR__)",
+      "Bash(curl -s -H 'Authorization: token __CMDSUB_OUTPUT__' https://api.github.com/repos/argie33/algo/actions/runs/25271975216)",
+      "Bash(aws cloudformation *)"
     ]
   }
 }

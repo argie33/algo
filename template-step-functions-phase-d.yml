@@ -8,9 +8,22 @@ Parameters:
   BuySellDailyOrchestratorArn:
     Type: String
     Description: ARN of the Phase C Orchestrator Lambda function
+    Default: 'arn:aws:lambda:us-east-1:626216981288:function:buyselldaily-orchestrator'
   RDSSecretArn:
     Type: String
     Description: ARN of RDS credentials in Secrets Manager
+  Subnet1:
+    Type: String
+    Default: 'subnet-0142dc004c9fc3e0c'
+    Description: Primary subnet for ECS tasks
+  Subnet2:
+    Type: String
+    Default: 'subnet-0458999323649c79d'
+    Description: Secondary subnet for ECS tasks
+  SecurityGroupId:
+    Type: String
+    Default: 'sg-0519c564d78cca3de'
+    Description: Security group for ECS tasks
 
 Resources:
   # ============================================================================
@@ -202,12 +215,24 @@ Resources:
                   "States": {
                     "BuySellDailyLoad": {
                       "Type": "Task",
-                      "Resource": "arn:aws:lambda:us-east-1:626216981288:function:buyselldaily-orchestrator",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "LaunchType": "FARGATE",
+                        "Cluster": "${ECSClusterArn}",
+                        "TaskDefinition": "loadbuyselldaily:1",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": ["${Subnet1}", "${Subnet2}"],
+                            "SecurityGroups": ["${SecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        }
+                      },
                       "Retry": [
-                        {"ErrorEquals": ["States.TaskFailed"], "IntervalSeconds": 5, "MaxAttempts": 2, "BackoffRate": 2}
+                        {"ErrorEquals": ["States.TaskFailed"], "IntervalSeconds": 2, "MaxAttempts": 2, "BackoffRate": 2}
                       ],
                       "End": true,
-                      "TimeoutSeconds": 1800
+                      "TimeoutSeconds": 2700
                     }
                   }
                 },

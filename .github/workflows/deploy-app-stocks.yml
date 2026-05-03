@@ -1570,8 +1570,26 @@ jobs:
             --query "Exports[?Name=='StocksApp-ClusterArn'].Value" \
             --output text)
 
+          # Get networking info
+          SUBNET1=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet1Id'].Value" \
+            --output text)
+          SUBNET2=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-PublicSubnet2Id'].Value" \
+            --output text)
+          SECURITY_GROUP=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-EcsTasksSecurityGroupId'].Value" \
+            --output text)
+
           echo "✅ Cluster ARN: $CLUSTER_ARN"
+          echo "✅ Subnet 1: $SUBNET1"
+          echo "✅ Subnet 2: $SUBNET2"
+          echo "✅ Security Group: $SECURITY_GROUP"
+
           echo "cluster-arn=$CLUSTER_ARN" >> $GITHUB_OUTPUT
+          echo "subnet1=$SUBNET1" >> $GITHUB_OUTPUT
+          echo "subnet2=$SUBNET2" >> $GITHUB_OUTPUT
+          echo "security-group=$SECURITY_GROUP" >> $GITHUB_OUTPUT
 
       - name: Deploy Phase D CloudFormation Stack
         id: deploy
@@ -1627,7 +1645,10 @@ jobs:
             --parameter-overrides \
               ECSClusterArn=${{ steps.template.outputs.cluster-arn }} \
               BuySellDailyOrchestratorArn=$ORCHESTRATOR_ARN \
-              RDSSecretArn=arn:aws:secretsmanager:us-east-1:${{ env.AWS_ACCOUNT_ID }}:secret:stocks-prod-postgres-creds
+              RDSSecretArn=arn:aws:secretsmanager:us-east-1:${{ env.AWS_ACCOUNT_ID }}:secret:stocks-prod-postgres-creds \
+              Subnet1=${{ steps.template.outputs.subnet1 }} \
+              Subnet2=${{ steps.template.outputs.subnet2 }} \
+              SecurityGroupId=${{ steps.template.outputs.security-group }}
 
           # Get state machine ARN
           STATE_MACHINE_ARN=$(aws cloudformation describe-stack-resource \
