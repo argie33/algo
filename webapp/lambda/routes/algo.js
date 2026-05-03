@@ -12,8 +12,13 @@
 
 const express = require('express');
 const { getPool } = require('../utils/database');
+const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Auth middleware: require authentication for endpoints that mutate state or
+// trigger expensive operations. GET endpoints remain public for read-only data.
+const requireAuth = authenticateToken;
 
 /**
  * GET /api/algo/status
@@ -650,7 +655,7 @@ router.get('/exposure-policy', async (req, res) => {
 // ============================================================
 // RUN ORCHESTRATOR — trigger the daily algo workflow from UI
 // ============================================================
-router.post('/run', async (req, res) => {
+router.post('/run', requireAuth, async (req, res) => {
   const { spawn } = require('child_process');
   const path = require('path');
 
@@ -714,7 +719,7 @@ router.post('/run', async (req, res) => {
 // ============================================================
 // RUN DATA PATROL — trigger watchdog from UI
 // ============================================================
-router.post('/patrol', async (req, res) => {
+router.post('/patrol', requireAuth, async (req, res) => {
   const { spawn } = require('child_process');
   const path = require('path');
 
@@ -838,7 +843,7 @@ router.get('/notifications', async (req, res) => {
   }
 });
 
-router.post('/notifications/seen', async (req, res) => {
+router.post('/notifications/seen', requireAuth, async (req, res) => {
   try {
     const pool = getPool();
     const ids = req.body?.ids || [];
@@ -858,7 +863,7 @@ router.post('/notifications/seen', async (req, res) => {
 // ============================================================
 // PRE-TRADE SIMULATION — what would the algo do?
 // ============================================================
-router.post('/simulate', async (req, res) => {
+router.post('/simulate', requireAuth, async (req, res) => {
   const { spawn } = require('child_process');
   const path = require('path');
   try {

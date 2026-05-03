@@ -631,27 +631,78 @@ class Orchestrator:
         print(f"#   run_id: {self.run_id}")
         print(f"{'#'*70}")
 
-        if not self.phase_1_data_freshness():
-            print("\nFAIL-CLOSED: Data freshness check failed. Halting pipeline.")
-            return self._final_report()
+        # Concurrency lock — prevent two orchestrators running at once
+        # which would risk duplicate trades or double-counting circuit breakers
+        lock_path = Path(__file__).parent / '.algo_orchestrator.lock'
+        existing_pid = None
+        if lock_path.exists():
+            try:
+                existing_pid = int(lock_path.read_text().strip())
+                # Check if PID is alive
+                if self._pid_alive(existing_pid):
+                    print(f"\nABORT: Orchestrator already running (PID {existing_pid}). "
+                          "Wait for it to finish or kill it.")
+                    return {'success': False, 'error': f'lock held by PID {existing_pid}'}
+                else:
+                    print(f"  (Stale lock from PID {existing_pid} — clearing)")
+            except Exception:
+                pass
 
-        if not self.phase_2_circuit_breakers():
-            print("\nHALT: Circuit breaker fired. Will still review positions but skip new entries.")
+        # Acquire lock
+        try:
+            lock_path.write_text(str(os.getpid()))
+        except Exception as e:
+            print(f"  (warning: couldn't write lock file: {e})")
+
+        try:
+            if not self.phase_1_data_freshness():
+                print("\nFAIL-CLOSED: Data freshness check failed. Halting pipeline.")
+                return self._final_report()
+
+            if not self.phase_2_circuit_breakers():
+                print("\nHALT: Circuit breaker fired. Will still review positions but skip new entries.")
+                self.phase_3_position_monitor()
+                self.phase_3b_exposure_policy()
+                self.phase_4_exit_execution()
+                self.phase_7_reconcile()
+                return self._final_report()
+
             self.phase_3_position_monitor()
             self.phase_3b_exposure_policy()
             self.phase_4_exit_execution()
+            self.phase_4b_pyramid_adds()
+            self.phase_5_signal_generation()
+            self.phase_6_entry_execution()
             self.phase_7_reconcile()
+
             return self._final_report()
+        finally:
+            # Always release the lock, even on exception
+            try:
+                if lock_path.exists():
+                    held_pid = int(lock_path.read_text().strip())
+                    if held_pid == os.getpid():
+                        lock_path.unlink()
+            except Exception:
+                pass
 
-        self.phase_3_position_monitor()
-        self.phase_3b_exposure_policy()
-        self.phase_4_exit_execution()
-        self.phase_4b_pyramid_adds()
-        self.phase_5_signal_generation()
-        self.phase_6_entry_execution()
-        self.phase_7_reconcile()
-
-        return self._final_report()
+    def _pid_alive(self, pid):
+        """Check if a PID is still running (cross-platform)."""
+        try:
+            if os.name == 'nt':
+                # Windows
+                import subprocess
+                result = subprocess.run(
+                    ['tasklist', '/FI', f'PID eq {pid}'],
+                    capture_output=True, text=True, timeout=5,
+                )
+                return str(pid) in result.stdout
+            else:
+                # POSIX — kill -0 just checks existence
+                os.kill(pid, 0)
+                return True
+        except Exception:
+            return False
 
     def _final_report(self):
         print(f"\n{'#'*70}")

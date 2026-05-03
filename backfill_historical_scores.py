@@ -135,6 +135,10 @@ def backfill(days_back, symbol_filter=None, batch_size=100):
                         (sym, eval_date, mt['score'], sqs_score),
                     )
                     day_processed += 1
+                    # NOTE: real Mansfield RS + percentile + c8 are computed
+                    # in a SEPARATE post-pass after all dates loaded — see
+                    # finalize_rs_and_c8() below. Per-symbol c8 isn't possible
+                    # here because it's a cross-symbol percentile rank.
             except Exception:
                 total_skipped += 1
                 continue
