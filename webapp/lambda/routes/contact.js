@@ -1,8 +1,10 @@
 const express = require("express");
 
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const { authenticateToken } = require('../middleware/auth');
 const router = express.Router();
 const { query } = require("../utils/database");
+const requireAuth = authenticateToken;
 
 // POST /api/contact - Submit contact form
 router.post("/", async (req, res) => {
@@ -44,7 +46,7 @@ router.post("/", async (req, res) => {
 });
 
 // GET /api/contact/submissions - Get all submissions (Admin only)
-router.get("/submissions", async (req, res) => {
+router.get("/submissions", requireAuth, async (req, res) => {
   try {
     // In production, add authentication middleware here
     // For now, we'll allow access - implement auth as needed
@@ -85,7 +87,7 @@ router.get("/submissions", async (req, res) => {
 });
 
 // GET /api/contact/submissions/:id - Get single submission
-router.get("/submissions/:id", async (req, res) => {
+router.get("/submissions/:id", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -109,7 +111,7 @@ router.get("/submissions/:id", async (req, res) => {
 });
 
 // PATCH /api/contact/submissions/:id - Mark as reviewed
-router.patch("/submissions/:id", async (req, res) => {
+router.patch("/submissions/:id", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;

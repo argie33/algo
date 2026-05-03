@@ -1,9 +1,11 @@
 const express = require('express');
 const { query } = require('../utils/database');
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse');
+const { authenticateToken } = require('../middleware/auth');
 const logger = require('../utils/logger');
 
 const router = express.Router();
+const requireAuth = authenticateToken;
 
 /**
  * GET /api/research/backtests
@@ -140,7 +142,7 @@ router.get('/:run_id', async (req, res, next) => {
  * POST /api/research/backtests
  * Create a new backtest run record (used by backtest.py)
  */
-router.post('/', async (req, res, next) => {
+router.post('/', requireAuth, async (req, res, next) => {
   try {
     const {
       run_name,

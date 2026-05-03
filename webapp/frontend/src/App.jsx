@@ -28,6 +28,7 @@ import {
 
 // Dashboard pages - ALL 18 pages
 import MarketOverview from "./pages/MarketOverview";
+import MarketsHealth from "./pages/MarketsHealth";
 import FinancialData from "./pages/FinancialData";
 import DeepValueStocks from "./pages/DeepValueStocks";
 import TradingSignals from "./pages/TradingSignals";
@@ -393,6 +394,7 @@ function App() {
       <AppLayout>
         <Routes>
           {/* Markets & Analysis */}
+          <Route path="/app/markets" element={<MarketsHealth />} />
           <Route path="/app/market" element={<MarketOverview />} />
           <Route path="/app/economic" element={<EconomicDashboard />} />
           <Route path="/app/sectors" element={<SectorAnalysis />} />
