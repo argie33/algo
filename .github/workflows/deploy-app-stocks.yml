@@ -1330,6 +1330,20 @@ jobs:
 
           echo "Using CloudFormation bucket: $CF_BUCKET"
 
+          # Check if stack is in ROLLBACK_COMPLETE state and delete it if so
+          echo "Checking stack status..."
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-lambda-phase-c \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "")
+
+          if [[ "$STACK_STATUS" == "ROLLBACK_COMPLETE" ]]; then
+            echo "⚠️  Stack is in ROLLBACK_COMPLETE state - deleting and recreating..."
+            aws cloudformation delete-stack --stack-name stocks-lambda-phase-c
+            aws cloudformation wait stack-delete-complete --stack-name stocks-lambda-phase-c || true
+            echo "✅ Deleted failed stack, will create fresh"
+          fi
+
           # Upload Lambda template to S3
           echo "Uploading template-lambda-phase-c.yml to S3..."
           aws s3 cp template-lambda-phase-c.yml s3://$CF_BUCKET/template-lambda-phase-c.yml
