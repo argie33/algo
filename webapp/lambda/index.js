@@ -661,8 +661,10 @@ app.get("/api/signals/search", cacheMiddleware(60), async (req, res) => {
     // For large result sets, use LIMIT to prevent table scans
     const columns = [
       'id', 'symbol', 'date', 'signal', 'timeframe', 'open', 'high', 'low', 'close', 'volume',
-      'rsi', 'adx', 'buylevel', 'stoplevel', 'signal_strength', 'base_type', 'market_stage',
-      'entry_quality_score', 'profit_target_20pct', 'profit_target_25pct', 'atr', 'mansfield_rs'
+      'rsi', 'adx', 'buylevel', 'stoplevel', 'signal_strength', 'base_type', 'base_length_days',
+      'breakout_quality', 'market_stage', 'entry_quality_score', 'profit_target_20pct',
+      'profit_target_25pct', 'atr', 'mansfield_rs', 'buy_zone_start', 'buy_zone_end',
+      'risk_reward_ratio', 'avg_volume_50d', 'volume_surge_pct', 'rs_rating'
     ].join(',');
 
     // More aggressive limit for AWS to prevent 504 timeouts - scan max 2000 rows
