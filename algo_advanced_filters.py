@@ -32,6 +32,7 @@ import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
+from algo_signals import SignalComputer
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -75,7 +76,8 @@ class AdvancedFilters:
         self._strong_sectors = None
         self._strong_industries = None
         self._market_breadth = None
-        self._sector_full_ranking = None  # full {sector: rank}
+        self._sector_full_ranking = None
+        self._signals = None  # SignalComputer, lazy-init
 
     def connect(self):
         if self.cur is None:
@@ -228,6 +230,13 @@ class AdvancedFilters:
         components['price_trend_pts'] = round(trend_pts, 1)
         subscores['momentum'] += trend_pts
 
+        # SETUP QUALITY (5 pts within momentum bucket): base breakout / VCP
+        # Bassal, Darvas, Minervini all emphasize entering on breakout from
+        # tight consolidation (vs chasing extended trends).
+        setup_pts, setup_breakdown = self._setup_quality_score(symbol, signal_date)
+        components['setup_quality'] = setup_breakdown
+        subscores['momentum'] += setup_pts
+
         # QUALITY (30)
         ibd_pts, ibd_breakdown = self._ibd_composite_score(symbol)
         components['ibd_composite'] = ibd_breakdown
@@ -358,6 +367,49 @@ class AdvancedFilters:
             pass
 
         return min(score, self.W_MOMENTUM_PRICE_TREND)
+
+    def _setup_quality_score(self, symbol, signal_date):
+        """Bonus pts for entering on a real base breakout / VCP (canonical swing setup).
+
+        +3 pts: in identified base AND breakout imminent (within 2% of pivot)
+        +2 pts: VCP confirmed (sequential range narrowing)
+        +1 pt:  pivot breakout fired today on volume
+        +1 pt:  Minervini power trend (20%+ in 21 days)
+        Capped at 5.
+        """
+        try:
+            if self._signals is None:
+                self._signals = SignalComputer(cur=self.cur)
+            base = self._signals.base_detection(symbol, signal_date)
+            vcp = self._signals.vcp_detection(symbol, signal_date)
+            pivot = self._signals.pivot_breakout(symbol, signal_date)
+            power = self._signals.power_trend(symbol, signal_date)
+        except Exception as e:
+            return 0.0, {'error': str(e)[:60]}
+
+        pts = 0.0
+        if base.get('in_base') and base.get('breakout_imminent'):
+            pts += 3.0
+        elif base.get('in_base'):
+            pts += 1.5
+        if vcp.get('is_vcp'):
+            pts += 2.0
+        if pivot.get('breakout'):
+            pts += 1.0
+        if power.get('power_trend'):
+            pts += 1.0
+        pts = min(5.0, pts)
+
+        return pts, {
+            'in_base': base.get('in_base'),
+            'breakout_imminent': base.get('breakout_imminent'),
+            'base_depth_pct': base.get('base_depth_pct'),
+            'is_vcp': vcp.get('is_vcp'),
+            'vcp_contractions': vcp.get('contractions'),
+            'pivot_breakout': pivot.get('breakout'),
+            'power_trend': power.get('power_trend'),
+            'return_21d': power.get('return_21d'),
+        }
 
     def _period_return(self, symbol, end_date, lookback_days):
         self.cur.execute(

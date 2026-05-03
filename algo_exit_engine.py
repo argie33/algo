@@ -22,6 +22,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
 from algo_trade_executor import TradeExecutor
+from algo_signals import SignalComputer
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -288,6 +289,17 @@ class ExitEngine:
         cur_close = float(rows[0][0])
         prior_max = max(float(r[0]) for r in rows[1:])
         return cur_close < prior_max
+
+    def _is_td_sequential_top(self, symbol, current_date):
+        """Use rigorous DeMark TD Sequential — fires when sell-setup count = 9."""
+        if self.cur is None:
+            return False
+        try:
+            sc = SignalComputer(cur=self.cur)
+            td = sc.td_sequential(symbol, current_date)
+            return td.get('completed_9', False) and td.get('setup_type') == 'sell'
+        except Exception:
+            return False
 
     def _is_minervini_break(self, symbol, current_date, cur_price):
         """Close < 50-DMA OR (close < EMA(12) AND volume > 50-day avg)."""
