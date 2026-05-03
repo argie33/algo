@@ -1,218 +1,105 @@
 #!/usr/bin/env python3
 """
-Earnings Estimates Loader - Fill the 90% gap
-Loads analyst estimates for all 4,965 symbols
+Earnings Estimates Loader - Optimal Pattern.
 
-Current state: 1,348 rows / 337 symbols (6.8%)
-Target: ~20,000 rows / 4,965 symbols (100%)
+Loads analyst earnings estimates and growth projections.
+Inherits watermarks, dedup, multi-source routing, parallelism, and bulk COPY.
+
+Run:
+    python3 loadearningsestimates.py [--symbols AAPL,MSFT] [--parallelism 8]
 """
 
-import psycopg2
-from db_helper import DatabaseHelper
-from psycopg2.extras import execute_values
-import yfinance as yf
-import pandas as pd
+from __future__ import annotations
+
+import argparse
+import logging
 import os
 import sys
-import logging
-from dotenv import load_dotenv
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import time
+from datetime import date
+from typing import List, Optional
 
-load_dotenv('.env.local')
+from optimal_loader import OptimalLoader
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    stream=sys.stdout
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 
-def get_db_connection():
-    return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'localhost'),
-        port=int(os.getenv('DB_PORT', '5432')),
-        user=os.getenv('DB_USER', 'stocks'),
-        password=os.getenv('DB_PASSWORD'),
-        database=os.getenv('DB_NAME', 'stocks')
+
+class EarningsEstimatesLoader(OptimalLoader):
+    table_name = "earnings_estimates"
+    primary_key = ("symbol", "fiscal_year", "period_type")
+    watermark_field = "fiscal_year"
+
+    def fetch_incremental(self, symbol: str, since: Optional[date]):
+        """Fetch earnings estimates via data source router."""
+        try:
+            estimates = self.router.fetch_earnings(symbol)
+            if not estimates:
+                return None
+            since_year = int(since) if since else 2000
+            filtered = [e for e in estimates if e.get("fiscal_year", 0) > since_year]
+            return filtered if filtered else None
+        except Exception as e:
+            logging.debug(f"Estimates fetch error for {symbol}: {e}")
+            return None
+
+    def transform(self, rows):
+        """Rows are already clean from data source router."""
+        return rows
+
+    def _validate_row(self, row: dict) -> bool:
+        """Validate estimates row."""
+        if not super()._validate_row(row):
+            return False
+        try:
+            return (
+                row.get("fiscal_year") is not None
+                and row.get("period_type") is not None
+                and row.get("fiscal_year") > 1990
+                and row.get("fiscal_year") < 2100
+            )
+        except (KeyError, TypeError):
+            return False
+
+
+def get_active_symbols() -> List[str]:
+    """Pull active symbols from the stocks table."""
+    import psycopg2
+    conn = psycopg2.connect(
+        host=os.getenv("DB_HOST", "localhost"),
+        port=int(os.getenv("DB_PORT", "5432")),
+        user=os.getenv("DB_USER", "stocks"),
+        password=os.getenv("DB_PASSWORD", ""),
+        database=os.getenv("DB_NAME", "stocks"),
     )
-
-def get_all_symbols(conn):
-    """Get all 4,965 symbols from database"""
-    cur = conn.cursor()
-    cur.execute('''
-        SELECT DISTINCT symbol FROM price_daily
-        WHERE symbol NOT LIKE '%.%' AND symbol NOT LIKE '%^%'
-        ORDER BY symbol
-    ''')
-    symbols = [row[0] for row in cur.fetchall()]
-    cur.close()
-    return symbols
-
-def fetch_earnings_estimates(symbol):
-    """Fetch earnings estimates from yfinance for a single symbol"""
     try:
-        ticker = yf.Ticker(symbol)
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT symbol FROM stocks ORDER BY symbol")
+            return [r[0] for r in cur.fetchall()]
+    finally:
+        conn.close()
 
-        # Try to get earnings dates and calendar info
-        info = ticker.info
-
-        # Get analyst estimates
-        if hasattr(ticker, 'info') and 'epsTrailingTwelveMonths' in info:
-            estimates = []
-
-            # Get current year EPS estimate if available
-            for key in ['epsCurrentYear', 'targetMeanPrice', 'numberOfAnalysts']:
-                if key in info:
-                    logging.debug(f"{symbol}: Found {key}")
-
-            # Return what we found
-            return {
-                'symbol': symbol,
-                'eps_current_year': info.get('epsCurrentYear'),
-                'target_price': info.get('targetMeanPrice'),
-                'analyst_count': info.get('numberOfAnalysts'),
-                'recommendation': info.get('recommendationKey'),
-                'earnings_date': info.get('earningsDate')
-            }
-
-        return None
-
-    except Exception as e:
-        logging.warning(f"Error fetching {symbol}: {str(e)[:100]}")
-        return None
-
-def insert_earnings_estimates(conn, estimates_list):
-    """Insert earnings estimates into database"""
-    if not estimates_list:
-        return 0
-
-    # Filter out None values
-    estimates_list = [e for e in estimates_list if e is not None]
-    if not estimates_list:
-        return 0
-
-    values = [
-        (
-            est['symbol'],
-            est.get('quarter', 'Q1'),  # Default to Q1
-            None,  # eps_estimate (from yfinance epsCurrentYear)
-            None,  # revenue_estimate (not available in basic yfinance)
-            None,  # surprise_percent
-            est.get('analyst_count'),  # estimate_count
-            None,  # last_update_date
-            'annual',  # period (we're getting annual)
-            est.get('eps_current_year'),  # avg_estimate
-            None,  # low_estimate
-            None,  # high_estimate
-            None,  # year_ago_eps
-            None,  # growth
-        )
-        for est in estimates_list
-    ]
-
-    try:
-        cur = conn.cursor()
-        execute_values(cur, '''
-            INSERT INTO earnings_estimates
-            (symbol, quarter, eps_estimate, revenue_estimate, surprise_percent,
-             estimate_count, last_update_date, period, avg_estimate,
-             low_estimate, high_estimate, year_ago_eps, growth)
-            VALUES %s
-            ON CONFLICT (symbol, quarter, period) DO UPDATE SET
-                avg_estimate = EXCLUDED.avg_estimate,
-                estimate_count = EXCLUDED.estimate_count,
-                last_update_date = NOW()
-        ''', values, page_size=500)
-
-        result = cur.rowcount
-        conn.commit()
-        cur.close()
-        return result
-
-    except Exception as e:
-        logging.error(f"Insert error: {e}")
-        return 0
 
 def main():
-    conn = get_db_connection()
-    conn.autocommit = True  # Prevent transaction abort issues
+    parser = argparse.ArgumentParser(description="Optimal earnings_estimates loader")
+    parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
+    parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")
+    args = parser.parse_args()
 
-    # Get all symbols
-    symbols = get_all_symbols(conn)
-    total_symbols = len(symbols)
-    logging.info(f"Processing {total_symbols} symbols...")
+    if args.symbols:
+        symbols = [s.strip().upper() for s in args.symbols.split(",")]
+    else:
+        symbols = get_active_symbols()
 
-    # Get already loaded symbols to avoid duplicates
-    cur = conn.cursor()
-    cur.execute('SELECT DISTINCT symbol FROM earnings_estimates')
-    existing_symbols = set([row[0] for row in cur.fetchall()])
-    cur.close()
+    loader = EarningsEstimatesLoader()
+    try:
+        stats = loader.run(symbols, parallelism=args.parallelism)
+    finally:
+        loader.close()
 
-    # Filter to symbols that need loading
-    symbols_to_load = [s for s in symbols if s not in existing_symbols]
-    logging.info(f"Already have {len(existing_symbols)} symbols, need to load {len(symbols_to_load)}")
+    return 0 if stats["symbols_failed"] == 0 else 1
 
-    # Load in parallel with better error handling
-    total_loaded = 0
-    batch_size = 50  # Smaller batches for better error recovery
-    processed = 0
-    errors = 0
-    rate_limit_wait = 0
 
-    with ThreadPoolExecutor(max_workers=3) as executor:  # Reduced workers to avoid rate limiting
-        # Submit all tasks
-        futures = {
-            executor.submit(fetch_earnings_estimates, symbol): symbol
-            for symbol in symbols_to_load
-        }
-
-        # Collect results in batches
-        batch = []
-        for future in as_completed(futures):
-            symbol = futures[future]
-            processed += 1
-
-            try:
-                result = future.result()
-                if result:
-                    batch.append(result)
-            except Exception as e:
-                logging.warning(f"Failed to process {symbol}: {e}")
-                errors += 1
-
-            # Insert when we have a batch
-            if len(batch) >= batch_size:
-                try:
-                    inserted = insert_earnings_estimates(conn, batch)
-                    total_loaded += inserted
-                    logging.info(f"Progress: {processed}/{len(symbols_to_load)} symbols, {total_loaded:,} rows loaded")
-                except Exception as e:
-                    logging.error(f"Batch insert failed: {e}, retrying individual inserts...")
-                    # Fallback: insert individually
-                    for est in batch:
-                        try:
-                            inserted = insert_earnings_estimates(conn, [est])
-                            total_loaded += inserted
-                        except Exception as e2:
-                            logging.warning(f"Individual insert failed for {est['symbol']}: {e2}")
-                batch = []
-
-            # Show progress every 100 symbols
-            if processed % 100 == 0:
-                pct = processed*100//len(symbols_to_load) if symbols_to_load else 0
-                logging.info(f"Progress: {processed}/{len(symbols_to_load)} ({pct}%) - {total_loaded:,} loaded, {errors} errors")
-
-    # Insert remaining batch
-    if batch:
-        try:
-            inserted = insert_earnings_estimates(conn, batch)
-            total_loaded += inserted
-        except Exception as e:
-            logging.error(f"Final batch insert failed: {e}")
-
-    conn.close()
-
-    logging.info(f"DONE: Loaded earnings estimates for {processed} symbols processed, {total_loaded:,} rows inserted, {errors} errors")
-
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    sys.exit(main())

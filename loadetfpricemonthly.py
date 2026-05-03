@@ -1,316 +1,138 @@
 #!/usr/bin/env python3
-# TRIGGER: 20260501_084523 - Phase 2: ETF monthly price data
-# Triggered: 2026-04-28 14:45 UTC - Batch 3 Parallel Load
-import sys
-import time
-import logging
-import json
-import os
-import gc
-try:
-    import resource
-    HAS_RESOURCE = True
-except ImportError:
-    HAS_RESOURCE = False
-import math
+"""
+ETF Monthly Price Loader - Optimal Pattern.
+
+Inherits watermarks, dedup, multi-source routing, parallelism, and bulk COPY.
+
+Run:
+    python3 loadetfpricemonthly.py [--symbols SPY,QQQ] [--parallelism 8]
+"""
+
+from __future__ import annotations
+
 import argparse
+import logging
+import os
+import sys
+from datetime import date, timedelta
+from typing import List, Optional
 
-import psycopg2
-from db_helper import DatabaseHelper
-from psycopg2.extras import RealDictCursor, execute_values
-from datetime import datetime
+from optimal_loader import OptimalLoader
 
-import boto3
-import pandas as pd
-import yfinance as yf
-
-# Script metadata & logging setup
-SCRIPT_NAME = "loadetfpricemonthly.py"
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    stream=sys.stdout
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 
-def get_rss_mb():
-    """Get RSS memory in MB, cross-platform."""
-    if not HAS_RESOURCE:
-        try:
-            import psutil
-            return psutil.Process().memory_info().rss / (1024 * 1024)
-        except Exception:
-            return 0
-    usage = resource.getrusage(resource.RUSAGE_SELF)
-    if sys.platform.startswith("linux"):
-        return usage / 1024
-    return usage / (1024 * 1024)
 
+class ETFPriceMonthlyLoader(OptimalLoader):
+    table_name = "etf_price_monthly"
+    primary_key = ("symbol", "month_start")
+    watermark_field = "month_start"
 
-def log_mem(stage: str):
-    logging.info(f"[MEM] {stage}: {get_rss_mb():.1f} MB RSS")
-
-MAX_BATCH_RETRIES = 3
-RETRY_DELAY = 0.2
-
-PRICE_COLUMNS = [
-    "date","open","high","low","close",
-    "adj_close","volume","dividends","stock_splits"
-]
-COL_LIST = ", ".join(["symbol"] + PRICE_COLUMNS)
-
-def get_db_config():
-    """Get database configuration - works in AWS and locally.
-
-    Priority:
-    1. AWS Secrets Manager (if DB_SECRET_ARN is set)
-    2. Environment variables (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME)
-    """
-    aws_region = os.environ.get("AWS_REGION")
-    db_secret_arn = os.environ.get("DB_SECRET_ARN")
-
-    # Try AWS Secrets Manager first
-    if db_secret_arn and aws_region:
-        try:
-            secret_str = boto3.client("secretsmanager", region_name=aws_region).get_secret_value(
-                SecretId=db_secret_arn
-            )["SecretString"]
-            sec = json.loads(secret_str)
-            logging.info(f"Using AWS Secrets Manager for database config")
-            return {
-                "host": sec["host"],
-                "port": int(sec.get("port", 5432)),
-                "user": sec["username"],
-                "password": sec["password"],
-                "database": sec["dbname"]
-            }
-        except Exception as e:
-            logging.warning(f"AWS Secrets Manager failed ({e.__class__.__name__}): {str(e)[:100]}. Falling back to environment variables.")
-
-    # Fall back to environment variables
-    logging.info("Using environment variables for database config")
-    return {
-        "host": os.environ.get("DB_HOST", "localhost"),
-        "port": int(os.environ.get("DB_PORT", 5432)),
-        "user": os.environ.get("DB_USER", "stocks"),
-        "password": os.environ.get("DB_PASSWORD", ""),
-        "database": os.environ.get("DB_NAME", "stocks")
-    }
-
-
-def load_prices(table_name, symbols, cur, conn):
-    total = len(symbols)
-    logging.info(f"Loading {table_name}: {total} symbols")
-    inserted, failed = 0, []
-    CHUNK_SIZE, PAUSE = 1, 2.5  # Single symbol, 3.5s pause to avoid rate limits
-    batches = (total + CHUNK_SIZE - 1) // CHUNK_SIZE
-
-    if total == 0:
-        logging.info(f"No symbols to load for {table_name}")
-        return 0, 0, []
-
-    for batch_idx in range(batches):
-        batch = symbols[batch_idx*CHUNK_SIZE:(batch_idx+1)*CHUNK_SIZE]
-        yq_batch = [s.replace('.', '-').upper() for s in batch]
-        mapping = dict(zip(yq_batch, batch))
-
-        for attempt in range(1, MAX_BATCH_RETRIES+1):
-            logging.info(f"{table_name} – batch {batch_idx+1}/{batches}, attempt {attempt}")
-            log_mem(f"{table_name} batch {batch_idx+1} start")
-            try:
-                df = yf.download(
-                    tickers=yq_batch,
-                    period=DATA_PERIOD,
-                    interval="1mo",
-                    group_by="ticker",
-                    auto_adjust=False,
-                    actions=True,
-                    threads=True,
-                    progress=False
-                )
-                logging.info(f"Downloaded: {df.shape if hasattr(df, 'shape') else type(df)}")
-                break
-            except Exception as e:
-                logging.warning(f"Download failed (attempt {attempt}/{MAX_BATCH_RETRIES}): {e}")
-                time.sleep(RETRY_DELAY)
-                if attempt == MAX_BATCH_RETRIES:
-                    df = None
+    def fetch_incremental(self, symbol: str, since: Optional[date]):
+        """Fetch monthly OHLCV via the data source router."""
+        end = date.today()
+        if since is None:
+            start = end - timedelta(days=5 * 365)
         else:
-            df = None
+            start = since + timedelta(days=1)
 
-        if df is None:
-            logging.info(f"Attempting per-symbol download for batch {batch_idx+1}")
-            per_symbol_results = {}
-            for orig_sym in batch:
-                try:
-                    single_df = yf.download(orig_sym, period=DATA_PERIOD, interval="1mo", auto_adjust=False, actions=True, progress=False)
-                    if not single_df.empty:
-                        single_df.columns = [col.lower() for col in single_df.columns]
-                        per_symbol_results[orig_sym] = single_df
-                    else:
-                        logging.warning(f"{orig_sym}: no data")
-                        failed.append(orig_sym)
-                except Exception as e:
-                    logging.warning(f"{orig_sym}: error: {e}")
-                    failed.append(orig_sym)
-            if per_symbol_results:
-                df = per_symbol_results
-            else:
-                logging.error(f"Batch {batch_idx+1} failed completely")
-                failed += batch
+        if start >= end:
+            return None
+
+        rows = self.router.fetch_ohlcv(symbol, start, end)
+        return self._aggregate_to_monthly(rows) if rows else None
+
+    def _aggregate_to_monthly(self, rows: List[dict]) -> List[dict]:
+        """Aggregate daily OHLCV to monthly bars."""
+        if not rows:
+            return []
+        months = {}
+        for row in rows:
+            date_str = row.get("date")
+            if not date_str:
                 continue
+            d = date.fromisoformat(date_str) if isinstance(date_str, str) else date_str
+            month_start = d.replace(day=1)
+            key = (row.get("symbol"), month_start.isoformat())
+            if key not in months:
+                months[key] = {
+                    "symbol": row["symbol"],
+                    "month_start": month_start.isoformat(),
+                    "open": row.get("open"),
+                    "high": row.get("high"),
+                    "low": row.get("low"),
+                    "close": row.get("close"),
+                    "volume": 0,
+                }
+            else:
+                months[key]["high"] = max(months[key]["high"] or 0, row.get("high") or 0)
+                months[key]["low"] = min(months[key]["low"] or float('inf'), row.get("low") or float('inf'))
+                months[key]["close"] = row.get("close")
+            months[key]["volume"] = (months[key]["volume"] or 0) + (row.get("volume") or 0)
+        return list(months.values())
 
-        log_mem(f"{table_name} after download")
-        cur.execute("SELECT 1;")
+    def transform(self, rows):
+        """Filter out zero-volume months."""
+        return [r for r in rows if r.get("volume", 0) > 0]
 
-        gc.disable()
+    def _validate_row(self, row: dict) -> bool:
+        """Validate monthly bar structure."""
+        if not super()._validate_row(row):
+            return False
         try:
-            for yq_sym, orig_sym in mapping.items():
-                try:
-                    if len(yq_batch) > 1:
-                        if yq_sym in df.columns.get_level_values(0):
-                            sub = df[yq_sym]
-                        else:
-                            logging.warning(f"No data for {orig_sym}")
-                            failed.append(orig_sym)
-                            continue
-                    else:
-                        sub = df
-                except (KeyError, AttributeError) as e:
-                    logging.warning(f"No data for {orig_sym}: {e}")
-                    failed.append(orig_sym)
-                    continue
+            return (
+                row["high"] >= row["low"]
+                and row["close"] > 0
+                and row["open"] > 0
+            )
+        except (KeyError, TypeError):
+            return False
 
-                sub = sub.sort_index()
 
-                # Flatten MultiIndex columns if needed
-                if isinstance(sub.columns, pd.MultiIndex):
-                    # Extract the data column (last level) and make lowercase
-                    sub.columns = [col[-1].lower() for col in sub.columns]
-                else:
-                    # Regular columns - just lowercase
-                    sub.columns = [str(col).lower() for col in sub.columns]
+def get_active_etf_symbols() -> List[str]:
+    """Pull active ETF symbols from database or use defaults."""
+    import psycopg2
+    try:
+        conn = psycopg2.connect(
+            host=os.getenv("DB_HOST", "localhost"),
+            port=int(os.getenv("DB_PORT", "5432")),
+            user=os.getenv("DB_USER", "stocks"),
+            password=os.getenv("DB_PASSWORD", ""),
+            database=os.getenv("DB_NAME", "stocks"),
+        )
+        with conn.cursor() as cur:
+            cur.execute("SELECT symbol FROM etf_symbols ORDER BY symbol")
+            return [r[0] for r in cur.fetchall()]
+    except:
+        return ["SPY", "QQQ", "IWM", "EEM", "EFA"]
+    finally:
+        try:
+            conn.close()
+        except:
+            pass
 
-                if "open" not in sub.columns:
-                    logging.warning(f"No 'open' column for {orig_sym}")
-                    failed.append(orig_sym)
-                    continue
 
-                sub = sub[sub["open"].notna()]
-                if sub.empty:
-                    logging.warning(f"No valid rows for {orig_sym}")
-                    failed.append(orig_sym)
-                    continue
-
-                rows = []
-                for idx, row in sub.iterrows():
-                    rows.append([
-                        orig_sym,
-                        idx.date(),
-                        None if math.isnan(row["open"])      else float(row["open"]),
-                        None if math.isnan(row["high"])      else float(row["high"]),
-                        None if math.isnan(row["low"])       else float(row["low"]),
-                        None if math.isnan(row["close"])     else float(row["close"]),
-                        None if math.isnan(row.get("adj close", row["close"])) else float(row.get("adj close", row["close"])),
-                        None if math.isnan(row["volume"])    else int(row["volume"]),
-                        0.0  if ("dividends" not in row or math.isnan(row["dividends"])) else float(row["dividends"]),
-                        0.0  if ("stock splits" not in row or math.isnan(row["stock splits"])) else float(row["stock splits"])
-                    ])
-
-                if not rows:
-                    logging.warning(f"{orig_sym}: no rows after cleaning")
-                    failed.append(orig_sym)
-                    continue
-
-                sql = f"INSERT INTO {table_name} ({COL_LIST}) VALUES %s"
-                execute_values(cur, sql, rows)
-                conn.commit()
-                inserted += len(rows)
-                logging.info(f"{orig_sym}: inserted {len(rows)} rows")
-        finally:
-            gc.enable()
-
-        del df, batch, yq_batch, mapping
-        gc.collect()
-        log_mem(f"{table_name} batch {batch_idx+1} end")
-        time.sleep(PAUSE)
-
-    return total, inserted, failed
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Load monthly price data for ETFs only')
-    parser.add_argument('--historical', action='store_true', help='Load full historical data (period="max")')
-    parser.add_argument('--incremental', action='store_true', help='Load recent data only (period="3mo")')
+def main():
+    parser = argparse.ArgumentParser(description="Optimal etf_price_monthly loader")
+    parser.add_argument("--symbols", help="Comma-separated symbols. Default: all ETFs from database.")
+    parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")
     args = parser.parse_args()
 
-    if args.historical:
-        DATA_PERIOD = "max"
-        logging.info("HISTORICAL mode - full data")
-    elif args.incremental:
-        DATA_PERIOD = "3mo"
-        logging.info("INCREMENTAL mode - 3 months")
+    if args.symbols:
+        symbols = [s.strip().upper() for s in args.symbols.split(",")]
     else:
-        DATA_PERIOD = "max"
-        logging.info("DEFAULT mode - full data")
+        symbols = get_active_etf_symbols()
 
-    log_mem("startup")
+    loader = ETFPriceMonthlyLoader()
+    try:
+        stats = loader.run(symbols, parallelism=args.parallelism)
+    finally:
+        loader.close()
 
-    cfg = get_db_config()
-    conn = psycopg2.connect(
-        host=cfg["host"], port=cfg["port"],
-        user=cfg["user"], password=cfg["password"],
-        dbname=cfg["database"],
-        connect_timeout=30,
-        options='-c statement_timeout=600000'
-    )
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    return 0 if stats["symbols_failed"] == 0 else 1
 
-    logging.info("Creating etf_price_monthly table…")
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS etf_price_monthly (
-            id           SERIAL PRIMARY KEY,
-            symbol       VARCHAR(10) NOT NULL,
-            date         DATE         NOT NULL,
-            open         DOUBLE PRECISION,
-            high         DOUBLE PRECISION,
-            low          DOUBLE PRECISION,
-            close        DOUBLE PRECISION,
-            adj_close    DOUBLE PRECISION,
-            volume       BIGINT,
-            dividends    DOUBLE PRECISION,
-            stock_splits DOUBLE PRECISION,
-            fetched_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_etf_price_monthly_symbol ON etf_price_monthly(symbol);")
-    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_etf_price_monthly_symbol_date ON etf_price_monthly(symbol, date);")
-    conn.commit()
 
-    # Load ETF symbols from etf_symbols table
-    cur.execute("SELECT symbol FROM etf_symbols;")
-    all_etf_syms = [r["symbol"] for r in cur.fetchall()]
-
-    # Get ETF symbols already in table
-    cur.execute("SELECT DISTINCT symbol FROM etf_price_monthly;")
-    loaded_etf_syms = {r["symbol"] for r in cur.fetchall()}
-
-    # Filter to only missing symbols
-    etf_syms = [s for s in all_etf_syms if s not in loaded_etf_syms]
-    logging.info(f"Total ETFs: {len(all_etf_syms)}, loaded: {len(loaded_etf_syms)}, remaining: {len(etf_syms)}")
-
-    total, inserted, failed = load_prices("etf_price_monthly", etf_syms, cur, conn)
-
-    cur.execute("""
-        INSERT INTO last_updated (script_name, last_run)
-        VALUES (%s, NOW())
-        ON CONFLICT (script_name) DO UPDATE
-            SET last_run = EXCLUDED.last_run;
-    """, (SCRIPT_NAME,))
-    conn.commit()
-
-    peak = get_rss_mb()
-    logging.info(f"[MEM] peak RSS: {peak:.1f} MB")
-    logging.info(f"ETFs — total: {total}, inserted: {inserted}, failed: {len(failed)}")
-
-    cur.close()
-    conn.close()
-    logging.info("Done.")
+if __name__ == "__main__":
+    sys.exit(main())
