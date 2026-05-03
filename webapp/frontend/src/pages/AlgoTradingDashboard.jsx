@@ -123,7 +123,7 @@ function AlgoTradingDashboard() {
   const fetchAll = async () => {
     try {
       setError(null);
-      const [statusR, marketsR, scoresR, posR, tradesR, configR, dataR, policyR, evalR] =
+      const [statusR, marketsR, scoresR, posR, tradesR, configR, dataR, policyR, evalR, patrolR] =
         await Promise.all([
           api.get('/algo/status').catch(() => null),
           api.get('/algo/markets').catch(() => null),
@@ -134,6 +134,7 @@ function AlgoTradingDashboard() {
           api.get('/algo/data-status').catch(() => null),
           api.get('/algo/exposure-policy').catch(() => null),
           api.get('/algo/evaluate').catch(() => null),
+          api.get('/algo/patrol-log?limit=30&min_severity=info').catch(() => null),
         ]);
       setData({
         status: statusR?.data?.data,
@@ -145,6 +146,7 @@ function AlgoTradingDashboard() {
         dataStatus: dataR?.data?.data,
         policy: policyR?.data?.data,
         evaluated: evalR?.data?.data,
+        patrolLog: patrolR?.data?.items || [],
       });
       setLoading(false);
     } catch (err) {
@@ -362,7 +364,7 @@ function AlgoTradingDashboard() {
         {tab === 2 && <PositionsTab positions={data.positions} />}
         {tab === 3 && <TradesTab trades={data.trades} />}
         {tab === 4 && <WorkflowTab policy={data.policy} markets={market} />}
-        {tab === 5 && <DataStatusTab dataStatus={data.dataStatus} />}
+        {tab === 5 && <DataStatusTab dataStatus={data.dataStatus} patrolLog={data.patrolLog} />}
         {tab === 6 && <ConfigTab config={data.config} />}
       </Paper>
     </Box>
@@ -960,7 +962,18 @@ function WorkflowTab({ policy, markets }) {
 // ============================================================================
 // DATA STATUS TAB
 // ============================================================================
-function DataStatusTab({ dataStatus }) {
+function DataStatusTab({ dataStatus, patrolLog }) {
+  const [running, setRunning] = useState(false);
+  const runPatrol = async () => {
+    setRunning(true);
+    try {
+      await api.post('/algo/patrol', { quick: false });
+      window.location.reload();
+    } catch (e) {
+      console.error(e);
+    }
+    setRunning(false);
+  };
   if (!dataStatus) return <Box sx={{ p: 2 }}><Alert severity="info" sx={{ bgcolor: C.cardAlt, color: C.text }}>Data status not loaded</Alert></Box>;
   return (
     <Box sx={{ p: 2 }}>
@@ -988,6 +1001,59 @@ function DataStatusTab({ dataStatus }) {
           </Box>
         </Stack>
       </Box>
+
+      <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
+        <Button variant="contained" size="small" onClick={runPatrol} disabled={running}
+          sx={{ bgcolor: C.blue }}>
+          {running ? 'RUNNING...' : 'RUN DATA PATROL NOW'}
+        </Button>
+      </Box>
+
+      {patrolLog && patrolLog.length > 0 && (
+        <SectionCard title={`Recent Patrol Findings (${patrolLog.length})`} sx={{ mb: 2 }}>
+          <TableContainer sx={{ maxHeight: 400 }}>
+            <Table size="small" stickyHeader>
+              <TableHead>
+                <TableRow>
+                  {['SEVERITY', 'CHECK', 'TARGET', 'MESSAGE', 'WHEN'].map(h => (
+                    <TableCell key={h} sx={{
+                      bgcolor: C.cardAlt, color: C.textDim, borderColor: C.border,
+                      fontSize: '0.65rem', letterSpacing: 1, fontWeight: 700,
+                    }}>{h}</TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {patrolLog.map(log => (
+                  <TableRow key={log.id}>
+                    <TableCell sx={{ borderColor: C.border }}>
+                      <Chip size="small" label={log.severity.toUpperCase()}
+                        sx={{
+                          bgcolor: statusBg(log.severity === 'critical' ? 'error' :
+                                            log.severity === 'error' ? 'error' :
+                                            log.severity === 'warn' ? 'stale' : 'ok'),
+                          color: 'white', height: 18, fontSize: '0.65rem', fontWeight: 700,
+                        }} />
+                    </TableCell>
+                    <TableCell sx={{ color: C.text, borderColor: C.border, fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                      {log.check_name}
+                    </TableCell>
+                    <TableCell sx={{ color: C.textBright, fontWeight: 600, borderColor: C.border, fontSize: '0.75rem' }}>
+                      {log.target_table}
+                    </TableCell>
+                    <TableCell sx={{ color: C.text, borderColor: C.border, fontSize: '0.75rem', maxWidth: 400 }}>
+                      {log.message}
+                    </TableCell>
+                    <TableCell sx={{ color: C.textDim, fontSize: '0.7rem', borderColor: C.border, fontFamily: 'monospace' }}>
+                      {new Date(log.created_at).toLocaleString()}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </SectionCard>
+      )}
 
       <SectionCard title={`Data Sources (${(dataStatus.sources || []).length})`}>
         <TableContainer>

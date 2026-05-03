@@ -127,6 +127,36 @@ class TradeExecutor:
                     'message': f'Trade already exists for {symbol} on {signal_date}'
                 }
 
+            # ---- Re-entry rule (Minervini/Schwager): max 2 re-entries per name within 30 days ----
+            # Find most recent CLOSED trade for this symbol in the last 30 days
+            self.cur.execute(
+                """
+                SELECT trade_id, exit_date, exit_reason, profit_loss_pct,
+                       COALESCE(reentry_count, 0) AS reentry_count
+                FROM algo_trades
+                WHERE symbol = %s AND status = 'closed'
+                  AND exit_date >= CURRENT_DATE - INTERVAL '30 days'
+                ORDER BY exit_date DESC NULLS LAST, id DESC
+                LIMIT 1
+                """,
+                (symbol,),
+            )
+            prior = self.cur.fetchone()
+            reentry_count = 0
+            prior_trade_id = None
+            if prior:
+                prior_trade_id, exit_date, exit_reason, exit_pnl, prior_reentry = prior
+                # If prior trade was a stop-out, we're attempting a re-entry
+                if exit_reason and ('STOP' in (exit_reason or '').upper() or 'TIME' in (exit_reason or '').upper()):
+                    max_reentries = int(self.config.get('max_reentries_per_name', 2))
+                    if int(prior_reentry or 0) >= max_reentries:
+                        return {
+                            'success': False, 'trade_id': '', 'status': 'reentry_blocked',
+                            'reentry_blocked': True,
+                            'message': f'{symbol}: {prior_reentry} prior re-entries within 30 days >= {max_reentries} max'
+                        }
+                    reentry_count = int(prior_reentry or 0) + 1
+
             execution_mode = self.config.get('execution_mode', 'paper')
             trade_id = f"TRD-{uuid.uuid4().hex[:10].upper()}"
 
@@ -188,6 +218,7 @@ class TradeExecutor:
                     market_exposure_at_entry, exposure_tier_at_entry,
                     stop_method, stop_reasoning,
                     swing_components, advanced_components, bracket_order,
+                    reentry_count, prior_trade_id,
                     created_at
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, %s,
@@ -200,6 +231,7 @@ class TradeExecutor:
                     %s, %s,
                     %s, %s,
                     %s, %s, %s,
+                    %s, %s,
                     CURRENT_TIMESTAMP
                 )
                 """,
@@ -222,6 +254,7 @@ class TradeExecutor:
                     json.dumps(swing_components) if swing_components else None,
                     json.dumps(advanced_components) if advanced_components else None,
                     execution_mode == 'auto',  # bracket_order = True only in auto mode
+                    reentry_count, prior_trade_id,
                 ),
             )
 

@@ -472,7 +472,7 @@ class SwingTraderScore:
         }
 
     def _sector_component(self, symbol, eval_date, sector, industry):
-        """8 pts: industry rank top 40 (5 pts) + sector top half (3 pts)."""
+        """8 pts: industry rank top 40 (4 pts) + sector top + RS acceleration bonus (4 pts)."""
         if sector is None or industry is None:
             self.cur.execute(
                 "SELECT sector, industry FROM company_profile WHERE ticker = %s LIMIT 1",
@@ -484,11 +484,15 @@ class SwingTraderScore:
 
         ind_pts = 0.0
         sec_pts = 0.0
+        accel_pts = 0.0
         ind_rank = None
         sec_rank = None
+        sec_accel_4w = 0
+        ind_accel_4w = 0
+
         if industry:
             self.cur.execute(
-                """SELECT current_rank FROM industry_ranking
+                """SELECT current_rank, rank_4w_ago FROM industry_ranking
                    WHERE industry = %s AND date_recorded <= %s
                    ORDER BY date_recorded DESC LIMIT 1""",
                 (industry, eval_date),
@@ -496,19 +500,20 @@ class SwingTraderScore:
             r = self.cur.fetchone()
             if r and r[0]:
                 ind_rank = int(r[0])
-                # top 20 = 5pts, top 40 = 4, top 80 = 2.5
+                # top 20 = 3pts, top 40 = 2, top 80 = 1
                 if ind_rank <= 20:
-                    ind_pts = 5.0
+                    ind_pts = 3.0
                 elif ind_rank <= 40:
-                    ind_pts = 4.0
+                    ind_pts = 2.0
                 elif ind_rank <= 80:
-                    ind_pts = 2.5
-                elif ind_rank <= 100:
                     ind_pts = 1.0
+                # Acceleration: rank improving = bonus
+                if r[1] is not None:
+                    ind_accel_4w = int(r[1]) - ind_rank  # positive = improving
 
         if sector:
             self.cur.execute(
-                """SELECT current_rank FROM sector_ranking
+                """SELECT current_rank, rank_4w_ago, momentum_score FROM sector_ranking
                    WHERE sector_name = %s AND date_recorded <= %s
                    ORDER BY date_recorded DESC LIMIT 1""",
                 (sector, eval_date),
@@ -516,19 +521,36 @@ class SwingTraderScore:
             r = self.cur.fetchone()
             if r and r[0]:
                 sec_rank = int(r[0])
-                # 11 sectors total. Top 5 = 3 pts, top 7 = 2, else 0
                 if sec_rank <= 3:
-                    sec_pts = 3.0
+                    sec_pts = 2.0
                 elif sec_rank <= 5:
-                    sec_pts = 2.5
+                    sec_pts = 1.5
                 elif sec_rank <= 7:
-                    sec_pts = 1.0
+                    sec_pts = 0.5
+                # Acceleration
+                if r[1] is not None:
+                    sec_accel_4w = int(r[1]) - sec_rank
 
-        return ind_pts + sec_pts, {
+        # RS ACCELERATION BONUS (max 3 pts)
+        # Strong acceleration in BOTH industry and sector = 3 pts
+        # Just one improving = 1.5 pts
+        # Both decelerating despite high rank = -1 pt (penalty)
+        if ind_accel_4w >= 5 and sec_accel_4w >= 1:
+            accel_pts = 3.0  # both accelerating sharply
+        elif ind_accel_4w >= 3 or sec_accel_4w >= 1:
+            accel_pts = 1.5  # one accelerating
+        elif ind_accel_4w < -3 and sec_accel_4w < -1:
+            accel_pts = -1.0  # decelerating despite high rank = warning
+
+        total_pts = max(0.0, ind_pts + sec_pts + accel_pts)
+        return total_pts, {
             'industry': industry,
             'industry_rank': ind_rank,
+            'industry_accel_4w': ind_accel_4w,
             'sector': sector,
             'sector_rank': sec_rank,
+            'sector_accel_4w': sec_accel_4w,
+            'acceleration_pts': accel_pts,
         }
 
     def _multi_timeframe_component(self, symbol, eval_date):

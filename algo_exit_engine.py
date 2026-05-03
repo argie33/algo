@@ -276,17 +276,26 @@ class ExitEngine:
                     'new_stop': chand_stop,
                 }
 
-        # 7. TD SEQUENTIAL EXHAUSTION (DeMark) — 9-count signal at swing tops.
-        #     Fire only when in profit (>0.5R), to lock gains rather than premature.
+        # 7. TD SEQUENTIAL / COMBO EXHAUSTION (DeMark)
+        # 9-count: partial exit (50%) at exhaustion top
+        # 13-count COMBO: full exit (much stronger signal)
         if self.config.get('exit_on_td_sequential', True) and target_hits >= 1:
-            r_mult = ((cur_price - entry_price) / (entry_price - active_stop)) if (entry_price - active_stop) > 0 else 0
-            if r_mult >= 0.5 and self._is_td_sequential_top(symbol, current_date):
-                return {
-                    'stage': 'td_exhaustion',
-                    'fraction': 0.50,
-                    'reason': f'TD Sequential 9-count exhaustion at top (R={r_mult:.2f})',
-                    'new_stop': max(active_stop, entry_price),
-                }
+            r_mult_local = ((cur_price - entry_price) / (entry_price - active_stop)) if (entry_price - active_stop) > 0 else 0
+            if r_mult_local >= 0.5:
+                td_state = self._get_td_state(symbol, current_date)
+                if td_state.get('combo_13_complete') and td_state.get('setup_type') == 'sell':
+                    return {
+                        'stage': 'td_combo_13',
+                        'fraction': 1.0,  # full exit on 13
+                        'reason': f'TD Combo 13-count exhaustion (FULL EXIT, R={r_mult_local:.2f})',
+                    }
+                if td_state.get('completed_9') and td_state.get('setup_type') == 'sell':
+                    return {
+                        'stage': 'td_exhaustion',
+                        'fraction': 0.50,
+                        'reason': f'TD Sequential 9-count exhaustion (R={r_mult_local:.2f})',
+                        'new_stop': max(active_stop, entry_price),
+                    }
 
         # 8. DISTRIBUTION
         if self.config.get('exit_on_distribution_day', True) and dist_days_today is not None:
@@ -486,6 +495,16 @@ class ExitEngine:
             return td.get('completed_9', False) and td.get('setup_type') == 'sell'
         except Exception:
             return False
+
+    def _get_td_state(self, symbol, current_date):
+        """Return full TD state dict (for both 9 and 13 detection)."""
+        if self.cur is None:
+            return {}
+        try:
+            sc = SignalComputer(cur=self.cur)
+            return sc.td_sequential(symbol, current_date)
+        except Exception:
+            return {}
 
     def _is_minervini_break(self, symbol, current_date, cur_price):
         """Close < 50-DMA OR (close < EMA(12) AND volume > 50-day avg)."""

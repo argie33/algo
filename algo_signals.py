@@ -528,12 +528,53 @@ class SignalComputer:
                 perfected = (bar_8_low < bar_6_low and bar_8_low < bar_7_low) or \
                             (bar_9_low < bar_6_low and bar_9_low < bar_7_low)
 
+        # ---- TD COMBO 13-count (stronger exhaustion signal) ----
+        # After a setup completes 9, the COUNTDOWN starts:
+        # - Bar must close > high 2 bars earlier (sell countdown) OR
+        #   close < low 2 bars earlier (buy countdown)
+        # - Need 13 such bars to confirm exhaustion
+        # We use a simplified approximation: count bars since 9 fired where
+        # close[i] > high[i-2] (sell) or close[i] < low[i-2] (buy)
+        combo_13_complete = False
+        combo_count = 0
+        if completed_9_today or last_9_date:
+            # Find when the 9 fired
+            ref_idx = None
+            if completed_9_today:
+                ref_idx = len(closes) - 1
+            else:
+                # find idx of most recent 9 within last 5 bars
+                for i in range(len(sell_count_history) - 1, -1, -1):
+                    if sell_count_history[i] == 9 or buy_count_history[i] == 9:
+                        ref_idx = 4 + i
+                        break
+            if ref_idx is not None and ref_idx + 2 < len(closes):
+                # Count bars since 9 that meet TD Combo countdown criteria
+                target_type = 'sell' if (
+                    ref_idx < len(sell_count_history) + 4 and
+                    setup_type == 'sell'
+                ) else 'buy'
+                for i in range(ref_idx, len(closes)):
+                    if i < 2:
+                        continue
+                    if target_type == 'sell':
+                        if closes[i] > highs[i - 2]:
+                            combo_count += 1
+                    else:
+                        if closes[i] < lows[i - 2]:
+                            combo_count += 1
+                    if combo_count >= 13:
+                        combo_13_complete = True
+                        break
+
         return {
             'setup_count': setup_count,
             'setup_type': setup_type,
             'completed_9': completed_9_today,
             'perfected': perfected,
             'last_9_date': str(last_9_date) if last_9_date else None,
+            'combo_count': combo_count,
+            'combo_13_complete': combo_13_complete,
         }
 
     # ============================================================

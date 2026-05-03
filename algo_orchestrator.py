@@ -421,6 +421,37 @@ class Orchestrator:
             self.log_phase_result(4, 'exit_execution', 'error', str(e))
             return True
 
+    def phase_4b_pyramid_adds(self):
+        """Add to winners (Livermore) — runs after exits, before new entries."""
+        self.log_phase_start('4b', 'PYRAMID ADDS (winners)')
+        try:
+            from algo_pyramid import PyramidEngine
+            engine = PyramidEngine(self.config)
+            recs = engine.evaluate_pyramid_adds(self.run_date)
+
+            if not recs:
+                self.log_phase_result('4b', 'pyramid_adds', 'success', 'No qualifying adds')
+                return True
+
+            executed = 0
+            for r in recs:
+                if self.dry_run:
+                    print(f"  [DRY-RUN] PYRAMID {r['symbol']} #{r['add_number']}: "
+                          f"+{r['add_size_shares']} sh @ ${r['add_price']:.2f}")
+                    continue
+                result = engine.execute_add(r)
+                if result.get('success'):
+                    executed += 1
+                    print(f"  PYRAMID: {result['message']}")
+
+            self.log_phase_result('4b', 'pyramid_adds', 'success',
+                                  f'{len(recs)} recommended, {executed} executed')
+            return True
+        except Exception as e:
+            traceback.print_exc()
+            self.log_phase_result('4b', 'pyramid_adds', 'error', str(e))
+            return True
+
     def phase_5_signal_generation(self):
         self.log_phase_start(5, 'SIGNAL GENERATION & RANKING')
         try:
@@ -615,6 +646,7 @@ class Orchestrator:
         self.phase_3_position_monitor()
         self.phase_3b_exposure_policy()
         self.phase_4_exit_execution()
+        self.phase_4b_pyramid_adds()
         self.phase_5_signal_generation()
         self.phase_6_entry_execution()
         self.phase_7_reconcile()
