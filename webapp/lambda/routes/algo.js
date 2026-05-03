@@ -351,4 +351,300 @@ router.get('/config', async (req, res) => {
   }
 });
 
+// ============================================================
+// MARKET EXPOSURE — for the Markets page
+// ============================================================
+router.get('/markets', async (req, res) => {
+  try {
+    // Latest market exposure with full factor breakdown
+    const latestQuery = `
+      SELECT date, exposure_pct, raw_score, regime, distribution_days,
+             factors, halt_reasons, created_at
+      FROM market_exposure_daily
+      ORDER BY date DESC LIMIT 1
+    `;
+    const pool = getPool();
+    const latestResult = await pool.query(latestQuery);
+    const latest = latestResult.rows[0] || null;
+
+    // Last 90 days for chart
+    const historyQuery = `
+      SELECT date, exposure_pct, regime, distribution_days
+      FROM market_exposure_daily
+      WHERE date >= CURRENT_DATE - INTERVAL '90 days'
+      ORDER BY date ASC
+    `;
+    const historyResult = await pool.query(historyQuery);
+
+    // Market health current state (fallback when exposure not computed)
+    const healthQuery = `
+      SELECT date, market_trend, market_stage, distribution_days_4w, vix_level
+      FROM market_health_daily ORDER BY date DESC LIMIT 1
+    `;
+    const healthResult = await pool.query(healthQuery);
+    const health = healthResult.rows[0] || null;
+
+    // Sector ranking (latest)
+    const sectorsQuery = `
+      SELECT sector_name, current_rank, momentum_score, rank_1w_ago, rank_4w_ago, rank_12w_ago
+      FROM sector_ranking
+      WHERE date_recorded = (SELECT MAX(date_recorded) FROM sector_ranking)
+        AND sector_name <> '' AND sector_name IS NOT NULL AND sector_name <> 'Benchmark'
+      ORDER BY current_rank ASC
+    `;
+    const sectorsResult = await pool.query(sectorsQuery);
+
+    // AAII sentiment latest
+    const sentimentQuery = `
+      SELECT date, bullish, bearish, neutral
+      FROM aaii_sentiment ORDER BY date DESC LIMIT 8
+    `;
+    const sentimentResult = await pool.query(sentimentQuery);
+
+    // Determine active tier policy
+    let policy = null;
+    if (latest) {
+      const exposurePct = parseFloat(latest.exposure_pct);
+      const tiers = [
+        { name: 'confirmed_uptrend', min: 80, max: 100, risk_mult: 1.0, max_new: 5,
+          min_grade: 'B', halt: false, color: 'green',
+          description: 'Healthy bull market — full deployment' },
+        { name: 'healthy_uptrend', min: 60, max: 80, risk_mult: 0.85, max_new: 4,
+          min_grade: 'B', halt: false, color: 'lightgreen',
+          description: 'Bull market with caution — slightly reduced risk' },
+        { name: 'pressure', min: 40, max: 60, risk_mult: 0.5, max_new: 2,
+          min_grade: 'A', halt: false, color: 'yellow',
+          description: 'Uptrend under pressure — defensive posture' },
+        { name: 'caution', min: 20, max: 40, risk_mult: 0.25, max_new: 1,
+          min_grade: 'A', halt: true, color: 'orange',
+          description: 'Major caution — entries halted unless exceptional' },
+        { name: 'correction', min: 0, max: 20, risk_mult: 0.0, max_new: 0,
+          min_grade: 'A+', halt: true, color: 'red',
+          description: 'Market correction — preserve capital' },
+      ];
+      policy = tiers.find(t => exposurePct >= t.min && exposurePct <= t.max) || tiers[0];
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        current: latest ? {
+          date: latest.date,
+          exposure_pct: parseFloat(latest.exposure_pct),
+          raw_score: parseFloat(latest.raw_score),
+          regime: latest.regime,
+          distribution_days: latest.distribution_days,
+          factors: latest.factors,
+          halt_reasons: latest.halt_reasons,
+        } : null,
+        active_tier: policy,
+        history: historyResult.rows.map(r => ({
+          date: r.date,
+          exposure_pct: parseFloat(r.exposure_pct),
+          regime: r.regime,
+          distribution_days: r.distribution_days,
+        })),
+        market_health: health,
+        sectors: sectorsResult.rows.map(r => ({
+          name: r.sector_name,
+          rank: r.current_rank,
+          momentum: parseFloat(r.momentum_score || 0),
+          rank_1w_ago: r.rank_1w_ago,
+          rank_4w_ago: r.rank_4w_ago,
+        })),
+        sentiment: sentimentResult.rows.map(r => ({
+          date: r.date,
+          bullish: parseFloat(r.bullish || 0),
+          bearish: parseFloat(r.bearish || 0),
+          neutral: parseFloat(r.neutral || 0),
+        })),
+      },
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error in /algo/markets:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date(),
+    });
+  }
+});
+
+// ============================================================
+// SWING TRADER SCORES — for ranking display
+// ============================================================
+router.get('/swing-scores', async (req, res) => {
+  try {
+    const pool = getPool();
+    const limit = parseInt(req.query.limit) || 50;
+    const minScore = parseFloat(req.query.min_score) || 0;
+
+    const result = await pool.query(
+      `SELECT s.symbol, s.eval_date, s.swing_score, s.grade,
+              s.setup_pts, s.trend_pts, s.momentum_pts, s.volume_pts,
+              s.fundamentals_pts, s.sector_pts, s.multi_tf_pts,
+              s.pass_gates, s.fail_reason, s.components,
+              cp.sector, cp.industry
+       FROM swing_trader_scores s
+       LEFT JOIN company_profile cp ON cp.ticker = s.symbol
+       WHERE s.eval_date = (SELECT MAX(eval_date) FROM swing_trader_scores)
+         AND s.swing_score >= $1
+       ORDER BY s.swing_score DESC
+       LIMIT $2`,
+      [minScore, limit]
+    );
+
+    return res.json({
+      success: true,
+      items: result.rows.map(r => ({
+        symbol: r.symbol,
+        eval_date: r.eval_date,
+        swing_score: parseFloat(r.swing_score),
+        grade: r.grade,
+        components: {
+          setup: parseFloat(r.setup_pts || 0),
+          trend: parseFloat(r.trend_pts || 0),
+          momentum: parseFloat(r.momentum_pts || 0),
+          volume: parseFloat(r.volume_pts || 0),
+          fundamentals: parseFloat(r.fundamentals_pts || 0),
+          sector: parseFloat(r.sector_pts || 0),
+          multi_tf: parseFloat(r.multi_tf_pts || 0),
+        },
+        pass_gates: r.pass_gates,
+        fail_reason: r.fail_reason,
+        details: r.components,
+        sector: r.sector,
+        industry: r.industry,
+      })),
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error in /algo/swing-scores:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date(),
+    });
+  }
+});
+
+// ============================================================
+// DATA FRESHNESS — for monitoring
+// ============================================================
+router.get('/data-status', async (req, res) => {
+  try {
+    const pool = getPool();
+    const result = await pool.query(
+      `SELECT table_name, frequency, role, latest_date, age_days, row_count,
+              status, last_audit_at, error_message
+       FROM data_loader_status
+       ORDER BY
+         CASE WHEN role LIKE 'CRITICAL%' THEN 1 WHEN role LIKE 'IMPORTANT%' THEN 2 ELSE 3 END,
+         table_name`
+    );
+
+    const counts = { ok: 0, stale: 0, empty: 0, error: 0 };
+    result.rows.forEach(r => { counts[r.status] = (counts[r.status] || 0) + 1; });
+
+    const criticalStale = result.rows.filter(
+      r => r.status !== 'ok' && (r.role || '').includes('CRITICAL')
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        summary: counts,
+        critical_stale: criticalStale.map(r => r.table_name),
+        ready_to_trade: criticalStale.length === 0,
+        sources: result.rows.map(r => ({
+          table: r.table_name,
+          frequency: r.frequency,
+          role: r.role,
+          latest: r.latest_date,
+          age_days: r.age_days,
+          rows: r.row_count,
+          status: r.status,
+          last_audit: r.last_audit_at,
+          error: r.error_message,
+        })),
+      },
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error in /algo/data-status:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date(),
+    });
+  }
+});
+
+// ============================================================
+// EXPOSURE POLICY — current tier rules
+// ============================================================
+router.get('/exposure-policy', async (req, res) => {
+  try {
+    const pool = getPool();
+    const tiers = [
+      { name: 'confirmed_uptrend', min_pct: 80, max_pct: 100,
+        description: 'Healthy bull market — full deployment',
+        risk_multiplier: 1.0, max_new_positions_today: 5,
+        min_swing_score: 60, min_swing_grade: 'B',
+        halt_new_entries: false, color: 'green' },
+      { name: 'healthy_uptrend', min_pct: 60, max_pct: 80,
+        description: 'Bull market with caution',
+        risk_multiplier: 0.85, max_new_positions_today: 4,
+        min_swing_score: 65, min_swing_grade: 'B',
+        tighten_winners_at_r: 3.0,
+        halt_new_entries: false, color: 'lightgreen' },
+      { name: 'pressure', min_pct: 40, max_pct: 60,
+        description: 'Uptrend under pressure',
+        risk_multiplier: 0.5, max_new_positions_today: 2,
+        min_swing_score: 70, min_swing_grade: 'A',
+        tighten_winners_at_r: 2.0, force_partial_at_r: 3.0,
+        halt_new_entries: false, color: 'yellow' },
+      { name: 'caution', min_pct: 20, max_pct: 40,
+        description: 'Major caution',
+        risk_multiplier: 0.25, max_new_positions_today: 1,
+        min_swing_score: 75, min_swing_grade: 'A',
+        tighten_winners_at_r: 1.5, force_partial_at_r: 2.0,
+        halt_new_entries: true, color: 'orange' },
+      { name: 'correction', min_pct: 0, max_pct: 20,
+        description: 'Market correction',
+        risk_multiplier: 0.0, max_new_positions_today: 0,
+        min_swing_score: 100, min_swing_grade: 'A+',
+        tighten_winners_at_r: 1.0, force_partial_at_r: 1.5,
+        halt_new_entries: true, force_exit_negative_r: true, color: 'red' },
+    ];
+
+    // Find active tier from latest exposure
+    const latest = await pool.query(
+      `SELECT exposure_pct FROM market_exposure_daily ORDER BY date DESC LIMIT 1`
+    );
+    const exp = latest.rows[0] ? parseFloat(latest.rows[0].exposure_pct) : null;
+    const active = exp !== null
+      ? tiers.find(t => exp >= t.min_pct && exp <= t.max_pct)
+      : null;
+
+    return res.json({
+      success: true,
+      data: {
+        current_exposure_pct: exp,
+        active_tier: active,
+        all_tiers: tiers,
+      },
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error in /algo/exposure-policy:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date(),
+    });
+  }
+});
+
 module.exports = router;
