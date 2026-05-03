@@ -753,6 +753,9 @@ app.use("/api/research/backtests", cacheMiddleware(120), backtestsRoutes);
 app.use("/api/status", cacheMiddleware(30), statusRoutes);
 app.use("/api/prices", cacheMiddleware(30), pricesRoutes);
 
+// Swing trading algo routes
+app.use("/api/algo", require("./routes/algo"));
+
 // API info endpoint
 app.get("/api", (req, res) => {
   res.json({
@@ -761,6 +764,7 @@ app.get("/api", (req, res) => {
       version: "2.0.0",
       status: "operational",
       endpoints: {
+        algo: "/api/algo",
         contact: "/api/contact",
         economic: "/api/economic",
         financials: "/api/financials",

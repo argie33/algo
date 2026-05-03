@@ -1080,6 +1080,267 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 );
 
 -- ════════════════════════════════════════════════════════════════════════════
+-- SWING TRADING ALGO SYSTEM
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Algo configuration (hot-reload enabled, no restart needed)
+CREATE TABLE IF NOT EXISTS algo_config (
+    id SERIAL PRIMARY KEY,
+    key VARCHAR(100) NOT NULL UNIQUE,
+    value TEXT,
+    value_type VARCHAR(20),
+    description TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(100)
+);
+
+-- Market health daily (market breadth, distribution days, trend)
+CREATE TABLE IF NOT EXISTS market_health_daily (
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL UNIQUE,
+    market_trend VARCHAR(20),
+    market_stage INTEGER,
+    distribution_days_4w INTEGER,
+    distribution_days_20d INTEGER,
+    up_volume_percent DECIMAL(8, 2),
+    advance_decline_ratio DECIMAL(10, 2),
+    new_highs_count INTEGER,
+    new_lows_count INTEGER,
+    breadth_momentum_10d DECIMAL(8, 4),
+    vix_level DECIMAL(8, 2),
+    put_call_ratio DECIMAL(8, 4),
+    yield_curve_slope DECIMAL(8, 4),
+    fed_rate_environment VARCHAR(50),
+    market_comment TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Trend template fields per symbol (52w highs/lows, MA slopes, stages)
+CREATE TABLE IF NOT EXISTS trend_template_data (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    price_52w_high DECIMAL(12, 4),
+    price_52w_low DECIMAL(12, 4),
+    percent_from_52w_low DECIMAL(8, 2),
+    percent_from_52w_high DECIMAL(8, 2),
+    sma_50_slope DECIMAL(8, 4),
+    sma_200_slope DECIMAL(8, 4),
+    price_above_sma50 BOOLEAN,
+    price_above_sma200 BOOLEAN,
+    sma50_above_sma200 BOOLEAN,
+    ma_spread_percent DECIMAL(8, 4),
+    minervini_trend_score INTEGER,
+    weinstein_stage INTEGER,
+    trend_direction VARCHAR(20),
+    consolidation_flag BOOLEAN,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- CAN SLIM fundamentals per symbol
+CREATE TABLE IF NOT EXISTS can_slim_metrics (
+    symbol VARCHAR(20) PRIMARY KEY,
+    eps_growth_current DECIMAL(8, 4),
+    eps_growth_5y DECIMAL(8, 4),
+    sales_growth_current DECIMAL(8, 4),
+    profit_margin DECIMAL(8, 4),
+    roe DECIMAL(8, 4),
+    institutional_ownership_pct DECIMAL(8, 2),
+    shares_float_millions INTEGER,
+    new_product_catalyst TEXT,
+    relative_price_strength DECIMAL(8, 4),
+    can_slim_score INTEGER,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- VCP detection (Volatility Contraction Pattern)
+CREATE TABLE IF NOT EXISTS vcp_patterns (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    atr_30d_avg DECIMAL(12, 4),
+    atr_current DECIMAL(12, 4),
+    atr_compression_pct DECIMAL(8, 2),
+    range_30d_avg DECIMAL(12, 4),
+    range_current DECIMAL(12, 4),
+    vcp_strength INTEGER,
+    breakout_volume_ratio DECIMAL(8, 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- Signal Quality Score composite ranking
+CREATE TABLE IF NOT EXISTS signal_quality_scores (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    trend_template_score INTEGER,
+    base_quality_score INTEGER,
+    volume_confirmation_score INTEGER,
+    distance_from_high_score INTEGER,
+    institutional_ownership_score INTEGER,
+    market_stage_score INTEGER,
+    vcp_pattern_score INTEGER,
+    distribution_days_score INTEGER,
+    earnings_proximity_score INTEGER,
+    composite_sqs INTEGER,
+    rank_vs_all_signals INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- Data completeness score per symbol
+CREATE TABLE IF NOT EXISTS data_completeness_scores (
+    symbol VARCHAR(20) PRIMARY KEY,
+    price_data_pct DECIMAL(8, 2),
+    technical_data_pct DECIMAL(8, 2),
+    earnings_data_pct DECIMAL(8, 2),
+    analyst_coverage_pct DECIMAL(8, 2),
+    institutional_data_pct DECIMAL(8, 2),
+    composite_completeness_pct DECIMAL(8, 2),
+    is_tradeable BOOLEAN,
+    completeness_comment TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Theme and correlation tags
+CREATE TABLE IF NOT EXISTS signal_themes (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    sector_theme VARCHAR(100),
+    thematic_group VARCHAR(100),
+    correlation_cluster VARCHAR(100),
+    correlation_to_spy DECIMAL(8, 4),
+    correlation_to_qqq DECIMAL(8, 4),
+    correlation_to_iwm DECIMAL(8, 4),
+    relative_strength_group VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
+-- Signals evaluated through filter pipeline
+CREATE TABLE IF NOT EXISTS algo_signals_evaluated (
+    id SERIAL PRIMARY KEY,
+    signal_date DATE NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
+    source_table VARCHAR(50),
+    source_timeframe VARCHAR(20),
+    raw_signal VARCHAR(20),
+    entry_price DECIMAL(12, 4),
+    filter_tier_1_pass BOOLEAN,
+    filter_tier_2_pass BOOLEAN,
+    filter_tier_3_pass BOOLEAN,
+    filter_tier_4_pass BOOLEAN,
+    filter_tier_5_pass BOOLEAN,
+    final_signal_quality_score INTEGER,
+    final_risk_score DECIMAL(8, 2),
+    evaluated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    evaluation_reason TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(signal_date, symbol, source_timeframe)
+);
+
+-- Trades executed by algo
+CREATE TABLE IF NOT EXISTS algo_trades (
+    id SERIAL PRIMARY KEY,
+    trade_id VARCHAR(100) UNIQUE NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
+    signal_date DATE NOT NULL,
+    trade_date DATE NOT NULL,
+    entry_price DECIMAL(12, 4) NOT NULL,
+    entry_time TIMESTAMP,
+    entry_quantity INTEGER NOT NULL,
+    entry_reason TEXT,
+    position_size_pct DECIMAL(8, 2),
+    stop_loss_price DECIMAL(12, 4),
+    stop_loss_method VARCHAR(50),
+    target_1_price DECIMAL(12, 4),
+    target_1_r_multiple DECIMAL(8, 2),
+    target_2_price DECIMAL(12, 4),
+    target_2_r_multiple DECIMAL(8, 2),
+    target_3_price DECIMAL(12, 4),
+    target_3_r_multiple DECIMAL(8, 2),
+    status VARCHAR(20),
+    exit_date DATE,
+    exit_time TIMESTAMP,
+    exit_price DECIMAL(12, 4),
+    exit_reason VARCHAR(100),
+    exit_r_multiple DECIMAL(8, 2),
+    profit_loss_dollars DECIMAL(12, 2),
+    profit_loss_pct DECIMAL(8, 4),
+    trade_duration_days INTEGER,
+    execution_mode VARCHAR(20),
+    alpaca_order_id VARCHAR(100),
+    alpaca_trade_id VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, signal_date, entry_price)
+);
+
+-- Active positions tracking
+CREATE TABLE IF NOT EXISTS algo_positions (
+    id SERIAL PRIMARY KEY,
+    position_id VARCHAR(100) UNIQUE NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
+    quantity INTEGER NOT NULL,
+    avg_entry_price DECIMAL(12, 4),
+    current_price DECIMAL(12, 4),
+    position_value DECIMAL(14, 2),
+    unrealized_pnl DECIMAL(12, 2),
+    unrealized_pnl_pct DECIMAL(8, 4),
+    trade_ids VARCHAR(1000),
+    status VARCHAR(20),
+    stage_in_exit_plan VARCHAR(50),
+    distribution_day_count INTEGER,
+    profit_loss_dollars DECIMAL(12, 2),
+    trade_duration_days INTEGER,
+    days_since_entry INTEGER,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    closed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Daily portfolio snapshots
+CREATE TABLE IF NOT EXISTS algo_portfolio_snapshots (
+    id SERIAL PRIMARY KEY,
+    snapshot_date DATE NOT NULL UNIQUE,
+    total_portfolio_value DECIMAL(14, 2),
+    total_cash DECIMAL(14, 2),
+    total_equity DECIMAL(14, 2),
+    position_count INTEGER,
+    largest_position_pct DECIMAL(8, 2),
+    average_position_size_pct DECIMAL(8, 2),
+    concentration_risk_pct DECIMAL(8, 2),
+    realized_pnl_today DECIMAL(12, 2),
+    unrealized_pnl_total DECIMAL(12, 2),
+    unrealized_pnl_pct DECIMAL(8, 4),
+    win_count_today INTEGER,
+    loss_count_today INTEGER,
+    daily_return_pct DECIMAL(8, 4),
+    cumulative_return_pct DECIMAL(8, 4),
+    max_drawdown_pct DECIMAL(8, 4),
+    sharpe_ratio DECIMAL(8, 4),
+    distribution_days_market INTEGER,
+    market_health_status VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Audit log for all algo actions (compliance + debugging)
+CREATE TABLE IF NOT EXISTS algo_audit_log (
+    id SERIAL PRIMARY KEY,
+    action_type VARCHAR(50) NOT NULL,
+    symbol VARCHAR(20),
+    action_date TIMESTAMP NOT NULL,
+    details JSONB,
+    actor VARCHAR(100),
+    status VARCHAR(20),
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ════════════════════════════════════════════════════════════════════════════
 -- INDEXES for Performance
 -- ════════════════════════════════════════════════════════════════════════════
 
@@ -1094,6 +1355,22 @@ CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_symbol ON buy_sell_daily(symbol);
 CREATE INDEX IF NOT EXISTS idx_earnings_symbol ON earnings_estimates(symbol);
 CREATE INDEX IF NOT EXISTS idx_analyst_symbol ON analyst_upgrade_downgrade(symbol);
 CREATE INDEX IF NOT EXISTS idx_sentiment_symbol ON analyst_sentiment_analysis(symbol);
+
+-- Algo system indexes
+CREATE INDEX IF NOT EXISTS idx_market_health_daily_date ON market_health_daily(date);
+CREATE INDEX IF NOT EXISTS idx_trend_template_symbol ON trend_template_data(symbol);
+CREATE INDEX IF NOT EXISTS idx_trend_template_date ON trend_template_data(date);
+CREATE INDEX IF NOT EXISTS idx_vcp_patterns_symbol_date ON vcp_patterns(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_signal_quality_symbol_date ON signal_quality_scores(symbol, date);
+CREATE INDEX IF NOT EXISTS idx_algo_signals_evaluated_date ON algo_signals_evaluated(signal_date);
+CREATE INDEX IF NOT EXISTS idx_algo_signals_evaluated_symbol ON algo_signals_evaluated(symbol);
+CREATE INDEX IF NOT EXISTS idx_algo_trades_symbol ON algo_trades(symbol);
+CREATE INDEX IF NOT EXISTS idx_algo_trades_status ON algo_trades(status);
+CREATE INDEX IF NOT EXISTS idx_algo_positions_symbol ON algo_positions(symbol);
+CREATE INDEX IF NOT EXISTS idx_algo_positions_status ON algo_positions(status);
+CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_date ON algo_portfolio_snapshots(snapshot_date);
+CREATE INDEX IF NOT EXISTS idx_audit_log_action_type ON algo_audit_log(action_type);
+CREATE INDEX IF NOT EXISTS idx_audit_log_date ON algo_audit_log(action_date);
 """
 
 def init_database():
