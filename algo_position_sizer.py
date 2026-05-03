@@ -48,16 +48,54 @@ class PositionSizer:
             self.conn.close()
 
     def get_portfolio_value(self):
-        """Get current portfolio value."""
+        """Get current portfolio value.
+
+        Priority:
+        1. Live Alpaca account (most accurate)
+        2. Latest portfolio snapshot
+        3. Fallback constant ($100k)
+        """
+        # Try live Alpaca first
+        alpaca_value = self._fetch_live_alpaca_equity()
+        if alpaca_value is not None:
+            return alpaca_value
+
         try:
             self.cur.execute("""
                 SELECT total_portfolio_value FROM algo_portfolio_snapshots
                 ORDER BY snapshot_date DESC LIMIT 1
             """)
             result = self.cur.fetchone()
-            return float(result[0]) if result and result[0] else 100000.0
-        except:
-            return 100000.0
+            if result and result[0]:
+                return float(result[0])
+        except Exception:
+            pass
+
+        return 100000.0
+
+    def _fetch_live_alpaca_equity(self):
+        """Fetch live portfolio equity from Alpaca. Returns None on any failure."""
+        import requests
+        key = os.getenv('APCA_API_KEY_ID')
+        secret = os.getenv('APCA_API_SECRET_KEY')
+        base = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
+        if not key or not secret:
+            return None
+        try:
+            response = requests.get(
+                f'{base}/v2/account',
+                headers={'APCA-API-KEY-ID': key, 'APCA-API-SECRET-KEY': secret},
+                timeout=5,
+            )
+            if response.status_code == 200:
+                data = response.json()
+                # Use portfolio_value (equity + cash)
+                pv = data.get('portfolio_value') or data.get('equity')
+                if pv is not None:
+                    return float(pv)
+        except Exception:
+            pass
+        return None
 
     def get_current_drawdown(self):
         """Calculate current drawdown from peak."""
@@ -196,21 +234,30 @@ class PositionSizer:
                 position_value = shares * entry_price
                 risk_dollars = risk_per_share * shares
 
-            # Check concentration
-            new_total_value = active_position_value + position_value
-            position_size_pct = (position_value / new_total_value * 100) if new_total_value > 0 else 0
-            max_concentration = self.config.get('max_concentration_pct', 50.0)
+            # Concentration: this position's % of total portfolio (not of position book)
+            position_pct_of_portfolio = (position_value / portfolio_value * 100) if portfolio_value > 0 else 0
+            max_concentration = float(self.config.get('max_concentration_pct', 50.0))
 
-            if position_size_pct > max_concentration:
+            if position_pct_of_portfolio > max_concentration:
                 return {
                     'shares': 0,
                     'position_size_pct': 0,
                     'risk_dollars': 0,
                     'status': 'concentration',
-                    'reason': f'Position would be {position_size_pct:.1f}% > {max_concentration}% max'
+                    'reason': f'Position would be {position_pct_of_portfolio:.1f}% > {max_concentration:.0f}% portfolio'
                 }
 
-            position_pct_of_portfolio = (position_value / portfolio_value * 100)
+            # Total invested cap (sum of positions <= portfolio - reserves)
+            total_invested = active_position_value + position_value
+            max_invested_pct = float(self.config.get('max_total_invested_pct', 95.0))
+            if portfolio_value > 0 and (total_invested / portfolio_value * 100) > max_invested_pct:
+                return {
+                    'shares': 0,
+                    'position_size_pct': 0,
+                    'risk_dollars': 0,
+                    'status': 'no_room',
+                    'reason': f'Total invested would be {total_invested/portfolio_value*100:.0f}% > {max_invested_pct:.0f}%'
+                }
 
             return {
                 'shares': shares,
@@ -218,7 +265,7 @@ class PositionSizer:
                 'risk_dollars': risk_dollars,
                 'position_value': position_value,
                 'status': 'ok',
-                'reason': f'{shares} shares @ ${entry_price:.2f} = ${position_value:.2f}'
+                'reason': f'{shares} shares @ ${entry_price:.2f} = ${position_value:.2f} ({position_pct_of_portfolio:.1f}%)'
             }
 
         except Exception as e:

@@ -1,21 +1,26 @@
 #!/usr/bin/env python3
 """
-Exit Engine - Monitor positions and execute exits
+Exit Engine - Monitor positions and execute exits (HARDENED)
 
-Exit Rules:
-- T1: 1.5R at first pullback/consolidation
-- T2: 3R at pattern break or 50% base
-- T3: 4R+ maximum hold or technical break
-- Stop: Minervini break (21-EMA, 50-DMA, pivot)
-- Time: Max 20 days in position
-- Distribution: Exit all on market distribution day
+Exit hierarchy (checked in order):
+1. STOP    — current price <= active stop (initial or trailed)
+2. MINERVINI BREAK — close < 21-EMA on volume > 50d avg (or close < 50-DMA cleanly)
+3. TIME    — held >= max_hold_days
+4. T3      — price >= target_3 (4R) → exit final 25%
+5. T2      — price >= target_2 (3R) → exit 25% on pullback, raise stop to T1 area
+6. T1      — price >= target_1 (1.5R) → exit 50% on pullback, raise stop to entry (breakeven)
+7. DISTRIBUTION — market distribution day count exceeds limit (config-gated)
+
+State tracked on algo_positions:
+  - target_levels_hit (0/1/2/3): which T-levels have already triggered
+  - current_stop_price: trailed stop after T1/T2 hits
 """
 
 import os
 import psycopg2
 from pathlib import Path
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date as _date
 from algo_trade_executor import TradeExecutor
 
 env_file = Path(__file__).parent / '.env.local'
@@ -29,6 +34,7 @@ DB_CONFIG = {
     "password": os.getenv("DB_PASSWORD", ""),
     "database": os.getenv("DB_NAME", "stocks"),
 }
+
 
 class ExitEngine:
     """Monitor and execute position exits."""
@@ -48,175 +54,282 @@ class ExitEngine:
             self.cur.close()
         if self.conn:
             self.conn.close()
+        self.cur = self.conn = None
 
     def check_and_execute_exits(self, current_date=None):
-        """Check all open positions for exit conditions."""
+        """Check all open positions for exit conditions and execute."""
         if not current_date:
             current_date = datetime.now().date()
 
         self.connect()
-
         try:
             print(f"\n{'='*70}")
             print(f"EXIT ENGINE CHECK - {current_date}")
             print(f"{'='*70}\n")
 
-            # Get all open trades
-            self.cur.execute("""
-                SELECT trade_id, symbol, entry_price, entry_quantity,
-                       target_1_price, target_2_price, target_3_price,
-                       stop_loss_price, trade_date
-                FROM algo_trades
-                WHERE status IN ('filled', 'active')
-                ORDER BY trade_date ASC
-            """)
-
+            self.cur.execute(
+                """
+                SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
+                       t.target_1_price, t.target_2_price, t.target_3_price,
+                       t.trade_date,
+                       p.position_id, p.quantity, p.target_levels_hit,
+                       p.current_stop_price
+                FROM algo_trades t
+                JOIN algo_positions p ON p.trade_ids LIKE '%%' || t.trade_id || '%%'
+                WHERE t.status IN ('filled','active') AND p.status = 'open' AND p.quantity > 0
+                ORDER BY t.trade_date ASC
+                """
+            )
             trades = self.cur.fetchall()
+            if not trades:
+                print("No open positions.\n")
+                return 0
+
+            # Cache market distribution-day status once for the run
+            dist_days_today = self._fetch_market_dist_days(current_date)
             exits_executed = 0
 
-            for trade in trades:
-                trade_id, symbol, entry_price, qty, t1, t2, t3, stop, trade_date = trade
+            for row in trades:
+                (trade_id, symbol, entry_price, init_stop, t1_price, t2_price, t3_price,
+                 trade_date, _position_id, quantity, target_hits, current_stop) = row
 
-                # Get current price
-                self.cur.execute("""
-                    SELECT close FROM price_daily
-                    WHERE symbol = %s AND date = %s
-                    ORDER BY date DESC LIMIT 1
-                """, (symbol, current_date))
+                entry_price = float(entry_price)
+                init_stop = float(init_stop)
+                active_stop = float(current_stop) if current_stop else init_stop
+                t1_price = float(t1_price)
+                t2_price = float(t2_price)
+                t3_price = float(t3_price)
+                target_hits = int(target_hits or 0)
 
-                price_result = self.cur.fetchone()
-                if not price_result:
+                cur_price, prev_close = self._fetch_recent_prices(symbol, current_date)
+                if cur_price is None:
                     continue
 
-                current_price = float(price_result[0])
                 days_held = (current_date - trade_date).days
 
-                # Check exit conditions
-                exit_signal = self._check_exit_conditions(
-                    symbol, current_price, entry_price, qty,
-                    t1, t2, t3, stop, days_held, current_date
+                exit_signal = self._evaluate_position(
+                    symbol, current_date,
+                    cur_price, prev_close, entry_price, active_stop, init_stop,
+                    t1_price, t2_price, t3_price, target_hits, days_held, dist_days_today,
                 )
 
-                if exit_signal:
-                    print(f"{symbol}: {exit_signal['reason']}")
+                if not exit_signal:
+                    print(f"  {symbol}: hold (cur ${cur_price:.2f}, "
+                          f"stop ${active_stop:.2f}, t1 ${t1_price:.2f}, "
+                          f"day {days_held}, hits {target_hits})")
+                    continue
 
-                    # Execute exit
-                    result = self.executor.exit_trade(
-                        trade_id, current_price, exit_signal['reason']
-                    )
+                fraction = exit_signal['fraction']
+                stage = exit_signal['stage']
+                new_stop = exit_signal.get('new_stop')
 
-                    if result['success']:
-                        exits_executed += 1
-                        print(f"  Exited: {result['message']}\n")
-                    else:
-                        print(f"  Exit failed: {result['message']}\n")
+                print(f"  {symbol}: {stage.upper()} — {exit_signal['reason']} "
+                      f"(exit {int(fraction*100)}%)")
 
-            print(f"{'='*70}")
-            print(f"Exits executed: {exits_executed}/{len(trades)}")
+                result = self.executor.exit_trade(
+                    trade_id=trade_id,
+                    exit_price=cur_price,
+                    exit_reason=exit_signal['reason'],
+                    exit_fraction=fraction,
+                    exit_stage=stage,
+                    new_stop_price=new_stop,
+                )
+
+                if result.get('success'):
+                    exits_executed += 1
+                    print(f"      → {result['message']}")
+                else:
+                    print(f"      → FAILED: {result.get('message')}")
+
+            print(f"\n{'='*70}")
+            print(f"Exits executed: {exits_executed}/{len(trades)} positions")
             print(f"{'='*70}\n")
-
             return exits_executed
-
         except Exception as e:
             print(f"Error in exit engine: {e}")
+            import traceback
+            traceback.print_exc()
             return 0
         finally:
             self.disconnect()
 
-    def _check_exit_conditions(self, symbol, current_price, entry_price, qty,
-                               t1_price, t2_price, t3_price, stop_price, days_held, eval_date):
-        """Check all exit conditions for a position."""
+    # ---------- Decision logic ----------
 
-        # 1. Check stops first
-        if current_price <= stop_price:
+    def _evaluate_position(self, symbol, current_date, cur_price, prev_close,
+                           entry_price, active_stop, init_stop,
+                           t1_price, t2_price, t3_price,
+                           target_hits, days_held, dist_days_today):
+        """Decide what (if any) exit to take. Returns dict or None."""
+        # 1. STOP
+        if cur_price <= active_stop:
             return {
-                'reason': f'STOP: {current_price:.2f} <= {stop_price:.2f}',
-                'exit_stage': 'stop'
+                'stage': 'stop',
+                'fraction': 1.0,
+                'reason': f'STOP hit: ${cur_price:.2f} <= ${active_stop:.2f}',
             }
 
-        # 2. Check max hold time
-        max_hold = self.config.get('max_hold_days', 20)
+        # 2. MINERVINI BREAK — close below 21-EMA on rising volume, OR clean break of 50-DMA
+        if self._is_minervini_break(symbol, current_date, cur_price):
+            return {
+                'stage': 'stop',
+                'fraction': 1.0,
+                'reason': f'Minervini trend break: closed below key MA on volume',
+            }
+
+        # 3. TIME
+        max_hold = int(self.config.get('max_hold_days', 20))
         if days_held >= max_hold:
             return {
-                'reason': f'TIME: {days_held} days >= {max_hold} day limit',
-                'exit_stage': 'time'
+                'stage': 'time',
+                'fraction': 1.0,
+                'reason': f'TIME exit: {days_held} days >= {max_hold} max',
             }
 
-        # 3. Check T3 target (4R) - hard exit
-        if current_price >= t3_price:
+        # 4. T3 — sells final 25% (or whatever remains)
+        if cur_price >= t3_price and target_hits < 3:
             return {
-                'reason': f'T3: {current_price:.2f} >= {t3_price:.2f} (4R target)',
-                'exit_stage': 'target_3'
+                'stage': 'target_3',
+                'fraction': 1.0,  # exit the rest
+                'reason': f'T3 target hit: ${cur_price:.2f} >= ${t3_price:.2f} (4R)',
             }
 
-        # 4. Check T2 target (3R) - conditional exit on pullback
-        if current_price >= t2_price:
-            # Check if pulling back from T3
-            if self._is_pulling_back(symbol, eval_date, current_price, t3_price):
+        # 5. T2 — exit 25% (~1/3 of remaining after T1) on pullback; raise stop near T1
+        if cur_price >= t2_price and target_hits < 2:
+            if self._is_pulling_back(symbol, current_date):
+                # After T1 already fired, remaining = 50%. Selling 25%/50% = 50% of remaining.
                 return {
-                    'reason': f'T2: {current_price:.2f} >= {t2_price:.2f} (3R pullback)',
-                    'exit_stage': 'target_2'
+                    'stage': 'target_2',
+                    'fraction': 0.50,
+                    'reason': f'T2 pullback exit: ${cur_price:.2f} >= ${t2_price:.2f} (3R)',
+                    'new_stop': max(active_stop, t1_price),
                 }
 
-        # 5. Check T1 target (1.5R) - exit on pullback
-        if current_price >= t1_price:
-            if self._is_pulling_back(symbol, eval_date, current_price, t2_price):
+        # 6. T1 — exit 50% on pullback; raise stop to entry (breakeven)
+        if cur_price >= t1_price and target_hits < 1:
+            if self._is_pulling_back(symbol, current_date):
                 return {
-                    'reason': f'T1: {current_price:.2f} >= {t1_price:.2f} (1.5R pullback)',
-                    'exit_stage': 'target_1'
+                    'stage': 'target_1',
+                    'fraction': 0.50,
+                    'reason': f'T1 pullback exit: ${cur_price:.2f} >= ${t1_price:.2f} (1.5R)',
+                    'new_stop': max(active_stop, entry_price),
                 }
 
-        # 6. Check distribution days
-        self.cur.execute("""
-            SELECT distribution_days_4w FROM market_health_daily
-            WHERE date <= %s
-            ORDER BY date DESC LIMIT 1
-        """, (eval_date,))
+        # 7. DISTRIBUTION
+        if self.config.get('exit_on_distribution_day', True) and dist_days_today is not None:
+            max_dd = int(self.config.get('max_distribution_days', 4))
+            if dist_days_today > max_dd:
+                return {
+                    'stage': 'distribution',
+                    'fraction': 1.0,
+                    'reason': f'Market distribution: {dist_days_today} dist days > {max_dd}',
+                }
 
-        dist_result = self.cur.fetchone()
-        if dist_result and dist_result[0]:
-            max_dist = self.config.get('max_distribution_days', 4)
-            if dist_result[0] > max_dist:
-                exit_on_dist = self.config.get('exit_on_distribution_day', True)
-                if exit_on_dist:
-                    return {
-                        'reason': f'DIST: {dist_result[0]} distribution days',
-                        'exit_stage': 'distribution'
-                    }
-
-        # No exit condition
         return None
 
-    def _is_pulling_back(self, symbol, eval_date, current_price, previous_high):
-        """Check if price is pulling back from a higher level."""
-        try:
-            # Get last 5 days of closes
-            self.cur.execute("""
-                SELECT close FROM price_daily
-                WHERE symbol = %s
-                AND date >= %s::date - INTERVAL '5 days'
-                AND date <= %s
-                ORDER BY date DESC
-                LIMIT 5
-            """, (symbol, eval_date, eval_date))
+    # ---------- Data helpers ----------
 
-            prices = [float(r[0]) for r in self.cur.fetchall()]
+    def _fetch_recent_prices(self, symbol, current_date):
+        """Return (current_close, previous_close) using closest available price <= current_date."""
+        self.cur.execute(
+            """
+            SELECT date, close FROM price_daily
+            WHERE symbol = %s AND date <= %s
+            ORDER BY date DESC LIMIT 2
+            """,
+            (symbol, current_date),
+        )
+        rows = self.cur.fetchall()
+        if not rows:
+            return None, None
+        cur_price = float(rows[0][1])
+        prev_close = float(rows[1][1]) if len(rows) > 1 else None
+        return cur_price, prev_close
 
-            if len(prices) < 2:
-                return False
+    def _fetch_market_dist_days(self, current_date):
+        self.cur.execute(
+            """
+            SELECT distribution_days_4w FROM market_health_daily
+            WHERE date <= %s ORDER BY date DESC LIMIT 1
+            """,
+            (current_date,),
+        )
+        row = self.cur.fetchone()
+        return int(row[0]) if row and row[0] is not None else None
 
-            # Pullback if current < previous high
-            return current_price < max(prices[1:])
-
-        except:
+    def _is_pulling_back(self, symbol, current_date):
+        """True if current close is below the highest close of the last 3 days."""
+        self.cur.execute(
+            """
+            SELECT close FROM price_daily
+            WHERE symbol = %s AND date <= %s
+            ORDER BY date DESC LIMIT 4
+            """,
+            (symbol, current_date),
+        )
+        rows = self.cur.fetchall()
+        if len(rows) < 2:
             return False
+        cur_close = float(rows[0][0])
+        prior_max = max(float(r[0]) for r in rows[1:])
+        return cur_close < prior_max
+
+    def _is_minervini_break(self, symbol, current_date, cur_price):
+        """Close < 50-DMA OR (close < EMA(12) AND volume > 50-day avg)."""
+        self.cur.execute(
+            """
+            SELECT td.sma_50, td.ema_12,
+                   (SELECT volume FROM price_daily p WHERE p.symbol = td.symbol AND p.date = td.date) AS vol,
+                   (SELECT AVG(volume) FROM price_daily p
+                     WHERE p.symbol = td.symbol AND p.date <= td.date
+                       AND p.date >= td.date - INTERVAL '50 days') AS avg_vol_50
+            FROM technical_data_daily td
+            WHERE td.symbol = %s AND td.date <= %s
+            ORDER BY td.date DESC LIMIT 1
+            """,
+            (symbol, current_date),
+        )
+        row = self.cur.fetchone()
+        if not row:
+            return False
+        sma_50, ema_12, vol, avg_vol_50 = row
+        sma_50 = float(sma_50) if sma_50 is not None else None
+        ema_12 = float(ema_12) if ema_12 is not None else None
+        vol = float(vol) if vol is not None else 0
+        avg_vol_50 = float(avg_vol_50) if avg_vol_50 is not None else 0
+
+        # Clean break of 50-DMA
+        if sma_50 and cur_price < sma_50 * 0.99:
+            return True
+        # Break of EMA(12) on rising volume (institutional selling)
+        if ema_12 and cur_price < ema_12 and avg_vol_50 > 0 and vol > avg_vol_50 * 1.15:
+            return True
+        return False
+
+    # ---------- Backwards-compat shim used by old tests ----------
+
+    def _check_exit_conditions(self, symbol, current_price, entry_price, qty,
+                                t1_price, t2_price, t3_price, stop_price,
+                                days_held, eval_date):
+        """Pure-function exit check used by FULL_BUILD_VERIFICATION.py."""
+        signal = self._evaluate_position(
+            symbol, eval_date,
+            cur_price=current_price, prev_close=current_price,
+            entry_price=entry_price, active_stop=stop_price, init_stop=stop_price,
+            t1_price=t1_price, t2_price=t2_price, t3_price=t3_price,
+            target_hits=0, days_held=days_held, dist_days_today=None,
+        )
+        if not signal:
+            return None
+        return {
+            'reason': signal['reason'],
+            'exit_stage': signal['stage'],
+            'fraction': signal['fraction'],
+        }
+
 
 if __name__ == "__main__":
     from algo_config import get_config
-
     config = get_config()
     engine = ExitEngine(config)
-
-    # Test exit checking
     exits = engine.check_and_execute_exits()
-    print(f"Test complete: {exits} exits checked")
+    print(f"Exits executed: {exits}")

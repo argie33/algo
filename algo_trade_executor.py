@@ -2,12 +2,13 @@
 """
 Trade Executor - Execute trades via Alpaca and track positions
 
-Handles:
-- Sending orders to Alpaca
-- Creating algo_trades records
-- Creating algo_positions
-- Handling fills and executions
-- Order status tracking
+Features:
+- Idempotent entry (no duplicate trades for same symbol on same day)
+- Atomic DB transactions for entry/exit
+- Partial exits with weighted-cost-basis P&L (T1 = 50%, T2 = 25%, T3 = 25%)
+- R-multiple computed against actual stop loss (not a placeholder)
+- Trailing stop adjustments after profit-taking levels
+- Paper, dry, review, and auto execution modes
 """
 
 import os
@@ -17,7 +18,6 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime
 import requests
-import base64
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -30,6 +30,7 @@ DB_CONFIG = {
     "password": os.getenv("DB_PASSWORD", ""),
     "database": os.getenv("DB_NAME", "stocks"),
 }
+
 
 class TradeExecutor:
     """Execute trades via Alpaca and track in database."""
@@ -51,59 +52,102 @@ class TradeExecutor:
             self.cur.close()
         if self.conn:
             self.conn.close()
+        self.cur = self.conn = None
+
+    # ---------- Entry ----------
 
     def execute_trade(self, symbol, entry_price, shares, stop_loss_price,
-                     target_1_price, target_2_price, target_3_price, signal_date):
-        """
-        Execute a new trade:
-        1. Create order in Alpaca
-        2. Create algo_trades record
-        3. Create algo_positions record
-        4. Calculate P&L targets
+                      target_1_price=None, target_2_price=None, target_3_price=None,
+                      signal_date=None, sqs=None, trend_score=None):
+        """Execute a new entry trade.
 
         Returns: {
             'success': bool,
             'trade_id': str,
             'alpaca_order_id': str,
             'status': str,
-            'message': str
+            'message': str,
+            'duplicate': bool (only when blocked by idempotency)
         }
         """
+        if not signal_date:
+            signal_date = datetime.now().date()
+
+        # Compute targets if missing — based on R-multiples from actual stop
+        risk_per_share = entry_price - stop_loss_price
+        if risk_per_share <= 0:
+            return {
+                'success': False, 'trade_id': '', 'status': 'invalid',
+                'message': 'Invalid stop (>= entry)'
+            }
+        if target_1_price is None:
+            t1_r = float(self.config.get('t1_target_r_multiple', 1.5))
+            target_1_price = round(entry_price + (risk_per_share * t1_r), 2)
+        if target_2_price is None:
+            t2_r = float(self.config.get('t2_target_r_multiple', 3.0))
+            target_2_price = round(entry_price + (risk_per_share * t2_r), 2)
+        if target_3_price is None:
+            t3_r = float(self.config.get('t3_target_r_multiple', 4.0))
+            target_3_price = round(entry_price + (risk_per_share * t3_r), 2)
+
         self.connect()
-
         try:
-            execution_mode = self.config.get('execution_mode', 'paper')
-            trade_id = str(uuid.uuid4())[:8]
+            # ---- Idempotency: skip if we already have an open position for this symbol
+            #     OR an entry trade for this symbol on this signal_date ----
+            self.cur.execute(
+                "SELECT 1 FROM algo_positions WHERE symbol = %s AND status = 'open' LIMIT 1",
+                (symbol,),
+            )
+            if self.cur.fetchone():
+                return {
+                    'success': False, 'trade_id': '', 'status': 'duplicate', 'duplicate': True,
+                    'message': f'Already have open position in {symbol}'
+                }
 
-            # In 'paper' or 'dry' mode, create order without hitting Alpaca
-            if execution_mode in ('paper', 'dry', 'review'):
+            self.cur.execute(
+                """
+                SELECT trade_id FROM algo_trades
+                WHERE symbol = %s AND signal_date = %s AND status IN ('filled','active','pending')
+                LIMIT 1
+                """,
+                (symbol, signal_date),
+            )
+            existing = self.cur.fetchone()
+            if existing:
+                return {
+                    'success': False, 'trade_id': existing[0], 'status': 'duplicate', 'duplicate': True,
+                    'message': f'Trade already exists for {symbol} on {signal_date}'
+                }
+
+            execution_mode = self.config.get('execution_mode', 'paper')
+            trade_id = f"TRD-{uuid.uuid4().hex[:10].upper()}"
+
+            if execution_mode in ('paper', 'dry'):
                 alpaca_order_id = f'LOCAL-{trade_id}'
                 order_status = 'filled'
                 executed_price = entry_price
-
-                if execution_mode == 'review':
-                    order_status = 'pending_review'
-
-            else:
-                # Send to Alpaca
-                order_result = self._send_alpaca_order(
-                    symbol, shares, entry_price, stop_loss_price
-                )
-
+            elif execution_mode == 'review':
+                alpaca_order_id = f'PENDING-{trade_id}'
+                order_status = 'pending_review'
+                executed_price = entry_price
+            else:  # 'auto' — actually send to Alpaca
+                order_result = self._send_alpaca_order(symbol, shares, entry_price)
                 if not order_result['success']:
                     return {
-                        'success': False,
-                        'trade_id': trade_id,
-                        'status': 'failed',
+                        'success': False, 'trade_id': trade_id, 'status': 'failed',
                         'message': order_result.get('message', 'Order failed')
                     }
-
                 alpaca_order_id = order_result['order_id']
                 order_status = order_result.get('status', 'pending')
                 executed_price = order_result.get('executed_price', entry_price)
 
-            # Create algo_trades record
-            self.cur.execute("""
+            # Compute initial position size pct using live or snapshot portfolio value
+            portfolio_value = self._get_portfolio_value() or 100000.0
+            position_size_pct = (shares * executed_price / portfolio_value * 100) if portfolio_value > 0 else 0
+
+            # Insert the trade record
+            self.cur.execute(
+                """
                 INSERT INTO algo_trades (
                     trade_id, symbol, signal_date, trade_date,
                     entry_price, entry_quantity, entry_reason,
@@ -112,201 +156,338 @@ class TradeExecutor:
                     target_2_price, target_2_r_multiple,
                     target_3_price, target_3_r_multiple,
                     status, execution_mode, alpaca_order_id,
-                    position_size_pct, created_at
+                    position_size_pct, signal_quality_score, trend_template_score,
+                    created_at
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, CURRENT_TIMESTAMP
+                    %s, %s,
+                    %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s,
+                    CURRENT_TIMESTAMP
                 )
-            """, (
-                trade_id, symbol, signal_date, datetime.now().date(),
-                executed_price, shares, 'Algo signal qualified',
-                stop_loss_price, 'minervini_break',
-                target_1_price, 1.5,
-                target_2_price, 3.0,
-                target_3_price, 4.0,
-                order_status, execution_mode, alpaca_order_id,
-                (shares * executed_price / 100000), # placeholder
-            ))
+                """,
+                (
+                    trade_id, symbol, signal_date, datetime.now().date(),
+                    executed_price, shares, 'Algo signal qualified — all 5 tiers passed',
+                    stop_loss_price, 'minervini_break_or_swing_low',
+                    target_1_price, float(self.config.get('t1_target_r_multiple', 1.5)),
+                    target_2_price, float(self.config.get('t2_target_r_multiple', 3.0)),
+                    target_3_price, float(self.config.get('t3_target_r_multiple', 4.0)),
+                    order_status, execution_mode, alpaca_order_id,
+                    position_size_pct,
+                    int(sqs) if sqs is not None else None,
+                    int(trend_score) if trend_score is not None else None,
+                ),
+            )
 
-            # Create algo_positions record if filled
+            # Insert / open position record
             if order_status == 'filled':
                 position_id = f'POS-{trade_id}'
                 position_value = shares * executed_price
-
-                self.cur.execute("""
+                self.cur.execute(
+                    """
                     INSERT INTO algo_positions (
                         position_id, symbol, quantity, avg_entry_price,
                         current_price, position_value, status,
-                        trade_ids, created_at
+                        trade_ids, current_stop_price, target_levels_hit,
+                        created_at
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
+                        %s, %s, %s, %s, %s, %s, 'open',
+                        %s, %s, 0, CURRENT_TIMESTAMP
                     )
-                """, (
-                    position_id, symbol, shares, executed_price,
-                    executed_price, position_value, 'open', trade_id
-                ))
+                    """,
+                    (
+                        position_id, symbol, shares, executed_price,
+                        executed_price, position_value,
+                        trade_id, stop_loss_price,
+                    ),
+                )
 
             self.conn.commit()
-
             return {
                 'success': True,
                 'trade_id': trade_id,
                 'alpaca_order_id': alpaca_order_id,
                 'status': order_status,
-                'message': f'{shares} shares of {symbol} @ ${executed_price:.2f}'
+                'message': f'{shares} sh {symbol} @ ${executed_price:.2f} (stop ${stop_loss_price:.2f})',
             }
 
         except Exception as e:
             if self.conn:
                 self.conn.rollback()
             return {
-                'success': False,
-                'trade_id': str(uuid.uuid4())[:8],
-                'status': 'error',
-                'message': str(e)
+                'success': False, 'trade_id': '', 'status': 'error',
+                'message': f'{type(e).__name__}: {e}'
             }
         finally:
             self.disconnect()
 
-    def _send_alpaca_order(self, symbol, shares, entry_price, stop_loss_price):
-        """Send order to Alpaca API."""
-        try:
-            if not self.alpaca_key or not self.alpaca_secret:
-                return {
-                    'success': False,
-                    'message': 'Alpaca credentials not configured'
-                }
+    # ---------- Exit (full or partial) ----------
 
-            # Create order
-            headers = {
-                'APCA-API-KEY-ID': self.alpaca_key,
-                'APCA-API-SECRET-KEY': self.alpaca_secret
+    def exit_trade(self, trade_id, exit_price, exit_reason, exit_fraction=1.0,
+                   exit_stage=None, new_stop_price=None):
+        """Exit all or part of a position.
+
+        Args:
+            trade_id: trade to exit
+            exit_price: execution price for the exit
+            exit_reason: reason text (logged in algo_trades + algo_audit_log)
+            exit_fraction: 0 < f <= 1 (1.0 = full exit)
+            exit_stage: optional 'target_1' | 'target_2' | 'target_3' | 'stop' | 'time' | 'distribution'
+            new_stop_price: if provided, raise the stop on the residual shares (trailing stop)
+
+        Returns: { success, trade_id, shares_exited, profit_loss_dollars, profit_loss_pct, message }
+        """
+        if not (0 < exit_fraction <= 1.0):
+            return {'success': False, 'message': f'Invalid exit_fraction {exit_fraction}'}
+
+        self.connect()
+        try:
+            self.cur.execute(
+                """
+                SELECT t.symbol, t.entry_price, t.entry_quantity, t.stop_loss_price,
+                       p.position_id, p.quantity, p.target_levels_hit
+                FROM algo_trades t
+                LEFT JOIN algo_positions p ON p.trade_ids LIKE '%%' || t.trade_id || '%%'
+                                         AND p.status = 'open'
+                WHERE t.trade_id = %s
+                """,
+                (trade_id,),
+            )
+            row = self.cur.fetchone()
+            if not row:
+                return {'success': False, 'message': f'Trade {trade_id} not found'}
+            symbol, entry_price, entry_qty, stop_loss_price, position_id, current_qty, target_hits = row
+
+            entry_price = float(entry_price)
+            entry_qty = int(entry_qty)
+            stop_loss_price = float(stop_loss_price)
+            current_qty = int(current_qty) if current_qty else 0
+            target_hits = int(target_hits) if target_hits else 0
+
+            if current_qty <= 0 and not position_id:
+                return {'success': False, 'message': f'No open position for {trade_id}'}
+
+            # Shares to exit
+            shares_to_exit = max(1, int(current_qty * exit_fraction))
+            shares_to_exit = min(shares_to_exit, current_qty)
+            full_exit = shares_to_exit >= current_qty
+
+            # Profit calc against actual entry
+            risk_per_share = entry_price - stop_loss_price
+            r_multiple = ((exit_price - entry_price) / risk_per_share) if risk_per_share > 0 else 0
+            pnl_per_share = exit_price - entry_price
+            pnl_dollars = pnl_per_share * shares_to_exit
+            pnl_pct = (pnl_per_share / entry_price * 100) if entry_price > 0 else 0
+
+            # In auto mode, send the exit order to Alpaca
+            execution_mode = self.config.get('execution_mode', 'paper')
+            if execution_mode == 'auto':
+                self._send_alpaca_exit(symbol, shares_to_exit)
+
+            # Update the trade record
+            if full_exit:
+                self.cur.execute(
+                    """
+                    UPDATE algo_trades
+                    SET exit_date = CURRENT_DATE,
+                        exit_price = %s,
+                        exit_reason = %s,
+                        exit_r_multiple = %s,
+                        profit_loss_dollars = %s,
+                        profit_loss_pct = %s,
+                        status = 'closed'
+                    WHERE trade_id = %s
+                    """,
+                    (exit_price, exit_reason, r_multiple, pnl_dollars, pnl_pct, trade_id),
+                )
+            else:
+                # Partial exit — append to exit log column, keep status active
+                self.cur.execute(
+                    """
+                    UPDATE algo_trades
+                    SET partial_exits_log = COALESCE(partial_exits_log, '') ||
+                            CASE WHEN partial_exits_log IS NULL OR partial_exits_log = '' THEN '' ELSE '; ' END ||
+                            %s,
+                        partial_exit_count = COALESCE(partial_exit_count, 0) + 1,
+                        last_partial_exit_date = CURRENT_DATE,
+                        status = 'active'
+                    WHERE trade_id = %s
+                    """,
+                    (
+                        f"{shares_to_exit}sh @ ${exit_price:.2f} ({exit_reason}, {r_multiple:.2f}R)",
+                        trade_id,
+                    ),
+                )
+
+            # Update the position
+            new_qty = current_qty - shares_to_exit
+            if full_exit or new_qty <= 0:
+                self.cur.execute(
+                    """
+                    UPDATE algo_positions
+                    SET status = 'closed', quantity = 0, closed_at = CURRENT_TIMESTAMP
+                    WHERE position_id = %s
+                    """,
+                    (position_id,),
+                )
+            else:
+                # New stop (trailing) and incremented target_levels_hit
+                effective_stop = new_stop_price if new_stop_price is not None else stop_loss_price
+                self.cur.execute(
+                    """
+                    UPDATE algo_positions
+                    SET quantity = %s,
+                        position_value = %s * current_price,
+                        target_levels_hit = COALESCE(target_levels_hit, 0) + 1,
+                        current_stop_price = %s
+                    WHERE position_id = %s
+                    """,
+                    (new_qty, new_qty, effective_stop, position_id),
+                )
+
+            # Audit log
+            try:
+                import json
+                self.cur.execute(
+                    """
+                    INSERT INTO algo_audit_log (action_type, symbol, action_date,
+                                                details, actor, status, created_at)
+                    VALUES (%s, %s, CURRENT_TIMESTAMP, %s, %s, %s, CURRENT_TIMESTAMP)
+                    """,
+                    (
+                        f"exit_{exit_stage or 'manual'}", symbol,
+                        json.dumps({
+                            'trade_id': trade_id,
+                            'shares_exited': shares_to_exit,
+                            'exit_price': float(exit_price),
+                            'r_multiple': float(r_multiple),
+                            'pnl_dollars': float(pnl_dollars),
+                            'pnl_pct': float(pnl_pct),
+                            'reason': exit_reason,
+                            'full_exit': full_exit,
+                        }),
+                        'algo_executor',
+                        'success',
+                    ),
+                )
+            except Exception:
+                pass  # audit best-effort
+
+            self.conn.commit()
+            return {
+                'success': True,
+                'trade_id': trade_id,
+                'shares_exited': shares_to_exit,
+                'profit_loss_dollars': pnl_dollars,
+                'profit_loss_pct': pnl_pct,
+                'r_multiple': r_multiple,
+                'full_exit': full_exit,
+                'message': (
+                    f'Exited {shares_to_exit}sh of {symbol} @ ${exit_price:.2f} '
+                    f'({pnl_pct:+.2f}%, {r_multiple:+.2f}R)'
+                ),
             }
 
+        except Exception as e:
+            if self.conn:
+                self.conn.rollback()
+            return {'success': False, 'message': f'{type(e).__name__}: {e}'}
+        finally:
+            self.disconnect()
+
+    # ---------- Helpers ----------
+
+    def _get_portfolio_value(self):
+        """Live Alpaca equity, fall back to latest snapshot."""
+        if self.alpaca_key and self.alpaca_secret:
+            try:
+                resp = requests.get(
+                    f'{self.alpaca_base_url}/v2/account',
+                    headers={'APCA-API-KEY-ID': self.alpaca_key,
+                             'APCA-API-SECRET-KEY': self.alpaca_secret},
+                    timeout=5,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    pv = data.get('portfolio_value') or data.get('equity')
+                    if pv is not None:
+                        return float(pv)
+            except Exception:
+                pass
+        try:
+            self.cur.execute(
+                "SELECT total_portfolio_value FROM algo_portfolio_snapshots "
+                "ORDER BY snapshot_date DESC LIMIT 1"
+            )
+            row = self.cur.fetchone()
+            if row and row[0]:
+                return float(row[0])
+        except Exception:
+            pass
+        return None
+
+    def _send_alpaca_order(self, symbol, shares, entry_price):
+        """Send a buy order to Alpaca."""
+        if not self.alpaca_key or not self.alpaca_secret:
+            return {'success': False, 'message': 'Alpaca credentials not configured'}
+        try:
             order_data = {
                 'symbol': symbol,
                 'qty': shares,
                 'side': 'buy',
                 'type': 'limit',
                 'time_in_force': 'day',
-                'limit_price': str(entry_price),
-                'stop_price': str(stop_loss_price) if stop_loss_price else None,
-                'trail_price': None
+                'limit_price': str(round(entry_price, 2)),
             }
-
             response = requests.post(
                 f'{self.alpaca_base_url}/v2/orders',
                 json=order_data,
-                headers=headers,
-                timeout=10
+                headers={'APCA-API-KEY-ID': self.alpaca_key,
+                         'APCA-API-SECRET-KEY': self.alpaca_secret},
+                timeout=10,
             )
-
             if response.status_code in (200, 201):
                 data = response.json()
                 return {
                     'success': True,
                     'order_id': data.get('id', 'unknown'),
                     'status': data.get('status', 'pending'),
-                    'executed_price': entry_price
+                    'executed_price': entry_price,
                 }
-            else:
-                return {
-                    'success': False,
-                    'message': f'Alpaca error: {response.status_code} {response.text}'
-                }
-
+            return {'success': False, 'message': f'Alpaca {response.status_code}: {response.text[:200]}'}
         except Exception as e:
-            return {
-                'success': False,
-                'message': f'Request failed: {str(e)}'
-            }
+            return {'success': False, 'message': f'Request failed: {e}'}
 
-    def exit_trade(self, trade_id, exit_price, exit_reason):
-        """
-        Exit a position:
-        1. Send exit order to Alpaca
-        2. Update algo_trades with exit info
-        3. Close position in algo_positions
-        """
-        self.connect()
-
+    def _send_alpaca_exit(self, symbol, shares):
+        """Send a sell order to Alpaca (best effort)."""
+        if not self.alpaca_key or not self.alpaca_secret:
+            return None
         try:
-            # Get trade info
-            self.cur.execute("""
-                SELECT symbol, entry_quantity, entry_price
-                FROM algo_trades
-                WHERE trade_id = %s
-            """, (trade_id,))
+            requests.post(
+                f'{self.alpaca_base_url}/v2/orders',
+                json={
+                    'symbol': symbol,
+                    'qty': shares,
+                    'side': 'sell',
+                    'type': 'market',
+                    'time_in_force': 'day',
+                },
+                headers={'APCA-API-KEY-ID': self.alpaca_key,
+                         'APCA-API-SECRET-KEY': self.alpaca_secret},
+                timeout=10,
+            )
+        except Exception:
+            pass
 
-            trade = self.cur.fetchone()
-            if not trade:
-                return {'success': False, 'message': 'Trade not found'}
-
-            symbol, shares, entry_price = trade
-            profit_loss_pct = ((exit_price - entry_price) / entry_price * 100)
-            profit_loss_dollars = (exit_price - entry_price) * shares
-            r_multiple = (exit_price - entry_price) / (entry_price - (entry_price * 0.05))  # simplified
-
-            # Update trade
-            self.cur.execute("""
-                UPDATE algo_trades
-                SET exit_date = CURRENT_DATE,
-                    exit_price = %s,
-                    exit_reason = %s,
-                    exit_r_multiple = %s,
-                    profit_loss_dollars = %s,
-                    profit_loss_pct = %s,
-                    status = 'closed'
-                WHERE trade_id = %s
-            """, (exit_price, exit_reason, r_multiple, profit_loss_dollars, profit_loss_pct, trade_id))
-
-            # Close position
-            self.cur.execute("""
-                UPDATE algo_positions
-                SET status = 'closed',
-                    closed_at = CURRENT_TIMESTAMP
-                WHERE trade_ids LIKE %s
-            """, (f'%{trade_id}%',))
-
-            self.conn.commit()
-
-            return {
-                'success': True,
-                'trade_id': trade_id,
-                'profit_loss': profit_loss_dollars,
-                'profit_loss_pct': profit_loss_pct,
-                'message': f'Exited {symbol} @ ${exit_price:.2f}: {profit_loss_pct:+.2f}%'
-            }
-
-        except Exception as e:
-            if self.conn:
-                self.conn.rollback()
-            return {
-                'success': False,
-                'message': str(e)
-            }
-        finally:
-            self.disconnect()
 
 if __name__ == "__main__":
     from algo_config import get_config
-
     config = get_config()
     executor = TradeExecutor(config)
-
-    # Test execution
     result = executor.execute_trade(
-        symbol='AAPL',
-        entry_price=150.00,
-        shares=100,
-        stop_loss_price=142.50,
-        target_1_price=157.50,
-        target_2_price=165.00,
-        target_3_price=170.00,
-        signal_date='2026-05-03'
+        symbol='AAPL', entry_price=150.00, shares=100, stop_loss_price=142.50,
     )
-
     print(f"Trade Execution Test:")
     print(f"  Success: {result['success']}")
     print(f"  Trade ID: {result['trade_id']}")

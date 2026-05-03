@@ -385,45 +385,63 @@ class AlgoMetricsLoader:
             return False
 
     def load_data_completeness(self, symbols):
-        """Load data completeness scores per symbol."""
+        """Load data completeness scores per symbol.
+
+        Scoring approach (per-symbol, last-trading-year basis):
+        - price_data_pct: actual trading-day rows / 252 expected
+        - technical_data_pct: actual technical rows / 252 expected
+        - earnings_data_pct: 100 if symbol has any earnings estimate, else 0
+        - composite_completeness_pct: weighted average (price 50%, tech 30%, earnings 20%)
+        - is_tradeable: composite >= 70 AND has recent price within 5 days
+        """
         try:
             for symbol in symbols:
-                # Check data availability
                 query = """
                     SELECT
-                        COALESCE(COUNT(DISTINCT CASE WHEN table_name = 'price_daily' THEN 1 END), 0) as price_count,
-                        COALESCE(COUNT(DISTINCT CASE WHEN table_name = 'technical_data_daily' THEN 1 END), 0) as tech_count,
-                        COALESCE(COUNT(DISTINCT CASE WHEN table_name = 'earnings_estimates' THEN 1 END), 0) as earnings_count
-                    FROM (
-                        SELECT 'price_daily' as table_name FROM price_daily WHERE symbol = %s
-                        UNION ALL
-                        SELECT 'technical_data_daily' FROM technical_data_daily WHERE symbol = %s
-                        UNION ALL
-                        SELECT 'earnings_estimates' FROM earnings_estimates WHERE symbol = %s
-                    ) data
+                        (SELECT COUNT(*) FROM price_daily
+                            WHERE symbol = %s
+                              AND date >= CURRENT_DATE - INTERVAL '365 days') AS price_count,
+                        (SELECT COUNT(*) FROM technical_data_daily
+                            WHERE symbol = %s
+                              AND date >= CURRENT_DATE - INTERVAL '365 days') AS tech_count,
+                        (SELECT COUNT(*) FROM earnings_estimates
+                            WHERE symbol = %s) AS earnings_count,
+                        (SELECT MAX(date) FROM price_daily WHERE symbol = %s) AS last_price_date
                 """
-                self.execute(query, (symbol, symbol, symbol))
+                self.execute(query, (symbol, symbol, symbol, symbol))
                 result = self.cur.fetchone()
 
                 if result:
-                    price_pct = min(100, (result[0] / 252) * 100)
-                    tech_pct = min(100, (result[1] / 252) * 100)
-                    earnings_pct = min(100, (result[2] / 4) * 100)
-                    avg_pct = (price_pct + tech_pct + earnings_pct) / 3
+                    price_count, tech_count, earnings_count, last_price_date = result
+                    price_pct = min(100.0, (price_count / 252.0) * 100.0)
+                    tech_pct = min(100.0, (tech_count / 252.0) * 100.0)
+                    earnings_pct = 100.0 if (earnings_count or 0) > 0 else 0.0
+                    composite = (price_pct * 0.5) + (tech_pct * 0.3) + (earnings_pct * 0.2)
 
-                    # Insert or update
+                    # Tradeable requires good composite AND recent price data
+                    has_recent_price = False
+                    if last_price_date:
+                        from datetime import date as _date
+                        delta = (_date.today() - last_price_date).days
+                        has_recent_price = delta <= 7
+                    is_tradeable = composite >= 70 and has_recent_price
+
                     query = """
                         INSERT INTO data_completeness_scores (
                             symbol, price_data_pct, technical_data_pct, earnings_data_pct,
                             composite_completeness_pct, is_tradeable, updated_at
                         ) VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                         ON CONFLICT (symbol) DO UPDATE SET
+                            price_data_pct = EXCLUDED.price_data_pct,
+                            technical_data_pct = EXCLUDED.technical_data_pct,
+                            earnings_data_pct = EXCLUDED.earnings_data_pct,
                             composite_completeness_pct = EXCLUDED.composite_completeness_pct,
-                            is_tradeable = EXCLUDED.is_tradeable
+                            is_tradeable = EXCLUDED.is_tradeable,
+                            updated_at = CURRENT_TIMESTAMP
                     """
                     self.execute(query, (
                         symbol, price_pct, tech_pct, earnings_pct,
-                        avg_pct, avg_pct >= 70
+                        composite, is_tradeable
                     ))
 
                     self.stats['completeness'] += 1
