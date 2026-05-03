@@ -1485,6 +1485,20 @@ jobs:
 
           echo "Using CloudFormation bucket: $CF_BUCKET"
 
+          # Check if Phase E stack is in failed state and delete it
+          echo "Checking Phase E stack status..."
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-phase-e-incremental \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "")
+
+          if [[ "$STACK_STATUS" == "ROLLBACK_COMPLETE" ]] || [[ "$STACK_STATUS" == "CREATE_FAILED" ]]; then
+            echo "⚠️  Phase E stack is in $STACK_STATUS state - deleting and recreating..."
+            aws cloudformation delete-stack --stack-name stocks-phase-e-incremental
+            aws cloudformation wait stack-delete-complete --stack-name stocks-phase-e-incremental || true
+            echo "✅ Deleted failed Phase E stack"
+          fi
+
           # Upload template to S3
           echo "Uploading template-phase-e-dynamodb.yml to S3..."
           aws s3 cp template-phase-e-dynamodb.yml s3://$CF_BUCKET/template-phase-e-dynamodb.yml
@@ -1570,6 +1584,20 @@ jobs:
             --output text)
 
           echo "Using CloudFormation bucket: $CF_BUCKET"
+
+          # Check if Phase D stack is in ROLLBACK_COMPLETE state and delete it
+          echo "Checking Phase D stack status..."
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-stepfunctions-phase-d \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "")
+
+          if [[ "$STACK_STATUS" == "ROLLBACK_COMPLETE" ]]; then
+            echo "⚠️  Phase D stack is in ROLLBACK_COMPLETE state - deleting and recreating..."
+            aws cloudformation delete-stack --stack-name stocks-stepfunctions-phase-d
+            aws cloudformation wait stack-delete-complete --stack-name stocks-stepfunctions-phase-d || true
+            echo "✅ Deleted failed Phase D stack"
+          fi
 
           # Get Phase C Lambda Orchestrator ARN from CloudFormation exports
           echo "Getting Phase C Lambda Orchestrator ARN from CloudFormation..."
