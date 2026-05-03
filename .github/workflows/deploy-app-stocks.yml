@@ -1481,7 +1481,7 @@ jobs:
           echo "Deploying Phase E infrastructure stack..."
           aws cloudformation deploy \
             --stack-name stocks-phase-e-incremental \
-            --template-url https://${CF_BUCKET}.s3.amazonaws.com/template-phase-e-dynamodb.yml \
+            --template-file template-phase-e-dynamodb.yml \
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --parameter-overrides \
               Environment=prod
@@ -1567,7 +1567,7 @@ jobs:
           echo "Deploying Step Functions stack..."
           aws cloudformation deploy \
             --stack-name stocks-stepfunctions-phase-d \
-            --template-url https://${CF_BUCKET}.s3.amazonaws.com/template-step-functions-phase-d.yml \
+            --template-file template-step-functions-phase-d.yml \
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --parameter-overrides \
               ECSClusterArn=${{ steps.template.outputs.cluster-arn }} \
