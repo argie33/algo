@@ -1056,7 +1056,7 @@ jobs:
     needs: [detect-changes, deploy-infrastructure]
     if: |
       always() &&
-      needs.deploy-infrastructure.result == 'success' &&
+      (needs.deploy-infrastructure.result == 'success' || needs.deploy-infrastructure.result == 'skipped') &&
       (github.event_name == 'push' || github.event.inputs.loaders == '')
 
     strategy:
@@ -1167,7 +1167,7 @@ jobs:
     needs: [detect-changes, deploy-infrastructure, execute-phase2-parallel]
     if: |
       always() &&
-      needs.deploy-infrastructure.result == 'success' &&
+      (needs.deploy-infrastructure.result == 'success' || needs.deploy-infrastructure.result == 'skipped') &&
       (github.event_name == 'push' || github.event.inputs.loaders == '')
 
     strategy:
@@ -1258,7 +1258,7 @@ jobs:
     needs: [detect-changes, deploy-infrastructure, execute-phase3a-s3bulk]
     if: |
       always() &&
-      needs.deploy-infrastructure.result == 'success' &&
+      (needs.deploy-infrastructure.result == 'success' || needs.deploy-infrastructure.result == 'skipped') &&
       (github.event_name == 'push' || github.event.inputs.loaders == '')
 
     strategy:
