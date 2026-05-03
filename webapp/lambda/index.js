@@ -645,26 +645,42 @@ app.get("/api/signals/search", async (req, res) => {
     const sortDir = ['ASC', 'DESC'].includes(sort_order.toUpperCase()) ? sort_order.toUpperCase() : 'DESC';
     const orderBy = `ORDER BY ${sortField} ${sortDir}`;
 
-    // Count query
-    params.push(safeLimit, offset);
-    const countQuery = `SELECT COUNT(*) as total FROM ${tableName} ${whereClause}`;
-    const countResult = await query(countQuery, params.slice(0, -2));
-    const total = parseInt(countResult.rows[0]?.total || 0);
-
-    // Data query
+    // Data query - fetch limit+1 rows to determine hasNext
+    const fetchLimit = safeLimit + 1;
+    params.push(fetchLimit, offset);
     const dataQuery = `SELECT * FROM ${tableName} ${whereClause} ${orderBy} LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     const dataResult = await query(dataQuery, params);
 
+    // Check if there are more results
+    const hasMore = dataResult.rows.length > safeLimit;
+    const items = hasMore ? dataResult.rows.slice(0, safeLimit) : dataResult.rows;
+
+    // For total count, use approximate count from table stats if filtering is minimal
+    let total = 0;
+    if (whereConditions.length <= 2) {
+      // Use table statistics for approximate count (much faster)
+      const statsQuery = `SELECT n_live_tup::bigint as approx_total FROM pg_stat_user_tables WHERE relname = $1`;
+      try {
+        const statsResult = await query(statsQuery, [tableName]);
+        total = parseInt(statsResult.rows[0]?.approx_total || 0);
+      } catch (e) {
+        total = offset + items.length + (hasMore ? 1 : 0);
+      }
+    } else {
+      // For complex filters, approximate based on what we fetched
+      total = offset + items.length + (hasMore ? Math.max(100, safeLimit * 10) : 0);
+    }
+
     return res.json({
       success: true,
-      items: dataResult.rows,
+      items,
       pagination: {
         limit: safeLimit,
         offset,
         total,
         page: safePage,
         totalPages: Math.ceil(total / safeLimit),
-        hasNext: offset + safeLimit < total,
+        hasNext: hasMore,
         hasPrev: safePage > 1
       },
       timestamp: new Date().toISOString()
