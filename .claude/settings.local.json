@@ -164,7 +164,10 @@
       "Bash(chmod +x VERIFY_OPTIMAL_LOAD.sh)",
       "Bash(./VERIFY_OPTIMAL_LOAD.sh)",
       "Bash(echo \"Started monitor_system.py in background, PID: $!\")",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "Bash(chmod +x VERIFY_QUICK_WINS.sh)",
+      "Bash(bash VERIFY_QUICK_WINS.sh)",
+      "Bash(gh workflow *)"
     ]
   }
 }
