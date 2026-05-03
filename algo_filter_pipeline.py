@@ -368,7 +368,15 @@ class FilterPipeline:
             return {'pass': False, 'reason': f'Error: {e}'}
 
     def _tier3_trend_template(self, symbol, signal_date):
-        """Trend template + compute stop loss from MA / swing low / ATR."""
+        """Trend template (Minervini) + Weinstein stage + compute stop from MA/ATR/swing.
+
+        Pulls every swing-trading-canon factor we have for the stock:
+          - Minervini trend_template_score (8-point system)
+          - Weinstein stage (must be 2 = uptrend)
+          - 52-week range distances
+          - Stage-aligned moving averages
+          - Consolidation flag (Darvas/Bassal favor breakout-from-consolidation)
+        """
         try:
             self.cur.execute(
                 """
@@ -376,6 +384,9 @@ class FilterPipeline:
                     tt.minervini_trend_score,
                     tt.percent_from_52w_low,
                     tt.percent_from_52w_high,
+                    tt.weinstein_stage,
+                    tt.consolidation_flag,
+                    tt.trend_direction,
                     td.sma_50,
                     td.atr
                 FROM trend_template_data tt
@@ -393,8 +404,20 @@ class FilterPipeline:
             trend_score = row[0] or 0
             pct_from_low = float(row[1]) if row[1] is not None else 0.0
             pct_from_high = float(row[2]) if row[2] is not None else 0.0
-            sma_50 = float(row[3]) if row[3] is not None else None
-            atr = float(row[4]) if row[4] is not None else None
+            stock_stage = int(row[3]) if row[3] is not None else 0
+            in_consolidation = bool(row[4]) if row[4] is not None else False
+            trend_direction = (row[5] or '').lower()
+            sma_50 = float(row[6]) if row[6] is not None else None
+            atr = float(row[7]) if row[7] is not None else None
+
+            # Weinstein per-stock stage: only Stage 2 stocks
+            require_stock_stage_2 = bool(self.config.get('require_stock_stage_2', True))
+            if require_stock_stage_2 and stock_stage != 2:
+                return {
+                    'pass': False,
+                    'reason': f'Stock stage {stock_stage} != 2 ({trend_direction or "unknown"})',
+                    'trend_score': trend_score,
+                }
 
             min_score = int(self.config.get('min_trend_template_score', 8))
             if trend_score < min_score:

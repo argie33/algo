@@ -328,13 +328,36 @@ class AdvancedFilters:
         return pts, round(ratio, 2)
 
     def _price_trend_score(self, symbol, signal_date):
-        """Trend slope: 5-day return + 20-day return — both positive = full points."""
+        """Multi-timeframe alignment (Elder Triple Screen):
+            +2 pts each if 5d return positive, 20d return positive,
+            +1 pt if also a BUY signal on weekly timeframe (very strong combo).
+        """
         r5 = self._period_return(symbol, signal_date, 5)
         r20 = self._period_return(symbol, signal_date, 20)
         if r5 is None or r20 is None:
             return 0.0
-        positives = sum(1 for r in (r5, r20) if r > 0)
-        return self.W_MOMENTUM_PRICE_TREND * positives / 2.0
+        score = 0.0
+        if r5 > 0:
+            score += 2.0
+        if r20 > 0:
+            score += 2.0
+
+        # Weekly alignment: if buy_sell_weekly also says BUY in last 30 days, bonus
+        try:
+            self.cur.execute(
+                """SELECT 1 FROM buy_sell_weekly
+                   WHERE symbol = %s AND signal = 'BUY'
+                     AND date >= %s::date - INTERVAL '30 days'
+                     AND date <= %s
+                   LIMIT 1""",
+                (symbol, signal_date, signal_date),
+            )
+            if self.cur.fetchone():
+                score += 1.0
+        except Exception:
+            pass
+
+        return min(score, self.W_MOMENTUM_PRICE_TREND)
 
     def _period_return(self, symbol, end_date, lookback_days):
         self.cur.execute(

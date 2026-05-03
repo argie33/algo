@@ -214,7 +214,19 @@ class ExitEngine:
                     'new_stop': max(active_stop, entry_price),
                 }
 
-        # 7. DISTRIBUTION
+        # 7. TD SEQUENTIAL EXHAUSTION (DeMark) — 9-count signal at swing tops.
+        #     Fire only when in profit (>0.5R), to lock gains rather than premature.
+        if self.config.get('exit_on_td_sequential', True) and target_hits >= 1:
+            r_mult = ((cur_price - entry_price) / (entry_price - active_stop)) if (entry_price - active_stop) > 0 else 0
+            if r_mult >= 0.5 and self._is_td_sequential_top(symbol, current_date):
+                return {
+                    'stage': 'td_exhaustion',
+                    'fraction': 0.50,
+                    'reason': f'TD Sequential 9-count exhaustion at top (R={r_mult:.2f})',
+                    'new_stop': max(active_stop, entry_price),
+                }
+
+        # 8. DISTRIBUTION
         if self.config.get('exit_on_distribution_day', True) and dist_days_today is not None:
             max_dd = int(self.config.get('max_distribution_days', 4))
             if dist_days_today > max_dd:
