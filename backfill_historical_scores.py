@@ -121,6 +121,19 @@ def backfill(days_back, symbol_filter=None, batch_size=100):
                             mt['criteria'].get('c2_sma150_above_sma200', False),
                         ),
                     )
+                    # Also populate signal_quality_scores using the canonical formula
+                    sqs_score = min(100, mt['score'] * 10 + (10 if ws.get('stage') == 2 else 0))
+                    cur.execute(
+                        """
+                        INSERT INTO signal_quality_scores
+                            (symbol, date, trend_template_score, composite_sqs, created_at)
+                        VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                        ON CONFLICT (symbol, date) DO UPDATE SET
+                            composite_sqs = EXCLUDED.composite_sqs,
+                            trend_template_score = EXCLUDED.trend_template_score
+                        """,
+                        (sym, eval_date, mt['score'], sqs_score),
+                    )
                     day_processed += 1
             except Exception:
                 total_skipped += 1

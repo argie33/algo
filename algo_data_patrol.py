@@ -329,6 +329,80 @@ class DataPatrol:
         except Exception as e:
             self.log('score_freshness', ERROR, 'computed_scores', f'Check failed: {e}', None)
 
+    def check_yahoo_cross_validate(self, top_n=10):
+        """P6b. Cross-validate top symbols against Yahoo Finance (free, no API key).
+
+        Second-source verification — if our DB matches Alpaca but disagrees with
+        Yahoo, that's a real signal something's off. Yahoo's chart endpoint
+        accepts unauthenticated requests for basic OHLC.
+        """
+        try:
+            self.cur.execute(
+                """
+                SELECT symbol FROM price_daily
+                WHERE date = (SELECT MAX(date) FROM price_daily)
+                ORDER BY volume DESC LIMIT %s
+                """,
+                (top_n,),
+            )
+            symbols = [r[0] for r in self.cur.fetchall()]
+        except Exception as e:
+            self.log('yahoo_xval', ERROR, 'price_daily', f"Couldn't pick symbols: {e}", None)
+            return
+
+        mismatches = []
+        for sym in symbols:
+            try:
+                # Yahoo's free endpoint
+                url = f'https://query1.finance.yahoo.com/v8/finance/chart/{sym}'
+                resp = requests.get(
+                    url,
+                    headers={'User-Agent': 'Mozilla/5.0 (algo-patrol)'},
+                    params={'interval': '1d', 'range': '5d'},
+                    timeout=5,
+                )
+                if resp.status_code != 200:
+                    continue
+                data = resp.json()
+                results = data.get('chart', {}).get('result', [])
+                if not results:
+                    continue
+                quote = results[0].get('indicators', {}).get('quote', [{}])[0]
+                closes = quote.get('close', [])
+                if not closes:
+                    continue
+                yahoo_close = float(closes[-1]) if closes[-1] else None
+                if not yahoo_close:
+                    continue
+
+                # Compare to our DB
+                self.cur.execute(
+                    "SELECT close, date FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1",
+                    (sym,),
+                )
+                row = self.cur.fetchone()
+                if not row or not row[0]:
+                    continue
+                our_close = float(row[0])
+                pct_diff = abs(our_close - yahoo_close) / yahoo_close * 100
+                if pct_diff > 5:
+                    mismatches.append({
+                        'symbol': sym, 'our_close': our_close,
+                        'yahoo_close': yahoo_close,
+                        'pct_diff': round(pct_diff, 2),
+                        'our_date': str(row[1]),
+                    })
+            except Exception:
+                continue
+
+        if mismatches:
+            self.log('yahoo_xval', WARN, 'price_daily',
+                     f'{len(mismatches)}/{len(symbols)} top symbols mismatch Yahoo > 5%',
+                     {'mismatches': mismatches})
+        else:
+            self.log('yahoo_xval', INFO, 'price_daily',
+                     f'All {len(symbols)} top symbols match Yahoo within 5%', None)
+
     def check_alpaca_cross_validate(self, top_n=10):
         """P6. Cross-validate top symbols vs Alpaca (uses existing free credentials)."""
         key = os.getenv('APCA_API_KEY_ID')
@@ -536,6 +610,7 @@ class DataPatrol:
 
             if validate_alpaca:
                 self.check_alpaca_cross_validate()
+                self.check_yahoo_cross_validate()
 
             return self.summarize()
         finally:
