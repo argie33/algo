@@ -1559,6 +1559,21 @@ jobs:
 
           echo "Using CloudFormation bucket: $CF_BUCKET"
 
+          # Get Phase C Lambda Orchestrator ARN from CloudFormation exports
+          echo "Getting Phase C Lambda Orchestrator ARN from CloudFormation..."
+          ORCHESTRATOR_ARN=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='BuySellDailyOrchestratorFunctionArn'].Value" \
+            --output text)
+
+          if [[ -z "$ORCHESTRATOR_ARN" || "$ORCHESTRATOR_ARN" == "None" ]]; then
+            echo "⚠️  WARNING: Phase C Lambda Orchestrator ARN not found in CloudFormation exports"
+            echo "   Phase C may not have been deployed yet, or stack name has changed"
+            echo "   Using placeholder ARN for now"
+            ORCHESTRATOR_ARN="arn:aws:lambda:us-east-1:${{ env.AWS_ACCOUNT_ID }}:function:buyselldaily-orchestrator"
+          else
+            echo "✅ Phase C Lambda Orchestrator ARN: $ORCHESTRATOR_ARN"
+          fi
+
           # Upload template to S3
           echo "Uploading template-step-functions-phase-d.yml to S3..."
           aws s3 cp template-step-functions-phase-d.yml s3://$CF_BUCKET/template-step-functions-phase-d.yml
@@ -1571,6 +1586,7 @@ jobs:
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --parameter-overrides \
               ECSClusterArn=${{ steps.template.outputs.cluster-arn }} \
+              BuySellDailyOrchestratorArn=$ORCHESTRATOR_ARN \
               RDSSecretArn=arn:aws:secretsmanager:us-east-1:${{ env.AWS_ACCOUNT_ID }}:secret:stocks-prod-postgres-creds
 
           # Get state machine ARN
