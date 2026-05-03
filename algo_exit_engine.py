@@ -124,6 +124,22 @@ class ExitEngine:
                 stage = exit_signal['stage']
                 new_stop = exit_signal.get('new_stop')
 
+                # Stop-raise only (no exit shares) — handle directly via UPDATE
+                if fraction == 0.0 and new_stop is not None and new_stop > active_stop:
+                    print(f"  {symbol}: {stage.upper()} — {exit_signal['reason']}")
+                    try:
+                        self.cur.execute(
+                            """UPDATE algo_positions SET current_stop_price = %s
+                               WHERE position_id = (SELECT position_id FROM algo_positions
+                                                     WHERE trade_ids LIKE %s AND status = 'open')""",
+                            (new_stop, f'%{trade_id}%'),
+                        )
+                        self.conn.commit()
+                        print(f"      -> Stop raised to ${new_stop:.2f}")
+                    except Exception as e:
+                        print(f"      -> Stop-raise failed: {e}")
+                    continue
+
                 print(f"  {symbol}: {stage.upper()} — {exit_signal['reason']} "
                       f"(exit {int(fraction*100)}%)")
 
@@ -138,9 +154,9 @@ class ExitEngine:
 
                 if result.get('success'):
                     exits_executed += 1
-                    print(f"      → {result['message']}")
+                    print(f"      -> {result['message']}")
                 else:
-                    print(f"      → FAILED: {result.get('message')}")
+                    print(f"      -> FAILED: {result.get('message')}")
 
             print(f"\n{'='*70}")
             print(f"Exits executed: {exits_executed}/{len(trades)} positions")
@@ -161,7 +177,11 @@ class ExitEngine:
                            t1_price, t2_price, t3_price,
                            target_hits, days_held, dist_days_today):
         """Decide what (if any) exit to take. Returns dict or None."""
-        # 1. STOP
+        # Compute R-multiple for use across rules (Curtis Faith's R-unit framework)
+        risk_per_share = entry_price - init_stop
+        r_mult = ((cur_price - entry_price) / risk_per_share) if risk_per_share > 0 else 0
+
+        # 1. STOP (capital preservation always wins)
         if cur_price <= active_stop:
             return {
                 'stage': 'stop',
@@ -169,7 +189,7 @@ class ExitEngine:
                 'reason': f'STOP hit: ${cur_price:.2f} <= ${active_stop:.2f}',
             }
 
-        # 2. MINERVINI BREAK — close below 21-EMA on rising volume, OR clean break of 50-DMA
+        # 2. MINERVINI BREAK — close < 21-EMA on volume, OR clean break of 50-DMA
         if self._is_minervini_break(symbol, current_date, cur_price):
             return {
                 'stage': 'stop',
@@ -177,27 +197,56 @@ class ExitEngine:
                 'reason': f'Minervini trend break: closed below key MA on volume',
             }
 
-        # 3. TIME
-        max_hold = int(self.config.get('max_hold_days', 20))
+        # 3. RS-LINE BREAK vs SPY (O'Neil) — exit if relative strength deteriorates
+        if self.config.get('exit_on_rs_line_break_50dma', True):
+            if self._rs_line_breaking(symbol, current_date):
+                return {
+                    'stage': 'stop',
+                    'fraction': 1.0,
+                    'reason': 'RS line broke below 50-DMA — relative strength deterioration',
+                }
+
+        # 4. TIME — but with O'Neil 8-week rule override for big winners
+        max_hold = int(self.config.get('max_hold_days', 15))
         if days_held >= max_hold:
+            # 8-week rule: if stock gained >= 20% in first 3 weeks, hold for 8 weeks
+            eight_wk_threshold = float(self.config.get('eight_week_rule_threshold_pct', 20.0))
+            eight_wk_window = int(self.config.get('eight_week_rule_window_days', 15))
+            eight_wk_ext = self._eight_week_rule_active(
+                symbol, current_date, entry_price, days_held,
+                eight_wk_threshold, eight_wk_window,
+            )
+            if eight_wk_ext and days_held < 56:  # 8 weeks = 40 trading days; calendar 56
+                # Don't exit on time; let the trail / stop manage it
+                pass
+            else:
+                return {
+                    'stage': 'time',
+                    'fraction': 1.0,
+                    'reason': f'TIME exit: {days_held} days >= {max_hold} max',
+                }
+
+        # 5. BREAKEVEN STOP MOVE at +1R (Curtis Faith research — premature is worse)
+        # This is a "raise stop" not an exit. The orchestrator handles via new_stop.
+        if r_mult >= float(self.config.get('move_be_at_r', 1.0)) and active_stop < entry_price:
             return {
-                'stage': 'time',
-                'fraction': 1.0,
-                'reason': f'TIME exit: {days_held} days >= {max_hold} max',
+                'stage': 'raise_stop_be',
+                'fraction': 0.0,  # 0 = no exit, just raise stop
+                'reason': f'+{r_mult:.2f}R achieved — raise stop to breakeven',
+                'new_stop': entry_price,
             }
 
-        # 4. T3 — sells final 25% (or whatever remains)
+        # 6. T3 — exits the rest at 4R
         if cur_price >= t3_price and target_hits < 3:
             return {
                 'stage': 'target_3',
-                'fraction': 1.0,  # exit the rest
+                'fraction': 1.0,
                 'reason': f'T3 target hit: ${cur_price:.2f} >= ${t3_price:.2f} (4R)',
             }
 
-        # 5. T2 — exit 25% (~1/3 of remaining after T1) on pullback; raise stop near T1
+        # 7. T2 — exit 50% of remaining (= 25% of original) on pullback; trail stop to T1
         if cur_price >= t2_price and target_hits < 2:
             if self._is_pulling_back(symbol, current_date):
-                # After T1 already fired, remaining = 50%. Selling 25%/50% = 50% of remaining.
                 return {
                     'stage': 'target_2',
                     'fraction': 0.50,
@@ -205,7 +254,7 @@ class ExitEngine:
                     'new_stop': max(active_stop, t1_price),
                 }
 
-        # 6. T1 — exit 50% on pullback; raise stop to entry (breakeven)
+        # 8. T1 — exit 50% on pullback; raise stop to entry (breakeven)
         if cur_price >= t1_price and target_hits < 1:
             if self._is_pulling_back(symbol, current_date):
                 return {
@@ -213,6 +262,18 @@ class ExitEngine:
                     'fraction': 0.50,
                     'reason': f'T1 pullback exit: ${cur_price:.2f} >= ${t1_price:.2f} (1.5R)',
                     'new_stop': max(active_stop, entry_price),
+                }
+
+        # 9. CHANDELIER TRAIL — once profitable, trail by 3xATR from highest high
+        # Switches to 21-EMA trail after 10 days for tighter management
+        if self.config.get('use_chandelier_trail', True) and r_mult >= 1.0:
+            chand_stop = self._chandelier_or_ema_stop(symbol, current_date, days_held)
+            if chand_stop and chand_stop > active_stop:
+                return {
+                    'stage': 'raise_stop_trail',
+                    'fraction': 0.0,
+                    'reason': f'Chandelier/EMA trail tightens stop to ${chand_stop:.2f}',
+                    'new_stop': chand_stop,
                 }
 
         # 7. TD SEQUENTIAL EXHAUSTION (DeMark) — 9-count signal at swing tops.
@@ -289,6 +350,131 @@ class ExitEngine:
         cur_close = float(rows[0][0])
         prior_max = max(float(r[0]) for r in rows[1:])
         return cur_close < prior_max
+
+    def _rs_line_breaking(self, symbol, current_date):
+        """RS line (stock/SPY ratio) breaking below its 50-day MA = exit signal."""
+        if self.cur is None:
+            return False
+        try:
+            self.cur.execute(
+                """
+                WITH ratio AS (
+                    SELECT s.date,
+                           s.close::numeric / NULLIF(spy.close, 0) AS rs
+                    FROM price_daily s
+                    JOIN price_daily spy ON spy.symbol='SPY' AND spy.date=s.date
+                    WHERE s.symbol = %s AND s.date <= %s
+                    ORDER BY s.date DESC LIMIT 60
+                ),
+                ranked AS (
+                    SELECT rs, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn FROM ratio
+                )
+                SELECT
+                    (SELECT rs FROM ranked WHERE rn = 1) AS cur,
+                    (SELECT AVG(rs) FROM ranked WHERE rn BETWEEN 2 AND 51) AS rs_50dma
+                """,
+                (symbol, current_date),
+            )
+            row = self.cur.fetchone()
+            if not row or row[0] is None or row[1] is None:
+                return False
+            cur_rs, rs_50 = float(row[0]), float(row[1])
+            # Break if current RS is < 50-day RS-line MA (deteriorating)
+            return cur_rs < rs_50 * 0.99
+        except Exception:
+            return False
+
+    def _eight_week_rule_active(self, symbol, current_date, entry_price, days_held,
+                                 threshold_pct, window_days):
+        """O'Neil 8-week rule: if stock gained 20%+ in first 3 weeks, hold for 8 weeks."""
+        if self.cur is None or days_held < window_days:
+            return False
+        try:
+            # Was there a +20% gain in the first 3 weeks (window_days) post-entry?
+            self.cur.execute(
+                """
+                SELECT MAX(high) FROM price_daily
+                WHERE symbol = %s AND date <= %s
+                  AND date >= %s::date - INTERVAL '%s days' * %s / %s
+                """,
+                (symbol, current_date, current_date, days_held - window_days, days_held, days_held),
+            )
+            # Simpler approach: check if any high in first 3 weeks gave 20%+
+            self.cur.execute(
+                """
+                SELECT MAX(high) FROM price_daily
+                WHERE symbol = %s
+                  AND date >= %s::date - INTERVAL '%s days'
+                  AND date <= %s::date - INTERVAL '%s days'
+                """,
+                (symbol, current_date, days_held, current_date, max(0, days_held - window_days)),
+            )
+            row = self.cur.fetchone()
+            if not row or not row[0]:
+                return False
+            max_high_in_window = float(row[0])
+            gain_pct = (max_high_in_window - entry_price) / entry_price * 100.0
+            return gain_pct >= threshold_pct
+        except Exception:
+            return False
+
+    def _chandelier_or_ema_stop(self, symbol, current_date, days_held):
+        """Trailing stop: chandelier (3×ATR from highest high) for first 10d,
+        then 21-EMA after."""
+        if self.cur is None:
+            return None
+        try:
+            switch_days = int(self.config.get('switch_to_21ema_after_days', 10))
+            if days_held >= switch_days:
+                # 21-EMA trail
+                self.cur.execute(
+                    """
+                    WITH d AS (
+                        SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
+                        FROM price_daily WHERE symbol = %s AND date <= %s
+                        ORDER BY date DESC LIMIT 30
+                    )
+                    SELECT close FROM d ORDER BY rn DESC
+                    """,
+                    (symbol, current_date),
+                )
+                rows = self.cur.fetchall()
+                if len(rows) < 21:
+                    return None
+                closes = [float(r[0]) for r in rows]
+                # 21-EMA
+                k = 2.0 / 22.0
+                ema = closes[0]
+                for c in closes[1:]:
+                    ema = c * k + ema * (1 - k)
+                return round(ema * 0.99, 2)
+            else:
+                # Chandelier 3×ATR from highest high since entry
+                self.cur.execute(
+                    """
+                    WITH d AS (
+                        SELECT pd.high, td.atr,
+                               ROW_NUMBER() OVER (ORDER BY pd.date DESC) AS rn
+                        FROM price_daily pd
+                        LEFT JOIN technical_data_daily td ON td.symbol = pd.symbol AND td.date = pd.date
+                        WHERE pd.symbol = %s AND pd.date <= %s
+                        ORDER BY pd.date DESC LIMIT %s
+                    )
+                    SELECT MAX(high) AS hh,
+                           (SELECT atr FROM d WHERE rn = 1) AS cur_atr
+                    FROM d
+                    """,
+                    (symbol, current_date, max(days_held, 5)),
+                )
+                row = self.cur.fetchone()
+                if not row or not row[0] or not row[1]:
+                    return None
+                hh = float(row[0])
+                atr = float(row[1])
+                mult = float(self.config.get('chandelier_atr_mult', 3.0))
+                return round(hh - (mult * atr), 2)
+        except Exception:
+            return None
 
     def _is_td_sequential_top(self, symbol, current_date):
         """Use rigorous DeMark TD Sequential — fires when sell-setup count = 9."""
