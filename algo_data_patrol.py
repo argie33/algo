@@ -394,6 +394,99 @@ class DataPatrol:
             self.log('alpaca_xval', INFO, 'price_daily',
                      f'All {len(symbols)} top-volume symbols match Alpaca within 5%', None)
 
+    def check_loader_contracts(self):
+        """P11. Per-loader contracts — each loader has expected output thresholds.
+
+        Catches silent loader regressions where the loader runs (no error) but
+        produces dramatically less data than expected (API limit, source change,
+        broken filter, etc).
+        """
+        contracts = [
+            # (table, condition, min_rows_expected, severity, description)
+            ('price_daily',
+             "date >= CURRENT_DATE - INTERVAL '14 days'",
+             50000, ERROR,
+             'Daily price data should be ~5000 symbols × 14 days = 70K+ rows'),
+            ('technical_data_daily',
+             "date >= CURRENT_DATE - INTERVAL '14 days'",
+             50000, ERROR,
+             'Technical indicators should match price coverage'),
+            ('buy_sell_daily',
+             "date >= CURRENT_DATE - INTERVAL '14 days'",
+             1000, ERROR,
+             'Pine signals should produce 100+ per day in active market'),
+            ('buy_sell_daily',
+             "date >= CURRENT_DATE - INTERVAL '14 days' AND signal IN ('BUY', 'SELL')",
+             1000, ERROR,
+             'NO null/None signals — ratio of clean BUY/SELL must be >95%'),
+            ('trend_template_data',
+             "date >= CURRENT_DATE - INTERVAL '14 days'",
+             20000, ERROR,
+             'Trend template covers 4900+ symbols × 14 days'),
+            ('signal_quality_scores',
+             "date >= CURRENT_DATE - INTERVAL '14 days'",
+             20000, WARN,
+             'SQS should match trend coverage'),
+            ('sector_ranking',
+             "date_recorded >= CURRENT_DATE - INTERVAL '7 days'",
+             10, WARN,
+             'Sector ranking: 11 sectors per recent date'),
+            ('industry_ranking',
+             "date_recorded >= CURRENT_DATE - INTERVAL '7 days'",
+             100, WARN,
+             '197 industries should rank, threshold low for partial coverage'),
+            ('market_health_daily',
+             "date >= CURRENT_DATE - INTERVAL '14 days'",
+             10, ERROR,
+             'Market health: ~14 daily rows expected'),
+            ('market_exposure_daily',
+             "date >= CURRENT_DATE - INTERVAL '14 days'",
+             5, WARN,
+             'Market exposure: should compute most days'),
+            ('stock_scores', '1=1', 4500, WARN,
+             'Stock scores: should cover ~4900 symbols (latest snapshot)'),
+            ('data_completeness_scores', '1=1', 4500, ERROR,
+             'Completeness: every symbol scored'),
+        ]
+
+        # Buy/sell ratio specific check
+        try:
+            self.cur.execute("""
+                SELECT
+                    COUNT(*) FILTER (WHERE signal IN ('BUY', 'SELL')) AS clean,
+                    COUNT(*) AS total
+                FROM buy_sell_daily
+                WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+            """)
+            row = self.cur.fetchone()
+            if row and row[1] > 0:
+                clean_pct = (row[0] / row[1]) * 100
+                if clean_pct < 80:
+                    self.log('contract_signal_quality', ERROR, 'buy_sell_daily',
+                             f'Only {clean_pct:.1f}% of recent signals are clean BUY/SELL '
+                             f'({row[1] - row[0]} NULL/None of {row[1]} total)',
+                             {'clean_pct': clean_pct})
+                else:
+                    self.log('contract_signal_quality', INFO, 'buy_sell_daily',
+                             f'{clean_pct:.1f}% clean BUY/SELL signals', None)
+        except Exception as e:
+            self.log('contract_signal_quality', ERROR, 'buy_sell_daily', f'Failed: {e}', None)
+
+        # Generic count contracts
+        for tbl, cond, min_rows, severity, desc in contracts:
+            try:
+                self.cur.execute(f"SELECT COUNT(*) FROM {tbl} WHERE {cond}")
+                actual = int(self.cur.fetchone()[0] or 0)
+                if actual < min_rows:
+                    self.log('loader_contract', severity, tbl,
+                             f'{actual:,} rows < {min_rows:,} expected ({desc})',
+                             {'actual': actual, 'expected': min_rows})
+                else:
+                    self.log('loader_contract', INFO, tbl,
+                             f'{actual:,} rows OK', None)
+            except Exception as e:
+                self.log('loader_contract', ERROR, tbl, f'Check failed: {e}', None)
+
     def check_db_constraints(self):
         """P9. Look for FK / unique / NOT NULL violations from recent inserts."""
         try:
@@ -439,6 +532,7 @@ class DataPatrol:
                 self.check_price_sanity()
                 self.check_sequence_continuity()
                 self.check_score_freshness()
+                self.check_loader_contracts()
 
             if validate_alpaca:
                 self.check_alpaca_cross_validate()

@@ -19,28 +19,26 @@ fi
 # 2. Load in dependency order
 echo "$LOG_PREFIX 2. Loading EOD data..."
 
-# Price + technicals + buy/sell (these are foundational)
-if [ -f loadpricedaily.py ]; then
-    python3 loadpricedaily.py || echo "$LOG_PREFIX WARN: loadpricedaily.py failed"
-fi
-if [ -f loadtechnicalsdaily.py ]; then
-    python3 loadtechnicalsdaily.py || echo "$LOG_PREFIX WARN: loadtechnicalsdaily.py failed"
-fi
-if [ -f loadbuyselldaily.py ]; then
-    python3 loadbuyselldaily.py || echo "$LOG_PREFIX WARN: loadbuyselldaily.py failed"
-fi
+# Phase 1: Foundation — price, technicals, Pine signals
+echo "$LOG_PREFIX   1/6 loadpricedaily.py"
+python3 loadpricedaily.py || echo "$LOG_PREFIX WARN: loadpricedaily.py failed"
 
-# Computed metrics (depend on above)
-echo "$LOG_PREFIX   - load_algo_metrics_daily.py"
+echo "$LOG_PREFIX   2/6 loadtechnicalsdaily.py"
+python3 loadtechnicalsdaily.py || echo "$LOG_PREFIX WARN: loadtechnicalsdaily.py failed"
+
+echo "$LOG_PREFIX   3/6 loadbuyselldaily.py"
+python3 loadbuyselldaily.py || echo "$LOG_PREFIX WARN: loadbuyselldaily.py failed"
+
+# Phase 2: Computed metrics (require Phase 1 data)
+echo "$LOG_PREFIX   4/6 load_algo_metrics_daily.py"
 python3 load_algo_metrics_daily.py || echo "$LOG_PREFIX WARN: algo_metrics failed"
 
-# Sector / industry rotation
-if [ -f loadsectorranking.py ]; then
-    python3 loadsectorranking.py || echo "$LOG_PREFIX WARN: sector_ranking failed"
-fi
-if [ -f loadindustryranking.py ]; then
-    python3 loadindustryranking.py || echo "$LOG_PREFIX WARN: industry_ranking failed"
-fi
+# Phase 3: Sector/industry ranks (require ETF + company_profile data)
+echo "$LOG_PREFIX   5/6 loadsectorranking.py"
+python3 loadsectorranking.py || echo "$LOG_PREFIX WARN: sector_ranking failed"
+
+echo "$LOG_PREFIX   6/6 loadindustryranking.py"
+python3 loadindustryranking.py || echo "$LOG_PREFIX WARN: industry_ranking failed"
 
 # Sector rotation signal (uses sector_ranking)
 echo "$LOG_PREFIX   - algo_sector_rotation.py"
