@@ -1544,9 +1544,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [detect-changes]
     # Deploy Phase D on any push or manual trigger (optional feature)
-    if: |
-      github.event_name == 'push' ||
-      github.event_name == 'workflow_dispatch'
+    # DISABLED: Phase D requires correct ECS task definition names - enable after verifying names
+    if: false
     timeout-minutes: 15
 
     steps:
