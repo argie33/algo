@@ -14,6 +14,7 @@ Features:
 import os
 import psycopg2
 import uuid
+import json
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime
@@ -58,7 +59,14 @@ class TradeExecutor:
 
     def execute_trade(self, symbol, entry_price, shares, stop_loss_price,
                       target_1_price=None, target_2_price=None, target_3_price=None,
-                      signal_date=None, sqs=None, trend_score=None):
+                      signal_date=None, sqs=None, trend_score=None,
+                      # New reasoning metadata for transparency:
+                      swing_score=None, swing_grade=None,
+                      base_type=None, base_quality=None, stage_phase=None,
+                      sector=None, industry=None, rs_percentile=None,
+                      market_exposure_at_entry=None, exposure_tier_at_entry=None,
+                      stop_method=None, stop_reasoning=None,
+                      swing_components=None, advanced_components=None):
         """Execute a new entry trade.
 
         Returns: {
@@ -130,8 +138,13 @@ class TradeExecutor:
                 alpaca_order_id = f'PENDING-{trade_id}'
                 order_status = 'pending_review'
                 executed_price = entry_price
-            else:  # 'auto' — actually send to Alpaca
-                order_result = self._send_alpaca_order(symbol, shares, entry_price)
+            else:  # 'auto' — actually send to Alpaca as BRACKET ORDER
+                order_result = self._send_alpaca_order(
+                    symbol, shares, entry_price,
+                    stop_loss_price=stop_loss_price,
+                    take_profit_price=target_1_price,  # T1 as take-profit leg
+                    order_class='bracket',
+                )
                 if not order_result['success']:
                     return {
                         'success': False, 'trade_id': trade_id, 'status': 'failed',
@@ -145,7 +158,19 @@ class TradeExecutor:
             portfolio_value = self._get_portfolio_value() or 100000.0
             position_size_pct = (shares * executed_price / portfolio_value * 100) if portfolio_value > 0 else 0
 
-            # Insert the trade record
+            # Build comprehensive entry reason
+            entry_reason_parts = ['Algo signal — all tiers passed']
+            if swing_grade:
+                entry_reason_parts.append(f'swing_grade={swing_grade}')
+            if base_type:
+                entry_reason_parts.append(f'base={base_type}')
+            if stage_phase:
+                entry_reason_parts.append(f'phase={stage_phase}')
+            if exposure_tier_at_entry:
+                entry_reason_parts.append(f'exposure={exposure_tier_at_entry}')
+            entry_reason = ' | '.join(entry_reason_parts)
+
+            # Insert with FULL reasoning
             self.cur.execute(
                 """
                 INSERT INTO algo_trades (
@@ -157,19 +182,31 @@ class TradeExecutor:
                     target_3_price, target_3_r_multiple,
                     status, execution_mode, alpaca_order_id,
                     position_size_pct, signal_quality_score, trend_template_score,
+                    swing_score, swing_grade,
+                    base_type, base_quality, stage_phase,
+                    sector, industry, rs_percentile,
+                    market_exposure_at_entry, exposure_tier_at_entry,
+                    stop_method, stop_reasoning,
+                    swing_components, advanced_components, bracket_order,
                     created_at
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, %s,
                     %s, %s,
                     %s, %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s, %s,
+                    %s, %s,
+                    %s, %s, %s,
+                    %s, %s, %s,
+                    %s, %s,
+                    %s, %s,
+                    %s, %s, %s,
                     CURRENT_TIMESTAMP
                 )
                 """,
                 (
                     trade_id, symbol, signal_date, datetime.now().date(),
-                    executed_price, shares, 'Algo signal qualified — all 5 tiers passed',
-                    stop_loss_price, 'minervini_break_or_swing_low',
+                    executed_price, shares, entry_reason,
+                    stop_loss_price, stop_method or 'minervini_break_or_swing_low',
                     target_1_price, float(self.config.get('t1_target_r_multiple', 1.5)),
                     target_2_price, float(self.config.get('t2_target_r_multiple', 3.0)),
                     target_3_price, float(self.config.get('t3_target_r_multiple', 4.0)),
@@ -177,6 +214,14 @@ class TradeExecutor:
                     position_size_pct,
                     int(sqs) if sqs is not None else None,
                     int(trend_score) if trend_score is not None else None,
+                    swing_score, swing_grade,
+                    base_type, base_quality, stage_phase,
+                    sector, industry, rs_percentile,
+                    market_exposure_at_entry, exposure_tier_at_entry,
+                    stop_method, stop_reasoning,
+                    json.dumps(swing_components) if swing_components else None,
+                    json.dumps(advanced_components) if advanced_components else None,
+                    execution_mode == 'auto',  # bracket_order = True only in auto mode
                 ),
             )
 
@@ -427,11 +472,23 @@ class TradeExecutor:
             pass
         return None
 
-    def _send_alpaca_order(self, symbol, shares, entry_price):
-        """Send a buy order to Alpaca."""
+    def _send_alpaca_order(self, symbol, shares, entry_price, stop_loss_price=None,
+                           take_profit_price=None, order_class='bracket'):
+        """Send a BRACKET order to Alpaca — entry + stop loss + take profit.
+
+        This is the institutional best practice: even if our system goes down,
+        Alpaca enforces the stop loss and take profit. No naked positions.
+
+        Bracket order: parent buy fills, then OCO (one-cancels-other) of:
+          - Stop loss order (executes if price drops to stop)
+          - Take profit limit order (executes if price hits target)
+
+        Falls back to simple limit order if bracket can't be sent (no stop).
+        """
         if not self.alpaca_key or not self.alpaca_secret:
             return {'success': False, 'message': 'Alpaca credentials not configured'}
         try:
+            # Build order payload
             order_data = {
                 'symbol': symbol,
                 'qty': shares,
@@ -439,7 +496,29 @@ class TradeExecutor:
                 'type': 'limit',
                 'time_in_force': 'day',
                 'limit_price': str(round(entry_price, 2)),
+                'extended_hours': False,
             }
+
+            # If we have a stop, send as bracket order with stop loss
+            if stop_loss_price and stop_loss_price > 0 and order_class == 'bracket':
+                order_data['order_class'] = 'bracket'
+                order_data['stop_loss'] = {
+                    'stop_price': str(round(stop_loss_price, 2)),
+                }
+                # Take profit: if provided, use it; else use first target (1.5R)
+                if take_profit_price and take_profit_price > entry_price:
+                    order_data['take_profit'] = {
+                        'limit_price': str(round(take_profit_price, 2)),
+                    }
+                else:
+                    # Default: T1 at 1.5R as the take-profit leg
+                    risk = entry_price - stop_loss_price
+                    if risk > 0:
+                        tp = entry_price + (1.5 * risk)
+                        order_data['take_profit'] = {
+                            'limit_price': str(round(tp, 2)),
+                        }
+
             response = requests.post(
                 f'{self.alpaca_base_url}/v2/orders',
                 json=order_data,
@@ -452,8 +531,10 @@ class TradeExecutor:
                 return {
                     'success': True,
                     'order_id': data.get('id', 'unknown'),
+                    'order_class': data.get('order_class', 'simple'),
                     'status': data.get('status', 'pending'),
                     'executed_price': entry_price,
+                    'legs': data.get('legs', []),  # bracket child orders
                 }
             return {'success': False, 'message': f'Alpaca {response.status_code}: {response.text[:200]}'}
         except Exception as e:

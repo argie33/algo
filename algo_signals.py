@@ -914,6 +914,179 @@ class SignalComputer:
         }
 
     # ============================================================
+    # BASE-TYPE-SPECIFIC STOP PLACEMENT
+    # ============================================================
+
+    def base_type_stop(self, symbol, eval_date, entry_price, atr=None):
+        """Compute optimal stop loss based on the SPECIFIC base type detected.
+
+        Different chart bases have proven-optimal stop placements per the canon:
+          - cup_with_handle: stop below handle low (last 5-10 bars low) - O'Neil
+          - flat_base:        stop below base low - Minervini
+          - vcp:              stop below last contraction low (tightest) - Minervini
+          - double_bottom:    stop below 2nd low - 0.5×ATR (allow shake-out room)
+          - ascending_base:   stop below last higher-low (most recent pullback)
+          - saucer:           stop below saucer low (longer cushion)
+          - 3wt:              stop below 3-week range low
+          - htf:              stop below consolidation low
+
+        Falls back to 8% hard cap if specific stop is unreasonable.
+
+        Returns: { 'stop_price': float, 'method': str, 'reasoning': str }
+        """
+        self.connect()
+
+        base = self.classify_base_type(symbol, eval_date)
+        base_type = base.get('type', 'no_base')
+
+        # Get ATR if not supplied
+        if atr is None:
+            self.cur.execute(
+                "SELECT atr FROM technical_data_daily WHERE symbol = %s AND date <= %s "
+                "ORDER BY date DESC LIMIT 1",
+                (symbol, eval_date),
+            )
+            r = self.cur.fetchone()
+            atr = float(r[0]) if r and r[0] else entry_price * 0.02
+
+        # 8% hard floor — nothing wider than this
+        max_stop_pct = 0.08
+        floor_stop = entry_price * (1.0 - max_stop_pct)
+
+        method = 'fallback_8pct'
+        candidate = floor_stop
+        reasoning = '8% hard floor (no specific base detected)'
+
+        if base_type == 'cup_with_handle':
+            # Stop below handle low (last 7 bars)
+            self.cur.execute(
+                "SELECT MIN(low) FROM price_daily WHERE symbol = %s AND date <= %s "
+                "AND date >= %s::date - INTERVAL '7 days'",
+                (symbol, eval_date, eval_date),
+            )
+            r = self.cur.fetchone()
+            if r and r[0]:
+                handle_low = float(r[0])
+                candidate = handle_low * 0.99  # 1% buffer below handle low
+                method = 'handle_low'
+                reasoning = f'Cup-handle: 1% below handle low ${handle_low:.2f}'
+
+        elif base_type == 'flat_base':
+            # Stop below base low (full base lookback ~30 days)
+            self.cur.execute(
+                "SELECT MIN(low) FROM price_daily WHERE symbol = %s AND date <= %s "
+                "AND date >= %s::date - INTERVAL '35 days'",
+                (symbol, eval_date, eval_date),
+            )
+            r = self.cur.fetchone()
+            if r and r[0]:
+                base_low = float(r[0])
+                candidate = base_low * 0.995  # 0.5% buffer
+                method = 'flat_base_low'
+                reasoning = f'Flat base: 0.5% below base low ${base_low:.2f}'
+
+        elif base_type == 'vcp':
+            # Stop below last contraction low (tightest — last 10 bars)
+            self.cur.execute(
+                "SELECT MIN(low) FROM price_daily WHERE symbol = %s AND date <= %s "
+                "AND date >= %s::date - INTERVAL '10 days'",
+                (symbol, eval_date, eval_date),
+            )
+            r = self.cur.fetchone()
+            if r and r[0]:
+                vcp_low = float(r[0])
+                candidate = vcp_low * 0.99
+                method = 'vcp_last_contraction'
+                reasoning = f'VCP: 1% below last contraction low ${vcp_low:.2f}'
+
+        elif base_type == 'double_bottom':
+            # Stop below 2nd low - 0.5×ATR (room for shake-out)
+            self.cur.execute(
+                "SELECT MIN(low) FROM price_daily WHERE symbol = %s AND date <= %s "
+                "AND date >= %s::date - INTERVAL '20 days'",
+                (symbol, eval_date, eval_date),
+            )
+            r = self.cur.fetchone()
+            if r and r[0]:
+                second_low = float(r[0])
+                candidate = second_low - (0.5 * atr)
+                method = 'double_bottom_low_minus_half_atr'
+                reasoning = f'Double-bottom: 2nd low ${second_low:.2f} - 0.5×ATR (${atr:.2f})'
+
+        elif base_type == 'ascending_base':
+            # Stop below most recent higher-low (last 1/3 of base)
+            self.cur.execute(
+                "SELECT MIN(low) FROM price_daily WHERE symbol = %s AND date <= %s "
+                "AND date >= %s::date - INTERVAL '14 days'",
+                (symbol, eval_date, eval_date),
+            )
+            r = self.cur.fetchone()
+            if r and r[0]:
+                last_hl = float(r[0])
+                candidate = last_hl * 0.985  # 1.5% buffer
+                method = 'ascending_base_last_higher_low'
+                reasoning = f'Ascending base: 1.5% below last higher low ${last_hl:.2f}'
+
+        elif base_type == 'saucer':
+            # Wider stop, saucer base low
+            self.cur.execute(
+                "SELECT MIN(low) FROM price_daily WHERE symbol = %s AND date <= %s "
+                "AND date >= %s::date - INTERVAL '60 days'",
+                (symbol, eval_date, eval_date),
+            )
+            r = self.cur.fetchone()
+            if r and r[0]:
+                saucer_low = float(r[0])
+                candidate = saucer_low * 0.99
+                method = 'saucer_base_low'
+                reasoning = f'Saucer: 1% below saucer low ${saucer_low:.2f}'
+
+        # Check 3WT and HTF as overlays
+        twt = self.three_weeks_tight(symbol, eval_date)
+        if twt.get('is_3wt') and method == 'fallback_8pct':
+            # 3WT: stop below the 3-week range low
+            self.cur.execute(
+                "SELECT MIN(low) FROM price_weekly WHERE symbol = %s AND date <= %s "
+                "ORDER BY date DESC LIMIT 3",
+                (symbol, eval_date),
+            )
+            rows = self.cur.fetchall()
+            if rows:
+                three_wk_low = min(float(r[0]) for r in rows)
+                candidate = three_wk_low * 0.985
+                method = '3wt_low'
+                reasoning = f'3-Weeks-Tight: 1.5% below 3wk low ${three_wk_low:.2f}'
+
+        htf = self.high_tight_flag(symbol, eval_date)
+        if htf.get('is_htf') and htf.get('pivot_high'):
+            # HTF: typically wider stop given volatility
+            cons_low = htf.get('pivot_high', 0) * (1 - htf.get('consolidation_pct', 25) / 100)
+            candidate = max(candidate, cons_low * 0.95)  # 5% buffer for HTF volatility
+            method = 'htf_consolidation_low'
+            reasoning = f'HTF: 5% below consolidation low ${cons_low:.2f}'
+
+        # Enforce 8% floor (never wider than 8%)
+        if candidate < floor_stop:
+            candidate = floor_stop
+            reasoning = f'{reasoning} -> capped at 8% floor (${floor_stop:.2f})'
+            method = method + '_capped'
+
+        # Enforce sanity: stop must be below entry
+        if candidate >= entry_price:
+            candidate = entry_price * 0.93  # 7% fallback
+            method = 'sanity_fallback_7pct'
+            reasoning = '7% sanity fallback (computed stop was >= entry)'
+
+        return {
+            'stop_price': round(candidate, 2),
+            'method': method,
+            'reasoning': reasoning,
+            'base_type': base_type,
+            'risk_per_share': round(entry_price - candidate, 2),
+            'risk_pct': round((entry_price - candidate) / entry_price * 100, 2),
+        }
+
+    # ============================================================
     # IBD CONTINUATION PATTERNS — research-backed setups
     # ============================================================
 

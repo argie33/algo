@@ -647,4 +647,198 @@ router.get('/exposure-policy', async (req, res) => {
   }
 });
 
+// ============================================================
+// RUN ORCHESTRATOR — trigger the daily algo workflow from UI
+// ============================================================
+router.post('/run', async (req, res) => {
+  const { spawn } = require('child_process');
+  const path = require('path');
+
+  try {
+    const dryRun = req.body?.dry_run !== false;  // default to dry-run for safety
+    const date = req.body?.date || null;
+
+    const args = ['algo_orchestrator.py'];
+    if (date) args.push('--date', date);
+    if (dryRun) args.push('--dry-run');
+
+    const repoRoot = path.resolve(__dirname, '../../..');
+    const child = spawn('python3', args, { cwd: repoRoot, env: process.env });
+
+    const runId = `RUN-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}`;
+    const output = [];
+    let exitCode = null;
+
+    child.stdout.on('data', (chunk) => {
+      output.push(chunk.toString());
+    });
+    child.stderr.on('data', (chunk) => {
+      output.push(chunk.toString());
+    });
+
+    // Return immediately so the UI can poll, but also stream after completion
+    // For simplicity we'll do synchronous version with timeout
+    const result = await new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        try { child.kill('SIGTERM'); } catch (e) {}
+        resolve({ timeout: true, exitCode: -1, output });
+      }, 180000);  // 3 minute timeout
+
+      child.on('exit', (code) => {
+        clearTimeout(timeout);
+        exitCode = code;
+        resolve({ timeout: false, exitCode: code, output });
+      });
+    });
+
+    return res.json({
+      success: result.exitCode === 0,
+      run_id: runId,
+      dry_run: dryRun,
+      date: date || 'auto',
+      exit_code: result.exitCode,
+      timeout: result.timeout || false,
+      output: result.output.join(''),
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error in /algo/run:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date(),
+    });
+  }
+});
+
+// ============================================================
+// RUN DATA PATROL — trigger watchdog from UI
+// ============================================================
+router.post('/patrol', async (req, res) => {
+  const { spawn } = require('child_process');
+  const path = require('path');
+
+  try {
+    const quick = req.body?.quick === true;
+    const validateAlpaca = req.body?.validate_alpaca === true;
+
+    const args = ['algo_data_patrol.py'];
+    if (quick) args.push('--quick');
+    if (validateAlpaca) args.push('--validate-alpaca');
+
+    const repoRoot = path.resolve(__dirname, '../../..');
+    const child = spawn('python3', args, { cwd: repoRoot, env: process.env });
+    const output = [];
+
+    const result = await new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        try { child.kill('SIGTERM'); } catch (e) {}
+        resolve({ timeout: true, exitCode: -1, output });
+      }, 60000);
+
+      child.stdout.on('data', (c) => output.push(c.toString()));
+      child.stderr.on('data', (c) => output.push(c.toString()));
+      child.on('exit', (code) => {
+        clearTimeout(timeout);
+        resolve({ timeout: false, exitCode: code, output });
+      });
+    });
+
+    return res.json({
+      success: true,
+      ready_to_trade: result.exitCode === 0,
+      exit_code: result.exitCode,
+      output: result.output.join(''),
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error in /algo/patrol:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date(),
+    });
+  }
+});
+
+// ============================================================
+// PATROL HISTORY — recent patrol log entries
+// ============================================================
+router.get('/patrol-log', async (req, res) => {
+  try {
+    const pool = getPool();
+    const limit = parseInt(req.query.limit) || 50;
+    const minSeverity = req.query.min_severity || 'warn';
+    const sevOrder = { info: 0, warn: 1, error: 2, critical: 3 };
+    const minSev = sevOrder[minSeverity] || 1;
+    const allowedSevs = Object.keys(sevOrder).filter(k => sevOrder[k] >= minSev);
+
+    const result = await pool.query(
+      `SELECT id, patrol_run_id, check_name, severity, target_table, message,
+              details, created_at
+       FROM data_patrol_log
+       WHERE severity = ANY($1)
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [allowedSevs, limit]
+    );
+
+    return res.json({
+      success: true,
+      items: result.rows.map(r => ({
+        id: r.id,
+        run_id: r.patrol_run_id,
+        check_name: r.check_name,
+        severity: r.severity,
+        target_table: r.target_table,
+        message: r.message,
+        details: r.details,
+        created_at: r.created_at,
+      })),
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error in /algo/patrol-log:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date(),
+    });
+  }
+});
+
+// ============================================================
+// TRADE DETAIL — full reasoning for a single trade
+// ============================================================
+router.get('/trade/:tradeId', async (req, res) => {
+  try {
+    const pool = getPool();
+    const result = await pool.query(
+      `SELECT t.*, p.position_id, p.quantity AS current_qty, p.current_price,
+              p.unrealized_pnl, p.unrealized_pnl_pct, p.target_levels_hit,
+              p.current_stop_price
+       FROM algo_trades t
+       LEFT JOIN algo_positions p ON p.trade_ids LIKE '%' || t.trade_id || '%'
+                                 AND p.status = 'open'
+       WHERE t.trade_id = $1`,
+      [req.params.tradeId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Trade not found' });
+    }
+    return res.json({
+      success: true,
+      data: result.rows[0],
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error in /algo/trade/:id:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date(),
+    });
+  }
+});
+
 module.exports = router;

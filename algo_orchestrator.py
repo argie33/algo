@@ -514,14 +514,41 @@ class Orchestrator:
                               f"stop ${trade['stop_loss_price']:.2f}")
                     continue
                 try:
+                    # Pull stage_phase + base_type detail from advanced components
+                    adv = trade.get('advanced_components', {}) or {}
+                    setup = (trade.get('swing_components', {}) or {}).get('setup_quality', {}).get('detail', {})
+                    trend_d = (trade.get('swing_components', {}) or {}).get('trend_quality', {}).get('detail', {})
+
+                    # Get stop method from pipeline if available
+                    stop_method = getattr(trade, 'stop_method', None) or 'base_type_stop'
+                    stop_reasoning = getattr(trade, 'stop_reasoning', None)
+
                     result = executor.execute_trade(
                         symbol=trade['symbol'],
                         entry_price=trade['entry_price'],
                         shares=trade['shares'],
                         stop_loss_price=trade['stop_loss_price'],
+                        target_1_price=trade.get('target_1_price'),
+                        target_2_price=trade.get('target_2_price'),
+                        target_3_price=trade.get('target_3_price'),
                         signal_date=self.run_date,
                         sqs=int(trade.get('sqs', 0)),
                         trend_score=int(trade.get('trend_score', 0)),
+                        # Reasoning metadata:
+                        swing_score=trade.get('swing_score'),
+                        swing_grade=trade.get('swing_grade'),
+                        base_type=setup.get('base_type'),
+                        base_quality=setup.get('base_quality'),
+                        stage_phase=trend_d.get('phase'),
+                        sector=trade.get('sector'),
+                        industry=trade.get('industry'),
+                        rs_percentile=(adv.get('relative_strength', {}) or {}).get('value'),
+                        market_exposure_at_entry=constraints.get('exposure_pct') if constraints else None,
+                        exposure_tier_at_entry=constraints.get('tier_name') if constraints else None,
+                        stop_method=stop_method,
+                        stop_reasoning=stop_reasoning,
+                        swing_components=trade.get('swing_components'),
+                        advanced_components=trade.get('advanced_components'),
                     )
                     if result.get('success'):
                         entered += 1

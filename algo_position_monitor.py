@@ -12,7 +12,7 @@ Runs each trading day on every open position. For each one:
         d. Time decay (over half of max_hold without progress = warning)
         e. Earnings proximity (block_window approaching = warning)
         f. Distribution day count
-  4. Aggregate health flags. >= halt_flag_count → propose early exit.
+  4. Aggregate health flags. >= halt_flag_count -> propose early exit.
   5. Persist updated state on algo_positions and write audit entries.
 
 The monitor PROPOSES adjustments — actual stop-raising executes via
@@ -422,10 +422,10 @@ class PositionMonitor:
             f"hits={rec['target_hits']}"
         )
         print(
-            f"          stop ${rec['active_stop']:.2f} → ${rec['proposed_stop']:.2f} | "
+            f"          stop ${rec['active_stop']:.2f} -> ${rec['proposed_stop']:.2f} | "
             f"RS={rec['rs_label']} | sector={rec['sector_state']} | flags={flags_str}"
         )
-        print(f"          → {rec['action']}: {rec['action_reason']}")
+        print(f"          -> {rec['action']}: {rec['action_reason']}")
 
 
 if __name__ == "__main__":

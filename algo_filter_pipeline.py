@@ -479,7 +479,13 @@ class FilterPipeline:
             return {'pass': False, 'reason': f'Error: {e}', 'trend_score': 0}
 
     def _compute_stop_loss(self, symbol, signal_date, sma_50, atr):
-        """Stop = best of (50-DMA, recent swing low, entry - 2*ATR), capped at 8% below entry."""
+        """Compute stop loss — base-type-specific when possible, falls back to MA/ATR.
+
+        First tries the base-type-specific stop (cup-handle uses handle low,
+        VCP uses last contraction, etc — research-backed per pattern). If
+        that's not available, uses best of (50-DMA, swing low, 2x ATR)
+        capped at 8% below entry.
+        """
         self.cur.execute(
             "SELECT close FROM price_daily WHERE symbol = %s AND date <= %s ORDER BY date DESC LIMIT 1",
             (symbol, signal_date),
@@ -489,7 +495,23 @@ class FilterPipeline:
             return None
         entry = float(row[0])
 
-        # Recent 10-day swing low
+        # Try base-type-specific stop first (most accurate per the canon)
+        try:
+            from algo_signals import SignalComputer
+            sc = SignalComputer(cur=self.cur)
+            base_stop_info = sc.base_type_stop(symbol, signal_date, entry, atr)
+            if base_stop_info and base_stop_info['stop_price'] > 0:
+                # Stash the metadata so the pipeline can show WHY this stop was chosen
+                self._last_stop_method = base_stop_info['method']
+                self._last_stop_reasoning = base_stop_info['reasoning']
+                self._last_stop_base_type = base_stop_info['base_type']
+                # Only use base-type stop if it's NOT the fallback (real base detected)
+                if 'fallback' not in base_stop_info['method'] and 'sanity' not in base_stop_info['method']:
+                    return base_stop_info['stop_price']
+        except Exception as e:
+            print(f"  (base_type_stop failed for {symbol}: {e})")
+
+        # Fallback: structural stops (MA / swing / ATR)
         self.cur.execute(
             """
             SELECT MIN(low) FROM price_daily
@@ -502,17 +524,19 @@ class FilterPipeline:
         swing_low = float(swing_row[0]) if swing_row and swing_row[0] is not None else None
 
         atr_stop = (entry - (2.0 * atr)) if atr else None
-
         max_stop_pct = float(self.config.get('max_stop_distance_pct', 8.0)) / 100.0
         floor_stop = entry * (1.0 - max_stop_pct)
 
         candidates = [c for c in (sma_50, swing_low, atr_stop) if c is not None and 0 < c < entry]
         if not candidates:
+            self._last_stop_method = 'fallback_8pct_floor'
+            self._last_stop_reasoning = '8% floor — no structural levels available'
             return round(floor_stop, 2)
 
-        # Highest candidate at or above the 8% floor (= tightest sane stop)
         viable = [c for c in candidates if c >= floor_stop]
         stop = max(viable) if viable else floor_stop
+        self._last_stop_method = 'best_of_ma_swing_atr'
+        self._last_stop_reasoning = f'Best of (50-DMA, swing low, 2×ATR), capped at 8%'
         return round(stop, 2)
 
     def _tier4_signal_quality(self, symbol, signal_date):
