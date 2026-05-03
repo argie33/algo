@@ -77,12 +77,10 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: buyselldaily-worker-lambda
-      CodeUri: ./
+      CodeUri: lambda_buyselldaily_worker.py
       Handler: lambda_buyselldaily_worker.lambda_handler
       Role: !GetAtt BuySellDailyWorkerRole.Arn
       ReservedConcurrentExecutions: !Ref LambdaConcurrency
-      Layers:
-        - !GetAtt PythonDependenciesLayer.OutputSampleProperty
       LoggingConfig:
         LogGroup: !Sub '/aws/lambda/buyselldaily-worker'
 
@@ -96,14 +94,6 @@ Resources:
   # LAMBDA LAYER - Shared Dependencies
   # ============================================================================
 
-  PythonDependenciesLayer:
-    Type: AWS::Serverless::LayerVersion
-    Properties:
-      LayerName: stocks-python-dependencies
-      ContentUri: ./lambda-layers/python-deps
-      CompatibleRuntimes:
-        - python3.11
-      RetentionPolicy: Delete
 
   # ============================================================================
   # SQS QUEUE - Work Distribution
@@ -191,7 +181,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: buyselldaily-orchestrator
-      CodeUri: ./
+      CodeUri: lambda_buyselldaily_orchestrator.py
       Handler: lambda_buyselldaily_orchestrator.lambda_handler
       Role: !GetAtt OrchestratorRole.Arn
       Timeout: 1200
