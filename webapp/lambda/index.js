@@ -661,16 +661,45 @@ app.get("/api/signals/search", cacheMiddleware(60), async (req, res) => {
 
     let dataResult;
     try {
-      dataResult = await query(dataQuery, params);
+      // Add aggressive timeout to prevent API Gateway 504 errors
+      const queryPromise = query(dataQuery, params);
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Query execution timeout')), 20000) // 20s timeout
+      );
+      dataResult = await Promise.race([queryPromise, timeoutPromise]);
     } catch (err) {
-      // If query times out due to large date range, try again with shorter range
-      if ((err.message?.includes('timeout') || err.message?.includes('CANCEL')) && dayRange > 365) {
-        console.log(`Query timeout with ${dayRange} days, retrying with 365 days`);
-        whereConditions[0] = `date >= CURRENT_DATE - MAKE_INTERVAL(days => 365)`;
-        const retryQuery = `SELECT * FROM ${tableName} ${whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''} ${orderBy} LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+      // If query times out, try again with more restrictive filters
+      if ((err.message?.includes('timeout') || err.message?.includes('CANCEL')) && dayRange > 90) {
+        console.log(`Query timeout with ${dayRange} days, retrying with 90 days`);
+        whereConditions[0] = `date >= CURRENT_DATE - MAKE_INTERVAL(days => 90)`;
+        const retryQuery = `SELECT ${columns} FROM ${tableName} ${whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : ''} ${orderBy} LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
         const retryParams = params.slice(0, -2);
         retryParams.push(maxRows, offset);
-        dataResult = await query(retryQuery, retryParams);
+        try {
+          const retryPromise = query(retryQuery, retryParams);
+          const retryTimeout = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Retry timeout')), 10000)
+          );
+          dataResult = await Promise.race([retryPromise, retryTimeout]);
+        } catch (retryErr) {
+          // If retry also fails, return empty result
+          console.warn(`Retry failed, returning empty result: ${retryErr.message}`);
+          return res.json({
+            success: true,
+            items: [],
+            pagination: {
+              limit: safeLimit,
+              offset,
+              total: 0,
+              page: safePage,
+              totalPages: 0,
+              hasNext: false,
+              hasPrev: false
+            },
+            timestamp: new Date().toISOString(),
+            note: 'Query timeout - returning empty result. Try with more specific filters.'
+          });
+        }
       } else {
         throw err;
       }
