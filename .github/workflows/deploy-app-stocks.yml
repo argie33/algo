@@ -1334,15 +1334,18 @@ jobs:
           echo "Uploading template-lambda-phase-c.yml to S3..."
           aws s3 cp template-lambda-phase-c.yml s3://$CF_BUCKET/template-lambda-phase-c.yml
 
-          # Deploy Lambda stack using SAM
-          echo "Deploying Lambda stack via CloudFormation..."
-          aws cloudformation deploy \
-            --stack-name stocks-lambda-phase-c \
+          # Deploy Lambda stack using SAM (handles packaging automatically)
+          echo "Deploying Lambda stack via SAM..."
+          sam deploy \
             --template-file template-lambda-phase-c.yml \
+            --stack-name stocks-lambda-phase-c \
+            --s3-prefix stocks-lambda-deploy \
+            --s3-bucket $CF_BUCKET \
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --parameter-overrides \
               Environment=prod \
-              RDSSecretArn=arn:aws:secretsmanager:us-east-1:${{ env.AWS_ACCOUNT_ID }}:secret:stocks-prod-postgres-creds
+              RDSSecretArn=arn:aws:secretsmanager:us-east-1:${{ env.AWS_ACCOUNT_ID }}:secret:stocks-prod-postgres-creds \
+            --no-confirm-changeset
 
           # Get the orchestrator Lambda function name
           ORCHESTRATOR_FUNCTION=$(aws cloudformation describe-stack-resource \
