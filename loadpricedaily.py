@@ -68,7 +68,7 @@ class PriceDailyLoader(OptimalLoader):
 
 
 def get_active_symbols() -> List[str]:
-    """Pull active symbols from the stocks table."""
+    """Pull active symbols from the canonical universe table."""
     import psycopg2
     conn = psycopg2.connect(
         host=os.getenv("DB_HOST", "localhost"),
@@ -79,7 +79,14 @@ def get_active_symbols() -> List[str]:
     )
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT DISTINCT symbol FROM stocks ORDER BY symbol")
+            # Canonical universe lives in stock_symbols; prefer that. Fall back
+            # to company_profile.ticker if stock_symbols is missing.
+            cur.execute("""SELECT EXISTS (SELECT 1 FROM information_schema.tables
+                           WHERE table_schema='public' AND table_name='stock_symbols')""")
+            if cur.fetchone()[0]:
+                cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
+            else:
+                cur.execute("SELECT DISTINCT ticker FROM company_profile ORDER BY ticker")
             return [r[0] for r in cur.fetchall()]
     finally:
         conn.close()
