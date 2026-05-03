@@ -68,8 +68,6 @@ import boto3
 import pandas as pd
 import psycopg2
 from db_helper import DatabaseHelper
-import psycopg2
-from db_helper import DatabaseHelper.extensions
 import numpy as np
 import yfinance as yf
 from psycopg2.extras import RealDictCursor, execute_values

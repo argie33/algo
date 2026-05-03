@@ -12,10 +12,11 @@ function safeFloat(value) {
   return isNaN(num) ? null : num;
 }
 
-// Shared handler function for both /stocks and /list
+// Shared handler function for both stocks and ETFs
 const getStocksSignals = async (req, res) => {
   try {
     const timeframe = req.query.timeframe || "daily";
+    const dataType = (req.query.dataType || req.query.asset_type || "stocks").toLowerCase();  // stocks or etf
     const signalType = req.query.signal_type || req.query.signal;  // Support both parameter names
     const symbolFilter = req.query.symbol;
     const baseType = req.query.base_type;    // Pattern type filter (Cup, Flat Base, etc)
@@ -30,11 +31,18 @@ const getStocksSignals = async (req, res) => {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const offset = (page - 1) * limit;
 
-    // Safely map timeframes to table names to prevent SQL injection
+    // Validate dataType
+    if (!['stocks', 'etf'].includes(dataType)) {
+      return sendError(res, "Invalid dataType. Must be 'stocks' or 'etf'", 400);
+    }
+
+    // Safely map timeframes to table names (stocks or ETF) to prevent SQL injection
+    const tablePrefix = dataType === 'etf' ? 'buy_sell_' : 'buy_sell_';
+    const tableSuffix = dataType === 'etf' ? '_etf' : '';
     const timeframeMap = {
-      daily: "buy_sell_daily",
-      weekly: "buy_sell_weekly",
-      monthly: "buy_sell_monthly"
+      daily: `${tablePrefix}daily${tableSuffix}`,
+      weekly: `${tablePrefix}weekly${tableSuffix}`,
+      monthly: `${tablePrefix}monthly${tableSuffix}`
     };
 
     const tableName = timeframeMap[timeframe];

@@ -48,6 +48,7 @@ function TradingSignals() {
 
   // Strategy & Pagination
   const [strategy, setStrategy] = useState("swing");
+  const [assetType, setAssetType] = useState("stocks"); // stocks or etf
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(50);
 
@@ -99,10 +100,11 @@ function TradingSignals() {
 
   // API Query
   const { data: signalsData, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["signals", strategy, symbolFilter, signalFilter, baseTypeFilter, timeframeFilter, days, minPrice, maxPrice, minVolume, maxVolume, minRsi, maxRsi, minAdx, sort, sortOrder, page, limit],
+    queryKey: ["signals", strategy, assetType, symbolFilter, signalFilter, baseTypeFilter, timeframeFilter, days, minPrice, maxPrice, minVolume, maxVolume, minRsi, maxRsi, minAdx, sort, sortOrder, page, limit],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append("type", strategy);
+      params.append("dataType", assetType);
       params.append("timeframe", timeframeFilter);
       if (symbolFilter) params.append("symbol", symbolFilter.toUpperCase());
       if (signalFilter) params.append("signal", signalFilter);
@@ -130,6 +132,7 @@ function TradingSignals() {
 
   // Handlers
   const handleClearAll = () => {
+    setAssetType("stocks");
     setSymbolFilter("");
     setSignalFilter("");
     setBaseTypeFilter("");
@@ -264,6 +267,15 @@ function TradingSignals() {
                     <MenuItem value={180}>Last 6 months</MenuItem>
                     <MenuItem value={365}>Last year</MenuItem>
                     <MenuItem value={3650}>All time</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Asset Type</InputLabel>
+                  <Select value={assetType} onChange={(e) => { setAssetType(e.target.value); setPage(1); }} label="Asset Type">
+                    <MenuItem value="stocks">📈 Stocks</MenuItem>
+                    <MenuItem value="etf">🏦 ETFs</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>

@@ -858,8 +858,6 @@ def insert_symbol_results(cur, symbol, timeframe, df, table_name="buy_sell_weekl
                 ]
                 inserted = db.insert(table_name, columns, insert_rows)
                 db.close()
-                        logging.debug(f"Insert error: {e}")
-                cur.connection.commit()
         except Exception as e:
             logging.error(f"Bulk insert failed: {e}")
             inserted = 0

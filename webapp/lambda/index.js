@@ -524,6 +524,7 @@ app.get("/api/signals/search", cacheMiddleware(60), async (req, res) => {
     const {
       type = 'swing',
       timeframe = 'daily',
+      dataType = 'stocks',
       symbol,
       signal,
       base_type,
@@ -545,15 +546,26 @@ app.get("/api/signals/search", cacheMiddleware(60), async (req, res) => {
     const safePage = Math.max(1, parseInt(page) || 1);
     const offset = (safePage - 1) * safeLimit;
 
-    // Map type and timeframe to table
+    // Validate dataType
+    if (!['stocks', 'etf'].includes(dataType)) {
+      return res.status(400).json({ success: false, error: "Invalid dataType. Must be 'stocks' or 'etf'" });
+    }
+
+    // Map type and timeframe to table (with support for both stocks and ETFs)
     let tableName;
+    const etfSuffix = dataType === 'etf' ? '_etf' : '';
+
     if (type === 'swing') {
-      const timeframeMap = { daily: 'buy_sell_daily', weekly: 'buy_sell_weekly', monthly: 'buy_sell_monthly' };
-      tableName = timeframeMap[timeframe] || 'buy_sell_daily';
+      const timeframeMap = {
+        daily: `buy_sell_daily${etfSuffix}`,
+        weekly: `buy_sell_weekly${etfSuffix}`,
+        monthly: `buy_sell_monthly${etfSuffix}`
+      };
+      tableName = timeframeMap[timeframe] || `buy_sell_daily${etfSuffix}`;
     } else if (type === 'range') {
-      tableName = 'range_signals_daily';
+      tableName = `range_signals_daily${etfSuffix}`;
     } else if (type === 'mean-reversion') {
-      tableName = 'mean_reversion_signals_daily';
+      tableName = `mean_reversion_signals_daily${etfSuffix}`;
     } else {
       return res.status(400).json({ success: false, error: 'Invalid type' });
     }

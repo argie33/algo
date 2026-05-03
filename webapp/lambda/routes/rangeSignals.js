@@ -11,6 +11,7 @@ router.get('/', async (req, res, next) => {
   try {
     const {
       timeframe = 'daily',
+      dataType = 'stocks',
       signal,
       signal_type,
       symbol,
@@ -19,12 +20,26 @@ router.get('/', async (req, res, next) => {
       days = 30
     } = req.query;
 
+    // Validate dataType
+    if (!['stocks', 'etf'].includes(dataType)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid dataType. Must be 'stocks' or 'etf'",
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Map dataType to table name
+    const tableSuffix = dataType === 'etf' ? '_etf' : '';
+    const tableName = `range_signals_daily${tableSuffix}`;
+    const symbolsTable = dataType === 'etf' ? 'etf_symbols' : 'stock_symbols';
+
     let q = `
       SELECT
         rs.*,
         ss.security_name as company_name
-      FROM range_signals_daily rs
-      LEFT JOIN stock_symbols ss ON rs.symbol = ss.symbol
+      FROM ${tableName} rs
+      LEFT JOIN ${symbolsTable} ss ON rs.symbol = ss.symbol
       WHERE rs.timeframe = $1
         AND rs.date >= NOW() - INTERVAL '${days} days'
     `;

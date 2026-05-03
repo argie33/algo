@@ -11,6 +11,7 @@ router.get('/', async (req, res, next) => {
   try {
     const {
       timeframe = 'daily',
+      dataType = 'stocks',
       signal,
       symbol,
       limit = 50,
@@ -19,12 +20,26 @@ router.get('/', async (req, res, next) => {
       min_confluence = 0
     } = req.query;
 
+    // Validate dataType
+    if (!['stocks', 'etf'].includes(dataType)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid dataType. Must be 'stocks' or 'etf'",
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Map dataType to table name
+    const tableSuffix = dataType === 'etf' ? '_etf' : '';
+    const tableName = `mean_reversion_signals_daily${tableSuffix}`;
+    const symbolsTable = dataType === 'etf' ? 'etf_symbols' : 'stock_symbols';
+
     let q = `
       SELECT
         mrs.*,
         ss.security_name as company_name
-      FROM mean_reversion_signals_daily mrs
-      LEFT JOIN stock_symbols ss ON mrs.symbol = ss.symbol
+      FROM ${tableName} mrs
+      LEFT JOIN ${symbolsTable} ss ON mrs.symbol = ss.symbol
       WHERE mrs.timeframe = $1
         AND mrs.date >= NOW() - INTERVAL '${days} days'
         AND mrs.confluence_score >= $2

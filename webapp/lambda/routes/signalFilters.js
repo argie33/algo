@@ -67,6 +67,7 @@ const getSignalFilters = async (req, res) => {
     const {
       type = 'swing',
       timeframe = 'daily',
+      dataType = 'stocks',
       symbol,
       signal,
       base_type,
@@ -104,15 +105,20 @@ const getSignalFilters = async (req, res) => {
       return sendError(res, "Invalid timeframe. Must be 'daily', 'weekly', or 'monthly'", 400);
     }
 
+    if (!['stocks', 'etf'].includes(dataType)) {
+      return sendError(res, "Invalid dataType. Must be 'stocks' or 'etf'", 400);
+    }
+
     const safeLimit = Math.min(parseInt(limit) || 100, 50000);
     const safePage = Math.max(1, parseInt(page) || 1);
     const offset = (safePage - 1) * safeLimit;
 
-    // Map type to table
+    // Map type to table (with support for both stocks and ETFs)
+    const etfSuffix = dataType === 'etf' ? '_etf' : '';
     const tableMap = {
-      'swing': type === 'swing' ? `buy_sell_${timeframe}` : null,
-      'range': 'range_signals_daily',
-      'mean-reversion': 'mean_reversion_signals_daily'
+      'swing': type === 'swing' ? `buy_sell_${timeframe}${etfSuffix}` : null,
+      'range': `range_signals_daily${etfSuffix}`,
+      'mean-reversion': `mean_reversion_signals_daily${etfSuffix}`
     };
 
     const tableName = tableMap[type];
