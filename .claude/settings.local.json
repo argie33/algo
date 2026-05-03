@@ -163,7 +163,8 @@
       "Bash(chmod +x trigger-optimal-load.sh)",
       "Bash(chmod +x VERIFY_OPTIMAL_LOAD.sh)",
       "Bash(./VERIFY_OPTIMAL_LOAD.sh)",
-      "Bash(echo \"Started monitor_system.py in background, PID: $!\")"
+      "Bash(echo \"Started monitor_system.py in background, PID: $!\")",
+      "Bash(git check-ignore *)"
     ]
   }
 }
