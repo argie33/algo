@@ -32,53 +32,71 @@ const setMode = (mode) => {
 // COLOR TOKENS — light is default, dark is opt-in
 // ============================================================================
 const lightTokens = {
-  // Page hierarchy (lightest -> medium for elevation)
-  bg:        '#f6f8fa',   // page background (Stripe-like)
-  bgElev:    '#ffffff',   // sidebar / header
-  card:      '#ffffff',   // primary content card
-  cardAlt:   '#f6f8fa',   // alt rows / hovered
-  cardLift:  '#eceff3',   // pressed / focused
+  // === SURFACES — warm, premium, captivating (WhatsForLunch-inspired) ===
+  // Slight warm tint instead of cold gray — feels more inviting for hours of use
+  bg:        '#FAFAF7',   // warm white page bg
+  bgElev:    '#FFFFFF',   // sidebar/header
+  card:      '#FFFFFF',
+  cardAlt:   '#F7F7F2',   // warm alt rows
+  cardLift:  '#F0EFE8',
 
-  // Borders
-  border:    '#d0d7de',
-  borderLight: '#eaeef2',
-  borderStrong: '#afb8c1',
+  // === BORDERS ===
+  border:        '#E5E4DC',
+  borderLight:   '#EDECE5',
+  borderStrong:  '#C9C8BE',
 
-  // Text hierarchy (Github/Stripe palette)
-  textBright: '#1f2328',  // headers, key values
-  text:       '#1f2328',  // body
-  textDim:    '#656d76',  // captions, secondary
-  textFaint:  '#8c959f',  // hints
+  // === TEXT (warm dark, not pure black — premium feel) ===
+  textBright: '#1A1A1A',
+  text:       '#2C2C28',
+  textDim:    '#6A6A65',
+  textFaint:  '#9A9A95',
 
-  // Brand — Bullseye green (kept consistent)
-  brand:     '#0d8a3e',
-  brandDark: '#0a6d31',
-  brandSoft: '#dafbe1',
+  // === BRAND — deep verdant green (premium, financial gravity + life) ===
+  brand:     '#0E5C3A',   // deep verdant — same as WhatsForLunch
+  brandDark: '#08402A',
+  brandSoft: '#E6F2EC',
+  brandTint: '#F2F8F4',
+  brandGlow: '#2DBC83',
 
-  // Semantic — financial (cleaner than dark mode)
-  bull:      '#1a7f37',
-  bullDeep:  '#0d8a3e',
-  bullSoft:  '#dafbe1',
-  bear:      '#cf222e',
-  bearDeep:  '#a40e26',
-  bearSoft:  '#ffebe9',
-  warn:      '#9a6700',
-  warnSoft:  '#fff8c5',
+  // === FINANCIAL SEMANTIC ===
+  bull:      '#1F9956',   // confident green
+  bullDeep:  '#0E5C3A',
+  bullSoft:  '#E0F4E8',
+  bear:      '#E0392B',   // urgent but not screaming
+  bearDeep:  '#B22A1E',
+  bearSoft:  '#FBE0DD',
+  warn:      '#E08F1B',   // honey amber — warm caution
+  warnDeep:  '#B07015',
+  warnSoft:  '#FCEFD3',
 
-  // Accents
-  blue:      '#0969da',
-  blueSoft:  '#ddf4ff',
-  purple:    '#8250df',
-  purpleSoft: '#fbefff',
-  cyan:      '#1f6feb',
-  pink:      '#bf3989',
-  amber:     '#bc4c00',
-  amberSoft: '#fff1e5',
+  // === CAPTIVATING ACCENTS (multi-color palette for status/mood) ===
+  coral:     '#FF6B47',   // energy, urgency, attention
+  coralSoft: '#FFE5DD',
+  honey:     '#F4B942',   // warmth, joy, achievements
+  honeySoft: '#FDF1D9',
+  berry:     '#C2185B',   // premium, special, ranked highly
+  berrySoft: '#FCE4EC',
+  sky:       '#4A90E2',   // info, calm, neutral data
+  skySoft:   '#E3F0FB',
+  plum:      '#6B5B95',   // premium tier, paid features
+  plumSoft:  '#EFEBF7',
 
-  // Shadows (light mode uses subtle shadows for elevation)
-  shadow1:   '0 1px 0 rgba(31,35,40,0.04), 0 0 1px rgba(31,35,40,0.06)',
-  shadow2:   '0 3px 6px rgba(31,35,40,0.04), 0 0 1px rgba(31,35,40,0.08)',
-  shadow3:   '0 8px 24px rgba(31,35,40,0.08), 0 0 1px rgba(31,35,40,0.1)',
+  // Aliases for backward compatibility
+  blue:      '#4A90E2',   // = sky
+  blueSoft:  '#E3F0FB',
+  purple:    '#6B5B95',   // = plum
+  purpleSoft: '#EFEBF7',
+  cyan:      '#39C5CF',
+  pink:      '#C2185B',
+  amber:     '#E08F1B',
+  amberSoft: '#FCEFD3',
+
+  // === SHADOWS — softer, layered, warm ===
+  shadow1:   '0 1px 2px rgba(15,26,17,0.04), 0 2px 6px rgba(15,26,17,0.04)',
+  shadow2:   '0 2px 4px rgba(15,26,17,0.04), 0 8px 20px rgba(15,26,17,0.07)',
+  shadow3:   '0 8px 16px rgba(15,26,17,0.06), 0 20px 40px rgba(15,26,17,0.10)',
+  shadowGlow: '0 8px 32px rgba(14,92,58,0.18)',  // brand-tinted glow
+  shadowCoral: '0 6px 20px rgba(255,107,71,0.20)',
 
   white:     '#ffffff',
   black:     '#000000',
