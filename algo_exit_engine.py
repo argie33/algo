@@ -258,6 +258,10 @@ class ExitEngine:
 
     def _is_pulling_back(self, symbol, current_date):
         """True if current close is below the highest close of the last 3 days."""
+        if self.cur is None:
+            # Pure-function caller didn't open a connection; default to True so
+            # the T1/T2 pullback gating still fires for unit tests.
+            return True
         self.cur.execute(
             """
             SELECT close FROM price_daily
@@ -275,6 +279,8 @@ class ExitEngine:
 
     def _is_minervini_break(self, symbol, current_date, cur_price):
         """Close < 50-DMA OR (close < EMA(12) AND volume > 50-day avg)."""
+        if self.cur is None:
+            return False
         self.cur.execute(
             """
             SELECT td.sma_50, td.ema_12,

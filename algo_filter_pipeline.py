@@ -42,6 +42,8 @@ class FilterPipeline:
         self._market_health_cache = None
         self._market_health_date = None
         self._portfolio_state_cache = None
+        self._sector_cache = {}
+        self._candidate_holdings = {}  # symbols that passed T5 in this run, for sector counting
 
     def connect(self):
         self.conn = psycopg2.connect(**DB_CONFIG)
@@ -460,6 +462,27 @@ class FilterPipeline:
                     'shares': 0,
                 }
 
+            # Sector / industry concentration limits
+            new_sector_info = self._get_sector_info(symbol)
+            if new_sector_info and (existing_symbols or self._candidate_holdings):
+                sector_count, industry_count = self._count_sector_industry_overlap(
+                    new_sector_info, existing_symbols
+                )
+                max_per_sector = int(self.config.get('max_positions_per_sector', 3))
+                max_per_industry = int(self.config.get('max_positions_per_industry', 2))
+                if sector_count >= max_per_sector:
+                    return {
+                        'pass': False,
+                        'reason': f'Sector "{new_sector_info["sector"]}" already has {sector_count} positions (max {max_per_sector})',
+                        'shares': 0,
+                    }
+                if industry_count >= max_per_industry:
+                    return {
+                        'pass': False,
+                        'reason': f'Industry "{new_sector_info["industry"]}" already has {industry_count} positions (max {max_per_industry})',
+                        'shares': 0,
+                    }
+
             # Risk-based sizing: shares = risk_dollars / (entry - stop)
             base_risk_pct = float(self.config.get('base_risk_pct', 0.75)) / 100.0
             adjusted_risk_pct = base_risk_pct * state['risk_adjustment']
@@ -500,6 +523,10 @@ class FilterPipeline:
                     'shares': 0,
                 }
 
+            # Mark candidate as "claimed" for sector/industry counting in this run
+            if new_sector_info:
+                self._candidate_holdings[symbol] = new_sector_info
+
             return {
                 'pass': True,
                 'reason': f'{shares} sh @ ${entry_price:.2f} (risk ${risk_dollars:.0f}, {position_size_pct:.1f}%)',
@@ -509,6 +536,46 @@ class FilterPipeline:
             }
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}', 'shares': 0}
+
+    def _get_sector_info(self, symbol):
+        try:
+            self.cur.execute(
+                "SELECT sector, industry FROM company_profile WHERE ticker = %s LIMIT 1",
+                (symbol,),
+            )
+            row = self.cur.fetchone()
+            if not row or not row[0]:
+                return None
+            return {'sector': row[0], 'industry': row[1] or ''}
+        except Exception:
+            return None
+
+    def _count_sector_industry_overlap(self, new_info, existing_symbols):
+        """Count how many open positions + this-run candidates share sector/industry with new_info."""
+        sector_count = 0
+        industry_count = 0
+
+        # Open positions
+        for sym in existing_symbols:
+            info = self._sector_cache.get(sym)
+            if info is None:
+                info = self._get_sector_info(sym)
+                self._sector_cache[sym] = info
+            if not info:
+                continue
+            if info['sector'] == new_info['sector']:
+                sector_count += 1
+            if info['industry'] == new_info['industry']:
+                industry_count += 1
+
+        # Candidates from this run that have already passed T5
+        for sym, info in self._candidate_holdings.items():
+            if info['sector'] == new_info['sector']:
+                sector_count += 1
+            if info['industry'] == new_info['industry']:
+                industry_count += 1
+
+        return sector_count, industry_count
 
     # ---------- Helpers ----------
 
