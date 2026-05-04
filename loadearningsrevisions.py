@@ -21,6 +21,17 @@ import psycopg2
 from db_helper import DatabaseHelper
 from psycopg2.extras import execute_values
 
+# >>> dotenv-autoload >>>
+from pathlib import Path as _DotenvPath
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _env_file = _DotenvPath(__file__).resolve().parent / '.env.local'
+    if _env_file.exists():
+        _load_dotenv(_env_file)
+except ImportError:
+    pass
+# <<< dotenv-autoload <<<
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,

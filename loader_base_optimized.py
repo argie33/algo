@@ -19,6 +19,17 @@ from psycopg2.extras import execute_values
 from typing import List, Tuple, Dict, Any
 import time
 
+# >>> dotenv-autoload >>>
+from pathlib import Path as _DotenvPath
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _env_file = _DotenvPath(__file__).resolve().parent / '.env.local'
+    if _env_file.exists():
+        _load_dotenv(_env_file)
+except ImportError:
+    pass
+# <<< dotenv-autoload <<<
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 

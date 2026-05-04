@@ -144,7 +144,9 @@ class DataSourceRouter:
 
     def _fetch_alpaca_ohlcv(self, symbol: str, start: date, end: date):
         api_key = os.getenv("ALPACA_API_KEY")
-        api_secret = os.getenv("ALPACA_API_SECRET")
+        # Accept either ALPACA_API_SECRET (router default) or ALPACA_SECRET_KEY
+        # (used by other loaders + .env.local in this repo).
+        api_secret = os.getenv("ALPACA_API_SECRET") or os.getenv("ALPACA_SECRET_KEY")
         if not api_key or not api_secret:
             return None
 

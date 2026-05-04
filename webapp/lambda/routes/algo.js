@@ -202,40 +202,117 @@ router.get('/evaluate', async (req, res) => {
 
 /**
  * GET /api/algo/positions
- * Get active positions
+ * Get active positions enriched with stop/target levels (from latest open trade),
+ * sector (from company_profile), and Minervini stage / RS (from trend_template_data).
  */
 router.get('/positions', async (req, res) => {
   try {
     const pool = getPool();
 
     const result = await pool.query(`
+      WITH latest_trade AS (
+        SELECT DISTINCT ON (symbol)
+          symbol, stop_loss_price, target_1_price, target_2_price, target_3_price,
+          target_1_r_multiple, target_2_r_multiple, target_3_r_multiple, signal_date
+        FROM algo_trades
+        WHERE status = 'open'
+        ORDER BY symbol, trade_date DESC
+      ),
+      latest_trend AS (
+        SELECT DISTINCT ON (symbol)
+          symbol, weinstein_stage, minervini_trend_score,
+          percent_from_52w_low, percent_from_52w_high
+        FROM trend_template_data
+        ORDER BY symbol, date DESC
+      )
       SELECT
-        position_id,
-        symbol,
-        quantity,
-        avg_entry_price,
-        current_price,
-        position_value,
-        unrealized_pnl,
-        unrealized_pnl_pct,
-        status,
-        stage_in_exit_plan,
-        days_since_entry
-      FROM algo_positions
-      WHERE status = 'open'
-      ORDER BY position_value DESC
+        p.position_id, p.symbol, p.quantity, p.avg_entry_price, p.current_price,
+        p.position_value, p.unrealized_pnl, p.unrealized_pnl_pct,
+        p.status, p.stage_in_exit_plan, p.days_since_entry,
+        lt.stop_loss_price, lt.target_1_price, lt.target_2_price, lt.target_3_price,
+        lt.target_1_r_multiple, lt.target_2_r_multiple, lt.target_3_r_multiple,
+        cp.sector, cp.industry,
+        ltt.weinstein_stage, ltt.minervini_trend_score,
+        ltt.percent_from_52w_low, ltt.percent_from_52w_high
+      FROM algo_positions p
+      LEFT JOIN latest_trade lt ON lt.symbol = p.symbol
+      LEFT JOIN company_profile cp ON cp.ticker = p.symbol
+      LEFT JOIN latest_trend ltt ON ltt.symbol = p.symbol
+      WHERE p.status = 'open'
+      ORDER BY p.position_value DESC
     `);
+
+    const sf = (v) => v == null ? null : parseFloat(v);
 
     return res.json({
       success: true,
-      items: result.rows.map(row => ({
-        ...row,
-        avg_entry_price: parseFloat(row.avg_entry_price),
-        current_price: parseFloat(row.current_price),
-        position_value: parseFloat(row.position_value),
-        unrealized_pnl: parseFloat(row.unrealized_pnl),
-        unrealized_pnl_pct: parseFloat(row.unrealized_pnl_pct)
-      })),
+      items: result.rows.map(row => {
+        const entry = sf(row.avg_entry_price);
+        const current = sf(row.current_price);
+        const stop = sf(row.stop_loss_price);
+        const t1 = sf(row.target_1_price);
+        const t2 = sf(row.target_2_price);
+        const t3 = sf(row.target_3_price);
+
+        // R-multiple = (current - entry) / (entry - stop)
+        let r_multiple = null;
+        let initial_risk_per_share = null;
+        if (entry && stop && entry > stop) {
+          initial_risk_per_share = entry - stop;
+          if (initial_risk_per_share > 0 && current != null) {
+            r_multiple = (current - entry) / initial_risk_per_share;
+          }
+        }
+
+        // Open risk: distance to stop * quantity (the dollars at risk if stop hits NOW)
+        const open_risk_dollars = (current && stop && row.quantity)
+          ? Math.max(0, (current - stop)) * Number(row.quantity) : null;
+
+        const distance_to_stop_pct = (current && stop) ? ((current - stop) / current) * 100 : null;
+        const distance_to_t1_pct = (current && t1) ? ((t1 - current) / current) * 100 : null;
+        const distance_to_t2_pct = (current && t2) ? ((t2 - current) / current) * 100 : null;
+        const distance_to_t3_pct = (current && t3) ? ((t3 - current) / current) * 100 : null;
+
+        return {
+          position_id: row.position_id,
+          symbol: row.symbol,
+          quantity: row.quantity,
+          avg_entry_price: entry,
+          current_price: current,
+          position_value: sf(row.position_value),
+          unrealized_pnl: sf(row.unrealized_pnl),
+          unrealized_pnl_pct: sf(row.unrealized_pnl_pct),
+          status: row.status,
+          stage_in_exit_plan: row.stage_in_exit_plan,
+          days_since_entry: row.days_since_entry,
+
+          // Stops & targets
+          stop_loss_price: stop,
+          target_1_price: t1,
+          target_2_price: t2,
+          target_3_price: t3,
+          target_1_r: sf(row.target_1_r_multiple),
+          target_2_r: sf(row.target_2_r_multiple),
+          target_3_r: sf(row.target_3_r_multiple),
+
+          // Derived
+          r_multiple: r_multiple == null ? null : Math.round(r_multiple * 100) / 100,
+          initial_risk_per_share,
+          open_risk_dollars: open_risk_dollars == null ? null : Math.round(open_risk_dollars * 100) / 100,
+          distance_to_stop_pct: distance_to_stop_pct == null ? null : Math.round(distance_to_stop_pct * 100) / 100,
+          distance_to_t1_pct: distance_to_t1_pct == null ? null : Math.round(distance_to_t1_pct * 100) / 100,
+          distance_to_t2_pct: distance_to_t2_pct == null ? null : Math.round(distance_to_t2_pct * 100) / 100,
+          distance_to_t3_pct: distance_to_t3_pct == null ? null : Math.round(distance_to_t3_pct * 100) / 100,
+
+          // Context
+          sector: row.sector,
+          industry: row.industry,
+          weinstein_stage: row.weinstein_stage,
+          minervini_trend_score: row.minervini_trend_score,
+          pct_from_52w_low: sf(row.percent_from_52w_low),
+          pct_from_52w_high: sf(row.percent_from_52w_high),
+        };
+      }),
       pagination: {
         total: result.rows.length,
         count: result.rows.length
@@ -531,6 +608,48 @@ router.get('/swing-scores', async (req, res) => {
       error: error.message,
       timestamp: new Date(),
     });
+  }
+});
+
+// ============================================================
+// SWING SCORES HISTORY — grade counts per eval_date (for trend chart)
+// ============================================================
+router.get('/swing-scores-history', async (req, res) => {
+  try {
+    const pool = getPool();
+    const days = Math.min(parseInt(req.query.days) || 30, 180);
+
+    const result = await pool.query(
+      `SELECT eval_date,
+              COUNT(*) AS total,
+              COUNT(*) FILTER (WHERE grade = 'A+') AS grade_aplus,
+              COUNT(*) FILTER (WHERE grade = 'A')  AS grade_a,
+              COUNT(*) FILTER (WHERE grade = 'B')  AS grade_b,
+              COUNT(*) FILTER (WHERE grade = 'C')  AS grade_c,
+              COUNT(*) FILTER (WHERE pass_gates = TRUE) AS pass_count
+       FROM swing_trader_scores
+       WHERE eval_date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
+       GROUP BY eval_date
+       ORDER BY eval_date ASC`,
+      [days]
+    );
+
+    return res.json({
+      success: true,
+      items: result.rows.map(r => ({
+        eval_date: r.eval_date,
+        total: parseInt(r.total),
+        grade_aplus: parseInt(r.grade_aplus),
+        grade_a: parseInt(r.grade_a),
+        grade_b: parseInt(r.grade_b),
+        grade_c: parseInt(r.grade_c),
+        pass_count: parseInt(r.pass_count),
+      })),
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error in /algo/swing-scores-history:', error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -1161,6 +1280,281 @@ router.get('/trade/:tradeId', async (req, res) => {
       error: error.message,
       timestamp: new Date(),
     });
+  }
+});
+
+// ============================================================
+// CIRCUIT BREAKERS — current state of all 7 kill-switches
+// ============================================================
+router.get('/circuit-breakers', async (req, res) => {
+  try {
+    const pool = getPool();
+
+    // Pull config (with sensible defaults if rows missing)
+    const cfgResult = await pool.query(
+      `SELECT key, value FROM algo_config WHERE key = ANY($1)`,
+      [[
+        'halt_drawdown_pct', 'max_daily_loss_pct', 'max_consecutive_losses',
+        'max_total_risk_pct', 'vix_max_threshold', 'max_weekly_loss_pct',
+      ]]
+    );
+    const cfg = {};
+    cfgResult.rows.forEach(r => { cfg[r.key] = parseFloat(r.value); });
+    const thresh = {
+      drawdown:           cfg.halt_drawdown_pct ?? 20,
+      daily_loss:         cfg.max_daily_loss_pct ?? 2,
+      consecutive_losses: cfg.max_consecutive_losses ?? 3,
+      total_risk:         cfg.max_total_risk_pct ?? 4,
+      vix_spike:          cfg.vix_max_threshold ?? 35,
+      weekly_loss:        cfg.max_weekly_loss_pct ?? 5,
+    };
+
+    // Latest snapshot (drawdown, daily return)
+    const snapResult = await pool.query(`
+      SELECT snapshot_date, total_portfolio_value, daily_return_pct, max_drawdown_pct
+      FROM algo_portfolio_snapshots
+      ORDER BY snapshot_date DESC LIMIT 30
+    `);
+    const snaps = snapResult.rows;
+    const latest = snaps[0] || {};
+
+    // Compute current portfolio drawdown from peak (use last 30 snapshots)
+    let curDD = 0;
+    if (snaps.length > 1) {
+      const peak = Math.max(...snaps.map(s => parseFloat(s.total_portfolio_value || 0)));
+      const cur = parseFloat(latest.total_portfolio_value || 0);
+      curDD = peak > 0 ? ((peak - cur) / peak) * 100 : 0;
+    }
+
+    // Daily loss % (today)
+    const dailyLossPct = -1 * Math.min(0, parseFloat(latest.daily_return_pct || 0));
+
+    // Weekly loss = sum of daily returns over last 5 sessions, only the negative side
+    let weeklyLossPct = 0;
+    if (snaps.length >= 5) {
+      const last5 = snaps.slice(0, 5);
+      const sumDaily = last5.reduce((s, r) => s + parseFloat(r.daily_return_pct || 0), 0);
+      weeklyLossPct = -1 * Math.min(0, sumDaily);
+    }
+
+    // Consecutive losses (closed trades, walking back from most recent)
+    const closedTrades = await pool.query(`
+      SELECT profit_loss_dollars FROM algo_trades
+      WHERE status = 'closed' AND exit_date IS NOT NULL
+      ORDER BY exit_date DESC LIMIT 50
+    `);
+    let consec = 0;
+    for (const r of closedTrades.rows) {
+      if (parseFloat(r.profit_loss_dollars || 0) < 0) consec += 1;
+      else break;
+    }
+
+    // Total open risk = sum of (current - stop) * qty across open positions
+    const openRiskResult = await pool.query(`
+      WITH latest_trade AS (
+        SELECT DISTINCT ON (symbol) symbol, stop_loss_price
+        FROM algo_trades WHERE status = 'open'
+        ORDER BY symbol, trade_date DESC
+      )
+      SELECT SUM(GREATEST(p.current_price - lt.stop_loss_price, 0) * p.quantity) AS open_risk,
+             MAX(snap.total_portfolio_value) AS port_value
+      FROM algo_positions p
+      LEFT JOIN latest_trade lt ON lt.symbol = p.symbol
+      CROSS JOIN (
+        SELECT total_portfolio_value FROM algo_portfolio_snapshots
+        ORDER BY snapshot_date DESC LIMIT 1
+      ) snap
+      WHERE p.status = 'open'
+    `);
+    const openRiskRow = openRiskResult.rows[0] || {};
+    const openRiskDollars = parseFloat(openRiskRow.open_risk || 0);
+    const portValue = parseFloat(openRiskRow.port_value || 0);
+    const totalRiskPct = portValue > 0 ? (openRiskDollars / portValue) * 100 : 0;
+
+    // VIX
+    const vixResult = await pool.query(`
+      SELECT vix_level FROM market_health_daily ORDER BY date DESC LIMIT 1
+    `);
+    const vix = vixResult.rows[0] ? parseFloat(vixResult.rows[0].vix_level || 0) : 0;
+
+    // Market stage
+    const stageResult = await pool.query(`
+      SELECT market_stage, market_trend FROM market_health_daily ORDER BY date DESC LIMIT 1
+    `);
+    const stage = stageResult.rows[0] ? parseInt(stageResult.rows[0].market_stage || 1) : 1;
+    const trend = stageResult.rows[0]?.market_trend || 'unknown';
+
+    const breakers = [
+      { id: 'drawdown', label: 'Portfolio Drawdown',
+        current: Math.round(curDD * 100) / 100, threshold: thresh.drawdown,
+        unit: '%', triggered: curDD >= thresh.drawdown,
+        description: 'Halts entries when total drawdown from peak exceeds threshold' },
+      { id: 'daily_loss', label: 'Daily Loss',
+        current: Math.round(dailyLossPct * 100) / 100, threshold: thresh.daily_loss,
+        unit: '%', triggered: dailyLossPct >= thresh.daily_loss,
+        description: 'Today\'s portfolio drop below threshold halts new entries' },
+      { id: 'consecutive_losses', label: 'Consecutive Losses',
+        current: consec, threshold: thresh.consecutive_losses,
+        unit: '', triggered: consec >= thresh.consecutive_losses,
+        description: 'Cool-off after streak of losing trades' },
+      { id: 'total_risk', label: 'Total Open Risk',
+        current: Math.round(totalRiskPct * 100) / 100, threshold: thresh.total_risk,
+        unit: '%', triggered: totalRiskPct >= thresh.total_risk,
+        description: 'Sum of distance-to-stop across all open positions' },
+      { id: 'vix_spike', label: 'VIX Spike',
+        current: Math.round(vix * 10) / 10, threshold: thresh.vix_spike,
+        unit: '', triggered: vix > thresh.vix_spike,
+        description: 'Volatility expansion above threshold pauses new entries' },
+      { id: 'market_stage', label: 'Market Stage',
+        current: stage, threshold: 4,
+        unit: '', triggered: stage === 4,
+        description: `Market in stage ${stage} (${trend}) — stage 4 = downtrend halts entries` },
+      { id: 'weekly_loss', label: 'Weekly Loss',
+        current: Math.round(weeklyLossPct * 100) / 100, threshold: thresh.weekly_loss,
+        unit: '%', triggered: weeklyLossPct >= thresh.weekly_loss,
+        description: 'Trailing 5-session loss above threshold halts new entries' },
+    ];
+
+    return res.json({
+      success: true,
+      data: {
+        any_triggered: breakers.some(b => b.triggered),
+        triggered_count: breakers.filter(b => b.triggered).length,
+        breakers,
+      },
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error in /algo/circuit-breakers:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================
+// SECTOR BREADTH — % of stocks above 50d / 200d MA per sector
+// ============================================================
+router.get('/sector-breadth', async (req, res) => {
+  try {
+    const pool = getPool();
+    const result = await pool.query(`
+      WITH latest_tt AS (
+        SELECT DISTINCT ON (symbol) symbol, price_above_sma50, price_above_sma200
+        FROM trend_template_data
+        ORDER BY symbol, date DESC
+      )
+      SELECT
+        cp.sector,
+        COUNT(*) AS total_stocks,
+        SUM(CASE WHEN lt.price_above_sma50 THEN 1 ELSE 0 END) AS above_50d,
+        SUM(CASE WHEN lt.price_above_sma200 THEN 1 ELSE 0 END) AS above_200d
+      FROM company_profile cp
+      JOIN latest_tt lt ON lt.symbol = cp.ticker
+      WHERE cp.sector IS NOT NULL AND TRIM(cp.sector) <> ''
+      GROUP BY cp.sector
+      HAVING COUNT(*) > 5
+      ORDER BY cp.sector
+    `);
+    return res.json({
+      success: true,
+      items: result.rows.map(r => ({
+        sector: r.sector,
+        total_stocks: parseInt(r.total_stocks),
+        above_50d: parseInt(r.above_50d),
+        above_200d: parseInt(r.above_200d),
+        pct_above_50d: r.total_stocks > 0
+          ? Math.round((r.above_50d / r.total_stocks) * 1000) / 10 : 0,
+        pct_above_200d: r.total_stocks > 0
+          ? Math.round((r.above_200d / r.total_stocks) * 1000) / 10 : 0,
+      })),
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error in /algo/sector-breadth:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================
+// SECTOR STAGE-2 LEADERS — Stage 2 stocks per sector
+// ============================================================
+router.get('/sector-stage2', async (req, res) => {
+  try {
+    const pool = getPool();
+    const result = await pool.query(`
+      WITH latest_tt AS (
+        SELECT DISTINCT ON (symbol) symbol, weinstein_stage, minervini_trend_score
+        FROM trend_template_data
+        ORDER BY symbol, date DESC
+      )
+      SELECT
+        cp.sector,
+        COUNT(*) AS total_stocks,
+        SUM(CASE WHEN lt.weinstein_stage = 2 THEN 1 ELSE 0 END) AS stage_2,
+        SUM(CASE WHEN lt.weinstein_stage = 1 THEN 1 ELSE 0 END) AS stage_1,
+        SUM(CASE WHEN lt.weinstein_stage = 3 THEN 1 ELSE 0 END) AS stage_3,
+        SUM(CASE WHEN lt.weinstein_stage = 4 THEN 1 ELSE 0 END) AS stage_4,
+        AVG(lt.minervini_trend_score) AS avg_trend_score
+      FROM company_profile cp
+      JOIN latest_tt lt ON lt.symbol = cp.ticker
+      WHERE cp.sector IS NOT NULL AND TRIM(cp.sector) <> ''
+      GROUP BY cp.sector
+      HAVING COUNT(*) > 5
+      ORDER BY stage_2 DESC
+    `);
+    return res.json({
+      success: true,
+      items: result.rows.map(r => ({
+        sector: r.sector,
+        total: parseInt(r.total_stocks),
+        stage_1: parseInt(r.stage_1 || 0),
+        stage_2: parseInt(r.stage_2 || 0),
+        stage_3: parseInt(r.stage_3 || 0),
+        stage_4: parseInt(r.stage_4 || 0),
+        pct_stage_2: r.total_stocks > 0
+          ? Math.round((r.stage_2 / r.total_stocks) * 1000) / 10 : 0,
+        avg_trend_score: r.avg_trend_score ? parseFloat(r.avg_trend_score) : null,
+      })),
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error in /algo/sector-stage2:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================================
+// SECTOR ROTATION SIGNAL — defensive vs cyclical leadership timeline
+// ============================================================
+router.get('/sector-rotation', async (req, res) => {
+  try {
+    const pool = getPool();
+    const limit = parseInt(req.query.limit) || 90;
+
+    const result = await pool.query(
+      `SELECT date, defensive_lead_score, cyclical_weak_score, signal,
+              defensive_avg_rs, cyclical_avg_rs, spread, weeks_persistent
+       FROM sector_rotation_signal
+       ORDER BY date DESC LIMIT $1`,
+      [limit]
+    );
+
+    return res.json({
+      success: true,
+      items: result.rows.reverse().map(r => ({
+        date: r.date,
+        defensive_lead_score: parseFloat(r.defensive_lead_score || 0),
+        cyclical_weak_score: parseFloat(r.cyclical_weak_score || 0),
+        signal: r.signal,
+        defensive_avg_rs: parseFloat(r.defensive_avg_rs || 0),
+        cyclical_avg_rs: parseFloat(r.cyclical_avg_rs || 0),
+        spread: parseFloat(r.spread || 0),
+        weeks_persistent: r.weeks_persistent,
+      })),
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    // Table may not exist yet — return empty gracefully
+    return res.json({ success: true, items: [], timestamp: new Date() });
   }
 });
 

@@ -70,10 +70,13 @@ class OptimalLoader(ABC):
     max_age_for_full_refresh: timedelta = timedelta(days=365)
 
     def __init__(self):
-        self._conn = None
+        import threading
+        self._conn = None  # legacy single conn (close path)
+        self._tls = threading.local()  # per-thread connection
         self._dedup = None
         self._watermark = None
         self._router = None
+        self._stats_lock = threading.Lock()
         self._stats = {
             "symbols_processed": 0,
             "symbols_skipped_by_watermark": 0,
@@ -135,17 +138,22 @@ class OptimalLoader(ABC):
         return self._watermark if self._watermark else None
 
     def _connect(self):
-        if self._conn is not None and not self._conn.closed:
-            return self._conn
+        """Per-thread psycopg2 connection (thread-safe for parallel workers)."""
+        conn = getattr(self._tls, "conn", None)
+        if conn is not None and not conn.closed:
+            return conn
         import psycopg2
-        self._conn = psycopg2.connect(
+        conn = psycopg2.connect(
             host=os.getenv("DB_HOST", "localhost"),
             port=int(os.getenv("DB_PORT", "5432")),
             user=os.getenv("DB_USER", "stocks"),
             password=os.getenv("DB_PASSWORD", ""),
             database=os.getenv("DB_NAME", "stocks"),
         )
-        return self._conn
+        self._tls.conn = conn
+        # Track for close() — keep most recent for the main thread fallback.
+        self._conn = conn
+        return conn
 
     # ---- Insert path: COPY for bulk + ON CONFLICT for safety ----
 

@@ -178,6 +178,147 @@ export default function EconomicDashboard() {
 
   const recessionProbability = stress != null ? Math.round(stress * 0.5) : null;
 
+  // ─── Recession Nowcasting Indicators ────────────────────────────────
+  // Compose Sahm rule, yield curve, credit spread, jobless-claims trend.
+  const recessionPanel = useMemo(() => {
+    const tiles = [];
+
+    // Sahm Rule: 3-month MA of UNRATE − min(UNRATE) over trailing 12 months
+    const unrate = indicators.find((i) => i.name === 'Unemployment Rate');
+    if (unrate?.history && unrate.history.length >= 12) {
+      const hist = unrate.history.slice(-12).map((p) => Number(p.value)).filter((v) => !isNaN(v));
+      if (hist.length >= 3) {
+        const last3 = hist.slice(-3);
+        const ma3 = last3.reduce((s, v) => s + v, 0) / last3.length;
+        const min12 = Math.min(...hist);
+        const sahm = ma3 - min12;
+        tiles.push({
+          label: 'Sahm Rule',
+          desc: '3-mo unemployment MA vs trailing 12-mo low',
+          value: `${sahm >= 0 ? '+' : ''}${sahm.toFixed(2)} pp`,
+          threshold: '≥ 0.50 triggers',
+          status: sahm >= 0.5 ? 'recession' : sahm >= 0.3 ? 'warn' : 'ok',
+          weight: sahm >= 0.5 ? 100 : sahm >= 0.3 ? 60 : Math.max(0, sahm * 100),
+        });
+      }
+    }
+
+    // Yield curve: 10y-3m (or fall back to 10y-2y)
+    const t10y3m = yieldData?.spreads?.T10Y3M;
+    const t10y2y = yieldData?.spreads?.T10Y2Y;
+    const spread = t10y3m != null ? t10y3m : t10y2y;
+    if (spread != null) {
+      tiles.push({
+        label: t10y3m != null ? '10Y − 3M Curve' : '10Y − 2Y Curve',
+        desc: 'Inversion preceded last 8 recessions',
+        value: `${spread >= 0 ? '+' : ''}${(spread * 100).toFixed(0)} bps`,
+        threshold: '< 0 inverts',
+        status: spread < -0.5 ? 'recession' : spread < 0 ? 'warn' : 'ok',
+        weight: spread < -0.5 ? 100 : spread < 0 ? 70 : Math.max(0, 50 - spread * 25),
+      });
+    }
+
+    // High-yield credit spread (BAMLH0A0HYM2): elevated > 5%
+    const hyHist = yieldData?.credit?.history?.['BAMLH0A0HYM2'] || [];
+    const hyLatest = hyHist.length ? hyHist[hyHist.length - 1].value : null;
+    if (hyLatest != null) {
+      tiles.push({
+        label: 'High-Yield Spread',
+        desc: 'Bond stress above govt yields',
+        value: `${hyLatest.toFixed(2)}%`,
+        threshold: '> 5% elevated',
+        status: hyLatest > 8 ? 'recession' : hyLatest > 5 ? 'warn' : 'ok',
+        weight: hyLatest > 8 ? 100 : hyLatest > 5 ? 60 : Math.max(0, hyLatest * 10),
+      });
+    }
+
+    // Initial Jobless Claims 6-month change
+    const claims = indicators.find((i) => i.name === 'Initial Jobless Claims');
+    if (claims?.history && claims.history.length >= 26) {
+      const cur = Number(claims.rawValue);
+      const past = Number(claims.history[claims.history.length - 27]?.value);
+      if (!isNaN(cur) && !isNaN(past) && past > 0) {
+        const pctChange = ((cur - past) / past) * 100;
+        tiles.push({
+          label: 'Jobless Claims 6m Δ',
+          desc: '6-month change in initial claims',
+          value: `${pctChange >= 0 ? '+' : ''}${pctChange.toFixed(1)}%`,
+          threshold: '> +20% warning',
+          status: pctChange > 30 ? 'recession' : pctChange > 20 ? 'warn' : 'ok',
+          weight: pctChange > 30 ? 100 : pctChange > 20 ? 60 : Math.max(0, pctChange * 2),
+        });
+      }
+    }
+
+    // VIX as stress indicator
+    const vixHist = yieldData?.credit?.history?.['VIXCLS'] || [];
+    const vixLatest = vixHist.length ? vixHist[vixHist.length - 1].value : null;
+    if (vixLatest != null) {
+      tiles.push({
+        label: 'VIX (Vol Index)',
+        desc: 'Equity volatility / fear gauge',
+        value: vixLatest.toFixed(1),
+        threshold: '> 25 elevated',
+        status: vixLatest > 35 ? 'recession' : vixLatest > 25 ? 'warn' : 'ok',
+        weight: vixLatest > 35 ? 100 : vixLatest > 25 ? 60 : Math.max(0, vixLatest * 2),
+      });
+    }
+
+    if (tiles.length === 0) return null;
+    const compositeProb = Math.round(
+      tiles.reduce((s, t) => s + t.weight, 0) / tiles.length
+    );
+    return { tiles, compositeProb };
+  }, [indicators, yieldData]);
+
+  // ─── Financial Conditions composite (VIX + HY spread + curve, normalized) ─
+  const financialConditions = useMemo(() => {
+    if (!yieldData?.credit?.history) return [];
+    const vix = yieldData.credit.history['VIXCLS'] || [];
+    const hy = yieldData.credit.history['BAMLH0A0HYM2'] || [];
+    const curve = transformedHistory.spread_10y2y || [];
+    if (vix.length < 10 || hy.length < 10) return [];
+
+    const map = new Map();
+    vix.forEach((p) => {
+      if (p?.date == null) return;
+      const k = String(p.date).slice(0, 10);
+      const cur = map.get(k) || { date: k };
+      cur.vix = Number(p.value);
+      map.set(k, cur);
+    });
+    hy.forEach((p) => {
+      if (p?.date == null) return;
+      const k = String(p.date).slice(0, 10);
+      const cur = map.get(k) || { date: k };
+      cur.hy = Number(p.value);
+      map.set(k, cur);
+    });
+    curve.forEach((p) => {
+      if (p?.date == null) return;
+      const k = String(p.date).slice(0, 10);
+      const cur = map.get(k) || { date: k };
+      // value is in basis points (T10Y2Y stored as % so it's fractional, e.g. -0.34)
+      cur.curve = Number(p.value);
+      map.set(k, cur);
+    });
+    // Compose FCI = z-normalized (vix + hy − curve), scaled to ~−3..+3
+    const arr = Array.from(map.values()).filter((d) => d.vix != null && d.hy != null);
+    if (arr.length === 0) return [];
+    const meanV = arr.reduce((s, d) => s + d.vix, 0) / arr.length;
+    const meanH = arr.reduce((s, d) => s + d.hy, 0) / arr.length;
+    const sdV = Math.sqrt(arr.reduce((s, d) => s + (d.vix - meanV) ** 2, 0) / arr.length) || 1;
+    const sdH = Math.sqrt(arr.reduce((s, d) => s + (d.hy - meanH) ** 2, 0) / arr.length) || 1;
+    return arr
+      .map((d) => ({
+        date: d.date,
+        // Higher = tighter / more stressful conditions
+        fci: ((d.vix - meanV) / sdV) + ((d.hy - meanH) / sdH)
+             + (d.curve != null ? -d.curve : 0),
+      }))
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+  }, [yieldData, transformedHistory]);
+
   const cats = useMemo(() => ({
     LEI: indicators.filter((i) => i.category === 'LEI'),
     LAGGING: indicators.filter((i) => i.category === 'LAGGING'),
@@ -362,6 +503,100 @@ export default function EconomicDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Recession Nowcasting Panel */}
+      {recessionPanel && (
+        <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+          <div className="card-head">
+            <div>
+              <div className="card-title">Recession Nowcasting</div>
+              <div className="card-sub">
+                Composite probability across {recessionPanel.tiles.length} indicators · Sahm rule, yield curve,
+                credit spreads, jobless claims, vol regime
+              </div>
+            </div>
+            <div className="card-actions">
+              <span className={`badge ${recessionPanel.compositeProb >= 60 ? 'badge-danger'
+                                      : recessionPanel.compositeProb >= 35 ? 'badge-amber'
+                                      : 'badge-success'}`}>
+                {recessionPanel.compositeProb}% composite
+              </span>
+            </div>
+          </div>
+          <div className="card-body">
+            <div className="bar" style={{ marginBottom: 'var(--space-4)' }}>
+              <div className="bar-fill" style={{
+                width: `${recessionPanel.compositeProb}%`,
+                background: recessionPanel.compositeProb >= 60 ? 'var(--danger)'
+                          : recessionPanel.compositeProb >= 35 ? 'var(--amber)'
+                          : 'var(--success)',
+              }} />
+            </div>
+            <div className="grid grid-3">
+              {recessionPanel.tiles.map((t) => (
+                <div className="stile" key={t.label}>
+                  <div className="stile-label">{t.label}</div>
+                  <div className={`stile-value ${t.status === 'recession' ? 'down' : t.status === 'ok' ? 'up' : ''}`}>
+                    {t.value}
+                  </div>
+                  <div className="stile-sub">
+                    <span className={`badge ${t.status === 'recession' ? 'badge-danger'
+                                            : t.status === 'warn' ? 'badge-amber'
+                                            : 'badge-success'}`}>
+                      {t.status === 'recession' ? 'TRIGGERED' : t.status === 'warn' ? 'WARN' : 'OK'}
+                    </span>{' '}
+                    <span className="muted">{t.threshold}</span>
+                  </div>
+                  <div className="t-2xs muted" style={{ marginTop: 'var(--space-1)' }}>{t.desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Financial Conditions composite */}
+      {financialConditions.length > 0 && (
+        <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+          <div className="card-head">
+            <div>
+              <div className="card-title">Financial Conditions Composite</div>
+              <div className="card-sub">
+                Z-normalized blend: VIX + high-yield spread − yield curve · higher = tighter / more stress
+              </div>
+            </div>
+          </div>
+          <div className="card-body">
+            <div style={{ height: 280 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={financialConditions} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="fciGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--purple)" stopOpacity={0.45} />
+                      <stop offset="100%" stopColor="var(--purple)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
+                  <XAxis dataKey="date" stroke="var(--text-3)" fontSize={10}
+                         tickFormatter={fmtMonth} interval="preserveStartEnd" />
+                  <YAxis stroke="var(--text-3)" fontSize={10}
+                         tickFormatter={(v) => Number(v).toFixed(1)} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE}
+                           labelFormatter={(d) => fmtDate(d)}
+                           formatter={(v) => [`${Number(v).toFixed(2)} σ`, 'FCI']} />
+                  <ReferenceLine y={0} stroke="var(--border)" strokeDasharray="4 4" />
+                  <Area type="monotone" dataKey="fci" stroke="var(--purple)"
+                        strokeWidth={2} fill="url(#fciGrad)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="t-xs muted" style={{ marginTop: 'var(--space-2)' }}>
+              Above 0σ = above-average stress · below 0σ = easier conditions. Components: VIX volatility,
+              high-yield bond spread, treasury curve.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Indicator categories */}
       <IndicatorSection title="Leading Economic Indicators" icon={<TrendingUp size={16} />} list={cats.LEI} />

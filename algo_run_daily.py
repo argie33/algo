@@ -15,6 +15,17 @@ import os
 from pathlib import Path
 from datetime import datetime
 
+# >>> dotenv-autoload >>>
+from pathlib import Path as _DotenvPath
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _env_file = _DotenvPath(__file__).resolve().parent / '.env.local'
+    if _env_file.exists():
+        _load_dotenv(_env_file)
+except ImportError:
+    pass
+# <<< dotenv-autoload <<<
+
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 

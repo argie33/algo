@@ -2,8 +2,8 @@
 """
 Weekly Buy/Sell Signals Loader - Optimal Pattern.
 
-Computes buy/sell signals from weekly price data.
-Inherits watermarks, dedup, multi-source routing, parallelism, and bulk COPY.
+Computes buy/sell signals from weekly aggregated price_daily data.
+Inherits watermarks, dedup, parallelism, and bulk COPY from OptimalLoader.
 
 Run:
     python3 loadbuysellweekly.py [--symbols AAPL,MSFT] [--parallelism 8]
@@ -16,7 +16,14 @@ import logging
 import os
 import sys
 from datetime import date, timedelta
+from pathlib import Path
 from typing import List, Optional
+
+from dotenv import load_dotenv
+
+env_file = Path(__file__).parent / '.env.local'
+if env_file.exists():
+    load_dotenv(env_file)
 
 from optimal_loader import OptimalLoader
 
@@ -25,37 +32,70 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 
+log = logging.getLogger(__name__)
+
 
 class BuySellWeeklyLoader(OptimalLoader):
     table_name = "buy_sell_weekly"
-    primary_key = ("symbol", "week_start")
-    watermark_field = "week_start"
+    primary_key = ("symbol", "timeframe", "date")
+    watermark_field = "date"
+    timeframe_value = "Weekly"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
-        """Fetch price data and compute weekly signals."""
         end = date.today()
         if since is None:
             start = end - timedelta(days=5 * 365)
         else:
-            start = since + timedelta(days=1)
+            start = since - timedelta(days=400)
 
-        if start >= end:
-            return None
-
-        rows = self.router.fetch_ohlcv(symbol, start, end)
+        rows = self._fetch_price_daily(symbol, start, end)
         if not rows:
             return None
 
-        return self._compute_weekly_signals(symbol, rows)
+        signals = self._compute_weekly_signals(symbol, rows)
+        if not signals:
+            return None
+
+        if since is not None:
+            since_str = since.isoformat()
+            signals = [s for s in signals if s["date"] > since_str]
+
+        return signals or None
+
+    def _fetch_price_daily(self, symbol: str, start: date, end: date) -> List[dict]:
+        conn = self._connect()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT date, open, high, low, close, volume
+                FROM price_daily
+                WHERE symbol = %s AND date >= %s AND date <= %s
+                ORDER BY date ASC
+                """,
+                (symbol, start, end),
+            )
+            rows = cur.fetchall()
+            return [
+                {
+                    "date": r[0].isoformat() if r[0] else None,
+                    "open": float(r[1]) if r[1] is not None else None,
+                    "high": float(r[2]) if r[2] is not None else None,
+                    "low": float(r[3]) if r[3] is not None else None,
+                    "close": float(r[4]) if r[4] is not None else None,
+                    "volume": int(r[5]) if r[5] is not None else None,
+                }
+                for r in rows
+            ]
+        finally:
+            cur.close()
 
     def _compute_weekly_signals(self, symbol: str, price_rows: List[dict]) -> Optional[List[dict]]:
-        """Aggregate to weekly and compute signals."""
-        if len(price_rows) < 20:
+        if len(price_rows) < 50:
             return None
 
         try:
             import pandas as pd
-            import numpy as np
         except ImportError:
             return None
 
@@ -66,46 +106,46 @@ class BuySellWeeklyLoader(OptimalLoader):
         df["close"] = pd.to_numeric(df["close"], errors="coerce")
         df["high"] = pd.to_numeric(df["high"], errors="coerce")
         df["low"] = pd.to_numeric(df["low"], errors="coerce")
+        df["open"] = pd.to_numeric(df["open"], errors="coerce")
+        df["volume"] = pd.to_numeric(df["volume"], errors="coerce")
         df["date"] = pd.to_datetime(df["date"])
         df = df.dropna(subset=["close"])
 
         weekly = df.set_index("date").resample("W").agg({
-            "close": "last",
+            "open": "first",
             "high": "max",
             "low": "min",
-            "open": "first",
-        }).dropna()
+            "close": "last",
+            "volume": "sum",
+        }).dropna(subset=["close"])
 
-        if len(weekly) < 10:
+        if len(weekly) < 15:
             return None
 
         weekly["rsi"] = self._compute_rsi(weekly["close"], 14)
-        weekly["macd"], weekly["signal_line"] = self._compute_macd(weekly["close"])
+        macd, signal_line = self._compute_macd(weekly["close"])
+        weekly["macd"] = macd
+        weekly["signal_line"] = signal_line
+        weekly["atr"] = self._compute_atr(weekly["high"], weekly["low"], weekly["close"], 14)
 
         signals = []
         for idx, row in weekly.iterrows():
-            if pd.isna(row.get("rsi")) or pd.isna(row.get("macd")):
-                continue
-
-            signal = self._generate_signal(row, symbol, idx.date())
-            if signal:
-                signals.append(signal)
+            sig = self._generate_signal_row(row, symbol, idx.date(), pd)
+            if sig:
+                signals.append(sig)
 
         return signals if signals else None
 
     @staticmethod
     def _compute_rsi(closes, period=14):
-        """Compute Relative Strength Index."""
         deltas = closes.diff()
         gains = (deltas.where(deltas > 0, 0)).rolling(window=period).mean()
         losses = (-deltas.where(deltas < 0, 0)).rolling(window=period).mean()
         rs = gains / losses
-        rsi = 100 - (100 / (1 + rs))
-        return rsi
+        return 100 - (100 / (1 + rs))
 
     @staticmethod
     def _compute_macd(closes, fast=12, slow=26, signal=9):
-        """Compute MACD."""
         ema_fast = closes.ewm(span=fast).mean()
         ema_slow = closes.ewm(span=slow).mean()
         macd = ema_fast - ema_slow
@@ -113,47 +153,57 @@ class BuySellWeeklyLoader(OptimalLoader):
         return macd, signal_line
 
     @staticmethod
-    def _generate_signal(row, symbol: str, idx_date):
-        """Generate buy/sell signal from weekly indicators."""
+    def _compute_atr(highs, lows, closes, period=14):
         import pandas as pd
+        tr1 = highs - lows
+        tr2 = (highs - closes.shift()).abs()
+        tr3 = (lows - closes.shift()).abs()
+        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+        return tr.rolling(window=period).mean()
+
+    def _generate_signal_row(self, row, symbol: str, idx_date, pd):
         rsi = row.get("rsi")
         macd = row.get("macd")
         signal_line = row.get("signal_line")
-
         if pd.isna(rsi) or pd.isna(macd) or pd.isna(signal_line):
             return None
 
-        signal_type = None
+        signal_str = None
         if rsi < 30 and macd > signal_line:
-            signal_type = "BUY"
+            signal_str = "BUY"
         elif rsi > 70 and macd < signal_line:
-            signal_type = "SELL"
+            signal_str = "SELL"
+        if not signal_str:
+            return None
 
-        if signal_type:
-            week_start = idx_date - timedelta(days=idx_date.weekday())
-            return {
-                "symbol": symbol,
-                "week_start": week_start.isoformat(),
-                "signal_type": signal_type,
-                "rsi": float(rsi) if not pd.isna(rsi) else None,
-                "macd": float(macd) if not pd.isna(macd) else None,
-                "confidence": 0.5,
-            }
-        return None
+        def _f(v):
+            return float(v) if v is not None and not pd.isna(v) else None
+
+        return {
+            "symbol": symbol,
+            "timeframe": self.timeframe_value,
+            "date": idx_date.isoformat(),
+            "open": _f(row.get("open")),
+            "high": _f(row.get("high")),
+            "low": _f(row.get("low")),
+            "close": _f(row.get("close")),
+            "volume": int(row["volume"]) if row.get("volume") is not None and not pd.isna(row.get("volume")) else None,
+            "signal": signal_str,
+            "signal_type": signal_str.capitalize(),
+            "rsi": _f(rsi),
+            "atr": _f(row.get("atr")),
+        }
 
     def transform(self, rows):
-        """Signals are already clean."""
         return rows
 
     def _validate_row(self, row: dict) -> bool:
-        """Validate signal row."""
         if not super()._validate_row(row):
             return False
-        return row.get("signal_type") in ("BUY", "SELL")
+        return row.get("signal") in ("BUY", "SELL")
 
 
 def get_active_symbols() -> List[str]:
-    """Pull active symbols from the stocks table."""
     import psycopg2
     conn = psycopg2.connect(
         host=os.getenv("DB_HOST", "localhost"),
@@ -172,7 +222,7 @@ def get_active_symbols() -> List[str]:
 
 def main():
     parser = argparse.ArgumentParser(description="Optimal buy_sell_weekly loader")
-    parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
+    parser.add_argument("--symbols", help="Comma-separated symbols.")
     parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")
     args = parser.parse_args()
 

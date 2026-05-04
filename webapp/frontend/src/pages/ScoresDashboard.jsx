@@ -8,6 +8,7 @@ import {
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RTooltip, ResponsiveContainer, Cell, LabelList,
+  LineChart, Line,
 } from 'recharts';
 import { api } from '../services/api';
 
@@ -261,10 +262,15 @@ export default function ScoresDashboard() {
         value={tab}
         onChange={setTab}
         tabs={[
-          { value: 'rankings', label: 'Rankings' },
-          { value: 'leaders',  label: 'Category Leaders' },
-          { value: 'laggards', label: 'Laggards' },
-          { value: 'sectors',  label: 'By Sector' },
+          { value: 'rankings',     label: 'Rankings' },
+          { value: 'movers',       label: 'Top Movers' },
+          { value: 'leaderboard',  label: 'A-Grade ≥ 80' },
+          { value: 'heatmap',      label: 'Factor Heatmap' },
+          { value: 'distribution', label: 'Distributions' },
+          { value: 'correlation',  label: 'Correlations' },
+          { value: 'leaders',      label: 'Category Leaders' },
+          { value: 'laggards',     label: 'Laggards' },
+          { value: 'sectors',      label: 'By Sector' },
         ]}
       />
 
@@ -284,6 +290,26 @@ export default function ScoresDashboard() {
           marketAvgs={marketAvgs}
           sectorAvgs={selectedSymbol ? sectorAvgs(selectedSymbol) : {}}
         />
+      )}
+
+      {tab === 'movers' && (
+        <MoversTab items={items || []} onClick={(s) => navigate(`/app/stock/${s}`)} />
+      )}
+
+      {tab === 'leaderboard' && (
+        <LeaderboardTab items={items || []} sectorFilter={sector} onClick={(s) => navigate(`/app/stock/${s}`)} />
+      )}
+
+      {tab === 'heatmap' && (
+        <HeatmapTab items={items || []} sectorFilter={sector} onClick={(s) => navigate(`/app/stock/${s}`)} />
+      )}
+
+      {tab === 'distribution' && (
+        <DistributionTab items={items || []} />
+      )}
+
+      {tab === 'correlation' && (
+        <CorrelationTab items={items || []} />
       )}
 
       {tab === 'leaders' && (
@@ -709,6 +735,480 @@ function SectorsTab({ items, sectors, onClick }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ─── tab: top movers ───────────────────────────────────────────────────────
+function MoversTab({ items, onClick }) {
+  // Without historical score data, derive proxy "movers" from price change_percent.
+  // Two side-by-side cards: composite leaders vs composite laggards (by score),
+  // and price-change gainers vs decliners. This is a real-data proxy view.
+  const valid = items.filter((s) => s.composite_score != null);
+  const topComposite  = [...valid].sort((a, b) => Number(b.composite_score) - Number(a.composite_score)).slice(0, 10);
+  const botComposite  = [...valid].sort((a, b) => Number(a.composite_score) - Number(b.composite_score)).slice(0, 10);
+  const validPx = items.filter((s) => s.change_percent != null);
+  const gainers = [...validPx].sort((a, b) => Number(b.change_percent) - Number(a.change_percent)).slice(0, 10);
+  const decliners = [...validPx].sort((a, b) => Number(a.change_percent) - Number(b.change_percent)).slice(0, 10);
+
+  return (
+    <>
+      <div className="alert alert-info" style={{ marginTop: 'var(--space-4)' }}>
+        <Activity size={16} />
+        <div>
+          Score-history is a snapshot table — these cards show <strong>composite leaders / laggards</strong>{' '}
+          and <strong>1-day price gainers / decliners</strong> across the universe (proxy for momentum movers).
+        </div>
+      </div>
+
+      <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
+        <MoverCard title="Top Composite Leaders" rows={topComposite} field="composite_score" tone="up"   onClick={onClick} fmt={(v) => num(v, 1)} />
+        <MoverCard title="Top Composite Laggards" rows={botComposite} field="composite_score" tone="down" onClick={onClick} fmt={(v) => num(v, 1)} />
+        <MoverCard title="Today's Top Gainers (Price)"  rows={gainers}   field="change_percent" tone="up"   onClick={onClick} fmt={(v) => `${Number(v) >= 0 ? '+' : ''}${num(v, 2)}%`} />
+        <MoverCard title="Today's Top Decliners (Price)" rows={decliners} field="change_percent" tone="down" onClick={onClick} fmt={(v) => `${Number(v) >= 0 ? '+' : ''}${num(v, 2)}%`} />
+      </div>
+    </>
+  );
+}
+
+function MoverCard({ title, rows, field, tone, onClick, fmt }) {
+  if (!rows || rows.length === 0) {
+    return (
+      <div className="card">
+        <div className="card-head"><div className="card-title">{title}</div></div>
+        <div className="card-body"><Empty title="No data" /></div>
+      </div>
+    );
+  }
+  // Build a mini-bar per stock — values normalized for the sparkline-style display.
+  const max = Math.max(...rows.map((r) => Math.abs(Number(r[field]) || 0)), 1);
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div className="flex items-center gap-2">
+          {tone === 'up' ? <TrendingUp size={16} style={{ color: 'var(--success)' }} />
+                          : <Activity size={16} style={{ color: 'var(--danger)' }} />}
+          <div className="card-title">{title}</div>
+        </div>
+      </div>
+      <div className="card-body" style={{ padding: 0 }}>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th style={{ width: 32 }} className="num">#</th>
+              <th>Symbol</th>
+              <th>Sector</th>
+              <th className="num">Value</th>
+              <th style={{ width: 110 }}>Bar</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((s, i) => {
+              const v = Number(s[field]) || 0;
+              const w = Math.min(100, (Math.abs(v) / max) * 100);
+              return (
+                <tr key={s.symbol} onClick={() => onClick(s.symbol)} style={{ cursor: 'pointer' }}>
+                  <td className="num mono tnum muted">{i + 1}</td>
+                  <td style={{ fontWeight: 'var(--w-semibold)' }}>{s.symbol}</td>
+                  <td className="t-xs muted" style={{
+                    maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>{s.sector || '—'}</td>
+                  <td className={`num mono tnum t-xs ${tone}`}>{fmt(s[field])}</td>
+                  <td>
+                    <div className="bar" style={{ width: 90 }}>
+                      <div className="bar-fill" style={{
+                        width: `${w}%`,
+                        background: tone === 'up' ? 'var(--success)' : 'var(--danger)',
+                      }} />
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── tab: leaderboard ≥ 80 ────────────────────────────────────────────────
+function LeaderboardTab({ items, sectorFilter, onClick }) {
+  const [activeSec, setActiveSec] = useState(sectorFilter || '');
+  const eligible = items.filter((s) => Number(s.composite_score) >= 80);
+  const sectors = Array.from(new Set(eligible.map((s) => s.sector).filter(Boolean))).sort();
+  const rows = (activeSec ? eligible.filter((s) => s.sector === activeSec) : eligible)
+    .sort((a, b) => Number(b.composite_score) - Number(a.composite_score));
+
+  if (eligible.length === 0) {
+    return (
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card-body">
+          <Empty title="No A-grade names" desc="No symbols currently rank ≥ 80 on composite." />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card-head">
+          <div>
+            <div className="card-title">A-Grade Leaderboard (Composite ≥ 80)</div>
+            <div className="card-sub">{eligible.length} qualifying names · click chip to filter by sector</div>
+          </div>
+        </div>
+        <div className="card-body" style={{ paddingBottom: 0 }}>
+          <div className="flex items-center gap-2" style={{ flexWrap: 'wrap', marginBottom: 'var(--space-3)' }}>
+            <button
+              className={`btn ${activeSec === '' ? 'btn-primary' : 'btn-outline'} btn-sm`}
+              onClick={() => setActiveSec('')}
+            >
+              All ({eligible.length})
+            </button>
+            {sectors.map((s) => {
+              const c = eligible.filter((e) => e.sector === s).length;
+              return (
+                <button
+                  key={s}
+                  className={`btn ${activeSec === s ? 'btn-primary' : 'btn-outline'} btn-sm`}
+                  onClick={() => setActiveSec(s)}
+                >
+                  {s} ({c})
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card-body" style={{ padding: 0 }}>
+          <div style={{ overflow: 'auto', maxHeight: '70vh' }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 32 }} className="num">#</th>
+                  <th>Symbol</th>
+                  <th>Sector</th>
+                  <th className="num">Composite</th>
+                  <th>Grade</th>
+                  <th className="num">Q</th>
+                  <th className="num">M</th>
+                  <th className="num">V</th>
+                  <th className="num">G</th>
+                  <th className="num">P</th>
+                  <th className="num">S</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((s, i) => (
+                  <tr key={s.symbol} onClick={() => onClick(s.symbol)} style={{ cursor: 'pointer' }}>
+                    <td className="num mono tnum muted">{i + 1}</td>
+                    <td style={{ fontWeight: 'var(--w-semibold)' }}>
+                      {s.symbol}
+                      {s.company_name && (
+                        <div className="t-xs muted" style={{
+                          maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>{s.company_name}</div>
+                      )}
+                    </td>
+                    <td className="t-xs muted">{s.sector || '—'}</td>
+                    <td className="num">
+                      <span className={`badge ${scoreClass(s.composite_score)}`}>
+                        {num(s.composite_score, 1)}
+                      </span>
+                    </td>
+                    <td className="t-xs mono" style={{ color: scoreColor(s.composite_score), fontWeight: 'var(--w-semibold)' }}>
+                      {grade(s.composite_score)}
+                    </td>
+                    <td className="num mono tnum t-xs" style={{ color: scoreColor(s.quality_score) }}>{num(s.quality_score, 0)}</td>
+                    <td className="num mono tnum t-xs" style={{ color: scoreColor(s.momentum_score) }}>{num(s.momentum_score, 0)}</td>
+                    <td className="num mono tnum t-xs" style={{ color: scoreColor(s.value_score) }}>{num(s.value_score, 0)}</td>
+                    <td className="num mono tnum t-xs" style={{ color: scoreColor(s.growth_score) }}>{num(s.growth_score, 0)}</td>
+                    <td className="num mono tnum t-xs" style={{ color: scoreColor(s.positioning_score) }}>{num(s.positioning_score, 0)}</td>
+                    <td className="num mono tnum t-xs" style={{ color: scoreColor(s.stability_score) }}>{num(s.stability_score, 0)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── tab: factor heatmap ──────────────────────────────────────────────────
+function HeatmapTab({ items, sectorFilter, onClick }) {
+  // Show top 50 by composite (or filtered by sector). Cell = factor score, color encodes value.
+  const arr = items.filter((s) => s.composite_score != null);
+  const filtered = (sectorFilter ? arr.filter((s) => s.sector === sectorFilter) : arr)
+    .sort((a, b) => Number(b.composite_score) - Number(a.composite_score))
+    .slice(0, 50);
+
+  if (filtered.length === 0) {
+    return (
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card-body"><Empty title="No data" /></div>
+      </div>
+    );
+  }
+
+  const heatColor = (v) => {
+    if (v == null || isNaN(Number(v))) return 'var(--surface-2)';
+    const n = Number(v);
+    // Stoplight gradient: red → amber → cyan → green
+    if (n >= 80) return 'var(--success-soft)';
+    if (n >= 60) return 'var(--cyan-soft)';
+    if (n >= 40) return 'var(--amber-soft)';
+    return 'var(--danger-soft)';
+  };
+  const textColor = (v) => {
+    if (v == null) return 'var(--text-3)';
+    return scoreColor(v);
+  };
+
+  return (
+    <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+      <div className="card-head">
+        <div>
+          <div className="card-title">Factor Heatmap (Top 50 by Composite)</div>
+          <div className="card-sub">Cell color = factor score 0-100 · click row → stock detail</div>
+        </div>
+      </div>
+      <div className="card-body" style={{ padding: 0 }}>
+        <div style={{ overflow: 'auto', maxHeight: '70vh' }}>
+          <table className="data-table" style={{ tableLayout: 'fixed' }}>
+            <thead>
+              <tr>
+                <th style={{ width: 90 }}>Symbol</th>
+                <th className="num" style={{ width: 70 }}>Comp</th>
+                {FACTORS.map((f) => (
+                  <th key={f.key} className="num" style={{ width: 90 }}>{f.label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((s) => (
+                <tr key={s.symbol} onClick={() => onClick(s.symbol)} style={{ cursor: 'pointer' }}>
+                  <td style={{ fontWeight: 'var(--w-semibold)' }}>{s.symbol}</td>
+                  <td className="num">
+                    <span className={`badge ${scoreClass(s.composite_score)}`}>
+                      {num(s.composite_score, 0)}
+                    </span>
+                  </td>
+                  {FACTORS.map((f) => {
+                    const v = s[f.scoreKey];
+                    return (
+                      <td key={f.key}
+                          title={`${f.label}: ${num(v, 1)}`}
+                          style={{
+                            background: heatColor(v),
+                            textAlign: 'center',
+                            fontFamily: 'var(--font-mono)',
+                            fontVariantNumeric: 'tabular-nums',
+                            fontWeight: 'var(--w-semibold)',
+                            color: textColor(v),
+                            fontSize: 'var(--t-xs)',
+                          }}>
+                        {v == null ? '—' : num(v, 0)}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── tab: distributions per factor ────────────────────────────────────────
+function DistributionTab({ items }) {
+  const buckets = useMemo(() => {
+    // 10-bucket histogram per factor, range [0, 100]
+    const out = {};
+    FACTORS.forEach((f) => {
+      const counts = Array.from({ length: 10 }, (_, i) => ({
+        bucket: `${i * 10}-${(i + 1) * 10}`,
+        count: 0,
+      }));
+      items.forEach((s) => {
+        const v = Number(s[f.scoreKey]);
+        if (isNaN(v) || s[f.scoreKey] == null) return;
+        const idx = Math.min(9, Math.max(0, Math.floor(v / 10)));
+        counts[idx].count += 1;
+      });
+      out[f.key] = counts;
+    });
+    return out;
+  }, [items]);
+
+  if (!items || items.length === 0) {
+    return (
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card-body"><Empty title="No data" /></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-3" style={{ marginTop: 'var(--space-4)' }}>
+      {FACTORS.map((f) => {
+        const data = buckets[f.key] || [];
+        const max = Math.max(...data.map((d) => d.count), 1);
+        const Icon = f.icon;
+        return (
+          <div className="card" key={f.key}>
+            <div className="card-head">
+              <div className="flex items-center gap-2">
+                <Icon size={16} style={{ color: f.tone }} />
+                <div className="card-title">{f.label}</div>
+              </div>
+            </div>
+            <div className="card-body">
+              <div style={{ height: 200 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                    <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" vertical={false} />
+                    <XAxis dataKey="bucket" tick={{ fill: 'var(--text-3)', fontSize: 9 }} interval={0} />
+                    <YAxis tick={{ fill: 'var(--text-3)', fontSize: 10 }} />
+                    <RTooltip contentStyle={TOOLTIP_STYLE}
+                              formatter={(v) => [v, 'Stocks']}
+                              labelFormatter={(b) => `Score ${b}`} />
+                    <Bar dataKey="count" radius={[3, 3, 0, 0]}>
+                      {data.map((d, i) => (
+                        <Cell key={i} fill={i >= 8 ? 'var(--success)'
+                                          : i >= 6 ? 'var(--cyan)'
+                                          : i >= 4 ? 'var(--amber)'
+                                          : 'var(--danger)'}
+                              opacity={Math.max(0.45, d.count / max)} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── tab: correlation matrix ──────────────────────────────────────────────
+function CorrelationTab({ items }) {
+  const matrix = useMemo(() => {
+    if (!items || items.length === 0) return null;
+    const keys = FACTORS.map((f) => f.scoreKey);
+    // Pearson correlation across all stocks where both factors are non-null
+    const corr = (a, b) => {
+      const pairs = items
+        .map((s) => [Number(s[a]), Number(s[b])])
+        .filter(([x, y]) => !isNaN(x) && !isNaN(y));
+      if (pairs.length < 2) return null;
+      const n = pairs.length;
+      const mx = pairs.reduce((s, [x]) => s + x, 0) / n;
+      const my = pairs.reduce((s, [, y]) => s + y, 0) / n;
+      let num = 0, dx = 0, dy = 0;
+      pairs.forEach(([x, y]) => {
+        num += (x - mx) * (y - my);
+        dx  += (x - mx) ** 2;
+        dy  += (y - my) ** 2;
+      });
+      const den = Math.sqrt(dx * dy);
+      if (den === 0) return null;
+      return num / den;
+    };
+
+    const m = {};
+    keys.forEach((a) => {
+      m[a] = {};
+      keys.forEach((b) => {
+        m[a][b] = a === b ? 1 : corr(a, b);
+      });
+    });
+    return m;
+  }, [items]);
+
+  if (!matrix) {
+    return (
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card-body"><Empty title="No data" /></div>
+      </div>
+    );
+  }
+
+  const corrColor = (v) => {
+    if (v == null) return 'var(--surface-2)';
+    if (v >= 0.6)  return 'var(--success-soft)';
+    if (v >= 0.3)  return 'var(--cyan-soft)';
+    if (v >= -0.3) return 'var(--surface-2)';
+    if (v >= -0.6) return 'var(--amber-soft)';
+    return 'var(--danger-soft)';
+  };
+
+  return (
+    <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+      <div className="card-head">
+        <div>
+          <div className="card-title">Factor Correlation Matrix</div>
+          <div className="card-sub">Pearson correlation across the universe · 1.0 = perfect, 0 = none, −1.0 = inverse</div>
+        </div>
+      </div>
+      <div className="card-body">
+        <div style={{ overflow: 'auto' }}>
+          <table className="data-table" style={{ tableLayout: 'fixed', minWidth: 540 }}>
+            <thead>
+              <tr>
+                <th style={{ width: 110 }}>&nbsp;</th>
+                {FACTORS.map((f) => (
+                  <th key={f.key} className="num" style={{ width: 90 }}>{f.label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {FACTORS.map((rf) => (
+                <tr key={rf.key}>
+                  <td style={{ fontWeight: 'var(--w-semibold)' }}>{rf.label}</td>
+                  {FACTORS.map((cf) => {
+                    const v = matrix[rf.scoreKey]?.[cf.scoreKey];
+                    return (
+                      <td key={cf.key}
+                          title={`${rf.label} ↔ ${cf.label}: ${v == null ? '—' : v.toFixed(3)}`}
+                          style={{
+                            background: corrColor(v),
+                            textAlign: 'center',
+                            fontFamily: 'var(--font-mono)',
+                            fontVariantNumeric: 'tabular-nums',
+                            fontWeight: 'var(--w-semibold)',
+                            fontSize: 'var(--t-xs)',
+                            color: rf.scoreKey === cf.scoreKey ? 'var(--text-2)' : 'var(--text-1)',
+                          }}>
+                        {v == null ? '—' : v.toFixed(2)}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="flex items-center gap-3" style={{
+            marginTop: 'var(--space-4)', flexWrap: 'wrap',
+          }}>
+            <span className="t-xs muted">Legend:</span>
+            <LegendChip color="var(--success-soft)" label="≥ 0.6 strong+" />
+            <LegendChip color="var(--cyan-soft)"    label="0.3 – 0.6"    />
+            <LegendChip color="var(--surface-2)"    label="−0.3 – 0.3"   />
+            <LegendChip color="var(--amber-soft)"   label="−0.6 – −0.3"  />
+            <LegendChip color="var(--danger-soft)"  label="< −0.6 strong−" />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -21,6 +21,17 @@ import json
 import requests
 from requests.auth import HTTPBasicAuth
 
+# >>> dotenv-autoload >>>
+from pathlib import Path as _DotenvPath
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _env_file = _DotenvPath(__file__).resolve().parent / '.env.local'
+    if _env_file.exists():
+        _load_dotenv(_env_file)
+except ImportError:
+    pass
+# <<< dotenv-autoload <<<
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,

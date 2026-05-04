@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, ReferenceLine,
+  BarChart, Bar, FunnelChart, Funnel, LabelList,
 } from 'recharts';
 import { api } from '../services/api';
 
@@ -84,6 +86,29 @@ export default function Sentiment() {
     refetchInterval: 300000,
   });
 
+  // Cross-source aggregate sentiment (analyst + AAII retail + NAAIM pro + fear/greed)
+  const summaryQ = useQuery({
+    queryKey: ['sentiment-summary'],
+    queryFn: () => api.get('/api/sentiment/summary').then((r) => r.data?.data || null),
+    refetchInterval: 300000,
+  });
+
+  // Algo composite scores joined for contrarian-setup detection
+  const scoresQ = useQuery({
+    queryKey: ['sentiment-scores-overlay'],
+    queryFn: () =>
+      api.get('/api/scores/stockscores?limit=5000&offset=0&sortBy=composite_score&sp500Only=true')
+         .then((r) => r.data?.items || []),
+    refetchInterval: 300000,
+  });
+
+  // Per-symbol divergence time series (analyst-only proxy: bull% − bear% over last 90d)
+  const divergenceQ = useQuery({
+    queryKey: ['sentiment-divergence'],
+    queryFn: () => api.get('/api/sentiment/divergence').then((r) => r.data?.items || []),
+    refetchInterval: 300000,
+  });
+
   const rawData = data?.items || data?.data || [];
 
   const stocksList = useMemo(() => {
@@ -151,6 +176,124 @@ export default function Sentiment() {
     [stocksList, selectedSymbol]
   );
 
+  // Composite gauge (0-100) — average across available sources, normalized.
+  const compositeGauge = useMemo(() => {
+    const sum = summaryQ.data || {};
+    const components = [];
+    if (sum.fear_greed?.value != null) {
+      components.push({ name: 'Fear & Greed', value: Number(sum.fear_greed.value) });
+    }
+    if (sum.aaii) {
+      const tot = (Number(sum.aaii.bullish) || 0) + (Number(sum.aaii.bearish) || 0)
+                + (Number(sum.aaii.neutral) || 0);
+      if (tot > 0) {
+        const score = ((Number(sum.aaii.bullish) || 0) - (Number(sum.aaii.bearish) || 0)) / tot;
+        components.push({ name: 'AAII Retail', value: 50 + score * 50 });
+      }
+    }
+    if (sum.naaim?.naaim_number_mean != null) {
+      // NAAIM ranges 0-100 (sometimes -100 to 200); clamp to 0-100
+      const v = Number(sum.naaim.naaim_number_mean);
+      components.push({ name: 'NAAIM Pro', value: Math.min(100, Math.max(0, v)) });
+    }
+    if (sum.analyst) {
+      const tot = Number(sum.analyst.analyst_count) || 0;
+      if (tot > 0) {
+        const bull = Number(sum.analyst.bullish_count) || 0;
+        const bear = Number(sum.analyst.bearish_count) || 0;
+        components.push({ name: 'Analyst', value: 50 + ((bull - bear) / tot) * 50 });
+      }
+    }
+    if (components.length === 0) return null;
+    const score = components.reduce((s, c) => s + c.value, 0) / components.length;
+    return { score: Math.round(score), components };
+  }, [summaryQ.data]);
+
+  // Sentiment 7d change leaders (analyst-derived, comparing latest vs 7-day-ago bull−bear %)
+  const changeLeaders = useMemo(() => {
+    const byDate = {};
+    (divergenceQ.data || []).forEach((row) => {
+      if (!row.symbol || !row.date) return;
+      const sym = row.symbol;
+      if (!byDate[sym]) byDate[sym] = [];
+      byDate[sym].push(row);
+    });
+    const moves = [];
+    Object.entries(byDate).forEach(([sym, rows]) => {
+      rows.sort((a, b) => new Date(b.date) - new Date(a.date));
+      if (rows.length < 2) return;
+      const cur = rows[0];
+      const prev = rows.find((r) => {
+        const days = (new Date(cur.date) - new Date(r.date)) / 86400000;
+        return days >= 5;
+      }) || rows[rows.length - 1];
+      const curScore = (Number(cur.bull_percent) || 0) - (Number(cur.bear_percent) || 0);
+      const prevScore = (Number(prev.bull_percent) || 0) - (Number(prev.bear_percent) || 0);
+      moves.push({ symbol: sym, change: curScore - prevScore, current: curScore });
+    });
+    moves.sort((a, b) => b.change - a.change);
+    return {
+      gainers: moves.slice(0, 8),
+      decliners: moves.slice(-8).reverse(),
+    };
+  }, [divergenceQ.data]);
+
+  // Contrarian setups: low analyst sentiment + high algo composite (potential undervalued)
+  // and inverse (potential traps): high analyst sentiment + low algo composite.
+  const contrarianSetups = useMemo(() => {
+    const scoreMap = new Map();
+    (scoresQ.data || []).forEach((s) => scoreMap.set(s.symbol, s));
+    const merged = stocksList
+      .filter((s) => s.compositeScore != null)
+      .map((s) => {
+        const algo = scoreMap.get(s.symbol);
+        return algo ? {
+          symbol: s.symbol,
+          analystScore: s.compositeScore,
+          algoComposite: Number(algo.composite_score),
+          sector: algo.sector,
+        } : null;
+      })
+      .filter((s) => s && !isNaN(s.algoComposite));
+    const buys = merged
+      .filter((s) => s.analystScore < 0 && s.algoComposite >= 70)
+      .sort((a, b) => b.algoComposite - a.algoComposite)
+      .slice(0, 8);
+    const traps = merged
+      .filter((s) => s.analystScore > 0.3 && s.algoComposite < 50)
+      .sort((a, b) => a.algoComposite - b.algoComposite)
+      .slice(0, 8);
+    return { buys, traps };
+  }, [stocksList, scoresQ.data]);
+
+  // Analyst rating funnel across the universe
+  const ratingFunnel = useMemo(() => {
+    let strongBuy = 0, buy = 0, hold = 0, sell = 0, strongSell = 0;
+    stocksList.forEach((s) => {
+      const a = s.latestAnalyst;
+      if (!a || !a.analyst_count) return;
+      const total = Number(a.analyst_count) || 0;
+      const bull = Number(a.bullish_count) || 0;
+      const bear = Number(a.bearish_count) || 0;
+      const neut = Number(a.neutral_count) || 0;
+      if (total === 0) return;
+      const bullPct = bull / total;
+      const bearPct = bear / total;
+      if (bullPct >= 0.7) strongBuy++;
+      else if (bullPct >= 0.4) buy++;
+      else if (bearPct >= 0.7) strongSell++;
+      else if (bearPct >= 0.4) sell++;
+      else hold++;
+    });
+    return [
+      { name: 'Strong Buy',  value: strongBuy,  fill: 'var(--success)' },
+      { name: 'Buy',         value: buy,        fill: 'var(--cyan)'    },
+      { name: 'Hold',        value: hold,       fill: 'var(--amber)'   },
+      { name: 'Sell',        value: sell,       fill: 'var(--purple)'  },
+      { name: 'Strong Sell', value: strongSell, fill: 'var(--danger)'  },
+    ];
+  }, [stocksList]);
+
   return (
     <div className="main-content">
       <div className="page-head">
@@ -203,6 +346,11 @@ export default function Sentiment() {
             selectedSymbol={selectedSymbol}
             setSelectedSymbol={setSelectedSymbol}
             selectedStock={selectedStock}
+            compositeGauge={compositeGauge}
+            changeLeaders={changeLeaders}
+            contrarianSetups={contrarianSetups}
+            ratingFunnel={ratingFunnel}
+            divergenceData={divergenceQ.data || []}
           />
         )}
 
@@ -232,10 +380,38 @@ function OverviewTab({
   isLoading, filtered, searchFilter, setSearchFilter,
   filterSentiment, setFilterSentiment, sortBy, setSortBy,
   selectedSymbol, setSelectedSymbol, selectedStock,
+  compositeGauge, changeLeaders, contrarianSetups, ratingFunnel,
+  divergenceData,
 }) {
   return (
     <>
-      <div className="card">
+      {/* Composite gauge + funnel + change leaders */}
+      <div className="grid grid-2" style={{ marginBottom: 'var(--space-4)' }}>
+        <CompositeGauge gauge={compositeGauge} />
+        <RatingFunnel data={ratingFunnel} />
+      </div>
+
+      <div className="grid grid-2" style={{ marginBottom: 'var(--space-4)' }}>
+        <ChangeLeadersCard title="Sentiment 7-Day Gainers" rows={changeLeaders.gainers} tone="up" setSel={setSelectedSymbol} />
+        <ChangeLeadersCard title="Sentiment 7-Day Decliners" rows={changeLeaders.decliners} tone="down" setSel={setSelectedSymbol} />
+      </div>
+
+      <div className="grid grid-2" style={{ marginBottom: 'var(--space-4)' }}>
+        <ContrarianCard title="Contrarian Buys (bearish sentiment, strong algo)"
+                        desc="Analyst score < 0, composite ≥ 70 — potential mispricing"
+                        rows={contrarianSetups.buys}
+                        tone="up"
+                        setSel={setSelectedSymbol} />
+        <ContrarianCard title="Potential Traps (bullish sentiment, weak algo)"
+                        desc="Analyst score > 0.3, composite < 50 — buyer-beware"
+                        rows={contrarianSetups.traps}
+                        tone="down"
+                        setSel={setSelectedSymbol} />
+      </div>
+
+      <DivergenceTimeline rows={divergenceData} />
+
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
         <div className="card-body">
           <div className="flex items-center gap-3" style={{ flexWrap: 'wrap' }}>
             <div style={{ position: 'relative', flex: '1 1 240px', minWidth: 240 }}>
@@ -1056,6 +1232,288 @@ function SourceRow({ icon, label, score }) {
         {icon} <span className="t-sm">{label}</span>
       </div>
       <span className={scoreToBadge(score)}>{score == null ? 'N/A' : num(score)}</span>
+    </div>
+  );
+}
+
+// ─── new: composite sentiment gauge ─────────────────────────────────────
+function CompositeGauge({ gauge }) {
+  if (!gauge) {
+    return (
+      <div className="card">
+        <div className="card-head">
+          <div>
+            <div className="card-title">Composite Sentiment Gauge</div>
+            <div className="card-sub">Cross-source aggregate (0-100)</div>
+          </div>
+        </div>
+        <div className="card-body"><Empty title="No aggregate sources available" /></div>
+      </div>
+    );
+  }
+  const score = gauge.score;
+  const tone = score >= 70 ? 'up' : score < 30 ? 'down' : '';
+  const color = score >= 70 ? 'var(--success)'
+              : score < 30 ? 'var(--danger)'
+              : 'var(--amber)';
+  const label = score >= 70 ? 'Greed / Bullish'
+              : score < 30 ? 'Fear / Bearish'
+              : 'Neutral';
+
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div>
+          <div className="card-title">Composite Sentiment Gauge</div>
+          <div className="card-sub">Cross-source aggregate · {gauge.components.length} sources</div>
+        </div>
+      </div>
+      <div className="card-body">
+        <div className="flex items-center" style={{ justifyContent: 'space-between' }}>
+          <div>
+            <div className="mono tnum" style={{
+              fontSize: 'var(--t-3xl, 32px)', fontWeight: 'var(--w-bold)', color,
+            }}>
+              {score}
+            </div>
+            <div className={`badge ${score >= 70 ? 'badge-success'
+                                  : score < 30 ? 'badge-danger'
+                                  : 'badge-amber'}`}
+                 style={{ marginTop: 'var(--space-2)' }}>
+              {label}
+            </div>
+          </div>
+          <div style={{ width: '60%', height: 130 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={gauge.components} layout="vertical"
+                        margin={{ top: 4, right: 16, left: 4, bottom: 0 }}>
+                <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" horizontal={false} />
+                <XAxis type="number" domain={[0, 100]}
+                       tick={{ fill: 'var(--text-3)', fontSize: 10 }} />
+                <YAxis type="category" dataKey="name" width={80}
+                       tick={{ fill: 'var(--text-3)', fontSize: 10 }} />
+                <RechartsTooltip contentStyle={TT_STYLE}
+                                 formatter={(v) => [Number(v).toFixed(1), 'Score']} />
+                <Bar dataKey="value" radius={[0, 3, 3, 0]} fill="var(--brand)" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+        <div className="bar" style={{ marginTop: 'var(--space-4)' }}>
+          <div className="bar-fill" style={{ width: `${score}%`, background: color }} />
+        </div>
+        <div className="flex items-center justify-between" style={{
+          marginTop: 'var(--space-2)', fontSize: 'var(--t-xs)', color: 'var(--text-3)',
+        }}>
+          <span>0 · Extreme Fear</span>
+          <span>50</span>
+          <span>100 · Extreme Greed</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── new: rating funnel ────────────────────────────────────────────────
+function RatingFunnel({ data }) {
+  const total = data.reduce((s, d) => s + d.value, 0);
+  if (total === 0) {
+    return (
+      <div className="card">
+        <div className="card-head">
+          <div>
+            <div className="card-title">Analyst Rating Distribution</div>
+            <div className="card-sub">Across the universe</div>
+          </div>
+        </div>
+        <div className="card-body"><Empty title="No analyst data" /></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div>
+          <div className="card-title">Analyst Rating Distribution</div>
+          <div className="card-sub">{total} symbols by analyst consensus</div>
+        </div>
+      </div>
+      <div className="card-body">
+        <div style={{ height: 240 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <FunnelChart>
+              <RechartsTooltip contentStyle={TT_STYLE}
+                               formatter={(v, n) => [`${v} symbols (${((v / total) * 100).toFixed(1)}%)`, n]} />
+              <Funnel dataKey="value" data={data} isAnimationActive={false}>
+                <LabelList position="right" fill="var(--text-2)" stroke="none"
+                           dataKey="name" style={{ fontSize: 11 }} />
+                <LabelList position="right" fill="var(--text-3)" stroke="none"
+                           dataKey="value" offset={64}
+                           style={{ fontSize: 10, fontFamily: 'var(--font-mono)' }} />
+                {data.map((d, i) => <Cell key={i} fill={d.fill} />)}
+              </Funnel>
+            </FunnelChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── new: change leaders ──────────────────────────────────────────────
+function ChangeLeadersCard({ title, rows, tone, setSel }) {
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div className="flex items-center gap-2">
+          {tone === 'up' ? <TrendingUp size={16} style={{ color: 'var(--success)' }} />
+                          : <TrendingDown size={16} style={{ color: 'var(--danger)' }} />}
+          <div className="card-title">{title}</div>
+        </div>
+      </div>
+      <div className="card-body" style={{ padding: 0 }}>
+        {!rows || rows.length === 0 ? (
+          <Empty title="Insufficient history" desc="Need ≥ 7 days of analyst sentiment per symbol" />
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th className="num">7d Δ</th>
+                <th className="num">Current</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.symbol} onClick={() => setSel(r.symbol)} style={{ cursor: 'pointer' }}>
+                  <td><span className="strong">{r.symbol}</span></td>
+                  <td className={`num mono tnum ${r.change > 0 ? 'up' : r.change < 0 ? 'down' : 'muted'}`}>
+                    {r.change > 0 ? '+' : ''}{r.change.toFixed(1)} pp
+                  </td>
+                  <td className="num mono tnum">{r.current.toFixed(1)} pp</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── new: contrarian setups ──────────────────────────────────────────
+function ContrarianCard({ title, desc, rows, tone, setSel }) {
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div>
+          <div className="card-title">{title}</div>
+          <div className="card-sub">{desc}</div>
+        </div>
+      </div>
+      <div className="card-body" style={{ padding: 0 }}>
+        {!rows || rows.length === 0 ? (
+          <Empty title="No contrarian setups" />
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Sector</th>
+                <th className="num">Sentiment</th>
+                <th className="num">Composite</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.symbol} onClick={() => setSel(r.symbol)} style={{ cursor: 'pointer' }}>
+                  <td><span className="strong">{r.symbol}</span></td>
+                  <td className="t-xs muted" style={{
+                    maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>{r.sector || '—'}</td>
+                  <td className={`num mono tnum ${r.analystScore > 0 ? 'up' : 'down'}`}>
+                    {r.analystScore.toFixed(2)}
+                  </td>
+                  <td className="num">
+                    <span className={`badge ${r.algoComposite >= 80 ? 'badge-success'
+                                            : r.algoComposite >= 60 ? 'badge-cyan'
+                                            : r.algoComposite >= 40 ? 'badge-amber'
+                                            : 'badge-danger'}`}>
+                      {r.algoComposite.toFixed(0)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── new: divergence timeline (universe-wide rolling avg of bull−bear) ─
+function DivergenceTimeline({ rows }) {
+  const series = useMemo(() => {
+    if (!rows || rows.length === 0) return [];
+    // Aggregate per date: average of (bull% - bear%) across all symbols
+    const byDate = new Map();
+    rows.forEach((r) => {
+      if (!r.date) return;
+      const key = String(r.date).slice(0, 10);
+      const score = (Number(r.bull_percent) || 0) - (Number(r.bear_percent) || 0);
+      if (!byDate.has(key)) byDate.set(key, { sum: 0, n: 0 });
+      const v = byDate.get(key);
+      v.sum += score;
+      v.n += 1;
+    });
+    return Array.from(byDate.entries())
+      .map(([date, v]) => ({ date, avg: v.sum / v.n }))
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+  }, [rows]);
+
+  if (series.length === 0) {
+    return (
+      <div className="card">
+        <div className="card-head">
+          <div>
+            <div className="card-title">Universe Sentiment Trend (90d)</div>
+            <div className="card-sub">Average analyst bull% − bear% across all covered symbols</div>
+          </div>
+        </div>
+        <div className="card-body"><Empty title="No history" /></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div>
+          <div className="card-title">Universe Sentiment Trend (90d)</div>
+          <div className="card-sub">Average analyst (bull% − bear%) across {rows.length} readings</div>
+        </div>
+      </div>
+      <div className="card-body">
+        <div style={{ height: 220 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={series} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
+              <XAxis dataKey="date" stroke="var(--text-3)" fontSize={10}
+                     tickFormatter={fmtDate} interval="preserveStartEnd" />
+              <YAxis stroke="var(--text-3)" fontSize={10}
+                     tickFormatter={(v) => `${Math.round(v)}`} />
+              <RechartsTooltip contentStyle={TT_STYLE}
+                               labelFormatter={(d) => fmtDate(d)}
+                               formatter={(v) => [`${Number(v).toFixed(2)} pp`, 'Bull − Bear']} />
+              <ReferenceLine y={0} stroke="var(--border)" strokeDasharray="4 4" />
+              <Line type="monotone" dataKey="avg" stroke="var(--brand)"
+                    strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
     </div>
   );
 }
