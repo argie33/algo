@@ -196,6 +196,31 @@ jobs:
               --region ${{ env.AWS_REGION }} 2>/dev/null || echo "Stack deleted or already gone"
           fi
 
+      - name: Get secret ARNs from Secrets Manager
+        run: |
+          echo "Retrieving secret ARNs..."
+
+          # Get database secret ARN
+          DB_SECRET=$(aws secretsmanager describe-secret \
+            --secret-id stocks-db-secrets \
+            --region ${{ env.AWS_REGION }} \
+            --query 'ARN' \
+            --output text 2>/dev/null || echo "")
+
+          # Get Alpaca secret ARN
+          ALPACA_SECRET=$(aws secretsmanager describe-secret \
+            --secret-id algo-alpaca-credentials \
+            --region ${{ env.AWS_REGION }} \
+            --query 'ARN' \
+            --output text 2>/dev/null || echo "")
+
+          # If secrets don't exist, use placeholder ARNs (will fail at runtime if not found)
+          DB_SECRET="${DB_SECRET:-arn:aws:secretsmanager:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:secret:stocks-db-secrets}"
+          ALPACA_SECRET="${ALPACA_SECRET:-arn:aws:secretsmanager:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:secret:algo-alpaca-credentials}"
+
+          echo "DB_SECRET=$DB_SECRET" >> $GITHUB_ENV
+          echo "ALPACA_SECRET=$ALPACA_SECRET" >> $GITHUB_ENV
+
       - name: Deploy CloudFormation stack (Algo)
         run: |
           echo "Deploying algo CloudFormation stack..."
@@ -206,6 +231,8 @@ jobs:
             --parameter-overrides \
               LambdaFunctionCodeBucket="${{ env.LAMBDA_ARTIFACTS_BUCKET }}" \
               LambdaFunctionCodeKey="${{ env.FUNCTION_KEY }}" \
+              DatabaseSecretArn="${{ env.DB_SECRET }}" \
+              AlpacaSecretsArn="${{ env.ALPACA_SECRET }}" \
               DryRunMode="${{ github.event.inputs.dry_run || 'true' }}" \
               Environment="${{ github.event.inputs.environment || 'dev' }}" \
             --capabilities CAPABILITY_NAMED_IAM \
