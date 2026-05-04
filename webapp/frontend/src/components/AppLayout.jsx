@@ -312,8 +312,8 @@ const AppLayout = ({ children }) => {
     const fetchStatus = async () => {
       try {
         const [e, n] = await Promise.all([
-          api.get('/algo/markets').catch(() => null),
-          api.get('/algo/notifications').catch(() => null),
+          api.get('/api/algo/markets').catch(() => null),
+          api.get('/api/algo/notifications').catch(() => null),
         ]);
         if (cancelled) return;
         setExposure(e?.data?.data?.current || null);

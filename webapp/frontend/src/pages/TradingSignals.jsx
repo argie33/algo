@@ -65,7 +65,7 @@ export default function TradingSignals() {
       params.set('timeframe', timeframe);
       params.set('limit', '500');
       if (signal !== 'all') params.set('signal', signal);
-      return api.get(`${endpoint}?${params.toString()}`).then(r => r.data);
+      return api.get(`/api${endpoint}?${params.toString()}`).then(r => r.data);
     },
     refetchInterval: 60000,
   });

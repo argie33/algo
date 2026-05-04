@@ -80,43 +80,31 @@ export default function MarketsHealth() {
   const { data: marketsData, isLoading: marketsLoading, refetch: refetchMarkets } =
     useQuery({
       queryKey: ['algo-markets'],
-      queryFn: () => api.get('/algo/markets').then(r => r.data?.data),
+      queryFn: () => api.get('/api/algo/markets').then(r => r.data?.data),
       refetchInterval: 30000,
     });
 
-  const { data: indicesData } = useQuery({
-    queryKey: ['market-indices'],
-    queryFn: () => api.get('/market/indices').then(r => r.data?.data || r.data?.items),
-    refetchInterval: 30000,
-  });
-
   const { data: sentimentData } = useQuery({
     queryKey: ['market-sentiment-30d'],
-    queryFn: () => api.get('/market/sentiment?range=30d').then(r => r.data?.data),
-    refetchInterval: 60000,
-  });
-
-  const { data: technicalsData } = useQuery({
-    queryKey: ['market-technicals'],
-    queryFn: () => api.get('/market/technicals').then(r => r.data?.data),
+    queryFn: () => api.get('/api/market/sentiment?range=30d').then(r => r.data?.data),
     refetchInterval: 60000,
   });
 
   const { data: moversData } = useQuery({
     queryKey: ['market-top-movers'],
-    queryFn: () => api.get('/market/top-movers').then(r => r.data?.data || r.data?.items),
+    queryFn: () => api.get('/api/market/top-movers').then(r => r.data?.data),
     refetchInterval: 60000,
   });
 
-  const { data: capData } = useQuery({
-    queryKey: ['market-cap-distribution'],
-    queryFn: () => api.get('/market/cap-distribution').then(r => r.data?.data),
-    refetchInterval: 120000,
+  const { data: technicalsData } = useQuery({
+    queryKey: ['market-technicals'],
+    queryFn: () => api.get('/api/market/technicals').then(r => r.data?.data),
+    refetchInterval: 60000,
   });
 
   const { data: seasonalityData } = useQuery({
     queryKey: ['market-seasonality'],
-    queryFn: () => api.get('/market/seasonality').then(r => r.data?.data),
+    queryFn: () => api.get('/api/market/seasonality').then(r => r.data?.data),
     refetchInterval: 1000 * 60 * 60,
   });
 
@@ -153,7 +141,7 @@ export default function MarketsHealth() {
       <RegimeBanner markets={m} />
 
       {/* === 2. MAJOR INDICES === */}
-      <IndicesStrip indices={indicesData} />
+      <IndicesStrip />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         {/* === 3. 9-FACTOR EXPOSURE COMPOSITE === */}
@@ -182,18 +170,15 @@ export default function MarketsHealth() {
         <VixCard markets={m} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-        {/* === 10. SPY TECHNICALS === */}
-        <TechnicalsCard data={technicalsData} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        {/* === 10. INTERNALS (advancing/declining/McClellan from technicals) === */}
+        <InternalsCard data={technicalsData} />
 
         {/* === 11. TOP MOVERS === */}
         <TopMoversCard data={moversData} />
-
-        {/* === 12. MARKET CAP === */}
-        <MarketCapCard data={capData} />
       </div>
 
-      {/* === 13. SEASONALITY === */}
+      {/* === 12. SEASONALITY CONTEXT === */}
       <SeasonalityCard data={seasonalityData} />
     </div>
   );
@@ -285,15 +270,13 @@ function RegimeBanner({ markets }) {
 // 2. MAJOR INDICES
 // =============================================================================
 
-function IndicesStrip({ indices }) {
-  const list = Array.isArray(indices) ? indices : indices?.indices || [];
-  const seeds = list.length ? list : [
+function IndicesStrip() {
+  const seeds = [
     { symbol: 'SPY', name: 'S&P 500' },
     { symbol: 'QQQ', name: 'Nasdaq 100' },
     { symbol: 'IWM', name: 'Russell 2000' },
     { symbol: 'DIA', name: 'Dow Jones' },
   ];
-
   return (
     <Card title="Major Indices" subtitle="Last close · Daily change · 30-day trend">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -306,7 +289,7 @@ function IndicesStrip({ indices }) {
 function IndexCell({ idx }) {
   const { data } = useQuery({
     queryKey: ['index-history', idx.symbol],
-    queryFn: () => api.get(`/price/history/${idx.symbol}?timeframe=daily&limit=30`).then(r => r.data?.items || r.data?.data || []),
+    queryFn: () => api.get(`/api/price/history/${idx.symbol}?timeframe=daily&limit=30`).then(r => r.data?.items || r.data?.data || []),
     staleTime: 60000,
   });
 
@@ -616,9 +599,11 @@ function NewHighsLowsCard({ markets }) {
 // =============================================================================
 
 function SentimentCard({ markets, sentiment }) {
-  const aaiiHistory = markets?.sentiment || [];
-  const naaim = sentiment?.naaim;
-  const fearGreed = sentiment?.fearGreed;
+  // Prefer the dedicated /api/market/sentiment AAII series (richer history),
+  // fall back to whatever the algo endpoint surfaces.
+  const aaiiHistory = sentiment?.aaii || markets?.sentiment || [];
+  const naaim = sentiment?.naaim?.exposure ?? sentiment?.naaim;
+  const fearGreed = sentiment?.fearGreed?.value ?? sentiment?.fearGreed;
 
   if (!aaiiHistory.length) {
     return <Card title="Investor Sentiment" empty={{ description: 'AAII data not yet loaded' }} />;
@@ -719,60 +704,52 @@ function VixCard({ markets }) {
 }
 
 // =============================================================================
-// 10. SPY TECHNICALS
+// 10. MARKET INTERNALS (advancing/declining + McClellan time series)
 // =============================================================================
 
-function TechnicalsCard({ data }) {
-  if (!data) return <Card title="SPY Technicals" empty={{ description: 'Loading' }} />;
-  const rsi = parseFloat(data.rsi || 0);
-  const adx = parseFloat(data.adx || 0);
-  const macd = parseFloat(data.macd || 0);
-  const macdSignal = parseFloat(data.macd_signal || 0);
+function InternalsCard({ data }) {
+  if (!data) return <Card title="Market Internals" empty={{ description: 'Loading' }} />;
+  const breadth = data.breadth || {};
+  const advancing = parseInt(breadth.advancing) || 0;
+  const declining = parseInt(breadth.declining) || 0;
+  const unchanged = parseInt(breadth.unchanged) || 0;
+  const total = parseInt(breadth.total_stocks) || (advancing + declining + unchanged);
+  const advPct = total ? (advancing / total) * 100 : 0;
+  const decPct = total ? (declining / total) * 100 : 0;
+  const adRatio = declining > 0 ? (advancing / declining) : 0;
+
+  const mcclellan = (data.mcclellan_oscillator || []).slice(0, 30).reverse().map(d => ({
+    date: d.date,
+    value: parseFloat(d.advance_decline_line || 0),
+  }));
 
   return (
-    <Card title="SPY Technicals" subtitle="RSI · MACD · ADX">
-      <div className="space-y-3">
-        <div>
-          <div className="flex justify-between mb-1">
-            <span className="label">RSI (14)</span>
-            <span className="font-mono tnum text-sm font-semibold">
-              {num(rsi, 1)}
-            </span>
-          </div>
-          <div className="h-1.5 bg-bg-alt rounded-sm overflow-hidden relative">
-            <div
-              className="h-full transition-all"
-              style={{
-                width: `${Math.min(100, rsi)}%`,
-                backgroundColor: rsi > 70 ? PALETTE.bear : rsi < 30 ? PALETTE.bull : PALETTE.brand,
-              }}
-            />
-          </div>
-          <div className="text-2xs text-ink-faint mt-1">
-            {rsi > 70 ? 'Overbought' : rsi < 30 ? 'Oversold' : 'Neutral'} · 30/70 thresholds
-          </div>
-        </div>
-
-        <div>
-          <div className="flex justify-between mb-1">
-            <span className="label">ADX (14)</span>
-            <span className="font-mono tnum text-sm font-semibold">{num(adx, 1)}</span>
-          </div>
-          <div className="text-2xs text-ink-faint">
-            {adx > 25 ? 'Strong trend' : 'Weak / no trend'}
-          </div>
-        </div>
-
-        <div>
-          <div className="flex justify-between mb-1">
-            <span className="label">MACD</span>
-            <PnlCell value={macd - macdSignal} format="percent" inline className="text-sm" />
-          </div>
-          <div className="text-2xs text-ink-faint">
-            {macd > macdSignal ? 'Bullish cross' : 'Bearish cross'}
-          </div>
-        </div>
+    <Card title="Market Internals" subtitle="Today's advancers vs decliners · 30-day A/D line">
+      <div className="grid grid-cols-3 gap-3 mb-3">
+        <Stat label="Advancing" value={advancing.toLocaleString('en-US')} color={PALETTE.bull} sub={`${advPct.toFixed(1)}%`} size="md" />
+        <Stat label="Declining" value={declining.toLocaleString('en-US')} color={PALETTE.bear} sub={`${decPct.toFixed(1)}%`} size="md" />
+        <Stat label="A/D Ratio" value={adRatio.toFixed(2)} color={adRatio > 1 ? PALETTE.bull : PALETTE.bear} sub={`${unchanged} unch.`} size="md" />
       </div>
+      {mcclellan.length > 1 && (
+        <div className="h-[140px]">
+          <ResponsiveContainer>
+            <AreaChart data={mcclellan} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+              <defs>
+                <linearGradient id="mcGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={PALETTE.brand} stopOpacity={0.3} />
+                  <stop offset="100%" stopColor={PALETTE.brand} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke={PALETTE.border} strokeDasharray="2 4" />
+              <XAxis dataKey="date" tick={{ fill: PALETTE.text, fontSize: 10 }} tickFormatter={d => String(d).slice(5, 10)} />
+              <YAxis tick={{ fill: PALETTE.text, fontSize: 10 }} width={60} tickFormatter={v => v.toLocaleString('en-US')} />
+              <ReferenceLine y={0} stroke={PALETTE.border} />
+              <RTooltip contentStyle={{ background: '#FFFFFF', border: `1px solid ${PALETTE.border}`, fontSize: 11, borderRadius: 6 }} />
+              <Area type="monotone" dataKey="value" stroke={PALETTE.brand} strokeWidth={1.5} fill="url(#mcGrad)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </Card>
   );
 }
@@ -813,79 +790,41 @@ function TopMoversCard({ data }) {
 }
 
 // =============================================================================
-// 12. MARKET CAP PERFORMANCE
-// =============================================================================
-
-function MarketCapCard({ data }) {
-  if (!data) return <Card title="Market Cap Performance" empty={{ description: 'Loading' }} />;
-  const tiers = ['large_cap', 'mid_cap', 'small_cap', 'micro_cap'].map(k => ({
-    label: k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-    value: parseFloat(data[k]?.return_1d || data[k]?.change_pct || 0),
-    count: data[k]?.count || 0,
-  }));
-
-  return (
-    <Card title="Market Cap Performance" subtitle="By size tier · 1-day return">
-      <div className="space-y-2">
-        {tiers.map(t => (
-          <div key={t.label}>
-            <div className="flex justify-between mb-0.5">
-              <span className="label">{t.label}</span>
-              <PnlCell value={t.value} format="percent" inline className="text-sm" />
-            </div>
-            <div className="h-1 bg-bg-alt rounded-sm overflow-hidden">
-              <div
-                className="h-full transition-all"
-                style={{
-                  width: `${Math.min(100, Math.abs(t.value) * 10)}%`,
-                  backgroundColor: t.value >= 0 ? PALETTE.bull : PALETTE.bear,
-                }}
-              />
-            </div>
-            <div className="text-2xs text-ink-faint mt-0.5">{t.count} stocks</div>
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-// =============================================================================
-// 13. SEASONALITY
+// 12. SEASONALITY CONTEXT
 // =============================================================================
 
 function SeasonalityCard({ data }) {
   if (!data) return null;
-  const months = (data.monthly || []).map((m, i) => ({
-    month: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][i] || m.month,
-    avgReturn: parseFloat(m.avg_return || m.avgReturn || 0),
-  }));
-  if (!months.length) return null;
+  const ytd = parseFloat(data.currentYearReturn || 0);
+  const cur = data.currentPosition || {};
+  const periods = cur.activePeriods || [];
 
   return (
     <Card
-      title="Historical Seasonality"
-      subtitle="Average S&P 500 monthly return · long-term pattern"
+      title="Seasonality & Cycle Context"
+      subtitle="Where we are in the calendar / political cycle"
     >
-      <div className="h-[180px]">
-        <ResponsiveContainer>
-          <BarChart data={months} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
-            <CartesianGrid stroke={PALETTE.border} strokeDasharray="2 4" />
-            <XAxis dataKey="month" tick={{ fill: PALETTE.text, fontSize: 11 }} />
-            <YAxis tick={{ fill: PALETTE.text, fontSize: 11 }} tickFormatter={v => `${v}%`} />
-            <ReferenceLine y={0} stroke={PALETTE.border} />
-            <RTooltip
-              contentStyle={{ background: '#FFFFFF', border: `1px solid ${PALETTE.border}`, fontSize: 12, borderRadius: 6 }}
-              formatter={(v) => [`${num(v, 2)}%`, 'avg return']}
-            />
-            <Bar dataKey="avgReturn" radius={[3, 3, 0, 0]}>
-              {months.map((m, i) => (
-                <Cell key={i} fill={m.avgReturn >= 0 ? PALETTE.bull : PALETTE.bear} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Stat label={`${data.currentYear || '—'} YTD`} value={null}>
+          <PnlCell value={ytd} format="percent" inline className="text-xl" />
+        </Stat>
+        <Stat label="Presidential Cycle" value={cur.presidentialCycle || '—'} mono={false} size="md" />
+        <Stat label="Monthly Avg" value={cur.monthlyTrend || '—'} mono={false} size="sm" />
+        <Stat label="Quarterly" value={cur.quarterlyTrend || '—'} mono={false} size="sm" />
       </div>
+      {periods.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {periods.map((p, i) => (
+            <Chip key={i} variant="warn">{p}</Chip>
+          ))}
+        </div>
+      )}
+      {cur.nextMajorEvent?.month && (
+        <div className="mt-3 text-xs text-ink-muted">
+          <span className="font-semibold text-ink">Next major event:</span>{' '}
+          {cur.nextMajorEvent.month} — {cur.nextMajorEvent.description || cur.nextMajorEvent.name || ''}
+        </div>
+      )}
     </Card>
   );
 }

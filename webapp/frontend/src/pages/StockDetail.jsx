@@ -48,25 +48,25 @@ export default function StockDetail() {
 
   const { data: priceData, isLoading: priceLoading } = useQuery({
     queryKey: ['stock-price', symbol],
-    queryFn: () => api.get(`/price/history/${symbol}?timeframe=daily&limit=180`).then(r => r.data?.items || r.data?.data || []),
+    queryFn: () => api.get(`/api/price/history/${symbol}?timeframe=daily&limit=180`).then(r => r.data?.items || r.data?.data || []),
     enabled: !!symbol,
   });
 
   const { data: profileData } = useQuery({
     queryKey: ['stock-profile', symbol],
-    queryFn: () => api.get(`/stocks/${symbol}`).then(r => r.data?.data || r.data).catch(() => null),
+    queryFn: () => api.get(`/api/stocks/${symbol}`).then(r => r.data?.data || r.data).catch(() => null),
     enabled: !!symbol,
   });
 
   const { data: scoresData } = useQuery({
     queryKey: ['stock-scores', symbol],
-    queryFn: () => api.get(`/scores/${symbol}`).then(r => r.data?.data || r.data).catch(() => null),
+    queryFn: () => api.get(`/api/scores/${symbol}`).then(r => r.data?.data || r.data).catch(() => null),
     enabled: !!symbol,
   });
 
   const { data: signalsData } = useQuery({
     queryKey: ['stock-signals', symbol],
-    queryFn: () => api.get(`/signals/stocks?symbol=${symbol}&timeframe=daily&limit=20`)
+    queryFn: () => api.get(`/api/signals/stocks?symbol=${symbol}&timeframe=daily&limit=20`)
       .then(r => r.data?.items || []).catch(() => []),
     enabled: !!symbol,
   });
