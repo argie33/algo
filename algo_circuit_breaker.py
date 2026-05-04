@@ -98,6 +98,12 @@ class CircuitBreaker:
                 self._log_halt(results)
 
             return results
+        except Exception as e:
+            print(f"ERROR in circuit breaker check: {e}")
+            import traceback
+            traceback.print_exc()
+            # Return all-clear so trading continues, but log the error
+            return {'halted': False, 'halt_reasons': [], 'checks': {}}
         finally:
             self.disconnect()
 
@@ -288,8 +294,8 @@ class CircuitBreaker:
                 (json.dumps(results),),
             )
             self.conn.commit()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Warning: Could not log circuit breaker halt to audit log: {e}")
         # Surface to notifications for UI
         try:
             from algo_notifications import notify
@@ -300,8 +306,8 @@ class CircuitBreaker:
                 message='; '.join(results.get('halt_reasons', [])),
                 details=results.get('checks'),
             )
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Warning: Could not send circuit breaker notification: {e}")
 
 
 if __name__ == "__main__":

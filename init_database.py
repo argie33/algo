@@ -1297,6 +1297,8 @@ CREATE TABLE IF NOT EXISTS algo_positions (
     profit_loss_dollars DECIMAL(12, 2),
     trade_duration_days INTEGER,
     days_since_entry INTEGER,
+    target_levels_hit INTEGER DEFAULT 0,
+    current_stop_price DECIMAL(12, 4),
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     closed_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

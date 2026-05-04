@@ -84,8 +84,51 @@ class Orchestrator:
         self.verbose = verbose
         self.phase_results = {}
         self.run_id = f"RUN-{self.run_date.isoformat()}-{datetime.now().strftime('%H%M%S')}"
+        self.lock_file = Path('/tmp/algo_orchestrator.lock')
+        self._lock_acquired = False
 
     # ---------- Logging helpers ----------
+
+    def _acquire_run_lock(self):
+        """Acquire exclusive lock to prevent concurrent orchestrator runs.
+
+        Uses file-based locking with PID checking. If another instance holds the lock
+        but its PID is dead, steal the lock and continue.
+
+        Returns: True if lock acquired, False if another active instance holds it.
+        """
+        if self.lock_file.exists():
+            try:
+                lock_content = self.lock_file.read_text().strip()
+                if lock_content:
+                    old_pid = int(lock_content)
+                    if self._pid_alive(old_pid):
+                        print(f"ERROR: Orchestrator already running (PID {old_pid})")
+                        return False
+                    else:
+                        print(f"Stale lock from PID {old_pid} — acquiring")
+            except Exception as e:
+                print(f"Warning: Could not read lock file: {e}")
+
+        # Acquire lock
+        try:
+            self.lock_file.write_text(str(os.getpid()))
+            self._lock_acquired = True
+            if self.verbose:
+                print(f"Lock acquired (PID {os.getpid()})")
+            return True
+        except Exception as e:
+            print(f"ERROR: Could not create lock file: {e}")
+            return False
+
+    def _release_run_lock(self):
+        """Release the run lock."""
+        if self._lock_acquired and self.lock_file.exists():
+            try:
+                self.lock_file.unlink()
+                self._lock_acquired = False
+            except Exception:
+                pass
 
     def log_phase_start(self, phase_num, name):
         if self.verbose:
@@ -118,8 +161,8 @@ class Orchestrator:
             conn.commit()
             cur.close()
             conn.close()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Warning: Could not persist audit log entry: {e}")
 
     # ---------- Phase implementations ----------
 
@@ -300,9 +343,35 @@ class Orchestrator:
                         continue
 
                     if action['action'] == 'force_exit':
+                        # Fetch current price for accurate P&L
+                        cur_price = 0
+                        try:
+                            conn_tmp = psycopg2.connect(**DB_CONFIG)
+                            try:
+                                cur_tmp = conn_tmp.cursor()
+                                cur_tmp.execute(
+                                    "SELECT current_price FROM algo_positions WHERE position_id = %s",
+                                    (action['position_id'],),
+                                )
+                                row_tmp = cur_tmp.fetchone()
+                                cur_price = float(row_tmp[0]) if row_tmp and row_tmp[0] else 0
+                            finally:
+                                cur_tmp.close()
+                        except Exception as e:
+                            print(f"  Warning: Could not fetch price for force_exit: {e}")
+                        finally:
+                            try:
+                                conn_tmp.close()
+                            except Exception:
+                                pass
+
+                        if cur_price <= 0:
+                            print(f"  ERROR: force_exit cannot proceed — no valid current price")
+                            continue
+
                         result = executor.exit_trade(
                             trade_id=action['trade_id'],
-                            exit_price=0,  # filled at market — we'll compute current price below
+                            exit_price=cur_price,
                             exit_reason=action['reason'],
                             exit_fraction=1.0,
                             exit_stage='exposure_force_exit',
@@ -315,18 +384,26 @@ class Orchestrator:
 
                     elif action['action'] == 'partial_exit':
                         # Need current price — fetch
+                        cur_price = 0
                         try:
                             conn = psycopg2.connect(**DB_CONFIG)
-                            cur = conn.cursor()
-                            cur.execute(
-                                "SELECT current_price FROM algo_positions WHERE position_id = %s",
-                                (action['position_id'],),
-                            )
-                            row = cur.fetchone()
-                            cur.close(); conn.close()
-                            cur_price = float(row[0]) if row and row[0] else 0
-                        except Exception:
-                            cur_price = 0
+                            try:
+                                cur = conn.cursor()
+                                cur.execute(
+                                    "SELECT current_price FROM algo_positions WHERE position_id = %s",
+                                    (action['position_id'],),
+                                )
+                                row = cur.fetchone()
+                                cur_price = float(row[0]) if row and row[0] else 0
+                            finally:
+                                cur.close()
+                        except Exception as e:
+                            print(f"  Warning: Could not fetch current price for {action['position_id']}: {e}")
+                        finally:
+                            try:
+                                conn.close()
+                            except Exception:
+                                pass
                         if cur_price > 0:
                             result = executor.exit_trade(
                                 trade_id=action['trade_id'],
@@ -343,19 +420,26 @@ class Orchestrator:
                     elif action['action'] == 'tighten_stop':
                         try:
                             conn = psycopg2.connect(**DB_CONFIG)
-                            cur = conn.cursor()
-                            cur.execute(
-                                "UPDATE algo_positions SET current_stop_price = %s WHERE position_id = %s",
-                                (action['new_stop'], action['position_id']),
-                            )
-                            conn.commit()
-                            cur.close(); conn.close()
-                            stop_raises += 1
-                            if self.verbose:
-                                print(f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}")
+                            try:
+                                cur = conn.cursor()
+                                cur.execute(
+                                    "UPDATE algo_positions SET current_stop_price = %s WHERE position_id = %s",
+                                    (action['new_stop'], action['position_id']),
+                                )
+                                conn.commit()
+                                stop_raises += 1
+                                if self.verbose:
+                                    print(f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}")
+                            finally:
+                                cur.close()
                         except Exception as e:
                             errors += 1
                             print(f"  Tighten failed for {action['symbol']}: {e}")
+                        finally:
+                            try:
+                                conn.close()
+                            except Exception:
+                                pass
                 except Exception as e:
                     errors += 1
                     print(f"  Error on exposure action {action.get('symbol')}: {e}")

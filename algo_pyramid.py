@@ -282,15 +282,27 @@ class PyramidEngine:
         return close > pivot * 1.005  # 0.5% buffer
 
     def execute_add(self, recommendation):
-        """Actually execute the pyramid add via TradeExecutor + persist."""
+        """Execute pyramid add: send order to Alpaca + persist locally."""
         from algo_trade_executor import TradeExecutor
+        r = recommendation
         executor = TradeExecutor(self.config)
-        # We don't create a new trade — we add to existing position. Manually
-        # record the add and update position quantity.
+
+        # Send buy order to Alpaca for the add (simple buy, no bracket)
+        alpaca_result = executor._send_alpaca_order(
+            symbol=r['symbol'],
+            shares=r['add_size_shares'],
+            entry_price=r['add_price'],
+            stop_loss_price=None,  # No stop on add orders; existing position stop applies
+            take_profit_price=None,  # No profit target on add; pyramiding follows main position
+            order_class='simple',
+        )
+
+        if not alpaca_result.get('success'):
+            return {'success': False, 'message': f"Alpaca order failed: {alpaca_result.get('message')}"}
+
         self.connect()
         try:
-            r = recommendation
-            # Update position quantity
+            # Update position quantity + stop price (if tighter)
             self.cur.execute(
                 """UPDATE algo_positions
                    SET quantity = quantity + %s,
@@ -299,7 +311,8 @@ class PyramidEngine:
                    WHERE position_id = %s AND status = 'open'""",
                 (r['add_size_shares'], r['add_size_shares'], r['position_id']),
             )
-            # Insert add record
+
+            # Record the add
             self.cur.execute(
                 """INSERT INTO algo_trade_adds (trade_id, add_number, add_date,
                        add_price, add_quantity, fraction_of_original,
@@ -312,10 +325,11 @@ class PyramidEngine:
             )
             self.conn.commit()
             return {'success': True, 'message':
-                f"Added {r['add_size_shares']}sh of {r['symbol']} (#{r['add_number']}) @ ${r['add_price']:.2f}"}
+                f"Added {r['add_size_shares']}sh of {r['symbol']} (#{r['add_number']}) @ ${r['add_price']:.2f} "
+                f"to Alpaca (order_id={alpaca_result.get('order_id')})"}
         except Exception as e:
             self.conn.rollback()
-            return {'success': False, 'message': str(e)}
+            return {'success': False, 'message': f'DB update failed: {str(e)}'}
         finally:
             self.disconnect()
 

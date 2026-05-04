@@ -107,12 +107,29 @@ class TradeExecutor:
         if not signal_date:
             signal_date = datetime.now().date()
 
+        # Validate prices
+        if not entry_price or entry_price <= 0:
+            return {
+                'success': False, 'trade_id': '', 'status': 'invalid',
+                'message': f'Invalid entry price: {entry_price} (must be > 0)'
+            }
+        if not stop_loss_price or stop_loss_price <= 0:
+            return {
+                'success': False, 'trade_id': '', 'status': 'invalid',
+                'message': f'Invalid stop loss price: {stop_loss_price} (must be > 0)'
+            }
+        if not shares or shares <= 0:
+            return {
+                'success': False, 'trade_id': '', 'status': 'invalid',
+                'message': f'Invalid share count: {shares} (must be > 0)'
+            }
+
         # Compute targets if missing — based on R-multiples from actual stop
         risk_per_share = entry_price - stop_loss_price
         if risk_per_share <= 0:
             return {
                 'success': False, 'trade_id': '', 'status': 'invalid',
-                'message': 'Invalid stop (>= entry)'
+                'message': f'Invalid stop: ${stop_loss_price:.2f} >= entry ${entry_price:.2f}'
             }
         if target_1_price is None:
             t1_r = float(self.config.get('t1_target_r_multiple', 1.5))
@@ -334,7 +351,7 @@ class TradeExecutor:
 
         Args:
             trade_id: trade to exit
-            exit_price: execution price for the exit
+            exit_price: execution price for the exit (must be > 0)
             exit_reason: reason text (logged in algo_trades + algo_audit_log)
             exit_fraction: 0 < f <= 1 (1.0 = full exit)
             exit_stage: optional 'target_1' | 'target_2' | 'target_3' | 'stop' | 'time' | 'distribution'
@@ -345,11 +362,15 @@ class TradeExecutor:
         if not (0 < exit_fraction <= 1.0):
             return {'success': False, 'message': f'Invalid exit_fraction {exit_fraction}'}
 
+        if not exit_price or exit_price <= 0:
+            return {'success': False, 'message': f'Invalid exit price: {exit_price} (must be > 0)'}
+
         self.connect()
         try:
             self.cur.execute(
                 """
                 SELECT t.symbol, t.entry_price, t.entry_quantity, t.stop_loss_price,
+                       t.alpaca_order_id,
                        p.position_id, p.quantity, p.target_levels_hit
                 FROM algo_trades t
                 LEFT JOIN algo_positions p ON p.trade_ids LIKE '%%' || t.trade_id || '%%'
@@ -361,7 +382,7 @@ class TradeExecutor:
             row = self.cur.fetchone()
             if not row:
                 return {'success': False, 'message': f'Trade {trade_id} not found'}
-            symbol, entry_price, entry_qty, stop_loss_price, position_id, current_qty, target_hits = row
+            symbol, entry_price, entry_qty, stop_loss_price, alpaca_order_id, position_id, current_qty, target_hits = row
 
             entry_price = float(entry_price)
             entry_qty = int(entry_qty)
@@ -377,19 +398,39 @@ class TradeExecutor:
             shares_to_exit = min(shares_to_exit, current_qty)
             full_exit = shares_to_exit >= current_qty
 
-            # Profit calc against actual entry
+            # B3: Cancel bracket orders BEFORE sending the market sell
+            if full_exit and alpaca_order_id:
+                cancel_result = self._cancel_bracket_orders(alpaca_order_id)
+                if not cancel_result.get('success'):
+                    print(f"Warning: Failed to cancel bracket for {trade_id}: {cancel_result['message']}")
+
+            # B3+B5: Send exit order and get actual fill price
+            execution_mode = self.config.get('execution_mode', 'paper')
+            actual_fill_price = None
+            exit_order_result = {'success': False, 'message': 'No order sent'}
+
+            if execution_mode == 'auto':
+                exit_order_result = self._send_alpaca_exit(symbol, shares_to_exit)
+                if exit_order_result.get('success'):
+                    actual_fill_price = exit_order_result.get('filled_price')
+                else:
+                    # Order failed — don't mark position closed (B4)
+                    return {
+                        'success': False,
+                        'message': f'Exit order failed: {exit_order_result.get("message")}'
+                    }
+
+            # Use actual fill price if available, otherwise use the passed price (current market)
+            final_exit_price = actual_fill_price if actual_fill_price else exit_price
+
+            # Profit calc against actual entry + actual exit price (B5)
             risk_per_share = entry_price - stop_loss_price
-            r_multiple = ((exit_price - entry_price) / risk_per_share) if risk_per_share > 0 else 0
-            pnl_per_share = exit_price - entry_price
+            r_multiple = ((final_exit_price - entry_price) / risk_per_share) if risk_per_share > 0 else 0
+            pnl_per_share = final_exit_price - entry_price
             pnl_dollars = pnl_per_share * shares_to_exit
             pnl_pct = (pnl_per_share / entry_price * 100) if entry_price > 0 else 0
 
-            # In auto mode, send the exit order to Alpaca
-            execution_mode = self.config.get('execution_mode', 'paper')
-            if execution_mode == 'auto':
-                self._send_alpaca_exit(symbol, shares_to_exit)
-
-            # Update the trade record
+            # Update the trade record with actual fill price
             if full_exit:
                 self.cur.execute(
                     """
@@ -403,7 +444,7 @@ class TradeExecutor:
                         status = 'closed'
                     WHERE trade_id = %s
                     """,
-                    (exit_price, exit_reason, r_multiple, pnl_dollars, pnl_pct, trade_id),
+                    (final_exit_price, exit_reason, r_multiple, pnl_dollars, pnl_pct, trade_id),
                 )
             else:
                 # Partial exit — append to exit log column, keep status active
@@ -419,7 +460,7 @@ class TradeExecutor:
                     WHERE trade_id = %s
                     """,
                     (
-                        f"{shares_to_exit}sh @ ${exit_price:.2f} ({exit_reason}, {r_multiple:.2f}R)",
+                        f"{shares_to_exit}sh @ ${final_exit_price:.2f} ({exit_reason}, {r_multiple:.2f}R)",
                         trade_id,
                     ),
                 )
@@ -464,7 +505,7 @@ class TradeExecutor:
                         json.dumps({
                             'trade_id': trade_id,
                             'shares_exited': shares_to_exit,
-                            'exit_price': float(exit_price),
+                            'exit_price': float(final_exit_price),
                             'r_multiple': float(r_multiple),
                             'pnl_dollars': float(pnl_dollars),
                             'pnl_pct': float(pnl_pct),
@@ -488,7 +529,7 @@ class TradeExecutor:
                 'r_multiple': r_multiple,
                 'full_exit': full_exit,
                 'message': (
-                    f'Exited {shares_to_exit}sh of {symbol} @ ${exit_price:.2f} '
+                    f'Exited {shares_to_exit}sh of {symbol} @ ${final_exit_price:.2f} '
                     f'({pnl_pct:+.2f}%, {r_multiple:+.2f}R)'
                 ),
             }
@@ -599,12 +640,79 @@ class TradeExecutor:
         except Exception as e:
             return {'success': False, 'message': f'Request failed: {e}'}
 
-    def _send_alpaca_exit(self, symbol, shares):
-        """Send a sell order to Alpaca (best effort)."""
-        if not self.alpaca_key or not self.alpaca_secret:
-            return None
+    def _cancel_bracket_orders(self, alpaca_order_id):
+        """Cancel bracket order and its children (stop loss + take profit).
+
+        Returns: { success: bool, message: str }
+        """
+        if not self.alpaca_key or not self.alpaca_secret or not alpaca_order_id:
+            return {'success': True, 'message': 'No order to cancel'}
+
+        if alpaca_order_id.startswith('LOCAL-') or alpaca_order_id.startswith('PENDING-'):
+            return {'success': True, 'message': 'Paper mode, no Alpaca order to cancel'}
+
         try:
-            requests.post(
+            resp = requests.delete(
+                f'{self.alpaca_base_url}/v2/orders/{alpaca_order_id}',
+                headers={'APCA-API-KEY-ID': self.alpaca_key,
+                         'APCA-API-SECRET-KEY': self.alpaca_secret},
+                timeout=10,
+            )
+            if resp.status_code in (200, 204):
+                return {'success': True, 'message': f'Cancelled bracket order {alpaca_order_id}'}
+            else:
+                return {'success': False, 'message': f'Failed to cancel: {resp.status_code}'}
+        except Exception as e:
+            return {'success': False, 'message': f'Error cancelling order: {str(e)}'}
+
+    def _get_order_fill_price(self, alpaca_order_id):
+        """Query Alpaca for actual fill price of an order.
+
+        Returns: float or None if not filled yet
+        """
+        if not self.alpaca_key or not self.alpaca_secret or not alpaca_order_id:
+            return None
+
+        if alpaca_order_id.startswith('LOCAL-') or alpaca_order_id.startswith('PENDING-'):
+            return None  # Paper mode, no real fill
+
+        try:
+            resp = requests.get(
+                f'{self.alpaca_base_url}/v2/orders/{alpaca_order_id}',
+                headers={'APCA-API-KEY-ID': self.alpaca_key,
+                         'APCA-API-SECRET-KEY': self.alpaca_secret},
+                timeout=5,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get('status') == 'filled' and data.get('filled_avg_price'):
+                    return float(data['filled_avg_price'])
+        except Exception:
+            pass
+        return None
+
+    def _send_alpaca_exit(self, symbol, shares):
+        """Send a sell order to Alpaca. Returns { success, order_id, filled_price }.
+
+        For auto mode: sends market order and waits briefly for fill.
+        For paper mode: returns synthetic fill at current price.
+        """
+        execution_mode = self.config.get('execution_mode', 'paper')
+
+        if execution_mode in ('paper', 'dry', 'review'):
+            return {
+                'success': True,
+                'order_id': f'PAPER-{uuid.uuid4().hex[:10].upper()}',
+                'filled_price': None,  # Will use current market price
+                'message': f'Paper mode: {shares}sh sell order',
+            }
+
+        if not self.alpaca_key or not self.alpaca_secret:
+            return {'success': False, 'order_id': None, 'filled_price': None,
+                    'message': 'Alpaca credentials not configured'}
+
+        try:
+            resp = requests.post(
                 f'{self.alpaca_base_url}/v2/orders',
                 json={
                     'symbol': symbol,
@@ -617,8 +725,23 @@ class TradeExecutor:
                          'APCA-API-SECRET-KEY': self.alpaca_secret},
                 timeout=10,
             )
-        except Exception:
-            pass
+            if resp.status_code in (200, 201):
+                data = resp.json()
+                order_id = data.get('id')
+                # Best effort to get fill; if not filled yet, return None and we'll use market price
+                filled_price = float(data.get('filled_avg_price')) if data.get('filled_avg_price') else None
+                return {
+                    'success': True,
+                    'order_id': order_id,
+                    'filled_price': filled_price,
+                    'message': f'Order sent: {order_id}',
+                }
+            else:
+                return {'success': False, 'order_id': None, 'filled_price': None,
+                        'message': f'Alpaca rejected order: {resp.status_code}'}
+        except Exception as e:
+            return {'success': False, 'order_id': None, 'filled_price': None,
+                    'message': f'Error sending order: {str(e)}'}
 
 
 if __name__ == "__main__":

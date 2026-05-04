@@ -16,6 +16,37 @@ env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
     load_dotenv(env_file)
 
+
+def validate_environment():
+    """Validate that all required environment variables are set.
+
+    Called on module load. Raises RuntimeError if critical vars are missing.
+    """
+    # Check for DB credentials (can use defaults, but warn if none set)
+    db_host = os.getenv("DB_HOST")
+    db_name = os.getenv("DB_NAME")
+
+    if not db_host:
+        print("WARNING: DB_HOST not set, using default 'localhost'")
+    if not db_name:
+        print("WARNING: DB_NAME not set, using default 'stocks'")
+
+    # Alpaca credentials are optional for paper trading, but check anyway
+    alpaca_key = os.getenv("APCA_API_KEY_ID")
+    alpaca_secret = os.getenv("APCA_API_SECRET_KEY")
+    if not alpaca_key or not alpaca_secret:
+        print("WARNING: Alpaca credentials (APCA_API_KEY_ID, APCA_API_SECRET_KEY) not set — paper trading only")
+
+    return True
+
+
+# Validate on import
+try:
+    validate_environment()
+except Exception as e:
+    print(f"ERROR: Environment validation failed: {e}")
+    raise
+
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),

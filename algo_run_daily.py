@@ -77,9 +77,11 @@ def run_algo_workflow(eval_date=None):
         for trade in qualified_trades:
             symbol = trade['symbol']
             entry_price = trade['entry_price']
+            stop_loss = trade.get('stop_loss_price')
 
-            # Estimate stop (5% below entry for simplicity)
-            stop_loss = entry_price * 0.95
+            if not stop_loss or stop_loss >= entry_price:
+                print(f"{symbol}: Invalid stop loss from filter pipeline, skipping")
+                continue
 
             result = sizer.calculate_position_size(symbol, entry_price, stop_loss)
 
