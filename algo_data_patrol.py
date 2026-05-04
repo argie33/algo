@@ -16,6 +16,11 @@ silent failures that mock and sample-based testing miss:
   P8. SEQUENCE          dates contiguous (no missing trading days)
   P9. CONSTRAINT        DB integrity (FK, unique, NOT NULL violations)
  P10. SCORE FRESHNESS   computed scores updated post raw data refresh
+ P11. LOADER CONTRACTS  per-loader row-count thresholds (regression detection)
+ P12. EARNINGS DATA     earnings estimates, revisions, history freshness + coverage
+ P13. ETF DATA          ETF prices and signals freshness
+ P14. CROSS-ALIGN       symbol universe alignment across dependent tables
+ P15. FUNDAMENTALS      financial statements and key metrics freshness
 
 Every check writes to data_patrol_log with severity (info/warn/error/critical).
 The orchestrator's Phase 1 reads aggregate severity and fails closed on critical.
@@ -25,7 +30,7 @@ signals) and daily for fundamentals/earnings. Can run in parallel where safe.
 
 USAGE:
   python3 algo_data_patrol.py                    # full patrol
-  python3 algo_data_patrol.py --quick            # critical checks only
+  python3 algo_data_patrol.py --quick            # critical checks only (P1,P3,P7,P9)
   python3 algo_data_patrol.py --validate-alpaca  # cross-source check vs Alpaca
 """
 
@@ -537,6 +542,31 @@ class DataPatrol:
              'Stock scores: should cover ~4900 symbols (latest snapshot, 80% threshold)'),
             ('data_completeness_scores', '1=1', 4000, ERROR,
              'Completeness: every symbol scored (80% threshold)'),
+            # P12 earnings contracts
+            ('earnings_estimates',
+             "date_recorded >= CURRENT_DATE - INTERVAL '7 days'",
+             2000, WARN,
+             'Earnings estimates: should cover 2000+ symbols'),
+            ('earnings_estimate_revisions',
+             "date_recorded >= CURRENT_DATE - INTERVAL '14 days'",
+             500, WARN,
+             'Earnings revisions: daily activity indicator'),
+            # P13 ETF contracts
+            ('etf_price_daily',
+             "date >= CURRENT_DATE - INTERVAL '3 days'",
+             30, WARN,
+             'ETF prices: minimum 30 ETFs updated'),
+            ('buy_sell_daily_etf',
+             "date >= CURRENT_DATE - INTERVAL '3 days'",
+             5, WARN,
+             'ETF signals daily: at least 5 per day'),
+            # P15 fundamentals
+            ('quarterly_income_statement', '1=1', 100, WARN,
+             'Quarterly statements: 100+ records'),
+            ('key_metrics',
+             "date_recorded >= CURRENT_DATE - INTERVAL '14 days'",
+             500, WARN,
+             'Key metrics: 500+ symbols recent'),
         ]
 
         # Buy/sell ratio specific check
@@ -601,6 +631,195 @@ class DataPatrol:
         except Exception as e:
             self.log('db_constraints', ERROR, 'all', f'Check failed: {e}', None)
 
+    def check_earnings_data(self):
+        """P12. Earnings data freshness and coverage."""
+        today = _date.today()
+        sources = [
+            ('earnings_estimates',          'date_recorded', 7,   WARN),
+            ('earnings_estimate_revisions', 'date_recorded', 14,  WARN),
+            ('earnings_history',            'quarter',       120, WARN),
+        ]
+        for tbl, col, max_days, sev in sources:
+            try:
+                self.cur.execute(f"SELECT MAX({col}::date), COUNT(*) FROM {tbl}")
+                latest, count = self.cur.fetchone()
+                if not latest:
+                    self.log('earnings_staleness', WARN, tbl, f'{tbl} is empty', {'count': 0})
+                else:
+                    age = (today - latest).days
+                    if age > max_days:
+                        self.log('earnings_staleness', sev, tbl,
+                                 f'{tbl} stale: {age}d > {max_days}d',
+                                 {'latest': str(latest), 'age_days': age})
+                    else:
+                        self.log('earnings_staleness', INFO, tbl,
+                                 f'{tbl} fresh ({age}d old)', {'latest': str(latest)})
+            except Exception as e:
+                self.log('earnings_staleness', WARN, tbl, f'Check skipped: {e}', None)
+
+        try:
+            self.cur.execute("""
+                SELECT
+                    COUNT(DISTINCT e.symbol) AS est_syms,
+                    COUNT(DISTINCT p.symbol) AS price_syms
+                FROM price_daily p
+                LEFT JOIN earnings_estimates e
+                    ON e.symbol = p.symbol
+                   AND e.date_recorded >= CURRENT_DATE - INTERVAL '7 days'
+                WHERE p.date >= CURRENT_DATE - INTERVAL '7 days'
+            """)
+            est_syms, price_syms = self.cur.fetchone()
+            est_syms   = int(est_syms   or 0)
+            price_syms = int(price_syms or 1)
+            pct = est_syms / price_syms * 100
+            sev = WARN if pct < 80 else INFO
+            self.log('earnings_coverage', sev, 'earnings_estimates',
+                     f'{pct:.1f}% symbol coverage ({est_syms}/{price_syms})',
+                     {'coverage_pct': round(pct, 1)})
+        except Exception as e:
+            self.log('earnings_coverage', WARN, 'earnings_estimates', f'Check skipped: {e}', None)
+
+    def check_etf_data(self):
+        """P13. ETF price and signal data freshness."""
+        today = _date.today()
+
+        try:
+            self.cur.execute("SELECT MAX(date), COUNT(DISTINCT symbol) FROM etf_price_daily")
+            latest, etf_count = self.cur.fetchone()
+            if not latest:
+                self.log('etf_prices', WARN, 'etf_price_daily', 'Empty table', {})
+            else:
+                age = (today - latest).days
+                sev = ERROR if age > 3 else INFO
+                self.log('etf_prices', sev, 'etf_price_daily',
+                         f'ETF prices {age}d old ({etf_count} ETFs)',
+                         {'latest': str(latest), 'etf_count': etf_count})
+        except Exception as e:
+            self.log('etf_prices', WARN, 'etf_price_daily', f'Check skipped: {e}', None)
+
+        signal_checks = [
+            ('buy_sell_daily_etf',   1,  WARN),
+            ('buy_sell_weekly_etf',  7,  WARN),
+            ('buy_sell_monthly_etf', 30, INFO),
+        ]
+        for tbl, max_age, sev in signal_checks:
+            try:
+                self.cur.execute(f"SELECT MAX(date), COUNT(*) FROM {tbl}")
+                latest, count = self.cur.fetchone()
+                if not latest:
+                    self.log('etf_signals', WARN, tbl, f'{tbl} is empty', {})
+                else:
+                    age = (today - latest).days
+                    result_sev = sev if age > max_age else INFO
+                    self.log('etf_signals', result_sev, tbl,
+                             f'{tbl} {age}d old ({count} rows)',
+                             {'latest': str(latest), 'count': count})
+            except Exception as e:
+                self.log('etf_signals', WARN, tbl, f'Check skipped: {e}', None)
+
+    def check_cross_table_alignment(self):
+        """P14. Dependent tables cover same symbol universe as price_daily."""
+        try:
+            self.cur.execute("""
+                SELECT COUNT(DISTINCT symbol) FROM price_daily
+                WHERE date = (SELECT MAX(date) FROM price_daily)
+            """)
+            baseline = int(self.cur.fetchone()[0] or 1)
+        except Exception as e:
+            self.log('cross_align', WARN, 'price_daily', f'Baseline query failed: {e}', None)
+            return
+
+        checks = [
+            ('technical_data_daily', 'date = (SELECT MAX(date) FROM technical_data_daily)', 0.95, ERROR),
+            ('buy_sell_daily',       'date = (SELECT MAX(date) FROM buy_sell_daily)',       0.90, ERROR),
+            ('trend_template_data',  'date = (SELECT MAX(date) FROM trend_template_data)',  0.95, WARN),
+            ('signal_quality_scores','date = (SELECT MAX(date) FROM signal_quality_scores)', 0.95, WARN),
+            ('stock_scores',         '1=1',                                                  0.90, WARN),
+        ]
+        for tbl, where, min_ratio, sev in checks:
+            try:
+                self.cur.execute(f"SELECT COUNT(DISTINCT symbol) FROM {tbl} WHERE {where}")
+                count = int(self.cur.fetchone()[0] or 0)
+                ratio = count / baseline
+                if ratio < min_ratio:
+                    self.log('cross_align', sev, tbl,
+                             f'{tbl} coverage {ratio*100:.1f}% < {min_ratio*100:.0f}% '
+                             f'({count}/{baseline} symbols)',
+                             {'coverage_pct': round(ratio * 100, 1), 'baseline': baseline})
+                else:
+                    self.log('cross_align', INFO, tbl,
+                             f'{tbl} alignment OK ({ratio*100:.1f}%)', None)
+            except Exception as e:
+                self.log('cross_align', WARN, tbl, f'Check skipped: {e}', None)
+
+        try:
+            self.cur.execute("""
+                SELECT
+                    (SELECT MAX(date) FROM buy_sell_daily) AS bs_date,
+                    (SELECT MAX(date) FROM technical_data_daily) AS td_date
+            """)
+            bs_date, td_date = self.cur.fetchone()
+            if bs_date and td_date and abs((bs_date - td_date).days) > 1:
+                self.log('cross_align', WARN, 'buy_sell_daily/technical_data_daily',
+                         f'Signal {bs_date} and technical {td_date} on different dates',
+                         {'signal_date': str(bs_date), 'technical_date': str(td_date)})
+        except Exception as e:
+            self.log('cross_align', INFO, 'date_alignment', f'Check skipped: {e}', None)
+
+    def check_fundamental_data(self):
+        """P15. Financial statement and fundamental data freshness."""
+        today = _date.today()
+        table_checks = [
+            ('quarterly_income_statement', 'date_reported', 45,  WARN),
+            ('quarterly_balance_sheet',    'date_reported', 45,  WARN),
+            ('quarterly_cash_flow',        'date_reported', 45,  WARN),
+            ('annual_income_statement',    'date_reported', 120, WARN),
+            ('annual_balance_sheet',       'date_reported', 120, WARN),
+            ('annual_cash_flow',           'date_reported', 120, WARN),
+            ('key_metrics',                'date_recorded', 14,  WARN),
+            ('earnings_metrics',           'date_recorded', 7,   WARN),
+        ]
+        for tbl, col, max_days, sev in table_checks:
+            try:
+                self.cur.execute(
+                    f"SELECT MAX({col}::date), COUNT(*), COUNT(DISTINCT symbol) FROM {tbl}"
+                )
+                latest, total, unique_syms = self.cur.fetchone()
+                if not latest:
+                    self.log('fundamental_data', WARN, tbl, f'{tbl} is empty', {})
+                else:
+                    age = (today - latest).days
+                    result_sev = sev if age > max_days else INFO
+                    self.log('fundamental_data', result_sev, tbl,
+                             f'{tbl} {age}d old ({unique_syms} symbols)',
+                             {'latest': str(latest), 'age_days': age, 'symbols': unique_syms})
+            except Exception as e:
+                self.log('fundamental_data', WARN, tbl, f'Check skipped: {e}', None)
+
+        try:
+            self.cur.execute("""
+                SELECT
+                    COUNT(DISTINCT symbol) FILTER (WHERE tbl = 'km') AS km_syms,
+                    COUNT(DISTINCT symbol) FILTER (WHERE tbl = 'pd') AS pd_syms
+                FROM (
+                    SELECT 'km' AS tbl, symbol FROM key_metrics
+                     WHERE date_recorded >= CURRENT_DATE - INTERVAL '14 days'
+                    UNION ALL
+                    SELECT 'pd', symbol FROM price_daily
+                     WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+                ) t
+            """)
+            km_syms, pd_syms = self.cur.fetchone()
+            km_syms = int(km_syms or 0)
+            pd_syms = int(pd_syms or 1)
+            pct = km_syms / pd_syms * 100
+            sev = WARN if pct < 80 else INFO
+            self.log('fundamental_coverage', sev, 'key_metrics',
+                     f'{pct:.1f}% symbol coverage ({km_syms}/{pd_syms})',
+                     {'coverage_pct': round(pct, 1)})
+        except Exception as e:
+            self.log('fundamental_coverage', WARN, 'key_metrics', f'Check skipped: {e}', None)
+
     # ============================================================
     # ENTRYPOINT
     # ============================================================
@@ -623,6 +842,10 @@ class DataPatrol:
                 self.check_sequence_continuity()
                 self.check_score_freshness()
                 self.check_loader_contracts()
+                self.check_earnings_data()
+                self.check_etf_data()
+                self.check_cross_table_alignment()
+                self.check_fundamental_data()
 
             if validate_alpaca:
                 self.check_alpaca_cross_validate()
