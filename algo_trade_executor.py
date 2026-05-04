@@ -227,6 +227,12 @@ class TradeExecutor:
                 order_status = order_result.get('status', 'pending')
                 executed_price = order_result.get('executed_price', entry_price)
 
+                # Verify bracket legs were created successfully
+                legs = order_result.get('legs', [])
+                if order_result.get('order_class') == 'bracket' and len(legs) < 2:
+                    print(f"WARNING: Bracket order {alpaca_order_id} created but legs incomplete: {len(legs)} legs")
+                    # Continue anyway but flag for monitoring
+
             # Compute initial position size pct using live or snapshot portfolio value
             portfolio_value = self._get_portfolio_value() or 100000.0
             position_size_pct = (shares * executed_price / portfolio_value * 100) if portfolio_value > 0 else 0

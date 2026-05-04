@@ -230,13 +230,36 @@ class DailyReconciliation:
         self.cur.execute("SELECT symbol FROM algo_positions WHERE status = 'open'")
         our_symbols = {row[0] for row in self.cur.fetchall()}
 
-        alpaca_symbols = set()
+        alpaca_symbols = {}  # symbol -> qty for drift detection
         imported = 0
 
         for ap in alpaca_positions:
             sym = ap.get('symbol')
-            alpaca_symbols.add(sym)
+            qty = float(ap.get('qty', 0))
+            alpaca_symbols[sym] = qty
+
             if sym in our_symbols:
+                # Check for quantity drift
+                self.cur.execute(
+                    "SELECT quantity FROM algo_positions WHERE symbol = %s AND status = 'open'",
+                    (sym,)
+                )
+                row = self.cur.fetchone()
+                if row:
+                    db_qty = int(row[0] or 0)
+                    if abs(db_qty - qty) > 0.1:  # Allow small rounding differences
+                        try:
+                            from algo_notifications import notify
+                            notify(
+                                kind='position_drift',
+                                severity='critical',
+                                title='CRITICAL: Quantity Mismatch',
+                                message=f'{sym} has {qty:.0f} shares on Alpaca but '
+                                        f'{db_qty} in DB. Manual intervention required.',
+                                details={'symbol': sym, 'alpaca_qty': qty, 'db_qty': db_qty},
+                            )
+                        except Exception as e:
+                            print(f"  Warning: Could not send quantity drift alert: {e}")
                 continue  # already tracked
 
             # Import this Alpaca position as a manual/external one
@@ -309,6 +332,19 @@ class DailyReconciliation:
                     SET status = 'orphaned', updated_at = CURRENT_TIMESTAMP
                     WHERE symbol = %s AND status = 'open'
                 """, (sym,))
+                # Alert: position missing from Alpaca
+                try:
+                    from algo_notifications import notify
+                    notify(
+                        kind='position_drift',
+                        severity='critical',
+                        title='CRITICAL: Position Drift Detected',
+                        message=f'{sym} shows as open in DB but not found in Alpaca. '
+                                f'May indicate liquidation or external closure.',
+                        details={'symbol': sym, 'drift_type': 'orphaned_in_db'},
+                    )
+                except Exception as e:
+                    print(f"  Warning: Could not send orphan alert: {e}")
 
         self.conn.commit()
         return {

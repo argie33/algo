@@ -133,7 +133,11 @@ class AlgoConfig:
 
             for key, value, dtype in rows:
                 if value is not None:
-                    self._config[key] = self._parse_value(value, dtype)
+                    try:
+                        self._validate_value(key, value, dtype)
+                        self._config[key] = self._parse_value(value, dtype)
+                    except ValueError as e:
+                        print(f"Warning: Invalid config {key}={value}: {e} — using default")
 
             cur.close()
             conn.close()
@@ -152,13 +156,56 @@ class AlgoConfig:
         else:
             return str(value)
 
+    def _validate_value(self, key, value, dtype):
+        """Validate that a config value is within acceptable bounds.
+
+        Raises ValueError if validation fails.
+        """
+        # Percentage values: 0-100
+        if 'pct' in key.lower():
+            f_val = float(value) if isinstance(value, (int, float, str)) else value
+            if f_val < 0 or f_val > 100:
+                raise ValueError(f'{key}: {f_val}% out of range [0-100]')
+
+        # Position count: 1-100
+        if key == 'max_positions':
+            i_val = int(value) if isinstance(value, (int, float, str)) else value
+            if i_val < 1 or i_val > 100:
+                raise ValueError(f'{key}: {i_val} out of range [1-100]')
+
+        # Days: positive integers
+        if 'days' in key.lower():
+            i_val = int(value) if isinstance(value, (int, float, str)) else value
+            if i_val < 0 or i_val > 365:
+                raise ValueError(f'{key}: {i_val} days out of range [0-365]')
+
+        # Thresholds: reasonable bounds
+        if key == 'vix_max_threshold':
+            f_val = float(value) if isinstance(value, (int, float, str)) else value
+            if f_val < 20 or f_val > 100:
+                raise ValueError(f'{key}: {f_val} out of range [20-100]')
+
+        # R-multiples: positive
+        if 'r_multiple' in key.lower():
+            f_val = float(value) if isinstance(value, (int, float, str)) else value
+            if f_val < 0.5 or f_val > 10:
+                raise ValueError(f'{key}: {f_val} out of range [0.5-10]')
+
+        return True
+
     def get(self, key, default=None):
         """Get configuration value."""
         return self._config.get(key, default)
 
     def set(self, key, value, value_type, description=""):
-        """Set configuration value in database and memory."""
+        """Set configuration value in database and memory.
+
+        Returns: (success: bool, message: str)
+        """
         try:
+            # Validate before storing
+            self._validate_value(key, str(value), value_type)
+
             conn = psycopg2.connect(**DB_CONFIG)
             cur = conn.cursor()
 
@@ -180,6 +227,9 @@ class AlgoConfig:
             self._config[key] = self._parse_value(str(value), value_type)
 
             return True
+        except ValueError as e:
+            print(f"Error: Invalid config value for {key}: {e}")
+            return False
         except Exception as e:
             print(f"Error setting config {key}: {e}")
             return False
