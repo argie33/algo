@@ -67,8 +67,12 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource:
-                  - !ImportValue StocksApp-SecretArn
-                  - !ImportValue StocksApp-AlgoSecretsSecretArn
+                  - !Sub
+                    - '${SecretArn}*'
+                    - SecretArn: !ImportValue StocksApp-SecretArn
+                  - !Sub
+                    - '${SecretArn}*'
+                    - SecretArn: !ImportValue StocksApp-AlgoSecretsSecretArn
               # SNS publish for alerts
               - Effect: Allow
                 Action:
