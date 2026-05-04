@@ -1,0 +1,20 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Simple SNS topic - test CloudFormation deployment'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'dev'
+    AllowedValues: ['dev', 'staging', 'prod']
+
+Resources:
+  TestTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub 'test-topic-${Environment}'
+      DisplayName: 'Test Topic'
+
+Outputs:
+  TopicArn:
+    Value: !GetAtt TestTopic.TopicArn
+    Description: ARN of the test SNS topic
