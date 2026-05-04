@@ -373,6 +373,99 @@ Resources:
     DeletionPolicy: Delete
     UpdateReplacePolicy: Retain
 
+  ### 10) VPC ENDPOINTS — Cost Optimization (eliminates NAT Gateway ~$20/month) ###
+  VpcEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: stocks-vpc-endpoint-sg
+      GroupDescription: Security group for VPC endpoints (HTTPS from VPC)
+      VpcId: !Ref StocksVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref VpcCidr
+      Tags:
+        - Key: Name
+          Value: stocks-vpc-endpoint-sg
+
+  S3GatewayEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref StocksVPC
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref PrivateRouteTable
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: 's3:*'
+            Resource: '*'
+
+  DynamoDBGatewayEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref StocksVPC
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.dynamodb
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref PrivateRouteTable
+
+  SecretsManagerEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref StocksVPC
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.secretsmanager
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+      PrivateDnsEnabled: true
+
+  EcrApiEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref StocksVPC
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ecr.api
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+      PrivateDnsEnabled: true
+
+  EcrDkrEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref StocksVPC
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ecr.dkr
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+      PrivateDnsEnabled: true
+
+  CloudWatchLogsEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref StocksVPC
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.logs
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+      PrivateDnsEnabled: true
+
 Outputs:
   VpcId:
     Value: !Ref StocksVPC
@@ -414,3 +507,35 @@ Outputs:
     Value: !Ref BastionSecurityGroup
     Export:
       Name: StocksCore-BastionSecurityGroupId
+  VpcEndpointSecurityGroupId:
+    Value: !Ref VpcEndpointSecurityGroup
+    Export:
+      Name: StocksCore-VpcEndpointSecurityGroupId
+  S3GatewayEndpointId:
+    Value: !Ref S3GatewayEndpoint
+    Export:
+      Name: StocksCore-S3GatewayEndpointId
+  DynamoDBGatewayEndpointId:
+    Value: !Ref DynamoDBGatewayEndpoint
+    Export:
+      Name: StocksCore-DynamoDBGatewayEndpointId
+  SecretsManagerEndpointId:
+    Value: !Ref SecretsManagerEndpoint
+    Export:
+      Name: StocksCore-SecretsManagerEndpointId
+  EcrApiEndpointId:
+    Value: !Ref EcrApiEndpoint
+    Export:
+      Name: StocksCore-EcrApiEndpointId
+  EcrDkrEndpointId:
+    Value: !Ref EcrDkrEndpoint
+    Export:
+      Name: StocksCore-EcrDkrEndpointId
+  CloudWatchLogsEndpointId:
+    Value: !Ref CloudWatchLogsEndpoint
+    Export:
+      Name: StocksCore-CloudWatchLogsEndpointId
+  VpcEndpointCostSavings:
+    Value: VPC Endpoints eliminate NAT Gateway charges (~$20-25/month savings)
+    Export:
+      Name: StocksCore-OptimizationNotes
