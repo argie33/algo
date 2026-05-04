@@ -1,386 +1,364 @@
-import React, { useEffect, useState } from 'react';
+/**
+ * Backtest Results — list runs, drill into trades + equity curve.
+ * Pure JSX + theme.css classes.
+ */
+
+import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
-  Container,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  CircularProgress,
-  Alert,
-  Box,
-  TextField,
-  Button,
-  Grid,
-  Card,
-  CardContent,
-  Typography,
-  Collapse,
-  IconButton,
-  Chip
-} from '@mui/material';
-import { KeyboardArrowDown, KeyboardArrowUp } from '@mui/icons-material';
-import axios from 'axios';
+  RefreshCw, ChevronLeft, ChevronRight, ArrowLeft, Inbox, AlertCircle,
+} from 'lucide-react';
 import {
-  LineChart as RechartsLineChart,
-  Line as RechartLine,
-  XAxis as RechartXAxis,
-  YAxis as RechartYAxis,
-  CartesianGrid as RechartCartesianGrid,
-  Tooltip as RechartTooltip,
-  Legend as RechartLegend,
-  ResponsiveContainer as RechartResponsiveContainer
+  AreaChart, Area, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, CartesianGrid,
 } from 'recharts';
+import { api } from '../services/api';
 
-const BacktestResults = () => {
-  const [runs, setRuns] = useState([]);
-  const [selectedRun, setSelectedRun] = useState(null);
-  const [runDetail, setRunDetail] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [filters, setFilters] = useState({
-    strategy_name: '',
-    limit: 50,
-    offset: 0,
-    sort_by: 'run_timestamp',
-    order: 'DESC'
-  });
-  const [pagination, setPagination] = useState({
-    total: 0,
-    page: 1,
-    totalPages: 1
-  });
+const fmtDate = (s) => s ? new Date(s).toLocaleDateString() : '—';
+const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp);
+const pct = (v, dp = 1) => v == null || isNaN(Number(v)) ? '—' : `${Number(v).toFixed(dp)}%`;
 
-  useEffect(() => {
-    fetchRuns();
-  }, [filters]);
-
-  const fetchRuns = async () => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams();
-      if (filters.strategy_name) params.append('strategy_name', filters.strategy_name);
-      params.append('limit', filters.limit);
-      params.append('offset', filters.offset);
-      params.append('sort_by', filters.sort_by);
-      params.append('order', filters.order);
-
-      const response = await axios.get(`/api/research/backtests?${params}`);
-      setRuns(response.data.items || []);
-      setPagination(response.data.pagination);
-      setError(null);
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load backtest runs');
-      setRuns([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchRunDetail = async (runId) => {
-    try {
-      const response = await axios.get(`/api/research/backtests/${runId}`);
-      setRunDetail(response.data);
-      setSelectedRun(runId);
-    } catch (err) {
-      setError('Failed to load run details');
-    }
-  };
-
-  const handleFilterChange = (key, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [key]: value,
-      offset: 0
-    }));
-  };
-
-  const handlePageChange = (newOffset) => {
-    setFilters(prev => ({
-      ...prev,
-      offset: newOffset
-    }));
-  };
-
-  const formatDate = (dateStr) => {
-    return new Date(dateStr).toLocaleDateString();
-  };
-
-  const KPICard = ({ label, value, decimals = 2 }) => (
-    <Card>
-      <CardContent>
-        <Typography color="textSecondary" gutterBottom>
-          {label}
-        </Typography>
-        <Typography variant="h6">
-          {typeof value === 'number' ? value.toFixed(decimals) : value || 'N/A'}
-        </Typography>
-      </CardContent>
-    </Card>
-  );
-
-  return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        Backtest Results
-      </Typography>
-
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Grid container spacing={2}>
-          <Grid item xs={12} sm={6} md={4}>
-            <TextField
-              size="small"
-              label="Strategy"
-              value={filters.strategy_name}
-              onChange={(e) => handleFilterChange('strategy_name', e.target.value)}
-              fullWidth
-              select
-              SelectProps={{ native: true }}
-            >
-              <option value="">All Strategies</option>
-              <option value="swing">Swing Breakout</option>
-              <option value="range">Range Trading</option>
-              <option value="mean_reversion">Mean Reversion</option>
-            </TextField>
-          </Grid>
-          <Grid item xs={12} sm={6} md={4}>
-            <TextField
-              size="small"
-              label="Sort By"
-              value={filters.sort_by}
-              onChange={(e) => handleFilterChange('sort_by', e.target.value)}
-              fullWidth
-              select
-              SelectProps={{ native: true }}
-            >
-              <option value="run_timestamp">Date</option>
-              <option value="win_rate">Win Rate</option>
-              <option value="expectancy_per_trade">Expectancy</option>
-              <option value="sharpe">Sharpe Ratio</option>
-              <option value="total_signals">Signals</option>
-            </TextField>
-          </Grid>
-          <Grid item xs={12} sm={6} md={4}>
-            <Button variant="contained" fullWidth onClick={() => setFilters(filters)}>
-              Apply Filters
-            </Button>
-          </Grid>
-        </Grid>
-      </Paper>
-
-      {error && <Alert severity="error">{error}</Alert>}
-
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-          <CircularProgress />
-        </Box>
-      ) : !selectedRun ? (
-        <>
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
-                <TableRow>
-                  <TableCell><strong>Run Name</strong></TableCell>
-                  <TableCell><strong>Strategy</strong></TableCell>
-                  <TableCell><strong>Date Range</strong></TableCell>
-                  <TableCell><strong>Signals</strong></TableCell>
-                  <TableCell><strong>Win %</strong></TableCell>
-                  <TableCell><strong>Expectancy</strong></TableCell>
-                  <TableCell><strong>Max DD %</strong></TableCell>
-                  <TableCell><strong>Sharpe</strong></TableCell>
-                  <TableCell><strong>Return %</strong></TableCell>
-                  <TableCell><strong>Action</strong></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {runs.map((run) => (
-                  <TableRow key={run.run_id}>
-                    <TableCell>{run.run_name}</TableCell>
-                    <TableCell>{run.strategy_name}</TableCell>
-                    <TableCell>
-                      {formatDate(run.date_start)} to {formatDate(run.date_end)}
-                    </TableCell>
-                    <TableCell>{run.total_signals}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={`${run.win_rate?.toFixed(1)}%`}
-                        size="small"
-                        color={run.win_rate >= 50 ? 'success' : 'warning'}
-                        variant="outlined"
-                      />
-                    </TableCell>
-                    <TableCell>{run.expectancy_per_trade?.toFixed(3)}</TableCell>
-                    <TableCell>{run.max_drawdown_pct?.toFixed(1)}%</TableCell>
-                    <TableCell>{run.sharpe?.toFixed(2)}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={`${run.total_return_pct?.toFixed(1)}%`}
-                        size="small"
-                        color={run.total_return_pct >= 0 ? 'success' : 'error'}
-                        variant="outlined"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() => fetchRunDetail(run.run_id)}
-                      >
-                        View
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-
-          <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography>
-              Page {pagination.page} of {pagination.totalPages} | Total: {pagination.total} runs
-            </Typography>
-            <Box>
-              <Button
-                disabled={!pagination.hasPrev}
-                onClick={() => handlePageChange(filters.offset - filters.limit)}
-              >
-                Previous
-              </Button>
-              <Button
-                disabled={!pagination.hasNext}
-                onClick={() => handlePageChange(filters.offset + filters.limit)}
-              >
-                Next
-              </Button>
-            </Box>
-          </Box>
-        </>
-      ) : runDetail ? (
-        <>
-          <Button variant="outlined" onClick={() => { setSelectedRun(null); setRunDetail(null); }} sx={{ mb: 2 }}>
-            Back to Runs
-          </Button>
-
-          <Paper sx={{ p: 3, mb: 3 }}>
-            <Grid container spacing={2}>
-              <Grid item xs={12}>
-                <Typography variant="h5">{runDetail.run.run_name}</Typography>
-                <Typography variant="body2" color="textSecondary">
-                  {runDetail.run.strategy_name} | {formatDate(runDetail.run.date_start)} to {formatDate(runDetail.run.date_end)}
-                </Typography>
-              </Grid>
-
-              <Grid item xs={12} sm={6} md={3}>
-                <KPICard label="Total Signals" value={runDetail.run.total_signals} decimals={0} />
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <KPICard label="Win Rate" value={runDetail.run.win_rate} decimals={1} />
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <KPICard label="Expectancy" value={runDetail.run.expectancy_per_trade} decimals={3} />
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <KPICard label="Sharpe Ratio" value={runDetail.run.sharpe} decimals={2} />
-              </Grid>
-
-              <Grid item xs={12} sm={6} md={3}>
-                <KPICard label="Profit Factor" value={runDetail.run.profit_factor} decimals={2} />
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <KPICard label="Max Drawdown" value={runDetail.run.max_drawdown_pct} decimals={1} />
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <KPICard label="Avg Win" value={runDetail.run.avg_win_pct} decimals={2} />
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <KPICard label="Avg Loss" value={runDetail.run.avg_loss_pct} decimals={2} />
-              </Grid>
-
-              {runDetail.run.notes && (
-                <Grid item xs={12}>
-                  <Card>
-                    <CardContent>
-                      <Typography color="textSecondary" gutterBottom>
-                        Notes
-                      </Typography>
-                      <Typography>{runDetail.run.notes}</Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              )}
-            </Grid>
-          </Paper>
-
-          {runDetail.run.equity_curve && (
-            <Paper sx={{ p: 3, mb: 3 }}>
-              <Typography variant="h6" gutterBottom>
-                Equity Curve
-              </Typography>
-              <RechartResponsiveContainer width="100%" height={300}>
-                <RechartsLineChart data={runDetail.run.equity_curve}>
-                  <RechartCartesianGrid strokeDasharray="3 3" />
-                  <RechartXAxis dataKey="date" />
-                  <RechartYAxis />
-                  <RechartTooltip />
-                  <RechartLegend />
-                  <RechartLine type="monotone" dataKey="equity" stroke="#8884d8" />
-                </RechartsLineChart>
-              </RechartResponsiveContainer>
-            </Paper>
-          )}
-
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Trades ({runDetail.trade_pagination.total})
-            </Typography>
-            <TableContainer>
-              <Table size="small">
-                <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
-                  <TableRow>
-                    <TableCell>Symbol</TableCell>
-                    <TableCell>Entry Date</TableCell>
-                    <TableCell>Exit Date</TableCell>
-                    <TableCell>Entry Price</TableCell>
-                    <TableCell>Exit Price</TableCell>
-                    <TableCell>Return %</TableCell>
-                    <TableCell>Outcome</TableCell>
-                    <TableCell>Days</TableCell>
-                    <TableCell>MFE %</TableCell>
-                    <TableCell>MAE %</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {runDetail.trades.map((trade) => (
-                    <TableRow key={trade.trade_id}>
-                      <TableCell>{trade.symbol}</TableCell>
-                      <TableCell>{formatDate(trade.signal_date)}</TableCell>
-                      <TableCell>{formatDate(trade.exit_date)}</TableCell>
-                      <TableCell>${trade.entry_price?.toFixed(2)}</TableCell>
-                      <TableCell>${trade.exit_price?.toFixed(2)}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={`${trade.return_pct?.toFixed(2)}%`}
-                          size="small"
-                          color={trade.return_pct >= 0 ? 'success' : 'error'}
-                          variant="outlined"
-                        />
-                      </TableCell>
-                      <TableCell>{trade.outcome}</TableCell>
-                      <TableCell>{trade.days_held}</TableCell>
-                      <TableCell>{trade.mfe_pct?.toFixed(1)}%</TableCell>
-                      <TableCell>{trade.mae_pct?.toFixed(1)}%</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </>
-      ) : null}
-    </Container>
-  );
+const TOOLTIP_STYLE = {
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--r-sm)',
+  fontSize: 'var(--t-xs)',
+  padding: 'var(--space-2) var(--space-3)',
 };
 
-export default BacktestResults;
+export default function BacktestResults() {
+  const [filters, setFilters] = useState({
+    strategy_name: '',
+    sort_by: 'run_timestamp',
+    order: 'desc',
+    limit: 20,
+    offset: 0,
+  });
+  const [selectedRun, setSelectedRun] = useState(null);
+
+  const { data: list, isLoading, error: listErr, refetch } = useQuery({
+    queryKey: ['backtest-runs', filters],
+    queryFn: () => {
+      const p = new URLSearchParams();
+      if (filters.strategy_name) p.set('strategy_name', filters.strategy_name);
+      p.set('limit', filters.limit);
+      p.set('offset', filters.offset);
+      p.set('sort_by', filters.sort_by);
+      p.set('order', filters.order);
+      return api.get(`/api/research/backtests?${p.toString()}`).then(r => r.data);
+    },
+  });
+
+  const { data: detail } = useQuery({
+    queryKey: ['backtest-detail', selectedRun],
+    queryFn: () => api.get(`/api/research/backtests/${selectedRun}`).then(r => r.data),
+    enabled: !!selectedRun,
+  });
+
+  const runs = list?.items || [];
+  const pagination = list?.pagination || { total: 0, page: 1, totalPages: 1 };
+
+  if (selectedRun && detail) {
+    return <RunDetail detail={detail} onBack={() => setSelectedRun(null)} />;
+  }
+
+  return (
+    <div className="main-content">
+      <div className="page-head">
+        <div>
+          <div className="page-head-title">Backtest Results</div>
+          <div className="page-head-sub">
+            Strategy validation runs · win rate · expectancy · Sharpe · max DD
+          </div>
+        </div>
+        <div className="page-head-actions">
+          <button className="btn btn-outline btn-sm" onClick={() => refetch()}>
+            <RefreshCw size={14} /> Refresh
+          </button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="card">
+        <div className="card-body">
+          <div className="flex items-center gap-3" style={{ flexWrap: 'wrap' }}>
+            <select
+              className="select"
+              value={filters.strategy_name}
+              onChange={(e) => setFilters({ ...filters, strategy_name: e.target.value, offset: 0 })}
+            >
+              <option value="">All strategies</option>
+              <option value="swing">Swing breakout</option>
+              <option value="range">Range trading</option>
+              <option value="mean_reversion">Mean reversion</option>
+            </select>
+            <select
+              className="select"
+              value={filters.sort_by}
+              onChange={(e) => setFilters({ ...filters, sort_by: e.target.value })}
+            >
+              <option value="run_timestamp">Date</option>
+              <option value="win_rate">Win rate</option>
+              <option value="expectancy_per_trade">Expectancy</option>
+              <option value="sharpe">Sharpe</option>
+              <option value="total_signals">Signals</option>
+            </select>
+            <select
+              className="select"
+              value={filters.order}
+              onChange={(e) => setFilters({ ...filters, order: e.target.value })}
+            >
+              <option value="desc">Desc</option>
+              <option value="asc">Asc</option>
+            </select>
+            <span className="t-xs muted" style={{ marginLeft: 'auto' }}>
+              {pagination.total ?? 0} runs total
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* List */}
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card-body" style={{ padding: 0 }}>
+          {listErr ? (
+            <div className="alert alert-danger" style={{ margin: 'var(--space-4)' }}>
+              <AlertCircle size={16} />
+              <div>{listErr.message || 'Failed to load runs'}</div>
+            </div>
+          ) : isLoading ? (
+            <Empty title="Loading…" />
+          ) : runs.length === 0 ? (
+            <Empty title="No backtest runs" desc="Trigger a walk-forward run to populate this list." />
+          ) : (
+            <div style={{ overflow: 'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Run</th>
+                    <th>Strategy</th>
+                    <th>Range</th>
+                    <th className="num">Signals</th>
+                    <th className="num">Win %</th>
+                    <th className="num">Expect</th>
+                    <th className="num">Max DD</th>
+                    <th className="num">Sharpe</th>
+                    <th className="num">Return %</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runs.map((r) => (
+                    <tr key={r.run_id}>
+                      <td><span className="strong">{r.run_name}</span></td>
+                      <td className="muted t-xs">{r.strategy_name}</td>
+                      <td className="t-xs muted">{fmtDate(r.date_start)} → {fmtDate(r.date_end)}</td>
+                      <td className="num mono tnum">{r.total_signals ?? '—'}</td>
+                      <td className="num">
+                        <span className={`badge ${(r.win_rate >= 50) ? 'badge-success' : 'badge-amber'}`}>
+                          {pct(r.win_rate)}
+                        </span>
+                      </td>
+                      <td className="num mono tnum">{num(r.expectancy_per_trade, 3)}</td>
+                      <td className="num mono tnum down">{pct(r.max_drawdown_pct)}</td>
+                      <td className="num mono tnum">{num(r.sharpe)}</td>
+                      <td className="num">
+                        <span className={`badge ${(r.total_return_pct >= 0) ? 'badge-success' : 'badge-danger'}`}>
+                          {pct(r.total_return_pct)}
+                        </span>
+                      </td>
+                      <td>
+                        <button className="btn btn-outline btn-sm" onClick={() => setSelectedRun(r.run_id)}>
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Pagination */}
+      {runs.length > 0 && (
+        <div className="flex items-center justify-between" style={{ marginTop: 'var(--space-4)' }}>
+          <span className="t-xs muted">
+            Page {pagination.page ?? 1} of {pagination.totalPages ?? 1} · {pagination.total ?? 0} runs
+          </span>
+          <div className="flex items-center gap-2">
+            <button className="btn btn-outline btn-sm"
+                    disabled={!pagination.hasPrev}
+                    onClick={() => setFilters({ ...filters, offset: Math.max(0, filters.offset - filters.limit) })}>
+              <ChevronLeft size={14} /> Prev
+            </button>
+            <button className="btn btn-outline btn-sm"
+                    disabled={!pagination.hasNext}
+                    onClick={() => setFilters({ ...filters, offset: filters.offset + filters.limit })}>
+              Next <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Run detail view ───────────────────────────────────────────────────────
+function RunDetail({ detail, onBack }) {
+  const r = detail?.run || {};
+  const trades = detail?.trades || [];
+  const tp = detail?.trade_pagination || { total: trades.length };
+
+  return (
+    <div className="main-content">
+      <div className="page-head">
+        <div>
+          <button className="btn btn-ghost btn-sm" onClick={onBack} style={{ marginBottom: 'var(--space-2)' }}>
+            <ArrowLeft size={14} /> Back to runs
+          </button>
+          <div className="page-head-title">{r.run_name || 'Run'}</div>
+          <div className="page-head-sub">
+            {r.strategy_name} · {fmtDate(r.date_start)} → {fmtDate(r.date_end)}
+          </div>
+        </div>
+      </div>
+
+      {/* KPIs */}
+      <div className="grid grid-4">
+        <Kpi label="Total Signals" value={<span className="mono tnum">{r.total_signals ?? '—'}</span>} />
+        <Kpi label="Win Rate" value={<span className="mono tnum">{pct(r.win_rate)}</span>}
+             tone={r.win_rate >= 50 ? 'up' : 'down'} />
+        <Kpi label="Expectancy" value={<span className="mono tnum">{num(r.expectancy_per_trade, 3)}</span>}
+             tone={r.expectancy_per_trade > 0 ? 'up' : 'down'} />
+        <Kpi label="Sharpe" value={<span className="mono tnum">{num(r.sharpe)}</span>}
+             tone={r.sharpe > 1 ? 'up' : ''} />
+      </div>
+      <div className="grid grid-4" style={{ marginTop: 'var(--space-4)' }}>
+        <Kpi label="Profit Factor" value={<span className="mono tnum">{num(r.profit_factor)}</span>}
+             tone={r.profit_factor > 1.5 ? 'up' : ''} />
+        <Kpi label="Max Drawdown" value={<span className="mono tnum down">{pct(r.max_drawdown_pct)}</span>} />
+        <Kpi label="Avg Win" value={<span className="mono tnum up">{pct(r.avg_win_pct, 2)}</span>} />
+        <Kpi label="Avg Loss" value={<span className="mono tnum down">{pct(r.avg_loss_pct, 2)}</span>} />
+      </div>
+
+      {r.notes && (
+        <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+          <div className="card-body">
+            <div className="eyebrow">Notes</div>
+            <div className="t-sm" style={{ marginTop: 'var(--space-2)' }}>{r.notes}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Equity curve */}
+      {Array.isArray(r.equity_curve) && r.equity_curve.length > 0 && (
+        <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+          <div className="card-head">
+            <div>
+              <div className="card-title">Equity Curve</div>
+              <div className="card-sub">Portfolio value over backtest window</div>
+            </div>
+          </div>
+          <div className="card-body">
+            <div style={{ height: 300 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={r.equity_curve} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="bkEq" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--brand)" stopOpacity={0.4} />
+                      <stop offset="100%" stopColor="var(--brand)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
+                  <XAxis dataKey="date" stroke="var(--text-3)" fontSize={11} />
+                  <YAxis stroke="var(--text-3)" fontSize={11} />
+                  <Tooltip contentStyle={TOOLTIP_STYLE} />
+                  <Area type="monotone" dataKey="equity" stroke="var(--brand)" strokeWidth={2}
+                        fill="url(#bkEq)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Trades */}
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card-head">
+          <div>
+            <div className="card-title">Trades ({tp.total})</div>
+            <div className="card-sub">Per-signal outcome with MFE / MAE</div>
+          </div>
+        </div>
+        <div className="card-body" style={{ padding: 0 }}>
+          {trades.length === 0 ? (
+            <Empty title="No trades on this run" />
+          ) : (
+            <div style={{ maxHeight: '60vh', overflow: 'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Symbol</th>
+                    <th>Signal</th>
+                    <th>Exit</th>
+                    <th className="num">Entry</th>
+                    <th className="num">Exit</th>
+                    <th className="num">Return</th>
+                    <th>Outcome</th>
+                    <th className="num">Days</th>
+                    <th className="num">MFE</th>
+                    <th className="num">MAE</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trades.map((t) => (
+                    <tr key={t.trade_id}>
+                      <td><span className="strong">{t.symbol}</span></td>
+                      <td className="t-xs muted">{fmtDate(t.signal_date)}</td>
+                      <td className="t-xs muted">{fmtDate(t.exit_date)}</td>
+                      <td className="num mono tnum">${num(t.entry_price)}</td>
+                      <td className="num mono tnum">${num(t.exit_price)}</td>
+                      <td className="num">
+                        <span className={`mono tnum ${t.return_pct >= 0 ? 'up' : 'down'}`}>
+                          {pct(t.return_pct, 2)}
+                        </span>
+                      </td>
+                      <td className="t-xs muted" style={{ textTransform: 'uppercase' }}>{t.outcome}</td>
+                      <td className="num mono tnum muted">{t.days_held ?? '—'}</td>
+                      <td className="num mono tnum up">{pct(t.mfe_pct)}</td>
+                      <td className="num mono tnum down">{pct(t.mae_pct)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Kpi({ label, value, tone }) {
+  return (
+    <div className="card" style={{ padding: 'var(--space-5) var(--space-6)' }}>
+      <div className="eyebrow">{label}</div>
+      <div className={`mono ${tone || ''}`}
+           style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-bold)', marginTop: 'var(--space-2)' }}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function Empty({ title, desc }) {
+  return (
+    <div className="empty">
+      <Inbox size={36} />
+      <div className="empty-title">{title}</div>
+      {desc && <div className="empty-desc">{desc}</div>}
+    </div>
+  );
+}
