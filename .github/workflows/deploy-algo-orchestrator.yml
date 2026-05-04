@@ -170,6 +170,32 @@ jobs:
           aws s3 cp algo-function.zip "s3://${{ env.LAMBDA_ARTIFACTS_BUCKET }}/$FUNCTION_KEY"
           echo "FUNCTION_KEY=$FUNCTION_KEY" >> $GITHUB_ENV
 
+      - name: Check and cleanup failed CloudFormation stacks
+        run: |
+          STACK_NAME="stocks-algo-orchestrator"
+
+          # Check stack status
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+
+          echo "Stack status: $STACK_STATUS"
+
+          # Delete if in ROLLBACK state
+          if [[ "$STACK_STATUS" == *"ROLLBACK"* ]]; then
+            echo "Deleting failed stack: $STACK_NAME"
+            aws cloudformation delete-stack \
+              --stack-name "$STACK_NAME" \
+              --region ${{ env.AWS_REGION }}
+
+            echo "Waiting for stack deletion to complete..."
+            aws cloudformation wait stack-delete-complete \
+              --stack-name "$STACK_NAME" \
+              --region ${{ env.AWS_REGION }} 2>/dev/null || echo "Stack deleted or already gone"
+          fi
+
       - name: Deploy CloudFormation stack (Algo)
         run: |
           echo "Deploying algo CloudFormation stack..."
