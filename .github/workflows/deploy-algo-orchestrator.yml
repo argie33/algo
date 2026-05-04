@@ -148,10 +148,26 @@ jobs:
           echo "✅ Lambda function packaged"
           cd ..
 
+      - name: Create/verify S3 bucket for Lambda artifacts
+        run: |
+          BUCKET_NAME="algo-artifacts-${{ env.AWS_ACCOUNT_ID }}"
+          BUCKET_REGION="${{ env.AWS_REGION }}"
+
+          # Check if bucket exists
+          if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
+            echo "✅ Bucket exists: $BUCKET_NAME"
+          else
+            echo "Creating S3 bucket: $BUCKET_NAME"
+            aws s3 mb "s3://$BUCKET_NAME" --region "$BUCKET_REGION"
+            echo "✅ Bucket created: $BUCKET_NAME"
+          fi
+
+          echo "LAMBDA_ARTIFACTS_BUCKET=$BUCKET_NAME" >> $GITHUB_ENV
+
       - name: Upload function code to S3
         run: |
           FUNCTION_KEY="lambda-functions/algo-orchestrator-$(date +%s).zip"
-          aws s3 cp algo-function.zip "s3://${{ secrets.LAMBDA_ARTIFACTS_BUCKET }}/$FUNCTION_KEY"
+          aws s3 cp algo-function.zip "s3://${{ env.LAMBDA_ARTIFACTS_BUCKET }}/$FUNCTION_KEY"
           echo "FUNCTION_KEY=$FUNCTION_KEY" >> $GITHUB_ENV
 
       - name: Get database secret ARN
@@ -170,7 +186,7 @@ jobs:
             --template-file template-algo-orchestrator.yml \
             --stack-name stocks-algo-orchestrator \
             --parameter-overrides \
-              LambdaFunctionCodeBucket="${{ secrets.LAMBDA_ARTIFACTS_BUCKET }}" \
+              LambdaFunctionCodeBucket="${{ env.LAMBDA_ARTIFACTS_BUCKET }}" \
               LambdaFunctionCodeKey="${{ env.FUNCTION_KEY }}" \
               DatabaseSecretArn="${{ steps.db-secret.outputs.secret_arn }}" \
               AlpacaApiKeySecretArn="arn:aws:secretsmanager:${{ env.AWS_REGION }}:${{ env.AWS_ACCOUNT_ID }}:secret:alpaca-api-*" \
