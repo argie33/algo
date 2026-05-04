@@ -1,130 +1,181 @@
-# Infrastructure Audit — What We Have, What Works, What's Broken
+# Infrastructure Audit & Organization
 
-**Last Updated:** 2026-05-04  
-**Data Freshness:** STALE (latest rows are 2026-05-01, today is 2026-05-04)
-
----
-
-## Quick Assessment
-
-✅ **GOOD:** Infrastructure templates exist (CloudFormation, ECS, Lambda)  
-✅ **GOOD:** OptimalLoader framework is solid (watermark, dedup, routing)  
-❌ **BAD:** Data is stale — loaders aren't running in AWS  
-❌ **BAD:** deploy-app-stocks.yml exists but unclear if it's actually executing loaders  
-❌ **BAD:** Too many workflows (13), unclear hierarchy  
-⚠️ **UNCLEAR:** Phase C/D/E templates (experimental? abandoned? deployed?)
+**Last Updated:** 2026-05-04 (After Algo Orchestrator Secret Fix)
 
 ---
 
-## WORKFLOWS (13 after cleanup)
+## TIER 1: Core Foundation (Essential - Deploy in Order)
 
-### Primary Deployment Workflows
+### 1. bootstrap-oidc.yml → template-bootstrap.yml
+- **Purpose:** One-time GitHub OIDC setup for AWS authentication
+- **Status:** ✅ Essential - Run once at start
+- **Deployment:** Manual: `aws cloudformation deploy --template-file template-bootstrap.yml --stack-name stocks-bootstrap`
 
-| Workflow | Purpose | Triggers | Status |
-|----------|---------|----------|--------|
-| **deploy-app-stocks.yml** | Data loaders pipeline | `load*.py`, `Dockerfile.*` changes | ❓ Active but data is STALE |
-| **deploy-webapp.yml** | Lambda API + React frontend | `webapp/**` changes | ✅ Working |
-| **deploy-infrastructure.yml** | RDS CloudFormation | `template-app-stocks.yml` changes | ✅ Working |
-| **deploy-core.yml** | Core infrastructure | Manual trigger | ✅ Working |
-| **deploy-tier1-optimizations.yml** | Cost/perf optimizations | Manual trigger | ✅ Working |
+### 2. deploy-core.yml → template-core.yml
+- **Purpose:** VPC, networking, Lambda execution role, bastion host
+- **Status:** ✅ Essential - Infrastructure foundation
+- **Dependencies:** None (deploy first)
+- **Deployment:** Automatic on push to main
 
-### Secondary/Experimental Workflows
-
-| Workflow | Purpose | Status |
-|----------|---------|--------|
-| bootstrap-oidc.yml | GitHub OIDC setup | ✅ One-time setup |
-| deploy-billing.yml | Billing alerts | ⚠️ Minimal, not clear if needed |
-| manual-reload-data.yml | Manual data reload | ⚠️ Minimal, not clear how it works |
-| optimize-data-loading.yml | Data loading optimization | ⚠️ Manual, unclear purpose |
-| test-automation.yml | Automated testing | ✅ Running |
-| algo-verify.yml | Algo verification | ⚠️ Push trigger, unclear scope |
-| pr-testing.yml | PR testing | ✅ Running |
-| gemini-code-review.yml | Code review | ⚠️ Minimal, unclear if needed |
+### 3. deploy-app-stocks.yml → template-app-stocks.yml
+- **Purpose:** RDS database, **creates database credentials secret**, ECS cluster, task roles
+- **Status:** ✅ Essential - Where all data lives, creates secrets for other services
+- **Dependencies:** deploy-core.yml (needs VPC)
+- **CRITICAL:** Creates secret `stocks-db-secrets-{StackName}-{Region}-001` and exports as `StocksApp-SecretArn`
+- **Deployment:** Automatic on push to main
 
 ---
 
-## CLOUDFORMATION TEMPLATES (12)
+## TIER 2: Application Deployment
 
-### Used & Active
+### 4. deploy-webapp.yml → template-webapp-lambda.yml
+- **Purpose:** Frontend Lambda functions, Cognito auth, React dashboard
+- **Status:** ✅ Active application
+- **Dependencies:** deploy-app-stocks.yml (needs database)
+- **Issue Found:** Hardcoded localhost in Cognito CallbackURLs (should be environment-aware)
+- **Deployment:** Automatic when webapp files change
 
-| Template | Purpose | Deployed By | Status |
-|----------|---------|------------|--------|
-| template-app-stocks.yml | RDS + base infra | deploy-infrastructure.yml | ✅ Active |
-| template-core.yml | Core AWS setup | deploy-core.yml | ✅ Active |
-| template-webapp-lambda.yml | Lambda + frontend | deploy-webapp.yml | ✅ Active |
-| template-bootstrap.yml | GitHub OIDC | bootstrap-oidc.yml | ✅ One-time |
-| template-tier1-cost-optimization.yml | VPC endpoints, S3, CloudWatch | deploy-tier1-optimizations.yml | ✅ Active |
-| template-tier1-api-lambda.yml | HTTP API migration | deploy-tier1-optimizations.yml | ✅ Active |
-| template-app-ecs-tasks.yml | ECS task definitions | deploy-app-stocks.yml | ❓ Unclear |
-
-### Experimental/Unused
-
-| Template | Purpose | Status |
-|----------|---------|--------|
-| **template-lambda-phase-c.yml** | Lambda fan-out for data loading | ⚠️ In deploy-app-stocks but unclear if deployed |
-| **template-step-functions-phase-d.yml** | Step Functions DAG orchestration | ⚠️ In deploy-app-stocks but unclear if deployed |
-| **template-phase-e-dynamodb.yml** | DynamoDB execution metadata | ⚠️ In deploy-app-stocks but unclear if deployed |
-| **template-eventbridge-scheduling.yml** | EventBridge loader scheduling | ❌ NOT USED BY ANY WORKFLOW |
-| **template-optimize-database.yml** | Database optimizations | ❌ NOT USED BY ANY WORKFLOW |
+### 5. deploy-algo-orchestrator.yml → template-algo-orchestrator.yml
+- **Purpose:** Algo execution engine, EventBridge scheduler (5:30pm ET daily)
+- **Status:** ✅ Just fixed - now properly retrieves secrets from CloudFormation exports
+- **Dependencies:** deploy-app-stocks.yml (needs database credentials)
+- **Recent Fixes:**
+  - ✅ Workflow now retrieves secret ARN from CloudFormation exports (`StocksApp-SecretArn`)
+  - ✅ Template passes secret ARNs as environment variables to Lambda
+  - ✅ Lambda function uses environment variables instead of hardcoded secret names
+- **Deployment:** Automatic when algo_*.py files change
 
 ---
 
-## The Real Problem
+## TIER 3: Optimizations (Non-Critical)
 
-### Data is Stale
+### 6. deploy-tier1-optimizations.yml → template-tier1-api-lambda.yml + template-tier1-cost-optimization.yml
+- **Purpose:** API Gateway HTTP API migration, cost optimizations (S3 Intelligent-Tiering, CloudWatch sampling)
+- **Status:** ⚠️ Enhancement, not required for core functionality
+- **Issue Found:** Hardcoded localhost:5174
+- **Question:** Is this actively maintained?
+
+---
+
+## UNCLEAR / NEEDS CLARIFICATION
+
+### deploy-infrastructure.yml
+- **Status:** ❓ What does this deploy? No clear template match
+- **Action:** User must clarify purpose
+
+### optimize-data-loading.yml
+- **Status:** ❓ Purpose unclear (data loading optimization? manual trigger?)
+- **Action:** User must clarify if this is still needed
+
+### algo-verify.yml
+- **Purpose:** Verify algo components on push/PR
+- **Status:** ⚠️ Hardcoded database fallbacks (localhost), CI testing without real database
+- **Action:** Either integrate into deploy-algo-orchestrator.yml or fix database fallbacks
+
+---
+
+## ORPHANED TEMPLATES (No Workflows Deploy These)
+
+### Delete These - They're AI-Generated Slop
+
+1. **template-app-ecs-tasks.yml** (196KB - SUSPICIOUS SIZE)
+   - Purpose: Unclear, possibly duplicate ECS logic from template-app-stocks.yml
+   - Action: Investigate if logic is already in template-app-stocks.yml, then delete
+
+2. **template-eventbridge-scheduling.yml**
+   - Purpose: EventBridge scheduling (belongs IN template-algo-orchestrator.yml)
+   - Status: Orphaned - no workflow deploys this
+   - Action: Delete - functionality should be in template-algo-orchestrator.yml
+
+3. **template-lambda-phase-c.yml**
+   - Status: Abandoned Phase C template
+   - Action: Delete
+
+4. **template-phase-e-dynamodb.yml**
+   - Status: Abandoned Phase E template
+   - Action: Delete
+
+5. **template-step-functions-phase-d.yml**
+   - Status: Abandoned Phase D template
+   - Action: Delete
+
+6. **template-optimize-database.yml**
+   - Status: Abandoned optimization template
+   - Action: Delete
+
+---
+
+## Issues Found & Fixed
+
+### ✅ FIXED: Algo Orchestrator Secret Retrieval
 ```
-Database state as of 2026-05-04 08:50:
-  price_daily:        21,743,023 rows (latest: 2026-05-01) ← 3 days old
-  buy_sell_daily:     823,231 rows (latest: 2026-05-01) ← 3 days old
-  technical_data_daily: 19,104,570 rows (latest: 2026-05-01) ← 3 days old
+Problem:      deploy-algo-orchestrator.yml looked for 'stocks-db-credentials' (doesn't exist)
+Root Cause:   template-app-stocks.yml creates secret with dynamic name, exports as StocksApp-SecretArn
+Solution:     Workflow now retrieves secret from CloudFormation exports (proper IaC pattern)
+Files Changed: .github/workflows/deploy-algo-orchestrator.yml
 ```
 
-### Why?
-1. **deploy-app-stocks.yml** triggers on `load*.py` changes, but loaders haven't been modified since being deployed
-2. **No scheduled execution** — loaders only run if code changes OR manual trigger
-3. **EventBridge not deployed** — template-eventbridge-scheduling.yml exists but isn't used
-4. **Unclear what Phase C/D/E do** — are they actually running loaders, or just test infrastructure?
+### ✅ FIXED: Hardcoded Secret Name in Lambda
+```
+Problem:      lambda_function.py hardcoded SecretId='stocks-db-credentials'
+Solution:     Now uses DATABASE_SECRET_ARN environment variable from CloudFormation
+Files Changed: template-algo-orchestrator.yml, lambda/algo_orchestrator/lambda_function.py
+```
+
+### ⚠️ ISSUES REMAINING
+
+1. **Hardcoded localhost in CORS/Cognito**
+   - Location: template-webapp-lambda.yml
+   - Impact: Would expose localhost in production
+   - Fix: Make environment-aware
+
+2. **CI Verification Broken**
+   - Location: algo-verify.yml
+   - Impact: Can't test database connectivity in CI without real database
+   - Fix: Either use test database or remove hardcoded fallbacks
 
 ---
 
-## What Should Happen (Per LOADER_SCHEDULE.md)
+## What We Know About Architecture
 
-```
-Intraday (every 90min):    loadlatestpricedaily
-EOD (5:30pm ET):           All Phase 2-5 daily loaders + load_algo_metrics_daily  
-Weekly (Sat 8am):          Phase 2-5 weekly loaders + scoring
-Monthly (1st Sat):         Phase 2-5 monthly + factor metrics
-Quarterly:                 Fundamentals + earnings
-```
-
-None of this is happening automatically. We have no scheduler deployed.
+- **Core 5 Workflows/Templates are clean and working**
+- **Secrets are properly created by template-app-stocks.yml** (done right!)
+- **Algo orchestrator now properly retrieves secrets** (just fixed)
+- **Too many orphaned/Phase templates** (need to delete)
+- **Some unclear workflows** (need user decision)
+- **Hardcoded localhost in some templates** (need fixing)
 
 ---
 
-## Next Steps (What We Need to Decide)
+## Recommended Action Plan
 
-1. **Deploy EventBridge scheduling** (template-eventbridge-scheduling.yml)
-   - Or delete it if we don't want scheduled execution
+### Phase 1: Clean Up (Delete Orphaned Templates)
+```
+🗑️ template-app-ecs-tasks.yml - after investigating if logic is elsewhere
+🗑️ template-eventbridge-scheduling.yml
+🗑️ template-lambda-phase-c.yml
+🗑️ template-phase-e-dynamodb.yml
+🗑️ template-step-functions-phase-d.yml
+🗑️ template-optimize-database.yml
+```
 
-2. **Fix/verify deploy-app-stocks.yml**
-   - Is it actually deploying loaders?
-   - Can it be manually triggered to test?
-   - What are Phase C/D/E doing?
+### Phase 2: Clarify With User
+```
+❓ Is deploy-tier1-optimizations.yml actively used?
+❓ What is deploy-infrastructure.yml supposed to do?
+❓ What is optimize-data-loading.yml supposed to do?
+❓ Should algo-verify.yml be kept or integrated elsewhere?
+```
 
-3. **Consolidate workflows**
-   - 13 workflows is too many
-   - Some seem redundant or one-off
+### Phase 3: Fix Remaining Issues
+```
+⚠️ Make localhost URLs environment-aware (dev ✓, prod ✗)
+⚠️ Fix CI verification workflow
+```
 
-4. **Document which Phase templates are needed**
-   - Keep Phase C/D/E if they're part of the plan
-   - Delete if they're experiments that didn't pan out
-
----
-
-## Clean Up Tasks
-
-- ✅ `deploy-app-stocks-original.yml` — deleted (dead code)
-- 🔲 `template-eventbridge-scheduling.yml` — deploy it OR delete it?
-- 🔲 `template-optimize-database.yml` — deploy it OR delete it?
-- 🔲 Reduce 13 workflows to 5-6 core ones
-- 🔲 Document Phase C/D/E purpose (keep or remove?)
+### Phase 4: Test Deployment
+```
+🧪 Deploy algo orchestrator to Lambda
+🧪 Verify EventBridge rule executes daily at 5:30pm ET
+🧪 Verify algo tables are created and populated
+```
