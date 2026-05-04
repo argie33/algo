@@ -1,0 +1,189 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Algo Lambda + EventBridge - Minimal, no infrastructure dependencies'
+
+Parameters:
+  LambdaFunctionCodeBucket:
+    Type: String
+    Description: S3 bucket containing Lambda function code zip
+
+  LambdaFunctionCodeKey:
+    Type: String
+    Description: S3 key for Lambda function zip file
+
+  DatabaseSecretArn:
+    Type: String
+    Description: ARN of database credentials secret
+
+  AlpacaSecretsArn:
+    Type: String
+    Description: ARN of Alpaca API credentials secret
+
+  DryRunMode:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+
+  ExecutionMode:
+    Type: String
+    Default: 'paper'
+    AllowedValues: ['paper', 'live']
+
+  Environment:
+    Type: String
+    Default: 'dev'
+    AllowedValues: ['dev', 'staging', 'prod']
+
+Resources:
+  AlgoAlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub 'algo-orchestrator-alerts-${Environment}'
+      DisplayName: 'Algo Orchestrator Alerts'
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'algo-orchestrator-lambda-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: AlgoOrchestratorPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub '${DatabaseSecretArn}*'
+                  - !Sub '${AlpacaSecretsArn}*'
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource:
+                  - !GetAtt AlgoAlertTopic.TopicArn
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/algo-orchestrator:*'
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                Resource: '*'
+
+  AlgoOrchestratorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: algo-orchestrator
+      Runtime: python3.11
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Handler: lambda_function.lambda_handler
+      Timeout: 900
+      MemorySize: 512
+      Code:
+        S3Bucket: !Ref LambdaFunctionCodeBucket
+        S3Key: !Ref LambdaFunctionCodeKey
+      Environment:
+        Variables:
+          EXECUTION_MODE: !Ref ExecutionMode
+          DRY_RUN_MODE: !Ref DryRunMode
+          ALERT_SNS_TOPIC_ARN: !GetAtt AlgoAlertTopic.TopicArn
+          ENVIRONMENT: !Ref Environment
+          DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
+          ALPACA_API_KEY_SECRET_ARN: !Ref AlpacaSecretsArn
+
+  AlgoScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: algo-eod-orchestrator
+      Description: Daily algo execution at 5:30pm ET (market close)
+      ScheduleExpression: 'cron(0 21 * * ? *)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt AlgoOrchestratorFunction.Arn
+          Id: AlgoOrchestratorTarget
+          RoleArn: !GetAtt EventBridgeRole.Arn
+
+  EventBridgeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'algo-eventbridge-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeLambda
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !GetAtt AlgoOrchestratorFunction.Arn
+
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AlgoOrchestratorFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt AlgoScheduleRule.Arn
+
+  LambdaErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'algo-orchestrator-errors-${Environment}'
+      AlarmDescription: Alert when algo-orchestrator Lambda has errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref AlgoOrchestratorFunction
+      AlarmActions:
+        - !GetAtt AlgoAlertTopic.TopicArn
+      TreatMissingData: notBreaching
+
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/algo-orchestrator
+      RetentionInDays: 30
+
+Outputs:
+  LambdaFunctionArn:
+    Value: !GetAtt AlgoOrchestratorFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaArn'
+
+  LambdaFunctionName:
+    Value: !Ref AlgoOrchestratorFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaName'
+
+  EventBridgeRuleArn:
+    Value: !GetAtt AlgoScheduleRule.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-EventBridgeRuleArn'
+
+  AlertTopicArn:
+    Value: !GetAtt AlgoAlertTopic.TopicArn
+    Export:
+      Name: !Sub '${AWS::StackName}-AlertTopicArn'

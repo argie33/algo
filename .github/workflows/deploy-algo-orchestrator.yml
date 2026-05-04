@@ -221,12 +221,12 @@ jobs:
           echo "DB_SECRET=$DB_SECRET" >> $GITHUB_ENV
           echo "ALPACA_SECRET=$ALPACA_SECRET" >> $GITHUB_ENV
 
-      - name: Deploy CloudFormation stack (Algo)
+      - name: Deploy CloudFormation stack (Algo Lambda only)
         run: |
-          echo "Deploying algo CloudFormation stack..."
+          echo "Deploying algo Lambda + EventBridge (minimal stack)..."
 
           aws cloudformation deploy \
-            --template-file template-algo-orchestrator.yml \
+            --template-file template-algo-lambda-minimal.yml \
             --stack-name stocks-algo-orchestrator \
             --parameter-overrides \
               LambdaFunctionCodeBucket="${{ env.LAMBDA_ARTIFACTS_BUCKET }}" \
