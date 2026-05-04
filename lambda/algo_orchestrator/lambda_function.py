@@ -2,6 +2,12 @@
 Lambda handler for algo orchestration.
 Runs the complete EOD workflow: patrol → remediation → execution.
 Triggered by EventBridge scheduler (5:30pm ET daily).
+
+Cold-start optimizations:
+  - Lazy-load AWS clients (only initialize when needed)
+  - Pre-warm critical Python imports at top level
+  - Track cold-start duration via CloudWatch metrics
+  - Use subprocess timeouts to prevent hanging processes
 """
 
 import json
@@ -9,13 +15,15 @@ import os
 import sys
 import subprocess
 from datetime import datetime
-import boto3
+import time
 
-# AWS clients
-ssm = boto3.client('ssm')
-cloudwatch = boto3.client('cloudwatch')
-sns = boto3.client('sns')
-logs_client = boto3.client('logs')
+# Pre-warm critical imports (avoid cold-start overhead)
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Global clients initialized on first use (lazy-loaded)
+_aws_clients = {}
 
 # Environment
 EXECUTION_MODE = os.getenv('EXECUTION_MODE', 'paper')
@@ -24,11 +32,24 @@ LAMBDA_FUNCTION_NAME = os.getenv('AWS_LAMBDA_FUNCTION_NAME', 'algo-orchestrator'
 SNS_TOPIC_ARN = os.getenv('ALERT_SNS_TOPIC_ARN', '')
 CLOUDWATCH_LOG_GROUP = f'/aws/lambda/{LAMBDA_FUNCTION_NAME}'
 
+# Cold-start tracking
+_cold_start = True
+_init_start_time = time.time()
+
+
+def get_boto3_client(service_name):
+    """Lazy-load boto3 clients on first use to reduce cold-start time."""
+    global _aws_clients
+    if service_name not in _aws_clients:
+        import boto3
+        _aws_clients[service_name] = boto3.client(service_name)
+    return _aws_clients[service_name]
+
 
 def get_database_credentials():
     """Fetch database credentials from AWS Secrets Manager using ARN."""
     try:
-        secrets = boto3.client('secretsmanager')
+        secrets = get_boto3_client('secretsmanager')
         secret_arn = os.getenv('DATABASE_SECRET_ARN')
         if not secret_arn:
             raise ValueError('DATABASE_SECRET_ARN environment variable not set')
@@ -64,6 +85,7 @@ def send_alert(status, message):
         return
 
     try:
+        sns = get_boto3_client('sns')
         subject = f"Algo Orchestrator {status} - {datetime.utcnow().isoformat()}"
         body = f"""
 Algo Orchestrator Execution {status}
@@ -123,11 +145,35 @@ def lambda_handler(event, context):
     """
     Main Lambda handler.
     Runs: patrol → remediation → orchestrator
+    Optimized for cold-start performance with lazy-loaded AWS clients.
     """
+    global _cold_start
     start_time = datetime.utcnow()
     execution_id = context.request_id if context else 'manual'
 
     try:
+        # Track cold-start performance
+        init_duration = 0
+        if _cold_start:
+            init_duration = time.time() - _init_start_time
+            _cold_start = False
+            log_to_cloudwatch(f"⚠️  Cold start detected (init time: {init_duration:.2f}s)")
+            # Publish cold-start metric to CloudWatch
+            try:
+                cloudwatch = get_boto3_client('cloudwatch')
+                cloudwatch.put_metric_data(
+                    Namespace='AlgoTrading',
+                    MetricData=[
+                        {
+                            'MetricName': 'LambdaColdStartDuration',
+                            'Value': init_duration,
+                            'Unit': 'Seconds',
+                        }
+                    ]
+                )
+            except Exception as e:
+                log_to_cloudwatch(f"Could not publish cold-start metric: {e}", 'WARN')
+
         log_to_cloudwatch("=" * 80)
         log_to_cloudwatch(f"Algo Orchestrator Starting (Execution ID: {execution_id})")
         log_to_cloudwatch(f"Execution Mode: {EXECUTION_MODE}")

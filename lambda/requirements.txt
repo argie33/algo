@@ -1,0 +1,30 @@
+# Lambda Layer Dependencies for algo-orchestrator
+# Install into Lambda layer to reduce cold-start time
+
+# Database
+psycopg2-binary==2.9.9
+
+# Web/API clients
+requests==2.31.0
+urllib3==2.0.7
+
+# Configuration
+python-dotenv==1.0.0
+
+# Data processing
+pandas==2.1.3
+numpy==1.26.2
+
+# Alpaca trading API
+alpaca-trade-api==3.2.0
+
+# Notifications
+slack-sdk==3.26.1
+
+# AWS (pre-installed in Lambda, but include for local development)
+boto3==1.28.85
+botocore==1.31.85
+
+# Utilities
+click==8.1.7
+pydantic==2.5.0
