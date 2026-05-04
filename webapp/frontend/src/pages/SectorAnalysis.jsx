@@ -8,6 +8,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import {
   RefreshCw, Inbox, AlertCircle, ChevronDown, ChevronRight,
   TrendingUp, TrendingDown, Minus,
@@ -698,16 +699,26 @@ function SparklineTrend({ name, type }) {
 
 // ─── Top Companies for an industry ─────────────────────────────────────────
 function TopCompanies({ industry }) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const { data, isLoading } = useQuery({
     queryKey: ['industry-top-companies', industry],
     queryFn: () =>
-      api.get('/api/scores/stockscores?limit=20&sortBy=composite_score&sortOrder=desc')
+      api.get('/api/scores/stockscores?limit=200&sortBy=composite_score&sortOrder=desc')
         .then(r => r.data?.items || []).catch(() => []),
     enabled: open,
     staleTime: 1000 * 60 * 10,
     retry: false,
   });
+
+  // Filter to industry-matched names if metadata available, else show top
+  const filtered = useMemo(() => {
+    if (!data) return [];
+    const matched = data.filter(d =>
+      (d.industry || '').toLowerCase() === (industry || '').toLowerCase()
+    );
+    return (matched.length ? matched : data).slice(0, 20);
+  }, [data, industry]);
 
   return (
     <div>
@@ -725,26 +736,33 @@ function TopCompanies({ industry }) {
         <div style={{ marginTop: 'var(--space-3)' }}>
           {isLoading ? (
             <Empty title="Loading companies…" />
-          ) : !data || data.length === 0 ? (
+          ) : filtered.length === 0 ? (
             <Empty title="No companies found" />
           ) : (
             <div className="grid grid-4">
-              {data.map(c => (
-                <div className="card" key={c.symbol} style={{ padding: 'var(--space-3)' }}>
-                  <div className="strong" style={{ fontWeight: 'var(--w-bold)' }}>{c.symbol}</div>
+              {filtered.map(c => (
+                <div
+                  className="card card-hover"
+                  key={c.symbol}
+                  onClick={() => navigate(`/app/stock/${c.symbol}`)}
+                  style={{ padding: 'var(--space-3)', cursor: 'pointer' }}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="strong" style={{ fontWeight: 'var(--w-bold)' }}>{c.symbol}</span>
+                    {c.composite_score != null && (
+                      <span className="badge badge-brand mono tnum t-2xs">
+                        {Number(c.composite_score).toFixed(0)}
+                      </span>
+                    )}
+                  </div>
                   <div className="t-xs muted" style={{
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   }}>
                     {(c.company_name || c.fullName || '').substring(0, 40)}
                   </div>
-                  {c.price?.current && (
+                  {c.price != null && (
                     <div className="t-xs mono tnum" style={{ marginTop: 'var(--space-1)' }}>
-                      ${num(c.price.current)}
-                    </div>
-                  )}
-                  {c.marketCap && (
-                    <div className="t-2xs muted mono">
-                      ${(c.marketCap / 1e9).toFixed(1)}B
+                      ${num(c.price)}
                     </div>
                   )}
                 </div>
@@ -989,7 +1007,7 @@ function SectorsView({ sectors, industries, isLoading, error }) {
         <div className="card">
           <div className="card-head">
             <div>
-              <div className="card-title">Mansfield RS Rotation</div>
+              <div className="card-title">Relative Strength Rotation</div>
               <div className="card-sub">Quadrant scatter · x: RS-rank %ile · y: 1-week rank Δ · size: stocks</div>
             </div>
           </div>
@@ -1040,7 +1058,7 @@ function SectorsView({ sectors, industries, isLoading, error }) {
           <div className="card-head">
             <div>
               <div className="card-title">Stage-2 Leaders by Sector</div>
-              <div className="card-sub">% of stocks in Weinstein Stage-2 (markup) phase</div>
+              <div className="card-sub">% of stocks in Stage-2 (markup) phase</div>
             </div>
           </div>
           <div className="card-body">
@@ -1379,7 +1397,7 @@ export default function SectorAnalysis() {
         <div>
           <div className="page-head-title">Sector Analysis</div>
           <div className="page-head-sub">
-            Sector + industry rankings · Mansfield RS rotation · breadth · stage-2 leaders
+            Sector + industry rankings · RS rotation · breadth · stage-2 leaders
           </div>
         </div>
         <div className="page-head-actions">

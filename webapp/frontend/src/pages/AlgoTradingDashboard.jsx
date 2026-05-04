@@ -189,7 +189,7 @@ function AlgoTradingDashboard() {
             SWING TRADING ALGO
           </Typography>
           <Typography variant="caption" sx={{ color: C.textDim, fontFamily: 'monospace' }}>
-            Pine signals × multi-factor scoring × IBD market exposure × hedge-fund discipline
+            Pine signals × multi-factor scoring × composite market exposure × hedge-fund discipline
           </Typography>
         </Box>
         <Stack direction="row" spacing={1}>
@@ -400,7 +400,7 @@ function MarketsTab({ markets }) {
 
   const factors = markets.current?.factors || {};
   const factorList = [
-    ['ibd_state', 'IBD MARKET STATE', 20],
+    ['ibd_state', 'MARKET STATE', 20],
     ['trend_30wk', 'TREND 30-WK MA', 15],
     ['breadth_50dma', 'BREADTH > 50-DMA', 15],
     ['breadth_200dma', 'BREADTH > 200-DMA', 10],

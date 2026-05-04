@@ -219,7 +219,7 @@ export default function MarketsHealth() {
         <DistributionDaysTimeline />
       </div>
 
-      {/* ──────────── 18. Sentiment Composite (Fear & Greed + Put/Call) ──────────── */}
+      {/* ──────────── 18. Sentiment Composite (Fear & Greed + AAII spread) ──────────── */}
       <div style={{ marginTop: 'var(--space-4)' }}>
         <SentimentCompositeCard markets={m} sentiment={sentimentData} />
       </div>
@@ -1085,7 +1085,7 @@ function SectorRotationMap({ markets, onSelect }) {
     <div className="card">
       <div className="card-head">
         <div>
-          <div className="card-title">Sector Rotation Map (Mansfield)</div>
+          <div className="card-title">Sector Rotation Map</div>
           <div className="card-sub">RS-Rank vs 4-week momentum · leading / improving / weakening / lagging</div>
         </div>
       </div>
@@ -1343,7 +1343,7 @@ function DistributionDaysTimeline() {
         <div>
           <div className="card-title">Distribution Days · last 25 sessions</div>
           <div className="card-sub">
-            Red = institutional selling (down day on heavier volume) · Gray = normal · IBD methodology
+            Red = institutional selling (down day on heavier volume) · Gray = normal
           </div>
         </div>
       </div>
@@ -1496,7 +1496,7 @@ function SentimentCompositeCard({ markets, sentiment }) {
             )}
           </div>
 
-          {/* AAII spread + Put/Call placeholder */}
+          {/* AAII bull-bear spread */}
           <div>
             <div className="eyebrow" style={{ marginBottom: 8 }}>AAII Bull-Bear Spread</div>
             {aaiiSeries.length === 0 ? (
@@ -1533,12 +1533,6 @@ function SentimentCompositeCard({ markets, sentiment }) {
                 <div className="t-2xs faint center" style={{ marginTop: 4 }}>30-day spread history</div>
               </>
             )}
-            <div className="panel" style={{ marginTop: 'var(--space-3)', background: 'var(--bg-2)' }}>
-              <div className="flex items-center justify-between t-xs">
-                <span className="muted">Put/Call Ratio</span>
-                <span className="mono tnum muted">— (data source TBD)</span>
-              </div>
-            </div>
           </div>
         </div>
       </div>

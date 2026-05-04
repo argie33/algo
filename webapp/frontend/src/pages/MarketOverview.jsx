@@ -1484,7 +1484,7 @@ const handleTabChange = (event, newValue) => {
                       })}
                       <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: "divider" }}>
                         <Typography variant="caption" color="text.secondary">
-                          IBD Distribution Days: Down 0.2%+ on higher volume over 25 days
+                          Distribution Days: Down 0.2%+ on higher volume over 25 days
                         </Typography>
                       </Box>
                     </>

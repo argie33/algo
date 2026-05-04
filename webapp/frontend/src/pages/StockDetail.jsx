@@ -672,12 +672,12 @@ function AlgoTab({ swing, scoreRow }) {
         </div>
         <div className="card-body">
           <div className="grid grid-2">
-            <Stile label="Trend Template (Minervini)" value={d.trend_template_score != null ? `${num(d.trend_template_score, 0)} / 8` : '—'}
+            <Stile label="Trend Template" value={d.trend_template_score != null ? `${num(d.trend_template_score, 0)} / 8` : '—'}
               sub={d.trend_template_status || ''} />
-            <Stile label="Weinstein Stage" value={d.weinstein_stage ?? d.stage ?? '—'}
+            <Stile label="Market Stage" value={d.weinstein_stage ?? d.stage ?? '—'}
               sub={d.stage_substage || ''} />
-            <Stile label="Mansfield RS" value={num(d.mansfield_rs, 2)} sub="vs market" />
-            <Stile label="RS Rating (IBD)" value={d.rs_rating != null ? `${d.rs_rating}` : '—'} sub="0-99 percentile" />
+            <Stile label="Relative Strength" value={num(d.mansfield_rs, 2)} sub="vs market" />
+            <Stile label="RS Rating" value={d.rs_rating != null ? `${d.rs_rating}` : '—'} sub="0-99 percentile" />
             <Stile label="Industry Rank" value={swing.industry || '—'} sub={swing.sector || ''} />
             <Stile label="Composite Score" value={scoreRow?.composite_score != null ? num(scoreRow.composite_score, 1) : '—'} sub="research-weighted" />
           </div>

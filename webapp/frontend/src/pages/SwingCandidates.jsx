@@ -317,11 +317,11 @@ export default function SwingCandidates() {
         <div className="card-body">
           <div className="grid grid-4">
             <Legend1 name="Setup" desc="VCP / cup-with-handle / flat-base / pivot proximity" />
-            <Legend1 name="Trend" desc="Minervini 8-pt template + Weinstein stage" />
+            <Legend1 name="Trend" desc="8-point trend template + market stage" />
             <Legend1 name="Momentum" desc="ADX / RSI sweet spot / multi-TF alignment" />
             <Legend1 name="Volume" desc="Pocket-pivot count / dry-up + breakout volume" />
             <Legend1 name="Fundamentals" desc="EPS / sales / margin growth + ROE filter" />
-            <Legend1 name="Sector" desc="Mansfield RS + sector rotation tier" />
+            <Legend1 name="Sector" desc="Relative Strength + sector rotation tier" />
             <Legend1 name="Multi-TF" desc="Daily + weekly + monthly alignment" />
             <Legend1 name="Gates" desc="Trend + SQS + advanced filters all pass" />
           </div>

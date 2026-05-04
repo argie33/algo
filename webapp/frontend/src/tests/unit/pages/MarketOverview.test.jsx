@@ -272,13 +272,13 @@ describe("MarketOverview - Distribution Days", () => {
     }, { timeout: 3000 });
   });
 
-  it("displays distribution days card with IBD methodology info", async () => {
+  it("displays distribution days card with methodology info", async () => {
     renderWithProviders(<MarketOverview />);
 
     await waitFor(() => {
       const content = document.body.textContent;
       expect(content).toContain("Distribution Days");
-      expect(content).toContain("IBD");
+      expect(content).toContain("higher volume");
     }, { timeout: 3000 });
   });
 

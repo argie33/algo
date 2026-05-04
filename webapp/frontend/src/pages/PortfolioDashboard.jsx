@@ -314,7 +314,7 @@ export default function PortfolioDashboard() {
             <Stile
               label="9-Factor Score"
               value={<span className="mono tnum">{markets?.current?.raw_score ?? '—'}/100</span>}
-              sub="0-100 IBD-style"
+              sub="0-100 composite"
             />
             <Stile
               label="VIX"
@@ -968,7 +968,7 @@ function StagePhaseDonut({ positions }) {
       <div className="card-head">
         <div>
           <div className="card-title">Stage Phase Distribution</div>
-          <div className="card-sub">Where holdings sit in the Weinstein cycle</div>
+          <div className="card-sub">Where holdings sit in the market stage cycle</div>
         </div>
       </div>
       <div className="card-body">

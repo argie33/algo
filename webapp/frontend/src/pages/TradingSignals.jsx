@@ -760,7 +760,7 @@ function SignalDetail({ row, kind, onSymbolClick }) {
           ['SMA 50 / 200', `${fmtMoney(row.sma_50)} / ${fmtMoney(row.sma_200)}`],
           ['EMA 21', fmtMoney(row.ema_21)],
           ['RS Rating', row.rs_rating != null ? Number(row.rs_rating).toFixed(0) : '—'],
-          ['Mansfield RS', row.mansfield_rs != null ? Number(row.mansfield_rs).toFixed(2) : '—'],
+          ['RS (vs market)', row.mansfield_rs != null ? Number(row.mansfield_rs).toFixed(2) : '—'],
           ['Avg vol 50d', fmtInt(row.avg_volume_50d)],
           ['Vol surge', row.volume_surge_pct != null ? fmtPct(row.volume_surge_pct) : '—'],
         ]} />
