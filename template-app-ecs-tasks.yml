@@ -4919,6 +4919,173 @@ Resources:
           RoleArn: !GetAtt EventBridgeECSRole.Arn
 
   #########################################
+  # EventBridge → ECS RunTask role         #
+  # Lets EventBridge invoke ECS tasks     #
+  # directly (without Step Functions)     #
+  #########################################
+  EventBridgeRunTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${AWS::StackName}-EventBridge-RunTask-Role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: RunECSTask
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:RunTask
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource:
+                  - !GetAtt ECSExecutionRole.Arn
+
+  #########################################
+  # Algo orchestrator daily schedule       #
+  # Runs at 13:35 UTC = 9:35 ET (EDT)     #
+  # i.e. 5 minutes after market open      #
+  #########################################
+  AlgoOrchestratorScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${AWS::StackName}-algo-orchestrator-daily"
+      Description: "Trigger algo orchestrator daily at 13:35 UTC (9:35 ET market open + 5min)"
+      ScheduleExpression: "cron(35 13 ? * MON-FRI *)"
+      State: ENABLED
+      Targets:
+        - Arn: !ImportValue StocksApp-ClusterArn
+          Id: "AlgoOrchestratorTarget"
+          RoleArn: !GetAtt EventBridgeRunTaskRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref AlgoOrchestratorTaskDefinition
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+            TaskCount: 1
+
+  # Pre-market sync: refresh Alpaca positions 5min before open
+  AlpacaPortfolioPreMarketScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${AWS::StackName}-alpaca-portfolio-premarket"
+      Description: "Sync Alpaca positions at 13:25 UTC (9:25 ET, 5min pre-open)"
+      ScheduleExpression: "cron(25 13 ? * MON-FRI *)"
+      State: ENABLED
+      Targets:
+        - Arn: !ImportValue StocksApp-ClusterArn
+          Id: "AlpacaPortfolioTarget"
+          RoleArn: !GetAtt EventBridgeRunTaskRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref AlgoOrchestratorTaskDefinition
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+            TaskCount: 1
+          Input: |
+            {
+              "containerOverrides": [{
+                "name": "algo-orchestrator",
+                "command": ["loadalpacaportfolio.py"]
+              }]
+            }
+
+  # Post-EOD: trend template loader (after price_daily refreshes overnight)
+  TrendTemplateScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${AWS::StackName}-trend-template-eod"
+      Description: "Run trend-template loader nightly at 03:00 UTC after price refresh"
+      ScheduleExpression: "cron(0 3 ? * TUE-SAT *)"
+      State: ENABLED
+      Targets:
+        - Arn: !ImportValue StocksApp-ClusterArn
+          Id: "TrendTemplateTarget"
+          RoleArn: !GetAtt EventBridgeRunTaskRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref TrendTemplateTaskDefinition
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+            TaskCount: 1
+
+  # Post-EOD: market health (depends on trend_template)
+  MarketHealthScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${AWS::StackName}-market-health-eod"
+      Description: "Run market-health loader nightly at 03:30 UTC"
+      ScheduleExpression: "cron(30 3 ? * TUE-SAT *)"
+      State: ENABLED
+      Targets:
+        - Arn: !ImportValue StocksApp-ClusterArn
+          Id: "MarketHealthTarget"
+          RoleArn: !GetAtt EventBridgeRunTaskRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref MarketHealthTaskDefinition
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+            TaskCount: 1
+
+  # Post-EOD: algo metrics composite (after trend + market health)
+  AlgoMetricsScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${AWS::StackName}-algo-metrics-eod"
+      Description: "Run algo-metrics composite loader nightly at 04:00 UTC"
+      ScheduleExpression: "cron(0 4 ? * TUE-SAT *)"
+      State: ENABLED
+      Targets:
+        - Arn: !ImportValue StocksApp-ClusterArn
+          Id: "AlgoMetricsTarget"
+          RoleArn: !GetAtt EventBridgeRunTaskRole.Arn
+          EcsParameters:
+            TaskDefinitionArn: !Ref AlgoMetricsTaskDefinition
+            LaunchType: FARGATE
+            NetworkConfiguration:
+              AwsVpcConfiguration:
+                Subnets:
+                  - !ImportValue StocksCore-PublicSubnet1Id
+                  - !ImportValue StocksCore-PublicSubnet2Id
+                SecurityGroups:
+                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
+                AssignPublicIp: ENABLED
+            TaskCount: 1
+
+  #########################################
   # Outputs                               #
   #########################################
 Outputs:
