@@ -1,2906 +1,893 @@
-import { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
-  Alert,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Chip,
-  CircularProgress,
-  Container,
-  Divider,
-  FormControl,
-  Grid,
-  InputLabel,
-  LinearProgress,
-  MenuItem,
-  Paper,
-  Select,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
-  Typography,
-  alpha,
-  useTheme,
-  Tooltip,
-  IconButton,
-} from "@mui/material";
+  RefreshCw, Search, Filter, Inbox, ChevronLeft, ChevronRight,
+  Star, Activity, DollarSign, TrendingUp, Users, Shield, Layers,
+} from 'lucide-react';
 import {
-  ExpandMore,
-  TrendingUp,
-  TrendingDown,
-  Assessment,
-  Speed,
-  Psychology,
-  Stars,
-  AccountBalance,
-  Security,
-  ShowChart,
-  SignalCellularAlt,
-  Timeline,
-  Bolt,
-  Group,
-  SentimentSatisfied,
-  FilterList,
-  ClearAll,
-  ChevronLeft as ChevronLeftIcon,
-  ChevronRight as ChevronRightIcon,
-} from "@mui/icons-material";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  Cell,
-  Label,
-  LabelList,
-} from "recharts";
-import { exportToCSV, exportToJSON, tableToCSV } from "../utils/exportUtils";
-import { Download as DownloadIcon, InsertDriveFile as ExportIcon } from "@mui/icons-material";
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip as RTooltip, ResponsiveContainer, Cell, LabelList,
+} from 'recharts';
+import { api } from '../services/api';
 
-// Trading Signal Component
-const TradingSignal = ({ signal, confidence = 0.75, size = "medium", showConfidence = false }) => {
-  const theme = useTheme();
-
-  const getSignalConfig = (signalType) => {
-    switch (signalType?.toUpperCase()) {
-      case "BUY":
-        return {
-          color: theme.palette.success.main,
-          bgColor: alpha(theme.palette.success.main, 0.1),
-          icon: <TrendingUp sx={{ fontSize: size === "small" ? 16 : 20 }} />,
-          label: "BUY",
-          textColor: theme.palette.success.dark,
-        };
-      case "SELL":
-        return {
-          color: theme.palette.error.main,
-          bgColor: alpha(theme.palette.error.main, 0.1),
-          icon: <TrendingDown sx={{ fontSize: size === "small" ? 16 : 20 }} />,
-          label: "SELL",
-          textColor: theme.palette.error.dark,
-        };
-      case "HOLD":
-        return {
-          color: theme.palette.warning.main,
-          bgColor: alpha(theme.palette.warning.main, 0.1),
-          icon: <ShowChart sx={{ fontSize: size === "small" ? 16 : 20 }} />,
-          label: "HOLD",
-          textColor: theme.palette.warning.dark,
-        };
-      default:
-        return {
-          color: theme.palette.grey[500],
-          bgColor: alpha(theme.palette.grey[500], 0.1),
-          icon: <SignalCellularAlt sx={{ fontSize: size === "small" ? 16 : 20 }} />,
-          label: "",
-          textColor: theme.palette.grey[600],
-        };
-    }
-  };
-
-  const config = getSignalConfig(signal);
-  const confidencePercent = Math.round(confidence * 100);
-
-  return (
-    <Tooltip
-      title={
-        showConfidence
-          ? `Signal: ${config.label} (${confidencePercent}% confidence)`
-          : `Trading Signal: ${config.label}`
-      }
-    >
-      <Box
-        sx={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 0.5,
-          px: size === "small" ? 1 : 1.5,
-          py: size === "small" ? 0.25 : 0.5,
-          borderRadius: 2,
-          backgroundColor: config.bgColor,
-          border: `1px solid ${alpha(config.color, 0.3)}`,
-          minWidth: size === "small" ? 60 : 80,
-          justifyContent: "center",
-          cursor: "pointer",
-          transition: "all 0.2s ease-in-out",
-          "&:hover": {
-            backgroundColor: alpha(config.color, 0.15),
-            borderColor: alpha(config.color, 0.5),
-            transform: "translateY(-1px)",
-          },
-        }}
-      >
-        {config.icon}
-        <Typography
-          variant={size === "small" ? "caption" : "body2"}
-          sx={{
-            color: config.textColor,
-            fontWeight: 600,
-            fontSize: size === "small" ? "0.65rem" : "0.75rem",
-          }}
-        >
-          {config.label}
-        </Typography>
-        {showConfidence && (
-          <Typography
-            variant="caption"
-            sx={{
-              color: alpha(config.textColor, 0.7),
-              fontSize: "0.6rem",
-              ml: 0.5,
-            }}
-          >
-            {confidencePercent}%
-          </Typography>
-        )}
-      </Box>
-    </Tooltip>
-  );
+const num = (v, dp = 1) => (v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp));
+const pct = (v, dp = 2) => (v == null || isNaN(Number(v)) ? '—' : `${Number(v).toFixed(dp)}%`);
+const money = (v) => {
+  if (v == null || isNaN(Number(v))) return '—';
+  const n = Number(v);
+  if (Math.abs(n) >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
+  if (Math.abs(n) >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
+  return `$${n.toFixed(2)}`;
 };
 
-// Score Gauge Component
-const ScoreGauge = ({ score, size = 60, showGrade = false }) => {
-  const theme = useTheme();
-
-  const getColor = (value) => {
-    if (value >= 80) return theme.palette.success.main;
-    if (value >= 60) return theme.palette.warning.main;
-    if (value >= 40) return theme.palette.info.main;
-    return theme.palette.error.main;
-  };
-
-  const getGrade = (value) => {
-    if (value >= 90) return "A+";
-    if (value >= 85) return "A";
-    if (value >= 80) return "A-";
-    if (value >= 75) return "B+";
-    if (value >= 70) return "B";
-    if (value >= 65) return "B-";
-    if (value >= 60) return "C+";
-    if (value >= 55) return "C";
-    if (value >= 50) return "C-";
-    if (value >= 45) return "D+";
-    if (value >= 40) return "D";
-    return "F";
-  };
-
-  return (
-    <Box
-      sx={{
-        position: "relative",
-        width: size,
-        height: size,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <Box
-        sx={{
-          width: size,
-          height: size,
-          borderRadius: "50%",
-          background: `conic-gradient(${getColor(score)} ${score * 3.6}deg, ${alpha(theme.palette.action.disabled, 0.1)} 0deg)`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Box
-          sx={{
-            width: size - 10,
-            height: size - 10,
-            borderRadius: "50%",
-            backgroundColor: theme.palette.background.paper,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Typography variant="h6" fontWeight={700} fontSize={size > 70 ? "1rem" : "0.85rem"}>
-            {score}
-          </Typography>
-          {showGrade && (
-            <Typography variant="caption" color={getColor(score)} fontWeight={600}>
-              {getGrade(score)}
-            </Typography>
-          )}
-        </Box>
-      </Box>
-    </Box>
-  );
+const scoreClass = (v) => {
+  if (v == null || isNaN(Number(v))) return 'badge';
+  const n = Number(v);
+  if (n >= 80) return 'badge-success';
+  if (n >= 60) return 'badge-cyan';
+  if (n >= 40) return 'badge-amber';
+  return 'badge-danger';
 };
 
-const ScoresDashboard = () => {
-  const theme = useTheme();
+const scoreColor = (v) => {
+  if (v == null || isNaN(Number(v))) return 'var(--text-faint)';
+  const n = Number(v);
+  if (n >= 80) return 'var(--success)';
+  if (n >= 60) return 'var(--cyan)';
+  if (n >= 40) return 'var(--amber)';
+  return 'var(--danger)';
+};
 
-  // Helper: Safe score display - shows "N/A" for null instead of fake 0
-  // Per RULES.md: NO fake data defaults
-  const safeScoreDisplay = (score) => {
-    return score !== null && score !== undefined ? parseFloat(score).toFixed(0) : "";
-  };
+const grade = (v) => {
+  if (v == null) return '—';
+  const n = Number(v);
+  if (n >= 90) return 'A+';
+  if (n >= 85) return 'A';
+  if (n >= 80) return 'A-';
+  if (n >= 75) return 'B+';
+  if (n >= 70) return 'B';
+  if (n >= 65) return 'B-';
+  if (n >= 60) return 'C+';
+  if (n >= 55) return 'C';
+  if (n >= 50) return 'C-';
+  if (n >= 45) return 'D+';
+  if (n >= 40) return 'D';
+  return 'F';
+};
 
-  // Helper: Safe score for progress bar - returns 0 for display but doesn't use for data integrity
-  const safeScoreValue = (score) => {
-    return score !== null && score !== undefined ? parseFloat(score) : 0;
-  };
+const SORT_FIELDS = [
+  { value: 'composite_score',   label: 'Composite' },
+  { value: 'momentum_score',    label: 'Momentum' },
+  { value: 'quality_score',     label: 'Quality' },
+  { value: 'value_score',       label: 'Value' },
+  { value: 'growth_score',      label: 'Growth' },
+  { value: 'positioning_score', label: 'Positioning' },
+  { value: 'stability_score',   label: 'Stability' },
+];
 
-  // Helper: Safe score color - returns neutral color for missing data
-  const getScoreColor = (score) => {
-    if (score === null || score === undefined) return theme.palette.action.disabled;
-    if (score < 60) return theme.palette.error.main;
-    if (score < 80) return theme.palette.warning.main;
-    return theme.palette.success.main;
-  };
-  const [loading, setLoading] = useState(true);
-  const [scores, setScores] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [expandedStock, setExpandedStock] = useState(null);
-  const [signals, setSignals] = useState({});
-  const [signalsLoading, setSignalsLoading] = useState(false);
-  const [stockDetails, setStockDetails] = useState({}); // Lazy-loaded factor details per symbol
-  const [showFilters, setShowFilters] = useState(false);
-  const [displayLimit] = useState(5000); // Fetch all stocks from server for filtering/sorting
-  const [pageSize, setPageSize] = useState(100); // How many to render at once in the accordion
-  const [showAllStocks, setShowAllStocks] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1); // Pagination state
-  const [totalRecords, setTotalRecords] = useState(0); // Total from API
-  const [totalPages, setTotalPages] = useState(0); // Total pages from API
-  const [paginationInfo, setPaginationInfo] = useState(null); // Full pagination metadata
+const FACTORS = [
+  { key: 'quality',     label: 'Quality',     scoreKey: 'quality_score',     icon: Star,        tone: 'var(--brand)' },
+  { key: 'momentum',    label: 'Momentum',    scoreKey: 'momentum_score',    icon: Activity,    tone: 'var(--amber)' },
+  { key: 'value',       label: 'Value',       scoreKey: 'value_score',       icon: DollarSign,  tone: 'var(--cyan)' },
+  { key: 'growth',      label: 'Growth',      scoreKey: 'growth_score',      icon: TrendingUp,  tone: 'var(--success)' },
+  { key: 'positioning', label: 'Positioning', scoreKey: 'positioning_score', icon: Users,       tone: 'var(--purple)' },
+  { key: 'stability',   label: 'Stability',   scoreKey: 'stability_score',   icon: Shield,      tone: 'var(--text-2)' },
+];
 
-  // Advanced filter states
-  const [minCompositeScore, setMinCompositeScore] = useState(0);
-  const [minMomentumScore, setMinMomentumScore] = useState(0);
-  const [minQualityScore, setMinQualityScore] = useState(0);
-  const [minValueScore, setMinValueScore] = useState(0);
-  const [minGrowthScore, setMinGrowthScore] = useState(0);
-  const [sortBy, setSortBy] = useState("composite_score");
-  const [sortOrder, setSortOrder] = useState("desc");
-  const [selectedSector, setSelectedSector] = useState("all");
+const TOOLTIP_STYLE = {
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--r-sm)',
+  fontSize: 'var(--t-xs)',
+  padding: 'var(--space-2) var(--space-3)',
+  color: 'var(--text)',
+};
 
-  // Calculate market averages for each score category
-  // REAL DATA ONLY - exclude nulls, don't use 0 as default
-  const calculateMarketAverages = (stocks) => {
-    if (!stocks || stocks.length === 0) return {};
+export default function ScoresDashboard() {
+  const navigate = useNavigate();
+  const [search, setSearch] = useState('');
+  const [sector, setSector] = useState('');
+  const [sortBy, setSortBy] = useState('composite_score');
+  const [sortOrder, setSortOrder] = useState('desc');
+  const [minScore, setMinScore] = useState(0);
+  const [tab, setTab] = useState('rankings');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [selectedSymbol, setSelectedSymbol] = useState(null);
+  const [details, setDetails] = useState({});
 
-    const sum = (arr) => arr.reduce((a, b) => a + b, 0);
-    const avg = (arr) => arr.length > 0 ? sum(arr) / arr.length : null;
+  const { data: items, isLoading, refetch } = useQuery({
+    queryKey: ['stock-scores'],
+    queryFn: () =>
+      api.get('/api/scores/stockscores?limit=5000&offset=0&sortBy=composite_score&sp500Only=true')
+         .then(r => r.data?.items || []),
+    refetchInterval: 60000,
+  });
 
-    // Filter for real values only (not null/undefined)
-    const getRealScores = (key) => stocks
-      .map(s => s[key])
-      .filter(v => v !== null && v !== undefined);
+  useEffect(() => { setPage(1); }, [search, sector, sortBy, sortOrder, minScore]);
 
-    return {
-      quality: avg(getRealScores('quality_score')),
-      momentum: avg(getRealScores('momentum_score')),
-      value: avg(getRealScores('value_score')),
-      growth: avg(getRealScores('growth_score')),
-      positioning: avg(getRealScores('positioning_score')),
-      consistency: avg(getRealScores('stability_score')),
-    };
-  };
+  const sectors = useMemo(() => {
+    if (!items) return [];
+    return Array.from(new Set(items.map(i => i.sector).filter(Boolean))).sort();
+  }, [items]);
 
-  // Calculate sector averages for each score category
-  // REAL DATA ONLY - exclude nulls, don't use 0 as default
-  const calculateSectorAverages = (stocks, sector) => {
-    if (!sector || sector === 'all' || !stocks || stocks.length === 0) return {};
-
-    const sectorStocks = stocks.filter(s => s.sector === sector);
-    if (sectorStocks.length === 0) return {};
-
-    const sum = (arr) => arr.reduce((a, b) => a + b, 0);
-    const avg = (arr) => arr.length > 0 ? sum(arr) / arr.length : null;
-
-    // Filter for real values only (not null/undefined)
-    const getRealScores = (key) => sectorStocks
-      .map(s => s[key])
-      .filter(v => v !== null && v !== undefined);
-
-    return {
-      quality: avg(getRealScores('quality_score')),
-      momentum: avg(getRealScores('momentum_score')),
-      value: avg(getRealScores('value_score')),
-      growth: avg(getRealScores('growth_score')),
-      positioning: avg(getRealScores('positioning_score')),
-      risk: avg(getRealScores('stability_score')),
-    };
-  };
-
-  // Transform data to handle both old and new API formats
-  const transformStockData = (stock) => {
-    // Return data as-is from API without any fallbacks or defaults
-    // No fake data - only real data from database
-    return stock;
-  };
-
-  useEffect(() => {
-    loadAllScores();
-  }, []);
-
-  // Reset to page 1 when any filter changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, minCompositeScore, minMomentumScore, minQualityScore, minValueScore, minGrowthScore, selectedSector, sortBy, sortOrder]);
-
-  const loadAllScores = async (page = 1) => {
-    setLoading(true);
-    try {
-      const { default: api } = await import("../services/api");
-      // Calculate offset based on page and displayLimit
-      const offset = (page - 1) * displayLimit;
-
-      const response = await api.get(
-        `/api/scores/stockscores?limit=${displayLimit}&offset=${offset}&sortBy=composite_score&sp500Only=true`
-      );
-
-      // Check if API response is valid
-      // Unified response format: { success: true, items: [...], pagination: {...}, timestamp: ... }
-      const responseData = response.data || {};
-      const validStocksArray = responseData.items || [];
-
-      if (validStocksArray.length > 0) {
-        const transformedStocks = validStocksArray.map(transformStockData);
-        setScores(transformedStocks);
-
-        // Extract pagination info from response
-        const totalRecords = responseData.pagination?.total || validStocksArray.length;
-        const fetchedPageSize = responseData.pagination?.limit || displayLimit;
-        const totalPages = Math.ceil(totalRecords / fetchedPageSize);
-
-        setTotalRecords(totalRecords);
-        setTotalPages(totalPages);
-        setPaginationInfo({
-          totalRecords: totalRecords,
-          totalPages: totalPages,
-          pageSize: fetchedPageSize,
-          offset: responseData.pagination?.offset || 0
-        });
-        setCurrentPage(page);
-      } else {
-        // Data is null or missing - API success but no data yet (compilation in progress)
-        setScores([]);
-        // Don't log as error - this is expected during compilation
-        console.log("Stock scores compilation in progress. Data will be available shortly.");
+  const filtered = useMemo(() => {
+    if (!items) return [];
+    const q = search.trim().toUpperCase();
+    const arr = items.filter(s => {
+      if (q && !(s.symbol || '').toUpperCase().includes(q)) return false;
+      if (sector && s.sector !== sector) return false;
+      if (minScore > 0) {
+        const v = s[sortBy];
+        if (v == null || Number(v) < minScore) return false;
       }
-    } catch (error) {
-      console.error("Error loading scores:", error);
-      setScores([]);
-    } finally {
-      setLoading(false);
+      return true;
+    });
+    arr.sort((a, b) => {
+      const av = a[sortBy], bv = b[sortBy];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      return sortOrder === 'desc' ? Number(bv) - Number(av) : Number(av) - Number(bv);
+    });
+    return arr;
+  }, [items, search, sector, sortBy, sortOrder, minScore]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pageStart = (page - 1) * pageSize;
+  const pageEnd = pageStart + pageSize;
+  const pageRows = filtered.slice(pageStart, pageEnd);
+
+  const stats = useMemo(() => {
+    if (!items) return { total: 0, top: 0, avg: 0, gradeA: 0 };
+    const top = items.filter(s => Number(s.composite_score) >= 80).length;
+    const valid = items.filter(s => s.composite_score != null);
+    const avg = valid.length ? valid.reduce((s, x) => s + Number(x.composite_score), 0) / valid.length : 0;
+    const gradeA = items.filter(s => Number(s.composite_score) >= 80).length;
+    return { total: items.length, top, avg, gradeA };
+  }, [items]);
+
+  const marketAvgs = useMemo(() => {
+    const o = {};
+    FACTORS.forEach(f => {
+      const vals = (items || []).map(s => s[f.scoreKey]).filter(v => v != null).map(Number);
+      o[f.key] = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+    });
+    return o;
+  }, [items]);
+
+  const sectorAvgs = (sym) => {
+    if (!items || !sym) return {};
+    const stock = items.find(s => s.symbol === sym);
+    if (!stock?.sector) return {};
+    const peers = items.filter(s => s.sector === stock.sector);
+    const o = {};
+    FACTORS.forEach(f => {
+      const vals = peers.map(s => s[f.scoreKey]).filter(v => v != null).map(Number);
+      o[f.key] = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+    });
+    return o;
+  };
+
+  const expandStock = async (symbol) => {
+    if (selectedSymbol === symbol) { setSelectedSymbol(null); return; }
+    setSelectedSymbol(symbol);
+    if (!details[symbol]) {
+      try {
+        const r = await api.get(`/api/scores/stockscores?symbol=${symbol}&limit=1`);
+        const item = r.data?.items?.[0];
+        if (item) setDetails(d => ({ ...d, [symbol]: item }));
+      } catch { /* ignore */ }
     }
   };
 
-  const loadSignalsForStocks = async (stockList) => {
-    if (signalsLoading || stockList.length === 0) return;
-
-    setSignalsLoading(true);
-    try {
-      const { default: api } = await import("../services/api");
-
-      // Helper to generate fallback signal based on scores
-      const generateSignal = (stock) => {
-        const composite = stock.composite_score;
-        const momentum = stock.momentum_score;
-
-        if (composite >= 80 && momentum >= 75) {
-          return { signal: "BUY", confidence: 0.85 };
-        }
-        if (composite >= 70 && momentum >= 65) {
-          return { signal: "BUY", confidence: 0.75 };
-        }
-        if (composite < 50 || momentum < 40) {
-          return { signal: "SELL", confidence: 0.70 };
-        }
-        return { signal: "HOLD", confidence: 0.65 };
-      };
-
-      // Load ALL signals for all timeframes (daily, weekly, monthly)
-      // Fetch complete history - no limit restriction
-      const timeframes = ["daily", "weekly", "monthly"];
-      const signalPromises = stockList.map(async (stock) => {
-        const timeframeSignals = {};
-        const timeframeAllSignals = {}; // Store ALL signals for each timeframe
-
-        for (const timeframe of timeframes) {
-          try {
-            const response = await api.get(
-              `/api/signals/stocks?symbol=${stock.symbol}&timeframe=${timeframe}&limit=10000`
-            );
-            const signalsArray = response?.data?.items || [];
-            if (response?.data?.success && signalsArray.length > 0) {
-              // Store all signals for this timeframe
-              timeframeAllSignals[timeframe] = signalsArray.filter(
-                (signal) => signal.signal && ["Buy", "Sell"].includes(signal.signal)
-              );
-
-              // Use most recent signal as primary
-              const signalData = signalsArray[0];
-              const apiSignal = signalData.signal;
-              if (apiSignal && ["Buy", "Sell"].includes(apiSignal)) {
-                timeframeSignals[timeframe] = {
-                  signal: apiSignal === "Buy" ? "BUY" : "SELL",
-                  confidence: 0.80,
-                  date: signalData.date,
-                };
-              }
-            }
-          } catch (err) {
-            // If API call fails for this timeframe, continue to next
-          }
-        }
-
-        // Use daily signal as primary display, fallback to generated if not available
-        const dailySignal = timeframeSignals.daily;
-        const weeklySignal = timeframeSignals.weekly;
-        const monthlySignal = timeframeSignals.monthly;
-
-        if (dailySignal) {
-          return {
-            symbol: stock.symbol,
-            signal: dailySignal.signal,
-            confidence: dailySignal.confidence,
-            date: dailySignal.date,
-            daily: dailySignal,
-            dailyAllSignals: timeframeAllSignals.daily || [],
-            weekly: weeklySignal || null,
-            weeklyAllSignals: timeframeAllSignals.weekly || [],
-            monthly: monthlySignal || null,
-            monthlyAllSignals: timeframeAllSignals.monthly || [],
-          };
-        } else if (weeklySignal) {
-          return {
-            symbol: stock.symbol,
-            signal: weeklySignal.signal,
-            confidence: weeklySignal.confidence,
-            date: weeklySignal.date,
-            daily: null,
-            dailyAllSignals: timeframeAllSignals.daily || [],
-            weekly: weeklySignal,
-            weeklyAllSignals: timeframeAllSignals.weekly || [],
-            monthly: monthlySignal || null,
-            monthlyAllSignals: timeframeAllSignals.monthly || [],
-          };
-        } else if (monthlySignal) {
-          return {
-            symbol: stock.symbol,
-            signal: monthlySignal.signal,
-            confidence: monthlySignal.confidence,
-            date: monthlySignal.date,
-            daily: null,
-            dailyAllSignals: timeframeAllSignals.daily || [],
-            weekly: null,
-            weeklyAllSignals: timeframeAllSignals.weekly || [],
-            monthly: monthlySignal,
-            monthlyAllSignals: timeframeAllSignals.monthly || [],
-          };
-        } else {
-          // Fallback to score-based signal if no API signals available
-          const generated = generateSignal(stock);
-          return {
-            symbol: stock.symbol,
-            signal: generated.signal,
-            confidence: generated.confidence,
-            date: new Date().toISOString().split('T')[0],
-            daily: null,
-            dailyAllSignals: [],
-            weekly: null,
-            weeklyAllSignals: [],
-            monthly: null,
-            monthlyAllSignals: [],
-          };
-        }
-      });
-
-      const signalResults = await Promise.all(signalPromises);
-      const signalsMap = {};
-
-      signalResults.forEach((result) => {
-        if (result) {
-          signalsMap[result.symbol] = result;
-        }
-      });
-
-      setSignals((prev) => ({ ...prev, ...signalsMap }));
-    } catch (error) {
-      console.error("Error loading signals:", error);
-    } finally {
-      setSignalsLoading(false);
-    }
+  const clear = () => {
+    setSearch(''); setSector(''); setSortBy('composite_score');
+    setSortOrder('desc'); setMinScore(0);
   };
 
-  // Extract unique sectors from scores
-  const sectors = [...new Set(scores.map((stock) => stock.sector).filter(Boolean))].sort();
+  const detailStock = selectedSymbol
+    ? (details[selectedSymbol] || (items || []).find(s => s.symbol === selectedSymbol))
+    : null;
 
-  // Filter and sort scores
-  // NOTE: Filters are applied but don't re-sort paginated API data
-  // The API already returns data in correct order (composite_score DESC)
-  // We only re-sort if user changes filter criteria or explicitly changes sort
-  const hasActiveFilters = searchTerm || minCompositeScore > 0 || minMomentumScore > 0 ||
-                           minQualityScore > 0 || minValueScore > 0 || minGrowthScore > 0 ||
-                           selectedSector !== "all" || sortBy !== "composite_score" || sortOrder !== "desc";
+  return (
+    <div className="main-content">
+      <div className="page-head">
+        <div>
+          <div className="page-head-title">Scores</div>
+          <div className="page-head-sub">
+            Multi-factor stock scoring · composite + 6 factors · S&amp;P 500 universe · click row for full factor breakdown
+          </div>
+        </div>
+        <div className="page-head-actions">
+          <button className="btn btn-outline btn-sm" onClick={() => refetch()}>
+            <RefreshCw size={14} /> Refresh
+          </button>
+        </div>
+      </div>
 
-  const filteredAndSortedScores = scores
-    .filter((stock) => {
-      const matchesSearch = stock.symbol.toLowerCase().includes(searchTerm.toLowerCase());
-      // REAL DATA ONLY - null scores can only pass filter if threshold is 0 (no requirement)
-      const matchesComposite = minCompositeScore === 0
-        ? true
-        : (stock.composite_score !== null && stock.composite_score !== undefined && stock.composite_score >= minCompositeScore);
-      const matchesMomentum = minMomentumScore === 0
-        ? true
-        : (stock.momentum_score !== null && stock.momentum_score !== undefined && stock.momentum_score >= minMomentumScore);
-      const matchesQuality = minQualityScore === 0
-        ? true
-        : (stock.quality_score !== null && stock.quality_score !== undefined && stock.quality_score >= minQualityScore);
-      const matchesValue = minValueScore === 0
-        ? true
-        : (stock.value_score !== null && stock.value_score !== undefined && stock.value_score >= minValueScore);
-      const matchesGrowth = minGrowthScore === 0
-        ? true
-        : (stock.growth_score !== null && stock.growth_score !== undefined && stock.growth_score >= minGrowthScore);
-      const matchesSector = selectedSector === "all" || stock.sector === selectedSector;
+      <div className="grid grid-4">
+        <Kpi label="Universe" value={stats.total.toLocaleString()} sub="ranked stocks" />
+        <Kpi label="Composite ≥ 80" value={stats.top.toLocaleString()}
+             sub={`${stats.total ? Math.round(stats.top / stats.total * 100) : 0}% qualify`}
+             tone={stats.top > 0 ? 'up' : ''} />
+        <Kpi label="Market Avg" value={num(stats.avg, 1)} sub="composite score" />
+        <Kpi label="Top Decile" value={num(filtered[0]?.composite_score, 1)}
+             sub={filtered[0]?.symbol || '—'} tone="up" />
+      </div>
 
-      return matchesSearch && matchesComposite && matchesMomentum && matchesQuality && matchesValue && matchesGrowth && matchesSector;
-    })
-    // Only sort if user has applied custom filters/sorts
-    // Otherwise, respect the API ordering (which is composite_score DESC)
-    .sort((a, b) => {
-      // If no filters applied, maintain API order by preserving index (stable sort)
-      if (!hasActiveFilters) {
-        return 0; // Don't change order - API provides correct ordering
-      }
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card-body">
+          <div className="flex items-center gap-3" style={{ flexWrap: 'wrap' }}>
+            <div className="flex items-center gap-2" style={{ flex: '1 1 220px', minWidth: 200 }}>
+              <Search size={14} className="muted" />
+              <input
+                className="input"
+                placeholder="Search symbol…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                style={{ flex: 1 }}
+              />
+            </div>
+            <select className="select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
+              {SORT_FIELDS.map(f => <option key={f.value} value={f.value}>Sort: {f.label}</option>)}
+            </select>
+            <select className="select" value={sortOrder} onChange={e => setSortOrder(e.target.value)}>
+              <option value="desc">High → Low</option>
+              <option value="asc">Low → High</option>
+            </select>
+            <select className="select" value={sector} onChange={e => setSector(e.target.value)}>
+              <option value="">All sectors</option>
+              {sectors.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select className="select" value={minScore} onChange={e => setMinScore(Number(e.target.value))}>
+              <option value="0">Min score: any</option>
+              <option value="50">≥ 50</option>
+              <option value="60">≥ 60</option>
+              <option value="70">≥ 70</option>
+              <option value="80">≥ 80</option>
+              <option value="90">≥ 90</option>
+            </select>
+            <button className="btn btn-ghost btn-sm" onClick={clear}>Clear</button>
+            <span className="t-xs muted" style={{ marginLeft: 'auto' }}>
+              <Filter size={12} style={{ verticalAlign: '-2px' }} /> {filtered.length} of {items?.length || 0}
+            </span>
+          </div>
+        </div>
+      </div>
 
-      // REAL DATA ONLY - handle null values properly (nulls go to bottom)
-      let aValue = a[sortBy];
-      let bValue = b[sortBy];
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { value: 'rankings', label: 'Rankings' },
+          { value: 'leaders',  label: 'Category Leaders' },
+          { value: 'laggards', label: 'Laggards' },
+          { value: 'sectors',  label: 'By Sector' },
+        ]}
+      />
 
-      // Null values always sort to bottom (end)
-      if (aValue === null || aValue === undefined) return 1;
-      if (bValue === null || bValue === undefined) return -1;
+      {tab === 'rankings' && (
+        <RankingsTab
+          rows={pageRows}
+          all={items || []}
+          isLoading={isLoading}
+          page={page} setPage={setPage}
+          pageSize={pageSize} setPageSize={setPageSize}
+          totalPages={totalPages} totalRows={filtered.length}
+          pageStart={pageStart} pageEnd={pageEnd}
+          selectedSymbol={selectedSymbol}
+          onExpand={expandStock}
+          onNavigate={(s) => navigate(`/app/stock/${s}`)}
+          detail={detailStock}
+          marketAvgs={marketAvgs}
+          sectorAvgs={selectedSymbol ? sectorAvgs(selectedSymbol) : {}}
+        />
+      )}
 
-      // Both have real values - compare numerically
-      const comparison = bValue - aValue;
-      return sortOrder === "desc" ? comparison : -comparison;
-    });
+      {tab === 'leaders' && (
+        <LeadersTab items={items || []} sectorFilter={sector} onClick={(s) => navigate(`/app/stock/${s}`)} />
+      )}
 
-  // Paginate the filtered list — only render one page of accordions at a time to avoid OOM
-  const totalFilteredCount = filteredAndSortedScores.length;
-  const totalDisplayPages = Math.ceil(totalFilteredCount / pageSize);
-  const displayPageStart = (currentPage - 1) * pageSize;
-  const displayPageEnd = displayPageStart + pageSize;
-  const displayedStocks = filteredAndSortedScores
-    .slice(displayPageStart, displayPageEnd)
-    .map((s) => stockDetails[s.symbol] ? { ...s, ...stockDetails[s.symbol] } : s);
+      {tab === 'laggards' && (
+        <LaggardsTab items={items || []} sectorFilter={sector} onClick={(s) => navigate(`/app/stock/${s}`)} />
+      )}
 
-  // Get top performers for each category with optional sector filtering - ONLY real data
-  const getTopPerformers = (scoreField, count = 10, sector = null) => {
-    const filteredScores = sector && sector !== "all"
-      ? scores.filter((stock) => stock.sector === sector)
-      : scores;
+      {tab === 'sectors' && (
+        <SectorsTab items={items || []} sectors={sectors} onClick={(s) => navigate(`/app/stock/${s}`)} />
+      )}
 
-    return [...filteredScores]
-      .filter((stock) => stock[scoreField] !== null && stock[scoreField] !== undefined)
-      .sort((a, b) => b[scoreField] - a[scoreField]) // No fallback - we already filtered nulls
-      .slice(0, count);
-  };
+      <ScoreLegend />
+    </div>
+  );
+}
 
-  // Get top performers by sector - ONLY real data
-  const getTopPerformersBySector = (count = 5) => {
-    const bySector = {};
-    sectors.forEach((sector) => {
-      bySector[sector] = [...scores]
-        .filter((stock) => stock.sector === sector && stock.composite_score !== null && stock.composite_score !== undefined)
-        .sort((a, b) => b.composite_score - a.composite_score) // No fallback - we already filtered nulls
-        .slice(0, count);
-    });
-    return bySector;
-  };
-
-  // Get bottom performers for each category - ONLY real data (worst performers)
-  const getBottomPerformers = (scoreField, count = 10, sector = null) => {
-    const filteredScores = sector && sector !== "all"
-      ? scores.filter((stock) => stock.sector === sector)
-      : scores;
-
-    return [...filteredScores]
-      .filter((stock) => stock[scoreField] !== null && stock[scoreField] !== undefined)
-      .sort((a, b) => a[scoreField] - b[scoreField]) // Ascending = lowest first
-      .slice(0, count);
-  };
-
-  // Get bottom performers by sector - ONLY real data
-  const getBottomPerformersBySector = (count = 5) => {
-    const bySector = {};
-    sectors.forEach((sector) => {
-      bySector[sector] = [...scores]
-        .filter((stock) => stock.sector === sector && stock.composite_score !== null && stock.composite_score !== undefined)
-        .sort((a, b) => a.composite_score - b.composite_score) // Ascending = lowest first
-        .slice(0, count);
-    });
-    return bySector;
-  };
-
-  const topQuality = getTopPerformers("quality_score", 10, null);
-  const topMomentum = getTopPerformers("momentum_score", 10, null);
-  const topValue = getTopPerformers("value_score", 10, null);
-  const topGrowth = getTopPerformers("growth_score", 10, null);
-  const topPositioning = getTopPerformers("positioning_score", 10, null);
-  const topStability = getTopPerformers("stability_score", 10, null);
-  const topBySector = getTopPerformersBySector(5);
-
-  const bottomQuality = getBottomPerformers("quality_score", 10, null);
-  const bottomMomentum = getBottomPerformers("momentum_score", 10, null);
-  const bottomValue = getBottomPerformers("value_score", 10, null);
-  const bottomGrowth = getBottomPerformers("growth_score", 10, null);
-  const bottomPositioning = getBottomPerformers("positioning_score", 10, null);
-  const bottomStability = getBottomPerformers("stability_score", 10, null);
-  const bottomBySector = getBottomPerformersBySector(5);
-
-  // Get category leaders within each sector - ONLY real data, no fake defaults
-  const getCategoryLeadersBySector = (sector) => {
-    const sectorStocks = scores.filter(s => s.sector === sector);
-    if (sectorStocks.length === 0) return {};
-
-    const getSortedLeader = (sortFn, filterFn) => {
-      const filtered = sectorStocks.filter(filterFn);
-      const sorted = [...filtered].sort(sortFn);
-      return sorted.length > 0 ? sorted[0] : undefined;
-    };
-
-    return {
-      // No fallback in sorts - filter fn already ensures only non-null scores are compared
-      quality: getSortedLeader((a, b) => b.quality_score - a.quality_score, s => s.quality_score !== null && s.quality_score !== undefined),
-      momentum: getSortedLeader((a, b) => b.momentum_score - a.momentum_score, s => s.momentum_score !== null && s.momentum_score !== undefined),
-      value: getSortedLeader((a, b) => b.value_score - a.value_score, s => s.value_score !== null && s.value_score !== undefined),
-      growth: getSortedLeader((a, b) => b.growth_score - a.growth_score, s => s.growth_score !== null && s.growth_score !== undefined),
-      positioning: getSortedLeader((a, b) => b.positioning_score - a.positioning_score, s => s.positioning_score !== null && s.positioning_score !== undefined),
-    };
-  };
-
-  // State for expanded sector accordion
-  const [expandedSector, setExpandedSector] = useState(null);
-
-  const handleSectorAccordionChange = (sectorName) => (event, isExpanded) => {
-    setExpandedSector(isExpanded ? sectorName : null);
-  };
-
-  const handleAccordionChange = (symbol) => (event, isExpanded) => {
-    setExpandedStock(isExpanded ? symbol : null);
-    if (isExpanded) {
-      // Lazy-load signals only for the expanded stock if not already loaded
-      if (!signals[symbol]) {
-        const stock = scores.find((s) => s.symbol === symbol);
-        if (stock) loadSignalsForStocks([stock]);
-      }
-      // Lazy-load full factor details (quality_inputs, growth_inputs, etc.) if not cached
-      if (!stockDetails[symbol]) {
-        import("../services/api").then(({ default: api }) => {
-          api.get(`/api/scores/stockscores?symbol=${symbol}&limit=1`)
-            .then((resp) => {
-              const items = resp.data?.items || [];
-              if (items[0]) {
-                setStockDetails((prev) => ({ ...prev, [symbol]: items[0] }));
-              }
-            })
-            .catch(() => {}); // Silently ignore — accordion still renders with base data
-        });
-      }
-    }
-  };
-
-  const clearFilters = () => {
-    setSearchTerm("");
-    setMinCompositeScore(0);
-    setMinMomentumScore(0);
-    setMinQualityScore(0);
-    setMinValueScore(0);
-    setMinGrowthScore(0);
-    setSelectedSector("all");
-    setCurrentPage(1);
-  };
-
-  const formatChange = (change) => {
-    const numChange = parseFloat(change ?? 0);
-    const isPositive = numChange >= 0;
+// ─── tabs: rankings ────────────────────────────────────────────────────────
+function RankingsTab({
+  rows, isLoading, page, setPage, pageSize, setPageSize,
+  totalPages, totalRows, pageStart, pageEnd,
+  selectedSymbol, onExpand, onNavigate, detail, marketAvgs, sectorAvgs,
+}) {
+  if (isLoading) {
     return (
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-        {isPositive ? (
-          <TrendingUp sx={{ fontSize: 16, color: theme.palette.success.main }} />
-        ) : (
-          <TrendingDown sx={{ fontSize: 16, color: theme.palette.error.main }} />
-        )}
-        <Typography
-          variant="body2"
-          sx={{
-            color: isPositive ? theme.palette.success.main : theme.palette.error.main,
-            fontWeight: 600,
-          }}
-        >
-          {isPositive ? "+" : ""}
-          {numChange.toFixed(2)}%
-        </Typography>
-      </Box>
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card-body"><Empty title="Loading scores…" /></div>
+      </div>
     );
-  };
-
-  // Export handlers
-  const handleExportCSV = () => {
-    const dataToExport = filteredAndSortedScores.map((stock) => ({
-      symbol: stock.symbol,
-      sector: stock.sector,
-      "composite_score": stock.composite_score,
-      "momentum_score": stock.momentum_score,
-      "quality_score": stock.quality_score,
-      "value_score": stock.value_score,
-      "growth_score": stock.growth_score,
-      "positioning_score": stock.positioning_score,
-      "price": stock.price,
-      "change_percent": stock.change_percent,
-    }));
-    exportToCSV(dataToExport, "stock-scores");
-  };
-
-  const handleExportJSON = () => {
-    const dataToExport = filteredAndSortedScores.map((stock) => ({
-      symbol: stock.symbol,
-      sector: stock.sector,
-      composite_score: stock.composite_score,
-      momentum_score: stock.momentum_score,
-      quality_score: stock.quality_score,
-      value_score: stock.value_score,
-      growth_score: stock.growth_score,
-      positioning_score: stock.positioning_score,
-      price: stock.price,
-      change_percent: stock.change_percent,
-    }));
-    exportToJSON(dataToExport, "stock-scores");
-  };
-
-  if (loading) {
+  }
+  if (rows.length === 0) {
     return (
-      <Container maxWidth="xl" sx={{ py: 4 }}>
-        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 400 }}>
-          <CircularProgress size={60} />
-        </Box>
-      </Container>
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card-body">
+          <Empty title="No stocks match your filters" desc="Try widening filters or refreshing the universe." />
+        </div>
+      </div>
     );
   }
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
-      {/* Header */}
-      <Paper
-        elevation={0}
-        sx={{
-          textAlign: "center",
-          mb: 4,
-          p: 4,
-          borderRadius: 3,
-          border: `1px solid ${theme.palette.divider}`,
-          background: theme.palette.mode === "dark"
-            ? `linear-gradient(145deg, ${theme.palette.background.paper}, ${alpha(theme.palette.primary.main, 0.02)})`
-            : `linear-gradient(145deg, ${theme.palette.background.paper}, ${alpha(theme.palette.primary.main, 0.03)})`,
-        }}
-      >
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2, mb: 2 }}>
-          <Box
-            sx={{
-              width: 60,
-              height: 60,
-              borderRadius: "50%",
-              background: `conic-gradient(${theme.palette.primary.main} 90deg, ${theme.palette.success.main} 90deg 180deg, ${theme.palette.warning.main} 180deg 270deg, ${theme.palette.error.main} 270deg)`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              position: "relative",
-            }}
-          >
-            <Box
-              sx={{
-                width: 50,
-                height: 50,
-                borderRadius: "50%",
-                backgroundColor: theme.palette.background.paper,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                🎯
-              </Typography>
-            </Box>
-          </Box>
-          <Typography variant="h3" component="h1" fontWeight={700} sx={{ letterSpacing: "-0.5px" }}>
-            Bullseye Stock Screener
-          </Typography>
-        </Box>
-      </Paper>
-
-      {/* Search and Filter Controls */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", alignItems: "center", mb: showFilters ? 2 : 0 }}>
-          <TextField
-            variant="outlined"
-            placeholder="Search stocks by symbol..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            size="small"
-            sx={{ minWidth: 250, flex: 1 }}
-          />
-
-          <FormControl variant="outlined" size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Sort By</InputLabel>
-            <Select value={sortBy} label="Sort By" onChange={(e) => setSortBy(e.target.value)}>
-              <MenuItem value="composite_score">Composite</MenuItem>
-              <MenuItem value="momentum_score">Momentum</MenuItem>
-              <MenuItem value="quality_score">Quality</MenuItem>
-              <MenuItem value="value_score">Value</MenuItem>
-              <MenuItem value="growth_score">Growth</MenuItem>
-              <MenuItem value="positioning_score">Positioning</MenuItem>
-            </Select>
-          </FormControl>
-
-          <FormControl variant="outlined" size="small" sx={{ minWidth: 120 }}>
-            <InputLabel>Order</InputLabel>
-            <Select value={sortOrder} label="Order" onChange={(e) => setSortOrder(e.target.value)}>
-              <MenuItem value="desc">High to Low</MenuItem>
-              <MenuItem value="asc">Low to High</MenuItem>
-            </Select>
-          </FormControl>
-
-          <FormControl variant="outlined" size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Sector</InputLabel>
-            <Select value={selectedSector} label="Sector" onChange={(e) => setSelectedSector(e.target.value)}>
-              <MenuItem value="all">All Sectors</MenuItem>
-              {sectors.map((sector) => (
-                <MenuItem key={sector} value={sector}>{sector}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          <Tooltip title="Advanced Filters">
-            <IconButton
-              onClick={() => setShowFilters(!showFilters)}
-              color={showFilters ? "primary" : "default"}
-            >
-              <FilterList />
-            </IconButton>
-          </Tooltip>
-
-          {(searchTerm || minCompositeScore > 0 || minMomentumScore > 0 || minQualityScore > 0 || minValueScore > 0 || minGrowthScore > 0 || selectedSector !== "all") && (
-            <Tooltip title="Clear All Filters">
-              <IconButton onClick={clearFilters} color="error" size="small">
-                <ClearAll />
-              </IconButton>
-            </Tooltip>
-          )}
-        </Box>
-
-        {showFilters && (
-          <Box sx={{ pt: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6} md={2.4}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Min Composite</InputLabel>
-                  <Select
-                    value={minCompositeScore}
-                    label="Min Composite"
-                    onChange={(e) => setMinCompositeScore(e.target.value)}
+    <>
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card-body" style={{ padding: 0 }}>
+          <div style={{ overflow: 'auto', maxHeight: '70vh' }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 32 }} className="num">#</th>
+                  <th>Symbol</th>
+                  <th>Sector</th>
+                  <th className="num">Composite</th>
+                  <th>Grade</th>
+                  <th className="num">Quality</th>
+                  <th className="num">Mom</th>
+                  <th className="num">Value</th>
+                  <th className="num">Growth</th>
+                  <th className="num">Pos</th>
+                  <th className="num">Stab</th>
+                  <th className="num">Price</th>
+                  <th className="num">Δ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((s, i) => (
+                  <tr
+                    key={s.symbol}
+                    onClick={() => onExpand(s.symbol)}
+                    style={{
+                      cursor: 'pointer',
+                      background: selectedSymbol === s.symbol ? 'var(--surface-2)' : undefined,
+                    }}
                   >
-                    <MenuItem value={0}>All</MenuItem>
-                    <MenuItem value={50}>50+</MenuItem>
-                    <MenuItem value={60}>60+</MenuItem>
-                    <MenuItem value={70}>70+</MenuItem>
-                    <MenuItem value={80}>80+</MenuItem>
-                    <MenuItem value={90}>90+</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={6} md={2.4}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Min Momentum</InputLabel>
-                  <Select
-                    value={minMomentumScore}
-                    label="Min Momentum"
-                    onChange={(e) => setMinMomentumScore(e.target.value)}
-                  >
-                    <MenuItem value={0}>All</MenuItem>
-                    <MenuItem value={50}>50+</MenuItem>
-                    <MenuItem value={60}>60+</MenuItem>
-                    <MenuItem value={70}>70+</MenuItem>
-                    <MenuItem value={80}>80+</MenuItem>
-                    <MenuItem value={90}>90+</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={6} md={2.4}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Min Quality</InputLabel>
-                  <Select
-                    value={minQualityScore}
-                    label="Min Quality"
-                    onChange={(e) => setMinQualityScore(e.target.value)}
-                  >
-                    <MenuItem value={0}>All</MenuItem>
-                    <MenuItem value={50}>50+</MenuItem>
-                    <MenuItem value={60}>60+</MenuItem>
-                    <MenuItem value={70}>70+</MenuItem>
-                    <MenuItem value={80}>80+</MenuItem>
-                    <MenuItem value={90}>90+</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={6} md={2.4}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Min Value</InputLabel>
-                  <Select
-                    value={minValueScore}
-                    label="Min Value"
-                    onChange={(e) => setMinValueScore(e.target.value)}
-                  >
-                    <MenuItem value={0}>All</MenuItem>
-                    <MenuItem value={50}>50+</MenuItem>
-                    <MenuItem value={60}>60+</MenuItem>
-                    <MenuItem value={70}>70+</MenuItem>
-                    <MenuItem value={80}>80+</MenuItem>
-                    <MenuItem value={90}>90+</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={6} md={2.4}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Min Growth</InputLabel>
-                  <Select
-                    value={minGrowthScore}
-                    label="Min Growth"
-                    onChange={(e) => setMinGrowthScore(e.target.value)}
-                  >
-                    <MenuItem value={0}>All</MenuItem>
-                    <MenuItem value={50}>50+</MenuItem>
-                    <MenuItem value={60}>60+</MenuItem>
-                    <MenuItem value={70}>70+</MenuItem>
-                    <MenuItem value={80}>80+</MenuItem>
-                    <MenuItem value={90}>90+</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-            </Grid>
-          </Box>
-        )}
-      </Paper>
-
-      {/* Overall Stocks List */}
-      <Box sx={{ mb: 4 }}>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, gap: 1, flexWrap: "wrap" }}>
-          <Typography variant="h5" gutterBottom sx={{ m: 0 }}>
-            Top Overall Stocks ({filteredAndSortedScores.length})
-          </Typography>
-          <Box sx={{ display: "flex", gap: 1, alignItems: "center", ml: "auto" }}>
-            {filteredAndSortedScores.length > 0 && (
-              <>
-                <Tooltip title="Export as CSV">
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={handleExportCSV}
-                    startIcon={<DownloadIcon />}
-                    sx={{ whiteSpace: "nowrap" }}
-                  >
-                    CSV
-                  </Button>
-                </Tooltip>
-                <Tooltip title="Export as JSON">
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={handleExportJSON}
-                    startIcon={<DownloadIcon />}
-                    sx={{ whiteSpace: "nowrap" }}
-                  >
-                    JSON
-                  </Button>
-                </Tooltip>
-              </>
-            )}
-            {/* Page size selector */}
-            <FormControl size="small" sx={{ minWidth: 90 }}>
-              <Select value={pageSize} onChange={(e) => { setPageSize(parseInt(e.target.value, 10)); setCurrentPage(1); }}>
-                <MenuItem value={25}>25 / pg</MenuItem>
-                <MenuItem value={50}>50 / pg</MenuItem>
-                <MenuItem value={100}>100 / pg</MenuItem>
-                <MenuItem value={250}>250 / pg</MenuItem>
-              </Select>
-            </FormControl>
-            {/* Prev / Next page */}
-            <IconButton size="small" disabled={currentPage <= 1} onClick={() => { setCurrentPage(p => p - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-              <ChevronLeftIcon />
-            </IconButton>
-            <Typography variant="body2" sx={{ whiteSpace: 'nowrap' }}>
-              {currentPage} / {totalDisplayPages || 1}
-            </Typography>
-            <IconButton size="small" disabled={currentPage >= totalDisplayPages} onClick={() => { setCurrentPage(p => p + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-              <ChevronRightIcon />
-            </IconButton>
-          </Box>
-        </Box>
-
-        {filteredAndSortedScores.length === 0 ? (
-          <Paper sx={{ p: 4, textAlign: "center" }}>
-            <Typography variant="h6" color="text.secondary">
-              No stocks found matching your filters
-            </Typography>
-            <Button variant="outlined" onClick={clearFilters} sx={{ mt: 2 }}>
-              Clear Filters
-            </Button>
-          </Paper>
-        ) : (
-          <Box>
-            {displayedStocks.map((stock, index) => (
-            <Accordion
-              key={`${stock.symbol}-${index}`}
-              expanded={expandedStock === stock.symbol}
-              onChange={handleAccordionChange(stock.symbol)}
-              sx={{ mb: 1 }}
-            >
-              <AccordionSummary
-                expandIcon={<ExpandMore />}
-                sx={{
-                  "&:hover": {
-                    backgroundColor: alpha(theme.palette.primary.main, 0.02),
-                  },
-                }}
-              >
-                <Grid container alignItems="center" spacing={2} sx={{ width: "100%" }}>
-                  {/* Left: Score Gauge */}
-                  <Grid item xs="auto">
-                    <ScoreGauge
-                      score={stock.composite_score !== null && stock.composite_score !== undefined ? Math.round(stock.composite_score) : null}
-                      size={70}
-                      showGrade
-                    />
-                  </Grid>
-
-                  {/* Middle: Symbol, Company Name, and Trading Signal */}
-                  <Grid item xs={12} sm="auto" sx={{ flexGrow: { xs: 1, sm: 0 }, minWidth: { sm: 200 } }}>
-                    <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-                      <Typography variant="h5" fontWeight={700}>
-                        {stock.symbol}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.2 }}>
-                        {stock.company_name || "Company Name"}
-                      </Typography>
-                      {signals[stock.symbol] && (
-                        <Box sx={{ mt: 0.5 }}>
-                          <TradingSignal
-                            signal={signals[stock.symbol].signal}
-                            confidence={signals[stock.symbol].confidence}
-                            size="small"
-                          />
-                        </Box>
+                    <td className="num mono tnum muted">{pageStart + i + 1}</td>
+                    <td>
+                      <span
+                        style={{ fontWeight: 'var(--w-semibold)', cursor: 'pointer' }}
+                        onClick={(e) => { e.stopPropagation(); onNavigate(s.symbol); }}
+                      >
+                        {s.symbol}
+                      </span>
+                      {s.company_name && (
+                        <div className="t-xs muted" style={{
+                          maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>
+                          {s.company_name}
+                        </div>
                       )}
-                    </Box>
-                  </Grid>
-
-                  {/* Right: Individual Score Bars */}
-                  <Grid item xs={12} sm sx={{ flexGrow: 1 }}>
-                    <Grid container spacing={1}>
-                      {/* Quality Score */}
-                      <Grid item xs={6} sm={4}>
-                        <Box>
-                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
-                            <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                              Quality
-                            </Typography>
-                            <Typography variant="caption" fontWeight={700}>
-                              {safeScoreDisplay(stock.quality_score)}
-                            </Typography>
-                          </Box>
-                          <LinearProgress
-                            variant="determinate"
-                            value={safeScoreValue(stock.quality_score)}
-                            sx={{
-                              height: 8,
-                              borderRadius: 1,
-                              backgroundColor: alpha(theme.palette.action.disabled, 0.1),
-                              "& .MuiLinearProgress-bar": {
-                                backgroundColor: getScoreColor(stock.quality_score),
-                                borderRadius: 1,
-                              },
-                            }}
-                          />
-                        </Box>
-                      </Grid>
-
-                      {/* Momentum Score */}
-                      <Grid item xs={6} sm={4}>
-                        <Box>
-                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
-                            <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                              Momentum
-                            </Typography>
-                            <Typography variant="caption" fontWeight={700}>
-                              {safeScoreDisplay(stock.momentum_score)}
-                            </Typography>
-                          </Box>
-                          <LinearProgress
-                            variant="determinate"
-                            value={safeScoreValue(stock.momentum_score)}
-                            sx={{
-                              height: 8,
-                              borderRadius: 1,
-                              backgroundColor: alpha(theme.palette.action.disabled, 0.1),
-                              "& .MuiLinearProgress-bar": {
-                                backgroundColor: getScoreColor(stock.momentum_score),
-                                borderRadius: 1,
-                              },
-                            }}
-                          />
-                        </Box>
-                      </Grid>
-
-                      {/* Value Score */}
-                      <Grid item xs={6} sm={4}>
-                        <Box>
-                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
-                            <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                              Value
-                            </Typography>
-                            <Typography variant="caption" fontWeight={700}>
-                              {stock.value_score != null ? parseFloat(stock.value_score).toFixed(0) : ""}
-                            </Typography>
-                          </Box>
-                          {stock.value_score != null && (
-                            <LinearProgress
-                              variant="determinate"
-                              value={parseFloat(stock.value_score)}
-                              sx={{
-                                height: 8,
-                                borderRadius: 1,
-                                backgroundColor: alpha(theme.palette.action.disabled, 0.1),
-                                "& .MuiLinearProgress-bar": {
-                                  backgroundColor: parseFloat(stock.value_score) < 60
-                                    ? theme.palette.error.main
-                                    : parseFloat(stock.value_score) < 80
-                                    ? theme.palette.warning.main
-                                    : theme.palette.success.main,
-                                  borderRadius: 1,
-                                },
-                              }}
-                            />
-                          )}
-                        </Box>
-                      </Grid>
-
-                      {/* Growth Score */}
-                      <Grid item xs={6} sm={4}>
-                        <Box>
-                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
-                            <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                              Growth
-                            </Typography>
-                            <Typography variant="caption" fontWeight={700}>
-                              {safeScoreDisplay(stock.growth_score)}
-                            </Typography>
-                          </Box>
-                          <LinearProgress
-                            variant="determinate"
-                            value={safeScoreValue(stock.growth_score)}
-                            sx={{
-                              height: 8,
-                              borderRadius: 1,
-                              backgroundColor: alpha(theme.palette.action.disabled, 0.1),
-                              "& .MuiLinearProgress-bar": {
-                                backgroundColor: getScoreColor(stock.growth_score),
-                                borderRadius: 1,
-                              },
-                            }}
-                          />
-                        </Box>
-                      </Grid>
-
-                      {/* Positioning Score */}
-                      <Grid item xs={6} sm={4}>
-                        <Box>
-                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
-                            <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                              Positioning
-                            </Typography>
-                            <Typography variant="caption" fontWeight={700}>
-                              {stock.positioning_score != null ? parseFloat(stock.positioning_score).toFixed(0) : ""}
-                            </Typography>
-                          </Box>
-                          {stock.positioning_score != null && (
-                            <LinearProgress
-                              variant="determinate"
-                              value={parseFloat(stock.positioning_score)}
-                              sx={{
-                                height: 8,
-                                borderRadius: 1,
-                                backgroundColor: alpha(theme.palette.action.disabled, 0.1),
-                                "& .MuiLinearProgress-bar": {
-                                  backgroundColor: parseFloat(stock.positioning_score) < 60
-                                    ? theme.palette.error.main
-                                    : parseFloat(stock.positioning_score) < 80
-                                    ? theme.palette.warning.main
-                                    : theme.palette.success.main,
-                                  borderRadius: 1,
-                                },
-                              }}
-                            />
-                          )}
-                        </Box>
-                      </Grid>
-
-                      {/* Stability Score */}
-                      <Grid item xs={6} sm={4}>
-                        <Box>
-                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
-                            <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                              Stability
-                            </Typography>
-                            <Typography variant="caption" fontWeight={700}>
-                              {stock.stability_score !== null && stock.stability_score !== undefined ? parseFloat(stock.stability_score).toFixed(0) : ""}
-                            </Typography>
-                          </Box>
-                          <LinearProgress
-                            variant="determinate"
-                            value={stock.stability_score !== null && stock.stability_score !== undefined ? Math.min(100, parseFloat(stock.stability_score)) : null}
-                            sx={{
-                              height: 8,
-                              borderRadius: 1,
-                              backgroundColor: alpha(theme.palette.action.disabled, 0.1),
-                              "& .MuiLinearProgress-bar": {
-                                backgroundColor: stock.stability_score === null || stock.stability_score === undefined
-                                  ? theme.palette.action.disabled
-                                  : parseFloat(stock.stability_score) < 60
-                                  ? theme.palette.error.main
-                                  : parseFloat(stock.stability_score) < 80
-                                  ? theme.palette.warning.main
-                                  : theme.palette.success.main,
-                                borderRadius: 1,
-                              },
-                            }}
-                          />
-                        </Box>
-                      </Grid>
-                    </Grid>
-                  </Grid>
-                </Grid>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Box>
-                  <Typography variant="h6" gutterBottom sx={{ mb: 3 }}>
-                    Factor Analysis for {stock.symbol}
-                  </Typography>
-
-                  {(() => {
-                    const marketAvgs = calculateMarketAverages(scores);
-                    const sectorAvgs = calculateSectorAverages(scores, stock.sector);
-
-                    return (
-                      <>
-                      <Grid container spacing={2}>
-                        {/* Quality Factor */}
-                        <Grid item xs={12} md={6}>
-                          <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-                            <CardContent sx={{ pb: 2 }}>
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-                                <Stars sx={{ color: theme.palette.primary.main }} />
-                                <Typography variant="h6">Quality & Fundamentals</Typography>
-                                <Chip
-                                  label={stock.quality_score != null ? parseFloat(stock.quality_score).toFixed(1) : ""}
-                                  sx={{
-                                    backgroundColor: getScoreColor(stock.quality_score),
-                                    color: 'white',
-                                    fontWeight: 600
-                                  }}
-                                  size="small"
-                                />
-                              </Box>
-                              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                Financial strength evaluation measuring profitability, balance sheet health, and operational efficiency
-                              </Typography>
-
-                              <Divider sx={{ my: 2 }} />
-
-                              {/* Quality Comparison Chart */}
-                              <Box sx={{ mt: 2 }}>
-                                <Typography variant="caption" color="text.secondary" gutterBottom>
-                                  Score Comparison
-                                </Typography>
-                                <ResponsiveContainer width="100%" height={200}>
-                                  <BarChart
-                                    data={[
-                                      {
-                                        name: stock.symbol,
-                                        value: stock.quality_score !== null && stock.quality_score !== undefined ? stock.quality_score : null
-                                      },
-                                      {
-                                        name: stock.sector ? `${stock.sector} Avg` : "Sector Avg",
-                                        value: sectorAvgs.quality !== null && sectorAvgs.quality !== undefined ? sectorAvgs.quality : null
-                                      },
-                                      {
-                                        name: "Market Avg",
-                                        value: marketAvgs.quality !== null && marketAvgs.quality !== undefined ? marketAvgs.quality : null
-                                      },
-                                    ]}
-                                    margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
-                                  >
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="name" style={{ fontSize: "0.7rem" }} />
-                                    <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
-                                    <RechartsTooltip />
-                                    <Bar dataKey="value" name="Quality Score">
-                                      {[
-                                        <Cell key="stock" fill={theme.palette.primary.main} />,
-                                        <Cell key="sector" fill={theme.palette.info.main} />,
-                                        <Cell key="market" fill={theme.palette.success.light} />
-                                      ]}
-                                      <LabelList dataKey="value" position="top" style={{ fontSize: '0.75rem', fontWeight: 600 }} formatter={(value) => value !== null && value !== undefined ? parseFloat(value).toFixed(1) : "—"} />
-                                    </Bar>
-                                  </BarChart>
-                                </ResponsiveContainer>
-                              </Box>
-
-                              {/* Quality Input Metrics Table */}
-                              <TableContainer sx={{ mt: 2 }}>
-                                <Table size="small">
-                                  <TableHead>
-                                    <TableRow>
-                                      <TableCell>Quality Metric</TableCell>
-                                      <TableCell align="right">Value</TableCell>
-                                    </TableRow>
-                                  </TableHead>
-                                  <TableBody>
-                                    {!stock.quality_inputs && (
-                                      <TableRow>
-                                        <TableCell colSpan={2} align="center">
-                                          <Typography variant="caption" color="text.secondary">
-                                            Quality metrics data loading...
-                                          </Typography>
-                                        </TableCell>
-                                      </TableRow>
-                                    )}
-                                    {stock.quality_inputs && Object.values(stock.quality_inputs).every(v => v === null || v === undefined) && (
-                                      <TableRow>
-                                        <TableCell colSpan={2} align="center">
-                                          <Typography variant="caption" color="text.secondary">
-                                            No detailed quality metrics available for this stock
-                                          </Typography>
-                                        </TableCell>
-                                      </TableRow>
-                                    )}
-                                    {stock.quality_inputs && (
-                                      <>
-                                        {/* Only render rows with actual data - NO "N/A" values for financial metrics */}
-                                        {stock.quality_inputs.return_on_equity_pct !== null && stock.quality_inputs.return_on_equity_pct !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Return on Equity (ROE)</TableCell>
-                                            <TableCell align="right">{`${parseFloat(stock.quality_inputs.return_on_equity_pct).toFixed(1)}%`}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.return_on_assets_pct !== null && stock.quality_inputs.return_on_assets_pct !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Return on Assets (ROA)</TableCell>
-                                            <TableCell align="right">{`${parseFloat(stock.quality_inputs.return_on_assets_pct).toFixed(1)}%`}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.gross_margin_pct !== null && stock.quality_inputs.gross_margin_pct !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Gross Margin</TableCell>
-                                            <TableCell align="right">{`${parseFloat(stock.quality_inputs.gross_margin_pct).toFixed(1)}%`}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.operating_margin_pct !== null && stock.quality_inputs.operating_margin_pct !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Operating Margin</TableCell>
-                                            <TableCell align="right">{`${parseFloat(stock.quality_inputs.operating_margin_pct).toFixed(1)}%`}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.profit_margin_pct !== null && stock.quality_inputs.profit_margin_pct !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Profit Margin</TableCell>
-                                            <TableCell align="right">{`${parseFloat(stock.quality_inputs.profit_margin_pct).toFixed(1)}%`}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.fcf_to_net_income !== null && stock.quality_inputs.fcf_to_net_income !== undefined && (
-                                          <TableRow>
-                                            <TableCell>FCF / Net Income</TableCell>
-                                            <TableCell align="right">{parseFloat(stock.quality_inputs.fcf_to_net_income).toFixed(2)}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.operating_cf_to_net_income !== null && stock.quality_inputs.operating_cf_to_net_income !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Operating CF / Net Income</TableCell>
-                                            <TableCell align="right">{parseFloat(stock.quality_inputs.operating_cf_to_net_income).toFixed(2)}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.debt_to_equity !== null && stock.quality_inputs.debt_to_equity !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Debt-to-Equity Ratio</TableCell>
-                                            <TableCell align="right">{parseFloat(stock.quality_inputs.debt_to_equity).toFixed(2)}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.current_ratio !== null && stock.quality_inputs.current_ratio !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Current Ratio</TableCell>
-                                            <TableCell align="right">{parseFloat(stock.quality_inputs.current_ratio).toFixed(2)}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.quick_ratio !== null && stock.quality_inputs.quick_ratio !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Quick Ratio</TableCell>
-                                            <TableCell align="right">{parseFloat(stock.quality_inputs.quick_ratio).toFixed(2)}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.earnings_surprise_avg !== null && stock.quality_inputs.earnings_surprise_avg !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Earnings Surprise Avg (4Q)</TableCell>
-                                            <TableCell align="right">{`${parseFloat(stock.quality_inputs.earnings_surprise_avg).toFixed(2)}%`}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.eps_growth_stability !== null && stock.quality_inputs.eps_growth_stability !== undefined && (
-                                          <TableRow>
-                                            <TableCell>EPS Growth Stability (Std Dev)</TableCell>
-                                            <TableCell align="right">{parseFloat(stock.quality_inputs.eps_growth_stability).toFixed(2)}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.payout_ratio !== null && stock.quality_inputs.payout_ratio !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Payout Ratio</TableCell>
-                                            <TableCell align="right">{`${parseFloat(stock.quality_inputs.payout_ratio).toFixed(1)}%`}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.return_on_invested_capital_pct !== null && stock.quality_inputs.return_on_invested_capital_pct !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Return on Invested Capital (ROIC)</TableCell>
-                                            <TableCell align="right">{`${parseFloat(stock.quality_inputs.return_on_invested_capital_pct).toFixed(1)}%`}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.earnings_beat_rate !== null && stock.quality_inputs.earnings_beat_rate !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Earnings Beat Rate</TableCell>
-                                            <TableCell align="right">{`${parseFloat(stock.quality_inputs.earnings_beat_rate).toFixed(1)}%`}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.estimate_revision_direction !== null && stock.quality_inputs.estimate_revision_direction !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Estimate Revision Direction</TableCell>
-                                            <TableCell align="right">{parseFloat(stock.quality_inputs.estimate_revision_direction).toFixed(1)}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.consecutive_positive_quarters !== null && stock.quality_inputs.consecutive_positive_quarters !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Consecutive Positive Quarters</TableCell>
-                                            <TableCell align="right">{stock.quality_inputs.consecutive_positive_quarters}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.surprise_consistency !== null && stock.quality_inputs.surprise_consistency !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Earnings Surprise Consistency (Std Dev)</TableCell>
-                                            <TableCell align="right">{parseFloat(stock.quality_inputs.surprise_consistency).toFixed(2)}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.revision_activity_30d !== null && stock.quality_inputs.revision_activity_30d !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Estimate Revision Activity (30d)</TableCell>
-                                            <TableCell align="right">{parseFloat(stock.quality_inputs.revision_activity_30d).toFixed(1)}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.estimate_momentum_60d !== null && stock.quality_inputs.estimate_momentum_60d !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Estimate Momentum (60d) %</TableCell>
-                                            <TableCell align="right">{parseFloat(stock.quality_inputs.estimate_momentum_60d).toFixed(2)}%</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.estimate_momentum_90d !== null && stock.quality_inputs.estimate_momentum_90d !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Estimate Momentum (90d) %</TableCell>
-                                            <TableCell align="right">{parseFloat(stock.quality_inputs.estimate_momentum_90d).toFixed(2)}%</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.revision_trend_score !== null && stock.quality_inputs.revision_trend_score !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Revision Trend Score</TableCell>
-                                            <TableCell align="right">{parseFloat(stock.quality_inputs.revision_trend_score).toFixed(1)}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.ebitda_margin_pct !== null && stock.quality_inputs.ebitda_margin_pct !== undefined && (
-                                          <TableRow>
-                                            <TableCell>EBITDA Margin %</TableCell>
-                                            <TableCell align="right">{`${parseFloat(stock.quality_inputs.ebitda_margin_pct).toFixed(1)}%`}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.total_debt !== null && stock.quality_inputs.total_debt !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Total Debt</TableCell>
-                                            <TableCell align="right">${(stock.quality_inputs.total_debt / 1e9).toFixed(2)}B</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.total_cash !== null && stock.quality_inputs.total_cash !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Total Cash</TableCell>
-                                            <TableCell align="right">${(stock.quality_inputs.total_cash / 1e9).toFixed(2)}B</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.cash_per_share !== null && stock.quality_inputs.cash_per_share !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Cash Per Share</TableCell>
-                                            <TableCell align="right">${parseFloat(stock.quality_inputs.cash_per_share).toFixed(2)}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.free_cashflow !== null && stock.quality_inputs.free_cashflow !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Free Cash Flow</TableCell>
-                                            <TableCell align="right">${(stock.quality_inputs.free_cashflow / 1e9).toFixed(2)}B</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.operating_cashflow !== null && stock.quality_inputs.operating_cashflow !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Operating Cash Flow</TableCell>
-                                            <TableCell align="right">${(stock.quality_inputs.operating_cashflow / 1e9).toFixed(2)}B</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.earnings_growth_pct !== null && stock.quality_inputs.earnings_growth_pct !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Earnings Growth %</TableCell>
-                                            <TableCell align="right">{`${parseFloat(stock.quality_inputs.earnings_growth_pct).toFixed(2)}%`}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.revenue_growth_pct !== null && stock.quality_inputs.revenue_growth_pct !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Revenue Growth %</TableCell>
-                                            <TableCell align="right">{`${parseFloat(stock.quality_inputs.revenue_growth_pct).toFixed(2)}%`}</TableCell>
-                                          </TableRow>
-                                        )}
-                                        {stock.quality_inputs.earnings_growth_4q_avg !== null && stock.quality_inputs.earnings_growth_4q_avg !== undefined && (
-                                          <TableRow>
-                                            <TableCell>Earnings Growth (4Q Avg)</TableCell>
-                                            <TableCell align="right">{`${parseFloat(stock.quality_inputs.earnings_growth_4q_avg).toFixed(2)}%`}</TableCell>
-                                          </TableRow>
-                                        )}
-                                      </>
-                                    )}
-                                  </TableBody>
-                                </Table>
-                              </TableContainer>
-                            </CardContent>
-                          </Card>
-                        </Grid>
-
-
-                        {/* Growth Factor */}
-                        <Grid item xs={12} md={6}>
-                          <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-                            <CardContent sx={{ pb: 2 }}>
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-                                <TrendingUp sx={{ color: theme.palette.info.main }} />
-                                <Typography variant="h6">Growth Metrics</Typography>
-                                <Chip
-                                  label={stock.growth_score != null ? parseFloat(stock.growth_score).toFixed(1) : ""}
-                                  color={stock.growth_score !== null && stock.growth_score !== undefined && parseFloat(stock.growth_score) >= 80 ? "success" : "default"}
-                                  size="small"
-                                />
-                              </Box>
-                              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                12 growth factors: Revenue, EPS, Net Income, Op Income, Margins (3), ROE, SGR, Momentum, FCF, Assets
-                              </Typography>
-
-                              <Divider sx={{ my: 2 }} />
-
-                              <TableContainer>
-                                <Table size="small">
-                                  <TableBody>
-                                    <TableRow>
-                                      <TableCell>Revenue CAGR (3Y)</TableCell>
-                                      <TableCell align="right">
-                                        {stock.growth_inputs?.revenue_growth_3y_cagr != null ? `${parseFloat(stock.growth_inputs.revenue_growth_3y_cagr).toFixed(2)}%` : ""}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>EPS CAGR (3Y)</TableCell>
-                                      <TableCell align="right">
-                                        {stock.growth_inputs?.eps_growth_3y_cagr != null ? `${parseFloat(stock.growth_inputs.eps_growth_3y_cagr).toFixed(2)}%` : ""}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>Net Income Growth (YoY)</TableCell>
-                                      <TableCell align="right">
-                                        {stock.growth_inputs?.net_income_growth_yoy != null ? `${parseFloat(stock.growth_inputs.net_income_growth_yoy).toFixed(2)}%` : ""}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>Op Income Growth (YoY)</TableCell>
-                                      <TableCell align="right">
-                                        {stock.growth_inputs?.operating_income_growth_yoy != null ? `${parseFloat(stock.growth_inputs.operating_income_growth_yoy).toFixed(2)}%` : ""}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>Gross Margin Trend</TableCell>
-                                      <TableCell align="right">
-                                        {stock.growth_inputs?.gross_margin_trend != null ? `${parseFloat(stock.growth_inputs.gross_margin_trend).toFixed(2)} pp` : ""}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>Operating Margin Trend</TableCell>
-                                      <TableCell align="right">
-                                        {stock.growth_inputs?.operating_margin_trend != null ? `${parseFloat(stock.growth_inputs.operating_margin_trend).toFixed(2)} pp` : ""}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>Net Margin Trend</TableCell>
-                                      <TableCell align="right">
-                                        {stock.growth_inputs?.net_margin_trend != null ? `${parseFloat(stock.growth_inputs.net_margin_trend).toFixed(2)} pp` : ""}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>ROE Trend</TableCell>
-                                      <TableCell align="right">
-                                        {stock.growth_inputs?.roe_trend != null ? `${parseFloat(stock.growth_inputs.roe_trend).toFixed(2)}` : ""}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>Sustainable Growth Rate</TableCell>
-                                      <TableCell align="right">
-                                        {stock.growth_inputs?.sustainable_growth_rate != null ? `${parseFloat(stock.growth_inputs.sustainable_growth_rate).toFixed(2)}%` : ""}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>Quarterly Growth Momentum</TableCell>
-                                      <TableCell align="right">
-                                        {stock.growth_inputs?.quarterly_growth_momentum != null ? `${parseFloat(stock.growth_inputs.quarterly_growth_momentum).toFixed(2)} pp` : ""}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>FCF Growth (YoY)</TableCell>
-                                      <TableCell align="right">
-                                        {stock.growth_inputs?.fcf_growth_yoy != null ? `${parseFloat(stock.growth_inputs.fcf_growth_yoy).toFixed(2)}%` : ""}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>OCF Growth (YoY)</TableCell>
-                                      <TableCell align="right">
-                                        {stock.growth_inputs?.ocf_growth_yoy != null ? `${parseFloat(stock.growth_inputs.ocf_growth_yoy).toFixed(2)}%` : ""}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>Asset Growth (YoY)</TableCell>
-                                      <TableCell align="right">
-                                        {stock.growth_inputs?.asset_growth_yoy != null ? `${parseFloat(stock.growth_inputs.asset_growth_yoy).toFixed(2)}%` : ""}
-                                      </TableCell>
-                                    </TableRow>
-                                  </TableBody>
-                                </Table>
-                              </TableContainer>
-                            </CardContent>
-                          </Card>
-                        </Grid>
-
-                        {/* Stability Factor Analysis */}
-                        <Grid item xs={12} md={6}>
-                          <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-                            <CardContent sx={{ pb: 2 }}>
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-                                <Security sx={{ color: theme.palette.success.main }} />
-                                <Typography variant="h6">Stability Factor Analysis</Typography>
-                                <Chip
-                                  label={stock.stability_score !== null && stock.stability_score !== undefined
-                                    ? parseFloat(stock.stability_score).toFixed(1)
-                                    : ""}
-                                  color={stock.stability_score === null || stock.stability_score === undefined
-                                    ? "default"
-                                    : parseFloat(stock.stability_score) < 60
-                                      ? "error"
-                                      : parseFloat(stock.stability_score) < 80
-                                        ? "warning"
-                                        : "success"}
-                                  size="small"
-                                />
-                              </Box>
-                              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                Stability assessment measuring lower volatility and smoother price movement
-                              </Typography>
-
-                              <Divider sx={{ my: 2 }} />
-
-                              {/* Stability Score Comparison Chart */}
-                              <Box sx={{ mt: 2 }}>
-                                <Typography variant="caption" color="text.secondary" gutterBottom>
-                                  Score Comparison
-                                </Typography>
-                                <ResponsiveContainer width="100%" height={200}>
-                                  <BarChart
-                                    data={[
-                                      {
-                                        name: stock.symbol,
-                                        value: stock.stability_score
-                                      },
-                                      {
-                                        name: stock.sector ? `${stock.sector} Avg` : "Sector Avg",
-                                        value: sectorAvgs.stability
-                                      },
-                                      {
-                                        name: "Market Avg",
-                                        value: marketAvgs.stability
-                                      },
-                                    ]}
-                                    margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
-                                  >
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="name" style={{ fontSize: "0.7rem" }} />
-                                    <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
-                                    <RechartsTooltip />
-                                    <Bar dataKey="value" name="Stability Score">
-                                      {[
-                                        <Cell key="stock" fill={stock.stability_score === null || stock.stability_score === undefined ? theme.palette.action.disabled : parseFloat(stock.stability_score) < 60 ? theme.palette.error.main : parseFloat(stock.stability_score) < 80 ? theme.palette.warning.main : theme.palette.success.main} />,
-                                        <Cell key="sector" fill={sectorAvgs.stability === null ? theme.palette.action.disabled : theme.palette.primary.main} />,
-                                        <Cell key="market" fill={marketAvgs.stability === null ? theme.palette.action.disabled : theme.palette.info.light} />
-                                      ]}
-                                      <LabelList dataKey="value" position="top" style={{ fontSize: '0.75rem', fontWeight: 600 }} formatter={(value) => value !== null && value !== undefined ? parseFloat(value).toFixed(1) : ""} />
-                                    </Bar>
-                                  </BarChart>
-                                </ResponsiveContainer>
-                              </Box>
-
-                              {/* Stability Components Table */}
-                              <TableContainer sx={{ mt: 2 }}>
-                                <Table size="small">
-                                  <TableHead>
-                                    <TableRow>
-                                      <TableCell>Stability Component</TableCell>
-                                      <TableCell align="right">Value</TableCell>
-                                    </TableRow>
-                                  </TableHead>
-                                  <TableBody>
-                                    <TableRow>
-                                      <TableCell>Volatility (12M)</TableCell>
-                                      <TableCell align="right">
-                                        {stock.stability_inputs?.volatility_12m !== null && stock.stability_inputs?.volatility_12m !== undefined
-                                          ? `${parseFloat(stock.stability_inputs.volatility_12m).toFixed(2)}%`
-                                          : "—"}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>Downside Volatility</TableCell>
-                                      <TableCell align="right">
-                                        {stock.stability_inputs?.downside_volatility !== null && stock.stability_inputs?.downside_volatility !== undefined
-                                          ? `${parseFloat(stock.stability_inputs.downside_volatility).toFixed(2)}%`
-                                          : "—"}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>Max Drawdown (52W)</TableCell>
-                                      <TableCell align="right">
-                                        {stock.stability_inputs?.max_drawdown_52w !== null && stock.stability_inputs?.max_drawdown_52w !== undefined
-                                          ? `${parseFloat(stock.stability_inputs.max_drawdown_52w).toFixed(2)}%`
-                                          : "—"}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>Beta (vs Market)</TableCell>
-                                      <TableCell align="right">
-                                        {stock.stability_inputs?.beta !== null && stock.stability_inputs?.beta !== undefined
-                                          ? parseFloat(stock.stability_inputs.beta).toFixed(2)
-                                          : "—"}
-                                      </TableCell>
-                                    </TableRow>
-                                    {/* Market Liquidity Metrics */}
-                                    <TableRow>
-                                      <TableCell>Volume Consistency</TableCell>
-                                      <TableCell align="right">
-                                        {stock.stability_inputs?.volume_consistency !== null && stock.stability_inputs?.volume_consistency !== undefined
-                                          ? parseFloat(stock.stability_inputs.volume_consistency).toFixed(1)
-                                          : "—"}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>Turnover Velocity</TableCell>
-                                      <TableCell align="right">
-                                        {stock.stability_inputs?.turnover_velocity !== null && stock.stability_inputs?.turnover_velocity !== undefined
-                                          ? parseFloat(stock.stability_inputs.turnover_velocity).toFixed(1)
-                                          : "—"}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>Volatility/Volume Ratio</TableCell>
-                                      <TableCell align="right">
-                                        {stock.stability_inputs?.volatility_volume_ratio !== null && stock.stability_inputs?.volatility_volume_ratio !== undefined
-                                          ? parseFloat(stock.stability_inputs.volatility_volume_ratio).toFixed(1)
-                                          : "—"}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell>Daily Spread</TableCell>
-                                      <TableCell align="right">
-                                        {stock.stability_inputs?.daily_spread !== null && stock.stability_inputs?.daily_spread !== undefined
-                                          ? parseFloat(stock.stability_inputs.daily_spread).toFixed(1)
-                                          : "—"}
-                                      </TableCell>
-                                    </TableRow>
-                                  </TableBody>
-                                </Table>
-                              </TableContainer>
-                            </CardContent>
-                          </Card>
-                        </Grid>
-
-                    {/* Momentum Factor */}
-                    <Grid item xs={12} md={6}>
-                      <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-                        <CardContent sx={{ pb: 2 }}>
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-                            <Speed sx={{ color: theme.palette.warning.main }} />
-                            <Typography variant="h6">Momentum</Typography>
-                            <Chip
-                              label={stock.momentum_score != null ? parseFloat(stock.momentum_score).toFixed(1) : ""}
-                              color={stock.momentum_score !== null && stock.momentum_score !== undefined && parseFloat(stock.momentum_score) >= 80 ? "success" : "default"}
-                              size="small"
-                            />
-                          </Box>
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                            Multi-timeframe price momentum with trend strength and volume confirmation
-                          </Typography>
-
-                          <Divider sx={{ my: 2 }} />
-
-                          {/* Momentum Score Comparison Chart */}
-                          <Box sx={{ mt: 2 }}>
-                            <Typography variant="caption" color="text.secondary" gutterBottom>
-                              Score Comparison
-                            </Typography>
-                            <ResponsiveContainer width="100%" height={200}>
-                              <BarChart
-                                data={[
-                                  stock.momentum_score !== null && stock.momentum_score !== undefined && {
-                                    name: stock.symbol,
-                                    value: stock.momentum_score
-                                  },
-                                  sectorAvgs.momentum !== null && sectorAvgs.momentum !== undefined && {
-                                    name: stock.sector ? `${stock.sector} Avg` : "Sector Avg",
-                                    value: sectorAvgs.momentum
-                                  },
-                                  marketAvgs.momentum !== null && marketAvgs.momentum !== undefined && {
-                                    name: "Market Avg",
-                                    value: marketAvgs.momentum
-                                  },
-                                ].filter(Boolean)}
-                                margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
-                              >
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="name" style={{ fontSize: "0.7rem" }} />
-                                <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
-                                <RechartsTooltip />
-                                <Bar dataKey="value" name="Momentum Score">
-                                  {[
-                                    <Cell key="stock" fill={theme.palette.warning.main} />,
-                                    <Cell key="sector" fill={theme.palette.primary.main} />,
-                                    <Cell key="market" fill={theme.palette.success.light} />
-                                  ]}
-                                  <LabelList dataKey="value" position="top" style={{ fontSize: '0.75rem', fontWeight: 600 }} formatter={(value) => value !== null && value !== undefined ? parseFloat(value).toFixed(1) : "—"} />
-                                </Bar>
-                              </BarChart>
-                            </ResponsiveContainer>
-                          </Box>
-
-                          {/* Momentum Components Input Metrics Table */}
-                          <TableContainer sx={{ mt: 2 }}>
-                            <Table size="small">
-                              <TableHead>
-                                <TableRow>
-                                  <TableCell>Momentum Metric</TableCell>
-                                  <TableCell align="right">Value</TableCell>
-                                </TableRow>
-                              </TableHead>
-                              <TableBody>
-                                {!stock.momentum_inputs && (
-                                  <TableRow>
-                                    <TableCell colSpan={2} align="center">
-                                      <Typography variant="caption" color="text.secondary">
-                                        Momentum metrics data loading...
-                                      </Typography>
-                                    </TableCell>
-                                  </TableRow>
-                                )}
-                                {stock.momentum_inputs && Object.values(stock.momentum_inputs).filter(v => v !== null && v !== undefined && (!v.fallbacks)).length === 0 && (
-                                  <TableRow>
-                                    <TableCell colSpan={2} align="center">
-                                      <Typography variant="caption" color="text.secondary">
-                                        No detailed momentum metrics available for this stock
-                                      </Typography>
-                                    </TableCell>
-                                  </TableRow>
-                                )}
-                                {stock.momentum_inputs && (
-                                  <>
-                                    <TableRow>
-                                      <TableCell sx={{ pl: 4 }}>RSI (14-day)</TableCell>
-                                      <TableCell align="right">
-                                        {stock.rsi !== null && stock.rsi !== undefined
-                                          ? parseFloat(stock.rsi).toFixed(1)
-                                          : "—"}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell sx={{ pl: 4 }}>MACD</TableCell>
-                                      <TableCell align="right">
-                                        {stock.macd !== null && stock.macd !== undefined
-                                          ? parseFloat(stock.macd).toFixed(4)
-                                          : "—"}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell sx={{ pl: 4 }}>Price vs SMA 50</TableCell>
-                                      <TableCell align="right">
-                                        {stock.momentum_inputs.price_vs_sma_50 !== null && stock.momentum_inputs.price_vs_sma_50 !== undefined
-                                          ? `${parseFloat(stock.momentum_inputs.price_vs_sma_50).toFixed(2)}%`
-                                          : "—"}
-                                      </TableCell>
-                                    </TableRow>
-
-                                    <TableRow>
-                                      <TableCell sx={{ pl: 4 }}>3-Month Return</TableCell>
-                                      <TableCell align="right">
-                                        {stock.momentum_inputs?.momentum_3m != null
-                                          ? `${parseFloat(stock.momentum_inputs.momentum_3m).toFixed(2)}%`
-                                          : "—"}
-                                      </TableCell>
-                                    </TableRow>
-
-                                    <TableRow>
-                                      <TableCell sx={{ pl: 4 }}>6-Month Return</TableCell>
-                                      <TableCell align="right">
-                                        {stock.momentum_inputs?.momentum_6m != null
-                                          ? `${parseFloat(stock.momentum_inputs.momentum_6m).toFixed(2)}%`
-                                          : "—"}
-                                      </TableCell>
-                                    </TableRow>
-
-                                    <TableRow>
-                                      <TableCell sx={{ pl: 4 }}>12-Month Return (Excl. Last Month)</TableCell>
-                                      <TableCell align="right">
-                                        {stock.momentum_inputs?.momentum_12_3 != null
-                                          ? `${parseFloat(stock.momentum_inputs.momentum_12_3).toFixed(2)}%`
-                                          : "—"}
-                                      </TableCell>
-                                    </TableRow>
-
-                                    <TableRow>
-                                      <TableCell sx={{ pl: 4 }}>Price vs SMA 200</TableCell>
-                                      <TableCell align="right">
-                                        {stock.momentum_inputs.price_vs_sma_200 !== null && stock.momentum_inputs.price_vs_sma_200 !== undefined
-                                          ? `${parseFloat(stock.momentum_inputs.price_vs_sma_200).toFixed(2)}%`
-                                          : "—"}
-                                      </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                      <TableCell sx={{ pl: 4 }}>Price vs 52-Week High</TableCell>
-                                      <TableCell align="right">
-                                        {stock.momentum_inputs.price_vs_52w_high !== null && stock.momentum_inputs.price_vs_52w_high !== undefined
-                                          ? `${parseFloat(stock.momentum_inputs.price_vs_52w_high).toFixed(2)}%`
-                                          : "—"}
-                                      </TableCell>
-                                    </TableRow>
-                                  </>
-                                )}
-                              </TableBody>
-                            </Table>
-                          </TableContainer>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-
-                    {/* Value Factor */}
-                    <Grid item xs={12} md={6}>
-                      <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-                        <CardContent sx={{ pb: 2 }}>
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-                            <AccountBalance sx={{ color: theme.palette.info.main }} />
-                            <Typography variant="h6">Value Assessment</Typography>
-                            <Chip
-                              label={stock.value_score != null ? parseFloat(stock.value_score).toFixed(1) : ""}
-                              color={stock.value_score !== null && stock.value_score !== undefined && parseFloat(stock.value_score) >= 80 ? "success" : "default"}
-                              size="small"
-                            />
-                          </Box>
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                            Valuation analysis using price multiples, cash flow, and intrinsic value relative to market and sector benchmarks
-                          </Typography>
-
-                          <Divider sx={{ my: 2 }} />
-
-                          {/* Value Metrics Table - Simple format showing valuation multiples */}
-                          {stock.value_inputs && (
-                            <TableContainer sx={{ mt: 2 }}>
-                              <Table size="small">
-                                <TableHead>
-                                  <TableRow sx={{ backgroundColor: 'rgba(0,0,0,0.03)' }}>
-                                    <TableCell sx={{ fontWeight: 600 }}>Metric</TableCell>
-                                    <TableCell align="right" sx={{ fontWeight: 600 }}>Value</TableCell>
-                                  </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                  <TableRow>
-                                    <TableCell>
-                                      <Tooltip title="Price-to-Earnings: Lower is better value">
-                                        <span>P/E Ratio</span>
-                                      </Tooltip>
-                                    </TableCell>
-                                    <TableCell align="right">
-                                      {stock.value_inputs?.stock_pe != null ? parseFloat(stock.value_inputs.stock_pe).toFixed(2) : "—"}
-                                    </TableCell>
-                                  </TableRow>
-
-                                  <TableRow>
-                                    <TableCell>
-                                      <Tooltip title="Forward P/E: Expected future valuation based on projected earnings">
-                                        <span>Forward P/E</span>
-                                      </Tooltip>
-                                    </TableCell>
-                                    <TableCell align="right">
-                                      {stock.value_inputs?.stock_forward_pe != null ? parseFloat(stock.value_inputs.stock_forward_pe).toFixed(2) : "—"}
-                                    </TableCell>
-                                  </TableRow>
-
-                                  <TableRow>
-                                    <TableCell>
-                                      <Tooltip title="Price-to-Book: Lower indicates better value">
-                                        <span>P/B Ratio</span>
-                                      </Tooltip>
-                                    </TableCell>
-                                    <TableCell align="right">
-                                      {stock.value_inputs?.stock_pb != null ? parseFloat(stock.value_inputs.stock_pb).toFixed(2) : "—"}
-                                    </TableCell>
-                                  </TableRow>
-
-                                  <TableRow>
-                                    <TableCell>
-                                      <Tooltip title="Price-to-Sales: Lower is cheaper relative to revenue">
-                                        <span>P/S Ratio</span>
-                                      </Tooltip>
-                                    </TableCell>
-                                    <TableCell align="right">
-                                      {stock.value_inputs?.stock_ps != null ? parseFloat(stock.value_inputs.stock_ps).toFixed(2) : "—"}
-                                    </TableCell>
-                                  </TableRow>
-
-                                  <TableRow>
-                                    <TableCell>
-                                      <Tooltip title="Enterprise Value to EBITDA: Lower valuation relative to earnings power">
-                                        <span>EV/EBITDA</span>
-                                      </Tooltip>
-                                    </TableCell>
-                                    <TableCell align="right">
-                                      {stock.value_inputs?.stock_ev_ebitda != null ? parseFloat(stock.value_inputs.stock_ev_ebitda).toFixed(2) : "—"}
-                                    </TableCell>
-                                  </TableRow>
-
-                                  <TableRow>
-                                    <TableCell>
-                                      <Tooltip title="Enterprise Value to Revenue: Lower indicates cheaper valuation relative to sales">
-                                        <span>EV/Revenue</span>
-                                      </Tooltip>
-                                    </TableCell>
-                                    <TableCell align="right">
-                                      {stock.value_inputs?.stock_ev_revenue != null ? parseFloat(stock.value_inputs.stock_ev_revenue).toFixed(2) : "—"}
-                                    </TableCell>
-                                  </TableRow>
-
-                                  <TableRow>
-                                    <TableCell>
-                                      <Tooltip title="Price/Earnings-to-Growth: <1.0 = undervalued, >2.0 = overvalued">
-                                        <span>PEG Ratio</span>
-                                      </Tooltip>
-                                    </TableCell>
-                                    <TableCell align="right">
-                                      {stock.value_inputs?.peg_ratio != null ? parseFloat(stock.value_inputs.peg_ratio).toFixed(2) : "—"}
-                                    </TableCell>
-                                  </TableRow>
-
-                                  <TableRow>
-                                    <TableCell>
-                                      <Tooltip title="Annual dividend as % of price">
-                                        <span>Dividend Yield</span>
-                                      </Tooltip>
-                                    </TableCell>
-                                    <TableCell align="right">
-                                      {stock.value_inputs?.stock_dividend_yield != null ? parseFloat(stock.value_inputs.stock_dividend_yield).toFixed(2) + "%" : "—"}
-                                    </TableCell>
-                                  </TableRow>
-
-                                  <TableRow>
-                                    <TableCell>
-                                      <Tooltip title="Free Cash Flow Yield: Higher is better, measures cheapness relative to cash generation">
-                                        <span>FCF Yield</span>
-                                      </Tooltip>
-                                    </TableCell>
-                                    <TableCell align="right">
-                                      {stock.value_inputs?.stock_fcf_yield != null ? parseFloat(stock.value_inputs.stock_fcf_yield).toFixed(2) + "%" : "—"}
-                                    </TableCell>
-                                  </TableRow>
-                                </TableBody>
-                              </Table>
-                            </TableContainer>
-                          )}
-                          {!stock.value_inputs && (
-                            <Alert severity="info" sx={{ mt: 2 }}>
-                              Valuation metrics not available for this stock
-                            </Alert>
-                          )}
-                        </CardContent>
-                      </Card>
-                    </Grid>
-
-
-                    {/* Positioning Factor */}
-                    <Grid item xs={12} md={6}>
-                      <Card sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-                        <CardContent sx={{ pb: 2 }}>
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-                            <Group sx={{ color: theme.palette.secondary.main }} />
-                            <Typography variant="h6">Market Positioning</Typography>
-                            <Chip
-                              label={stock.positioning_score != null ? parseFloat(stock.positioning_score).toFixed(1) : ""}
-                              color={stock.positioning_score !== null && stock.positioning_score !== undefined && parseFloat(stock.positioning_score) >= 80 ? "success" : "default"}
-                              size="small"
-                            />
-                          </Box>
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                            Analysis of institutional and insider ownership patterns, short interest dynamics, and smart money positioning
-                          </Typography>
-
-                          <Divider sx={{ my: 2 }} />
-
-                          {/* Positioning Score Comparison Chart */}
-                          <Box sx={{ mt: 2 }}>
-                            <Typography variant="caption" color="text.secondary" gutterBottom>
-                              Score Comparison
-                            </Typography>
-                            <ResponsiveContainer width="100%" height={200}>
-                              <BarChart
-                                data={[
-                                  stock.positioning_score !== null && stock.positioning_score !== undefined && {
-                                    name: stock.symbol,
-                                    value: stock.positioning_score
-                                  },
-                                  sectorAvgs.positioning !== null && sectorAvgs.positioning !== undefined && {
-                                    name: stock.sector ? `${stock.sector} Avg` : "Sector Avg",
-                                    value: sectorAvgs.positioning
-                                  },
-                                  marketAvgs.positioning !== null && marketAvgs.positioning !== undefined && {
-                                    name: "Market Avg",
-                                    value: marketAvgs.positioning
-                                  },
-                                ].filter(Boolean)}
-                                margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
-                              >
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="name" style={{ fontSize: "0.7rem" }} />
-                                <YAxis domain={[0, 100]} style={{ fontSize: "0.75rem" }} />
-                                <RechartsTooltip />
-                                <Bar dataKey="value" name="Positioning Score">
-                                  {[
-                                    <Cell key="stock" fill={theme.palette.secondary.main} />,
-                                    <Cell key="sector" fill={theme.palette.primary.main} />,
-                                    <Cell key="market" fill={theme.palette.info.light} />
-                                  ]}
-                                  <LabelList dataKey="value" position="top" style={{ fontSize: '0.75rem', fontWeight: 600 }} formatter={(value) => value !== null && value !== undefined ? parseFloat(value).toFixed(1) : "—"} />
-                                </Bar>
-                              </BarChart>
-                            </ResponsiveContainer>
-                          </Box>
-
-                          {/* Positioning Table */}
-                          <TableContainer sx={{ mt: 2 }}>
-                            <Table size="small">
-                              <TableHead>
-                                <TableRow>
-                                  <TableCell>Positioning Metric</TableCell>
-                                  <TableCell align="right">Value</TableCell>
-                                </TableRow>
-                              </TableHead>
-                              <TableBody>
-                                <TableRow>
-                                  <TableCell>Institutional Ownership %</TableCell>
-                                  <TableCell align="right">
-                                    {stock.positioning_inputs?.institutional_ownership_pct != null ? `${parseFloat(stock.positioning_inputs.institutional_ownership_pct).toFixed(1)}%` : "—"}
-                                  </TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>Insider Ownership %</TableCell>
-                                  <TableCell align="right">
-                                    {stock.positioning_inputs?.insider_ownership_pct != null ? `${parseFloat(stock.positioning_inputs.insider_ownership_pct).toFixed(1)}%` : "—"}
-                                  </TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>Short % of Float</TableCell>
-                                  <TableCell align="right">
-                                    {stock.positioning_inputs?.short_percent_of_float != null ? `${parseFloat(stock.positioning_inputs.short_percent_of_float).toFixed(1)}%` : "—"}
-                                  </TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>Days to Cover (Short Ratio)</TableCell>
-                                  <TableCell align="right">
-                                    {stock.positioning_inputs?.short_ratio != null && parseFloat(stock.positioning_inputs.short_ratio) < 99999
-                                      ? parseFloat(stock.positioning_inputs.short_ratio).toFixed(2)
-                                      : "—"}
-                                  </TableCell>
-                                </TableRow>
-                                <TableRow>
-                                  <TableCell>Accumulation/Distribution Rating</TableCell>
-                                  <TableCell align="right">
-                                    {stock.positioning_inputs?.ad_rating != null ? parseFloat(stock.positioning_inputs.ad_rating).toFixed(1) : "—"}
-                                  </TableCell>
-                                </TableRow>
-                              </TableBody>
-                            </Table>
-                          </TableContainer>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-
-                </Grid>
-
-                  <Divider sx={{ my: 3 }} />
-
-                  <Typography variant="body2" color="text.secondary">
-                    Last Updated: {new Date(stock.last_updated).toLocaleDateString()}
-                  </Typography>
-                  </>
-                );
-              })()}
-                </Box>
-              </AccordionDetails>
-            </Accordion>
-          ))}
-
-          {/* Pagination Controls */}
-          {totalDisplayPages > 1 && (
-            <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 2, mt: 3, mb: 2 }}>
-              <Button
-                variant="outlined"
-                disabled={currentPage <= 1}
-                onClick={() => { setCurrentPage(p => p - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                startIcon={<ChevronLeftIcon />}
-              >
-                Previous
-              </Button>
-              <Typography variant="body1" sx={{ minWidth: "180px", textAlign: "center" }}>
-                Page {currentPage} of {totalDisplayPages}
-                {" • "}
-                {displayPageStart + 1}–{Math.min(displayPageEnd, totalFilteredCount)} of {totalFilteredCount.toLocaleString()}
-              </Typography>
-              <Button
-                variant="outlined"
-                disabled={currentPage >= totalDisplayPages}
-                onClick={() => { setCurrentPage(p => p + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                endIcon={<ChevronRightIcon />}
-              >
-                Next
-              </Button>
-            </Box>
-          )}
-          </Box>
-        )}
-      </Box>
-
-      {/* Top Performers by Category */}
-      <Typography variant="h4" gutterBottom sx={{ mt: 6, mb: 3 }}>
-        Top Performers by Category
-        {selectedSector !== "all" && (
-          <Chip
-            label={`Filtered: ${selectedSector}`}
-            size="small"
-            color="primary"
-            sx={{ ml: 2 }}
-            onDelete={() => setSelectedSector("all")}
-          />
-        )}
-      </Typography>
-
-      <Grid container spacing={3}>
-        {/* Quality Leaders */}
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-              <Stars sx={{ color: theme.palette.primary.main, fontSize: 32 }} />
-              <Typography variant="h6">Quality Leaders</Typography>
-            </Box>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Rank</TableCell>
-                    <TableCell>Symbol</TableCell>
-                    <TableCell align="right">Score</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {topQuality.slice(0, 10).map((stock, index) => (
-                    <TableRow key={`topQuality-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell>
-                        <Typography fontWeight={600}>{stock.symbol}</Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Chip
-                          label={stock.quality_score != null ? parseFloat(stock.quality_score).toFixed(1) : ""}
-                          size="small"
-                          color={stock.quality_score != null && parseFloat(stock.quality_score) >= 80 ? "success" : stock.quality_score != null ? "warning" : "default"}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
-
-        {/* Momentum Leaders */}
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-              <Speed sx={{ color: theme.palette.warning.main, fontSize: 32 }} />
-              <Typography variant="h6">Momentum Leaders</Typography>
-            </Box>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Rank</TableCell>
-                    <TableCell>Symbol</TableCell>
-                    <TableCell align="right">Score</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {topMomentum.slice(0, 10).map((stock, index) => (
-                    <TableRow key={`topMomentum-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell>
-                        <Typography fontWeight={600}>{stock.symbol}</Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Chip
-                          label={stock.momentum_score != null ? parseFloat(stock.momentum_score).toFixed(1) : ""}
-                          size="small"
-                          color={stock.momentum_score != null && parseFloat(stock.momentum_score) >= 80 ? "success" : "warning"}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
-
-        {/* Value Leaders */}
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-              <AccountBalance sx={{ color: theme.palette.info.main, fontSize: 32 }} />
-              <Typography variant="h6">Value Leaders</Typography>
-            </Box>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Rank</TableCell>
-                    <TableCell>Symbol</TableCell>
-                    <TableCell align="right">Score</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {topValue.slice(0, 10).map((stock, index) => (
-                    <TableRow key={`topValue-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell>
-                        <Typography fontWeight={600}>{stock.symbol}</Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Chip
-                          label={stock.value_score != null ? parseFloat(stock.value_score).toFixed(1) : ""}
-                          size="small"
-                          color={stock.value_score != null && parseFloat(stock.value_score) >= 80 ? "success" : stock.value_score != null ? "warning" : "default"}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
-
-        {/* Growth Leaders */}
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-              <Timeline sx={{ color: theme.palette.success.main, fontSize: 32 }} />
-              <Typography variant="h6">Growth Leaders</Typography>
-            </Box>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Rank</TableCell>
-                    <TableCell>Symbol</TableCell>
-                    <TableCell align="right">Score</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {topGrowth.slice(0, 10).map((stock, index) => (
-                    <TableRow key={`topGrowth-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell>
-                        <Typography fontWeight={600}>{stock.symbol}</Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Chip
-                          label={stock.growth_score != null ? parseFloat(stock.growth_score).toFixed(1) : ""}
-                          size="small"
-                          color={stock.growth_score != null && parseFloat(stock.growth_score) >= 80 ? "success" : "warning"}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
-
-        {/* Positioning Leaders */}
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-              <Group sx={{ color: theme.palette.secondary.main, fontSize: 32 }} />
-              <Typography variant="h6">Positioning Leaders</Typography>
-            </Box>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Rank</TableCell>
-                    <TableCell>Symbol</TableCell>
-                    <TableCell align="right">Score</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {topPositioning.slice(0, 10).map((stock, index) => (
-                    <TableRow key={`topPositioning-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell>
-                        <Typography fontWeight={600}>{stock.symbol}</Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Chip
-                          label={stock.positioning_score != null ? parseFloat(stock.positioning_score).toFixed(1) : ""}
-                          size="small"
-                          color={stock.positioning_score != null && parseFloat(stock.positioning_score) >= 80 ? "success" : stock.positioning_score != null ? "warning" : "default"}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
-
-        {/* Stability Leaders */}
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-              <Security sx={{ color: theme.palette.error.main, fontSize: 32 }} />
-              <Typography variant="h6">Stability Leaders</Typography>
-            </Box>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Rank</TableCell>
-                    <TableCell>Symbol</TableCell>
-                    <TableCell align="right">Score</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {topStability.slice(0, 10).map((stock, index) => (
-                    <TableRow key={`topStability-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell>
-                        <Typography fontWeight={600}>{stock.symbol}</Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Chip
-                          label={stock.stability_score != null ? parseFloat(stock.stability_score).toFixed(1) : ""}
-                          size="small"
-                          color={stock.stability_score != null && parseFloat(stock.stability_score) >= 80 ? "success" : "warning"}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
-      </Grid>
-
-      {/* Bottom Performers by Category */}
-      <Typography variant="h4" gutterBottom sx={{ mt: 6, mb: 3 }}>
-        Bottom Performers by Category
-      </Typography>
-
-      <Grid container spacing={3}>
-        {/* Quality Laggards */}
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3, backgroundColor: alpha(theme.palette.error.main, 0.05) }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-              <Stars sx={{ color: theme.palette.error.main, fontSize: 32 }} />
-              <Typography variant="h6">Quality Laggards</Typography>
-            </Box>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Rank</TableCell>
-                    <TableCell>Symbol</TableCell>
-                    <TableCell align="right">Score</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {bottomQuality.slice(0, 10).map((stock, index) => (
-                    <TableRow key={`bottomQuality-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell>
-                        <Typography fontWeight={600}>{stock.symbol}</Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Chip
-                          label={stock.quality_score != null ? parseFloat(stock.quality_score).toFixed(1) : ""}
-                          size="small"
-                          color={stock.quality_score != null && parseFloat(stock.quality_score) <= 40 ? "error" : "warning"}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
-
-        {/* Momentum Laggards */}
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3, backgroundColor: alpha(theme.palette.error.main, 0.05) }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-              <Speed sx={{ color: theme.palette.error.main, fontSize: 32 }} />
-              <Typography variant="h6">Momentum Laggards</Typography>
-            </Box>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Rank</TableCell>
-                    <TableCell>Symbol</TableCell>
-                    <TableCell align="right">Score</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {bottomMomentum.slice(0, 10).map((stock, index) => (
-                    <TableRow key={`bottomMomentum-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell>
-                        <Typography fontWeight={600}>{stock.symbol}</Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Chip
-                          label={stock.momentum_score != null ? parseFloat(stock.momentum_score).toFixed(1) : ""}
-                          size="small"
-                          color={stock.momentum_score != null && parseFloat(stock.momentum_score) <= 40 ? "error" : "warning"}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
-
-        {/* Value Laggards */}
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3, backgroundColor: alpha(theme.palette.error.main, 0.05) }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-              <AccountBalance sx={{ color: theme.palette.error.main, fontSize: 32 }} />
-              <Typography variant="h6">Value Laggards</Typography>
-            </Box>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Rank</TableCell>
-                    <TableCell>Symbol</TableCell>
-                    <TableCell align="right">Score</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {bottomValue.slice(0, 10).map((stock, index) => (
-                    <TableRow key={`bottomValue-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell>
-                        <Typography fontWeight={600}>{stock.symbol}</Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Chip
-                          label={stock.value_score != null ? parseFloat(stock.value_score).toFixed(1) : ""}
-                          size="small"
-                          color={stock.value_score != null && parseFloat(stock.value_score) <= 40 ? "error" : "warning"}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
-
-        {/* Growth Laggards */}
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3, backgroundColor: alpha(theme.palette.error.main, 0.05) }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-              <TrendingDown sx={{ color: theme.palette.error.main, fontSize: 32 }} />
-              <Typography variant="h6">Growth Laggards</Typography>
-            </Box>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Rank</TableCell>
-                    <TableCell>Symbol</TableCell>
-                    <TableCell align="right">Score</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {bottomGrowth.slice(0, 10).map((stock, index) => (
-                    <TableRow key={`bottomGrowth-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell>
-                        <Typography fontWeight={600}>{stock.symbol}</Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Chip
-                          label={stock.growth_score != null ? parseFloat(stock.growth_score).toFixed(1) : ""}
-                          size="small"
-                          color={stock.growth_score != null && parseFloat(stock.growth_score) <= 40 ? "error" : "warning"}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
-
-        {/* Positioning Laggards */}
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3, backgroundColor: alpha(theme.palette.error.main, 0.05) }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-              <Group sx={{ color: theme.palette.error.main, fontSize: 32 }} />
-              <Typography variant="h6">Positioning Laggards</Typography>
-            </Box>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Rank</TableCell>
-                    <TableCell>Symbol</TableCell>
-                    <TableCell align="right">Score</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {bottomPositioning.slice(0, 10).map((stock, index) => (
-                    <TableRow key={`bottomPositioning-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell>
-                        <Typography fontWeight={600}>{stock.symbol}</Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Chip
-                          label={stock.positioning_score != null ? parseFloat(stock.positioning_score).toFixed(1) : ""}
-                          size="small"
-                          color={stock.positioning_score != null && parseFloat(stock.positioning_score) <= 40 ? "error" : "warning"}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
-
-        {/* Stability Laggards */}
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3, backgroundColor: alpha(theme.palette.error.main, 0.05) }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-              <Security sx={{ color: theme.palette.error.main, fontSize: 32 }} />
-              <Typography variant="h6">Stability Laggards</Typography>
-            </Box>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Rank</TableCell>
-                    <TableCell>Symbol</TableCell>
-                    <TableCell align="right">Score</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {bottomStability.slice(0, 10).map((stock, index) => (
-                    <TableRow key={`bottomStability-${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell>
-                        <Typography fontWeight={600}>{stock.symbol}</Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Chip
-                          label={stock.stability_score != null ? parseFloat(stock.stability_score).toFixed(1) : ""}
-                          size="small"
-                          color={stock.stability_score != null && parseFloat(stock.stability_score) <= 40 ? "error" : "warning"}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Grid>
-      </Grid>
-
-      {/* Top Performers by Sector */}
-      <Typography variant="h4" gutterBottom sx={{ mt: 6, mb: 3 }}>
-        Top Performers by Sector
-      </Typography>
-
-      <Grid container spacing={3} sx={{ mb: 6 }}>
-        {sectors.slice(0, 6).map((sector) => {
-          const sectorStocks = topBySector[sector] || [];
-          return (
-            <Grid item xs={12} md={6} key={sector}>
-              <Paper sx={{ p: 3 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-                  <Assessment sx={{ color: theme.palette.primary.main, fontSize: 32 }} />
-                  <Typography variant="h6">{sector}</Typography>
-                  <Chip
-                    label={`${sectorStocks.length} stocks`}
-                    size="small"
-                    color="default"
-                  />
-                </Box>
-                <TableContainer>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Rank</TableCell>
-                        <TableCell>Symbol</TableCell>
-                        <TableCell align="right">Score</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {sectorStocks.map((stock, index) => (
-                        <TableRow key={`${stock.symbol}-${index}`} hover sx={{ cursor: "pointer" }}>
-                          <TableCell>{index + 1}</TableCell>
-                          <TableCell>
-                            <Typography fontWeight={600}>{stock.symbol}</Typography>
-                          </TableCell>
-                          <TableCell align="right">
-                            <Chip
-                              label={stock.composite_score != null ? parseFloat(stock.composite_score).toFixed(1) : ""}
-                              size="small"
-                              color={stock.composite_score == null ? "default" : parseFloat(stock.composite_score) < 60 ? "error" : parseFloat(stock.composite_score) < 80 ? "warning" : "success"}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Paper>
-            </Grid>
-          );
-        })}
-      </Grid>
-
-      {/* Score Guide */}
-      <Paper
-        sx={{
-          p: 2,
-          mt: 4,
-          mb: 3,
-          border: `1px solid ${theme.palette.divider}`,
-          backgroundColor: alpha(theme.palette.info.main, 0.02),
-        }}
-      >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
-          <Typography variant="body2" fontWeight={600} color="text.secondary">
-            Score Guide:
-          </Typography>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Box
-              sx={{
-                width: 60,
-                height: 8,
-                borderRadius: 1,
-                backgroundColor: theme.palette.success.main,
-              }}
-            />
-            <Typography variant="caption">80-100 Excellent</Typography>
-          </Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Box
-              sx={{
-                width: 60,
-                height: 8,
-                borderRadius: 1,
-                backgroundColor: theme.palette.warning.main,
-              }}
-            />
-            <Typography variant="caption">60-79 Good</Typography>
-          </Box>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Box
-              sx={{
-                width: 60,
-                height: 8,
-                borderRadius: 1,
-                backgroundColor: theme.palette.error.main,
-              }}
-            />
-            <Typography variant="caption">0-59 Needs Improvement</Typography>
-          </Box>
-        </Box>
-      </Paper>
-    </Container>
+                    </td>
+                    <td className="t-xs muted" style={{
+                      maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {s.sector || '—'}
+                    </td>
+                    <td className="num mono tnum" style={{ fontWeight: 'var(--w-semibold)' }}>
+                      <span className={`badge ${scoreClass(s.composite_score)}`}>
+                        {num(s.composite_score, 1)}
+                      </span>
+                    </td>
+                    <td>
+                      <span className="t-xs mono" style={{ color: scoreColor(s.composite_score), fontWeight: 'var(--w-semibold)' }}>
+                        {grade(s.composite_score)}
+                      </span>
+                    </td>
+                    <td className="num mono tnum t-xs" style={{ color: scoreColor(s.quality_score) }}>{num(s.quality_score, 0)}</td>
+                    <td className="num mono tnum t-xs" style={{ color: scoreColor(s.momentum_score) }}>{num(s.momentum_score, 0)}</td>
+                    <td className="num mono tnum t-xs" style={{ color: scoreColor(s.value_score) }}>{num(s.value_score, 0)}</td>
+                    <td className="num mono tnum t-xs" style={{ color: scoreColor(s.growth_score) }}>{num(s.growth_score, 0)}</td>
+                    <td className="num mono tnum t-xs" style={{ color: scoreColor(s.positioning_score) }}>{num(s.positioning_score, 0)}</td>
+                    <td className="num mono tnum t-xs" style={{ color: scoreColor(s.stability_score) }}>{num(s.stability_score, 0)}</td>
+                    <td className="num mono tnum t-xs">{s.price != null ? `$${num(s.price, 2)}` : '—'}</td>
+                    <td className={`num mono tnum t-xs ${Number(s.change_percent) >= 0 ? 'up' : 'down'}`}>
+                      {s.change_percent != null ? `${Number(s.change_percent) >= 0 ? '+' : ''}${num(s.change_percent, 2)}%` : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3" style={{
+        marginTop: 'var(--space-3)', flexWrap: 'wrap', justifyContent: 'flex-end',
+      }}>
+        <span className="t-xs muted">
+          {pageStart + 1}–{Math.min(pageEnd, totalRows)} of {totalRows.toLocaleString()}
+        </span>
+        <select className="select" value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}>
+          <option value="25">25 / page</option>
+          <option value="50">50 / page</option>
+          <option value="100">100 / page</option>
+          <option value="250">250 / page</option>
+        </select>
+        <button className="btn btn-ghost btn-icon" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+          <ChevronLeft size={14} />
+        </button>
+        <span className="t-xs mono">{page} / {totalPages}</span>
+        <button className="btn btn-ghost btn-icon" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
+          <ChevronRight size={14} />
+        </button>
+      </div>
+
+      {detail && (
+        <FactorDetail
+          stock={detail}
+          marketAvgs={marketAvgs}
+          sectorAvgs={sectorAvgs}
+          onNavigate={onNavigate}
+          onClose={() => onExpand(detail.symbol)}
+        />
+      )}
+    </>
   );
-};
+}
 
-export default ScoresDashboard;
+// ─── factor detail (expanded) ──────────────────────────────────────────────
+function FactorDetail({ stock, marketAvgs, sectorAvgs, onNavigate, onClose }) {
+  return (
+    <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+      <div className="card-head">
+        <div>
+          <div className="card-title">
+            {stock.symbol}
+            {stock.company_name && (
+              <span className="t-sm muted" style={{ fontWeight: 'var(--w-medium)', marginLeft: 'var(--space-2)' }}>
+                · {stock.company_name}
+              </span>
+            )}
+          </div>
+          <div className="card-sub">
+            {stock.sector || '—'} · composite {num(stock.composite_score, 1)} · grade {grade(stock.composite_score)}
+            {stock.last_updated && ` · updated ${new Date(stock.last_updated).toLocaleDateString()}`}
+          </div>
+        </div>
+        <div className="card-actions">
+          <button className="btn btn-outline btn-sm" onClick={() => onNavigate(stock.symbol)}>
+            Open Stock →
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={onClose}>Close</button>
+        </div>
+      </div>
+      <div className="card-body">
+        <div className="grid grid-3">
+          {FACTORS.map(f => (
+            <FactorScoreCard
+              key={f.key}
+              factor={f}
+              stockScore={stock[f.scoreKey]}
+              sectorAvg={sectorAvgs[f.key]}
+              marketAvg={marketAvgs[f.key]}
+              symbol={stock.symbol}
+              sectorLabel={stock.sector || 'Sector'}
+            />
+          ))}
+        </div>
+
+        <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
+          <FactorInputs title="Quality & Fundamentals" inputs={stock.quality_inputs} schema={QUALITY_SCHEMA} />
+          <FactorInputs title="Momentum" inputs={stock.momentum_inputs} schema={MOMENTUM_SCHEMA} />
+          <FactorInputs title="Value" inputs={stock.value_inputs} schema={VALUE_SCHEMA} />
+          <FactorInputs title="Growth" inputs={stock.growth_inputs} schema={GROWTH_SCHEMA} />
+          <FactorInputs title="Positioning" inputs={stock.positioning_inputs} schema={POSITIONING_SCHEMA} />
+          <FactorInputs title="Stability" inputs={stock.stability_inputs} schema={STABILITY_SCHEMA} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FactorScoreCard({ factor, stockScore, sectorAvg, marketAvg, symbol, sectorLabel }) {
+  const Icon = factor.icon;
+  const data = [
+    { name: symbol, value: stockScore != null ? Number(stockScore) : null, fill: factor.tone },
+    { name: `${sectorLabel.slice(0, 12)} avg`, value: sectorAvg != null ? Number(sectorAvg) : null, fill: 'var(--cyan)' },
+    { name: 'Market avg', value: marketAvg != null ? Number(marketAvg) : null, fill: 'var(--text-3)' },
+  ].filter(d => d.value != null);
+
+  return (
+    <div className="card" style={{ background: 'var(--surface-2)' }}>
+      <div className="card-body">
+        <div className="flex items-center gap-2" style={{ marginBottom: 'var(--space-3)' }}>
+          <Icon size={16} style={{ color: factor.tone }} />
+          <div style={{ fontWeight: 'var(--w-semibold)' }}>{factor.label}</div>
+          <span className={`badge ${scoreClass(stockScore)}`} style={{ marginLeft: 'auto' }}>
+            {num(stockScore, 1)}
+          </span>
+        </div>
+        {data.length > 0 ? (
+          <ResponsiveContainer width="100%" height={140}>
+            <BarChart data={data} margin={{ top: 16, right: 8, left: -8, bottom: 0 }}>
+              <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" vertical={false} />
+              <XAxis dataKey="name" tick={{ fill: 'var(--text-3)', fontSize: 10 }} />
+              <YAxis domain={[0, 100]} tick={{ fill: 'var(--text-3)', fontSize: 10 }} />
+              <RTooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => num(v, 1)} />
+              <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                {data.map((d, i) => <Cell key={i} fill={d.fill} />)}
+                <LabelList dataKey="value" position="top"
+                           style={{ fontSize: 10, fontWeight: 600, fill: 'var(--text-2)' }}
+                           formatter={(v) => num(v, 1)} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="t-xs muted" style={{ padding: 'var(--space-3)' }}>No comparison data</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FactorInputs({ title, inputs, schema }) {
+  if (!inputs || typeof inputs !== 'object') {
+    return (
+      <div className="card">
+        <div className="card-head"><div className="card-title">{title}</div></div>
+        <div className="card-body"><div className="t-xs muted">No detailed metrics available</div></div>
+      </div>
+    );
+  }
+  const rows = schema
+    .map(s => ({ ...s, value: inputs[s.key] }))
+    .filter(r => r.value != null);
+  if (rows.length === 0) {
+    return (
+      <div className="card">
+        <div className="card-head"><div className="card-title">{title}</div></div>
+        <div className="card-body"><div className="t-xs muted">No detailed metrics available</div></div>
+      </div>
+    );
+  }
+  return (
+    <div className="card">
+      <div className="card-head"><div className="card-title">{title}</div></div>
+      <div className="card-body" style={{ padding: 0 }}>
+        <table className="data-table">
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.key}>
+                <td className="t-xs">{r.label}</td>
+                <td className="num mono tnum t-xs">{r.fmt(r.value)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── tabs: leaders/laggards/sectors ────────────────────────────────────────
+function LeadersTab({ items, sectorFilter, onClick }) {
+  return (
+    <div className="grid grid-3" style={{ marginTop: 'var(--space-4)' }}>
+      {FACTORS.map(f => (
+        <CategoryTable
+          key={f.key}
+          factor={f}
+          rows={topBy(items, f.scoreKey, 10, sectorFilter, 'desc')}
+          mode="leaders"
+          onClick={onClick}
+        />
+      ))}
+    </div>
+  );
+}
+
+function LaggardsTab({ items, sectorFilter, onClick }) {
+  return (
+    <div className="grid grid-3" style={{ marginTop: 'var(--space-4)' }}>
+      {FACTORS.map(f => (
+        <CategoryTable
+          key={f.key}
+          factor={f}
+          rows={topBy(items, f.scoreKey, 10, sectorFilter, 'asc')}
+          mode="laggards"
+          onClick={onClick}
+        />
+      ))}
+    </div>
+  );
+}
+
+function CategoryTable({ factor, rows, mode, onClick }) {
+  const Icon = factor.icon;
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div className="flex items-center gap-2">
+          <Icon size={16} style={{ color: mode === 'laggards' ? 'var(--danger)' : factor.tone }} />
+          <div className="card-title">{factor.label} {mode === 'laggards' ? 'Laggards' : 'Leaders'}</div>
+        </div>
+      </div>
+      <div className="card-body" style={{ padding: 0 }}>
+        {rows.length === 0 ? (
+          <div className="empty" style={{ padding: 'var(--space-5)' }}>
+            <Inbox size={28} />
+            <div className="empty-title">No data</div>
+          </div>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th style={{ width: 32 }} className="num">#</th>
+                <th>Symbol</th>
+                <th className="num">Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((s, i) => (
+                <tr key={s.symbol} onClick={() => onClick(s.symbol)}>
+                  <td className="num mono tnum muted">{i + 1}</td>
+                  <td style={{ fontWeight: 'var(--w-semibold)' }}>{s.symbol}</td>
+                  <td className="num">
+                    <span className={`badge ${mode === 'laggards' ? 'badge-danger' : scoreClass(s[factor.scoreKey])}`}>
+                      {num(s[factor.scoreKey], 1)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SectorsTab({ items, sectors, onClick }) {
+  if (sectors.length === 0) {
+    return (
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card-body"><Empty title="No sector data" /></div>
+      </div>
+    );
+  }
+  return (
+    <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
+      {sectors.map(sec => {
+        const rows = items
+          .filter(s => s.sector === sec && s.composite_score != null)
+          .sort((a, b) => Number(b.composite_score) - Number(a.composite_score))
+          .slice(0, 8);
+        return (
+          <div className="card" key={sec}>
+            <div className="card-head">
+              <div className="flex items-center gap-2">
+                <Layers size={16} style={{ color: 'var(--brand)' }} />
+                <div className="card-title">{sec}</div>
+                <span className="badge" style={{ marginLeft: 'auto' }}>{rows.length}</span>
+              </div>
+            </div>
+            <div className="card-body" style={{ padding: 0 }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 32 }} className="num">#</th>
+                    <th>Symbol</th>
+                    <th className="num">Composite</th>
+                    <th>Grade</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((s, i) => (
+                    <tr key={s.symbol} onClick={() => onClick(s.symbol)}>
+                      <td className="num mono tnum muted">{i + 1}</td>
+                      <td style={{ fontWeight: 'var(--w-semibold)' }}>{s.symbol}</td>
+                      <td className="num">
+                        <span className={`badge ${scoreClass(s.composite_score)}`}>
+                          {num(s.composite_score, 1)}
+                        </span>
+                      </td>
+                      <td className="t-xs mono" style={{ color: scoreColor(s.composite_score), fontWeight: 'var(--w-semibold)' }}>
+                        {grade(s.composite_score)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ScoreLegend() {
+  return (
+    <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+      <div className="card-head">
+        <div>
+          <div className="card-title">Score Guide</div>
+          <div className="card-sub">Each factor scored 0-100 from underlying fundamentals · composite is research-weighted blend</div>
+        </div>
+      </div>
+      <div className="card-body">
+        <div className="flex items-center gap-4" style={{ flexWrap: 'wrap' }}>
+          <LegendChip color="var(--success)" label="80–100 Excellent" />
+          <LegendChip color="var(--cyan)"    label="60–79 Good" />
+          <LegendChip color="var(--amber)"   label="40–59 Fair" />
+          <LegendChip color="var(--danger)"  label="0–39 Weak" />
+          <span className="t-xs muted" style={{ marginLeft: 'auto' }}>
+            Source: /api/scores/stockscores
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LegendChip({ color, label }) {
+  return (
+    <div className="flex items-center gap-2">
+      <div style={{ width: 28, height: 8, borderRadius: 4, background: color }} />
+      <span className="t-xs">{label}</span>
+    </div>
+  );
+}
+
+// ─── shared ────────────────────────────────────────────────────────────────
+function Tabs({ tabs, value, onChange }) {
+  return (
+    <div className="flex items-center gap-2" style={{
+      marginTop: 'var(--space-4)', borderBottom: '1px solid var(--border-soft)',
+    }}>
+      {tabs.map(t => (
+        <button
+          key={t.value}
+          className="btn btn-ghost btn-sm"
+          onClick={() => onChange(t.value)}
+          style={{
+            borderBottom: value === t.value ? '2px solid var(--brand)' : '2px solid transparent',
+            borderRadius: 0,
+            color: value === t.value ? 'var(--text-1)' : 'var(--text-2)',
+            fontWeight: value === t.value ? 'var(--w-semibold)' : 'var(--w-medium)',
+          }}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Kpi({ label, value, sub, tone }) {
+  return (
+    <div className="card" style={{ padding: 'var(--space-5) var(--space-6)' }}>
+      <div className="eyebrow">{label}</div>
+      <div className={`mono ${tone || ''}`}
+           style={{ fontSize: 'var(--t-xl)', fontWeight: 'var(--w-bold)', marginTop: 'var(--space-2)' }}>
+        {value}
+      </div>
+      {sub && <div className="t-xs muted" style={{ marginTop: 'var(--space-1)' }}>{sub}</div>}
+    </div>
+  );
+}
+
+function Empty({ title, desc }) {
+  return (
+    <div className="empty">
+      <Inbox size={36} />
+      <div className="empty-title">{title}</div>
+      {desc && <div className="empty-desc">{desc}</div>}
+    </div>
+  );
+}
+
+// ─── helpers ───────────────────────────────────────────────────────────────
+function topBy(items, field, count, sector, dir) {
+  const arr = (sector ? items.filter(s => s.sector === sector) : items)
+    .filter(s => s[field] != null);
+  arr.sort((a, b) => dir === 'desc' ? Number(b[field]) - Number(a[field]) : Number(a[field]) - Number(b[field]));
+  return arr.slice(0, count);
+}
+
+// ─── input schemas ─────────────────────────────────────────────────────────
+const QUALITY_SCHEMA = [
+  { key: 'return_on_equity_pct',           label: 'ROE',                      fmt: v => pct(v, 1) },
+  { key: 'return_on_assets_pct',           label: 'ROA',                      fmt: v => pct(v, 1) },
+  { key: 'return_on_invested_capital_pct', label: 'ROIC',                     fmt: v => pct(v, 1) },
+  { key: 'gross_margin_pct',               label: 'Gross Margin',             fmt: v => pct(v, 1) },
+  { key: 'operating_margin_pct',           label: 'Operating Margin',         fmt: v => pct(v, 1) },
+  { key: 'profit_margin_pct',              label: 'Profit Margin',            fmt: v => pct(v, 1) },
+  { key: 'ebitda_margin_pct',              label: 'EBITDA Margin',            fmt: v => pct(v, 1) },
+  { key: 'fcf_to_net_income',              label: 'FCF / Net Income',         fmt: v => num(v, 2) },
+  { key: 'operating_cf_to_net_income',     label: 'OCF / Net Income',         fmt: v => num(v, 2) },
+  { key: 'debt_to_equity',                 label: 'Debt / Equity',            fmt: v => num(v, 2) },
+  { key: 'current_ratio',                  label: 'Current Ratio',            fmt: v => num(v, 2) },
+  { key: 'quick_ratio',                    label: 'Quick Ratio',              fmt: v => num(v, 2) },
+  { key: 'earnings_surprise_avg',          label: 'Earnings Surprise (4Q)',   fmt: v => pct(v, 2) },
+  { key: 'eps_growth_stability',           label: 'EPS Growth Stability',     fmt: v => num(v, 2) },
+  { key: 'earnings_beat_rate',             label: 'Earnings Beat Rate',       fmt: v => pct(v, 1) },
+  { key: 'consecutive_positive_quarters',  label: 'Consecutive +Q',           fmt: v => num(v, 0) },
+  { key: 'estimate_revision_direction',    label: 'Revision Direction',      fmt: v => num(v, 1) },
+  { key: 'revision_activity_30d',          label: 'Revision Activity 30d',    fmt: v => num(v, 1) },
+  { key: 'estimate_momentum_60d',          label: 'Estimate Momentum 60d',    fmt: v => pct(v, 2) },
+  { key: 'estimate_momentum_90d',          label: 'Estimate Momentum 90d',    fmt: v => pct(v, 2) },
+  { key: 'revision_trend_score',           label: 'Revision Trend',           fmt: v => num(v, 1) },
+  { key: 'payout_ratio',                   label: 'Payout Ratio',             fmt: v => pct(v, 1) },
+  { key: 'free_cashflow',                  label: 'Free Cash Flow',           fmt: money },
+  { key: 'operating_cashflow',             label: 'Operating Cash Flow',      fmt: money },
+  { key: 'total_debt',                     label: 'Total Debt',               fmt: money },
+  { key: 'total_cash',                     label: 'Total Cash',               fmt: money },
+  { key: 'cash_per_share',                 label: 'Cash / Share',             fmt: v => `$${num(v, 2)}` },
+  { key: 'earnings_growth_pct',            label: 'Earnings Growth',          fmt: v => pct(v, 2) },
+  { key: 'revenue_growth_pct',             label: 'Revenue Growth',           fmt: v => pct(v, 2) },
+  { key: 'earnings_growth_4q_avg',         label: 'Earnings Growth 4Q Avg',   fmt: v => pct(v, 2) },
+];
+
+const MOMENTUM_SCHEMA = [
+  { key: 'price_vs_sma_50',  label: 'Price vs 50-SMA',  fmt: v => pct(v, 2) },
+  { key: 'price_vs_sma_200', label: 'Price vs 200-SMA', fmt: v => pct(v, 2) },
+  { key: 'momentum_3m',      label: '3-Month Return',   fmt: v => pct(v, 2) },
+  { key: 'momentum_6m',      label: '6-Month Return',   fmt: v => pct(v, 2) },
+  { key: 'momentum_12_3',    label: '12-3 Momentum',    fmt: v => pct(v, 2) },
+  { key: 'price_vs_52w_high',label: 'Price vs 52w High',fmt: v => pct(v, 2) },
+];
+
+const VALUE_SCHEMA = [
+  { key: 'stock_pe',            label: 'P/E',          fmt: v => num(v, 2) },
+  { key: 'stock_forward_pe',    label: 'Forward P/E',  fmt: v => num(v, 2) },
+  { key: 'stock_pb',            label: 'P/B',          fmt: v => num(v, 2) },
+  { key: 'stock_ps',            label: 'P/S',          fmt: v => num(v, 2) },
+  { key: 'stock_ev_ebitda',     label: 'EV / EBITDA',  fmt: v => num(v, 2) },
+  { key: 'stock_ev_revenue',    label: 'EV / Revenue', fmt: v => num(v, 2) },
+  { key: 'peg_ratio',           label: 'PEG',          fmt: v => num(v, 2) },
+  { key: 'stock_dividend_yield',label: 'Dividend Yield', fmt: v => pct(v, 2) },
+  { key: 'stock_fcf_yield',     label: 'FCF Yield',    fmt: v => pct(v, 2) },
+];
+
+const GROWTH_SCHEMA = [
+  { key: 'revenue_growth_3y_cagr',     label: 'Revenue CAGR (3Y)',       fmt: v => pct(v, 2) },
+  { key: 'eps_growth_3y_cagr',         label: 'EPS CAGR (3Y)',           fmt: v => pct(v, 2) },
+  { key: 'net_income_growth_yoy',      label: 'Net Income Growth YoY',   fmt: v => pct(v, 2) },
+  { key: 'operating_income_growth_yoy',label: 'Op Income Growth YoY',    fmt: v => pct(v, 2) },
+  { key: 'gross_margin_trend',         label: 'Gross Margin Trend',      fmt: v => `${num(v, 2)} pp` },
+  { key: 'operating_margin_trend',     label: 'Op Margin Trend',         fmt: v => `${num(v, 2)} pp` },
+  { key: 'net_margin_trend',           label: 'Net Margin Trend',        fmt: v => `${num(v, 2)} pp` },
+  { key: 'roe_trend',                  label: 'ROE Trend',               fmt: v => num(v, 2) },
+  { key: 'sustainable_growth_rate',    label: 'Sustainable Growth Rate', fmt: v => pct(v, 2) },
+  { key: 'quarterly_growth_momentum',  label: 'Quarterly Growth Mom',    fmt: v => `${num(v, 2)} pp` },
+  { key: 'fcf_growth_yoy',             label: 'FCF Growth YoY',          fmt: v => pct(v, 2) },
+  { key: 'ocf_growth_yoy',             label: 'OCF Growth YoY',          fmt: v => pct(v, 2) },
+  { key: 'asset_growth_yoy',           label: 'Asset Growth YoY',        fmt: v => pct(v, 2) },
+];
+
+const POSITIONING_SCHEMA = [
+  { key: 'institutional_ownership_pct', label: 'Institutional Own %', fmt: v => pct(v, 1) },
+  { key: 'insider_ownership_pct',       label: 'Insider Own %',       fmt: v => pct(v, 1) },
+  { key: 'short_percent_of_float',      label: 'Short % of Float',    fmt: v => pct(v, 1) },
+  { key: 'short_ratio',                 label: 'Days to Cover',       fmt: v => Number(v) < 99999 ? num(v, 2) : '—' },
+  { key: 'ad_rating',                   label: 'A/D Rating',          fmt: v => num(v, 1) },
+];
+
+const STABILITY_SCHEMA = [
+  { key: 'volatility_12m',         label: 'Volatility (12M)',     fmt: v => pct(v, 2) },
+  { key: 'downside_volatility',    label: 'Downside Volatility',  fmt: v => pct(v, 2) },
+  { key: 'max_drawdown_52w',       label: 'Max Drawdown (52W)',   fmt: v => pct(v, 2) },
+  { key: 'beta',                   label: 'Beta vs Market',       fmt: v => num(v, 2) },
+  { key: 'volume_consistency',     label: 'Volume Consistency',   fmt: v => num(v, 1) },
+  { key: 'turnover_velocity',      label: 'Turnover Velocity',    fmt: v => num(v, 1) },
+  { key: 'volatility_volume_ratio',label: 'Volatility/Volume',    fmt: v => num(v, 1) },
+  { key: 'daily_spread',           label: 'Daily Spread',         fmt: v => num(v, 1) },
+];

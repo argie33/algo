@@ -1,1872 +1,993 @@
-import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import {
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Alert,
-  Box,
-  Card,
-  CardContent,
-  Chip,
-  Container,
-  Grid,
-  LinearProgress,
-  Typography,
-} from "@mui/material";
-import {
-  TrendingUp,
-  TrendingDown,
-  ExpandMore,
-  BarChart,
-} from "@mui/icons-material";
-import {
-  BarChart as RechartsBarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  ResponsiveContainer,
-  Cell,
-  Tooltip,
-  Legend,
-  LineChart,
-  ComposedChart,
-  Line,
-  ReferenceLine,
-  Area,
-} from "recharts";
-import api from "../services/api";
-import {
-  formatPercentage,
-  formatPercentageChange,
-  getChangeColor,
-} from "../utils/formatters";
-import { formatXAxisDate } from "../utils/dateFormatters";
-import PETrendChart from "../components/PETrendChart";
+/**
+ * Sector Analysis — sector + industry rankings, daily strength, ranking trend.
+ * Pure JSX + theme.css classes.
+ */
 
-// Compute simple moving average for an array of values
-const computeMovingAverage = (values, period) => {
-  return values.map((_, i) => {
+import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import {
+  RefreshCw, Inbox, AlertCircle, ChevronDown, ChevronRight,
+  TrendingUp, TrendingDown, Minus,
+} from 'lucide-react';
+import {
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
+  ResponsiveContainer, Tooltip, Cell, Legend,
+} from 'recharts';
+import { api } from '../services/api';
+import { formatPercentageChange } from '../utils/formatters';
+import { formatXAxisDate } from '../utils/dateFormatters';
+
+const TT_STYLE = {
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--r-sm)',
+  fontSize: 'var(--t-xs)',
+  padding: 'var(--space-2) var(--space-3)',
+};
+
+const SECTOR_COLORS = {
+  Technology: 'var(--brand)',
+  Healthcare: 'var(--success)',
+  Financials: 'var(--amber)',
+  'Consumer Discretionary': 'var(--purple)',
+  'Consumer Staples': '#795548',
+  Energy: 'var(--danger)',
+  Industrials: '#607D8B',
+  Materials: '#8BC34A',
+  Utilities: '#FFC107',
+  'Real Estate': '#E91E63',
+  'Communication Services': 'var(--cyan)',
+};
+const FALLBACK_PALETTE = [
+  'var(--brand)', 'var(--cyan)', 'var(--purple)', 'var(--success)',
+  'var(--amber)', 'var(--danger)', '#8BC34A', '#E91E63',
+  '#FFC107', '#795548', '#607D8B', '#FF6B6B',
+];
+const colorFor = (name, idx) =>
+  SECTOR_COLORS[name] || FALLBACK_PALETTE[idx % FALLBACK_PALETTE.length];
+
+const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp);
+const fmtPct = (v) => formatPercentageChange(v);
+const pctClass = (v) => {
+  const n = Number(v);
+  if (!isFinite(n)) return 'flat';
+  if (n > 0) return 'up';
+  if (n < 0) return 'down';
+  return 'flat';
+};
+
+const computeMA = (values, period) =>
+  values.map((_, i) => {
     if (i < period - 1) return null;
-    const slice = values.slice(i - period + 1, i + 1).filter(v => v !== null && v !== undefined);
+    const slice = values.slice(i - period + 1, i + 1).filter(v => v != null);
     if (slice.length < Math.ceil(period * 0.7)) return null;
     return slice.reduce((a, b) => a + b, 0) / slice.length;
   });
-};
 
-// Enrich trend data with computed MA10 and MA20
-const enrichWithMovingAverages = (trendData) => {
-  if (!trendData || trendData.length === 0) return trendData;
-  const prices = trendData.map(d => d.dailyStrengthScore);
-  const ma10 = computeMovingAverage(prices, 10);
-  const ma20 = computeMovingAverage(prices, 20);
-  return trendData.map((d, i) => ({
-    ...d,
-    ma_10: d.ma_10 ?? ma10[i],
-    ma_20: d.ma_20 ?? ma20[i],
+const enrichWithMAs = (rows) => {
+  if (!rows?.length) return rows || [];
+  const series = rows.map(r => r.dailyStrengthScore);
+  const ma10 = computeMA(series, 10);
+  const ma20 = computeMA(series, 20);
+  return rows.map((r, i) => ({
+    ...r,
+    ma_10: r.ma_10 ?? ma10[i],
+    ma_20: r.ma_20 ?? ma20[i],
   }));
 };
 
-// Helper component for sector momentum chart
-// Displays Daily Strength chart with Moving Averages
-const MomentumChart = ({ type = 'sector', data, aggregateToWeekly }) => {
-  const identifierName = type === 'sector' ? data?.sector_name : data?.industry;
-  const trendArray = data?.trendData || [];
-
-  // Transform trend data - API provides daily strength and technical indicators
-  let chartData = trendArray.map(row => ({
-    date: row.date,
-    // Price data (using daily strength as proxy for price movement) - null if missing
-    price: row.dailyStrengthScore !== null && row.dailyStrengthScore !== undefined ? parseFloat(row.dailyStrengthScore) : null,
-    // Keep original field for aggregation functions - null if missing
-    dailyStrengthScore: row.dailyStrengthScore !== null && row.dailyStrengthScore !== undefined ? parseFloat(row.dailyStrengthScore) : null,
-    // Moving averages (calculated on daily strength)
-    ma_5: row.ma_5 !== undefined && row.ma_5 !== null ? parseFloat(row.ma_5) : null,
-    ma_10: row.ma_10 !== undefined && row.ma_10 !== null ? parseFloat(row.ma_10) : null,
-    ma_20: row.ma_20 !== undefined && row.ma_20 !== null ? parseFloat(row.ma_20) : null,
-    // RSI data (calculated from daily strength)
-    rsi: row.rsi !== undefined && row.rsi !== null ? parseFloat(row.rsi) : null,
-    // Metadata
-    rank: row.rank,
-    trend: row.trend,
-  }));
-
-  // Limit to last 12 months of available data, or all data if less than 12 months available
-  const now = new Date();
-  const oneYearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-
-  // First, filter to try last year
-  let filteredData = chartData.filter(d => {
-    const rowDate = new Date(d.date);
-    return rowDate >= oneYearAgo;
-  });
-
-  // If we don't have a year of data, use all available data instead
-  if (filteredData.length === 0 && chartData.length > 0) {
-    filteredData = chartData;
-  }
-
-  chartData = filteredData;
-
-  // Check what data is available
-  // NOTE: Using only MA 10 and MA 20 for clarity - best practice is 2 MAs, not 3
-  // MA 10 = short-term momentum, MA 20 = medium-term trend
-  const hasPrice = chartData.some(d => d.price !== null && d.price !== undefined);
-  const hasMA10 = chartData.some(m => m.ma_10 !== null && m.ma_10 !== undefined);
-  const hasMA20 = chartData.some(m => m.ma_20 !== null && m.ma_20 !== undefined);
-
-  if (chartData.length > 0) {
-    console.log(`[${type.toUpperCase()} CHARTS] ${identifierName}: ${chartData.length} rows (last 12 months or all available)`);
-  }
-
-  // Calculate consistent x-axis interval for all charts
-  const xAxisInterval = Math.max(1, Math.floor(chartData.length / 8));
-
-  // Aggregate to weekly if requested
-  if (aggregateToWeekly && chartData.length > 0) {
-    chartData = aggregateToWeekly(chartData);
-  }
-
-  // Only render if there's actual data to display
-  if (!chartData || chartData.length === 0 || !hasPrice) {
-    return null;
-  }
-
+const TimeRangeChips = ({ value, onChange }) => {
+  const opts = [
+    { v: '3m', label: '3M' },
+    { v: '6m', label: '6M' },
+    { v: '1y', label: '1Y' },
+  ];
   return (
-    <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mb: 3 }}>
-      <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-        📊 Daily Strength Chart
-      </Typography>
-      <>
-        {/* CHART 1: DAILY STRENGTH + MAs */}
-        {hasPrice && (
-          <Box sx={{ width: "100%", mb: 3 }}>
-            <Box sx={{ width: "100%", height: 320, minHeight: 320, overflow: "hidden" }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" tick={{ fontSize: 12 }} interval={xAxisInterval} tickFormatter={(date) => formatXAxisDate(date)} />
-                  <YAxis width={50} tick={{ fontSize: 12 }} />
-                  <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', border: '1px solid #ccc' }} formatter={(val) => typeof val === 'number' ? val.toFixed(2) : val} />
-                  <Line type="monotone" dataKey="price" stroke="#FF6B35" strokeWidth={3} dot={false} connectNulls name="Daily Strength" isAnimationActive={false} />
-                  {hasMA10 && <Line type="monotone" dataKey="ma_10" stroke="#1ABC9C" strokeWidth={2} strokeDasharray="5 5" dot={false} connectNulls name="MA 10" isAnimationActive={false} />}
-                  {hasMA20 && <Line type="monotone" dataKey="ma_20" stroke="#E74C3C" strokeWidth={2} strokeDasharray="5 5" dot={false} connectNulls name="MA 20" isAnimationActive={false} />}
-                </LineChart>
-              </ResponsiveContainer>
-            </Box>
-            {/* UNIFIED LEGEND BELOW CHART - WITH PROPER LINE STYLES */}
-            <Box sx={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 3, mt: 2.5, px: 2 }}>
-              {hasPrice && (
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  {/* Solid line for Daily Strength */}
-                  <svg width="20" height="12" style={{ display: "flex", alignItems: "center" }}>
-                    <line x1="0" y1="6" x2="20" y2="6" stroke="#FF6B35" strokeWidth="3" />
-                  </svg>
-                  <Typography variant="caption" fontSize="11px">Daily Strength</Typography>
-                </Box>
-              )}
-              {hasMA10 && (
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  {/* Dashed line for MA 10 */}
-                  <svg width="20" height="12" style={{ display: "flex", alignItems: "center" }}>
-                    <line x1="0" y1="6" x2="20" y2="6" stroke="#1ABC9C" strokeWidth="2" strokeDasharray="5 5" />
-                  </svg>
-                  <Typography variant="caption" fontSize="11px">MA 10</Typography>
-                </Box>
-              )}
-              {hasMA20 && (
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  {/* Dashed line for MA 20 */}
-                  <svg width="20" height="12" style={{ display: "flex", alignItems: "center" }}>
-                    <line x1="0" y1="6" x2="20" y2="6" stroke="#E74C3C" strokeWidth="2" strokeDasharray="5 5" />
-                  </svg>
-                  <Typography variant="caption" fontSize="11px">MA 20</Typography>
-                </Box>
-              )}
-            </Box>
-          </Box>
-        )}
-      </>
-    </Box>
+    <div className="flex gap-2">
+      {opts.map(o => (
+        <button
+          key={o.v}
+          type="button"
+          className={`btn btn-sm ${value === o.v ? 'btn-primary' : 'btn-outline'}`}
+          onClick={() => onChange(o.v)}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
   );
 };
 
-// Sector momentum chart with data fetching - loads trend data via API
-const SectorMomentumChart = ({ sector, aggregateToWeekly }) => {
-  // Fetch trend data for this specific sector
-  const { data: trendResponse, isLoading } = useQuery({
-    queryKey: ["sector-momentum", sector.sector_name || sector.sector],
-    queryFn: async () => {
-      try {
-        const response = await api.get(
-          `/api/sectors/${encodeURIComponent(sector.sector_name || sector.sector)}/trend?days=365`
-        );
-        // responseFormatter wraps response in { success, data: {...}, timestamp }
-        return response?.data?.data || response?.data;
-      } catch (error) {
-        console.error("Failed to fetch sector momentum data:", error);
-        return null;
-      }
-    },
-    staleTime: 1000 * 60 * 10,
-    gcTime: 1000 * 60 * 10,
-    enabled: !!(sector.sector_name || sector.sector),
-    retry: false,
+const filterByRange = (rows, range) => {
+  if (!rows?.length || !rows[0]?.date) return rows || [];
+  const cutoff = new Date();
+  if (range === '3m') cutoff.setMonth(cutoff.getMonth() - 3);
+  else if (range === '6m') cutoff.setMonth(cutoff.getMonth() - 6);
+  else cutoff.setFullYear(cutoff.getFullYear() - 1);
+  const out = rows.filter(r => {
+    try { return new Date(r.date) >= cutoff; } catch { return true; }
   });
-
-  if (isLoading) {
-    return (
-      <Box display="flex" justifyContent="center" py={2}>
-        <LinearProgress sx={{ width: "100%", maxWidth: 400 }} />
-      </Box>
-    );
-  }
-
-  const firstAvgPrice = trendResponse?.trendData?.[0]?.avgPrice || null;
-  const rawTrend = (trendResponse?.trendData || []).map(d => ({
-    ...d,
-    dailyStrengthScore: d.dailyStrengthScore != null
-      ? d.dailyStrengthScore
-      : (firstAvgPrice ? ((d.avgPrice / firstAvgPrice) - 1) * 100 : null)
-  }));
-  const sectorWithTrend = {
-    ...sector,
-    trendData: enrichWithMovingAverages(rawTrend)
-  };
-
-  return <MomentumChart type="sector" data={sectorWithTrend} aggregateToWeekly={aggregateToWeekly} />;
+  return out.length > 0 ? out : rows;
 };
 
-const IndustryMomentumChart = ({ industry, aggregateToWeekly }) => {
-  // Fetch trend data for this specific industry
-  const { data: trendResponse, isLoading } = useQuery({
-    queryKey: ["industry-momentum", industry.industry],
-    queryFn: async () => {
-      try {
-        const response = await api.get(
-          `/api/industries/${encodeURIComponent(industry.industry)}/trend?days=365`
-        );
-        // responseFormatter wraps response in { success, data: {...}, timestamp }
-        return response?.data?.data || response?.data;
-      } catch (error) {
-        console.error("Failed to fetch industry momentum data:", error);
-        return null;
-      }
-    },
-    staleTime: 1000 * 60 * 10,
-    gcTime: 1000 * 60 * 10,
-    enabled: !!industry.industry,
-    retry: false,
-  });
-
-  if (isLoading) {
-    return (
-      <Box display="flex" justifyContent="center" py={2}>
-        <LinearProgress sx={{ width: "100%", maxWidth: 400 }} />
-      </Box>
-    );
-  }
-
-  const firstAvgPrice = trendResponse?.trendData?.[0]?.avgPrice || null;
-  const rawTrend = (trendResponse?.trendData || []).map(d => ({
-    ...d,
-    dailyStrengthScore: d.dailyStrengthScore != null
-      ? d.dailyStrengthScore
-      : (firstAvgPrice ? ((d.avgPrice / firstAvgPrice) - 1) * 100 : null)
-  }));
-  const industryWithTrend = {
-    ...industry,
-    trendData: enrichWithMovingAverages(rawTrend)
-  };
-
-  return <MomentumChart type="industry" data={industryWithTrend} aggregateToWeekly={aggregateToWeekly} />;
+const TrendIcon = ({ trend, size = 16 }) => {
+  const t = (trend || '').toLowerCase();
+  if (t.includes('up')) return <TrendingUp size={size} style={{ color: 'var(--success)' }} />;
+  if (t.includes('down')) return <TrendingDown size={size} style={{ color: 'var(--danger)' }} />;
+  return <Minus size={size} style={{ color: 'var(--text-faint)' }} />;
 };
 
-const SectorAnalysis = () => {
-  const [lastUpdate, setLastUpdate] = useState(null);
-  const [performanceTimeframe, setPerformanceTimeframe] = useState("1d"); // 1d, 5d, 20d, ytd
+const momentumBadge = (m) => {
+  if (m === 'Strong') return 'badge-success';
+  if (m === 'Moderate') return 'badge-cyan';
+  if (m === 'Weak') return 'badge-amber';
+  return '';
+};
 
-  // Vibrant color palette for sectors & industries (no gray defaults - only 1 gray for unknowns)
-  const vibrantColors = [
-    "#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8",
-    "#F7DC6F", "#BB8FCE", "#85C1E2", "#F8B88B", "#ABEBC6",
-    "#F1948A", "#A3E4D7", "#F5B041", "#A9DFBF", "#F8BBAD",
-    "#B7DEE8", "#F9E79F", "#D7BDE2", "#AED6F1", "#F5CBA7",
-  ];
+// ─── Daily Strength Chart with MA10 + MA20 ─────────────────────────────────
+function DailyStrengthChart({ name, type, range }) {
+  const endpoint = type === 'sector'
+    ? `/api/sectors/${encodeURIComponent(name)}/trend?days=365`
+    : `/api/industries/${encodeURIComponent(name)}/trend?days=365`;
 
-  const sectorColors = {
-    "Technology": "#2196F3",
-    "Healthcare": "#4CAF50",
-    "Financials": "#FF9800",
-    "Consumer Discretionary": "#9C27B0",
-    "Consumer Staples": "#795548",
-    "Energy": "#FF5722",
-    "Industrials": "#607D8B",
-    "Materials": "#8BC34A",
-    "Utilities": "#FFC107",
-    "Real Estate": "#E91E63",
-    "Communication Services": "#00BCD4",
-  };
-
-  // Function to get vibrant color for unknown sectors/industries
-  const getVibrantColor = (index) => {
-    return vibrantColors[index % vibrantColors.length];
-  };
-
-  // Only use gray as last resort fallback
-  const getColorForSector = (sectorName) => {
-    return sectorColors[sectorName] || "#999"; // Only gray for truly unknown
-  };
-
-  // Get trend icon and color based on trend value
-  const getTrendIcon = (trend) => {
-    const trendLower = (trend || "").toLowerCase();
-    if (trendLower.includes("uptrend")) {
-      return { icon: TrendingUp, color: "#4caf50", label: "Uptrend" };
-    } else if (trendLower.includes("downtrend")) {
-      return { icon: TrendingDown, color: "#f44336", label: "Downtrend" };
-    } else {
-      return { icon: TrendingUp, color: "#9e9e9e", label: "Sideways" };
-    }
-  };
-
-  // Comprehensive industry-to-sector mapping
-  // This mapping ensures ALL industries are correctly assigned to their sectors
-  // regardless of how the API returns sector assignments
-  const industryToSectorMapping = {
-    // Technology (40+ industries)
-    "Software": "Technology",
-    "Software Infrastructure": "Technology",
-    "Software Consulting": "Technology",
-    "Information Services": "Technology",
-    "IT Services & Consulting": "Technology",
-    "Data Processing & Outsourced Services": "Technology",
-    "Application Software": "Technology",
-    "Systems Software": "Technology",
-    "Internet Services & Infrastructure": "Technology",
-    "Web Services": "Technology",
-    "IT Consulting & Services": "Technology",
-    "Semiconductors": "Technology",
-    "Semiconductor Equipment": "Technology",
-    "Electronic Components": "Technology",
-    "Electronics Manufacturing Services": "Technology",
-    "Computers & Peripherals": "Technology",
-    "Computer Hardware": "Technology",
-    "Computer & Office Equipment": "Technology",
-    "Networking & Communication Devices": "Technology",
-    "Communications Equipment": "Technology",
-    "Technology Hardware": "Technology",
-    "Tech & Telecom Equipment": "Technology",
-    "Home & Office Furnishings": "Technology",
-
-    // Healthcare (30+ industries)
-    "Pharmaceuticals": "Healthcare",
-    "Pharmaceutical Manufacturers": "Healthcare",
-    "Generic Pharmaceuticals": "Healthcare",
-    "Biotechnology": "Healthcare",
-    "Biotech & Pharmaceuticals": "Healthcare",
-    "Diagnostic Substances": "Healthcare",
-    "Medical Devices": "Healthcare",
-    "Medical Appliances": "Healthcare",
-    "Medical Instruments & Supplies": "Healthcare",
-    "Medical Devices & Supplies": "Healthcare",
-    "Healthcare Services": "Healthcare",
-    "Healthcare Providers": "Healthcare",
-    "Hospitals": "Healthcare",
-    "Nursing Homes": "Healthcare",
-    "Senior Housing": "Healthcare",
-    "Behavioral Health": "Healthcare",
-    "Medical Facilities": "Healthcare",
-    "Drug Retailers": "Healthcare",
-    "Pharmacy": "Healthcare",
-    "Health & Fitness Services": "Healthcare",
-
-    // Financials (25+ industries)
-    "Banks": "Financials",
-    "Commercial Banks": "Financials",
-    "Community Banks": "Financials",
-    "Regional Banks": "Financials",
-    "Diversified Banks": "Financials",
-    "Investment Banking": "Financials",
-    "Financial Services": "Financials",
-    "Financial Exchanges": "Financials",
-    "Financial Data & Stock Exchanges": "Financials",
-    "Capital Markets": "Financials",
-    "Asset Management": "Financials",
-    "Investment Management": "Financials",
-    "Investment Services": "Financials",
-    "Credit Agencies": "Financials",
-    "Insurance": "Financials",
-    "Accident & Health Insurance": "Financials",
-    "Life Insurance": "Financials",
-    "Property & Casualty Insurance": "Financials",
-    "Insurance Brokerage": "Financials",
-    "Insurance Companies": "Financials",
-
-    // Consumer Discretionary (30+ industries)
-    "Retail - Specialty": "Consumer Discretionary",
-    "Apparel Retail": "Consumer Discretionary",
-    "Apparel Manufacturing": "Consumer Discretionary",
-    "Apparel Stores": "Consumer Discretionary",
-    "Footwear": "Consumer Discretionary",
-    "Shoes": "Consumer Discretionary",
-    "Luxury Goods": "Consumer Discretionary",
-    "Jewelry & Watches": "Consumer Discretionary",
-    "Department Stores": "Consumer Discretionary",
-    "Home Improvement Retail": "Consumer Discretionary",
-    "Home Furnishings": "Consumer Discretionary",
-    "Furniture": "Consumer Discretionary",
-    "Office Furniture": "Consumer Discretionary",
-    "Sporting Goods": "Consumer Discretionary",
-    "Toy & Game Retailers": "Consumer Discretionary",
-    "Toys": "Consumer Discretionary",
-    "Restaurants": "Consumer Discretionary",
-    "Hotels & Resorts": "Consumer Discretionary",
-    "Lodging": "Consumer Discretionary",
-    "Casinos & Gambling": "Consumer Discretionary",
-    "Entertainment Venues": "Consumer Discretionary",
-    "Recreational Services": "Consumer Discretionary",
-    "Automotive": "Consumer Discretionary",
-    "Auto Parts & Equipment": "Consumer Discretionary",
-    "Auto Parts Suppliers": "Consumer Discretionary",
-    "Automotive OEM": "Consumer Discretionary",
-    "Autos": "Consumer Discretionary",
-    "Tires & Rubber": "Consumer Discretionary",
-
-    // Consumer Staples (20+ industries)
-    "Beverages": "Consumer Staples",
-    "Beer & Liquor": "Consumer Staples",
-    "Beverage - Non-Alcoholic": "Consumer Staples",
-    "Soft Drinks": "Consumer Staples",
-    "Packaged Foods": "Consumer Staples",
-    "Food Manufacturing": "Consumer Staples",
-    "Grocery Stores": "Consumer Staples",
-    "Food Distribution": "Consumer Staples",
-    "Food Retailers": "Consumer Staples",
-    "Household Products": "Consumer Staples",
-    "Cleaning Products": "Consumer Staples",
-    "Personal Care": "Consumer Staples",
-    "Cosmetics": "Consumer Staples",
-    "Health & Personal Care": "Consumer Staples",
-    "Hypermarkets & Super Centers": "Consumer Staples",
-    "Discount Variety Retailers": "Consumer Staples",
-    "Wholesale Clubs": "Consumer Staples",
-    "Tobacco": "Consumer Staples",
-    "Cigarettes": "Consumer Staples",
-
-    // Energy (15+ industries)
-    "Oil & Gas": "Energy",
-    "Oil & Gas - Integrated": "Energy",
-    "Oil & Gas - E&P": "Energy",
-    "Oil & Gas Exploration & Production": "Energy",
-    "Oil & Gas Refining & Marketing": "Energy",
-    "Oil & Gas Services": "Energy",
-    "Oil & Gas Equipment & Services": "Energy",
-    "Pipeline": "Energy",
-    "Renewable Energy": "Energy",
-    "Solar": "Energy",
-    "Wind Energy": "Energy",
-    "Coal": "Energy",
-    "Uranium": "Energy",
-
-    // Industrials (35+ industries)
-    "Aerospace": "Industrials",
-    "Aerospace & Defense": "Industrials",
-    "Defense": "Industrials",
-    "Machinery": "Industrials",
-    "Industrial Machinery": "Industrials",
-    "Specialized Machinery": "Industrials",
-    "Manufacturing": "Industrials",
-    "Diversified Manufacturers": "Industrials",
-    "Electrical Equipment": "Industrials",
-    "Electrical Components": "Industrials",
-    "Electrical Machinery": "Industrials",
-    "Appliances": "Industrials",
-    "Small Appliances": "Industrials",
-    "Containers & Packaging": "Industrials",
-    "Metal & Glass Containers": "Industrials",
-    "Paper Packaging": "Industrials",
-    "Trucks": "Industrials",
-    "Commercial Vehicles": "Industrials",
-    "Building Products": "Industrials",
-    "Heavy Equipment": "Industrials",
-    "Construction Equipment": "Industrials",
-    "Waste Management": "Industrials",
-    "Environmental Services": "Industrials",
-    "Shipping Services": "Industrials",
-    "Marine": "Industrials",
-    "Rail Transportation": "Industrials",
-    "Airlines": "Industrials",
-    "Transportation": "Industrials",
-    "Logistics": "Industrials",
-    "Delivery Services": "Industrials",
-    "Trucking": "Industrials",
-    "Construction": "Industrials",
-    "Construction & Building": "Industrials",
-    "Mining": "Industrials",
-
-    // Materials (20+ industries)
-    "Chemicals": "Materials",
-    "Chemical Manufacturing": "Materials",
-    "Specialty Chemicals": "Materials",
-    "Agricultural Chemicals": "Materials",
-    "Metals & Mining": "Materials",
-    "Steel": "Materials",
-    "Aluminum": "Materials",
-    "Copper": "Materials",
-    "Gold": "Materials",
-    "Silver": "Materials",
-    "Precious Metals": "Materials",
-    "Paper & Forest Products": "Materials",
-    "Paper Products": "Materials",
-    "Lumber & Wood Products": "Materials",
-    "Forestry": "Materials",
-    "Cement": "Materials",
-    "Building Materials": "Materials",
-    "Glass": "Materials",
-
-    // Utilities (10+ industries)
-    "Utilities": "Utilities",
-    "Electric Utilities": "Utilities",
-    "Gas Utilities": "Utilities",
-    "Water Utilities": "Utilities",
-    "Multiline Utilities": "Utilities",
-    "Utility Services": "Utilities",
-
-    // Real Estate (15+ industries)
-    "Real Estate": "Real Estate",
-    "Real Estate Services": "Real Estate",
-    "REITs": "Real Estate",
-    "REIT": "Real Estate",
-    "REIT - Retail": "Real Estate",
-    "REIT - Residential": "Real Estate",
-    "REIT - Office": "Real Estate",
-    "REIT - Industrial": "Real Estate",
-    "REIT - Hotel": "Real Estate",
-    "REIT - Healthcare": "Real Estate",
-    "Real Estate Development": "Real Estate",
-    "Land Development": "Real Estate",
-    "Property Management": "Real Estate",
-    "Residential Real Estate": "Real Estate",
-    "Commercial Real Estate": "Real Estate",
-
-    // Communication Services (20+ industries)
-    "Advertising": "Communication Services",
-    "Advertising Agencies": "Communication Services",
-    "Media": "Communication Services",
-    "Media & Entertainment": "Communication Services",
-    "Broadcast Media": "Communication Services",
-    "Television": "Communication Services",
-    "Radio": "Communication Services",
-    "Cable & Satellite": "Communication Services",
-    "Publishing": "Communication Services",
-    "News Publishers": "Communication Services",
-    "Telecom": "Communication Services",
-    "Telecommunications": "Communication Services",
-    "Telecom Services": "Communication Services",
-    "Wireless": "Communication Services",
-    "Internet Service Providers": "Communication Services",
-    "Internet & Cable Services": "Communication Services",
-    "Diversified Telecom Services": "Communication Services",
-    "Movies & Entertainment": "Communication Services",
-    "Interactive Media": "Communication Services",
-    "Internet Information Providers": "Communication Services",
-    "Internet Services": "Communication Services",
-    "Online Entertainment": "Communication Services",
-  };
-
-  // Normalize sector names to handle mismatches between APIs
-  // Both sectors and industries APIs may use different naming conventions
-  // Simple sector name comparison (both APIs use same naming conventions)
-  const normalizeSectorName = (sectorName) => {
-    if (!sectorName) return '';
-    // Both sectors API and industries API use identical sector names,
-    // so no mapping needed - just return the name as-is for direct comparison
-    return sectorName.trim();
-  };
-
-  // Helper component to render compact trend chart
-  const TrendChart = ({ data, width = 100, height = 40 }) => {
-    if (!data || data.length < 2) return null;
-
-    return (
-      <div style={{ width: `${width}px`, height: `${height}px`, display: "inline-block" }}>
-        <LineChart
-          width={width}
-          height={height}
-          data={data}
-          margin={{ top: 2, right: 2, bottom: 2, left: 0 }}
-        >
-          <YAxis
-            hide={true}
-            reversed={true}
-          />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "#fff",
-              border: "1px solid #ccc",
-              borderRadius: "4px",
-              padding: "4px",
-              fontSize: "11px"
-            }}
-          />
-          <Line
-            type="monotone"
-            dataKey="rank"
-            stroke="#2196F3"
-            dot={false}
-            strokeWidth={1.5}
-            isAnimationActive={false}
-          />
-        </LineChart>
-      </div>
-    );
-  };
-
-  // Helper function to aggregate daily data into weekly data
-  const aggregateToWeekly = (dailyData) => {
-    if (!dailyData || dailyData.length === 0) return [];
-
-    // If data doesn't have date field (fallback data), return as-is
-    if (dailyData.length > 0 && !dailyData[0].date) {
-      return dailyData;
-    }
-
-    const weeklyData = [];
-    let currentWeek = null;
-    let weekEnd = null;
-
-    for (const row of dailyData) {
-      try {
-        if (!row.date) continue;
-
-        const rowDate = new Date(row.date);
-        if (isNaN(rowDate.getTime())) continue; // Skip invalid dates
-
-        const dayOfWeek = rowDate.getDay();
-
-        // Initialize first week
-        if (!currentWeek) {
-          currentWeek = new Date(rowDate);
-          // Set to start of week (Monday = 1, adjust Sunday = 0)
-          const offset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-          currentWeek.setDate(rowDate.getDate() - offset);
-          weekEnd = new Date(currentWeek);
-          weekEnd.setDate(weekEnd.getDate() + 6); // End of week (Sunday)
-        }
-
-        // Check if we've moved to a new week
-        if (rowDate > weekEnd) {
-          const offset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-          currentWeek = new Date(rowDate);
-          currentWeek.setDate(rowDate.getDate() - offset);
-          weekEnd = new Date(currentWeek);
-          weekEnd.setDate(weekEnd.getDate() + 6);
-        }
-
-        // Always keep the last data point of the current period
-        if (weeklyData.length === 0 || weeklyData[weeklyData.length - 1].weekStart !== currentWeek.toISOString().split('T')[0]) {
-          weeklyData.push({
-            date: row.date,
-            label: row.label,
-            rank: row.rank,
-            momentum: row.momentum,
-            price: row.price,
-            ma_5: row.ma_5,
-            ma_10: row.ma_10,
-            ma_20: row.ma_20,
-            rsi: row.rsi,
-            close: row.close,
-            trend: row.trend,
-            dailyStrengthScore: row.dailyStrengthScore,
-            weekStart: currentWeek.toISOString().split('T')[0]
-          });
-        } else {
-          // Update the last entry with the newest data for this week
-          weeklyData[weeklyData.length - 1] = {
-            date: row.date,
-            label: row.label,
-            rank: row.rank,
-            momentum: row.momentum,
-            price: row.price,
-            ma_5: row.ma_5,
-            ma_10: row.ma_10,
-            ma_20: row.ma_20,
-            rsi: row.rsi,
-            close: row.close,
-            trend: row.trend,
-            dailyStrengthScore: row.dailyStrengthScore,
-            weekStart: currentWeek.toISOString().split('T')[0]
-          };
-        }
-      } catch (error) {
-        console.warn("Error processing row in aggregateToWeekly:", row, error);
-        continue;
-      }
-    }
-
-    // Sort by date to ensure proper chronological order in the chart
-    return weeklyData.length > 0 ? weeklyData.sort((a, b) => new Date(a.date) - new Date(b.date)) : dailyData;
-  };
-
-  // Detailed ranking trend chart showing rank changes over time
-  const DetailedTrendChart = ({ sectorOrIndustry, type = "sector" }) => {
-    const { data: trendData, isLoading } = useQuery({
-      queryKey: [
-        `detailed-trend-${type}`,
-        type === "sector" ? (sectorOrIndustry.sector_name || sectorOrIndustry.sector) : sectorOrIndustry.industry
-      ],
-      queryFn: async () => {
-        try {
-          const name = type === "sector" ? (sectorOrIndustry.sector_name || sectorOrIndustry.sector) : sectorOrIndustry.industry;
-          const endpoint = type === "sector"
-            ? `/api/sectors/${encodeURIComponent(name)}/trend?days=365`
-            : `/api/industries/${encodeURIComponent(name)}/trend?days=365`;
-          const response = await api.get(endpoint);
-          // responseFormatter wraps response in { success, data: {...}, timestamp }
-          return response?.data?.data || response?.data;
-        } catch (error) {
-          console.error(`Failed to fetch ${type} trend:`, error);
-          return null;
-        }
-      },
-      staleTime: 1000 * 60 * 10,
-      gcTime: 1000 * 60 * 10,
-      enabled: !!(type === "sector" ? (sectorOrIndustry.sector_name || sectorOrIndustry.sector) : sectorOrIndustry.industry),
-      retry: false,
-    });
-
-    if (isLoading) {
-      return (
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight={300}>
-          <LinearProgress sx={{ width: "50%" }} />
-        </Box>
-      );
-    }
-
-    if (!trendData?.trendData || trendData.trendData.length === 0) {
-      return (
-        <Typography variant="body2" color="text.secondary" align="center">
-          No ranking trend data available
-        </Typography>
-      );
-    }
-
-    // Use only real API data (no synthetic defaults) - include both rank and momentum score
-    let history = trendData?.trendData.map(row => {
-      // Use dailyStrengthScore, momentumScore, momentum, or avgPrice as fallback
-      let momentum = null;
-      if (row.dailyStrengthScore !== null && row.dailyStrengthScore !== undefined) {
-        momentum = parseFloat(row.dailyStrengthScore);
-      } else if (row.momentumScore !== null && row.momentumScore !== undefined) {
-        momentum = parseFloat(row.momentumScore);
-      } else if (row.momentum !== null && row.momentum !== undefined) {
-        momentum = parseFloat(row.momentum);
-      } else if (row.avgPrice !== null && row.avgPrice !== undefined) {
-        momentum = parseFloat(row.avgPrice);
-      }
-      return {
-        date: row.date,
-        label: row.label,
-        rank: row.rank ?? null,
-        momentum: momentum
-      };
-    });
-
-    const name = type === "sector" ? (sectorOrIndustry.sector_name || sectorOrIndustry.sector) : sectorOrIndustry.industry;
-
-    // DEBUG: Log rank and momentum data
-    if (history && history.length > 0) {
-      const uniqueRanks = [...new Set(history.map(h => h.rank))];
-      console.log(`[RANK TREND DEBUG] ${type}=${name} - Total points: ${history.length}, Unique ranks: ${uniqueRanks.length}`, {
-        ranks: uniqueRanks.slice(0, 10),
-        sample: history.slice(0, 3).map(h => ({ date: h.date, rank: h.rank, momentum: h.momentum }))
-      });
-    }
-
-    // Filter to last 3 months only (same as mini trend charts)
-    if (history.length > 0 && history[0].date) {
-      const threeMonthsAgo = new Date();
-      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-      history = history.filter(row => {
-        try {
-          const rowDate = new Date(row.date);
-          return rowDate >= threeMonthsAgo;
-        } catch {
-          return true;
-        }
-      });
-    }
-
-    // Smooth out data by aggregating to weekly (like the small trend charts)
-    history = aggregateToWeekly(history);
-
-    // Format date for x-axis display
-    // Find min and max ranks for better visualization
-    const ranks = history.map(h => h.rank).filter(r => r !== null && r !== undefined);
-    const minRank = ranks.length > 0 ? Math.min(...ranks) : 1;
-    const maxRank = ranks.length > 0 ? Math.max(...ranks) : 12;
-    const hasMomentum = history.some(h => h.momentum !== null && h.momentum !== undefined);
-
-    return (
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        {/* Ranking Summary */}
-        <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 1 }}>
-          <Box sx={{ p: 1.5, backgroundColor: "grey.50", borderRadius: 1 }}>
-            <Typography variant="caption" color="text.secondary" fontWeight="bold">
-              Current Rank
-            </Typography>
-            <Typography variant="body2">
-              #{history[history.length - 1]?.rank || "N/A"}
-            </Typography>
-          </Box>
-          <Box sx={{ p: 1.5, backgroundColor: "grey.50", borderRadius: 1 }}>
-            <Typography variant="caption" color="text.secondary" fontWeight="bold">
-              Best Rank
-            </Typography>
-            <Typography variant="body2">
-              #{minRank || "N/A"}
-            </Typography>
-          </Box>
-          <Box sx={{ p: 1.5, backgroundColor: "grey.50", borderRadius: 1 }}>
-            <Typography variant="caption" color="text.secondary" fontWeight="bold">
-              Worst Rank
-            </Typography>
-            <Typography variant="body2">
-              #{maxRank || "N/A"}
-            </Typography>
-          </Box>
-        </Box>
-
-        {/* Ranking Trend Chart - show rank if available, else avg price trend */}
-        {ranks.length > 0 ? (
-          <Box sx={{ width: "100%", height: 320, minHeight: 320, overflow: "hidden" }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={history} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 12 }} interval={Math.floor(history.length / 8)} tickFormatter={formatXAxisDate} />
-                <YAxis width={50} tick={{ fontSize: 12 }} reversed={true} label={{ value: 'Rank (Lower is Better)', angle: -90, position: 'insideLeft' }} />
-                <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', border: '1px solid #ccc' }} formatter={(value) => `#${value}`} labelFormatter={(label) => `Date: ${formatXAxisDate(label)}`} />
-                <Legend />
-                <Line type="monotone" dataKey="rank" stroke="#2196F3" name="Ranking" dot={false} strokeWidth={2} isAnimationActive={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </Box>
-        ) : hasMomentum ? (
-          <Box sx={{ width: "100%", height: 320, minHeight: 320, overflow: "hidden" }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>Avg Price Trend (historical rank data not available)</Typography>
-            <ResponsiveContainer width="100%" height="90%">
-              <LineChart data={history} margin={{ top: 5, right: 30, left: 60, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 12 }} interval={Math.floor(history.length / 8)} tickFormatter={formatXAxisDate} />
-                <YAxis width={50} tick={{ fontSize: 12 }} label={{ value: 'Avg Price ($)', angle: -90, position: 'insideLeft' }} />
-                <Tooltip contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', border: '1px solid #ccc' }} formatter={(value) => typeof value === 'number' ? `$${value.toFixed(2)}` : value} labelFormatter={(label) => `Date: ${formatXAxisDate(label)}`} />
-                <Legend />
-                <Line type="monotone" dataKey="momentum" stroke="#E91E63" name="Avg Price" dot={false} strokeWidth={2} isAnimationActive={false} connectNulls />
-              </LineChart>
-            </ResponsiveContainer>
-          </Box>
-        ) : (
-          <Typography variant="body2" color="text.secondary" align="center">No historical trend data available</Typography>
-        )}
-      </Box>
-    );
-  };
-
-  // Consolidated trend chart wrapper for both sectors and industries
-  const TrendChartWrapper = ({ type = 'sector', data, width, height }) => {
-    // Determine query key and identifier based on type
-    const identifier = type === 'sector'
-      ? (data.sector || data.sector_name)
-      : data.industry;
-
-    // API endpoint and query configuration
-    const queryConfig = type === 'sector'
-      ? { endpoint: `/api/sectors/${encodeURIComponent(identifier)}/trend?days=365`, key: ["sector-trend", identifier] }
-      : { endpoint: `/api/industries/${encodeURIComponent(identifier)}/trend?days=365`, key: ["industry-trend", identifier] };
-
-    // Fallback periods based on type
-    const fallbackPeriods = type === 'sector'
-      ? [
-          { period: "12W", rank: data.rank_12w_ago || data.rank_12w_ago === 0 ? data.rank_12w_ago : null },
-          { period: "4W", rank: data.rank_4w_ago || data.rank_4w_ago === 0 ? data.rank_4w_ago : null },
-          { period: "1W", rank: data.rank_1w_ago || data.rank_1w_ago === 0 ? data.rank_1w_ago : null },
-          { period: "Now", rank: data.current_rank || data.overall_rank },
-        ]
-      : [
-          { period: "8W", rank: data.rank_8w_ago || data.rank_8w_ago === 0 ? data.rank_8w_ago : null },
-          { period: "4W", rank: data.rank_4w_ago || data.rank_4w_ago === 0 ? data.rank_4w_ago : null },
-          { period: "1W", rank: data.rank_1w_ago || data.rank_1w_ago === 0 ? data.rank_1w_ago : null },
-          { period: "Now", rank: data.current_rank },
-        ];
-
-    // Fetch full trend data from API
-    const { data: trendResponse } = useQuery({
-      queryKey: queryConfig.key,
-      queryFn: async () => {
-        try {
-          const response = await api.get(queryConfig.endpoint);
-          // responseFormatter wraps response in { success, data: {...}, timestamp }
-          return response?.data?.data || response?.data;
-        } catch (error) {
-          console.error(`Failed to fetch ${type} trend:`, error);
-          return null;
-        }
-      },
-      staleTime: 1000 * 60 * 10,
-      gcTime: 1000 * 60 * 10,
-      enabled: !!identifier,
-      retry: false,
-    });
-
-    // Use API data if available and has rank values, otherwise fall back to summary data
-    const apiTrendHasRanks = trendResponse?.trendData?.some(r => r.rank != null);
-    let trendData = apiTrendHasRanks
-      ? trendResponse.trendData.map(row => ({
-          date: row.date,
-          label: row.label,
-          rank: row.rank
-        }))
-      : fallbackPeriods.filter(d => d.rank !== null);
-
-    // Filter to last 3 months only
-    if (trendData.length > 0 && trendData[0].date) {
-      const threeMonthsAgo = new Date();
-      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-      trendData = trendData.filter(row => {
-        try {
-          const rowDate = new Date(row.date);
-          return rowDate >= threeMonthsAgo;
-        } catch {
-          return true;
-        }
-      });
-    }
-
-    // Aggregate to weekly data for smoother visualization
-    trendData = aggregateToWeekly(trendData);
-
-    const props = { data: trendData };
-    if (width) props.width = width;
-    if (height) props.height = height;
-    return <TrendChart {...props} />;
-  };
-
-  // Legacy component wrappers for backwards compatibility
-  const SectorTrendChart = ({ sector }) => <TrendChartWrapper type="sector" data={sector} />;
-  const IndustryTrendChart = ({ industry }) => <TrendChartWrapper type="industry" data={industry} width={90} height={35} />;
-
-  // Component to render top performing companies for an industry
-  const TopPerformingCompaniesGrid = ({ industry }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
-    const [companies, setCompanies] = useState([]);
-    const [isLoading, setIsLoading] = useState(false);
-
-    const handleToggle = async () => {
-      if (isExpanded) {
-        setIsExpanded(false);
-      } else {
-        setIsExpanded(true);
-
-        if (companies.length === 0 && !isLoading) {
-          setIsLoading(true);
-          try {
-            // Fetch top 10 performing stocks in this industry, sorted by composite score
-            const response = await api.get(
-              `/api/scores/stockscores?limit=100&sortBy=composite_score&sortOrder=desc`
-            );
-            // Get response data with proper structure
-            const stocksList = response?.data?.items || [];
-
-            setCompanies(stocksList || []);
-          } catch (err) {
-            console.error(`Failed to fetch companies for ${industry.industry}:`, err);
-            setCompanies([]);
-          } finally {
-            setIsLoading(false);
-          }
-        }
-      }
-    };
-
-    return (
-      <Box>
-        <Box
-          onClick={handleToggle}
-          sx={{
-            p: 1.5,
-            backgroundColor: "action.hover",
-            border: "1px solid",
-            borderColor: "divider",
-            borderRadius: 1,
-            cursor: "pointer",
-            transition: "all 0.2s",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            "&:hover": {
-              backgroundColor: "action.selected",
-              borderColor: "primary.main",
-            },
-          }}
-        >
-          <Typography variant="body2" fontWeight="600">
-            {isExpanded ? "Hide" : "Show"} Top Performing Companies
-          </Typography>
-          <Typography variant="body2" sx={{ color: "primary.main", fontWeight: "bold" }}>
-            {isExpanded ? "−" : "+"}
-          </Typography>
-        </Box>
-
-        {isExpanded && (
-          <Box sx={{ mt: 2, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 1.5 }}>
-            {isLoading ? (
-              <Box sx={{ gridColumn: "1 / -1", textAlign: "center", py: 2 }}>
-                <Typography variant="body2" color="text.secondary">Loading companies...</Typography>
-              </Box>
-            ) : companies.length > 0 ? (
-              companies.map((company) => (
-                <Box
-                  key={company.symbol}
-                  sx={{
-                    p: 1.5,
-                    backgroundColor: "background.paper",
-                    border: "1px solid",
-                    borderColor: "divider",
-                    borderRadius: 1,
-                    transition: "all 0.2s",
-                    "&:hover": {
-                      boxShadow: 2,
-                      borderColor: "primary.main",
-                    },
-                  }}
-                >
-                  <Typography variant="caption" fontWeight="bold" display="block" sx={{ mb: 0.5 }}>
-                    {company.symbol}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.75, fontSize: "0.75rem" }}>
-                    {(company.company_name || company.fullName)?.substring(0, 40)}
-                  </Typography>
-
-                  {/* Show company metrics */}
-                  <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
-                    {company.price?.current && (
-                      <Typography variant="caption" display="block" sx={{ fontSize: "0.7rem" }}>
-                        Price: <strong>${parseFloat(company.price.current).toFixed(2)}</strong>
-                      </Typography>
-                    )}
-                    {company.marketCap && (
-                      <Typography variant="caption" display="block" sx={{ fontSize: "0.7rem" }}>
-                        Market Cap: <strong>${(company.marketCap / 1e9).toFixed(1)}B</strong>
-                      </Typography>
-                    )}
-                    {company.exchange && (
-                      <Typography variant="caption" display="block" sx={{ fontSize: "0.7rem", color: "text.secondary" }}>
-                        {company.exchange}
-                      </Typography>
-                    )}
-                  </Box>
-                </Box>
-              ))
-            ) : (
-              <Box sx={{ gridColumn: "1 / -1", textAlign: "center", py: 2 }}>
-                <Typography variant="body2" color="text.secondary">No companies found</Typography>
-              </Box>
-            )}
-          </Box>
-        )}
-      </Box>
-    );
-  };
-
-  // Component to render industry cards grid (simplified - no expandable dropdowns)
-  const IndustryCardsGrid = ({ industries }) => {
-    return (
-      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 1 }}>
-        {industries
-          .sort((a, b) => {
-            const rankA = a.current_rank ?? 9999;
-            const rankB = b.current_rank ?? 9999;
-            return rankA - rankB;
-          })
-          .map((industry) => (
-            <Box
-              key={industry.industry}
-              sx={{
-                p: 1.5,
-                backgroundColor: "background.paper",
-                border: "1px solid",
-                borderColor: "divider",
-                borderRadius: 1,
-                transition: "all 0.2s",
-                "&:hover": {
-                  boxShadow: 1,
-                  borderColor: "primary.main",
-                },
-              }}
-            >
-              <Typography variant="caption" fontWeight="600" display="block">
-                #{industry.current_rank || "N/A"}: {industry.industry}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25 }}>
-                {formatPercentageChange(industry.performance_1d)} (1D) | {industry.stock_count} stocks
-              </Typography>
-            </Box>
-          ))}
-      </Box>
-    );
-  };
-
-  // Fetch sector performance data (consolidated /api/sectors endpoint)
-  const { data: rotationData, isLoading: rotationLoading, error: rotationError } = useQuery({
-    queryKey: ["sector-performance"],
-    queryFn: async () => {
-      const response = await api.get("/api/sectors?limit=500");
-      // Response format: { success: true, items: [...sectors], pagination: {...}, timestamp: ... }
-      return response.data.items || [];
-    },
-    staleTime: 1000 * 60 * 5,
-    gcTime: 1000 * 60 * 10,
-    enabled: true,
+  const { data: resp, isLoading } = useQuery({
+    queryKey: [`${type}-strength`, name],
+    queryFn: () => api.get(endpoint).then(r => r.data?.data || r.data).catch(() => null),
+    enabled: !!name,
+    staleTime: 1000 * 60 * 10,
     retry: false,
   });
 
-  // Fetch industry performance data from /api/industries endpoint
-  const { data: industryData, isLoading: industryLoading, error: industryError } = useQuery({
-    queryKey: ["industry-performance"],
-    queryFn: async () => {
-      const response = await api.get("/api/industries");
-      // Response format: { success: true, items: [...industries], pagination: {...}, timestamp: ... }
-      const industriesArray = response.data.items || [];
+  if (isLoading) return <Empty title="Loading…" />;
 
-      return industriesArray.map(ind => ({
-        industry: ind.industry,
-        sector: ind.sector,
-        current_rank: ind.current_rank,
-        rank_1w_ago: ind.rank_1w_ago,
-        rank_4w_ago: ind.rank_4w_ago,
-        rank_12w_ago: ind.rank_12w_ago,
-        current_momentum: ind.current_momentum,
-        performance_1d: ind.performance_1d,
-        performance_5d: ind.performance_5d,
-        performance_20d: ind.performance_20d,
-        current_trend: ind.current_trend
-      }));
-    },
-    staleTime: 1000 * 60 * 5,
-    gcTime: 1000 * 60 * 10,
-    enabled: true,
-    retry: false,
-  });
+  const trendArr = resp?.trendData || [];
+  const firstAvgPrice = trendArr[0]?.avgPrice || null;
+  const raw = trendArr.map(d => ({
+    ...d,
+    dailyStrengthScore: d.dailyStrengthScore != null
+      ? Number(d.dailyStrengthScore)
+      : (firstAvgPrice ? ((Number(d.avgPrice) / firstAvgPrice) - 1) * 100 : null),
+  }));
+  const enriched = enrichWithMAs(raw);
+  const filtered = filterByRange(enriched, range);
 
-  // Update lastUpdate timestamp when sectors data loads (industries optional)
-  useEffect(() => {
-    // Update when sectors are loaded (industries are optional for display)
-    // rotationData is already { sectors: [...] }, not { data: { sectors: [...] } }
-    if (rotationData?.length > 0) {
-      setLastUpdate(new Date());
-    }
-  }, [rotationData]);
+  const data = filtered.map(r => ({
+    date: r.date,
+    price: r.dailyStrengthScore != null ? Number(r.dailyStrengthScore) : null,
+    ma_10: r.ma_10 != null ? Number(r.ma_10) : null,
+    ma_20: r.ma_20 != null ? Number(r.ma_20) : null,
+  })).filter(r => r.price !== null);
 
+  if (data.length === 0) {
+    return <Empty title="No daily strength data available" />;
+  }
 
-  // DEBUG: Log sector historical data
-  useEffect(() => {
-    if (rotationData && Array.isArray(rotationData) && rotationData.length > 0) {
-      console.log(`[SECTORS API] Total sectors returned: ${rotationData.length}`);
-      console.log(`[SECTOR CHART DATA] Sectors available for chart:`, rotationData.map(s => ({ name: s.sector_name, perf_1d: s.current_perf_1d })));
-      console.log(`[SECTOR HISTORICAL RANK CHECK] Sample of sectors with historical data:`);
-      rotationData.slice(0, 5).forEach((sector, idx) => {
-        console.log(`  [${idx}] ${sector.sector_name || sector.sector}: current=${sector.current_rank || sector.overall_rank} | 1d_perf=${sector.current_perf_1d} | 1w_ago=${sector.rank_1w_ago} | 4w_ago=${sector.rank_4w_ago} | 12w_ago=${sector.rank_12w_ago}`);
-      });
-    } else {
-      console.log(`[SECTORS API] No sectors data available:`, rotationData);
-    }
-  }, [rotationData]);
-
-  // Render sectors if sectors data is available (industries are optional for filtering)
-  const shouldRenderSectors = rotationData && rotationData.length > 0;
-
-  const formatTimeAgo = (date) => {
-    const seconds = Math.floor((new Date() - date) / 1000);
-    if (seconds < 60) return `${seconds}s ago`;
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    return `${hours}h ago`;
-  };
-
-  // Helper function to get performance value based on timeframe
-  const getPerformanceValue = (sector, timeframe) => {
-    switch(timeframe) {
-      case "1d":
-        return sector.current_perf_1d ?? sector.performance_1d;
-      case "5d":
-        return sector.current_perf_5d ?? sector.performance_5d;
-      case "20d":
-        return sector.current_perf_20d ?? sector.performance_20d;
-      case "ytd":
-        return sector.current_perf_ytd ?? sector.performance_ytd ?? sector.current_perf_1d ?? sector.performance_1d;
-      default:
-        return sector.current_perf_1d ?? sector.performance_1d;
-    }
-  };
-
-  // Prepare chart data from rotation data with vibrant colors
-  const chartData = (rotationData || [])
-    .filter((s) => {
-      const hasName = !!(s.sector_name || s.sector);
-      const perfValue = getPerformanceValue(s, performanceTimeframe);
-      const hasPerf = perfValue != null;
-      const perfIsNum = !isNaN(perfValue);
-      const passes = hasName && hasPerf && perfIsNum;
-      if (!passes) {
-        console.log(`[CHART FILTER] Filtered out:`, { name: s.sector_name, perf: perfValue, hasName, hasPerf, perfIsNum });
-      }
-      return passes;
-    })
-    .map((s, index) => {
-      const sectorName = s.sector_name || s.sector;
-      const perfValue = getPerformanceValue(s, performanceTimeframe);
-      return {
-        name: sectorName.length > 15 ? sectorName.substring(0, 15) + "..." : sectorName,
-        fullName: sectorName,
-        performance: parseFloat((perfValue ?? 0).toFixed(2)),
-        color: sectorColors[sectorName] || getVibrantColor(index),
-      };
-    })
-    .sort((a, b) => b.performance - a.performance);
-
-  console.log(`[CHART DATA] Final chart data points: ${chartData.length}`, chartData);
+  const xInterval = Math.max(1, Math.floor(data.length / 8));
+  const last = data[data.length - 1] || {};
+  const aboveMA20 = last.price != null && last.ma_20 != null && last.price > last.ma_20;
+  const aboveMA10 = last.price != null && last.ma_10 != null && last.price > last.ma_10;
+  const priceColor = aboveMA20 ? 'var(--success)' : aboveMA10 ? 'var(--amber)' : 'var(--danger)';
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
-      {/* Header */}
-      <Box display="flex" alignItems="center" justifyContent="between" mb={4}>
-        <Box>
-          <Typography variant="h3" component="h1" gutterBottom>
-            Sector Analysis
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Comprehensive sector performance analysis and comparisons
-          </Typography>
-          <Box display="flex" gap={1} mt={1}>
-            <Chip
-              label={`${rotationData?.length || 0} sectors`}
-              color="primary"
-              size="small"
-            />
-            <Chip
-              label={`Updated ${lastUpdate ? formatTimeAgo(lastUpdate) : "..."}`}
-              color="info"
-              size="small"
-              variant="outlined"
-            />
-          </Box>
-        </Box>
-      </Box>
+    <div style={{ width: '100%', height: 300 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+          <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
+          <XAxis
+            dataKey="date" stroke="var(--text-3)" fontSize={11}
+            interval={xInterval} tickFormatter={formatXAxisDate}
+          />
+          <YAxis stroke="var(--text-3)" fontSize={11} width={50} />
+          <Tooltip
+            contentStyle={TT_STYLE}
+            formatter={(v) => typeof v === 'number' ? v.toFixed(2) : v}
+            labelFormatter={(l) => formatXAxisDate(l)}
+          />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          <Line type="monotone" dataKey="price" stroke={priceColor} strokeWidth={2.5}
+                dot={false} connectNulls name="Daily Strength" isAnimationActive={false} />
+          <Line type="monotone" dataKey="ma_10" stroke="var(--cyan)" strokeWidth={1.5}
+                strokeDasharray="4 3" dot={false} connectNulls name="MA 10" isAnimationActive={false} />
+          <Line type="monotone" dataKey="ma_20" stroke="var(--purple)" strokeWidth={1.5}
+                strokeDasharray="4 3" dot={false} connectNulls name="MA 20" isAnimationActive={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
 
+// ─── Ranking Trend Chart ───────────────────────────────────────────────────
+function RankingTrendChart({ name, type, range }) {
+  const endpoint = type === 'sector'
+    ? `/api/sectors/${encodeURIComponent(name)}/trend?days=365`
+    : `/api/industries/${encodeURIComponent(name)}/trend?days=365`;
 
-      {/* Performance Overview */}
-      <Card sx={{ mb: 4 }}>
-        <CardContent>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-            <Typography
-              variant="h6"
-              display="flex"
-              alignItems="center"
-              gap={1}
-            >
-              <BarChart color="primary" />
-              Sector Performance
-            </Typography>
-            <Box display="flex" gap={1}>
-              {[
-                { value: "1d", label: "Daily" },
-                { value: "5d", label: "5D" },
-                { value: "20d", label: "Monthly" },
-              ].map((option) => (
-                <Box
-                  key={option.value}
-                  onClick={() => setPerformanceTimeframe(option.value)}
-                  sx={{
-                    px: 2,
-                    py: 0.5,
-                    cursor: "pointer",
-                    borderRadius: 1,
-                    backgroundColor: performanceTimeframe === option.value ? "primary.main" : "action.hover",
-                    color: performanceTimeframe === option.value ? "white" : "text.primary",
-                    fontWeight: performanceTimeframe === option.value ? 600 : 400,
-                    transition: "all 0.2s",
-                    "&:hover": {
-                      backgroundColor: performanceTimeframe === option.value ? "primary.dark" : "action.selected",
-                    },
-                  }}
-                >
-                  <Typography variant="caption">{option.label}</Typography>
-                </Box>
+  const { data: resp, isLoading } = useQuery({
+    queryKey: [`${type}-rank-trend`, name],
+    queryFn: () => api.get(endpoint).then(r => r.data?.data || r.data).catch(() => null),
+    enabled: !!name,
+    staleTime: 1000 * 60 * 10,
+    retry: false,
+  });
+
+  if (isLoading) return <Empty title="Loading…" />;
+
+  let history = (resp?.trendData || []).map(r => ({
+    date: r.date,
+    rank: r.rank ?? null,
+    momentum: r.dailyStrengthScore != null ? Number(r.dailyStrengthScore)
+            : r.momentumScore != null ? Number(r.momentumScore)
+            : r.momentum != null ? Number(r.momentum)
+            : r.avgPrice != null ? Number(r.avgPrice)
+            : null,
+  }));
+  history = filterByRange(history, range);
+
+  const ranks = history.map(h => h.rank).filter(r => r != null);
+  const minR = ranks.length ? Math.min(...ranks) : null;
+  const maxR = ranks.length ? Math.max(...ranks) : null;
+  const cur = ranks.length ? history[history.length - 1].rank : null;
+  const hasMomentum = history.some(h => h.momentum != null);
+
+  if (!ranks.length && !hasMomentum) {
+    return <Empty title="No historical trend data available" />;
+  }
+
+  return (
+    <div className="flex" style={{ flexDirection: 'column', gap: 'var(--space-3)' }}>
+      <div className="grid grid-3">
+        <div className="stile">
+          <div className="stile-label">Current</div>
+          <div className="stile-value">#{cur ?? '—'}</div>
+        </div>
+        <div className="stile">
+          <div className="stile-label">Best</div>
+          <div className="stile-value up">#{minR ?? '—'}</div>
+        </div>
+        <div className="stile">
+          <div className="stile-label">Worst</div>
+          <div className="stile-value down">#{maxR ?? '—'}</div>
+        </div>
+      </div>
+
+      <div style={{ width: '100%', height: 280 }}>
+        {ranks.length > 0 ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={history} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
+              <XAxis
+                dataKey="date" stroke="var(--text-3)" fontSize={11}
+                interval={Math.max(1, Math.floor(history.length / 8))}
+                tickFormatter={formatXAxisDate}
+              />
+              <YAxis
+                stroke="var(--text-3)" fontSize={11} reversed width={48}
+                label={{ value: 'Rank', angle: -90, position: 'insideLeft',
+                         fill: 'var(--text-3)', fontSize: 11 }}
+              />
+              <Tooltip
+                contentStyle={TT_STYLE}
+                formatter={(v) => `#${v}`}
+                labelFormatter={(l) => formatXAxisDate(l)}
+              />
+              <Line type="monotone" dataKey="rank" stroke="var(--brand)" strokeWidth={2}
+                    dot={false} name="Rank" isAnimationActive={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={history} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
+              <XAxis
+                dataKey="date" stroke="var(--text-3)" fontSize={11}
+                interval={Math.max(1, Math.floor(history.length / 8))}
+                tickFormatter={formatXAxisDate}
+              />
+              <YAxis stroke="var(--text-3)" fontSize={11} width={48} />
+              <Tooltip contentStyle={TT_STYLE} labelFormatter={(l) => formatXAxisDate(l)} />
+              <Line type="monotone" dataKey="momentum" stroke="var(--cyan)" strokeWidth={2}
+                    dot={false} name="Momentum" connectNulls isAnimationActive={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Mini sparkline for table row ──────────────────────────────────────────
+function SparklineTrend({ name, type }) {
+  const endpoint = type === 'sector'
+    ? `/api/sectors/${encodeURIComponent(name)}/trend?days=90`
+    : `/api/industries/${encodeURIComponent(name)}/trend?days=90`;
+
+  const { data: resp } = useQuery({
+    queryKey: [`${type}-sparkline`, name],
+    queryFn: () => api.get(endpoint).then(r => r.data?.data || r.data).catch(() => null),
+    enabled: !!name,
+    staleTime: 1000 * 60 * 10,
+    retry: false,
+  });
+
+  const rows = (resp?.trendData || []).filter(r => r.rank != null);
+  if (rows.length < 2) return <span className="t-xs muted">—</span>;
+
+  const data = rows.map(r => ({ date: r.date, rank: r.rank }));
+  return (
+    <div style={{ width: 90, height: 30 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
+          <YAxis hide reversed domain={['dataMin', 'dataMax']} />
+          <Line type="monotone" dataKey="rank" stroke="var(--brand)"
+                strokeWidth={1.5} dot={false} isAnimationActive={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ─── Top Companies for an industry ─────────────────────────────────────────
+function TopCompanies({ industry }) {
+  const [open, setOpen] = useState(false);
+  const { data, isLoading } = useQuery({
+    queryKey: ['industry-top-companies', industry],
+    queryFn: () =>
+      api.get('/api/scores/stockscores?limit=20&sortBy=composite_score&sortOrder=desc')
+        .then(r => r.data?.items || []).catch(() => []),
+    enabled: open,
+    staleTime: 1000 * 60 * 10,
+    retry: false,
+  });
+
+  return (
+    <div>
+      <button
+        type="button"
+        className="btn btn-outline btn-sm"
+        onClick={() => setOpen(!open)}
+        style={{ width: '100%', justifyContent: 'space-between' }}
+      >
+        <span>{open ? 'Hide' : 'Show'} top performing companies</span>
+        {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+      </button>
+
+      {open && (
+        <div style={{ marginTop: 'var(--space-3)' }}>
+          {isLoading ? (
+            <Empty title="Loading companies…" />
+          ) : !data || data.length === 0 ? (
+            <Empty title="No companies found" />
+          ) : (
+            <div className="grid grid-4">
+              {data.map(c => (
+                <div className="card" key={c.symbol} style={{ padding: 'var(--space-3)' }}>
+                  <div className="strong" style={{ fontWeight: 'var(--w-bold)' }}>{c.symbol}</div>
+                  <div className="t-xs muted" style={{
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {(c.company_name || c.fullName || '').substring(0, 40)}
+                  </div>
+                  {c.price?.current && (
+                    <div className="t-xs mono tnum" style={{ marginTop: 'var(--space-1)' }}>
+                      ${num(c.price.current)}
+                    </div>
+                  )}
+                  {c.marketCap && (
+                    <div className="t-2xs muted mono">
+                      ${(c.marketCap / 1e9).toFixed(1)}B
+                    </div>
+                  )}
+                </div>
               ))}
-            </Box>
-          </Box>
-          <Box width="100%" height={400} sx={{ overflow: "hidden", position: "relative", display: "block" }}>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Sector drill-down detail panel ────────────────────────────────────────
+function SectorDetail({ sector, industries }) {
+  const [range, setRange] = useState('3m');
+  const name = sector.sector_name || sector.sector;
+  const matched = (industries || []).filter(ind => {
+    const indSector = (ind.sector || ind.sector_name || '').trim();
+    return indSector === name.trim();
+  });
+
+  return (
+    <div className="card-body" style={{
+      background: 'var(--surface)',
+      borderTop: '1px solid var(--border)',
+    }}>
+      <div className="grid grid-4">
+        <Stile label="Rank" value={`#${sector.current_rank || sector.overall_rank || '—'}`} />
+        <Stile label="Momentum" value={sector.current_momentum || sector.momentum || '—'} />
+        <Stile label="Trend" value={sector.current_trend || sector.trend || '—'} />
+        <Stile
+          label="Trailing P/E"
+          value={sector.pe?.trailing != null ? sector.pe.trailing.toFixed(2) : '—'}
+        />
+      </div>
+
+      <div className="grid grid-3" style={{ marginTop: 'var(--space-4)' }}>
+        <Stile label="1W Ago" value={sector.rank_1w_ago != null ? `#${sector.rank_1w_ago}` : '—'} />
+        <Stile label="4W Ago" value={sector.rank_4w_ago != null ? `#${sector.rank_4w_ago}` : '—'} />
+        <Stile label="12W Ago" value={sector.rank_12w_ago != null ? `#${sector.rank_12w_ago}` : '—'} />
+      </div>
+
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card-head">
+          <div>
+            <div className="card-title">Ranking Trend</div>
+            <div className="card-sub">Historical rank position</div>
+          </div>
+          <TimeRangeChips value={range} onChange={setRange} />
+        </div>
+        <div className="card-body">
+          <RankingTrendChart name={name} type="sector" range={range} />
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card-head">
+          <div>
+            <div className="card-title">Daily Strength</div>
+            <div className="card-sub">Price proxy with MA10 / MA20 (color: above MA20 = green)</div>
+          </div>
+        </div>
+        <div className="card-body">
+          <DailyStrengthChart name={name} type="sector" range={range} />
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card-head">
+          <div>
+            <div className="card-title">Industries ({matched.length})</div>
+            <div className="card-sub">Members of {name}</div>
+          </div>
+        </div>
+        <div className="card-body">
+          {matched.length === 0 ? (
+            <div className="t-sm muted">No industries available</div>
+          ) : (
+            <div className="grid grid-3">
+              {matched
+                .slice()
+                .sort((a, b) => (a.current_rank ?? 9999) - (b.current_rank ?? 9999))
+                .map(ind => (
+                  <div key={ind.industry} className="card" style={{ padding: 'var(--space-3)' }}>
+                    <div className="t-xs muted">#{ind.current_rank ?? '—'}</div>
+                    <div className="strong t-sm" style={{ fontWeight: 'var(--w-semibold)' }}>
+                      {ind.industry}
+                    </div>
+                    <div className="t-xs muted" style={{ marginTop: 'var(--space-1)' }}>
+                      <span className={`mono tnum ${pctClass(ind.performance_1d)}`}>
+                        {fmtPct(ind.performance_1d)}
+                      </span>
+                      <span className="muted"> · {ind.stock_count || 0} stocks</span>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Industry drill-down detail panel ──────────────────────────────────────
+function IndustryDetail({ industry }) {
+  const [range, setRange] = useState('3m');
+  return (
+    <div className="card-body" style={{
+      background: 'var(--surface)',
+      borderTop: '1px solid var(--border)',
+    }}>
+      <div className="grid grid-4">
+        <Stile label="Sector" value={industry.sector || '—'} />
+        <Stile label="Stocks" value={industry.stock_count || 0} />
+        <Stile label="Momentum" value={industry.current_momentum || '—'} />
+        <Stile label="Trend" value={industry.current_trend || '—'} />
+      </div>
+
+      <div className="grid grid-3" style={{ marginTop: 'var(--space-4)' }}>
+        <Stile label="1W Ago" value={industry.rank_1w_ago != null ? `#${industry.rank_1w_ago}` : '—'} />
+        <Stile label="4W Ago" value={industry.rank_4w_ago != null ? `#${industry.rank_4w_ago}` : '—'} />
+        <Stile label="12W Ago" value={industry.rank_12w_ago != null ? `#${industry.rank_12w_ago}` : '—'} />
+      </div>
+
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card-head">
+          <div>
+            <div className="card-title">Ranking Trend</div>
+            <div className="card-sub">Historical rank position</div>
+          </div>
+          <TimeRangeChips value={range} onChange={setRange} />
+        </div>
+        <div className="card-body">
+          <RankingTrendChart name={industry.industry} type="industry" range={range} />
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card-head">
+          <div>
+            <div className="card-title">Daily Strength</div>
+            <div className="card-sub">Price proxy with MA10 / MA20</div>
+          </div>
+        </div>
+        <div className="card-body">
+          <DailyStrengthChart name={industry.industry} type="industry" range={range} />
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card-head">
+          <div>
+            <div className="card-title">Top Performing Companies</div>
+            <div className="card-sub">{industry.industry}</div>
+          </div>
+        </div>
+        <div className="card-body">
+          <TopCompanies industry={industry.industry} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Sectors view ──────────────────────────────────────────────────────────
+function SectorsView({ sectors, industries, isLoading, error }) {
+  const [perfRange, setPerfRange] = useState('1d');
+  const [expanded, setExpanded] = useState(null);
+
+  const performanceVal = (s, range) => {
+    switch (range) {
+      case '5d': return s.current_perf_5d ?? s.performance_5d;
+      case '20d': return s.current_perf_20d ?? s.performance_20d;
+      case 'ytd': return s.current_perf_ytd ?? s.performance_ytd ?? s.current_perf_1d ?? s.performance_1d;
+      default: return s.current_perf_1d ?? s.performance_1d;
+    }
+  };
+
+  const chartData = useMemo(() => {
+    return (sectors || [])
+      .filter(s => {
+        const name = s.sector_name || s.sector;
+        const v = performanceVal(s, perfRange);
+        return name && v != null && !isNaN(Number(v));
+      })
+      .map((s, i) => {
+        const name = s.sector_name || s.sector;
+        return {
+          name: name.length > 16 ? `${name.slice(0, 16)}…` : name,
+          fullName: name,
+          performance: Number(Number(performanceVal(s, perfRange)).toFixed(2)),
+          color: colorFor(name, i),
+        };
+      })
+      .sort((a, b) => b.performance - a.performance);
+  }, [sectors, perfRange]);
+
+  const sortedSectors = useMemo(() => {
+    return (sectors || [])
+      .filter(s => s.sector_name || s.sector)
+      .slice()
+      .sort((a, b) =>
+        (a.current_rank ?? a.overall_rank ?? 999) -
+        (b.current_rank ?? b.overall_rank ?? 999)
+      );
+  }, [sectors]);
+
+  return (
+    <>
+      <div className="card">
+        <div className="card-head">
+          <div>
+            <div className="card-title">Sector Performance</div>
+            <div className="card-sub">Ranked by selected timeframe return</div>
+          </div>
+          <div className="flex gap-2">
+            {[
+              { v: '1d', label: 'Daily' },
+              { v: '5d', label: '5D' },
+              { v: '20d', label: '20D' },
+              { v: 'ytd', label: 'YTD' },
+            ].map(o => (
+              <button
+                key={o.v}
+                type="button"
+                className={`btn btn-sm ${perfRange === o.v ? 'btn-primary' : 'btn-outline'}`}
+                onClick={() => setPerfRange(o.v)}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="card-body" style={{ height: 380 }}>
+          {chartData.length === 0 ? (
+            <Empty title="No sector performance data" />
+          ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <RechartsBarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
+              <BarChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 80 }}>
+                <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
                 <XAxis
-                  dataKey="name"
-                  angle={-45}
-                  textAnchor="end"
-                  height={80}
-                  interval={0}
+                  dataKey="name" stroke="var(--text-3)" fontSize={11}
+                  angle={-45} textAnchor="end" height={70} interval={0}
                 />
-                <YAxis />
+                <YAxis stroke="var(--text-3)" fontSize={11}
+                       tickFormatter={(v) => `${v}%`} />
                 <Tooltip
-                  formatter={(value) => [`${value}%`, "Performance"]}
+                  contentStyle={TT_STYLE}
+                  formatter={(v) => [`${v}%`, 'Performance']}
+                  labelFormatter={(l, p) => p?.[0]?.payload?.fullName || l}
                 />
-                <Bar
-                  dataKey="performance"
-                  fill={(entry) => entry.color}
-                  radius={[4, 4, 0, 0]}
-                >
-                  {(chartData || []).map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                <Bar dataKey="performance" radius={[4, 4, 0, 0]}>
+                  {chartData.map((d, i) => (
+                    <Cell key={i} fill={d.performance >= 0 ? 'var(--success)' : 'var(--danger)'} />
                   ))}
                 </Bar>
-              </RechartsBarChart>
+              </BarChart>
             </ResponsiveContainer>
-          </Box>
-        </CardContent>
-      </Card>
-
-      {/* Sector Rankings */}
-      <Card sx={{ mb: 4 }}>
-        <CardContent>
-          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-            Sector Rankings
-          </Typography>
-          {rotationLoading ? (
-            <Box display="flex" justifyContent="center" py={4}>
-              <LinearProgress sx={{ width: "50%" }} />
-            </Box>
-          ) : rotationError ? (
-            <Alert severity="warning">
-              Sector data not available.
-            </Alert>
-          ) : !rotationData?.length ? (
-            <Alert severity="info">
-              No sector data available.
-            </Alert>
-          ) : !shouldRenderSectors ? (
-            <Box display="flex" justifyContent="center" py={4}>
-              <LinearProgress sx={{ width: "50%" }} />
-            </Box>
-          ) : (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-              {/* Header Row */}
-              <Box sx={{ display: "flex", mb: 1, px: 2 }}>
-                <Grid container spacing={2} alignItems="center" sx={{ width: "100%", fontWeight: "bold" }}>
-                  <Grid item xs={12} sm={1.5}>
-                    <Typography variant="caption" fontWeight="bold">Sector</Typography>
-                  </Grid>
-                  <Grid item xs={3} sm={1.2}>
-                    <Typography variant="caption" fontWeight="bold" align="center">Rank</Typography>
-                  </Grid>
-                  <Grid item xs={3} sm={1}>
-                    <Typography variant="caption" fontWeight="bold" align="center">1W Ago</Typography>
-                  </Grid>
-                  <Grid item xs={3} sm={1}>
-                    <Typography variant="caption" fontWeight="bold" align="center">4W Ago</Typography>
-                  </Grid>
-                  <Grid item xs={3} sm={1}>
-                    <Typography variant="caption" fontWeight="bold" align="center">8W Ago</Typography>
-                  </Grid>
-                  <Grid item xs={3} sm={1.2}>
-                    <Typography variant="caption" fontWeight="bold" align="center">Momentum</Typography>
-                  </Grid>
-                  <Grid item xs={3} sm={1.2}>
-                    <Typography variant="caption" fontWeight="bold" align="center">Trend</Typography>
-                  </Grid>
-                  <Grid item xs={3} sm={1}>
-                    <Typography variant="caption" fontWeight="bold" align="right">1D%</Typography>
-                  </Grid>
-                  <Grid item xs={3} sm={1}>
-                    <Typography variant="caption" fontWeight="bold" align="right">5D%</Typography>
-                  </Grid>
-                  <Grid item xs={3} sm={1}>
-                    <Typography variant="caption" fontWeight="bold" align="right">20D%</Typography>
-                  </Grid>
-                </Grid>
-              </Box>
-              {(rotationData || [])
-                .filter((s) => s.sector_name || s.sector)
-                .sort((a, b) => (a.current_rank ?? a.overall_rank ?? 999) - (b.current_rank ?? b.overall_rank ?? 999))
-                .map((sector, index) => {
-                // Find matching industries for this sector
-                // Industries API returns `sector` field, Sectors API returns `sector_name`
-                const sectorName = sector.sector_name || sector.sector;
-
-                const sectorIndustries = (industryData || []).filter(
-                  (ind) => {
-                    // Filter industries that belong to this sector using sector field from API
-                    // Normalize BOTH sides to ensure proper matching across API naming conventions
-                    const indSector = ind.sector || ind.sector_name || '';
-                    return normalizeSectorName(indSector) === normalizeSectorName(sectorName);
-                  }
-                );
-
-                return (
-                  <Accordion key={`${sector.sector_name || sector.sector}-${index}`} defaultExpanded={index === 0} sx={{ border: "1px solid", borderColor: "divider" }}>
-                    <AccordionSummary
-                      expandIcon={<ExpandMore />}
-                      sx={{
-                        backgroundColor: "grey.50",
-                        "&:hover": { backgroundColor: "grey.100" },
-                        overflow: "visible",
-                        minHeight: "60px",
-                      }}
-                    >
-                      <Grid container spacing={1} alignItems="center" sx={{ width: "100%", overflow: "visible" }}>
-                        <Grid item xs={12} sm={1.5}>
-                          <Typography variant="body2" fontWeight="bold">
-                            {sector.sector_name || sector.sector}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={3} sm={1.2}>
-                          <Chip
-                            label={`#${sector.current_rank || sector.overall_rank || "N/A"}`}
-                            size="small"
-                            color="primary"
-                            variant="outlined"
-                          />
-                        </Grid>
-                        <Grid item xs={3} sm={1}>
-                          <Typography variant="caption" fontWeight="bold" align="center">
-                            {sector.rank_1w_ago !== null && sector.rank_1w_ago !== undefined ? sector.rank_1w_ago : "—"}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={3} sm={1}>
-                          <Typography variant="caption" fontWeight="bold" align="center">
-                            {sector.rank_4w_ago !== null && sector.rank_4w_ago !== undefined ? sector.rank_4w_ago : "—"}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={3} sm={1}>
-                          <Typography variant="caption" fontWeight="bold" align="center">
-                            {sector.rank_12w_ago !== null && sector.rank_12w_ago !== undefined ? sector.rank_12w_ago : "—"}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={3} sm={1.2}>
-                          <Chip
-                            label={sector.current_momentum || sector.momentum || "N/A"}
-                            size="small"
-                            color={
-                              (sector.current_momentum || sector.momentum) === "Strong"
-                                ? "success"
-                                : (sector.current_momentum || sector.momentum) === "Moderate"
-                                  ? "info"
-                                  : "default"
-                            }
-                          />
-                        </Grid>
-                        <Grid item xs={3} sm={1.2}>
-                          {(() => {
-                            const { icon: Icon, color } = getTrendIcon(sector.current_trend || sector.trend);
-                            return <Icon sx={{ color, fontSize: 24, mx: "auto" }} title={sector.current_trend || sector.trend || "—"} />;
-                          })()}
-                        </Grid>
-                        <Grid item xs={3} sm={1}>
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              color: getChangeColor(sector.current_perf_1d ?? sector.performance_1d),
-                              fontWeight: 600,
-                            }}
-                            align="right"
-                          >
-                            {formatPercentageChange(sector.current_perf_1d ?? sector.performance_1d)}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={3} sm={1}>
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              color: getChangeColor(sector.current_perf_5d ?? sector.performance_5d),
-                              fontWeight: 600,
-                            }}
-                            align="right"
-                          >
-                            {formatPercentageChange(sector.current_perf_5d ?? sector.performance_5d)}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={3} sm={1}>
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              color: getChangeColor(sector.current_perf_20d ?? sector.performance_20d),
-                              fontWeight: 600,
-                            }}
-                            align="right"
-                          >
-                            {formatPercentageChange(sector.current_perf_20d ?? sector.performance_20d)}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={12} sm={1.5} sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60px" }}>
-                          <SectorTrendChart sector={sector} />
-                        </Grid>
-                      </Grid>
-                    </AccordionSummary>
-                    <AccordionDetails sx={{ backgroundColor: "grey.25", p: 2 }}>
-                      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                        {/* Metrics Section */}
-                        <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 2 }}>
-                          <Box>
-                            <Typography variant="caption" color="text.secondary" fontWeight="bold">📊 Current Ranking</Typography>
-                            <Typography variant="body2">
-                              • Overall Rank: #{sector.current_rank || sector.overall_rank || "N/A"}
-                            </Typography>
-                            <Typography variant="body2">
-                              • Momentum: {sector.current_momentum || sector.momentum || "N/A"}
-                            </Typography>
-                            <Typography variant="body2">
-                              • Trend: {sector.current_trend || sector.trend || "N/A"}
-                            </Typography>
-                          </Box>
-                          <Box>
-                            <Typography variant="caption" color="text.secondary" fontWeight="bold">📈 Performance Metrics</Typography>
-                            <Typography variant="body2">
-                              • 1-Day: {formatPercentageChange(sector.current_perf_1d ?? sector.performance_1d)}
-                            </Typography>
-                            <Typography variant="body2">
-                              • 5-Day: {formatPercentageChange(sector.current_perf_5d ?? sector.performance_5d)}
-                            </Typography>
-                            <Typography variant="body2">
-                              • 20-Day: {formatPercentageChange(sector.current_perf_20d ?? sector.performance_20d)}
-                            </Typography>
-                          </Box>
-                          <Box>
-                            <Typography variant="caption" color="text.secondary" fontWeight="bold">📅 Historical Ranks</Typography>
-                            <Typography variant="body2">
-                              • 1W Ago: {sector.rank_1w_ago !== null && sector.rank_1w_ago !== undefined ? `#${sector.rank_1w_ago}` : "—"}
-                            </Typography>
-                            <Typography variant="body2">
-                              • 4W Ago: {sector.rank_4w_ago !== null && sector.rank_4w_ago !== undefined ? `#${sector.rank_4w_ago}` : "—"}
-                            </Typography>
-                            <Typography variant="body2">
-                              • 12W Ago: {sector.rank_12w_ago !== null && sector.rank_12w_ago !== undefined ? `#${sector.rank_12w_ago}` : "—"}
-                            </Typography>
-                          </Box>
-                          <Box>
-                            <Typography variant="caption" color="text.secondary" fontWeight="bold">💰 P/E Valuation</Typography>
-                            <Typography variant="body2">
-                              • Trailing P/E: {sector.pe?.trailing ? sector.pe.trailing.toFixed(2) : "—"}
-                            </Typography>
-                            <Typography variant="body2">
-                              • Forward P/E: {sector.pe?.forward ? sector.pe.forward.toFixed(2) : "—"}
-                            </Typography>
-                            <Typography variant="body2">
-                              • Percentile: {sector.pe?.percentile != null ? `${Math.round(sector.pe.percentile)}th` : "—"}
-                            </Typography>
-                          </Box>
-                        </Box>
-
-                        {/* P/E Trend Chart */}
-                        <PETrendChart sectorName={sector.sector_name} />
-
-                        {/* Ranking Trend Section */}
-                        <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2 }}>
-                          <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-                            📊 Ranking Trend (Historical)
-                          </Typography>
-                          <DetailedTrendChart sectorOrIndustry={sector} type="sector" />
-                        </Box>
-
-                        {/* Momentum Score Chart - Same Historical Data as Trend Chart */}
-                        <SectorMomentumChart sector={sector} aggregateToWeekly={aggregateToWeekly} />
-
-                        {/* Industries Section */}
-                        <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2 }}>
-                          <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1 }}>
-                            📁 Industries ({sectorIndustries.length})
-                          </Typography>
-                          {sectorIndustries.length > 0 ? (
-                            <IndustryCardsGrid industries={sectorIndustries} />
-                          ) : (
-                            <Typography variant="caption" color="text.secondary">
-                              No industries available
-                            </Typography>
-                          )}
-                        </Box>
-                      </Box>
-                    </AccordionDetails>
-                  </Accordion>
-                );
-              })}
-            </Box>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* Top Industry Rankings */}
-      <Card sx={{ mb: 4 }}>
-        <CardContent>
-          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-            Industry Rankings
-          </Typography>
-          {industryLoading ? (
-            <Box display="flex" justifyContent="center" py={4}>
-              <LinearProgress sx={{ width: "50%" }} />
-            </Box>
-          ) : industryError || !industryData?.length ? (
-            <Alert severity="info" sx={{ mb: 2 }}>
-              Industry performance data is currently loading or unavailable.
-              {industryError && " The data will appear once the industry loader completes."}
-            </Alert>
+      <div className="card" style={{ marginTop: 'var(--space-4)' }}>
+        <div className="card-head">
+          <div>
+            <div className="card-title">Sector Rankings</div>
+            <div className="card-sub">Click a row to drill into trends, daily strength, industries</div>
+          </div>
+        </div>
+        <div className="card-body" style={{ padding: 0 }}>
+          {error ? (
+            <div className="alert alert-warn" style={{ margin: 'var(--space-4)' }}>
+              <AlertCircle size={16} /><div>Sector data not available.</div>
+            </div>
+          ) : isLoading ? (
+            <Empty title="Loading sectors…" />
+          ) : sortedSectors.length === 0 ? (
+            <Empty title="No sector data available" />
           ) : (
-            <>
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                {/* Header Row */}
-                <Box sx={{ display: "flex", mb: 1, px: 2 }}>
-                  <Grid container spacing={2} alignItems="center" sx={{ width: "100%", fontWeight: "bold" }}>
-                    <Grid item xs={2} sm={0.8}>
-                      <Typography variant="caption" fontWeight="bold" align="center">Rank</Typography>
-                    </Grid>
-                    <Grid item xs={12} sm={2}>
-                      <Typography variant="caption" fontWeight="bold">Industry</Typography>
-                    </Grid>
-                    <Grid item xs={2} sm={1}>
-                      <Typography variant="caption" fontWeight="bold" align="center">1W Ago</Typography>
-                    </Grid>
-                    <Grid item xs={2} sm={1}>
-                      <Typography variant="caption" fontWeight="bold" align="center">4W Ago</Typography>
-                    </Grid>
-                    <Grid item xs={2} sm={1}>
-                      <Typography variant="caption" fontWeight="bold" align="center">12W Ago</Typography>
-                    </Grid>
-                    <Grid item xs={2} sm={1.2}>
-                      <Typography variant="caption" fontWeight="bold" align="center">Momentum</Typography>
-                    </Grid>
-                    <Grid item xs={2} sm={1.2}>
-                      <Typography variant="caption" fontWeight="bold" align="center">Trend</Typography>
-                    </Grid>
-                    <Grid item xs={2} sm={0.8}>
-                      <Typography variant="caption" fontWeight="bold" align="right">1D%</Typography>
-                    </Grid>
-                    <Grid item xs={2} sm={0.8}>
-                      <Typography variant="caption" fontWeight="bold" align="right">5D%</Typography>
-                    </Grid>
-                    <Grid item xs={2} sm={0.8}>
-                      <Typography variant="caption" fontWeight="bold" align="right">20D%</Typography>
-                    </Grid>
-                    <Grid item xs={2} sm={1}>
-                      <Typography variant="caption" fontWeight="bold" align="right">Count</Typography>
-                    </Grid>
-                    <Grid item xs={12} sm={1.5}>
-                      <Typography variant="caption" fontWeight="bold" align="center">Trend</Typography>
-                    </Grid>
-                  </Grid>
-                </Box>
-                {(industryData || [])
-                  .filter((i) => i.industry)
-                  .sort((a, b) => (a.current_rank ?? 999) - (b.current_rank ?? 999))
-                  .map((industry, index) => (
-                  <Accordion key={`${industry.industry}-${index}`} defaultExpanded={index === 0} sx={{ border: "1px solid", borderColor: "divider" }}>
-                    <AccordionSummary
-                      expandIcon={<ExpandMore />}
-                      sx={{
-                        backgroundColor: "grey.50",
-                        "&:hover": { backgroundColor: "grey.100" },
-                        overflow: "hidden",
-                        minHeight: "auto",
-                        py: 1,
-                      }}
-                    >
-                      <Grid container spacing={1} alignItems="center" sx={{ width: "100%", overflow: "hidden" }}>
-                        <Grid item xs={2} sm={0.8}>
-                          <Chip
-                            label={`#${industry.current_rank || "N/A"}`}
-                            size="small"
-                            color="primary"
-                            variant="outlined"
-                            sx={{ width: "100%", fontSize: "0.7rem" }}
-                          />
-                        </Grid>
-                        <Grid item xs={12} sm={2} sx={{ minWidth: 0 }}>
-                          <Typography variant="caption" fontWeight="bold" sx={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {industry.industry}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "0.7rem" }}>
-                            {industry.sector}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={2} sm={1}>
-                          <Typography variant="caption" fontWeight="bold" align="center" sx={{ fontSize: "0.75rem" }}>
-                            {industry.rank_1w_ago !== null && industry.rank_1w_ago !== undefined ? industry.rank_1w_ago : "—"}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={2} sm={1}>
-                          <Typography variant="caption" fontWeight="bold" align="center" sx={{ fontSize: "0.75rem" }}>
-                            {industry.rank_4w_ago !== null && industry.rank_4w_ago !== undefined ? industry.rank_4w_ago : "—"}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={2} sm={1}>
-                          <Typography variant="caption" fontWeight="bold" align="center" sx={{ fontSize: "0.75rem" }}>
-                            {industry.rank_12w_ago !== null && industry.rank_12w_ago !== undefined ? industry.rank_12w_ago : "—"}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={2} sm={1.2}>
-                          <Chip
-                            label={industry.current_momentum || "N/A"}
-                            size="small"
-                            color={
-                              industry.current_momentum === "Strong"
-                                ? "success"
-                                : industry.current_momentum === "Moderate"
-                                  ? "info"
-                                  : "default"
-                            }
-                            sx={{ width: "100%", fontSize: "0.7rem" }}
-                          />
-                        </Grid>
-                        <Grid item xs={2} sm={1.2} sx={{ display: "flex", justifyContent: "center" }}>
-                          {(() => {
-                            const { icon: Icon, color } = getTrendIcon(industry.current_trend || industry.trend);
-                            return <Icon sx={{ color, fontSize: 24 }} title={industry.current_trend || industry.trend || "—"} />;
-                          })()}
-                        </Grid>
-                        <Grid item xs={2} sm={0.8}>
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              color: getChangeColor(industry.performance_1d),
-                              fontWeight: 600,
-                              fontSize: "0.75rem",
-                            }}
-                            align="right"
-                          >
-                            {formatPercentageChange(industry.performance_1d)}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={2} sm={0.8}>
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              color: getChangeColor(industry.performance_5d),
-                              fontWeight: 600,
-                              fontSize: "0.75rem",
-                            }}
-                            align="right"
-                          >
-                            {formatPercentageChange(industry.performance_5d)}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={2} sm={0.8}>
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              color: getChangeColor(industry.performance_20d),
-                              fontWeight: 600,
-                              fontSize: "0.75rem",
-                            }}
-                            align="right"
-                          >
-                            {formatPercentageChange(industry.performance_20d)}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={2} sm={1}>
-                          <Typography variant="caption" fontWeight="bold" align="right" sx={{ fontSize: "0.75rem" }}>
-                            {industry.stock_count || 0}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={12} sm={1.5} sx={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
-                          <IndustryTrendChart industry={industry} />
-                        </Grid>
-                      </Grid>
-                    </AccordionSummary>
-                    <AccordionDetails sx={{ backgroundColor: "grey.25", p: 2 }}>
-                      <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-                        <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 2 }}>
-                          <Box>
-                            <Typography variant="caption" color="text.secondary" fontWeight="bold">📊 Ranking History</Typography>
-                            <Typography variant="body2">
-                              • 1W Ago: {industry.rank_1w_ago !== null ? `#${industry.rank_1w_ago}` : "—"}
-                            </Typography>
-                            <Typography variant="body2">
-                              • 4W Ago: {industry.rank_4w_ago !== null ? `#${industry.rank_4w_ago}` : "—"}
-                            </Typography>
-                            <Typography variant="body2">
-                              • 12W Ago: {industry.rank_12w_ago !== null ? `#${industry.rank_12w_ago}` : "—"}
-                            </Typography>
-                            <Typography variant="body2" sx={{ mt: 0.5, fontWeight: "600", color: "text.primary" }}>
-                              Change: {industry.rank_change_1w !== null ? `${industry.rank_change_1w > 0 ? '+' : ''}${industry.rank_change_1w}` : "—"}
-                            </Typography>
-                          </Box>
-                          <Box>
-                            <Typography variant="caption" color="text.secondary" fontWeight="bold">📈 Performance</Typography>
-                            <Typography variant="body2">
-                              • 1-Day: {formatPercentageChange(industry.performance_1d)}
-                            </Typography>
-                            <Typography variant="body2">
-                              • 5-Day: {formatPercentageChange(industry.performance_5d)}
-                            </Typography>
-                            <Typography variant="body2">
-                              • 20-Day: {formatPercentageChange(industry.performance_20d)}
-                            </Typography>
-                          </Box>
-                          <Box>
-                            <Typography variant="caption" color="text.secondary" fontWeight="bold">💼 Industry Info</Typography>
-                            <Typography variant="body2">
-                              • Sector: <strong>{industry.sector}</strong>
-                            </Typography>
-                            <Typography variant="body2">
-                              • Stocks: <strong>{industry.stock_count || 0}</strong>
-                            </Typography>
-                            <Typography variant="body2">
-                              • Rank: <strong>{industry.current_rank || "N/A"}</strong>
-                            </Typography>
-                          </Box>
-                          <Box>
-                            <Typography variant="caption" color="text.secondary" fontWeight="bold">💰 P/E Valuation</Typography>
-                            <Typography variant="body2">
-                              • Trailing P/E: {industry.pe?.trailing ? industry.pe.trailing.toFixed(2) : "—"}
-                            </Typography>
-                            <Typography variant="body2">
-                              • Forward P/E: {industry.pe?.forward ? industry.pe.forward.toFixed(2) : "—"}
-                            </Typography>
-                            <Typography variant="body2">
-                              • Percentile: {industry.pe?.percentile != null ? `${Math.round(industry.pe.percentile)}th` : "—"}
-                            </Typography>
-                          </Box>
-                        </Box>
-
-                        {/* Ranking Trend Section */}
-                        <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2 }}>
-                          <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-                            📊 Ranking Trend (Historical)
-                          </Typography>
-                          <DetailedTrendChart sectorOrIndustry={industry} type="industry" />
-                        </Box>
-
-                        {/* Momentum Score Chart - Same Historical Data as Trend Chart */}
-                        <IndustryMomentumChart industry={industry} aggregateToWeekly={aggregateToWeekly} />
-
-                        {/* Top Performing Companies Section */}
-                        <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 2, mt: 2 }}>
-                          <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-                            ⭐ Top Performing Companies in {industry.industry}
-                          </Typography>
-                          <TopPerformingCompaniesGrid industry={industry} />
-                        </Box>
-                      </Box>
-                    </AccordionDetails>
-                  </Accordion>
-                ))}
-              </Box>
-            </>
+            <div style={{ overflow: 'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th>Sector</th>
+                    <th className="num">Rank</th>
+                    <th className="num">1W Ago</th>
+                    <th className="num">4W Ago</th>
+                    <th className="num">12W Ago</th>
+                    <th>Momentum</th>
+                    <th>Trend</th>
+                    <th className="num">1D %</th>
+                    <th className="num">5D %</th>
+                    <th className="num">20D %</th>
+                    <th>Trend (90d)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedSectors.map((s, i) => {
+                    const name = s.sector_name || s.sector;
+                    const key = `${name}-${i}`;
+                    const isOpen = expanded === key;
+                    const p1 = s.current_perf_1d ?? s.performance_1d;
+                    const p5 = s.current_perf_5d ?? s.performance_5d;
+                    const p20 = s.current_perf_20d ?? s.performance_20d;
+                    return (
+                      <React.Fragment key={key}>
+                        <tr onClick={() => setExpanded(isOpen ? null : key)}>
+                          <td style={{ width: 24 }}>
+                            {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                          </td>
+                          <td><span className="strong" style={{ fontWeight: 'var(--w-bold)' }}>{name}</span></td>
+                          <td className="num">
+                            <span className="badge badge-brand mono tnum">
+                              #{s.current_rank ?? s.overall_rank ?? '—'}
+                            </span>
+                          </td>
+                          <td className="num mono tnum muted">
+                            {s.rank_1w_ago != null ? s.rank_1w_ago : '—'}
+                          </td>
+                          <td className="num mono tnum muted">
+                            {s.rank_4w_ago != null ? s.rank_4w_ago : '—'}
+                          </td>
+                          <td className="num mono tnum muted">
+                            {s.rank_12w_ago != null ? s.rank_12w_ago : '—'}
+                          </td>
+                          <td>
+                            <span className={`badge ${momentumBadge(s.current_momentum || s.momentum)}`}>
+                              {s.current_momentum || s.momentum || '—'}
+                            </span>
+                          </td>
+                          <td><TrendIcon trend={s.current_trend || s.trend} /></td>
+                          <td className="num">
+                            <span className={`mono tnum ${pctClass(p1)}`}>{fmtPct(p1)}</span>
+                          </td>
+                          <td className="num">
+                            <span className={`mono tnum ${pctClass(p5)}`}>{fmtPct(p5)}</span>
+                          </td>
+                          <td className="num">
+                            <span className={`mono tnum ${pctClass(p20)}`}>{fmtPct(p20)}</span>
+                          </td>
+                          <td><SparklineTrend name={name} type="sector" /></td>
+                        </tr>
+                        {isOpen && (
+                          <tr>
+                            <td colSpan={12} style={{ padding: 0 }}>
+                              <SectorDetail sector={s} industries={industries} />
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
-        </CardContent>
-      </Card>
-
-    </Container>
+        </div>
+      </div>
+    </>
   );
-};
+}
 
-export default SectorAnalysis;
+// ─── Industries view ───────────────────────────────────────────────────────
+function IndustriesView({ industries, isLoading, error }) {
+  const [expanded, setExpanded] = useState(null);
+  const [search, setSearch] = useState('');
+
+  const sorted = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return (industries || [])
+      .filter(i => i.industry)
+      .filter(i => !q || i.industry.toLowerCase().includes(q) || (i.sector || '').toLowerCase().includes(q))
+      .slice()
+      .sort((a, b) => (a.current_rank ?? 999) - (b.current_rank ?? 999));
+  }, [industries, search]);
+
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div>
+          <div className="card-title">Industry Rankings</div>
+          <div className="card-sub">Click a row to drill into trends and top companies</div>
+        </div>
+        <input
+          className="input"
+          placeholder="Search industry or sector"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ width: 260 }}
+        />
+      </div>
+      <div className="card-body" style={{ padding: 0 }}>
+        {error ? (
+          <div className="alert alert-info" style={{ margin: 'var(--space-4)' }}>
+            <AlertCircle size={16} />
+            <div>Industry performance data is currently loading or unavailable.</div>
+          </div>
+        ) : isLoading ? (
+          <Empty title="Loading industries…" />
+        ) : sorted.length === 0 ? (
+          <Empty title="No industry data available" />
+        ) : (
+          <div style={{ overflow: 'auto' }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th className="num">Rank</th>
+                  <th>Industry</th>
+                  <th>Sector</th>
+                  <th className="num">1W</th>
+                  <th className="num">4W</th>
+                  <th className="num">12W</th>
+                  <th>Momentum</th>
+                  <th>Trend</th>
+                  <th className="num">1D %</th>
+                  <th className="num">5D %</th>
+                  <th className="num">20D %</th>
+                  <th className="num">Stocks</th>
+                  <th>Trend (90d)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((ind, i) => {
+                  const key = `${ind.industry}-${i}`;
+                  const isOpen = expanded === key;
+                  return (
+                    <React.Fragment key={key}>
+                      <tr onClick={() => setExpanded(isOpen ? null : key)}>
+                        <td style={{ width: 24 }}>
+                          {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        </td>
+                        <td className="num">
+                          <span className="badge badge-brand mono tnum">
+                            #{ind.current_rank ?? '—'}
+                          </span>
+                        </td>
+                        <td><span className="strong" style={{ fontWeight: 'var(--w-semibold)' }}>{ind.industry}</span></td>
+                        <td className="t-xs muted">{ind.sector || '—'}</td>
+                        <td className="num mono tnum muted">
+                          {ind.rank_1w_ago != null ? ind.rank_1w_ago : '—'}
+                        </td>
+                        <td className="num mono tnum muted">
+                          {ind.rank_4w_ago != null ? ind.rank_4w_ago : '—'}
+                        </td>
+                        <td className="num mono tnum muted">
+                          {ind.rank_12w_ago != null ? ind.rank_12w_ago : '—'}
+                        </td>
+                        <td>
+                          <span className={`badge ${momentumBadge(ind.current_momentum)}`}>
+                            {ind.current_momentum || '—'}
+                          </span>
+                        </td>
+                        <td><TrendIcon trend={ind.current_trend} /></td>
+                        <td className="num">
+                          <span className={`mono tnum ${pctClass(ind.performance_1d)}`}>
+                            {fmtPct(ind.performance_1d)}
+                          </span>
+                        </td>
+                        <td className="num">
+                          <span className={`mono tnum ${pctClass(ind.performance_5d)}`}>
+                            {fmtPct(ind.performance_5d)}
+                          </span>
+                        </td>
+                        <td className="num">
+                          <span className={`mono tnum ${pctClass(ind.performance_20d)}`}>
+                            {fmtPct(ind.performance_20d)}
+                          </span>
+                        </td>
+                        <td className="num mono tnum muted">{ind.stock_count || 0}</td>
+                        <td><SparklineTrend name={ind.industry} type="industry" /></td>
+                      </tr>
+                      {isOpen && (
+                        <tr>
+                          <td colSpan={14} style={{ padding: 0 }}>
+                            <IndustryDetail industry={ind} />
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Page root ─────────────────────────────────────────────────────────────
+export default function SectorAnalysis() {
+  const [tab, setTab] = useState('sectors');
+
+  const sectorsQ = useQuery({
+    queryKey: ['sectors-list'],
+    queryFn: () => api.get('/api/sectors?limit=500').then(r => r.data?.items || []),
+    staleTime: 1000 * 60 * 5,
+    retry: false,
+  });
+  const industriesQ = useQuery({
+    queryKey: ['industries-list'],
+    queryFn: () => api.get('/api/industries').then(r => r.data?.items || []),
+    staleTime: 1000 * 60 * 5,
+    retry: false,
+  });
+
+  const sectors = sectorsQ.data || [];
+  const industries = industriesQ.data || [];
+
+  const refresh = () => {
+    sectorsQ.refetch();
+    industriesQ.refetch();
+  };
+
+  return (
+    <div className="main-content">
+      <div className="page-head">
+        <div>
+          <div className="page-head-title">Sector Analysis</div>
+          <div className="page-head-sub">
+            Sector + industry rankings · Mansfield RS · daily strength · ranking trend
+          </div>
+        </div>
+        <div className="page-head-actions">
+          <span className="badge badge-brand">{sectors.length} sectors</span>
+          <span className="badge">{industries.length} industries</span>
+          <button className="btn btn-outline btn-sm" onClick={refresh}>
+            <RefreshCw size={14} /> Refresh
+          </button>
+        </div>
+      </div>
+
+      <Tabs
+        tabs={[
+          { value: 'sectors', label: 'Sectors', count: sectors.length || null },
+          { value: 'industries', label: 'Industries', count: industries.length || null },
+        ]}
+        value={tab}
+        onChange={setTab}
+      />
+
+      <div style={{ marginTop: 'var(--space-4)' }}>
+        {tab === 'sectors' && (
+          <SectorsView
+            sectors={sectors}
+            industries={industries}
+            isLoading={sectorsQ.isLoading}
+            error={sectorsQ.error}
+          />
+        )}
+        {tab === 'industries' && (
+          <IndustriesView
+            industries={industries}
+            isLoading={industriesQ.isLoading}
+            error={industriesQ.error}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Tabs / Stile / Empty primitives ───────────────────────────────────────
+function Tabs({ tabs, value, onChange }) {
+  return (
+    <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
+      {tabs.map(t => (
+        <button
+          key={t.value}
+          type="button"
+          onClick={() => onChange(t.value)}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            borderBottom: `2px solid ${value === t.value ? 'var(--brand)' : 'transparent'}`,
+            color: value === t.value ? 'var(--brand-2)' : 'var(--text-muted)',
+            fontWeight: value === t.value ? 'var(--w-semibold)' : 'var(--w-medium)',
+            fontSize: 'var(--t-sm)',
+            padding: '12px 16px',
+            cursor: 'pointer',
+            marginBottom: -1,
+            transition: 'all var(--t-fast)',
+          }}
+        >
+          {t.label}
+          {t.count != null && (
+            <span className="badge mono tnum" style={{ marginLeft: 8 }}>{t.count}</span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Stile({ label, value }) {
+  return (
+    <div className="stile">
+      <div className="stile-label">{label}</div>
+      <div className="stile-value">{value}</div>
+    </div>
+  );
+}
+
+function Empty({ title, desc }) {
+  return (
+    <div className="empty">
+      <Inbox size={36} />
+      <div className="empty-title">{title}</div>
+      {desc && <div className="empty-desc">{desc}</div>}
+    </div>
+  );
+}
