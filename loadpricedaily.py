@@ -10,6 +10,8 @@ Demonstrates the new pattern combining:
 - Source-health tracking
 - Per-symbol error isolation with parallel execution
 
+Deployment: 2026-05-04 AWS ECS with GitHub Actions workflow
+
 Run:
     python3 loadpricedaily.py [--symbols AAPL,MSFT] [--parallelism 4]
 """
