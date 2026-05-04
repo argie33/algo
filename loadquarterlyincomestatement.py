@@ -67,8 +67,12 @@ class QuarterlyIncomeStatementLoader(OptimalLoader):
             return None
 
     def transform(self, rows):
-        """Rows are already clean from SEC EDGAR."""
-        return rows
+        """Extract only columns defined in schema."""
+        schema_cols = {'net_income', 'earnings_per_share', 'revenue', 'fiscal_year', 'fiscal_quarter', 'symbol'}
+        return [
+            {k: v for k, v in r.items() if k in schema_cols}
+            for r in rows
+        ]
 
     def _validate_row(self, row: dict) -> bool:
         """Validate quarterly income statement row."""
@@ -94,7 +98,7 @@ def get_active_symbols() -> List[str]:
     )
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT DISTINCT symbol FROM stocks ORDER BY symbol")
+            cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
             return [r[0] for r in cur.fetchall()]
     finally:
         conn.close()

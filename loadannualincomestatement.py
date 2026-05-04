@@ -67,8 +67,18 @@ class AnnualIncomeStatementLoader(OptimalLoader):
             return None
 
     def transform(self, rows):
-        """Rows are already clean from SEC EDGAR."""
-        return rows
+        """Extract only columns defined in schema, deduplicate by (symbol, fiscal_year)."""
+        schema_cols = {'operating_income', 'symbol', 'net_income', 'earnings_per_share', 'gross_profit', 'cost_of_revenue', 'revenue', 'fiscal_year'}
+        filtered = [
+            {k: v for k, v in r.items() if k in schema_cols}
+            for r in rows
+        ]
+        seen = {}
+        for row in filtered:
+            key = (row['symbol'], row['fiscal_year'])
+            if key not in seen:
+                seen[key] = row
+        return list(seen.values())
 
     def _validate_row(self, row: dict) -> bool:
         """Validate income statement row."""
@@ -93,7 +103,7 @@ def get_active_symbols() -> List[str]:
     )
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT DISTINCT symbol FROM stocks ORDER BY symbol")
+            cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
             return [r[0] for r in cur.fetchall()]
     finally:
         conn.close()

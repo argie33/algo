@@ -71,7 +71,7 @@ def get_active_symbols() -> List[str]:
     )
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT DISTINCT symbol FROM stocks ORDER BY symbol")
+            cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
             return [r[0] for r in cur.fetchall()]
     finally:
         conn.close()

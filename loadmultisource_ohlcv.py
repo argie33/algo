@@ -53,7 +53,7 @@ class MultiSourceOHLCVLoader:
     def get_symbols(self, limit=None):
         """Get list of symbols to load."""
         cur = self.conn.cursor()
-        query = "SELECT DISTINCT symbol FROM stocks ORDER BY symbol"
+        query = "SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol"
         if limit:
             query += f" LIMIT {limit}"
         cur.execute(query)
