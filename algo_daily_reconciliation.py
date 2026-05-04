@@ -324,7 +324,7 @@ class DailyReconciliation:
                 self.conn.rollback()
 
         # Find orphans (in our DB but not Alpaca)
-        orphans = our_symbols - alpaca_symbols
+        orphans = our_symbols - set(alpaca_symbols.keys())
         if orphans:
             for sym in orphans:
                 self.cur.execute("""
