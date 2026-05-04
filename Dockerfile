@@ -21,6 +21,9 @@ COPY db_helper.py .
 COPY load*.py ./
 COPY loader*.py ./
 
+# Copy algo engine (the trading brain — used by algo orchestrator task)
+COPY algo_*.py ./
+
 # Copy utility modules
 COPY load_state.py ./
 COPY loader_safety.py ./

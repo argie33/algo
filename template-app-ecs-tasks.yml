@@ -211,6 +211,36 @@ Parameters:
   FactormetricsImageTag:
     Type: String
     Description: "Tag for factor metrics loader image"
+  TrendTemplateImageTag:
+    Type: String
+    Description: "Tag for trend-template (Minervini 8-pt + Weinstein stage) loader image"
+    Default: "latest"
+  MarketHealthImageTag:
+    Type: String
+    Description: "Tag for market-health daily loader image"
+    Default: "latest"
+  AlgoMetricsImageTag:
+    Type: String
+    Description: "Tag for algo metrics composite loader image"
+    Default: "latest"
+  AlgoOrchestratorImageTag:
+    Type: String
+    Description: "Tag for algo orchestrator (the algo brain — runs the daily trading workflow)"
+    Default: "latest"
+  AlpacaApiKeyId:
+    Type: String
+    NoEcho: true
+    Description: "Alpaca paper-trading API key (passed from GitHub secret APCA_API_KEY_ID)"
+    Default: ""
+  AlpacaApiSecretKey:
+    Type: String
+    NoEcho: true
+    Description: "Alpaca paper-trading API secret (passed from GitHub secret APCA_API_SECRET_KEY)"
+    Default: ""
+  AlpacaBaseUrl:
+    Type: String
+    Description: "Alpaca API base URL (paper or live)"
+    Default: "https://paper-api.alpaca.markets"
   DeploymentTimestamp:
     Type: String
     Description: "Deployment timestamp to force stack updates"
@@ -4691,6 +4721,189 @@ Resources:
             EarningsMetricsTaskDef: !Ref EarningsMetricsTaskDefinition
             RevenueEstimateTaskDef: !Ref RevenueEstimateTaskDefinition
 
+  ########################################
+  # Algo Loaders + Orchestrator          #
+  ########################################
+  TrendTemplateTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: trend-template-loader
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: trend-template-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref TrendTemplateImageTag]]
+          Essential: true
+          Command:
+            - load_trend_template_data.py
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !Ref RDSUsername
+            - Name: DB_PASSWORD
+              Value: !Ref RDSPassword
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/trend-template-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  MarketHealthTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: market-health-loader
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: market-health-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref MarketHealthImageTag]]
+          Essential: true
+          Command:
+            - load_market_health_daily.py
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !Ref RDSUsername
+            - Name: DB_PASSWORD
+              Value: !Ref RDSPassword
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/market-health-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  AlgoMetricsTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: algo-metrics-loader
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: algo-metrics-loader
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref AlgoMetricsImageTag]]
+          Essential: true
+          Command:
+            - load_algo_metrics_daily.py
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !Ref RDSUsername
+            - Name: DB_PASSWORD
+              Value: !Ref RDSPassword
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/algo-metrics-loader
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
+  AlgoOrchestratorTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: algo-orchestrator
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform:
+        CpuArchitecture: ARM64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn:      !GetAtt ECSExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: algo-orchestrator
+          Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref AlgoOrchestratorImageTag]]
+          Essential: true
+          Command:
+            - algo_orchestrator.py
+          Environment:
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !Ref RDSUsername
+            - Name: DB_PASSWORD
+              Value: !Ref RDSPassword
+            - Name: APCA_API_KEY_ID
+              Value: !Ref AlpacaApiKeyId
+            - Name: APCA_API_SECRET_KEY
+              Value: !Ref AlpacaApiSecretKey
+            - Name: APCA_API_BASE_URL
+              Value: !Ref AlpacaBaseUrl
+            - Name: ALPACA_PAPER_TRADING
+              Value: "true"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/algo-orchestrator
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+              awslogs-create-group: 'true'
+
   LoaderOrchestrationScheduleRule:
     Type: AWS::Events::Rule
     Properties:
@@ -5102,4 +5315,28 @@ Outputs:
     Value: !Ref FundamentalMetricsTaskDefinition
     Export:
       Name: FundamentalmetricsTaskDefArn
+
+  TrendTemplateTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for trend-template loader
+    Value: !Ref TrendTemplateTaskDefinition
+    Export:
+      Name: TrendTemplateTaskDefArn
+
+  MarketHealthTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for market-health loader
+    Value: !Ref MarketHealthTaskDefinition
+    Export:
+      Name: MarketHealthTaskDefArn
+
+  AlgoMetricsTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for algo metrics loader
+    Value: !Ref AlgoMetricsTaskDefinition
+    Export:
+      Name: AlgoMetricsTaskDefArn
+
+  AlgoOrchestratorTaskDefArn:
+    Description: ARN of the ECS TaskDefinition for algo orchestrator
+    Value: !Ref AlgoOrchestratorTaskDefinition
+    Export:
+      Name: AlgoOrchestratorTaskDefArn
 # Trigger: 2026-01-29 - Force ECS stack update to use correct RDS endpoint

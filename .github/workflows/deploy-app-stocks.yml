@@ -482,7 +482,13 @@ jobs:
                   ParameterKey=PositioningImageTag,ParameterValue=positioning-latest \
                   ParameterKey=MomentumImageTag,ParameterValue=momentum-latest \
                   ParameterKey=RiskMetricsImageTag,ParameterValue=riskmetrics-latest \
-                  ParameterKey=FundamentalMetricsImageTag,ParameterValue=fundamentalmetrics-latest 2>&1) || true
+                  ParameterKey=FundamentalMetricsImageTag,ParameterValue=fundamentalmetrics-latest \
+                  ParameterKey=TrendTemplateImageTag,ParameterValue=latest \
+                  ParameterKey=MarketHealthImageTag,ParameterValue=latest \
+                  ParameterKey=AlgoMetricsImageTag,ParameterValue=latest \
+                  ParameterKey=AlgoOrchestratorImageTag,ParameterValue=latest \
+                  ParameterKey=AlpacaApiKeyId,ParameterValue=${{ secrets.APCA_API_KEY_ID }} \
+                  ParameterKey=AlpacaApiSecretKey,ParameterValue=${{ secrets.APCA_API_SECRET_KEY }} 2>&1) || true
 
               if echo "$UPDATE_OUTPUT" | grep -q "No updates are to be performed"; then
                 echo "✅ No infrastructure updates needed - stack is already up to date"
@@ -589,7 +595,13 @@ jobs:
                 ParameterKey=PositioningImageTag,ParameterValue=positioning-latest \
                 ParameterKey=MomentumImageTag,ParameterValue=momentum-latest \
                 ParameterKey=RiskMetricsImageTag,ParameterValue=riskmetrics-latest \
-                ParameterKey=FundamentalMetricsImageTag,ParameterValue=fundamentalmetrics-latest
+                ParameterKey=FundamentalMetricsImageTag,ParameterValue=fundamentalmetrics-latest \
+                ParameterKey=TrendTemplateImageTag,ParameterValue=latest \
+                ParameterKey=MarketHealthImageTag,ParameterValue=latest \
+                ParameterKey=AlgoMetricsImageTag,ParameterValue=latest \
+                ParameterKey=AlgoOrchestratorImageTag,ParameterValue=latest \
+                ParameterKey=AlpacaApiKeyId,ParameterValue=${{ secrets.APCA_API_KEY_ID }} \
+                ParameterKey=AlpacaApiSecretKey,ParameterValue=${{ secrets.APCA_API_SECRET_KEY }}
 
             echo "Waiting for stack creation to complete..."
             aws cloudformation wait stack-create-complete --stack-name stocks-ecs-tasks-stack
