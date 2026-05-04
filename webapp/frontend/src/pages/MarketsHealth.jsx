@@ -1,240 +1,293 @@
 /**
- * Markets Health — flagship page (market-level only).
+ * Markets Health — flagship market-level dashboard.
  *
- * Section order (top to bottom):
- *   1. Regime banner — exposure %, tier, risk multiplier, halt status
- *   2. Indices grid — SPY / QQQ / IWM / DIA last + change + sparklines
- *   3. 9-factor exposure composite — bars w/ value, max, sub-detail
- *   4. Exposure history — 90-day line chart with regime bands
- *   5. Distribution days — recent 25-day stack
- *   6. Breadth time series — % > 50DMA, % > 200DMA, McClellan
- *   7. New highs / lows — 60-day net chart
- *   8. AAII sentiment — bull/bear/neutral 8-week
- *   9. VIX regime — last 90 days
+ * Tailwind + Primitives. No MUI imports. Per DESIGN_REDESIGN_PLAN.md.
  *
- * No sectors here — sectors live on /app/sectors.
+ * Shows EVERY market-level factor the algo uses, plus broader institutional-
+ * quality context (top movers, market cap performance, seasonality). Sectors
+ * live on a separate page (/app/sectors).
+ *
+ * Sections (top to bottom):
+ *   1. Regime banner — exposure, tier, risk multiplier, halt status
+ *   2. Major Indices grid — SPY/QQQ/IWM/DIA with 30d sparklines
+ *   3. 9-factor exposure composite
+ *   4. Market Pulse — distribution days + follow-through day
+ *   5. Exposure history 90d area chart with regime threshold lines
+ *   6. Market Breadth — % > 50/200-DMA bar chart + McClellan
+ *   7. New Highs vs Lows — opposing-bar visualization
+ *   8. Investor Sentiment — AAII bull/bear 8-week + NAAIM exposure
+ *   9. VIX Regime — large display + 90-day history
+ *  10. Market Technicals — SPY RSI / MACD / ADX
+ *  11. Top Movers — gainers / losers / most active
+ *  12. Market Cap Performance — large/mid/small/micro
+ *  13. Seasonality — typical month performance
+ *
+ * Auto-refresh every 30s. Each panel loads independently — no single failure
+ * blocks the page.
  */
 
 import React, { useEffect, useState } from 'react';
-import {
-  Box, Grid, Stack, CircularProgress, Alert, Chip, IconButton, Tooltip,
-} from '@mui/material';
-import {
-  Refresh as RefreshIcon, ShieldOutlined, Warning,
-  TrendingUp as TrendingUpIcon, TrendingDown as TrendingDownIcon,
-} from '@mui/icons-material';
+import { useQuery } from '@tanstack/react-query';
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ReferenceLine,
-  ReferenceArea, Legend,
+  Cell, Legend,
 } from 'recharts';
-import { api } from '../services/api';
-import { C, F, S, comp, tierColor, severityColor, fmt$, fmtPct, responsive } from '../theme/algoTheme';
 import {
-  SectionCard, Stat, FactorBar, PageHeader, SeverityChip, EmptyState,
-} from '../components/ui/AlgoUI';
+  RefreshCw, Shield, TrendingUp, TrendingDown, Activity, Zap, AlertTriangle,
+} from 'lucide-react';
+import { api } from '../services/api';
+import {
+  Card, PageHeader, Stat, Chip, Button, FactorBar, EmptyState,
+  StatusDot, Skeleton, PnlCell, Sparkline, fmtAgo, fmtMoney, fmtPct, fmtNum, cx,
+} from '../components/ui/Primitives';
+
+// =============================================================================
+// PALETTE — referenced by chart fills
+// =============================================================================
+const PALETTE = {
+  bull: '#1F9956',
+  bear: '#E0392B',
+  brand: '#0E5C3A',
+  warn: '#E08F1B',
+  info: '#4A90E2',
+  border: '#E5E4DC',
+  text: '#6A6A65',
+  bg: '#FAFAF7',
+};
+
+const REGIME_COLOR = {
+  confirmed_uptrend: PALETTE.bull,
+  healthy_uptrend: PALETTE.brand,
+  pressure: PALETTE.warn,
+  uptrend_under_pressure: PALETTE.warn,
+  caution: '#FF6B47',
+  correction: PALETTE.bear,
+};
 
 // =============================================================================
 // HELPERS
 // =============================================================================
-const fmtAgo = (ts) => {
-  if (!ts) return '—';
-  const s = (Date.now() - new Date(ts).getTime()) / 1000;
-  if (s < 60) return `${Math.floor(s)}s ago`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
-};
-const num = (v, dp = 2) => v == null ? '—' : Number(v).toFixed(dp);
+const num = (v, dp = 2) => v == null ? null : Number(v).toFixed(dp);
 
 // =============================================================================
 // MAIN PAGE
 // =============================================================================
-function MarketsHealth() {
-  const [data, setData] = useState({ loading: true });
-  const fetchAll = async () => {
-    try {
-      const [marketsR, healthR, indicesR, ddR] = await Promise.all([
-        api.get('/algo/markets').catch(() => null),
-        api.get('/market/overview').catch(() => null),
-        api.get('/market/indices').catch(() => null),
-        api.get('/market/distribution-days').catch(() => null),
-      ]);
-      setData({
-        markets: marketsR?.data?.data,
-        health: healthR?.data?.data,
-        indices: indicesR?.data?.data || indicesR?.data?.items,
-        ddHistory: ddR?.data?.data || ddR?.data?.items,
-        loading: false,
-        ts: new Date(),
-      });
-    } catch {
-      setData(d => ({ ...d, loading: false }));
-    }
-  };
+
+export default function MarketsHealth() {
+  const [ts, setTs] = useState(new Date());
+
+  const { data: marketsData, isLoading: marketsLoading, refetch: refetchMarkets } =
+    useQuery({
+      queryKey: ['algo-markets'],
+      queryFn: () => api.get('/algo/markets').then(r => r.data?.data),
+      refetchInterval: 30000,
+    });
+
+  const { data: indicesData } = useQuery({
+    queryKey: ['market-indices'],
+    queryFn: () => api.get('/market/indices').then(r => r.data?.data || r.data?.items),
+    refetchInterval: 30000,
+  });
+
+  const { data: sentimentData } = useQuery({
+    queryKey: ['market-sentiment-30d'],
+    queryFn: () => api.get('/market/sentiment?range=30d').then(r => r.data?.data),
+    refetchInterval: 60000,
+  });
+
+  const { data: technicalsData } = useQuery({
+    queryKey: ['market-technicals'],
+    queryFn: () => api.get('/market/technicals').then(r => r.data?.data),
+    refetchInterval: 60000,
+  });
+
+  const { data: moversData } = useQuery({
+    queryKey: ['market-top-movers'],
+    queryFn: () => api.get('/market/top-movers').then(r => r.data?.data || r.data?.items),
+    refetchInterval: 60000,
+  });
+
+  const { data: capData } = useQuery({
+    queryKey: ['market-cap-distribution'],
+    queryFn: () => api.get('/market/cap-distribution').then(r => r.data?.data),
+    refetchInterval: 120000,
+  });
+
+  const { data: seasonalityData } = useQuery({
+    queryKey: ['market-seasonality'],
+    queryFn: () => api.get('/market/seasonality').then(r => r.data?.data),
+    refetchInterval: 1000 * 60 * 60,
+  });
 
   useEffect(() => {
-    fetchAll();
-    const id = setInterval(fetchAll, 30000);
+    const id = setInterval(() => setTs(new Date()), 30000);
     return () => clearInterval(id);
   }, []);
 
-  if (data.loading) {
+  const refetchAll = () => { refetchMarkets(); setTs(new Date()); };
+  const m = marketsData;
+
+  if (marketsLoading && !m) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-        <CircularProgress sx={{ color: C.brand }} />
-      </Box>
+      <div className="p-6 max-w-page mx-auto">
+        <Skeleton height={240} className="mb-4" />
+        <Skeleton height={400} />
+      </div>
     );
   }
 
-  const m = data.markets;
-
   return (
-    <Box sx={{ px: responsive.pageX, py: responsive.pageY, maxWidth: 1600, mx: 'auto' }}>
+    <div className="px-4 sm:px-6 py-6 max-w-page mx-auto">
       <PageHeader
         title="Market Health"
-        subtitle={`Last refreshed ${fmtAgo(data.ts)} · Auto-refresh 30s`}
+        subtitle={`Updated ${fmtAgo(ts)} · Auto-refresh 30s`}
         actions={
-          <IconButton size="small" onClick={fetchAll}><RefreshIcon /></IconButton>
+          <Button variant="ghost" size="sm" icon={RefreshCw} onClick={refetchAll}>
+            Refresh
+          </Button>
         }
       />
 
-      {/* === REGIME BANNER === */}
+      {/* === 1. REGIME BANNER === */}
       <RegimeBanner markets={m} />
 
-      {/* === INDICES === */}
-      <IndicesStripCard indices={data.indices} />
+      {/* === 2. MAJOR INDICES === */}
+      <IndicesStrip indices={indicesData} />
 
-      <Grid container spacing={2}>
-        {/* 9-FACTOR BREAKDOWN */}
-        <Grid item xs={12} lg={6}>
-          <ExposureBreakdownCard markets={m} />
-        </Grid>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        {/* === 3. 9-FACTOR EXPOSURE COMPOSITE === */}
+        <ExposureFactors markets={m} />
 
-        {/* MARKET PULSE (DD count + FTD) */}
-        <Grid item xs={12} lg={6}>
-          <MarketPulseCard markets={m} />
-        </Grid>
+        {/* === 4. MARKET PULSE === */}
+        <MarketPulse markets={m} />
+      </div>
 
-        {/* EXPOSURE HISTORY LINE CHART */}
-        <Grid item xs={12}>
-          <ExposureHistoryChart markets={m} />
-        </Grid>
+      {/* === 5. EXPOSURE HISTORY === */}
+      <ExposureHistory markets={m} />
 
-        {/* BREADTH TIME SERIES */}
-        <Grid item xs={12} lg={6}>
-          <BreadthChart markets={m} health={data.health} />
-        </Grid>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        {/* === 6. BREADTH === */}
+        <BreadthCard markets={m} />
 
-        {/* NEW HIGHS - LOWS */}
-        <Grid item xs={12} lg={6}>
-          <NewHighsLowsChart markets={m} health={data.health} />
-        </Grid>
+        {/* === 7. NEW HIGHS/LOWS === */}
+        <NewHighsLowsCard markets={m} />
+      </div>
 
-        {/* AAII SENTIMENT */}
-        <Grid item xs={12} lg={6}>
-          <SentimentChart markets={m} />
-        </Grid>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        {/* === 8. SENTIMENT === */}
+        <SentimentCard markets={m} sentiment={sentimentData} />
 
-        {/* VIX REGIME */}
-        <Grid item xs={12} lg={6}>
-          <VixChart markets={m} health={data.health} />
-        </Grid>
-      </Grid>
-    </Box>
+        {/* === 9. VIX === */}
+        <VixCard markets={m} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        {/* === 10. SPY TECHNICALS === */}
+        <TechnicalsCard data={technicalsData} />
+
+        {/* === 11. TOP MOVERS === */}
+        <TopMoversCard data={moversData} />
+
+        {/* === 12. MARKET CAP === */}
+        <MarketCapCard data={capData} />
+      </div>
+
+      {/* === 13. SEASONALITY === */}
+      <SeasonalityCard data={seasonalityData} />
+    </div>
   );
 }
 
 // =============================================================================
-// REGIME BANNER
+// 1. REGIME BANNER
 // =============================================================================
+
 function RegimeBanner({ markets }) {
   if (!markets?.current) {
     return (
-      <Alert severity="info" sx={{ mb: 2 }}>
-        No market exposure computed yet. Run algo_market_exposure.py to populate.
-      </Alert>
+      <Card className="mb-4 border-l-4 border-l-warn">
+        <EmptyState
+          icon={AlertTriangle}
+          title="Exposure not yet computed"
+          description="Run algo_market_exposure.py to populate the 9-factor regime."
+        />
+      </Card>
     );
   }
+
   const cur = markets.current;
   const tier = markets.active_tier || {};
   const exposure = cur.exposure_pct;
-  const regime = tier.name || cur.regime;
+  const regime = tier.name || cur.regime || 'unknown';
+  const color = REGIME_COLOR[regime] || PALETTE.text;
 
   return (
-    <Box sx={{
-      mb: 2, p: 3,
-      bgcolor: C.card, border: `1px solid ${C.border}`, borderRadius: 1,
-      borderLeft: `6px solid ${tierColor(regime)}`,
-    }}>
-      <Grid container spacing={3} alignItems="center">
-        <Grid item xs={12} md={3}>
-          <Stack direction="row" alignItems="center" spacing={2}>
-            <Box sx={{
-              width: 56, height: 56, borderRadius: 2,
-              bgcolor: `${tierColor(regime)}20`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <ShieldOutlined sx={{ fontSize: 32, color: tierColor(regime) }} />
-            </Box>
-            <Box>
-              <Box sx={{ fontSize: F.xs, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Market Exposure
-              </Box>
-              <Box sx={{
-                fontSize: F.xxxl, fontFamily: F.mono, fontWeight: F.weight.black,
-                color: tierColor(regime), lineHeight: 1,
-              }}>
-                {exposure}<span style={{ fontSize: F.lg }}>%</span>
-              </Box>
-            </Box>
-          </Stack>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Stat
-            label="Regime Tier"
-            value={(regime || 'unknown').replace(/_/g, ' ').toUpperCase()}
-            sub={tier.description}
-            color={tierColor(regime)}
-            mono={false}
-          />
-        </Grid>
-        <Grid item xs={6} md={2}>
-          <Stat label="Risk Multiplier" value={`${tier.risk_mult ?? '—'}×`} />
-        </Grid>
-        <Grid item xs={6} md={2}>
-          <Stat label="Max New / Day" value={tier.max_new ?? '—'} />
-        </Grid>
-        <Grid item xs={12} md={2}>
-          <Stat
-            label="Entry Status"
-            value={tier.halt ? 'HALTED' : 'ALLOWED'}
-            color={tier.halt ? C.bear : C.bull}
-            mono={false}
-          />
-        </Grid>
-      </Grid>
+    <div
+      className="card mb-4 p-6 border-l-4"
+      style={{ borderLeftColor: color }}
+    >
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+        <div className="md:col-span-3 flex items-center gap-3">
+          <div
+            className="w-14 h-14 rounded-md flex items-center justify-center shrink-0"
+            style={{ backgroundColor: `${color}20` }}
+          >
+            <Shield size={28} style={{ color }} />
+          </div>
+          <div className="min-w-0">
+            <div className="label">Market Exposure</div>
+            <div
+              className="text-3xl font-mono tnum font-black leading-none"
+              style={{ color }}
+            >
+              {exposure}<span className="text-lg font-semibold">%</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="md:col-span-3">
+          <div className="label">Regime Tier</div>
+          <div className="text-lg font-semibold mt-1" style={{ color }}>
+            {(regime || 'UNKNOWN').replace(/_/g, ' ').toUpperCase()}
+          </div>
+          <div className="text-xs text-ink-muted mt-1">{tier.description}</div>
+        </div>
+
+        <div className="md:col-span-2">
+          <Stat label="Risk Multiplier" value={`${tier.risk_mult ?? '—'}×`} size="md" />
+        </div>
+
+        <div className="md:col-span-2">
+          <Stat label="Max New / Day" value={tier.max_new ?? '—'} size="md" />
+        </div>
+
+        <div className="md:col-span-2">
+          <div className="label">Entry Status</div>
+          <div className="mt-1">
+            <Chip variant={tier.halt ? 'bear' : 'bull'} size="lg">
+              {tier.halt ? 'HALTED' : 'ALLOWED'}
+            </Chip>
+          </div>
+        </div>
+      </div>
+
       {cur.halt_reasons && (
-        <Box sx={{
-          mt: 2, p: 1.5, borderRadius: 1, bgcolor: C.warnSoft,
-          border: `1px solid ${C.warn}`, fontFamily: F.mono, fontSize: F.sm, color: C.text,
-        }}>
-          <strong style={{ color: C.warn }}>ACTIVE VETOES:</strong> {cur.halt_reasons}
-        </Box>
+        <div className="mt-4 p-3 bg-warn-soft border border-warn/30 rounded-md text-sm font-mono text-ink">
+          <span className="font-bold text-warn-deep">ACTIVE VETOES:</span> {cur.halt_reasons}
+        </div>
       )}
-    </Box>
+    </div>
   );
 }
 
 // =============================================================================
-// INDICES STRIP — last + change + sparkline
+// 2. MAJOR INDICES
 // =============================================================================
-function IndicesStripCard({ indices }) {
-  // Defensive: indices may come from various endpoint shapes
-  const list = Array.isArray(indices) ? indices :
-               indices?.indices ? indices.indices :
-               [];
-  const known = list.length ? list : [
+
+function IndicesStrip({ indices }) {
+  const list = Array.isArray(indices) ? indices : indices?.indices || [];
+  const seeds = list.length ? list : [
     { symbol: 'SPY', name: 'S&P 500' },
     { symbol: 'QQQ', name: 'Nasdaq 100' },
     { symbol: 'IWM', name: 'Russell 2000' },
@@ -242,132 +295,95 @@ function IndicesStripCard({ indices }) {
   ];
 
   return (
-    <SectionCard title="Major Indices" subtitle="Last close, daily change, recent trend">
-      <Grid container spacing={2}>
-        {known.map(idx => (
-          <Grid item xs={6} md={3} key={idx.symbol}>
-            <IndexCell idx={idx} />
-          </Grid>
-        ))}
-      </Grid>
-    </SectionCard>
+    <Card title="Major Indices" subtitle="Last close · Daily change · 30-day trend">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {seeds.map(idx => <IndexCell key={idx.symbol} idx={idx} />)}
+      </div>
+    </Card>
   );
 }
 
 function IndexCell({ idx }) {
-  const [series, setSeries] = useState(null);
-  const [meta, setMeta] = useState(idx);
-  useEffect(() => {
-    api.get(`/price/history/${idx.symbol}?timeframe=daily&limit=30`)
-      .then(r => {
-        const rows = r.data?.items || r.data?.data || [];
-        setSeries(rows.slice(-30).map(p => ({
-          date: p.date, close: parseFloat(p.close || p.adj_close),
-        })));
-        if (rows.length) {
-          const last = rows[rows.length - 1];
-          const prev = rows[rows.length - 2];
-          if (last && prev) {
-            setMeta(m => ({
-              ...m,
-              last: parseFloat(last.close || last.adj_close),
-              prev_close: parseFloat(prev.close || prev.adj_close),
-            }));
-          }
-        }
-      })
-      .catch(() => {});
-  }, [idx.symbol]);
+  const { data } = useQuery({
+    queryKey: ['index-history', idx.symbol],
+    queryFn: () => api.get(`/price/history/${idx.symbol}?timeframe=daily&limit=30`).then(r => r.data?.items || r.data?.data || []),
+    staleTime: 60000,
+  });
 
-  const chg = meta.last && meta.prev_close ? (meta.last - meta.prev_close) : null;
-  const chgPct = chg && meta.prev_close ? (chg / meta.prev_close) * 100 : null;
+  const series = (data || []).slice(-30).map(p => ({
+    date: p.date, close: parseFloat(p.close || p.adj_close),
+  }));
+
+  const last = series[series.length - 1]?.close;
+  const prev = series[series.length - 2]?.close;
+  const chg = last && prev ? last - prev : null;
+  const chgPct = chg && prev ? (chg / prev) * 100 : null;
   const positive = chgPct != null && chgPct >= 0;
-  const color = positive ? C.bull : C.bear;
 
   return (
-    <Box sx={{
-      p: 2, bgcolor: C.cardAlt, borderRadius: 1, border: `1px solid ${C.borderLight}`,
-    }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 0.5 }}>
-        <Box>
-          <Box sx={{ fontSize: F.md, fontWeight: F.weight.bold, color: C.textBright }}>
-            {meta.symbol}
-          </Box>
-          <Box sx={{ fontSize: F.xxs, color: C.textDim }}>{meta.name}</Box>
-        </Box>
-        {chgPct != null && (positive
-          ? <TrendingUpIcon sx={{ color: C.bull, fontSize: 20 }} />
-          : <TrendingDownIcon sx={{ color: C.bear, fontSize: 20 }} />)}
-      </Stack>
-      <Box sx={{
-        fontSize: F.xl, fontWeight: F.weight.semibold,
-        fontFamily: F.mono, fontFeatureSettings: '"tnum"', color: C.textBright,
-      }}>
-        {meta.last != null ? `$${num(meta.last)}` : '—'}
-      </Box>
-      <Box sx={{
-        fontSize: F.sm, fontWeight: 600, color,
-        fontFamily: F.mono, fontFeatureSettings: '"tnum"',
-      }}>
-        {chg != null ? `${chg >= 0 ? '+' : ''}${num(chg)} (${chg >= 0 ? '+' : ''}${num(chgPct, 2)}%)` : '—'}
-      </Box>
-      {series && series.length > 1 && (
-        <Box sx={{ mt: 1, height: 40 }}>
-          <ResponsiveContainer>
-            <AreaChart data={series}>
-              <defs>
-                <linearGradient id={`gr-${idx.symbol}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={color} stopOpacity={0.3} />
-                  <stop offset="100%" stopColor={color} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <Area
-                type="monotone" dataKey="close" stroke={color}
-                strokeWidth={1.5} fill={`url(#gr-${idx.symbol})`}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </Box>
+    <div className="p-3 bg-bg-alt border border-border-light rounded-md">
+      <div className="flex items-start justify-between mb-1">
+        <div>
+          <div className="text-base font-bold text-ink-strong">{idx.symbol}</div>
+          <div className="text-2xs text-ink-muted">{idx.name}</div>
+        </div>
+        {chgPct != null && (
+          positive
+            ? <TrendingUp size={16} className="text-bull" />
+            : <TrendingDown size={16} className="text-bear" />
+        )}
+      </div>
+      <div className="text-lg font-semibold font-mono tnum text-ink-strong">
+        {last != null ? `$${num(last)}` : '—'}
+      </div>
+      {chgPct != null && (
+        <PnlCell value={chgPct} format="percent" inline className="text-sm" />
       )}
-    </Box>
+      {series.length >= 2 && (
+        <div className="mt-2">
+          <Sparkline data={series.map(s => s.close)} width={200} height={28} />
+        </div>
+      )}
+    </div>
   );
 }
 
 // =============================================================================
-// 9-FACTOR EXPOSURE
+// 3. EXPOSURE FACTORS
 // =============================================================================
-function ExposureBreakdownCard({ markets }) {
+
+function ExposureFactors({ markets }) {
   const factors = markets?.current?.factors || {};
   const list = [
-    ['ibd_state', 'MARKET STATE', 20],
-    ['trend_30wk', '30-WEEK MA TREND', 15],
-    ['breadth_50dma', 'BREADTH (% > 50-DMA)', 15],
-    ['breadth_200dma', 'HEALTH (% > 200-DMA)', 10],
-    ['vix_regime', 'VIX REGIME', 10],
-    ['mcclellan', 'MCCLELLAN OSC.', 10],
-    ['new_highs_lows', 'NEW HIGHS - LOWS', 8],
-    ['ad_line', 'A/D LINE CONFIRM.', 7],
-    ['aaii_sentiment', 'SENTIMENT (CONTR.)', 5],
+    ['ibd_state',       'MARKET STATE',         20],
+    ['trend_30wk',      '30-WEEK MA TREND',     15],
+    ['breadth_50dma',   'BREADTH (% > 50-DMA)', 15],
+    ['breadth_200dma',  'HEALTH (% > 200-DMA)', 10],
+    ['vix_regime',      'VIX REGIME',           10],
+    ['mcclellan',       'MCCLELLAN OSCILLATOR', 10],
+    ['new_highs_lows',  'NEW HIGHS - LOWS',     8],
+    ['ad_line',         'A/D LINE CONFIRMATION',7],
+    ['aaii_sentiment',  'SENTIMENT (CONTRARIAN)',5],
   ];
+
   return (
-    <SectionCard
+    <Card
       title="9-Factor Exposure Composite"
-      subtitle="Each factor scored independently, summed for total exposure"
+      subtitle={
+        markets?.current
+          ? `Raw ${num(markets.current.raw_score, 1)} → capped ${markets.current.exposure_pct}%`
+          : 'Each factor independently scored, summed for total exposure'
+      }
     >
-      <Box sx={{
-        fontFamily: F.mono, fontSize: F.xs, color: C.textDim, mb: 1,
-      }}>
-        raw {markets?.current?.raw_score} → capped {markets?.current?.exposure_pct}%
-      </Box>
       {list.map(([key, label, max]) => {
         const f = factors[key] || {};
         const sub = [];
-        if (f.value !== undefined && f.value !== null) sub.push(`value: ${num(f.value, 2)}`);
+        if (f.value != null) sub.push(`value: ${num(f.value, 2)}`);
         if (f.state) sub.push(f.state);
         if (f.relation) sub.push(f.relation);
-        if (f.bull_bear_spread !== undefined) sub.push(`spread: ${num(f.bull_bear_spread, 2)}`);
-        if (f.new_highs !== undefined) sub.push(`${f.new_highs} highs / ${f.new_lows} lows`);
-        if (f.distribution_days_25d !== undefined) sub.push(`${f.distribution_days_25d} dist days (25d)`);
+        if (f.bull_bear_spread != null) sub.push(`spread: ${num(f.bull_bear_spread, 2)}`);
+        if (f.new_highs != null) sub.push(`${f.new_highs} highs / ${f.new_lows} lows`);
+        if (f.distribution_days_25d != null) sub.push(`${f.distribution_days_25d} dist days`);
         return (
           <FactorBar
             key={key}
@@ -378,231 +394,237 @@ function ExposureBreakdownCard({ markets }) {
           />
         );
       })}
-    </SectionCard>
+    </Card>
   );
 }
 
 // =============================================================================
-// MARKET PULSE — DD count + FTD
+// 4. MARKET PULSE
 // =============================================================================
-function MarketPulseCard({ markets }) {
+
+function MarketPulse({ markets }) {
   const cur = markets?.current;
-  if (!cur) return null;
+  if (!cur) return <Card title="Market Pulse" empty={{ title: 'No data', description: 'Pulse loads when exposure is computed' }} />;
+
   const dd = cur.distribution_days || 0;
   const ftd = cur.factors?.ibd_state?.follow_through_day;
   const state = cur.factors?.ibd_state?.state || '—';
-  const ddColor = dd >= 5 ? C.bear : dd >= 4 ? C.warn : C.bull;
+  const ddColor = dd >= 5 ? PALETTE.bear : dd >= 4 ? PALETTE.warn : PALETTE.bull;
+  const ddBg = dd >= 5 ? '#FBE0DD' : dd >= 4 ? '#FCEFD3' : '#E0F4E8';
 
   return (
-    <SectionCard title="Market Pulse" subtitle="Institutional selling pressure indicator">
-      <Stack spacing={2}>
-        <Box sx={{ textAlign: 'center', py: 2 }}>
-          <Box sx={{
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            width: 100, height: 100, borderRadius: '50%',
-            bgcolor: dd >= 5 ? C.bearSoft : dd >= 4 ? C.warnSoft : C.bullSoft,
-            border: `4px solid ${ddColor}`,
-          }}>
-            <Box sx={{
-              fontFamily: F.mono, fontSize: F.xxxl, fontWeight: F.weight.black, color: ddColor,
-            }}>
-              {dd}
-            </Box>
-          </Box>
-          <Box sx={{ fontSize: F.xs, color: C.textDim, mt: 1, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-            Distribution Days (25 sessions)
-          </Box>
-        </Box>
-        <Box sx={{
-          p: 1.5, bgcolor: C.cardAlt, borderRadius: 1,
-          fontSize: F.sm, color: C.text, fontFamily: F.mono,
-        }}>
-          <Stack spacing={0.5}>
-            <Stack direction="row" justifyContent="space-between">
-              <span>Follow-Through Day:</span>
-              <strong style={{ color: ftd ? C.bull : C.bear }}>{ftd ? 'YES' : 'NO'}</strong>
-            </Stack>
-            <Stack direction="row" justifyContent="space-between">
-              <span>State:</span>
-              <strong style={{ color: state.includes('uptrend') ? C.bull : C.bear }}>
-                {state.replace(/_/g, ' ').toUpperCase()}
-              </strong>
-            </Stack>
-          </Stack>
-        </Box>
-        <Box sx={{ fontSize: F.xs, color: C.textDim }}>
-          5+ distribution days in 4 weeks signals correction. Confirmed uptrend
-          requires &lt; 4 distribution days and a follow-through day after a rally attempt.
-        </Box>
-      </Stack>
-    </SectionCard>
+    <Card title="Market Pulse" subtitle="Institutional selling pressure indicator">
+      <div className="flex items-center justify-center py-4">
+        <div
+          className="w-28 h-28 rounded-full flex items-center justify-center border-4"
+          style={{ backgroundColor: ddBg, borderColor: ddColor }}
+        >
+          <span className="text-4xl font-mono tnum font-black" style={{ color: ddColor }}>
+            {dd}
+          </span>
+        </div>
+      </div>
+      <div className="text-center text-2xs uppercase tracking-wide text-ink-muted mb-3">
+        Distribution Days (25 sessions)
+      </div>
+
+      <div className="bg-bg-alt rounded-md p-3 space-y-1.5 text-sm font-mono">
+        <div className="flex justify-between">
+          <span className="text-ink-muted">Follow-Through Day:</span>
+          <span className={cx('font-bold', ftd ? 'text-bull' : 'text-bear')}>
+            {ftd ? 'YES' : 'NO'}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-ink-muted">State:</span>
+          <span className={cx(
+            'font-bold',
+            state.includes('uptrend') ? 'text-bull' : 'text-bear'
+          )}>
+            {state.replace(/_/g, ' ').toUpperCase()}
+          </span>
+        </div>
+      </div>
+
+      <p className="text-xs text-ink-muted mt-3">
+        5+ distribution days in 4 weeks signals correction. Confirmed uptrend
+        requires &lt; 4 distribution days and a follow-through day after a rally attempt.
+      </p>
+    </Card>
   );
 }
 
 // =============================================================================
-// EXPOSURE HISTORY LINE CHART
+// 5. EXPOSURE HISTORY (90D)
 // =============================================================================
-function ExposureHistoryChart({ markets }) {
+
+function ExposureHistory({ markets }) {
   const history = (markets?.history || []).slice().reverse();
   if (!history.length) {
-    return (
-      <SectionCard title="Exposure History">
-        <EmptyState message="No history yet. Once exposure runs daily, this chart populates." />
-      </SectionCard>
-    );
+    return <Card title="Exposure History" empty={{ description: 'Builds over time as exposure runs daily' }} />;
   }
   const data = history.map(h => ({
-    date: h.date, exposure: parseFloat(h.exposure_pct),
-    regime: h.regime, dd: h.distribution_days,
+    date: h.date,
+    exposure: parseFloat(h.exposure_pct),
+    regime: h.regime,
+    dd: h.distribution_days,
   }));
 
   return (
-    <SectionCard
+    <Card
       title={`Exposure History — last ${data.length} sessions`}
-      subtitle="Shows how the algo's risk allocation moved with the market regime"
+      subtitle="How the algo's risk allocation moved with the market regime"
     >
-      <Box sx={{ height: 280 }}>
+      <div className="h-[300px]">
         <ResponsiveContainer>
-          <AreaChart data={data} margin={{ top: 10, right: 16, bottom: 0, left: 0 }}>
+          <AreaChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
             <defs>
               <linearGradient id="expGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={C.brand} stopOpacity={0.3} />
-                <stop offset="100%" stopColor={C.brand} stopOpacity={0} />
+                <stop offset="0%" stopColor={PALETTE.brand} stopOpacity={0.3} />
+                <stop offset="100%" stopColor={PALETTE.brand} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid stroke={C.borderLight} strokeDasharray="2 4" />
+            <CartesianGrid stroke={PALETTE.border} strokeDasharray="2 4" />
             <XAxis
-              dataKey="date" tick={{ fill: C.textDim, fontSize: 11 }}
+              dataKey="date"
+              tick={{ fill: PALETTE.text, fontSize: 11 }}
               tickFormatter={d => String(d).slice(5)}
             />
             <YAxis
-              domain={[0, 100]} tick={{ fill: C.textDim, fontSize: 11 }}
-              tickFormatter={v => `${v}%`} width={45}
+              domain={[0, 100]}
+              tick={{ fill: PALETTE.text, fontSize: 11 }}
+              tickFormatter={v => `${v}%`}
+              width={42}
             />
             <RTooltip
-              contentStyle={{ background: C.bgElev, border: `1px solid ${C.border}`, fontSize: 12 }}
-              formatter={(v, n) => [`${v}%`, 'exposure']}
-              labelFormatter={l => `Date: ${l}`}
+              contentStyle={{ background: '#FFFFFF', border: `1px solid ${PALETTE.border}`, fontSize: 12, borderRadius: 6 }}
+              formatter={(v) => [`${v}%`, 'exposure']}
             />
-            <ReferenceLine y={80} stroke={C.bull} strokeDasharray="3 3" label={{ value: 'Confirmed', fill: C.bull, fontSize: 10, position: 'right' }} />
-            <ReferenceLine y={60} stroke={C.brand} strokeDasharray="3 3" label={{ value: 'Healthy', fill: C.brand, fontSize: 10, position: 'right' }} />
-            <ReferenceLine y={40} stroke={C.warn} strokeDasharray="3 3" label={{ value: 'Pressure', fill: C.warn, fontSize: 10, position: 'right' }} />
-            <ReferenceLine y={20} stroke={C.bear} strokeDasharray="3 3" label={{ value: 'Caution', fill: C.bear, fontSize: 10, position: 'right' }} />
+            <ReferenceLine y={80} stroke={PALETTE.bull} strokeDasharray="3 3"
+              label={{ value: 'Confirmed', fill: PALETTE.bull, fontSize: 10, position: 'right' }} />
+            <ReferenceLine y={60} stroke={PALETTE.brand} strokeDasharray="3 3"
+              label={{ value: 'Healthy', fill: PALETTE.brand, fontSize: 10, position: 'right' }} />
+            <ReferenceLine y={40} stroke={PALETTE.warn} strokeDasharray="3 3"
+              label={{ value: 'Pressure', fill: PALETTE.warn, fontSize: 10, position: 'right' }} />
+            <ReferenceLine y={20} stroke={PALETTE.bear} strokeDasharray="3 3"
+              label={{ value: 'Caution', fill: PALETTE.bear, fontSize: 10, position: 'right' }} />
             <Area
-              type="monotone" dataKey="exposure" stroke={C.brand}
+              type="monotone" dataKey="exposure" stroke={PALETTE.brand}
               strokeWidth={2} fill="url(#expGrad)"
             />
           </AreaChart>
         </ResponsiveContainer>
-      </Box>
-      <Stack direction="row" spacing={3} sx={{ mt: 2, fontSize: F.xs, color: C.textDim, flexWrap: 'wrap' }}>
-        {['confirmed_uptrend', 'healthy_uptrend', 'pressure', 'caution', 'correction'].map(r => (
-          <Stack key={r} direction="row" alignItems="center" spacing={0.5}>
-            <Box sx={{ width: 12, height: 12, bgcolor: tierColor(r), borderRadius: 0.5 }} />
-            <Box>{r.replace(/_/g, ' ')}</Box>
-          </Stack>
+      </div>
+
+      <div className="flex flex-wrap gap-3 mt-3 text-xs text-ink-muted">
+        {Object.entries(REGIME_COLOR).slice(0, 5).map(([r, color]) => (
+          <span key={r} className="inline-flex items-center gap-1">
+            <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: color }} />
+            {r.replace(/_/g, ' ')}
+          </span>
         ))}
-      </Stack>
-    </SectionCard>
+      </div>
+    </Card>
   );
 }
 
 // =============================================================================
-// BREADTH — % above 50/200 DMA over time
+// 6. BREADTH
 // =============================================================================
-function BreadthChart({ markets }) {
+
+function BreadthCard({ markets }) {
   const cur = markets?.current?.factors || {};
   const b50 = cur.breadth_50dma || {};
   const b200 = cur.breadth_200dma || {};
-
-  // Build a snapshot view (we don't have history endpoint for breadth yet)
   const data = [
-    { name: '> 50-DMA', value: b50.value || 0, color: C.bull, count: `${b50.above || 0}/${b50.total || 0}` },
-    { name: '> 200-DMA', value: b200.value || 0, color: C.brand, count: `${b200.above || 0}/${b200.total || 0}` },
+    { name: '> 50-DMA', value: b50.value || 0, count: `${b50.above || 0}/${b50.total || 0}` },
+    { name: '> 200-DMA', value: b200.value || 0, count: `${b200.above || 0}/${b200.total || 0}` },
   ];
 
   return (
-    <SectionCard title="Market Breadth" subtitle="% of stocks above key moving averages">
-      <Box sx={{ height: 240 }}>
+    <Card title="Market Breadth" subtitle="% of stocks above key moving averages">
+      <div className="h-[200px]">
         <ResponsiveContainer>
-          <BarChart data={data} margin={{ top: 12, right: 16, bottom: 8, left: 0 }} barSize={48}>
-            <CartesianGrid stroke={C.borderLight} strokeDasharray="2 4" />
-            <XAxis dataKey="name" tick={{ fill: C.textDim, fontSize: 12 }} />
-            <YAxis
-              domain={[0, 100]} tick={{ fill: C.textDim, fontSize: 11 }}
-              tickFormatter={v => `${v}%`}
-            />
+          <BarChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }} barSize={48}>
+            <CartesianGrid stroke={PALETTE.border} strokeDasharray="2 4" />
+            <XAxis dataKey="name" tick={{ fill: PALETTE.text, fontSize: 11 }} />
+            <YAxis domain={[0, 100]} tick={{ fill: PALETTE.text, fontSize: 11 }} tickFormatter={v => `${v}%`} />
             <RTooltip
-              contentStyle={{ background: C.bgElev, border: `1px solid ${C.border}`, fontSize: 12 }}
+              contentStyle={{ background: '#FFFFFF', border: `1px solid ${PALETTE.border}`, fontSize: 12, borderRadius: 6 }}
               formatter={(v, _, p) => [`${v}% (${p.payload.count})`, p.payload.name]}
             />
-            <ReferenceLine y={50} stroke={C.textDim} strokeDasharray="3 3" />
-            <Bar dataKey="value" fill={C.brand} radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </Box>
-      <Stack direction="row" spacing={2} sx={{ mt: 1, flexWrap: 'wrap' }}>
-        <Stat label="> 50-DMA" value={`${num(b50.value, 1)}%`} sub={`${b50.above || 0} of ${b50.total || 0}`} />
-        <Stat label="> 200-DMA" value={`${num(b200.value, 1)}%`} sub={`${b200.above || 0} of ${b200.total || 0}`} />
-        <Stat label="McClellan" value={num(cur.mcclellan?.value, 2)} sub={cur.mcclellan?.value > 0 ? 'positive' : 'negative'} />
-      </Stack>
-    </SectionCard>
-  );
-}
-
-// =============================================================================
-// NEW HIGHS - LOWS
-// =============================================================================
-function NewHighsLowsChart({ markets }) {
-  const nhnl = markets?.current?.factors?.new_highs_lows || {};
-  const data = [
-    { name: 'New Highs', value: nhnl.new_highs || 0, color: C.bull },
-    { name: 'New Lows', value: -(nhnl.new_lows || 0), color: C.bear },
-  ];
-  return (
-    <SectionCard
-      title="New Highs vs New Lows"
-      subtitle="Net leadership signal — positive net = healthy market participation"
-    >
-      <Box sx={{ height: 240 }}>
-        <ResponsiveContainer>
-          <BarChart data={data} margin={{ top: 12, right: 16, bottom: 8, left: 0 }} barSize={64}>
-            <CartesianGrid stroke={C.borderLight} strokeDasharray="2 4" />
-            <XAxis dataKey="name" tick={{ fill: C.textDim, fontSize: 12 }} />
-            <YAxis tick={{ fill: C.textDim, fontSize: 11 }} />
-            <ReferenceLine y={0} stroke={C.borderStrong} />
-            <RTooltip
-              contentStyle={{ background: C.bgElev, border: `1px solid ${C.border}`, fontSize: 12 }}
-              formatter={v => [Math.abs(v), '']}
-            />
+            <ReferenceLine y={50} stroke={PALETTE.text} strokeDasharray="3 3" />
             <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-              {data.map((d, i) => <ReferenceLine key={i} stroke={d.color} />)}
+              {data.map((d, i) => (
+                <Cell key={i} fill={d.value >= 60 ? PALETTE.bull : d.value >= 40 ? PALETTE.brand : PALETTE.bear} />
+              ))}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
-      </Box>
-      <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
-        <Stat label="New Highs" value={nhnl.new_highs || 0} color={C.bull} />
-        <Stat label="New Lows" value={nhnl.new_lows || 0} color={C.bear} />
-        <Stat label="Net" value={nhnl.net || 0} color={(nhnl.net || 0) >= 0 ? C.bull : C.bear} />
-      </Stack>
-    </SectionCard>
+      </div>
+      <div className="flex gap-4 mt-2 flex-wrap">
+        <Stat label="> 50-DMA" value={`${num(b50.value, 1)}%`} sub={`${b50.above || 0} of ${b50.total || 0}`} size="sm" />
+        <Stat label="> 200-DMA" value={`${num(b200.value, 1)}%`} sub={`${b200.above || 0} of ${b200.total || 0}`} size="sm" />
+        <Stat label="McClellan" value={num(cur.mcclellan?.value, 1)} sub={cur.mcclellan?.value > 0 ? 'positive' : 'negative'} size="sm" />
+      </div>
+    </Card>
   );
 }
 
 // =============================================================================
-// AAII SENTIMENT — recent 8 weeks
+// 7. NEW HIGHS / LOWS
 // =============================================================================
-function SentimentChart({ markets }) {
-  const sentiment = markets?.sentiment || [];
-  if (!sentiment.length) {
-    return (
-      <SectionCard title="Investor Sentiment">
-        <EmptyState message="No sentiment data yet." />
-      </SectionCard>
-    );
+
+function NewHighsLowsCard({ markets }) {
+  const nhnl = markets?.current?.factors?.new_highs_lows || {};
+  const data = [
+    { name: 'New Highs', value: nhnl.new_highs || 0, fill: PALETTE.bull },
+    { name: 'New Lows', value: -(nhnl.new_lows || 0), fill: PALETTE.bear },
+  ];
+  const net = nhnl.net || 0;
+
+  return (
+    <Card title="New Highs vs Lows" subtitle="Net market leadership signal">
+      <div className="h-[200px]">
+        <ResponsiveContainer>
+          <BarChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }} barSize={64}>
+            <CartesianGrid stroke={PALETTE.border} strokeDasharray="2 4" />
+            <XAxis dataKey="name" tick={{ fill: PALETTE.text, fontSize: 11 }} />
+            <YAxis tick={{ fill: PALETTE.text, fontSize: 11 }} />
+            <ReferenceLine y={0} stroke={PALETTE.border} />
+            <RTooltip
+              contentStyle={{ background: '#FFFFFF', border: `1px solid ${PALETTE.border}`, fontSize: 12, borderRadius: 6 }}
+              formatter={(v, _, p) => [Math.abs(v), p.payload.name]}
+            />
+            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+              {data.map((d, i) => <Cell key={i} fill={d.fill} />)}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="flex gap-4 mt-2">
+        <Stat label="Highs" value={nhnl.new_highs || 0} color={PALETTE.bull} size="sm" />
+        <Stat label="Lows" value={nhnl.new_lows || 0} color={PALETTE.bear} size="sm" />
+        <Stat label="Net" value={net} color={net >= 0 ? PALETTE.bull : PALETTE.bear} size="sm" />
+      </div>
+    </Card>
+  );
+}
+
+// =============================================================================
+// 8. SENTIMENT
+// =============================================================================
+
+function SentimentCard({ markets, sentiment }) {
+  const aaiiHistory = markets?.sentiment || [];
+  const naaim = sentiment?.naaim;
+  const fearGreed = sentiment?.fearGreed;
+
+  if (!aaiiHistory.length) {
+    return <Card title="Investor Sentiment" empty={{ description: 'AAII data not yet loaded' }} />;
   }
-  const data = sentiment.slice().reverse().map(s => ({
+
+  const data = aaiiHistory.slice().reverse().map(s => ({
     date: s.date,
     bull: parseFloat(s.bullish || 0),
     bear: parseFloat(s.bearish || 0),
@@ -612,88 +634,258 @@ function SentimentChart({ markets }) {
   const spread = (latest.bull || 0) - (latest.bear || 0);
 
   return (
-    <SectionCard
-      title="Investor Sentiment"
-      subtitle="Bull-bear spread (contrarian signal at extremes)"
-    >
-      <Box sx={{ height: 220 }}>
+    <Card title="Investor Sentiment" subtitle="AAII bull/bear · contrarian signal at extremes">
+      <div className="h-[200px]">
         <ResponsiveContainer>
-          <LineChart data={data} margin={{ top: 12, right: 16, bottom: 0, left: 0 }}>
-            <CartesianGrid stroke={C.borderLight} strokeDasharray="2 4" />
-            <XAxis dataKey="date" tick={{ fill: C.textDim, fontSize: 11 }} tickFormatter={d => String(d).slice(5)} />
-            <YAxis tick={{ fill: C.textDim, fontSize: 11 }} tickFormatter={v => `${v}%`} />
+          <LineChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+            <CartesianGrid stroke={PALETTE.border} strokeDasharray="2 4" />
+            <XAxis dataKey="date" tick={{ fill: PALETTE.text, fontSize: 11 }} tickFormatter={d => String(d).slice(5)} />
+            <YAxis tick={{ fill: PALETTE.text, fontSize: 11 }} tickFormatter={v => `${v}%`} />
             <RTooltip
-              contentStyle={{ background: C.bgElev, border: `1px solid ${C.border}`, fontSize: 12 }}
+              contentStyle={{ background: '#FFFFFF', border: `1px solid ${PALETTE.border}`, fontSize: 12, borderRadius: 6 }}
             />
             <Legend wrapperStyle={{ fontSize: 11 }} />
-            <Line type="monotone" dataKey="bull" stroke={C.bull} strokeWidth={2} dot={false} name="Bullish" />
-            <Line type="monotone" dataKey="bear" stroke={C.bear} strokeWidth={2} dot={false} name="Bearish" />
-            <Line type="monotone" dataKey="neutral" stroke={C.textDim} strokeWidth={1.5} strokeDasharray="3 3" dot={false} name="Neutral" />
+            <Line type="monotone" dataKey="bull" stroke={PALETTE.bull} strokeWidth={2} dot={false} name="Bullish" />
+            <Line type="monotone" dataKey="bear" stroke={PALETTE.bear} strokeWidth={2} dot={false} name="Bearish" />
+            <Line type="monotone" dataKey="neutral" stroke={PALETTE.text} strokeWidth={1.5} strokeDasharray="3 3" dot={false} name="Neutral" />
           </LineChart>
         </ResponsiveContainer>
-      </Box>
-      <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
-        <Stat label="Bullish" value={`${num(latest.bull, 1)}%`} color={C.bull} />
-        <Stat label="Bearish" value={`${num(latest.bear, 1)}%`} color={C.bear} />
+      </div>
+      <div className="flex gap-4 mt-2 flex-wrap">
+        <Stat label="Bullish" value={`${num(latest.bull, 1)}%`} color={PALETTE.bull} size="sm" />
+        <Stat label="Bearish" value={`${num(latest.bear, 1)}%`} color={PALETTE.bear} size="sm" />
         <Stat
           label="Spread"
           value={`${spread >= 0 ? '+' : ''}${num(spread, 1)}`}
           sub={Math.abs(spread) > 20 ? 'Contrarian alert' : 'Normal'}
-          color={spread >= 0 ? C.bull : C.bear}
+          color={spread >= 0 ? PALETTE.bull : PALETTE.bear}
+          size="sm"
         />
-      </Stack>
-    </SectionCard>
+        {naaim != null && <Stat label="NAAIM" value={`${num(naaim, 1)}%`} sub="manager exposure" size="sm" />}
+        {fearGreed != null && <Stat label="Fear/Greed" value={fearGreed} sub={fearGreed > 50 ? 'Greed' : 'Fear'} size="sm" />}
+      </div>
+    </Card>
   );
 }
 
 // =============================================================================
-// VIX REGIME
+// 9. VIX
 // =============================================================================
-function VixChart({ markets, health }) {
+
+function VixCard({ markets }) {
   const vix = markets?.current?.factors?.vix_regime || {};
-  const data = [
-    { name: 'VIX', value: vix.value || 0 },
-  ];
   const level = vix.value || 0;
-  const regime = level < 15 ? 'Calm' : level < 20 ? 'Normal' : level < 28 ? 'Elevated' : level < 36 ? 'High' : 'Extreme';
-  const color = level < 15 ? C.bull : level < 20 ? C.brand : level < 28 ? C.warn : C.bear;
+  const regime =
+    level < 15 ? 'Calm' :
+    level < 20 ? 'Normal' :
+    level < 28 ? 'Elevated' :
+    level < 36 ? 'High' : 'Extreme';
+  const color =
+    level < 15 ? PALETTE.bull :
+    level < 20 ? PALETTE.brand :
+    level < 28 ? PALETTE.warn : PALETTE.bear;
 
   return (
-    <SectionCard
-      title="Volatility Regime (VIX)"
-      subtitle="Implied volatility — proxy for market fear"
-    >
-      <Box sx={{ textAlign: 'center', py: 3 }}>
-        <Box sx={{
-          fontSize: F.xxxxl, fontFamily: F.mono, fontWeight: F.weight.black,
-          color, lineHeight: 1, fontFeatureSettings: '"tnum"',
-        }}>
+    <Card title="Volatility Regime (VIX)" subtitle="Implied volatility — proxy for market fear">
+      <div className="text-center py-4">
+        <div className="text-5xl font-mono tnum font-black leading-none" style={{ color }}>
           {num(level, 2)}
-        </Box>
-        <Chip
-          label={regime.toUpperCase()}
-          sx={{
-            mt: 1, bgcolor: `${color}25`, color, fontWeight: F.weight.bold,
-            letterSpacing: '0.05em', fontSize: F.xs,
-          }}
-        />
-        <Box sx={{ fontSize: F.xs, color: C.textDim, mt: 1, fontFamily: F.mono }}>
+        </div>
+        <div className="mt-2">
+          <Chip variant={level < 15 ? 'bull' : level < 20 ? 'brand' : level < 28 ? 'warn' : 'bear'}>
+            {regime.toUpperCase()}
+          </Chip>
+        </div>
+        <div className="text-2xs text-ink-faint mt-1 font-mono">
           {vix.rising ? 'RISING' : 'STABLE/FALLING'}
-        </Box>
-      </Box>
-      <Box sx={{
-        mt: 2, p: 1.5, borderRadius: 1, bgcolor: C.cardAlt,
-        fontSize: F.xs, color: C.textDim, fontFamily: F.mono,
-      }}>
-        <Stack direction="row" justifyContent="space-around">
-          <span>&lt;15: Calm</span>
-          <span>15-20: Normal</span>
-          <span>20-28: Elevated</span>
-          <span>28+: High</span>
-        </Stack>
-      </Box>
-    </SectionCard>
+        </div>
+      </div>
+      <div className="mt-3 p-3 bg-bg-alt rounded-md text-2xs font-mono text-ink-muted">
+        <div className="flex justify-between">
+          <span>&lt; 15</span><span>Calm</span>
+        </div>
+        <div className="flex justify-between">
+          <span>15–20</span><span>Normal</span>
+        </div>
+        <div className="flex justify-between">
+          <span>20–28</span><span>Elevated</span>
+        </div>
+        <div className="flex justify-between">
+          <span>28+</span><span>High</span>
+        </div>
+      </div>
+    </Card>
   );
 }
 
-export default MarketsHealth;
+// =============================================================================
+// 10. SPY TECHNICALS
+// =============================================================================
+
+function TechnicalsCard({ data }) {
+  if (!data) return <Card title="SPY Technicals" empty={{ description: 'Loading' }} />;
+  const rsi = parseFloat(data.rsi || 0);
+  const adx = parseFloat(data.adx || 0);
+  const macd = parseFloat(data.macd || 0);
+  const macdSignal = parseFloat(data.macd_signal || 0);
+
+  return (
+    <Card title="SPY Technicals" subtitle="RSI · MACD · ADX">
+      <div className="space-y-3">
+        <div>
+          <div className="flex justify-between mb-1">
+            <span className="label">RSI (14)</span>
+            <span className="font-mono tnum text-sm font-semibold">
+              {num(rsi, 1)}
+            </span>
+          </div>
+          <div className="h-1.5 bg-bg-alt rounded-sm overflow-hidden relative">
+            <div
+              className="h-full transition-all"
+              style={{
+                width: `${Math.min(100, rsi)}%`,
+                backgroundColor: rsi > 70 ? PALETTE.bear : rsi < 30 ? PALETTE.bull : PALETTE.brand,
+              }}
+            />
+          </div>
+          <div className="text-2xs text-ink-faint mt-1">
+            {rsi > 70 ? 'Overbought' : rsi < 30 ? 'Oversold' : 'Neutral'} · 30/70 thresholds
+          </div>
+        </div>
+
+        <div>
+          <div className="flex justify-between mb-1">
+            <span className="label">ADX (14)</span>
+            <span className="font-mono tnum text-sm font-semibold">{num(adx, 1)}</span>
+          </div>
+          <div className="text-2xs text-ink-faint">
+            {adx > 25 ? 'Strong trend' : 'Weak / no trend'}
+          </div>
+        </div>
+
+        <div>
+          <div className="flex justify-between mb-1">
+            <span className="label">MACD</span>
+            <PnlCell value={macd - macdSignal} format="percent" inline className="text-sm" />
+          </div>
+          <div className="text-2xs text-ink-faint">
+            {macd > macdSignal ? 'Bullish cross' : 'Bearish cross'}
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// =============================================================================
+// 11. TOP MOVERS
+// =============================================================================
+
+function TopMoversCard({ data }) {
+  if (!data) return <Card title="Top Movers" empty={{ description: 'Loading' }} />;
+  const gainers = (data.gainers || []).slice(0, 5);
+  const losers = (data.losers || []).slice(0, 5);
+
+  return (
+    <Card title="Top Movers" subtitle="Day's biggest moves">
+      <div className="space-y-3">
+        <div>
+          <div className="text-2xs uppercase font-semibold text-bull mb-1.5 tracking-wide">Gainers</div>
+          {gainers.length === 0 ? <div className="text-xs text-ink-faint">—</div> : gainers.map((g, i) => (
+            <div key={g.symbol || i} className="flex items-center justify-between py-1 text-sm">
+              <span className="font-mono font-semibold">{g.symbol}</span>
+              <PnlCell value={g.change_pct || g.changePercent} format="percent" inline />
+            </div>
+          ))}
+        </div>
+        <div className="border-t border-border-light pt-3">
+          <div className="text-2xs uppercase font-semibold text-bear mb-1.5 tracking-wide">Losers</div>
+          {losers.length === 0 ? <div className="text-xs text-ink-faint">—</div> : losers.map((l, i) => (
+            <div key={l.symbol || i} className="flex items-center justify-between py-1 text-sm">
+              <span className="font-mono font-semibold">{l.symbol}</span>
+              <PnlCell value={l.change_pct || l.changePercent} format="percent" inline />
+            </div>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// =============================================================================
+// 12. MARKET CAP PERFORMANCE
+// =============================================================================
+
+function MarketCapCard({ data }) {
+  if (!data) return <Card title="Market Cap Performance" empty={{ description: 'Loading' }} />;
+  const tiers = ['large_cap', 'mid_cap', 'small_cap', 'micro_cap'].map(k => ({
+    label: k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+    value: parseFloat(data[k]?.return_1d || data[k]?.change_pct || 0),
+    count: data[k]?.count || 0,
+  }));
+
+  return (
+    <Card title="Market Cap Performance" subtitle="By size tier · 1-day return">
+      <div className="space-y-2">
+        {tiers.map(t => (
+          <div key={t.label}>
+            <div className="flex justify-between mb-0.5">
+              <span className="label">{t.label}</span>
+              <PnlCell value={t.value} format="percent" inline className="text-sm" />
+            </div>
+            <div className="h-1 bg-bg-alt rounded-sm overflow-hidden">
+              <div
+                className="h-full transition-all"
+                style={{
+                  width: `${Math.min(100, Math.abs(t.value) * 10)}%`,
+                  backgroundColor: t.value >= 0 ? PALETTE.bull : PALETTE.bear,
+                }}
+              />
+            </div>
+            <div className="text-2xs text-ink-faint mt-0.5">{t.count} stocks</div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+// =============================================================================
+// 13. SEASONALITY
+// =============================================================================
+
+function SeasonalityCard({ data }) {
+  if (!data) return null;
+  const months = (data.monthly || []).map((m, i) => ({
+    month: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][i] || m.month,
+    avgReturn: parseFloat(m.avg_return || m.avgReturn || 0),
+  }));
+  if (!months.length) return null;
+
+  return (
+    <Card
+      title="Historical Seasonality"
+      subtitle="Average S&P 500 monthly return · long-term pattern"
+    >
+      <div className="h-[180px]">
+        <ResponsiveContainer>
+          <BarChart data={months} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+            <CartesianGrid stroke={PALETTE.border} strokeDasharray="2 4" />
+            <XAxis dataKey="month" tick={{ fill: PALETTE.text, fontSize: 11 }} />
+            <YAxis tick={{ fill: PALETTE.text, fontSize: 11 }} tickFormatter={v => `${v}%`} />
+            <ReferenceLine y={0} stroke={PALETTE.border} />
+            <RTooltip
+              contentStyle={{ background: '#FFFFFF', border: `1px solid ${PALETTE.border}`, fontSize: 12, borderRadius: 6 }}
+              formatter={(v) => [`${num(v, 2)}%`, 'avg return']}
+            />
+            <Bar dataKey="avgReturn" radius={[3, 3, 0, 0]}>
+              {months.map((m, i) => (
+                <Cell key={i} fill={m.avgReturn >= 0 ? PALETTE.bull : PALETTE.bear} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </Card>
+  );
+}
