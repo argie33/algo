@@ -78,7 +78,6 @@ const navSections = [
     title: 'System',
     items: [
       { text: 'Service Health', icon: <HealthAndSafetyIcon />, path: '/app/health' },
-      { text: 'Settings', icon: <SettingsIcon />, path: '/app/settings' },
     ],
   },
 ];
@@ -150,23 +149,39 @@ const AppLayout = ({ children, pageTitle }) => {
   // ============================================================================
   const drawer = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: C.bgElev }}>
-      {/* Brand */}
+      {/* Brand — sleek, refined */}
       <Box sx={{
-        px: 2, py: 1.5, borderBottom: `1px solid ${C.border}`,
-        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 1,
+        px: 2.5, py: 2, borderBottom: `1px solid ${C.border}`,
+        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 1.5,
+        background: `linear-gradient(135deg, ${C.bgElev} 0%, ${C.brandTint} 100%)`,
+        '&:hover': {
+          background: `linear-gradient(135deg, ${C.brandTint} 0%, ${C.brandSoft} 100%)`,
+        },
+        transition: 'background 200ms ease',
       }} onClick={() => handleNavigation('/')}>
         <Box sx={{
-          width: 28, height: 28, borderRadius: 1.5,
-          bgcolor: C.brand, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: 36, height: 36, borderRadius: 2,
+          background: `linear-gradient(135deg, ${C.brand} 0%, ${C.brandDark} 100%)`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: `0 4px 12px ${C.brand}40`,
         }}>
-          <ShieldOutlined sx={{ fontSize: 18, color: C.bg }} />
+          <ShieldOutlined sx={{ fontSize: 22, color: '#fff' }} />
         </Box>
-        <Typography sx={{
-          fontWeight: F.weight.black, fontSize: F.lg, color: C.textBright,
-          letterSpacing: '-0.02em',
-        }}>
-          BULLSEYE
-        </Typography>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography sx={{
+            fontWeight: F.weight.black, fontSize: F.xl, color: C.textBright,
+            letterSpacing: '-0.03em', lineHeight: 1, fontFamily: F.sans,
+          }}>
+            BULLSEYE
+          </Typography>
+          <Typography sx={{
+            fontSize: F.xxs, color: C.textDim,
+            letterSpacing: '0.12em', textTransform: 'uppercase',
+            fontWeight: F.weight.semibold, mt: 0.25,
+          }}>
+            Swing Trading
+          </Typography>
+        </Box>
       </Box>
 
       {/* Nav sections */}
@@ -227,15 +242,57 @@ const AppLayout = ({ children, pageTitle }) => {
         ))}
       </Box>
 
-      {/* Footer in nav */}
-      <Box sx={{
-        borderTop: `1px solid ${C.border}`, px: 2, py: 1,
-        bgcolor: C.bg, color: C.textFaint, fontSize: F.xxs, fontFamily: F.mono,
-      }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span>v1.0</span>
-          <span>{exposure?.regime ? exposure.regime.replace(/_/g, ' ') : ''}</span>
-        </Box>
+      {/* User box at bottom — click to open user menu (settings / sign out) */}
+      <Box
+        onClick={isAuthenticated ? handleUserMenuOpen : null}
+        sx={{
+          borderTop: `1px solid ${C.border}`,
+          px: 2, py: 1.5,
+          bgcolor: C.bgElev,
+          cursor: isAuthenticated ? 'pointer' : 'default',
+          display: 'flex', alignItems: 'center', gap: 1.5,
+          transition: 'background 150ms',
+          '&:hover': isAuthenticated ? { bgcolor: C.cardAlt } : undefined,
+        }}
+      >
+        {isAuthenticated ? (
+          <>
+            <Box sx={{
+              width: 32, height: 32, borderRadius: '50%',
+              bgcolor: C.brandSoft, color: C.brand,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontWeight: F.weight.bold, fontSize: F.sm,
+              border: `1px solid ${C.brand}30`, flexShrink: 0,
+            }}>
+              {(user?.email || user?.username || '?')[0].toUpperCase()}
+            </Box>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography sx={{
+                fontSize: F.sm, fontWeight: F.weight.semibold, color: C.textBright,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}>
+                {user?.email || user?.username || 'Account'}
+              </Typography>
+              <Typography sx={{ fontSize: F.xxs, color: C.textDim }}>
+                Signed in · click for settings
+              </Typography>
+            </Box>
+            <SettingsIcon sx={{ fontSize: 16, color: C.textFaint, flexShrink: 0 }} />
+          </>
+        ) : (
+          <Button
+            fullWidth variant="contained"
+            startIcon={<LoginIcon />}
+            onClick={() => handleNavigation('/login')}
+            sx={{
+              bgcolor: C.brand, color: '#fff', textTransform: 'none',
+              fontSize: F.sm, fontWeight: F.weight.semibold, py: 0.75,
+              '&:hover': { bgcolor: C.brandDark },
+            }}
+          >
+            Sign In
+          </Button>
+        )}
       </Box>
     </Box>
   );
@@ -243,6 +300,7 @@ const AppLayout = ({ children, pageTitle }) => {
   // ============================================================================
   // HEADER STATUS BAR (right side)
   // ============================================================================
+  // Only show exposure chip when we have real data — no placeholder pills.
   const exposureChip = exposure ? (
     <Tooltip title={`Market exposure: ${exposure.exposure_pct}% (${exposure.regime?.replace(/_/g, ' ')})`}>
       <Chip
@@ -255,15 +313,7 @@ const AppLayout = ({ children, pageTitle }) => {
         }}
       />
     </Tooltip>
-  ) : (
-    <Chip
-      size="small"
-      label="EXP --"
-      sx={{
-        bgcolor: C.cardAlt, color: C.textDim, fontFamily: F.mono, fontSize: F.xs,
-      }}
-    />
-  );
+  ) : null;
 
   const notifCount = notifications.length;
 
@@ -302,20 +352,7 @@ const AppLayout = ({ children, pageTitle }) => {
 
           {/* Status indicators */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {/* Connection / data status */}
-            <Tooltip title={exposure ? `Last update ${new Date().toLocaleTimeString()}` : 'No data'}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <StatusDot severity={exposure ? 'success' : 'warn'} size={8} />
-                <Typography sx={{
-                  fontSize: F.xs, color: C.textDim, fontFamily: F.mono,
-                  display: { xs: 'none', sm: 'inline' },
-                }}>
-                  LIVE
-                </Typography>
-              </Box>
-            </Tooltip>
-
-            {/* Market exposure pill */}
+            {/* Market exposure pill — only when we have real data */}
             {exposureChip}
 
             {/* Notifications badge */}
