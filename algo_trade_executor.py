@@ -19,6 +19,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime
 import requests
+from decimal import Decimal, ROUND_HALF_UP
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -134,15 +135,26 @@ class TradeExecutor:
         if target_1_price is None:
             t1_r = float(self.config.get('t1_target_r_multiple', 1.5))
             target_1_price = round(entry_price + (risk_per_share * t1_r), 2)
+            if target_1_price <= entry_price:
+                return {'success': False, 'trade_id': '', 'status': 'invalid',
+                        'message': f'Invalid target_1: ${target_1_price:.2f} <= entry ${entry_price:.2f}'}
         if target_2_price is None:
             t2_r = float(self.config.get('t2_target_r_multiple', 3.0))
             target_2_price = round(entry_price + (risk_per_share * t2_r), 2)
+            if target_2_price <= entry_price:
+                return {'success': False, 'trade_id': '', 'status': 'invalid',
+                        'message': f'Invalid target_2: ${target_2_price:.2f} <= entry ${entry_price:.2f}'}
         if target_3_price is None:
             t3_r = float(self.config.get('t3_target_r_multiple', 4.0))
             target_3_price = round(entry_price + (risk_per_share * t3_r), 2)
+            if target_3_price <= entry_price:
+                return {'success': False, 'trade_id': '', 'status': 'invalid',
+                        'message': f'Invalid target_3: ${target_3_price:.2f} <= entry ${entry_price:.2f}'}
 
         self.connect()
         try:
+            # B10: Entire entry sequence is wrapped in a single transaction.
+            # If any step fails, the transaction rolls back and no partial state is left.
             # ---- Idempotency: skip if we already have an open position for this symbol
             #     OR an entry trade for this symbol on this signal_date ----
             self.cur.execute(
@@ -165,9 +177,12 @@ class TradeExecutor:
             )
             existing = self.cur.fetchone()
             if existing:
+                # B9: Log duplicate with visibility for pattern monitoring
+                signal_fingerprint = f"{symbol}|{entry_price:.2f}|{stop_loss_price:.2f}|{signal_date}"
+                print(f"[WARN] DUPLICATE SIGNAL: {signal_fingerprint} (prior trade: {existing[0]})")
                 return {
                     'success': False, 'trade_id': existing[0], 'status': 'duplicate', 'duplicate': True,
-                    'message': f'Trade already exists for {symbol} on {signal_date}'
+                    'message': f'Trade already exists for {symbol} on {signal_date} (fingerprint: {signal_fingerprint})'
                 }
 
             # ---- Re-entry rule (Minervini/Schwager): max 2 re-entries per name within 30 days ----
@@ -238,10 +253,20 @@ class TradeExecutor:
                 if order_status not in ('filled', 'partially_filled'):
                     # Order pending, rejected, or cancelled — don't create position yet
                     if order_status in ('rejected', 'cancelled', 'expired'):
+                        # B7: Alert on order rejection
+                        try:
+                            from algo_notifications import notify
+                            notify(
+                                'critical',
+                                title=f'Order {order_status.upper()}: {symbol}',
+                                message=f'Trade {trade_id}: {shares}sh @ ${entry_price:.2f} (stop ${stop_loss_price:.2f}) — {order_status}'
+                            )
+                        except Exception as e:
+                            print(f"  Warning: Failed to send rejection alert: {e}")
                         # Alpaca rejected the order
                         return {
                             'success': False, 'trade_id': trade_id, 'status': order_status,
-                            'message': f'Alpaca rejected order: {order_status}'
+                            'message': f'Alpaca {order_status} order: {symbol}'
                         }
                     # For pending orders, still create the trade record but mark as pending
                     # Position will be created when/if order fills (via reconciliation)
@@ -322,7 +347,19 @@ class TradeExecutor:
 
             # Insert / open position record — ONLY if order actually filled
             # Never create position for pending/rejected orders
+            # B6: Re-verify order status immediately before creating position
             if order_status == 'filled' or (order_status == 'partially_filled' and execution_mode == 'auto'):
+                # In auto mode, re-query order status to catch race where it was cancelled
+                if execution_mode == 'auto' and alpaca_order_id:
+                    verified_status = self._verify_order_status(alpaca_order_id)
+                    if verified_status not in ('filled', 'partially_filled'):
+                        return {
+                            'success': False, 'trade_id': trade_id, 'status': verified_status or 'unknown',
+                            'message': f'Order status changed from {order_status} to {verified_status} — position not created'
+                        }
+                    # Update order_status with verified status (may have changed from pending to filled)
+                    order_status = verified_status
+
                 position_id = f'POS-{trade_id}'
                 # For partial fills, get actual filled quantity from Alpaca
                 actual_shares = shares
@@ -332,7 +369,13 @@ class TradeExecutor:
                         actual_shares = filled_qty
                         print(f"Partial fill detected: {actual_shares} of {shares} shares filled")
 
+                # B3: Defensive check for position value
                 position_value = actual_shares * executed_price
+                if position_value <= 0:
+                    return {
+                        'success': False, 'trade_id': trade_id, 'status': 'invalid',
+                        'message': f'Invalid position value: {actual_shares} shares @ ${executed_price:.2f} = ${position_value:.2f}'
+                    }
                 self.cur.execute(
                     """
                     INSERT INTO algo_positions (
@@ -443,9 +486,13 @@ class TradeExecutor:
             if current_qty <= 0 and not position_id:
                 return {'success': False, 'message': f'No open position for {trade_id}'}
 
-            # Shares to exit
-            shares_to_exit = max(1, int(current_qty * exit_fraction))
-            shares_to_exit = min(shares_to_exit, current_qty)
+            # B8: Shares to exit (using Decimal for precision with fractional shares)
+            current_qty_dec = Decimal(str(current_qty))
+            exit_frac_dec = Decimal(str(exit_fraction))
+            shares_to_exit_dec = (current_qty_dec * exit_frac_dec).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            shares_to_exit_dec = max(Decimal('0.01'), shares_to_exit_dec)  # Min 1 cent of shares
+            shares_to_exit_dec = min(shares_to_exit_dec, current_qty_dec)  # Cap at current qty
+            shares_to_exit = float(shares_to_exit_dec)
             full_exit = shares_to_exit >= current_qty
 
             # B3: Cancel bracket orders BEFORE sending the market sell
@@ -464,6 +511,16 @@ class TradeExecutor:
                 if exit_order_result.get('success'):
                     actual_fill_price = exit_order_result.get('filled_price')
                 else:
+                    # B7: Alert on exit order failure
+                    try:
+                        from algo_notifications import notify
+                        notify(
+                            'critical',
+                            title=f'EXIT ORDER FAILED: {symbol}',
+                            message=f'Trade {trade_id}: Failed to exit {shares_to_exit}sh. {exit_order_result.get("message")}'
+                        )
+                    except Exception as e:
+                        print(f"  Warning: Failed to send exit failure alert: {e}")
                     # Order failed — don't mark position closed (B4)
                     return {
                         'success': False,
@@ -474,11 +531,25 @@ class TradeExecutor:
             final_exit_price = actual_fill_price if actual_fill_price else exit_price
 
             # Profit calc against actual entry + actual exit price (B5)
+            # B3: Defensive checks for negative prices
+            if final_exit_price <= 0:
+                print(f"WARNING: Negative exit price {final_exit_price} for {symbol}")
+                final_exit_price = max(0.01, final_exit_price)  # Floor at $0.01
+            if entry_price <= 0:
+                print(f"WARNING: Invalid entry price {entry_price} for {symbol}")
+                return {'success': False, 'message': f'Invalid entry price for {trade_id}'}
+
             risk_per_share = entry_price - stop_loss_price
             r_multiple = ((final_exit_price - entry_price) / risk_per_share) if risk_per_share > 0 else 0
             pnl_per_share = final_exit_price - entry_price
             pnl_dollars = pnl_per_share * shares_to_exit
             pnl_pct = (pnl_per_share / entry_price * 100) if entry_price > 0 else 0
+
+            # Clamp invalid values
+            if not isinstance(pnl_dollars, (int, float)) or pnl_dollars != pnl_dollars:  # NaN check
+                pnl_dollars = 0.0
+            if not isinstance(pnl_pct, (int, float)) or pnl_pct != pnl_pct:  # NaN check
+                pnl_pct = 0.0
 
             # Update the trade record with actual fill price
             if full_exit:
@@ -515,17 +586,26 @@ class TradeExecutor:
                     ),
                 )
 
-            # Update the position
-            new_qty = current_qty - shares_to_exit
+            # Update the position (with optimistic locking to prevent race conditions)
+            # B8: Use Decimal for precision with fractional shares
+            current_qty_dec = Decimal(str(current_qty))
+            shares_exited_dec = Decimal(str(shares_to_exit))
+            new_qty_dec = current_qty_dec - shares_exited_dec
+            new_qty = float(new_qty_dec)
             if full_exit or new_qty <= 0:
                 self.cur.execute(
                     """
                     UPDATE algo_positions
                     SET status = 'closed', quantity = 0, closed_at = CURRENT_TIMESTAMP
-                    WHERE position_id = %s
+                    WHERE position_id = %s AND quantity = %s
                     """,
-                    (position_id,),
+                    (position_id, current_qty),
                 )
+                if self.cur.rowcount == 0:
+                    return {
+                        'success': False,
+                        'message': f'Position quantity changed between read and update (race condition)'
+                    }
             else:
                 # New stop (trailing) and incremented target_levels_hit
                 effective_stop = new_stop_price if new_stop_price is not None else stop_loss_price
@@ -536,10 +616,15 @@ class TradeExecutor:
                         position_value = %s * current_price,
                         target_levels_hit = COALESCE(target_levels_hit, 0) + 1,
                         current_stop_price = %s
-                    WHERE position_id = %s
+                    WHERE position_id = %s AND quantity = %s
                     """,
-                    (new_qty, new_qty, effective_stop, position_id),
+                    (new_qty, new_qty, effective_stop, position_id, current_qty),
                 )
+                if self.cur.rowcount == 0:
+                    return {
+                        'success': False,
+                        'message': f'Position quantity changed between read and update (race condition)'
+                    }
 
             # Audit log
             try:
@@ -775,7 +860,9 @@ class TradeExecutor:
     def _get_order_filled_quantity(self, alpaca_order_id):
         """Query Alpaca for actual filled quantity of an order.
 
-        Returns: int (filled_qty) or None if not available
+        Includes retry logic (B11) with exponential backoff for transient failures.
+
+        Returns: int (filled_qty) or None if not available after retries
         """
         if not self.alpaca_key or not self.alpaca_secret or not alpaca_order_id:
             return None
@@ -783,20 +870,72 @@ class TradeExecutor:
         if alpaca_order_id.startswith('LOCAL-') or alpaca_order_id.startswith('PENDING-'):
             return None  # Paper mode, no real order
 
-        try:
-            resp = requests.get(
-                f'{self.alpaca_base_url}/v2/orders/{alpaca_order_id}',
-                headers={'APCA-API-KEY-ID': self.alpaca_key,
-                         'APCA-API-SECRET-KEY': self.alpaca_secret},
-                timeout=5,
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                filled_qty = data.get('filled_qty')
-                if filled_qty is not None:
-                    return int(filled_qty)
-        except Exception:
-            pass
+        import time
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                resp = requests.get(
+                    f'{self.alpaca_base_url}/v2/orders/{alpaca_order_id}',
+                    headers={'APCA-API-KEY-ID': self.alpaca_key,
+                             'APCA-API-SECRET-KEY': self.alpaca_secret},
+                    timeout=5,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    filled_qty = data.get('filled_qty')
+                    if filled_qty is not None:
+                        return int(filled_qty)
+                else:
+                    if attempt < max_retries - 1:
+                        wait_time = 2 ** attempt
+                        time.sleep(wait_time)
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt
+                    time.sleep(wait_time)
+                else:
+                    print(f"WARNING: Failed to get filled quantity for {alpaca_order_id} after {max_retries} attempts: {e}")
+        return None
+
+    def _verify_order_status(self, alpaca_order_id):
+        """Re-query order status from Alpaca (B6: race condition protection).
+
+        Includes retry logic (B5) with exponential backoff for transient failures.
+
+        Returns: order status string ('filled', 'partially_filled', 'pending', 'cancelled', etc.)
+                 or None if unable to verify after retries
+        """
+        if not self.alpaca_key or not self.alpaca_secret or not alpaca_order_id:
+            return None
+
+        if alpaca_order_id.startswith('LOCAL-') or alpaca_order_id.startswith('PENDING-'):
+            return None  # Paper mode, no real order
+
+        import time
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                resp = requests.get(
+                    f'{self.alpaca_base_url}/v2/orders/{alpaca_order_id}',
+                    headers={'APCA-API-KEY-ID': self.alpaca_key,
+                             'APCA-API-SECRET-KEY': self.alpaca_secret},
+                    timeout=5,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return data.get('status')
+                else:
+                    if attempt < max_retries - 1:
+                        wait_time = 2 ** attempt  # 1s, 2s, 4s
+                        print(f"  Retrying order status query ({attempt + 1}/{max_retries}) after {wait_time}s...")
+                        time.sleep(wait_time)
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt
+                    print(f"  Retrying order status query ({attempt + 1}/{max_retries}) after {wait_time}s: {e}")
+                    time.sleep(wait_time)
+                else:
+                    print(f"ERROR: Failed to verify order status for {alpaca_order_id} after {max_retries} attempts: {e}")
         return None
 
     def _send_alpaca_exit(self, symbol, shares):

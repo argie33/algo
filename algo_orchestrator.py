@@ -86,6 +86,43 @@ class Orchestrator:
         self.run_id = f"RUN-{self.run_date.isoformat()}-{datetime.now().strftime('%H%M%S')}"
         self.lock_file = Path('/tmp/algo_orchestrator.lock')
         self._lock_acquired = False
+        self.db_failure_counter_file = Path('/tmp/algo_db_failures.txt')
+        self.degraded_mode = False  # B4: Circuit breaker for DB failures
+
+    # ---------- Database health monitoring (B4) ----------
+
+    def _check_db_connectivity(self):
+        """Test if database is reachable. Returns True if OK, False if failed."""
+        try:
+            conn = psycopg2.connect(**DB_CONFIG)
+            cur = conn.cursor()
+            cur.execute("SELECT 1")
+            cur.close()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"  [ERROR] Database connectivity check failed: {e}")
+            return False
+
+    def _increment_db_failure_counter(self):
+        """Increment failure counter. If >= 3 consecutive failures, enter degraded mode."""
+        try:
+            current = 0
+            if self.db_failure_counter_file.exists():
+                current = int(self.db_failure_counter_file.read_text().strip() or 0)
+            current += 1
+            self.db_failure_counter_file.write_text(str(current))
+            return current
+        except Exception:
+            return 1
+
+    def _reset_db_failure_counter(self):
+        """Reset counter on successful DB connection."""
+        try:
+            if self.db_failure_counter_file.exists():
+                self.db_failure_counter_file.unlink()
+        except Exception:
+            pass
 
     # ---------- Logging helpers ----------
 
@@ -752,6 +789,31 @@ class Orchestrator:
             print(f"  (warning: couldn't write lock file: {e})")
 
         try:
+            # B4: Check database connectivity — fail-closed on multiple consecutive failures
+            if not self._check_db_connectivity():
+                failures = self._increment_db_failure_counter()
+                if failures >= 3:
+                    self.degraded_mode = True
+                    print(f"\n[CRITICAL] Database down for {failures} consecutive runs — ENTERING DEGRADED MODE")
+                    print("Skipping all trading phases. Continuing with monitoring only.")
+                    try:
+                        from algo_notifications import notify
+                        notify(
+                            'critical',
+                            title='Database Circuit Breaker Activated',
+                            message=f'DB unreachable for {failures} runs. System in degraded mode. No trading.'
+                        )
+                    except Exception:
+                        pass
+                    # Still try to reconcile and alert
+                    self.phase_7_reconcile()
+                    return self._final_report()
+                else:
+                    print(f"\n[ERROR] Database connectivity failed ({failures}/3). Will halt if persists.")
+                    return self._final_report()
+            else:
+                self._reset_db_failure_counter()
+
             if getattr(self, 'skip_freshness', False):
                 print("\nNOTE: Phase 1 freshness gate skipped (--skip-freshness flag set).")
             elif not self.phase_1_data_freshness():
@@ -788,15 +850,18 @@ class Orchestrator:
     def _is_market_open_or_imminent(self, window_min: int = 30) -> bool:
         """Return True if US equity market is open right now OR opens within
         `window_min` minutes. Queries Alpaca's /v2/clock — authoritative for
-        holidays, half-days, etc. Falls back to permissive (True) on error so
-        a transient network blip doesn't permanently halt entries."""
+        holidays, half-days, etc. In auto mode, fails closed (returns False) on
+        API failure so we don't trade when market status is unknown."""
         try:
             import requests
             key = os.getenv('APCA_API_KEY_ID')
             secret = os.getenv('APCA_API_SECRET_KEY')
             base = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
             if not key or not secret:
-                return True  # Can't check; let other guards (live-trading lock) handle it
+                mode = (self.config.get('execution_mode', 'paper') if isinstance(self.config, dict) else 'paper').lower()
+                if mode == 'auto':
+                    return False  # Auto mode: fail-closed if can't verify market hours
+                return True  # Paper mode: permit
             r = requests.get(
                 f'{base}/v2/clock',
                 headers={'APCA-API-KEY-ID': key, 'APCA-API-SECRET-KEY': secret},
@@ -816,7 +881,11 @@ class Orchestrator:
             mins_to_open = (next_open - now).total_seconds() / 60.0
             return 0 <= mins_to_open <= window_min
         except Exception as e:
-            print(f"  [warn] market-hours check failed: {e} — proceeding")
+            mode = (self.config.get('execution_mode', 'paper') if isinstance(self.config, dict) else 'paper').lower()
+            if mode == 'auto':
+                print(f"  [ERROR] market-hours check failed: {e} — failing closed (no entries in auto mode)")
+                return False
+            print(f"  [warn] market-hours check failed: {e} — proceeding in {mode} mode")
             return True
 
     def _pid_alive(self, pid):
