@@ -14,10 +14,6 @@ Parameters:
     Type: String
     Description: ARN of database credentials secret
 
-  AlpacaSecretsArn:
-    Type: String
-    Description: ARN of Alpaca API credentials secret
-
   DryRunMode:
     Type: String
     Default: 'true'
@@ -63,7 +59,6 @@ Resources:
                   - secretsmanager:GetSecretValue
                 Resource:
                   - !Sub '${DatabaseSecretArn}*'
-                  - !Sub '${AlpacaSecretsArn}*'
               - Effect: Allow
                 Action:
                   - sns:Publish
@@ -99,7 +94,6 @@ Resources:
           ALERT_SNS_TOPIC_ARN: !GetAtt AlgoAlertTopic.TopicArn
           ENVIRONMENT: !Ref Environment
           DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
-          ALPACA_API_KEY_SECRET_ARN: !Ref AlpacaSecretsArn
 
   AlgoScheduleRule:
     Type: AWS::Events::Rule

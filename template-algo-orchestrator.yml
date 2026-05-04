@@ -14,10 +14,6 @@ Parameters:
     Type: String
     Description: ARN of the database credentials secret in Secrets Manager
 
-  AlpacaSecretsArn:
-    Type: String
-    Description: ARN of the Alpaca API credentials secret in Secrets Manager
-
   DryRunMode:
     Type: String
     Default: 'true'
@@ -70,13 +66,12 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              # Secrets Manager access (database + Alpaca)
+              # Secrets Manager access (database credentials)
               - Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource:
                   - !Sub '${DatabaseSecretArn}*'
-                  - !Sub '${AlpacaSecretsArn}*'
               # SNS publish for alerts
               - Effect: Allow
                 Action:
@@ -123,7 +118,6 @@ Resources:
           ALERT_SNS_TOPIC_ARN: !GetAtt AlgoAlertTopic.TopicArn
           ENVIRONMENT: !Ref Environment
           DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
-          ALPACA_API_KEY_SECRET_ARN: !Ref AlpacaSecretsArn
       Tags:
         - Key: Environment
           Value: !Ref Environment

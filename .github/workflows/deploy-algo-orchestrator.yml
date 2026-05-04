@@ -196,34 +196,28 @@ jobs:
               --region ${{ env.AWS_REGION }} 2>/dev/null || echo "Stack deleted or already gone"
           fi
 
-      - name: Get secret ARNs from Secrets Manager
+      - name: Get database secret ARN from Secrets Manager
         run: |
-          echo "Retrieving secret ARNs..."
+          echo "Retrieving database secret ARN..."
 
-          # Get database secret ARN
-          DB_SECRET=$(aws secretsmanager describe-secret \
-            --secret-id stocks-db-secrets \
+          # Get database secret ARN (created by deploy-app-stocks.yml)
+          # Expects secret named: stocks-db-secrets-{StackName}-{Region}-001
+          DB_SECRET=$(aws secretsmanager list-secrets \
             --region ${{ env.AWS_REGION }} \
-            --query 'ARN' \
+            --filters Key=name,Values="stocks-db-secrets-*" \
+            --query 'SecretList[0].ARN' \
             --output text 2>/dev/null || echo "")
 
-          # Get Alpaca secret ARN
-          ALPACA_SECRET=$(aws secretsmanager describe-secret \
-            --secret-id algo-alpaca-credentials \
-            --region ${{ env.AWS_REGION }} \
-            --query 'ARN' \
-            --output text 2>/dev/null || echo "")
-
-          # If secrets don't exist, use placeholder ARNs (will fail at runtime if not found)
+          # If secret not found, use placeholder (assume it will exist by runtime)
           DB_SECRET="${DB_SECRET:-arn:aws:secretsmanager:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:secret:stocks-db-secrets}"
-          ALPACA_SECRET="${ALPACA_SECRET:-arn:aws:secretsmanager:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:secret:algo-alpaca-credentials}"
 
           echo "DB_SECRET=$DB_SECRET" >> $GITHUB_ENV
-          echo "ALPACA_SECRET=$ALPACA_SECRET" >> $GITHUB_ENV
+          echo "Retrieved DB secret ARN: $DB_SECRET"
 
       - name: Deploy CloudFormation stack (Algo Lambda only)
         run: |
           echo "Deploying algo Lambda + EventBridge (minimal stack)..."
+          echo "Database Secret ARN: ${{ env.DB_SECRET }}"
 
           aws cloudformation deploy \
             --template-file template-algo-lambda-minimal.yml \
@@ -232,7 +226,6 @@ jobs:
               LambdaFunctionCodeBucket="${{ env.LAMBDA_ARTIFACTS_BUCKET }}" \
               LambdaFunctionCodeKey="${{ env.FUNCTION_KEY }}" \
               DatabaseSecretArn="${{ env.DB_SECRET }}" \
-              AlpacaSecretsArn="${{ env.ALPACA_SECRET }}" \
               DryRunMode="${{ github.event.inputs.dry_run || 'true' }}" \
               Environment="${{ github.event.inputs.environment || 'dev' }}" \
             --capabilities CAPABILITY_NAMED_IAM \
