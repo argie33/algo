@@ -29,6 +29,7 @@ import {
 // Dashboard pages - ALL 18 pages
 import MarketOverview from "./pages/MarketOverview";
 import MarketsHealth from "./pages/MarketsHealth";
+import StockDetail from "./pages/StockDetail";
 import DeepValueStocks from "./pages/DeepValueStocks";
 import TradingSignals from "./pages/TradingSignals";
 import BacktestResults from "./pages/BacktestResults";
@@ -394,6 +395,7 @@ function App() {
           <Route path="/app/etf-signals" element={<TradingSignals />} />
           <Route path="/app/scores" element={<ScoresDashboard />} />
           <Route path="/app/metrics" element={<MetricsDashboard />} />
+          <Route path="/app/stock/:symbol" element={<StockDetail />} />
 
           {/* Portfolio & Trading */}
           <Route path="/app/portfolio" element={<PortfolioDashboard />} />

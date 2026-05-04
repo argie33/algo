@@ -1,428 +1,389 @@
-import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useTheme } from "@mui/material/styles";
-import { useDocumentTitle } from "../hooks/useDocumentTitle";
+/**
+ * Trading Signals — STOCKS + ETFs unified page.
+ *
+ * Tabs at top: STOCKS | ETFs (both share buy_sell_daily / buy_sell_daily_etf
+ * schemas — same columns, same filters, same row-expansion). Different
+ * data source per tab.
+ *
+ * Per DESIGN_REDESIGN_PLAN.md §4 Page E: every column from buy_sell_daily is
+ * available; default visible columns are the most algo-relevant ones, with
+ * row-expansion revealing the full record.
+ *
+ * Tailwind + Primitives. No MUI imports.
+ */
+
+import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import { Search, RefreshCw, Zap } from 'lucide-react';
+import { api } from '../services/api';
 import {
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Chip,
-  CircularProgress,
-  Container,
-  Divider,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  FormControl,
-  Grid,
-  InputLabel,
-  MenuItem,
-  Paper,
-  Select,
-  Tab,
-  Tabs,
-  TextField,
-  Typography,
-  InputAdornment,
-  IconButton,
-  Stack,
-  Alert,
-} from "@mui/material";
-import {
-  FilterList,
-  Search,
-  Clear,
-  ExpandMore,
-  TuneOutlined,
-  RestartAlt,
-} from "@mui/icons-material";
-import api, { getApiConfig, extractResponseData } from "../services/api";
-import { ErrorDisplay } from "../components/ui/ErrorBoundary";
-import ErrorBoundary from "../components/ErrorBoundary";
-import SignalCardAccordion from "../components/SignalCardAccordion";
+  Card, PageHeader, Stat, Chip, Button, Input, Select, Tabs,
+  PnlCell, DataTable, cx,
+} from '../components/ui/Primitives';
 
-function TradingSignals() {
-  useDocumentTitle("Trading Signals - Advanced Filtering");
-  const theme = useTheme();
+// =============================================================================
+// HELPERS
+// =============================================================================
 
-  // Strategy & Pagination
-  const [strategy, setStrategy] = useState("swing");
-  const [assetType, setAssetType] = useState("stocks"); // stocks or etf
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(50);
+const fmtMoney = (v) => v == null ? '—' : `$${Number(v).toFixed(2)}`;
+const fmtPct = (v) => v == null ? '—' : `${Number(v).toFixed(2)}%`;
+const fmtInt = (v) => v == null ? '—' : Number(v).toLocaleString('en-US');
 
-  // Filters
-  const [symbolFilter, setSymbolFilter] = useState("");
-  const [signalFilter, setSignalFilter] = useState("");
-  const [baseTypeFilter, setBaseTypeFilter] = useState("");
-  const [timeframeFilter, setTimeframeFilter] = useState("daily");
-  const [days, setDays] = useState(3650); // Default: ALL TIME
-  const [minPrice, setMinPrice] = useState("");
-  const [maxPrice, setMaxPrice] = useState("");
-  const [minVolume, setMinVolume] = useState("");
-  const [maxVolume, setMaxVolume] = useState("");
-  const [minRsi, setMinRsi] = useState("");
-  const [maxRsi, setMaxRsi] = useState("");
-  const [minAdx, setMinAdx] = useState("");
-  const [sort, setSort] = useState("date");
-  const [sortOrder, setSortOrder] = useState("DESC");
+const STAGE_VARIANT = {
+  'Stage 1': 'muted',
+  'Stage 2': 'bull',
+  'Stage 2 - Markup': 'bull',
+  'Stage 3': 'warn',
+  'Stage 3 - Topping': 'warn',
+  'Stage 4': 'bear',
+};
 
-  // Count active filters (3650 = all time default, so don't count it)
-  const activeFilterCount = [
-    symbolFilter, signalFilter, baseTypeFilter, days !== 3650, minPrice, maxPrice,
-    minVolume, maxVolume, minRsi, maxRsi, minAdx
-  ].filter(Boolean).length;
+const QUALITY_VARIANT = {
+  STRONG: 'bull',
+  MODERATE: 'warn',
+  WEAK: 'bear',
+};
 
-  // Strategy config
-  const strategyConfig = {
-    swing: {
-      title: "Swing Trading Signals",
-      description: "AI-powered swing trading with market stage analysis, risk/reward ratios, and technical confirmation",
-      icon: "📈",
-      color: theme.palette.primary.main,
-    },
-    range: {
-      title: "Range Trading Signals",
-      description: "Range bounce and breakout signals with support/resistance levels and breakout quality metrics",
-      icon: "📊",
-      color: theme.palette.info.main,
-    },
-    "mean-reversion": {
-      title: "Mean Reversion Signals",
-      description: "Connors RSI(2) oversold signals with confluence analysis and mean reversion probability",
-      icon: "🔄",
-      color: theme.palette.success.main,
-    },
-  };
+// =============================================================================
+// MAIN PAGE
+// =============================================================================
 
-  const config = strategyConfig[strategy];
+export default function TradingSignals() {
+  const [tab, setTab] = useState('stocks');
+  const [signal, setSignal] = useState('all');
+  const [timeframe, setTimeframe] = useState('daily');
+  const [search, setSearch] = useState('');
+  const [stageFilter, setStageFilter] = useState('all');
 
-  // API Query
-  const { data: signalsData, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["signals", strategy, assetType, symbolFilter, signalFilter, baseTypeFilter, timeframeFilter, days, minPrice, maxPrice, minVolume, maxVolume, minRsi, maxRsi, minAdx, sort, sortOrder, page, limit],
-    queryFn: async () => {
+  const endpoint = tab === 'etfs' ? '/signals/etf' : '/signals/stocks';
+
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['signals', tab, signal, timeframe],
+    queryFn: () => {
       const params = new URLSearchParams();
-      params.append("type", strategy);
-      params.append("dataType", assetType);
-      params.append("timeframe", timeframeFilter);
-      if (symbolFilter) params.append("symbol", symbolFilter.toUpperCase());
-      if (signalFilter) params.append("signal", signalFilter);
-      if (baseTypeFilter) params.append("base_type", baseTypeFilter);
-      params.append("days", days);
-      if (minPrice) params.append("min_price", minPrice);
-      if (maxPrice) params.append("max_price", maxPrice);
-      if (minVolume) params.append("min_volume", minVolume);
-      if (maxVolume) params.append("max_volume", maxVolume);
-      if (minRsi) params.append("min_rsi", minRsi);
-      if (maxRsi) params.append("max_rsi", maxRsi);
-      if (minAdx) params.append("min_adx", minAdx);
-      params.append("limit", limit);
-      params.append("page", page);
-      params.append("sort", sort);
-      params.append("sort_order", sortOrder);
-
-      const response = await api.get(`/api/signals/search?${params}`);
-      return extractResponseData(response);
+      params.set('timeframe', timeframe);
+      params.set('limit', '500');
+      if (signal !== 'all') params.set('signal', signal);
+      return api.get(`${endpoint}?${params.toString()}`).then(r => r.data);
     },
+    refetchInterval: 60000,
   });
 
-  const signals = signalsData?.items || [];
-  const pagination = signalsData?.pagination || {};
+  const rows = data?.items || data?.data || [];
 
-  // Handlers
-  const handleClearAll = () => {
-    setAssetType("stocks");
-    setSymbolFilter("");
-    setSignalFilter("");
-    setBaseTypeFilter("");
-    setTimeframeFilter("daily");
-    setDays(3650); // All time
-    setMinPrice("");
-    setMaxPrice("");
-    setMinVolume("");
-    setMaxVolume("");
-    setMinRsi("");
-    setMaxRsi("");
-    setMinAdx("");
-    setSort("date");
-    setSortOrder("DESC");
-    setPage(1);
-  };
+  const filtered = useMemo(() => {
+    let r = rows;
+    if (search) {
+      const q = search.trim().toUpperCase();
+      r = r.filter(x => x.symbol?.startsWith(q));
+    }
+    if (stageFilter !== 'all') {
+      r = r.filter(x => (x.market_stage || '').includes(stageFilter));
+    }
+    return r;
+  }, [rows, search, stageFilter]);
 
-  const handleRemoveFilter = (type) => {
-    const handlers = {
-      symbol: () => setSymbolFilter(""),
-      signal: () => setSignalFilter(""),
-      baseType: () => setBaseTypeFilter(""),
-      days: () => setDays(3650), // All time
-      minPrice: () => setMinPrice(""),
-      maxPrice: () => setMaxPrice(""),
-      minRsi: () => setMinRsi(""),
-      maxRsi: () => setMaxRsi(""),
-      minAdx: () => setMinAdx(""),
-    };
-    handlers[type]?.();
-    setPage(1);
-  };
+  const buyCount = filtered.filter(r => (r.signal || '').toUpperCase() === 'BUY').length;
+  const sellCount = filtered.filter(r => (r.signal || '').toUpperCase() === 'SELL').length;
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h3" component="h1" sx={{ fontWeight: 700, mb: 1 }}>
-          Trading Signals Dashboard
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Advanced filtering across 1M+ signals • All strategies • Historical & current data
-        </Typography>
-      </Box>
+    <div className="px-4 sm:px-6 py-6 max-w-page mx-auto">
+      <PageHeader
+        title="Trading Signals"
+        subtitle={
+          tab === 'stocks'
+            ? 'Pine-script signals for stocks · click a row for full detail'
+            : 'Pine-script signals for ETFs · click a row for full detail'
+        }
+        actions={
+          <Button variant="ghost" size="sm" icon={RefreshCw} onClick={() => refetch()}>
+            Refresh
+          </Button>
+        }
+      />
 
-      {/* Strategy Tabs */}
-      <Paper sx={{ mb: 4 }}>
-        <Tabs value={strategy} onChange={(e, v) => { setStrategy(v); setPage(1); }} variant="fullWidth">
-          <Tab label={`${strategyConfig.swing.icon} Swing Trading`} value="swing" />
-          <Tab label={`${strategyConfig.range.icon} Range Trading`} value="range" />
-          <Tab label={`${strategyConfig["mean-reversion"].icon} Mean Reversion`} value="mean-reversion" />
-        </Tabs>
-        <Box sx={{ p: 2.5, backgroundColor: `${config.color}12`, borderTop: `2px solid ${config.color}` }}>
-          <Typography variant="h6" sx={{ color: config.color, fontWeight: 700, mb: 0.5 }}>
-            {config.title}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {config.description}
-          </Typography>
-        </Box>
-      </Paper>
+      <Tabs
+        tabs={[
+          { value: 'stocks', label: 'Stocks', count: tab === 'stocks' ? rows.length : null },
+          { value: 'etfs',   label: 'ETFs',   count: tab === 'etfs'   ? rows.length : null },
+        ]}
+        value={tab}
+        onChange={setTab}
+        className="mb-4"
+      />
 
-      {/* Active Filters Chips */}
-      {activeFilterCount > 0 && (
-        <Card sx={{ mb: 3, backgroundColor: theme.palette.action.hover }}>
-          <CardContent>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1.5 }}>
-              <TuneOutlined fontSize="small" color="primary" />
-              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                {activeFilterCount} Active Filter{activeFilterCount !== 1 ? 's' : ''}
-              </Typography>
-            </Box>
-            <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-              {symbolFilter && <Chip label={`Symbol: ${symbolFilter}`} onDelete={() => handleRemoveFilter("symbol")} color="primary" variant="outlined" size="small" />}
-              {signalFilter && <Chip label={`Signal: ${signalFilter}`} onDelete={() => handleRemoveFilter("signal")} color="primary" variant="outlined" size="small" />}
-              {baseTypeFilter && <Chip label={`Pattern: ${baseTypeFilter}`} onDelete={() => handleRemoveFilter("baseType")} color="primary" variant="outlined" size="small" />}
-              {days !== 3650 && <Chip label={`${days}d`} onDelete={() => handleRemoveFilter("days")} color="primary" variant="outlined" size="small" />}
-              {minPrice && <Chip label={`Min: $${minPrice}`} onDelete={() => handleRemoveFilter("minPrice")} color="primary" variant="outlined" size="small" />}
-              {maxPrice && <Chip label={`Max: $${maxPrice}`} onDelete={() => handleRemoveFilter("maxPrice")} color="primary" variant="outlined" size="small" />}
-              {minRsi && <Chip label={`RSI ≥ ${minRsi}`} onDelete={() => handleRemoveFilter("minRsi")} color="primary" variant="outlined" size="small" />}
-              {maxRsi && <Chip label={`RSI ≤ ${maxRsi}`} onDelete={() => handleRemoveFilter("maxRsi")} color="primary" variant="outlined" size="small" />}
-              {minAdx && <Chip label={`ADX ≥ ${minAdx}`} onDelete={() => handleRemoveFilter("minAdx")} color="primary" variant="outlined" size="small" />}
-            </Stack>
-          </CardContent>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+        <Card padded className="mb-0">
+          <Stat label="Total Signals" value={filtered.length} mono size="lg" />
         </Card>
-      )}
+        <Card padded className="mb-0">
+          <Stat label="BUY" value={buyCount} color="#1F9956" mono size="lg" />
+        </Card>
+        <Card padded className="mb-0">
+          <Stat label="SELL" value={sellCount} color="#E0392B" mono size="lg" />
+        </Card>
+        <Card padded className="mb-0">
+          <Stat
+            label="BUY/SELL Ratio"
+            value={sellCount === 0 ? '∞' : (buyCount / sellCount).toFixed(2)}
+            sub={buyCount > sellCount ? 'risk on' : buyCount < sellCount ? 'risk off' : 'even'}
+            mono size="lg"
+          />
+        </Card>
+      </div>
 
-      {/* Filter Panel - Clean & Sleek */}
-      <Card sx={{ mb: 4, background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.action.hover} 100%)`, boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
-        <Accordion defaultExpanded sx={{ "&:before": { display: "none" } }}>
-          <AccordionSummary expandIcon={<ExpandMore />} sx={{ py: 2 }}>
-            <FilterList sx={{ mr: 2, color: theme.palette.primary.main }} />
-            <Typography sx={{ fontWeight: 700, flex: 1, fontSize: "1.05rem" }}>Filter Signals</Typography>
-            {activeFilterCount > 0 && <Chip label={activeFilterCount} size="small" color="primary" variant="filled" sx={{ fontWeight: 700 }} />}
-          </AccordionSummary>
-          <Divider />
-          <AccordionDetails sx={{ pt: 4, pb: 4, background: theme.palette.background.paper }}>
-            <Grid container spacing={3}>
-              {/* Quick Filters - Top Row */}
-              <Grid item xs={12} sm={6} md={3}>
-                <TextField fullWidth label="Symbol" placeholder="AAPL" value={symbolFilter} onChange={(e) => { setSymbolFilter(e.target.value); setPage(1); }} size="small" variant="outlined" InputProps={{ startAdornment: <InputAdornment position="start"><Search fontSize="small" sx={{ color: theme.palette.text.secondary }} /></InputAdornment> }} sx={{ "& .MuiOutlinedInput-root": { borderRadius: 1.5 } }} />
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Signal Type</InputLabel>
-                  <Select value={signalFilter} onChange={(e) => { setSignalFilter(e.target.value); setPage(1); }} label="Signal Type">
-                    <MenuItem value="">All Signals</MenuItem>
-                    <MenuItem value="BUY">📈 BUY Signals</MenuItem>
-                    <MenuItem value="SELL">📉 SELL Signals</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Base Type</InputLabel>
-                  <Select value={baseTypeFilter} onChange={(e) => { setBaseTypeFilter(e.target.value); setPage(1); }} label="Base Type">
-                    <MenuItem value="">All Patterns</MenuItem>
-                    <MenuItem value="Cup">🏆 Cup & Handle</MenuItem>
-                    <MenuItem value="Flat Base">📦 Flat Base</MenuItem>
-                    <MenuItem value="Double Bottom">V Double Bottom</MenuItem>
-                    <MenuItem value="Base on Base">🔄 Base on Base</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Time Period</InputLabel>
-                  <Select value={days} onChange={(e) => { setDays(e.target.value); setPage(1); }} label="Time Period">
-                    <MenuItem value={7}>Last 7 days</MenuItem>
-                    <MenuItem value={30}>Last 30 days</MenuItem>
-                    <MenuItem value={90}>Last 90 days</MenuItem>
-                    <MenuItem value={180}>Last 6 months</MenuItem>
-                    <MenuItem value={365}>Last year</MenuItem>
-                    <MenuItem value={3650}>All time</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Asset Type</InputLabel>
-                  <Select value={assetType} onChange={(e) => { setAssetType(e.target.value); setPage(1); }} label="Asset Type">
-                    <MenuItem value="stocks">📈 Stocks</MenuItem>
-                    <MenuItem value="etf">🏦 ETFs</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Timeframe</InputLabel>
-                  <Select value={timeframeFilter} onChange={(e) => { setTimeframeFilter(e.target.value); setPage(1); }} label="Timeframe">
-                    <MenuItem value="daily">📊 Daily</MenuItem>
-                    <MenuItem value="weekly">📈 Weekly</MenuItem>
-                    <MenuItem value="monthly">📅 Monthly</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Results Per Page</InputLabel>
-                  <Select value={limit} onChange={(e) => { setLimit(e.target.value); setPage(1); }} label="Results Per Page">
-                    <MenuItem value={25}>25 results</MenuItem>
-                    <MenuItem value={50}>50 results</MenuItem>
-                    <MenuItem value={100}>100 results</MenuItem>
-                    <MenuItem value={250}>250 results</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              {/* Price Section */}
-              <Grid item xs={12}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: "0.95rem", color: theme.palette.primary.main, textTransform: "uppercase", letterSpacing: 0.5 }}>💰 Price Range</Typography>
-              </Grid>
-              <Grid item xs={12} sm={6} md={2}>
-                <TextField fullWidth type="number" label="Min" placeholder="0" value={minPrice} onChange={(e) => { setMinPrice(e.target.value); setPage(1); }} size="small" inputProps={{ step: "0.01" }} />
-              </Grid>
-              <Grid item xs={12} sm={6} md={2}>
-                <TextField fullWidth type="number" label="Max" placeholder="10000" value={maxPrice} onChange={(e) => { setMaxPrice(e.target.value); setPage(1); }} size="small" inputProps={{ step: "0.01" }} />
-              </Grid>
-
-              {/* Volume Section */}
-              <Grid item xs={12} sm={6} md={2}>
-                <TextField fullWidth type="number" label="Min Volume" placeholder="0" value={minVolume} onChange={(e) => { setMinVolume(e.target.value); setPage(1); }} size="small" />
-              </Grid>
-              <Grid item xs={12} sm={6} md={2}>
-                <TextField fullWidth type="number" label="Max Volume" placeholder="Unlimited" value={maxVolume} onChange={(e) => { setMaxVolume(e.target.value); setPage(1); }} size="small" />
-              </Grid>
-
-              {/* Technical Section */}
-              <Grid item xs={12}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: "0.95rem", color: theme.palette.primary.main, textTransform: "uppercase", letterSpacing: 0.5 }}>📊 Technical Indicators</Typography>
-              </Grid>
-              <Grid item xs={12} sm={6} md={2}>
-                <TextField fullWidth type="number" label="Min RSI" placeholder="0" value={minRsi} onChange={(e) => { setMinRsi(e.target.value); setPage(1); }} size="small" inputProps={{ min: 0, max: 100 }} />
-              </Grid>
-              <Grid item xs={12} sm={6} md={2}>
-                <TextField fullWidth type="number" label="Max RSI" placeholder="100" value={maxRsi} onChange={(e) => { setMaxRsi(e.target.value); setPage(1); }} size="small" inputProps={{ min: 0, max: 100 }} />
-              </Grid>
-              <Grid item xs={12} sm={6} md={2}>
-                <TextField fullWidth type="number" label="Min ADX" placeholder="0" value={minAdx} onChange={(e) => { setMinAdx(e.target.value); setPage(1); }} size="small" />
-              </Grid>
-
-              {/* Sorting Section */}
-              <Grid item xs={12}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: "0.95rem", color: theme.palette.primary.main, textTransform: "uppercase", letterSpacing: 0.5 }}>📍 Sorting & Display</Typography>
-              </Grid>
-              <Grid item xs={12} sm={6} md={2}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Sort By</InputLabel>
-                  <Select value={sort} onChange={(e) => { setSort(e.target.value); setPage(1); }} label="Sort By">
-                    <MenuItem value="date">📅 Date</MenuItem>
-                    <MenuItem value="symbol">🏷️ Symbol</MenuItem>
-                    <MenuItem value="close">💰 Price</MenuItem>
-                    <MenuItem value="volume">📊 Volume</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={6} md={2}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Order</InputLabel>
-                  <Select value={sortOrder} onChange={(e) => { setSortOrder(e.target.value); setPage(1); }} label="Order">
-                    <MenuItem value="DESC">Newest ↓</MenuItem>
-                    <MenuItem value="ASC">Oldest ↑</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              {/* Buttons - Sleek Footer */}
-              <Grid item xs={12}>
-                <Box sx={{ display: "flex", gap: 2, pt: 2 }}>
-                  <Button variant="contained" onClick={() => refetch()} sx={{ fontWeight: 700, px: 3, py: 1, borderRadius: 1.5, boxShadow: "0 4px 12px rgba(25,103,210,0.3)" }}>
-                    🔍 Apply Filters
-                  </Button>
-                  {activeFilterCount > 0 && (
-                    <Button variant="outlined" startIcon={<RestartAlt />} onClick={handleClearAll} sx={{ fontWeight: 700, px: 3, py: 1, borderRadius: 1.5 }}>
-                      Reset All ({activeFilterCount})
-                    </Button>
-                  )}
-                </Box>
-              </Grid>
-            </Grid>
-          </AccordionDetails>
-        </Accordion>
+      <Card padded className="mb-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex-1 min-w-[200px] relative">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint pointer-events-none" />
+            <Input
+              placeholder="Symbol (starts with)"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-8"
+            />
+          </div>
+          <Select value={signal} onChange={e => setSignal(e.target.value)} className="w-32">
+            <option value="all">All signals</option>
+            <option value="BUY">BUY only</option>
+            <option value="SELL">SELL only</option>
+          </Select>
+          <Select value={timeframe} onChange={e => setTimeframe(e.target.value)} className="w-32">
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </Select>
+          <Select value={stageFilter} onChange={e => setStageFilter(e.target.value)} className="w-40">
+            <option value="all">All stages</option>
+            <option value="Stage 1">Stage 1 (Basing)</option>
+            <option value="Stage 2">Stage 2 (Markup)</option>
+            <option value="Stage 3">Stage 3 (Topping)</option>
+            <option value="Stage 4">Stage 4 (Decline)</option>
+          </Select>
+        </div>
       </Card>
 
-      {/* Results */}
-      <ErrorBoundary>
-        {isLoading && <Box sx={{ textAlign: "center", py: 6 }}><CircularProgress /></Box>}
-
-        {isError && <ErrorDisplay error={error?.message || "Failed to load signals"} retry={() => refetch()} />}
-
-        {!isLoading && !isError && signals.length === 0 && (
-          <Card sx={{ p: 4, textAlign: "center" }}>
-            <Typography variant="h6" color="text.secondary" gutterBottom>No Signals Found</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Try adjusting filters or expanding time period</Typography>
-            <Button variant="outlined" onClick={handleClearAll} startIcon={<RestartAlt />}>Reset Filters</Button>
-          </Card>
-        )}
-
-        {!isLoading && !isError && signals.length > 0 && (
-          <Box>
-            <Card sx={{ mb: 3, backgroundColor: theme.palette.action.hover }}>
-              <CardContent sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <Box>
-                  <Typography variant="body2" color="text.secondary">
-                    Showing {signals.length} of {pagination.total?.toLocaleString() || 0} signals
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Page {pagination.page} of {pagination.totalPages}
-                  </Typography>
-                </Box>
-                <Chip label={strategy.toUpperCase()} color="primary" />
-              </CardContent>
-            </Card>
-
-            <SignalCardAccordion signals={signals} />
-
-            {pagination.totalPages > 1 && (
-              <Box sx={{ display: "flex", justifyContent: "center", gap: 1, mt: 4 }}>
-                <Button disabled={page === 1} onClick={() => setPage(page - 1)} variant="outlined">← Prev</Button>
-                <Typography sx={{ display: "flex", alignItems: "center", px: 2 }}>Page {page}/{pagination.totalPages}</Typography>
-                <Button disabled={page === pagination.totalPages} onClick={() => setPage(page + 1)} variant="outlined">Next →</Button>
-              </Box>
-            )}
-          </Box>
-        )}
-      </ErrorBoundary>
-    </Container>
+      <SignalsTable rows={filtered} loading={isLoading} error={error} retry={refetch} kind={tab} />
+    </div>
   );
 }
 
-export default function TradingSignalsPage() {
-  return <ErrorBoundary><TradingSignals /></ErrorBoundary>;
+// =============================================================================
+// TABLE
+// =============================================================================
+
+function SignalsTable({ rows, loading, error, retry, kind }) {
+  const navigate = useNavigate();
+
+  const columns = useMemo(() => [
+    {
+      key: 'symbol',
+      header: 'Symbol',
+      width: '110px',
+      render: (r) => (
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-ink-strong">{r.symbol}</span>
+          {r.signal && (
+            <Chip variant={r.signal.toUpperCase() === 'BUY' ? 'bull' : 'bear'}>
+              {r.signal.toUpperCase()}
+            </Chip>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'sector',
+      header: 'Sector',
+      render: (r) => <span className="text-xs text-ink-muted truncate">{r.sector || '—'}</span>,
+    },
+    {
+      key: 'close',
+      header: 'Close',
+      align: 'right',
+      mono: true,
+      sortable: true,
+      render: (r) => fmtMoney(r.close),
+    },
+    {
+      key: 'buylevel',
+      header: 'Buy Level',
+      align: 'right',
+      mono: true,
+      sortable: true,
+      render: (r) => (
+        <span className={cx(r.close >= r.buylevel ? 'text-bull' : 'text-ink-muted')}>
+          {fmtMoney(r.buylevel)}
+        </span>
+      ),
+    },
+    {
+      key: 'stoplevel',
+      header: 'Stop',
+      align: 'right',
+      mono: true,
+      sortable: true,
+      render: (r) => fmtMoney(r.stoplevel),
+    },
+    {
+      key: 'risk_reward_ratio',
+      header: 'R/R',
+      align: 'right',
+      mono: true,
+      sortable: true,
+      render: (r) => r.risk_reward_ratio == null ? '—' : Number(r.risk_reward_ratio).toFixed(2),
+    },
+    {
+      key: 'rsi',
+      header: 'RSI',
+      align: 'right',
+      mono: true,
+      sortable: true,
+      render: (r) => {
+        if (r.rsi == null) return <span className="text-ink-faint">—</span>;
+        const rsi = Number(r.rsi);
+        const color = rsi > 70 ? 'text-bear' : rsi < 30 ? 'text-bull' : 'text-ink';
+        return <span className={color}>{rsi.toFixed(1)}</span>;
+      },
+    },
+    {
+      key: 'volume_surge_pct',
+      header: 'Vol Surge',
+      align: 'right',
+      mono: true,
+      sortable: true,
+      render: (r) => {
+        if (r.volume_surge_pct == null) return '—';
+        return <PnlCell value={Number(r.volume_surge_pct)} format="percent" inline />;
+      },
+    },
+    {
+      key: 'base_type',
+      header: 'Base',
+      render: (r) => (
+        <span className="text-xs text-ink-muted">
+          {r.base_type ? `${r.base_type} (${r.base_length_days || '?'}d)` : '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'breakout_quality',
+      header: 'Quality',
+      render: (r) => r.breakout_quality
+        ? <Chip variant={QUALITY_VARIANT[r.breakout_quality] || 'muted'}>{r.breakout_quality}</Chip>
+        : <span className="text-ink-faint">—</span>,
+    },
+    {
+      key: 'market_stage',
+      header: 'Stage',
+      render: (r) => r.market_stage
+        ? <Chip variant={STAGE_VARIANT[r.market_stage] || 'muted'}>{r.market_stage.replace('Stage ', 'S')}</Chip>
+        : <span className="text-ink-faint">—</span>,
+    },
+    {
+      key: 'date',
+      header: 'Date',
+      mono: true,
+      sortable: true,
+      render: (r) => {
+        const d = r.signal_triggered_date || r.date;
+        return <span className="text-xs text-ink-muted">{d ? String(d).slice(0, 10) : '—'}</span>;
+      },
+    },
+  ], []);
+
+  return (
+    <DataTable
+      columns={columns}
+      rows={rows}
+      keyField="symbol"
+      loading={loading}
+      error={error}
+      maxHeight="70vh"
+      empty={{
+        icon: Zap,
+        title: 'No active signals',
+        description: kind === 'etfs'
+          ? 'No ETF signals match the current filters.'
+          : 'No stock signals match the current filters. Try widening filters or check buy_sell_daily freshness.',
+      }}
+      onRowClick={(row) => {
+        if (kind === 'stocks' && row.symbol) {
+          navigate(`/app/stock/${row.symbol}`);
+        }
+      }}
+      expandRender={(row) => <SignalDetail row={row} />}
+    />
+  );
+}
+
+// =============================================================================
+// ROW EXPANSION
+// =============================================================================
+
+function SignalDetail({ row }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <DetailGroup
+        title="Entry Plan"
+        items={[
+          ['Buy zone', `${fmtMoney(row.buy_zone_start)} – ${fmtMoney(row.buy_zone_end)}`],
+          ['Pivot', fmtMoney(row.pivot_price)],
+          ['Initial stop', fmtMoney(row.initial_stop)],
+          ['Trailing stop', fmtMoney(row.trailing_stop)],
+          ['Position size rec', row.position_size_recommendation || '—'],
+          ['Entry quality', row.entry_quality_score ? `${row.entry_quality_score}/100` : '—'],
+        ]}
+      />
+      <DetailGroup
+        title="Targets & Exits"
+        items={[
+          ['Target +8%', fmtMoney(row.profit_target_8pct)],
+          ['Target +20%', fmtMoney(row.profit_target_20pct)],
+          ['Target +25%', fmtMoney(row.profit_target_25pct)],
+          ['Exit T1', `${fmtMoney(row.exit_trigger_1_price)}${row.exit_trigger_1_condition ? ' (' + row.exit_trigger_1_condition + ')' : ''}`],
+          ['Exit T2', `${fmtMoney(row.exit_trigger_2_price)}${row.exit_trigger_2_condition ? ' (' + row.exit_trigger_2_condition + ')' : ''}`],
+          ['Exit T3', `${fmtMoney(row.exit_trigger_3_price)}${row.exit_trigger_3_condition ? ' (' + row.exit_trigger_3_condition + ')' : ''}`],
+          ['Exit T4', `${fmtMoney(row.exit_trigger_4_price)}${row.exit_trigger_4_condition ? ' (' + row.exit_trigger_4_condition + ')' : ''}`],
+          ['Sell level', fmtMoney(row.sell_level)],
+        ]}
+      />
+      <DetailGroup
+        title="Technicals & Strength"
+        items={[
+          ['RSI (14)', row.rsi != null ? Number(row.rsi).toFixed(1) : '—'],
+          ['ADX', row.adx != null ? Number(row.adx).toFixed(1) : '—'],
+          ['ATR', row.atr != null ? Number(row.atr).toFixed(2) : '—'],
+          ['SMA 50', fmtMoney(row.sma_50)],
+          ['SMA 200', fmtMoney(row.sma_200)],
+          ['EMA 21', fmtMoney(row.ema_21)],
+          ['Pct from EMA21', row.pct_from_ema21 != null ? fmtPct(row.pct_from_ema21) : '—'],
+          ['Pct from SMA50', row.pct_from_sma50 != null ? fmtPct(row.pct_from_sma50) : '—'],
+          ['RS Rating', row.rs_rating != null ? Number(row.rs_rating).toFixed(0) : '—'],
+          ['Mansfield RS', row.mansfield_rs != null ? Number(row.mansfield_rs).toFixed(2) : '—'],
+          ['Volume', fmtInt(row.volume)],
+          ['Avg vol 50d', fmtInt(row.avg_volume_50d)],
+          ['Volume surge', row.volume_surge_pct != null ? fmtPct(row.volume_surge_pct) : '—'],
+        ]}
+      />
+    </div>
+  );
+}
+
+function DetailGroup({ title, items }) {
+  return (
+    <div>
+      <div className="text-2xs uppercase font-semibold text-ink-muted tracking-wider mb-2">
+        {title}
+      </div>
+      <div className="space-y-1">
+        {items.map(([label, value], i) => (
+          <div key={i} className="flex items-baseline justify-between gap-2 text-xs">
+            <span className="text-ink-muted shrink-0">{label}</span>
+            <span className="text-ink font-mono tnum text-right truncate">{value || '—'}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
