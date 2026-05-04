@@ -1,40 +1,52 @@
-# Loader Inventory Audit — 2026-05-04
+# Loader Inventory Audit — COMPLETED 2026-05-04
 
 ## Summary
 
 | Category | Count |
 |----------|-------|
-| Official (per DATA_LOADING.md) | 40 |
+| Official (per DATA_LOADING.md old count) | 39 |
+| Actually official + needed (new count) | 41 |
 | Supplementary (algo-required) | 22 |
-| Total documented | 62 |
+| Total documented (new) | 63 |
 | Actual on disk | 65 |
-| **Extra/Undocumented** | **3** |
+| **True extra/dead code** | **1** |
+| **Undocumented but needed** | **2** |
 
 ---
 
-## The 3 Extra Files
+## The Files
 
-### 1. loadadrating.py
-**Status:** EXTRA — not documented, not in EOD pipeline  
-**Found in git?** Check: `git log --oneline -- loadadrating.py | head -5`  
-**Purpose:** Likely a duplicate or abandoned loader for ratings data  
-**Action:** Investigate and delete if confirmed unused  
+### 1. loadadrating.py — DELETE THIS
+**Status:** DEAD CODE — not documented, not in EOD pipeline, not referenced anywhere  
+**Git history:** Commit 52e3a6bdc (Add real IBD A/D rating loader)
+**Purpose:** Was supposed to load ad_rating data  
+**Current state:** No ad_rating table in database, not imported/used anywhere
+**Database table:** ad_rating does NOT exist (confirmed)  
+**Action:** DELETE — confirmed as dead code, safe to remove  
 
-### 2. loadsectorranking.py
-**Status:** PARTIALLY DOCUMENTED — used in EOD pipeline (line 5/6) but NOT in DATA_LOADING.md official list  
-**Found in git?** Likely old, pre-refactor  
-**Purpose:** Ranks sectors by performance  
-**Current usage:** `run_eod_loaders.sh` line 40  
-**Action:** ADD to DATA_LOADING.md official list OR remove from EOD pipeline if redundant  
-**Note:** Check if replaced by `algo_sector_rotation.py` (line 47 of EOD script)  
+---
 
-### 3. loadindustryranking.py
-**Status:** PARTIALLY DOCUMENTED — used in EOD pipeline (line 6/6) but NOT in DATA_LOADING.md official list  
-**Found in git?** Likely old, pre-refactor  
+### 2. loadsectorranking.py — ADD TO OFFICIAL LIST
+**Status:** ACTIVE — IS USED but missing from DATA_LOADING.md  
+**Git history:** Commit c721fad18 (Build canonical... loadsectorranking)
+**Purpose:** Ranks sectors by performance (momentum, breadth, etc.)
+**Current usage:**
+  - `run_eod_loaders.sh` line 40 (runs in EOD pipeline)
+  - Referenced in `algo_data_remediation.py` for sector ranking remediation
+**Database table:** sector_ranking EXISTS with 9,011 rows (confirmed)  
+**Action:** ADD to DATA_LOADING.md Phase 9 as official loader  
+
+---
+
+### 3. loadindustryranking.py — ADD TO OFFICIAL LIST
+**Status:** ACTIVE — IS USED but missing from DATA_LOADING.md  
+**Git history:** Commit c721fad18 (Build canonical... loadindustryranking)
 **Purpose:** Ranks industries by performance  
-**Current usage:** `run_eod_loaders.sh` line 43  
-**Action:** ADD to DATA_LOADING.md official list OR remove from EOD pipeline if redundant  
-**Note:** Check if replaced by sector rotation or market exposure  
+**Current usage:**
+  - `run_eod_loaders.sh` line 43 (runs in EOD pipeline)
+  - Referenced in `algo_data_remediation.py` for industry ranking remediation
+**Database table:** industry_ranking EXISTS with 113,145 rows (confirmed)  
+**Action:** ADD to DATA_LOADING.md Phase 9 as official loader  
 
 ---
 

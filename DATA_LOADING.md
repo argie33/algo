@@ -18,9 +18,10 @@ on disk but isn't in this document, either add it here or delete it.
 
 ---
 
-## The 39 Official Loaders
+## The Official Loaders (41 Total)
 
 These are the ONLY canonical loaders. Run them in dependency order.
+(Updated from 39 to 41: added loadsectorranking + loadindustryranking in Phase 9)
 
 ### Phase 1 — Universe & Symbols
 1. **loadstocksymbols.py** — Stock/ETF symbols
@@ -72,14 +73,16 @@ These are the ONLY canonical loaders. Run them in dependency order.
 33. **loadfactormetrics.py** — Factor metrics (growth, profitability, etc)
 34. **loadrelativeperformance.py** — RS rankings
 
-### Phase 9 — Market Data
+### Phase 9 — Market Data & Sector Ranking
 35. **loadmarket.py** — Market summary
 36. **loadecondata.py** — Economic indicators (FRED)
 37. **loadcommodities.py** — Commodity prices
 38. **loadseasonality.py** — Seasonal patterns
+39. **loadsectorranking.py** — Sector performance rankings (momentum, breadth)
+40. **loadindustryranking.py** — Industry performance rankings
 
 ### Phase 10 — Analyst Sentiment
-39. **loadanalystupgradedowngrade.py** — Upgrade/downgrade activity
+41. **loadanalystupgradedowngrade.py** — Upgrade/downgrade activity
 
 ---
 
@@ -132,13 +135,13 @@ original 39.
 
 ---
 
-## Recently Deleted (2026-05-03)
+## Recently Deleted
 
-These were duplicates and have been removed:
-- ❌ loadpricedaily_optimal.py — duplicate of loadpricedaily.py
-- ❌ loadpricedaily_refactored.py — duplicate of loadpricedaily.py
-- ❌ loadcommodities_enhanced.py — duplicate of loadcommodities.py
-- ❌ loadquarterlyincomestatement_parallel.py — duplicate of loadquarterlyincomestatement.py
+- ❌ loadpricedaily_optimal.py — duplicate of loadpricedaily.py (2026-05-03)
+- ❌ loadpricedaily_refactored.py — duplicate of loadpricedaily.py (2026-05-03)
+- ❌ loadcommodities_enhanced.py — duplicate of loadcommodities.py (2026-05-03)
+- ❌ loadquarterlyincomestatement_parallel.py — duplicate of loadquarterlyincomestatement.py (2026-05-03)
+- ❌ loadadrating.py — dead code, no usage, table never created (2026-05-04)
 
 ---
 
