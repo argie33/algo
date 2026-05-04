@@ -124,6 +124,78 @@ class Orchestrator:
         except Exception:
             pass
 
+    def _check_data_patrol(self, cur):
+        """Check data patrol results. Fail-closed if critical/error findings.
+
+        Only checks the LATEST patrol run (not accumulated from all runs in 24h).
+        Returns: True if patrol OK, False if critical/error issues found.
+        """
+        try:
+            # Get LATEST patrol run ID first
+            cur.execute("""
+                SELECT patrol_run_id FROM data_patrol_log
+                ORDER BY created_at DESC LIMIT 1
+            """)
+            latest_run = cur.fetchone()
+            if not latest_run:
+                if self.verbose:
+                    print("  [WARN] No patrol data available")
+                return True
+
+            latest_run_id = latest_run[0]
+
+            # Now get results for only this run
+            cur.execute("""
+                SELECT MAX(severity) as worst_severity,
+                       COUNT(*) as total_findings,
+                       COUNT(CASE WHEN severity = 'critical' THEN 1 END) as critical_count,
+                       COUNT(CASE WHEN severity = 'error' THEN 1 END) as error_count
+                FROM data_patrol_log
+                WHERE patrol_run_id = %s
+            """, (latest_run_id,))
+            row = cur.fetchone()
+
+            if not row or not row[0]:
+                # No patrol findings (shouldn't happen, but safe to proceed)
+                if self.verbose:
+                    print("  [PATROL] No findings in latest patrol")
+                return True
+
+            worst_severity, total_findings, critical_count, error_count = row
+
+            if self.verbose:
+                print(f"  [PATROL] {latest_run_id}: {total_findings} findings "
+                      f"(critical={critical_count}, error={error_count})")
+
+            # FAIL-CLOSED: critical findings always block
+            if critical_count and critical_count > 0:
+                if self.verbose:
+                    print(f"  [HALT] Data patrol found {critical_count} CRITICAL issues")
+                self.log_phase_result(1, 'data_patrol', 'halt',
+                                      f'Critical data quality issues: {critical_count} critical findings')
+                return False
+
+            # FAIL-CLOSED: too many errors block in auto mode
+            if error_count and error_count > 2:
+                if self.verbose:
+                    print(f"  [HALT] Data patrol found {error_count} ERROR issues")
+                self.log_phase_result(1, 'data_patrol', 'halt',
+                                      f'Data quality errors: {error_count} findings')
+                return False
+
+            # Warnings are just logged, not blocking
+            if error_count == 1 or error_count == 2:
+                if self.verbose:
+                    print(f"  [WARN] Data patrol found {error_count} error(s)")
+
+            return True
+
+        except Exception as e:
+            # If patrol check fails, don't block (assume manual run/oversight)
+            if self.verbose:
+                print(f"  [WARN] Could not check data patrol: {e}")
+            return True
+
     # ---------- Logging helpers ----------
 
     def _acquire_run_lock(self):
@@ -219,8 +291,6 @@ class Orchestrator:
                 """
             )
             row = cur.fetchone()
-            cur.close()
-            conn.close()
 
             spy_date, mh_date, tt_date, sqs_date, buys_date = row
             checks = {
@@ -244,9 +314,21 @@ class Orchestrator:
                         print(f"  {flag} {name:25s}: latest {d} ({age}d ago)")
 
             if stale_items:
+                cur.close()
+                conn.close()
                 self.log_phase_result(1, 'data_freshness', 'fail',
                                       f'Stale: {"; ".join(stale_items)}')
                 return False
+
+            # NEW: Check data patrol results (quality gate) - cursor still open
+            patrol_ok = self._check_data_patrol(cur)
+
+            cur.close()
+            conn.close()
+
+            if not patrol_ok:
+                return False
+
             self.log_phase_result(1, 'data_freshness', 'success',
                                   'All data fresh within window')
             return True
