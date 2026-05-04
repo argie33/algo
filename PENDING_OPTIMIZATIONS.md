@@ -11,12 +11,22 @@ This is the detailed breakdown of what's still pending from OPTIMAL_ARCHITECTURE
 | QW | Item | Status | Time |
 |--|--|--|--|
 | **QW1** | Extend backfill window to 180d | DONE ✓ | 1h |
-| **QW2** | Audit loader inventory (65 vs 62 documented) | IN PROGRESS | 1-2h |
+| **QW2** | Audit loader inventory + cleanup | DONE ✓ | 2h |
 | **QW3** | Install Windows Task Scheduler for EOD runs | DONE ✓ | 45m |
 
-**Total time invested:** ~2.5 hours — **Total time saved per month:** ~5 hours (no manual EOD runs)
+**QW2 Results:**
+- Investigated 3 "extra" loaders (65 files on disk)
+- Found: 1 dead code (loadadrating.py) — DELETED
+- Found: 2 active but undocumented (loadsectorranking, loadindustryranking) — ADDED TO OFFICIAL LIST
+- Updated DATA_LOADING.md: 39 → 41 official loaders
+- Final state: 64 files, all documented and active
 
-Next: Execute QW2 investigation, then start Tier 1A-1 (SEC EDGAR fundamentals) on Monday.
+**Total time invested:** ~4 hours — **Total time saved per month:** ~5 hours (no manual EOD runs)
+
+**Next immediate work:**
+  1. Verify GitHub Actions deployment completes (monitor still running)
+  2. Start T1A-1 (SEC EDGAR fundamentals integration) once deployment done
+  3. Or continue with other Tier 1 items if deployment is blocked
 
 ---
 
