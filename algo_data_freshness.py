@@ -149,6 +149,8 @@ def persist(results):
                 error_message TEXT
             )
         """)
+
+        critical_issues = []
         for r in results:
             cur.execute(
                 """
@@ -174,10 +176,42 @@ def persist(results):
                     r.get('error'),
                 ),
             )
+
+            # Flag critical issues for alerting
+            if r['status'] in ('stale', 'empty', 'error') and 'CRITICAL' in r['role']:
+                critical_issues.append(r)
+
         conn.commit()
+
+        # Send alerts for critical issues
+        if critical_issues:
+            _alert_critical_staleness(critical_issues)
+
     finally:
         cur.close()
         conn.close()
+
+
+def _alert_critical_staleness(issues):
+    """Send alerts for critical data staleness issues."""
+    try:
+        from algo_notifications import notify
+        message_parts = []
+        for issue in issues:
+            table = issue['table']
+            status = issue['status']
+            age = issue.get('age_days', '?')
+            message_parts.append(f"• {table}: {status} ({age}d old)")
+
+        notify(
+            kind='data_staleness',
+            severity='critical',
+            title='CRITICAL: Data Freshness Alert',
+            message='Critical data sources are stale. Algo will halt:\n' + '\n'.join(message_parts),
+            details={'issues': issues},
+        )
+    except Exception as e:
+        print(f"Warning: Could not send data staleness alert: {e}")
 
 
 def report(results):

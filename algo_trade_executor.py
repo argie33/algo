@@ -233,6 +233,18 @@ class TradeExecutor:
                     print(f"WARNING: Bracket order {alpaca_order_id} created but legs incomplete: {len(legs)} legs")
                     # Continue anyway but flag for monitoring
 
+                # Validate filled status — only mark as filled if Alpaca confirmed
+                if order_status not in ('filled', 'partially_filled'):
+                    # Order pending, rejected, or cancelled — don't create position yet
+                    if order_status in ('rejected', 'cancelled', 'expired'):
+                        # Alpaca rejected the order
+                        return {
+                            'success': False, 'trade_id': trade_id, 'status': order_status,
+                            'message': f'Alpaca rejected order: {order_status}'
+                        }
+                    # For pending orders, still create the trade record but mark as pending
+                    # Position will be created when/if order fills (via reconciliation)
+
             # Compute initial position size pct using live or snapshot portfolio value
             portfolio_value = self._get_portfolio_value() or 100000.0
             position_size_pct = (shares * executed_price / portfolio_value * 100) if portfolio_value > 0 else 0
@@ -307,8 +319,9 @@ class TradeExecutor:
                 ),
             )
 
-            # Insert / open position record
-            if order_status == 'filled':
+            # Insert / open position record — ONLY if order actually filled
+            # Never create position for pending/rejected orders
+            if order_status == 'filled' or (order_status == 'partially_filled' and execution_mode == 'auto'):
                 position_id = f'POS-{trade_id}'
                 position_value = shares * executed_price
                 self.cur.execute(
