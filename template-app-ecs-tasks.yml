@@ -282,7 +282,9 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: secretsmanager:GetSecretValue
-                Resource: !ImportValue StocksApp-SecretArn
+                Resource: !Sub
+                  - '${SecretArn}*'
+                  - SecretArn: !ImportValue StocksApp-SecretArn
               - Effect: Allow
                 Action: kms:Decrypt
                 Resource: '*'
@@ -317,7 +319,9 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: secretsmanager:GetSecretValue
-                Resource: !ImportValue StocksApp-SecretArn
+                Resource: !Sub
+                  - '${SecretArn}*'
+                  - SecretArn: !ImportValue StocksApp-SecretArn
               - Effect: Allow
                 Action: kms:Decrypt
                 Resource: '*'

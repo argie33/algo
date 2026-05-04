@@ -291,7 +291,9 @@ Resources:
               - Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
-                Resource: !ImportValue StocksApp-SecretArn
+                Resource: !Sub
+                  - '${SecretArn}*'
+                  - SecretArn: !ImportValue StocksApp-SecretArn
               - Effect: Allow
                 Action:
                   - rds:DescribeDBInstances
