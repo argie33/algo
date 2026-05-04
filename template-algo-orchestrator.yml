@@ -118,7 +118,6 @@ Resources:
           DRY_RUN_MODE: !Ref DryRunMode
           ALERT_SNS_TOPIC_ARN: !GetAtt AlgoAlertTopic.TopicArn
           ENVIRONMENT: !Ref Environment
-          AWS_LAMBDA_FUNCTION_NAME: algo-orchestrator
           DATABASE_SECRET_ARN: !ImportValue StocksApp-SecretArn
           ALPACA_API_KEY_SECRET_ARN: !ImportValue StocksApp-AlgoSecretsSecretArn
       Tags:
