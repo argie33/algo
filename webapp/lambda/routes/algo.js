@@ -1260,7 +1260,7 @@ router.get('/trade/:tradeId', async (req, res) => {
               p.unrealized_pnl, p.unrealized_pnl_pct, p.target_levels_hit,
               p.current_stop_price
        FROM algo_trades t
-       LEFT JOIN algo_positions p ON p.trade_ids LIKE '%' || t.trade_id || '%'
+       LEFT JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
                                  AND p.status = 'open'
        WHERE t.trade_id = $1`,
       [req.params.tradeId]
