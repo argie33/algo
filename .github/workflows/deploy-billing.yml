@@ -1,0 +1,37 @@
+name: deploy-billing-circuit-breaker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'billing-circuit-breaker.yml'
+      - '.github/workflows/deploy-billing.yml'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::626216981288:role/GitHubActionsDeployRole
+          aws-region: us-east-1
+
+      - run: |
+          echo "✅ AWS configured"
+          aws sts get-caller-identity
+
+      - run: |
+          echo "Publishing test alert..."
+          aws sns publish \
+            --topic-arn arn:aws:sns:us-east-1:626216981288:billing-circuit-breaker-alerts \
+            --region us-east-1 \
+            --subject "TEST: Billing Circuit Breaker" \
+            --message "If you got this, alerts work!"
+          echo "✅ Alert sent"

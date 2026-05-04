@@ -1,0 +1,332 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Phase D: Step Functions Data Loading Pipeline - Full DAG Orchestration'
+
+Parameters:
+  ECSClusterArn:
+    Type: String
+    Description: ARN of the ECS cluster
+  BuySellDailyOrchestratorArn:
+    Type: String
+    Description: ARN of the Phase C Orchestrator Lambda function
+    Default: 'arn:aws:lambda:us-east-1:626216981288:function:buyselldaily-orchestrator'
+  RDSSecretArn:
+    Type: String
+    Description: ARN of RDS credentials in Secrets Manager
+  Subnet1:
+    Type: String
+    Default: 'subnet-0142dc004c9fc3e0c'
+    Description: Primary subnet for ECS tasks
+  Subnet2:
+    Type: String
+    Default: 'subnet-0458999323649c79d'
+    Description: Secondary subnet for ECS tasks
+  SecurityGroupId:
+    Type: String
+    Default: 'sg-0519c564d78cca3de'
+    Description: Security group for ECS tasks
+
+Resources:
+  # ============================================================================
+  # STEP FUNCTIONS STATE MACHINE - Data Loading DAG
+  # ============================================================================
+
+  DataLoadingStateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSStepFunctionsFullAccess
+      Policies:
+        - PolicyName: ECSExecute
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:RunTask
+                  - ecs:StopTask
+                  - ecs:DescribeTasks
+                Resource: '*'
+        - PolicyName: LambdaInvoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: '*'
+        - PolicyName: PassRole
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: '*'
+
+  DataLoadingStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineType: STANDARD
+      RoleArn: !GetAtt DataLoadingStateMachineRole.Arn
+      DefinitionString: !Sub |
+        {
+          "Comment": "Data Loading Pipeline - Full DAG with dependencies, retries, error handling",
+          "StartAt": "LoadStockSymbols",
+          "States": {
+            "LoadStockSymbols": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::ecs:runTask.sync",
+              "Parameters": {
+                "LaunchType": "FARGATE",
+                "Cluster": "${ECSClusterArn}",
+                "TaskDefinition": "stock-symbols:1",
+                "NetworkConfiguration": {
+                  "AwsvpcConfiguration": {
+                    "Subnets": ["subnet-0142dc004c9fc3e0c", "subnet-0458999323649c79d"],
+                    "SecurityGroups": ["sg-0519c564d78cca3de"],
+                    "AssignPublicIp": "ENABLED"
+                  }
+                },
+                "Overrides": {
+                  "ContainerOverrides": [
+                    {
+                      "Name": "stocksymbols-loader",
+                      "Command": ["loadstocksymbols.py"]
+                    }
+                  ]
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": ["States.TaskFailed"],
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "Next": "SymbolLoadFailed"
+                }
+              ],
+              "Next": "LoadPriceDataParallel",
+              "TimeoutSeconds": 3600
+            },
+            "LoadPriceDataParallel": {
+              "Type": "Parallel",
+              "Branches": [
+                {
+                  "StartAt": "PriceDailyLoad",
+                  "States": {
+                    "PriceDailyLoad": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "LaunchType": "FARGATE",
+                        "Cluster": "${ECSClusterArn}",
+                        "TaskDefinition": "price-daily:1",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": ["subnet-0142dc004c9fc3e0c", "subnet-0458999323649c79d"],
+                            "SecurityGroups": ["sg-0519c564d78cca3de"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        }
+                      },
+                      "Retry": [
+                        {"ErrorEquals": ["States.TaskFailed"], "IntervalSeconds": 2, "MaxAttempts": 2, "BackoffRate": 2}
+                      ],
+                      "End": true,
+                      "TimeoutSeconds": 1800
+                    }
+                  }
+                },
+                {
+                  "StartAt": "PriceWeeklyLoad",
+                  "States": {
+                    "PriceWeeklyLoad": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "LaunchType": "FARGATE",
+                        "Cluster": "${ECSClusterArn}",
+                        "TaskDefinition": "price-weekly:1",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": ["subnet-0142dc004c9fc3e0c", "subnet-0458999323649c79d"],
+                            "SecurityGroups": ["sg-0519c564d78cca3de"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        }
+                      },
+                      "Retry": [
+                        {"ErrorEquals": ["States.TaskFailed"], "IntervalSeconds": 2, "MaxAttempts": 2, "BackoffRate": 2}
+                      ],
+                      "End": true,
+                      "TimeoutSeconds": 1800
+                    }
+                  }
+                },
+                {
+                  "StartAt": "PriceMonthlyLoad",
+                  "States": {
+                    "PriceMonthlyLoad": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "LaunchType": "FARGATE",
+                        "Cluster": "${ECSClusterArn}",
+                        "TaskDefinition": "price-monthly:1",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": ["subnet-0142dc004c9fc3e0c", "subnet-0458999323649c79d"],
+                            "SecurityGroups": ["sg-0519c564d78cca3de"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        }
+                      },
+                      "Retry": [
+                        {"ErrorEquals": ["States.TaskFailed"], "IntervalSeconds": 2, "MaxAttempts": 2, "BackoffRate": 2}
+                      ],
+                      "End": true,
+                      "TimeoutSeconds": 1800
+                    }
+                  }
+                }
+              ],
+              "Next": "LoadSignalsParallel",
+              "Catch": [
+                {"ErrorEquals": ["States.ALL"], "Next": "PriceLoadFailed"}
+              ]
+            },
+            "LoadSignalsParallel": {
+              "Type": "Parallel",
+              "Branches": [
+                {
+                  "StartAt": "BuySellDailyLoad",
+                  "States": {
+                    "BuySellDailyLoad": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "LaunchType": "FARGATE",
+                        "Cluster": "${ECSClusterArn}",
+                        "TaskDefinition": "loadbuyselldaily:1",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": ["${Subnet1}", "${Subnet2}"],
+                            "SecurityGroups": ["${SecurityGroupId}"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        }
+                      },
+                      "Retry": [
+                        {"ErrorEquals": ["States.TaskFailed"], "IntervalSeconds": 2, "MaxAttempts": 2, "BackoffRate": 2}
+                      ],
+                      "End": true,
+                      "TimeoutSeconds": 2700
+                    }
+                  }
+                },
+                {
+                  "StartAt": "TechnicalsDailyLoad",
+                  "States": {
+                    "TechnicalsDailyLoad": {
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::ecs:runTask.sync",
+                      "Parameters": {
+                        "LaunchType": "FARGATE",
+                        "Cluster": "${ECSClusterArn}",
+                        "TaskDefinition": "technicals-daily:1",
+                        "NetworkConfiguration": {
+                          "AwsvpcConfiguration": {
+                            "Subnets": ["subnet-0142dc004c9fc3e0c", "subnet-0458999323649c79d"],
+                            "SecurityGroups": ["sg-0519c564d78cca3de"],
+                            "AssignPublicIp": "ENABLED"
+                          }
+                        }
+                      },
+                      "Retry": [
+                        {"ErrorEquals": ["States.TaskFailed"], "IntervalSeconds": 2, "MaxAttempts": 2, "BackoffRate": 2}
+                      ],
+                      "End": true,
+                      "TimeoutSeconds": 2700
+                    }
+                  }
+                }
+              ],
+              "Next": "LoadScores",
+              "Catch": [
+                {"ErrorEquals": ["States.ALL"], "Next": "SignalLoadFailed"}
+              ]
+            },
+            "LoadScores": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::ecs:runTask.sync",
+              "Parameters": {
+                "LaunchType": "FARGATE",
+                "Cluster": "${ECSClusterArn}",
+                "TaskDefinition": "stock-scores:1",
+                "NetworkConfiguration": {
+                  "AwsvpcConfiguration": {
+                    "Subnets": ["subnet-0142dc004c9fc3e0c", "subnet-0458999323649c79d"],
+                    "SecurityGroups": ["sg-0519c564d78cca3de"],
+                    "AssignPublicIp": "ENABLED"
+                  }
+                }
+              },
+              "Retry": [
+                {"ErrorEquals": ["States.TaskFailed"], "IntervalSeconds": 2, "MaxAttempts": 2, "BackoffRate": 2}
+              ],
+              "Catch": [
+                {"ErrorEquals": ["States.ALL"], "Next": "ScoreLoadFailed"}
+              ],
+              "Next": "PipelineSuccess",
+              "TimeoutSeconds": 1800
+            },
+            "SymbolLoadFailed": {
+              "Type": "Fail",
+              "Error": "SymbolLoadError",
+              "Cause": "Stock symbols loader failed"
+            },
+            "PriceLoadFailed": {
+              "Type": "Fail",
+              "Error": "PriceLoadError",
+              "Cause": "Price data loader failed"
+            },
+            "SignalLoadFailed": {
+              "Type": "Fail",
+              "Error": "SignalLoadError",
+              "Cause": "Signal data loader failed"
+            },
+            "ScoreLoadFailed": {
+              "Type": "Fail",
+              "Error": "ScoreLoadError",
+              "Cause": "Stock scores loader failed"
+            },
+            "PipelineSuccess": {
+              "Type": "Succeed"
+            }
+          }
+        }
+
+Outputs:
+  StateMachineArn:
+    Description: ARN of the data loading state machine
+    Value: !Ref DataLoadingStateMachine
+    Export:
+      Name: DataLoadingStateMachineArn
+
+  StateMachineName:
+    Description: Name of the state machine
+    Value: !GetAtt DataLoadingStateMachine.Name
+    Export:
+      Name: DataLoadingStateMachineName
