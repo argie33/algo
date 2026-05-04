@@ -1,5 +1,5 @@
 import ReactDOM from "react-dom/client";
-// Fresh deployment to clear CloudFront cache and ensure correct config (2025-08-21)
+import "./index.css"; // Tailwind base + design system tokens
 import { BrowserRouter } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";

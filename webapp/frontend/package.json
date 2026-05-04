@@ -20,6 +20,7 @@
     "aws-amplify": "^5.3.27",
     "axios": "^1.11.0",
     "date-fns": "^2.30.0",
+    "lucide-react": "^1.14.0",
     "lz-string": "^1.5.0",
     "numeral": "^2.0.6",
     "prismjs": "^1.30.0",
@@ -45,6 +46,8 @@
     "@types/node": "^24.3.0",
     "@types/react": "^18.3.24",
     "@vitejs/plugin-react": "^5.0.3",
+    "autoprefixer": "^10.5.0",
+    "clsx": "^2.1.1",
     "eslint": "^8.57.1",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^4.6.2",
@@ -53,8 +56,11 @@
     "glob": "^11.0.3",
     "jsdom": "^23.2.0",
     "playwright": "^1.55.0",
+    "postcss": "^8.5.13",
     "prettier": "^3.6.2",
     "puppeteer": "^24.42.0",
+    "tailwind-merge": "^3.5.0",
+    "tailwindcss": "^3.4.19",
     "vite": "^7.1.3"
   },
   "scripts": {
