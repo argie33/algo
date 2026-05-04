@@ -1,0 +1,8 @@
+psycopg2-binary==2.9.9
+python-dotenv==1.0.0
+yfinance==0.2.36
+requests==2.31.0
+pandas==2.1.4
+polars==0.20.4
+alpaca-trade-api==3.2.0
+pyarrow==15.0.0

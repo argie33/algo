@@ -1,0 +1,33 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    postgresql-client \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy loader and dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY optimal_loader.py .
+COPY watermark_loader.py .
+COPY bloom_dedup.py .
+COPY data_source_router.py .
+COPY sec_edgar_client.py .
+
+# The actual loader script is passed via build arg
+ARG LOADER_SCRIPT=loadpricedaily.py
+COPY ${LOADER_SCRIPT} .
+
+# Copy .env if available (for local testing)
+COPY .env.local* .
+
+# Load environment
+ENV PYTHONUNBUFFERED=1
+
+# Default to running the loader
+ENTRYPOINT ["python3"]
+CMD ["${LOADER_SCRIPT}"]
