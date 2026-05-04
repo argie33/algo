@@ -96,7 +96,7 @@ class StockScoresLoader(OptimalLoader):
                 "growth_score": 50.0,
                 "momentum_score": float(rsi.iloc[idx]) / 2,
                 "quality_score": 50.0,
-                "overall_score": (50 + 50 + float(rsi.iloc[idx]) / 2 + 50) / 4,
+                "composite_score": (50 + 50 + float(rsi.iloc[idx]) / 2 + 50) / 4,
                 "last_updated": str(date.today()),
             }
             scores.append(score_row)
@@ -128,7 +128,7 @@ class StockScoresLoader(OptimalLoader):
         if not super()._validate_row(row):
             return False
         return (
-            0 <= row.get("overall_score", 0) <= 100
+            0 <= row.get("composite_score", 0) <= 100
             and row.get("score_date") is not None
         )
 

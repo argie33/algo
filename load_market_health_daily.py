@@ -286,7 +286,7 @@ def load_market_health_daily():
 
         conn.commit()
 
-        print(f"\n✓ Market Health Daily loader complete!")
+        print(f"\n[OK] Market Health Daily loader complete!")
         print(f"  Inserted: {inserted}")
         print(f"  Skipped: {skipped}")
         print(f"  Period: {start_date} to {end_date}\n")

@@ -289,7 +289,7 @@ def load_trend_template_data():
 
         conn.commit()
 
-        print(f"\n✓ Trend Template Data loader complete!")
+        print(f"\n[OK] Trend Template Data loader complete!")
         print(f"  Inserted: {total_inserted}")
         print(f"  Skipped: {total_skipped}")
         print(f"  Symbols: {len(symbols)}\n")

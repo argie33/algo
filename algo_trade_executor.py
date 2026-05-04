@@ -44,6 +44,32 @@ class TradeExecutor:
         self.conn = None
         self.cur = None
 
+        # Hard live-trading safety guard. Prevents accidental real-money trading
+        # from a single env-var typo. Live mode requires THREE explicit confirmations:
+        #   1) ALGO_LIVE_TRADING=I_UNDERSTAND_REAL_MONEY (env, manual ack)
+        #   2) APCA_API_BASE_URL must NOT contain 'paper'
+        #   3) ALPACA_PAPER_TRADING != 'true'
+        # Otherwise, force-pin the Alpaca URL to paper endpoint regardless of what
+        # else is configured. Belt + suspenders: even if config says auto, even if
+        # someone fat-fingered the URL, real orders cannot leave this process.
+        execution_mode = config.get('execution_mode', 'paper').lower() if isinstance(config, dict) else 'paper'
+        live_ack = os.getenv('ALGO_LIVE_TRADING', '').strip()
+        paper_flag = os.getenv('ALPACA_PAPER_TRADING', 'true').strip().lower()
+        url_says_paper = 'paper' in (self.alpaca_base_url or '').lower()
+        live_intent = (
+            execution_mode == 'auto'
+            and live_ack == 'I_UNDERSTAND_REAL_MONEY'
+            and paper_flag != 'true'
+            and not url_says_paper
+        )
+        if not live_intent:
+            # Force paper. If URL was somehow set to live, override it.
+            if not url_says_paper:
+                self.alpaca_base_url = 'https://paper-api.alpaca.markets'
+            self.is_paper = True
+        else:
+            self.is_paper = False
+
     def connect(self):
         self.conn = psycopg2.connect(**DB_CONFIG)
         self.cur = self.conn.cursor()
