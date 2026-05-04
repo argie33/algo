@@ -69,13 +69,14 @@ class OptimalLoader(ABC):
     chunk_size: int = 5_000
     max_age_for_full_refresh: timedelta = timedelta(days=365)
 
-    def __init__(self):
+    def __init__(self, backfill_days: Optional[int] = None):
         import threading
         self._conn = None  # legacy single conn (close path)
         self._tls = threading.local()  # per-thread connection
         self._dedup = None
         self._watermark = None
         self._router = None
+        self._backfill_days = backfill_days or int(os.getenv("BACKFILL_DAYS", "0"))
         self._stats_lock = threading.Lock()
         self._stats = {
             "symbols_processed": 0,
@@ -211,8 +212,13 @@ class OptimalLoader(ABC):
     def load_symbol(self, symbol: str) -> int:
         """Load one symbol. Returns rows inserted."""
         wm_store = self._get_watermark()
-        previous = wm_store.get(symbol) if wm_store else None
-        previous_date = self._parse_watermark_date(previous)
+
+        # If backfill window is set, use that instead of watermark
+        if self._backfill_days > 0:
+            previous_date = (datetime.now().date() - timedelta(days=self._backfill_days))
+        else:
+            previous = wm_store.get(symbol) if wm_store else None
+            previous_date = self._parse_watermark_date(previous)
 
         rows = self.fetch_incremental(symbol, previous_date)
         if not rows:
@@ -284,13 +290,23 @@ class OptimalLoader(ABC):
 
     # ---- Top-level orchestration ----
 
-    def run(self, symbols: Iterable[str], parallelism: int = 1) -> dict:
-        """Execute load across symbols. Returns stats dict."""
+    def run(self, symbols: Iterable[str], parallelism: int = 1, backfill_days: Optional[int] = None) -> dict:
+        """Execute load across symbols. Returns stats dict.
+
+        Args:
+            symbols: Symbols to load
+            parallelism: Number of concurrent workers
+            backfill_days: If set, refetch last N days instead of using watermark (for extended history)
+        """
+        if backfill_days is not None:
+            self._backfill_days = backfill_days
+
         start = time.time()
         symbols = list(symbols)
+        mode = f" (backfill {self._backfill_days}d)" if self._backfill_days > 0 else ""
         log.info(
-            "[%s] Starting load: %d symbols (parallelism=%d)",
-            self.table_name, len(symbols), parallelism,
+            "[%s] Starting load: %d symbols (parallelism=%d)%s",
+            self.table_name, len(symbols), parallelism, mode,
         )
 
         if parallelism == 1:
