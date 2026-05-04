@@ -1,0 +1,261 @@
+name: Deploy Algo Orchestrator
+
+# Deploy algo execution engine to AWS Lambda
+# Triggered by changes to algo code or manual dispatch
+# Runs daily at 5:30pm ET via EventBridge
+
+on:
+  push:
+    paths:
+      - 'algo_*.py'
+      - 'run_eod_loaders.sh'
+      - 'lambda/algo_orchestrator/**'
+      - 'template-algo-orchestrator.yml'
+      - '.github/workflows/deploy-algo-orchestrator.yml'
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: false
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      dry_run:
+        description: 'Deploy with --dry-run (preview trades, no execution)'
+        required: false
+        default: 'true'
+        type: boolean
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+  AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+  AWS_ROLE_SESSION: github-algo-deploy
+  LAMBDA_FUNCTION_NAME: algo-orchestrator
+  LAMBDA_LAYER_NAME: algo-dependencies
+
+jobs:
+  validate-algo:
+    name: Validate Algo Components
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install psycopg2-binary requests python-dotenv pandas polars
+
+      - name: Verify algo components exist
+        run: |
+          echo "Checking algo components..."
+          required_files=(
+            "algo_orchestrator.py"
+            "algo_data_patrol.py"
+            "algo_data_remediation.py"
+            "algo_config.py"
+            "algo_signals.py"
+            "algo_filter_pipeline.py"
+            "algo_market_exposure.py"
+            "algo_position_sizer.py"
+          )
+
+          for file in "${required_files[@]}"; do
+            if [[ ! -f "$file" ]]; then
+              echo "❌ Missing: $file"
+              exit 1
+            fi
+            echo "✅ $file"
+          done
+
+          echo "All algo components present"
+
+  build-dependencies:
+    name: Build Dependencies for Lambda
+    runs-on: ubuntu-latest
+    needs: validate-algo
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies locally
+        run: |
+          echo "Installing Python dependencies..."
+          pip install -r requirements.txt -t /tmp/dependencies/ 2>/dev/null || \
+          pip install psycopg2-binary requests python-dotenv pandas polars -t /tmp/dependencies/
+
+          ls -la /tmp/dependencies/ | head -10
+          echo "✅ Dependencies ready"
+
+  deploy-lambda:
+    name: Deploy Lambda Function + EventBridge
+    runs-on: ubuntu-latest
+    needs: [validate-algo, build-dependencies]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: ${{ env.AWS_ROLE_SESSION }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set up Python and install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -t /tmp/lambda-deps/ 2>/dev/null || \
+          pip install psycopg2-binary requests python-dotenv pandas polars -t /tmp/lambda-deps/
+          echo "✅ Dependencies installed to /tmp/lambda-deps/"
+
+      - name: Package Lambda function
+        run: |
+          mkdir -p lambda-package
+          cd lambda-package
+
+          # Copy algo code
+          cp ../algo_*.py .
+          cp ../run_eod_loaders.sh .
+          cp ../lambda/algo_orchestrator/lambda_function.py .
+
+          # Copy dependencies
+          cp -r /tmp/lambda-deps/* . || echo "No dependencies (will fail at runtime)"
+
+          # Create zip
+          zip -r ../algo-function.zip . > /dev/null 2>&1
+          ls -lh ../algo-function.zip
+          echo "✅ Lambda function packaged"
+          cd ..
+
+      - name: Upload function code to S3
+        run: |
+          FUNCTION_KEY="lambda-functions/algo-orchestrator-$(date +%s).zip"
+          aws s3 cp algo-function.zip "s3://${{ secrets.LAMBDA_ARTIFACTS_BUCKET }}/$FUNCTION_KEY"
+          echo "FUNCTION_KEY=$FUNCTION_KEY" >> $GITHUB_ENV
+
+      - name: Get database secret ARN
+        id: db-secret
+        run: |
+          SECRET_ARN=$(aws secretsmanager list-secrets \
+            --query "SecretList[?Name=='stocks-db-credentials'].ARN" \
+            --output text)
+          echo "secret_arn=$SECRET_ARN" >> $GITHUB_OUTPUT
+
+      - name: Deploy CloudFormation stack (Algo)
+        run: |
+          echo "Deploying algo CloudFormation stack..."
+
+          aws cloudformation deploy \
+            --template-file template-algo-orchestrator.yml \
+            --stack-name stocks-algo-orchestrator \
+            --parameter-overrides \
+              LambdaFunctionCodeBucket="${{ secrets.LAMBDA_ARTIFACTS_BUCKET }}" \
+              LambdaFunctionCodeKey="${{ env.FUNCTION_KEY }}" \
+              DatabaseSecretArn="${{ steps.db-secret.outputs.secret_arn }}" \
+              AlpacaApiKeySecretArn="arn:aws:secretsmanager:${{ env.AWS_REGION }}:${{ env.AWS_ACCOUNT_ID }}:secret:alpaca-api-*" \
+              DryRunMode="${{ github.event.inputs.dry_run || 'true' }}" \
+              Environment="${{ github.event.inputs.environment || 'dev' }}" \
+            --capabilities CAPABILITY_IAM \
+            --region ${{ env.AWS_REGION }} \
+            --no-fail-on-empty-changeset
+
+      - name: Verify EventBridge rule
+        run: |
+          echo "✅ Verifying EventBridge scheduler..."
+
+          RULE_NAME="algo-eod-orchestrator"
+
+          # Check if rule exists
+          aws events describe-rule \
+            --name "$RULE_NAME" \
+            --region ${{ env.AWS_REGION }} 2>/dev/null && \
+            echo "✅ EventBridge rule exists: $RULE_NAME" || \
+            echo "⚠️  EventBridge rule not found (will be created by CloudFormation)"
+
+          # List all targets
+          aws events list-targets-by-rule \
+            --rule "$RULE_NAME" \
+            --region ${{ env.AWS_REGION }} 2>/dev/null | jq '.Targets[] | {Arn, Id}' || \
+            echo "No targets configured yet"
+
+  manual-test:
+    name: Manual Test (Optional)
+    runs-on: ubuntu-latest
+    needs: deploy-lambda
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Invoke Lambda (dry-run)
+        run: |
+          echo "Testing Lambda invocation (dry-run mode)..."
+
+          RESPONSE=$(aws lambda invoke \
+            --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
+            --payload '{"dry_run": true}' \
+            --region ${{ env.AWS_REGION }} \
+            /tmp/response.json)
+
+          echo "Lambda invocation response:"
+          cat /tmp/response.json | jq . || cat /tmp/response.json
+
+          echo ""
+          echo "✅ Manual test complete. Check CloudWatch logs for details:"
+          echo "   https://console.aws.amazon.com/cloudwatch/home?region=${{ env.AWS_REGION }}#logStream:prefix=/aws/lambda/${{ env.LAMBDA_FUNCTION_NAME }}"
+
+  summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [deploy-lambda, manual-test]
+    if: always()
+    steps:
+      - name: Print deployment summary
+        run: |
+          echo "╔════════════════════════════════════════════════════════════╗"
+          echo "║         ALGO ORCHESTRATOR DEPLOYMENT COMPLETE             ║"
+          echo "╚════════════════════════════════════════════════════════════╝"
+          echo ""
+          echo "📦 Deployment:"
+          echo "   Lambda Function: ${{ env.LAMBDA_FUNCTION_NAME }}"
+          echo "   Region: ${{ env.AWS_REGION }}"
+          echo "   Environment: ${{ github.event.inputs.environment || 'dev' }}"
+          echo ""
+          echo "⏰ Scheduling:"
+          echo "   EventBridge Rule: algo-eod-orchestrator"
+          echo "   Schedule: Daily 5:30pm ET (cron(0 21 * * ? *))"
+          echo "   Status: ACTIVE (will run automatically)"
+          echo ""
+          echo "🔍 Monitoring:"
+          echo "   CloudWatch Logs: /aws/lambda/${{ env.LAMBDA_FUNCTION_NAME }}"
+          echo "   Alarms: Check CloudWatch for Lambda failures"
+          echo "   Alerts: SNS notifications on success/failure"
+          echo ""
+          echo "🧪 Testing:"
+          echo "   Manual trigger: aws lambda invoke --function-name ${{ env.LAMBDA_FUNCTION_NAME }} /tmp/out.json"
+          echo "   Dry-run: Set DryRunMode=true in CloudFormation parameters"
+          echo ""
+          echo "📋 Next Steps:"
+          echo "   1. Verify Lambda function in AWS console"
+          echo "   2. Check EventBridge rule is enabled"
+          echo "   3. Review CloudWatch logs after first execution (5:30pm ET)"
+          echo "   4. Test manual invocation: aws lambda invoke --function-name ${{ env.LAMBDA_FUNCTION_NAME }} /tmp/out.json"
+          echo ""

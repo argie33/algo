@@ -1,0 +1,264 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Algo Orchestrator - Lambda + EventBridge scheduler for daily EOD execution'
+
+Parameters:
+  LambdaFunctionCodeBucket:
+    Type: String
+    Description: S3 bucket containing Lambda function code zip
+
+  LambdaFunctionCodeKey:
+    Type: String
+    Description: S3 key for Lambda function zip file
+
+  DatabaseSecretArn:
+    Type: String
+    Description: ARN of AWS Secrets Manager secret containing database credentials
+
+  AlpacaApiKeySecretArn:
+    Type: String
+    Description: ARN of AWS Secrets Manager secret containing Alpaca API keys
+
+  DryRunMode:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Run in dry-run mode (preview trades, no execution)
+
+  ExecutionMode:
+    Type: String
+    Default: 'paper'
+    AllowedValues: ['paper', 'live']
+    Description: Execution mode (paper=no real trades, live=real trades if enabled)
+
+  Environment:
+    Type: String
+    Default: 'dev'
+    AllowedValues: ['dev', 'staging', 'prod']
+    Description: Deployment environment
+
+Conditions:
+  IsProd: !Equals [!Ref Environment, 'prod']
+  IsLive: !Equals [!Ref ExecutionMode, 'live']
+
+Resources:
+  # SNS Topic for alerts
+  AlgoAlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub 'algo-orchestrator-alerts-${Environment}'
+      DisplayName: 'Algo Orchestrator Alerts'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Lambda execution role
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'algo-orchestrator-lambda-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: AlgoOrchestratorPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Secrets Manager access (database + Alpaca)
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref DatabaseSecretArn
+                  - !Ref AlpacaApiKeySecretArn
+              # SNS publish for alerts
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource:
+                  - !GetAtt AlgoAlertTopic.TopicArn
+              # CloudWatch Logs
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/algo-orchestrator:*'
+              # CloudWatch Metrics (for monitoring)
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                Resource: '*'
+              # VPC access (for RDS in private subnet)
+              - Effect: Allow
+                Action:
+                  - ec2:CreateNetworkInterface
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DeleteNetworkInterface
+                Resource: '*'
+
+  # Lambda function
+  AlgoOrchestratorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'algo-orchestrator'
+      Runtime: python3.11
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Handler: lambda_function.lambda_handler
+      Timeout: 900  # 15 minutes
+      MemorySize: 512
+      Code:
+        S3Bucket: !Ref LambdaFunctionCodeBucket
+        S3Key: !Ref LambdaFunctionCodeKey
+      Environment:
+        Variables:
+          EXECUTION_MODE: !Ref ExecutionMode
+          DRY_RUN_MODE: !Ref DryRunMode
+          ALERT_SNS_TOPIC_ARN: !GetAtt AlgoAlertTopic.TopicArn
+          ENVIRONMENT: !Ref Environment
+          AWS_LAMBDA_FUNCTION_NAME: algo-orchestrator
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Component
+          Value: AlgoOrchestrator
+
+  # EventBridge rule - Daily at 5:30pm ET (9:30pm UTC)
+  AlgoScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: algo-eod-orchestrator
+      Description: Daily algo execution at 5:30pm ET (market close)
+      ScheduleExpression: 'cron(0 21 * * ? *)'  # 9:30pm UTC = 5:30pm ET
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt AlgoOrchestratorFunction.Arn
+          Id: AlgoOrchestratorTarget
+          RoleArn: !GetAtt EventBridgeRole.Arn
+          DeadLetterConfig:
+            Arn: !GetAtt AlgoAlertTopic.TopicArn
+
+  # EventBridge role
+  EventBridgeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'algo-eventbridge-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeLambda
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !GetAtt AlgoOrchestratorFunction.Arn
+
+  # Lambda permission for EventBridge
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AlgoOrchestratorFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt AlgoScheduleRule.Arn
+
+  # CloudWatch alarm - Lambda errors
+  LambdaErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'algo-orchestrator-errors-${Environment}'
+      AlarmDescription: Alert when algo-orchestrator Lambda has errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300  # 5 minutes
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref AlgoOrchestratorFunction
+      AlarmActions:
+        - !GetAtt AlgoAlertTopic.TopicArn
+      TreatMissingData: notBreaching
+
+  # CloudWatch alarm - Lambda timeout
+  LambdaTimeoutAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'algo-orchestrator-timeout-${Environment}'
+      AlarmDescription: Alert when algo-orchestrator Lambda times out
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Statistic: Maximum
+      Period: 300  # 5 minutes
+      EvaluationPeriods: 1
+      Threshold: 850000  # 850 seconds (14+ minutes of 15 min timeout)
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref AlgoOrchestratorFunction
+      AlarmActions:
+        - !GetAtt AlgoAlertTopic.TopicArn
+      TreatMissingData: notBreaching
+
+  # CloudWatch Log Group
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/algo-orchestrator'
+      RetentionInDays: 30
+
+Outputs:
+  LambdaFunctionArn:
+    Description: ARN of the algo-orchestrator Lambda function
+    Value: !GetAtt AlgoOrchestratorFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaArn'
+
+  LambdaFunctionName:
+    Description: Name of the algo-orchestrator Lambda function
+    Value: !Ref AlgoOrchestratorFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaName'
+
+  EventBridgeRuleArn:
+    Description: ARN of the EventBridge rule
+    Value: !GetAtt AlgoScheduleRule.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-EventBridgeRuleArn'
+
+  AlertTopicArn:
+    Description: SNS topic ARN for algo alerts
+    Value: !GetAtt AlgoAlertTopic.TopicArn
+    Export:
+      Name: !Sub '${AWS::StackName}-AlertTopicArn'
+
+  Schedule:
+    Description: EventBridge schedule (cron expression)
+    Value: 'cron(0 21 * * ? *)'
+
+  ScheduleDescription:
+    Description: When the schedule runs
+    Value: 'Daily at 5:30pm ET (9:30pm UTC, after market close)'
+
+  ExecutionMode:
+    Description: Current execution mode
+    Value: !Ref ExecutionMode
+
+  DryRunMode:
+    Description: Dry-run mode enabled
+    Value: !Ref DryRunMode
