@@ -98,7 +98,10 @@ class PositionSizer:
         return None
 
     def get_current_drawdown(self):
-        """Calculate current drawdown from peak."""
+        """Calculate current drawdown from peak.
+
+        B13: Fail-closed — if calculation fails, return high drawdown to halt trading.
+        """
         try:
             self.cur.execute("""
                 SELECT
@@ -118,8 +121,10 @@ class PositionSizer:
 
             drawdown_pct = ((peak - current) / peak) * 100
             return max(0, drawdown_pct)
-        except:
-            return 0.0
+        except Exception as e:
+            print(f"ERROR: Could not calculate drawdown: {e}")
+            # B13: Return extreme drawdown to force trading halt
+            return 25.0
 
     def get_risk_adjustment(self):
         """Get risk adjustment factor based on drawdown.
@@ -141,7 +146,10 @@ class PositionSizer:
             return 1.0
 
     def get_market_exposure_multiplier(self):
-        """Look up the most recent market exposure pct (0-100). Returns multiplier 0.0-1.0."""
+        """Look up the most recent market exposure pct (0-100). Returns multiplier 0.0-1.0.
+
+        B13: Fail-closed — if query fails, assume conservative exposure.
+        """
         try:
             self.cur.execute(
                 "SELECT exposure_pct FROM market_exposure_daily ORDER BY date DESC LIMIT 1"
@@ -149,8 +157,10 @@ class PositionSizer:
             row = self.cur.fetchone()
             if row and row[0] is not None:
                 return float(row[0]) / 100.0
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"WARNING: Could not fetch market exposure: {e}")
+            # B13: Return conservative multiplier (50% exposure) on error
+            return 0.5
         return 1.0  # neutral if not computed yet
 
     def get_phase_size_multiplier(self, symbol):
@@ -165,7 +175,10 @@ class PositionSizer:
             return 1.0
 
     def get_active_positions_value(self):
-        """Get sum of active position values."""
+        """Get sum of active position values.
+
+        B13: Fail-closed — on error, assume high value to prevent over-sizing.
+        """
         try:
             self.cur.execute("""
                 SELECT COALESCE(SUM(position_value), 0) as total
@@ -174,19 +187,26 @@ class PositionSizer:
             """)
             result = self.cur.fetchone()
             return float(result[0]) if result else 0.0
-        except:
-            return 0.0
+        except Exception as e:
+            print(f"WARNING: Could not fetch position values: {e}")
+            # B13: Assume high value to prevent over-sizing new positions
+            return 999999.0
 
     def get_position_count(self):
-        """Get count of active positions."""
+        """Get count of active positions.
+
+        B13: Fail-closed — on error, assume max positions to prevent over-trading.
+        """
         try:
             self.cur.execute("""
                 SELECT COUNT(*) as count FROM algo_positions WHERE status = 'open'
             """)
             result = self.cur.fetchone()
             return result[0] if result else 0
-        except:
-            return 0
+        except Exception as e:
+            print(f"WARNING: Could not fetch position count: {e}")
+            # B13: Assume max positions to prevent over-trading
+            return 999
 
     def calculate_position_size(self, symbol, entry_price, stop_loss_price):
         """

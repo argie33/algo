@@ -177,15 +177,17 @@ class PyramidEngine:
         # Compute add size in shares
         add_qty = max(1, int(init_qty * add_fraction))
 
-        # CRITICAL: don't let total open risk exceed original 1R
+        # B16: CRITICAL — total open risk must NEVER exceed original 1R
         # New-add risk = (cur_price - cur_stop) × add_qty
         # Existing-position risk = (cur_price - cur_stop) × cur_qty
         # Total must be <= original_risk = (entry_price - init_stop) × init_qty
         new_risk = (cur_price - cur_stop) * add_qty if cur_price > cur_stop else 0
         existing_risk = (cur_price - cur_stop) * cur_qty if cur_price > cur_stop else 0
         original_risk = risk_per_share * init_qty
-        if (new_risk + existing_risk) > original_risk * 1.05:  # 5% buffer
-            # Reduce add size to fit
+
+        # B16: No buffer — combined risk must be strictly <= original risk
+        if (new_risk + existing_risk) > original_risk:
+            # Reduce add size to fit strict ceiling (no 5% buffer)
             risk_avail = original_risk - existing_risk
             if risk_avail <= 0:
                 return None

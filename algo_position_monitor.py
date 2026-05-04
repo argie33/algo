@@ -103,6 +103,17 @@ class PositionMonitor:
 
         entry_price = float(entry_price)
         init_stop = float(init_stop)
+
+        # B15: Validate core prices before all calculations
+        if entry_price <= 0:
+            print(f"ERROR: Invalid entry price {entry_price} for {symbol} — cannot monitor")
+            return None
+        if init_stop <= 0:
+            print(f"ERROR: Invalid stop {init_stop} for {symbol} — cannot monitor")
+            return None
+        if init_stop >= entry_price:
+            print(f"ERROR: Stop {init_stop} >= entry {entry_price} for {symbol} — invalid trade")
+            return None
         active_stop = float(current_stop) if current_stop else init_stop
         target_hits = int(target_hits or 0)
         days_held = (current_date - trade_date).days
@@ -112,6 +123,14 @@ class PositionMonitor:
         cur_price, atr, sma_50, ema_12 = self._fetch_current_market(symbol, current_date)
         if cur_price is None:
             cur_price = float(db_current_price) if db_current_price else entry_price
+
+        # B14: Validate current price is positive
+        if cur_price is None or cur_price <= 0:
+            print(f"WARNING: Invalid current price {cur_price} for {symbol}, using entry price {entry_price}")
+            cur_price = entry_price
+        if cur_price <= 0:
+            print(f"ERROR: Cannot monitor position {symbol} — invalid prices")
+            return None
 
         # P&L
         risk_per_share = entry_price - init_stop

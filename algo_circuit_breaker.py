@@ -99,11 +99,25 @@ class CircuitBreaker:
 
             return results
         except Exception as e:
-            print(f"ERROR in circuit breaker check: {e}")
+            print(f"CRITICAL ERROR in circuit breaker check: {e}")
             import traceback
             traceback.print_exc()
-            # Return all-clear so trading continues, but log the error
-            return {'halted': False, 'halt_reasons': [], 'checks': {}}
+            # B12: Fail-closed — if circuit breaker logic itself fails, halt trading
+            # Do NOT allow trading when we can't verify safety checks
+            try:
+                from algo_notifications import notify
+                notify(
+                    'critical',
+                    title='CIRCUIT BREAKER CHECK FAILED',
+                    message=f'Circuit breaker logic crashed: {e}. Trading halted until resolved.'
+                )
+            except Exception:
+                pass
+            return {
+                'halted': True,
+                'halt_reasons': [f'Circuit breaker check failed: {e}'],
+                'checks': {}
+            }
         finally:
             self.disconnect()
 
