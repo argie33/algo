@@ -1,0 +1,124 @@
+╔════════════════════════════════════════════════════════╗
+║  Initializing Database Schema (AUTHORITATIVE)         ║
+╚════════════════════════════════════════════════════════╝
+
+  ✗ [ 1/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✓ [ 2/113]
+  ✓ [ 3/113]
+  ✓ [ 4/113]
+  ✗ [ 5/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✓ [ 6/113]
+  ✗ [ 7/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✓ [ 8/113]
+  ✗ [ 9/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✓ [10/113]
+  ✓ [11/113]
+  ✗ [12/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✓ [13/113]
+  ✓ [14/113]
+  ✗ [15/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✓ [16/113]
+  ✓ [17/113]
+  ✓ [18/113]
+  ✓ [19/113]
+  ✗ [20/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✗ [21/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✓ [22/113]
+  ✓ [23/113]
+  ✓ [24/113]
+  ✓ [25/113]
+  ✓ [26/113]
+  ✓ [27/113]
+  ✓ [28/113]
+  ✗ [29/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✓ [30/113]
+  ✓ [31/113]
+  ✓ [32/113]
+  ✓ [33/113]
+  ✗ [34/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✓ [35/113]
+  ✓ [36/113]
+  ✓ [37/113]
+  ✓ [38/113]
+  ✓ [39/113]
+  ✗ [40/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✓ [41/113]
+  ✓ [42/113]
+  ✓ [43/113]
+  ✗ [44/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✓ [45/113]
+  ✓ [46/113]
+  ✗ [47/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✓ [48/113]
+  ✗ [49/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✓ [50/113]
+  ✓ [51/113]
+  ✗ [52/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✓ [53/113]
+  ✓ [54/113]
+  ✓ [55/113]
+  ✗ [56/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✓ [57/113]
+  ✗ [58/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✗ [59/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✓ [60/113]
+  ✗ [61/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✓ [62/113]
+  ✗ [63/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✓ [64/113]
+  ✓ [65/113]
+  ✓ [66/113]
+  ✓ [67/113]
+  ✓ [68/113]
+  ✓ [69/113]
+  ✓ [70/113]
+  ✗ [71/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✓ [72/113]
+  ✓ [73/113]
+  ✓ [74/113]
+  ✓ [75/113]
+  ✓ [76/113]
+  ✗ [77/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✗ [78/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✓ [79/113]
+  ✓ [80/113]
+  ✓ [81/113]
+  ✓ [82/113]
+  ✓ [83/113]
+  ✓ [84/113]
+  ✓ [85/113]
+  ✓ [86/113]
+  ✓ [87/113]
+  ✓ [88/113]
+  ✓ [89/113]
+  ✓ [90/113]
+  ✗ [91/113] 'charmap' codec can't encode characters in position 3-78: ch
+  ✓ [92/113]
+  ✓ [93/113]
+  ✓ [94/113]
+  ✓ [95/113]
+  ✓ [96/113]
+  ✓ [97/113]
+  ✓ [98/113]
+  ✓ [99/113]
+  ✓ [100/113]
+  ✓ [101/113]
+  ✓ [102/113]
+  ✓ [103/113]
+  ✓ [104/113]
+  ✓ [105/113]
+  ✓ [106/113]
+  ✓ [107/113]
+  ✓ [108/113]
+  ✓ [109/113]
+  ✓ [110/113]
+  ✓ [111/113]
+  ✓ [112/113]
+  ✓ [113/113]
+
+✓ Schema initialization complete!
+  Succeeded: 89
+  Failed: 24
+
+Schema is now READY for loaders to use
+
