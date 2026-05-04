@@ -67,12 +67,18 @@ class QuarterlyBalanceSheetLoader(OptimalLoader):
             return None
 
     def transform(self, rows):
-        """Extract only columns defined in schema."""
+        """Extract only columns defined in schema, deduplicate by (symbol, fiscal_year, fiscal_quarter)."""
         schema_cols = {'total_assets', 'total_liabilities', 'fiscal_year', 'fiscal_quarter', 'symbol', 'stockholders_equity'}
-        return [
+        filtered = [
             {k: v for k, v in r.items() if k in schema_cols}
             for r in rows
         ]
+        seen = {}
+        for row in filtered:
+            key = (row['symbol'], row['fiscal_year'], row.get('fiscal_quarter'))
+            if key not in seen:
+                seen[key] = row
+        return list(seen.values())
 
     def _validate_row(self, row: dict) -> bool:
         """Validate quarterly balance sheet row."""
