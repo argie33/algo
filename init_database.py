@@ -1343,6 +1343,110 @@ CREATE TABLE IF NOT EXISTS algo_audit_log (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Pyramid add tracking (for position scaling)
+CREATE TABLE IF NOT EXISTS algo_trade_adds (
+    id SERIAL PRIMARY KEY,
+    trade_id VARCHAR(20) NOT NULL,
+    add_number INTEGER NOT NULL,
+    add_date DATE NOT NULL,
+    add_price DECIMAL(15, 4) NOT NULL,
+    add_quantity INTEGER NOT NULL,
+    fraction_of_original DECIMAL(5, 4),
+    r_multiple_at_add DECIMAL(5, 2),
+    trigger_reason TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(trade_id, add_number)
+);
+
+-- Data loader status monitoring
+CREATE TABLE IF NOT EXISTS data_loader_status (
+    table_name VARCHAR(80) PRIMARY KEY,
+    frequency VARCHAR(20),
+    role VARCHAR(80),
+    latest_date DATE,
+    age_days INTEGER,
+    row_count BIGINT,
+    stale_threshold_days INTEGER,
+    status VARCHAR(20),
+    last_audit_at TIMESTAMP,
+    error_message TEXT
+);
+
+-- Data patrol audit log
+CREATE TABLE IF NOT EXISTS data_patrol_log (
+    id SERIAL PRIMARY KEY,
+    patrol_date DATE NOT NULL,
+    check_name VARCHAR(100) NOT NULL,
+    severity VARCHAR(20),
+    table_name VARCHAR(80),
+    status VARCHAR(20),
+    details TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Data remediation log
+CREATE TABLE IF NOT EXISTS data_remediation_log (
+    id SERIAL PRIMARY KEY,
+    remediation_date DATE NOT NULL,
+    table_name VARCHAR(80) NOT NULL,
+    fix_type VARCHAR(50),
+    rows_affected INTEGER,
+    status VARCHAR(20),
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Market exposure daily snapshots
+CREATE TABLE IF NOT EXISTS market_exposure_daily (
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL,
+    market_exposure_pct DECIMAL(8, 4),
+    long_exposure_pct DECIMAL(8, 4),
+    short_exposure_pct DECIMAL(8, 4),
+    exposure_tier VARCHAR(30),
+    is_entry_allowed BOOLEAN,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(date)
+);
+
+-- Notifications for UI
+CREATE TABLE IF NOT EXISTS algo_notifications (
+    id SERIAL PRIMARY KEY,
+    kind VARCHAR(40) NOT NULL,
+    severity VARCHAR(20) NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    message TEXT,
+    symbol VARCHAR(20),
+    details JSONB,
+    seen BOOLEAN DEFAULT FALSE,
+    seen_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Sector rotation signals
+CREATE TABLE IF NOT EXISTS sector_rotation_signal (
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL,
+    sector VARCHAR(50) NOT NULL,
+    signal VARCHAR(20),
+    strength DECIMAL(8, 4),
+    rank INTEGER,
+    details JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(date, sector)
+);
+
+-- Swing trader scores
+CREATE TABLE IF NOT EXISTS swing_trader_scores (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    score DECIMAL(8, 4),
+    components JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(symbol, date)
+);
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- INDEXES for Performance
 -- ════════════════════════════════════════════════════════════════════════════
@@ -1374,6 +1478,18 @@ CREATE INDEX IF NOT EXISTS idx_algo_positions_status ON algo_positions(status);
 CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_date ON algo_portfolio_snapshots(snapshot_date);
 CREATE INDEX IF NOT EXISTS idx_audit_log_action_type ON algo_audit_log(action_type);
 CREATE INDEX IF NOT EXISTS idx_audit_log_date ON algo_audit_log(action_date);
+
+-- Indexes for new tables
+CREATE INDEX IF NOT EXISTS idx_trade_adds_trade_id ON algo_trade_adds(trade_id);
+CREATE INDEX IF NOT EXISTS idx_data_patrol_log_date ON data_patrol_log(patrol_date);
+CREATE INDEX IF NOT EXISTS idx_data_patrol_log_severity ON data_patrol_log(severity);
+CREATE INDEX IF NOT EXISTS idx_data_remediation_log_date ON data_remediation_log(remediation_date);
+CREATE INDEX IF NOT EXISTS idx_market_exposure_daily_date ON market_exposure_daily(date);
+CREATE INDEX IF NOT EXISTS idx_notif_unseen ON algo_notifications(seen, created_at) WHERE seen = FALSE;
+CREATE INDEX IF NOT EXISTS idx_notif_severity ON algo_notifications(severity);
+CREATE INDEX IF NOT EXISTS idx_sector_rotation_date ON sector_rotation_signal(date);
+CREATE INDEX IF NOT EXISTS idx_sector_rotation_sector ON sector_rotation_signal(sector);
+CREATE INDEX IF NOT EXISTS idx_swing_scores_symbol_date ON swing_trader_scores(symbol, date);
 """
 
 def init_database():

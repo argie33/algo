@@ -44,33 +44,12 @@ DB_CONFIG = {
 }
 
 
-def _ensure_table():
-    conn = psycopg2.connect(**DB_CONFIG)
-    cur = conn.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS algo_notifications (
-            id SERIAL PRIMARY KEY,
-            kind VARCHAR(40) NOT NULL,
-            severity VARCHAR(20) NOT NULL,
-            title VARCHAR(200) NOT NULL,
-            message TEXT,
-            symbol VARCHAR(20),
-            details JSONB,
-            seen BOOLEAN DEFAULT FALSE,
-            seen_at TIMESTAMP,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_notif_unseen ON algo_notifications (seen, created_at) WHERE seen = FALSE")
-    conn.commit()
-    cur.close()
-    conn.close()
-
-
 def notify(kind, severity, title, message=None, symbol=None, details=None):
-    """Write a notification. Severity: info | warning | error | critical."""
+    """Write a notification. Severity: info | warning | error | critical.
+
+    Note: algo_notifications table is created by init_database.py (schema as code).
+    """
     try:
-        _ensure_table()
         conn = psycopg2.connect(**DB_CONFIG)
         cur = conn.cursor()
         cur.execute(

@@ -63,21 +63,7 @@ class SectorRotationDetector:
     def connect(self):
         self.conn = psycopg2.connect(**DB_CONFIG)
         self.cur = self.conn.cursor()
-        self.cur.execute("""
-            CREATE TABLE IF NOT EXISTS sector_rotation_signal (
-                date DATE PRIMARY KEY,
-                defensive_lead_score NUMERIC(5,2),
-                cyclical_weak_score NUMERIC(5,2),
-                signal VARCHAR(40),
-                defensive_avg_rs NUMERIC(8,4),
-                cyclical_avg_rs NUMERIC(8,4),
-                spread NUMERIC(8,4),
-                weeks_persistent INTEGER,
-                details JSONB,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        self.conn.commit()
+        # Note: sector_rotation_signal table created by init_database.py (schema as code)
 
     def disconnect(self):
         if self.cur: self.cur.close()

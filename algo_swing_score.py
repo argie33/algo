@@ -659,28 +659,7 @@ class SwingTraderScore:
 
     def _persist(self, symbol, eval_date, result):
         try:
-            self.cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS swing_trader_scores (
-                    symbol VARCHAR(20),
-                    eval_date DATE,
-                    swing_score NUMERIC(5,2),
-                    grade VARCHAR(3),
-                    setup_pts NUMERIC(5,2),
-                    trend_pts NUMERIC(5,2),
-                    momentum_pts NUMERIC(5,2),
-                    volume_pts NUMERIC(5,2),
-                    fundamentals_pts NUMERIC(5,2),
-                    sector_pts NUMERIC(5,2),
-                    multi_tf_pts NUMERIC(5,2),
-                    pass_gates BOOLEAN,
-                    fail_reason TEXT,
-                    components JSONB,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    PRIMARY KEY (symbol, eval_date)
-                )
-                """
-            )
+            # Note: swing_trader_scores table created by init_database.py (schema as code)
             comp = result.get('components', {})
             self.cur.execute(
                 """

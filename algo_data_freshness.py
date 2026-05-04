@@ -135,20 +135,7 @@ def persist(results):
     conn = psycopg2.connect(**DB_CONFIG)
     cur = conn.cursor()
     try:
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS data_loader_status (
-                table_name VARCHAR(80) PRIMARY KEY,
-                frequency VARCHAR(20),
-                role VARCHAR(80),
-                latest_date DATE,
-                age_days INTEGER,
-                row_count BIGINT,
-                stale_threshold_days INTEGER,
-                status VARCHAR(20),
-                last_audit_at TIMESTAMP,
-                error_message TEXT
-            )
-        """)
+        # Note: data_loader_status table created by init_database.py (schema as code)
 
         critical_issues = []
         for r in results:

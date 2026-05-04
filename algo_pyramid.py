@@ -62,23 +62,7 @@ class PyramidEngine:
     def connect(self):
         self.conn = psycopg2.connect(**DB_CONFIG)
         self.cur = self.conn.cursor()
-        # Ensure adds table exists
-        self.cur.execute("""
-            CREATE TABLE IF NOT EXISTS algo_trade_adds (
-                id SERIAL PRIMARY KEY,
-                trade_id VARCHAR(20) NOT NULL,
-                add_number INTEGER NOT NULL,
-                add_date DATE NOT NULL,
-                add_price NUMERIC(15,4) NOT NULL,
-                add_quantity INTEGER NOT NULL,
-                fraction_of_original NUMERIC(5,4),
-                r_multiple_at_add NUMERIC(5,2),
-                trigger_reason TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(trade_id, add_number)
-            )
-        """)
-        self.conn.commit()
+        # Note: algo_trade_adds table created by init_database.py (schema as code)
 
     def disconnect(self):
         if self.cur: self.cur.close()

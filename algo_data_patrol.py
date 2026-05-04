@@ -65,33 +65,13 @@ class DataPatrol:
     def connect(self):
         self.conn = psycopg2.connect(**DB_CONFIG)
         self.cur = self.conn.cursor()
-        self._ensure_log_table()
 
     def disconnect(self):
         if self.cur: self.cur.close()
         if self.conn: self.conn.close()
         self.cur = self.conn = None
 
-    def _ensure_log_table(self):
-        self.cur.execute("""
-            CREATE TABLE IF NOT EXISTS data_patrol_log (
-                id SERIAL PRIMARY KEY,
-                patrol_run_id VARCHAR(80),
-                check_name VARCHAR(80),
-                severity VARCHAR(20),
-                target_table VARCHAR(80),
-                message TEXT,
-                details JSONB,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        self.cur.execute("""
-            CREATE INDEX IF NOT EXISTS idx_patrol_log_run ON data_patrol_log (patrol_run_id);
-        """)
-        self.cur.execute("""
-            CREATE INDEX IF NOT EXISTS idx_patrol_log_sev ON data_patrol_log (severity, created_at);
-        """)
-        self.conn.commit()
+    # Note: data_patrol_log table created by init_database.py (schema as code)
 
     def log(self, name, severity, target, message, details=None):
         self.results.append({

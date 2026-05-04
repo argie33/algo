@@ -618,20 +618,7 @@ class MarketExposure:
 
     def _persist(self, eval_date, result):
         try:
-            self.cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS market_exposure_daily (
-                    date DATE PRIMARY KEY,
-                    exposure_pct NUMERIC(5,2),
-                    raw_score NUMERIC(5,2),
-                    regime VARCHAR(40),
-                    distribution_days INTEGER,
-                    factors JSONB,
-                    halt_reasons TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-                """
-            )
+            # Note: market_exposure_daily table created by init_database.py (schema as code)
             self.cur.execute(
                 """
                 INSERT INTO market_exposure_daily

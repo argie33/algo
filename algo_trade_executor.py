@@ -225,7 +225,8 @@ class TradeExecutor:
                     }
                 alpaca_order_id = order_result['order_id']
                 order_status = order_result.get('status', 'pending')
-                executed_price = order_result.get('executed_price', entry_price)
+                # For pending orders, executed_price will be None; use entry_price as placeholder
+                executed_price = order_result.get('executed_price') or entry_price
 
                 # Verify bracket legs were created successfully
                 legs = order_result.get('legs', [])
@@ -323,7 +324,15 @@ class TradeExecutor:
             # Never create position for pending/rejected orders
             if order_status == 'filled' or (order_status == 'partially_filled' and execution_mode == 'auto'):
                 position_id = f'POS-{trade_id}'
-                position_value = shares * executed_price
+                # For partial fills, get actual filled quantity from Alpaca
+                actual_shares = shares
+                if order_status == 'partially_filled' and alpaca_order_id:
+                    filled_qty = self._get_order_filled_quantity(alpaca_order_id)
+                    if filled_qty and filled_qty > 0:
+                        actual_shares = filled_qty
+                        print(f"Partial fill detected: {actual_shares} of {shares} shares filled")
+
+                position_value = actual_shares * executed_price
                 self.cur.execute(
                     """
                     INSERT INTO algo_positions (
@@ -337,7 +346,7 @@ class TradeExecutor:
                     )
                     """,
                     (
-                        position_id, symbol, shares, executed_price,
+                        position_id, symbol, actual_shares, executed_price,
                         executed_price, position_value,
                         [trade_id], stop_loss_price,
                     ),
@@ -386,14 +395,28 @@ class TradeExecutor:
 
         self.connect()
         try:
+            # IDEMPOTENCY: Check if trade is already closed (prevent duplicate exits)
+            self.cur.execute(
+                """
+                SELECT status FROM algo_trades WHERE trade_id = %s
+                """,
+                (trade_id,),
+            )
+            trade_status_row = self.cur.fetchone()
+            if trade_status_row and trade_status_row[0] == 'closed':
+                return {
+                    'success': False,
+                    'message': f'Trade {trade_id} is already closed (idempotency guard)',
+                    'duplicate': True
+                }
+
             self.cur.execute(
                 """
                 SELECT t.symbol, t.entry_price, t.entry_quantity, t.stop_loss_price,
                        t.alpaca_order_id,
-                       p.position_id, p.quantity, p.target_levels_hit
+                       p.position_id, p.quantity, p.target_levels_hit, p.status
                 FROM algo_trades t
                 LEFT JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
-                                         AND p.status = 'open'
                 WHERE t.trade_id = %s
                 """,
                 (trade_id,),
@@ -401,13 +424,21 @@ class TradeExecutor:
             row = self.cur.fetchone()
             if not row:
                 return {'success': False, 'message': f'Trade {trade_id} not found'}
-            symbol, entry_price, entry_qty, stop_loss_price, alpaca_order_id, position_id, current_qty, target_hits = row
+            symbol, entry_price, entry_qty, stop_loss_price, alpaca_order_id, position_id, current_qty, target_hits, position_status = row
 
             entry_price = float(entry_price)
             entry_qty = int(entry_qty)
             stop_loss_price = float(stop_loss_price)
             current_qty = int(current_qty) if current_qty else 0
             target_hits = int(target_hits) if target_hits else 0
+
+            # IDEMPOTENCY: Check if position is already closed
+            if position_status == 'closed':
+                return {
+                    'success': False,
+                    'message': f'Position already closed (idempotency guard)',
+                    'duplicate': True
+                }
 
             if current_qty <= 0 and not position_id:
                 return {'success': False, 'message': f'No open position for {trade_id}'}
@@ -563,7 +594,7 @@ class TradeExecutor:
     # ---------- Helpers ----------
 
     def _get_portfolio_value(self):
-        """Live Alpaca equity, fall back to latest snapshot."""
+        """Live Alpaca equity, fall back to latest snapshot, alert if using stale data."""
         if self.alpaca_key and self.alpaca_secret:
             try:
                 resp = requests.get(
@@ -577,18 +608,34 @@ class TradeExecutor:
                     pv = data.get('portfolio_value') or data.get('equity')
                     if pv is not None:
                         return float(pv)
-            except Exception:
-                pass
+            except Exception as e:
+                # Alpaca API failed, will fall back to snapshot
+                print(f"Warning: Could not fetch Alpaca account value: {e}")
         try:
             self.cur.execute(
-                "SELECT total_portfolio_value FROM algo_portfolio_snapshots "
+                "SELECT total_portfolio_value, snapshot_date FROM algo_portfolio_snapshots "
                 "ORDER BY snapshot_date DESC LIMIT 1"
             )
             row = self.cur.fetchone()
             if row and row[0]:
-                return float(row[0])
-        except Exception:
-            pass
+                pv = float(row[0])
+                snapshot_date = row[1]
+                # Alert if snapshot is stale (more than 1 day old)
+                from datetime import datetime, timedelta
+                if snapshot_date and (datetime.now().date() - snapshot_date).days > 1:
+                    try:
+                        from algo_notifications import notify
+                        notify(
+                            kind='portfolio_value_stale',
+                            severity='warning',
+                            title='Portfolio Value Stale',
+                            message=f'Using portfolio snapshot from {snapshot_date} (now using {pv:.0f})',
+                        )
+                    except Exception:
+                        pass
+                return pv
+        except Exception as e:
+            print(f"Warning: Could not fetch portfolio snapshot: {e}")
         return None
 
     def _send_alpaca_order(self, symbol, shares, entry_price, stop_loss_price=None,
@@ -647,12 +694,27 @@ class TradeExecutor:
             )
             if response.status_code in (200, 201):
                 data = response.json()
+                # Validate response has required fields
+                if not data.get('id'):
+                    return {'success': False, 'message': 'Alpaca response missing order ID'}
+                order_status = data.get('status', 'pending')
+                # Only return actual fill price if order is filled; for pending orders, return None
+                executed_price = None
+                if order_status == 'filled' and data.get('filled_avg_price'):
+                    try:
+                        executed_price = float(data['filled_avg_price'])
+                    except (ValueError, TypeError) as e:
+                        print(f"Warning: Could not parse fill price: {e}")
+                        executed_price = None
+                elif order_status in ('pending', 'partially_filled'):
+                    # For pending/partial orders, actual fill price unknown yet
+                    executed_price = None
                 return {
                     'success': True,
-                    'order_id': data.get('id', 'unknown'),
+                    'order_id': data.get('id'),
                     'order_class': data.get('order_class', 'simple'),
-                    'status': data.get('status', 'pending'),
-                    'executed_price': entry_price,
+                    'status': order_status,
+                    'executed_price': executed_price,
                     'legs': data.get('legs', []),  # bracket child orders
                 }
             return {'success': False, 'message': f'Alpaca {response.status_code}: {response.text[:200]}'}
@@ -706,6 +768,33 @@ class TradeExecutor:
                 data = resp.json()
                 if data.get('status') == 'filled' and data.get('filled_avg_price'):
                     return float(data['filled_avg_price'])
+        except Exception:
+            pass
+        return None
+
+    def _get_order_filled_quantity(self, alpaca_order_id):
+        """Query Alpaca for actual filled quantity of an order.
+
+        Returns: int (filled_qty) or None if not available
+        """
+        if not self.alpaca_key or not self.alpaca_secret or not alpaca_order_id:
+            return None
+
+        if alpaca_order_id.startswith('LOCAL-') or alpaca_order_id.startswith('PENDING-'):
+            return None  # Paper mode, no real order
+
+        try:
+            resp = requests.get(
+                f'{self.alpaca_base_url}/v2/orders/{alpaca_order_id}',
+                headers={'APCA-API-KEY-ID': self.alpaca_key,
+                         'APCA-API-SECRET-KEY': self.alpaca_secret},
+                timeout=5,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                filled_qty = data.get('filled_qty')
+                if filled_qty is not None:
+                    return int(filled_qty)
         except Exception:
             pass
         return None

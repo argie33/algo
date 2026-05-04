@@ -389,7 +389,8 @@ class ExitEngine:
             cur_rs, rs_50 = float(row[0]), float(row[1])
             # Break if current RS is < 50-day RS-line MA (deteriorating)
             return cur_rs < rs_50 * 0.99
-        except Exception:
+        except Exception as e:
+            print(f"Warning: _rs_line_breaking({symbol}) failed: {e}")
             return False
 
     def _eight_week_rule_active(self, symbol, current_date, entry_price, days_held,
@@ -423,7 +424,8 @@ class ExitEngine:
             max_high_in_window = float(row[0])
             gain_pct = (max_high_in_window - entry_price) / entry_price * 100.0
             return gain_pct >= threshold_pct
-        except Exception:
+        except Exception as e:
+            print(f"Warning: _eight_week_rule_active({symbol}) failed: {e}")
             return False
 
     def _chandelier_or_ema_stop(self, symbol, current_date, days_held):
@@ -481,7 +483,8 @@ class ExitEngine:
                 atr = float(row[1])
                 mult = float(self.config.get('chandelier_atr_mult', 3.0))
                 return round(hh - (mult * atr), 2)
-        except Exception:
+        except Exception as e:
+            print(f"Warning: _chandelier_or_ema_stop({symbol}) failed: {e}")
             return None
 
     def _is_td_sequential_top(self, symbol, current_date):
@@ -492,7 +495,8 @@ class ExitEngine:
             sc = SignalComputer(cur=self.cur)
             td = sc.td_sequential(symbol, current_date)
             return td.get('completed_9', False) and td.get('setup_type') == 'sell'
-        except Exception:
+        except Exception as e:
+            print(f"Warning: _is_td_sequential_top({symbol}) failed: {e}")
             return False
 
     def _get_td_state(self, symbol, current_date):
@@ -502,7 +506,8 @@ class ExitEngine:
         try:
             sc = SignalComputer(cur=self.cur)
             return sc.td_sequential(symbol, current_date)
-        except Exception:
+        except Exception as e:
+            print(f"Warning: _get_td_state({symbol}) failed: {e}")
             return {}
 
     def _is_minervini_break(self, symbol, current_date, cur_price):

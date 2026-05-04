@@ -51,7 +51,6 @@ class RemediationEngine:
         """Read latest patrol findings, apply remediations."""
         conn = psycopg2.connect(**DB_CONFIG)
         cur = conn.cursor()
-        self._ensure_tables(cur, conn)
 
         try:
             # Get findings from the most recent patrol run
@@ -90,22 +89,7 @@ class RemediationEngine:
             cur.close()
             conn.close()
 
-    def _ensure_tables(self, cur, conn):
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS data_remediation_log (
-                id SERIAL PRIMARY KEY,
-                finding_id INTEGER,
-                check_name VARCHAR(80),
-                target_table VARCHAR(80),
-                action VARCHAR(80),
-                action_status VARCHAR(20),
-                message TEXT,
-                cooldown_expires_at TIMESTAMP,
-                details JSONB,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        conn.commit()
+    # Note: data_remediation_log table created by init_database.py (schema as code)
 
     def _process(self, cur, conn, finding):
         """Match finding to action recipe and execute."""
