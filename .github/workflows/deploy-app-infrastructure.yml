@@ -6,11 +6,8 @@ on:
       - main
     paths:
       - template-app-stocks.yml
-      - .github/workflows/deploy-infrastructure.yml
+      - .github/workflows/deploy-app-infrastructure.yml
   workflow_dispatch:
-  # Also trigger on any push to main for debugging
-  repository_dispatch:
-    types: [deploy-infrastructure]
 
 permissions:
   id-token: write

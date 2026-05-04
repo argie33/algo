@@ -1,8 +1,7 @@
 name: Bootstrap OIDC Provider & Deploy Role
 
 on:
-  push:
-    branches: [ "**" ]  # run on any branch commit
+  workflow_dispatch:
 
 
 permissions:

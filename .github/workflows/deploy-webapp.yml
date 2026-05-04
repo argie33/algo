@@ -1,9 +1,9 @@
 name: deploy-webapp
 
-on:  
+on:
   push:
     branches:
-      - '*'
+      - main
     paths:
       - 'webapp/**'
       - 'template-webapp-lambda.yml'
@@ -110,32 +110,6 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Get database connection info from stacks
-        id: db_info
-        run: |
-          DB_SECRET_ARN=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksApp-SecretArn'].Value" \
-            --output text)
-          DB_ENDPOINT=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksApp-DBEndpoint'].Value" \
-            --output text)
-          
-          # Validate that we got the values
-          if [[ -z "$DB_SECRET_ARN" || "$DB_SECRET_ARN" == "None" ]]; then
-            echo "❌ Failed to get database secret ARN from app stack exports"
-            exit 1
-          fi
-          
-          if [[ -z "$DB_ENDPOINT" || "$DB_ENDPOINT" == "None" ]]; then
-            echo "❌ Failed to get database endpoint from app stack exports"
-            exit 1
-          fi
-          
-          echo "DB_SECRET_ARN=$DB_SECRET_ARN" >> $GITHUB_OUTPUT
-          echo "DB_ENDPOINT=$DB_ENDPOINT" >> $GITHUB_OUTPUT
-          echo "Using database secret: $DB_SECRET_ARN"
-          echo "Using database endpoint: $DB_ENDPOINT"
-      
       - name: Get CloudFormation templates bucket from core stack
         id: bucket
         run: |
@@ -263,21 +237,11 @@ jobs:
           esac
           
           # Validate parameters before deployment
-          if [[ -z "${{ steps.db_info.outputs.DB_SECRET_ARN }}" ]]; then
-            echo "❌ Database secret ARN is empty"
-            exit 1
-          fi
-          
-          if [[ -z "${{ steps.db_info.outputs.DB_ENDPOINT }}" ]]; then
-            echo "❌ Database endpoint is empty"
-            exit 1
-          fi
-          
           if [[ -z "${{ steps.bucket.outputs.CF_BUCKET }}" ]]; then
             echo "❌ S3 bucket is empty"
             exit 1
           fi
-          
+
           # Deploy with validated parameters and enhanced error handling
           echo "🚀 Starting SAM deployment..."
           if ! sam deploy \
@@ -286,8 +250,6 @@ jobs:
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --parameter-overrides \
               "EnvironmentName=${{ env.ENVIRONMENT_NAME }}" \
-              "DatabaseSecretArn=${{ steps.db_info.outputs.DB_SECRET_ARN }}" \
-              "DatabaseEndpoint=${{ steps.db_info.outputs.DB_ENDPOINT }}" \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset; then
             

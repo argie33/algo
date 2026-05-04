@@ -19,13 +19,6 @@ Parameters:
     AllowedValues: [dev, staging, prod]
     Description: Environment name for resource naming and configuration
 
-  DatabaseSecretArn:
-    Type: String
-    Description: ARN of the RDS database secret (imported from stocks app stack)
-
-  DatabaseEndpoint:
-    Type: String
-    Description: RDS database endpoint (imported from stocks app stack)
   ProvisionedConcurrency:
     Type: Number
     Default: 0
@@ -42,8 +35,8 @@ Globals:
     Runtime: nodejs20.x
     Environment:
       Variables:
-        DB_SECRET_ARN: !Ref DatabaseSecretArn
-        DB_ENDPOINT: !Ref DatabaseEndpoint
+        DB_SECRET_ARN: !ImportValue StocksApp-SecretArn
+        DB_ENDPOINT: !ImportValue StocksApp-DBEndpoint
         ENVIRONMENT: !Ref EnvironmentName
         COGNITO_USER_POOL_ID: !Ref UserPool
         COGNITO_CLIENT_ID: !Ref UserPoolClient
@@ -298,7 +291,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
-                Resource: !Ref DatabaseSecretArn
+                Resource: !ImportValue StocksApp-SecretArn
               - Effect: Allow
                 Action:
                   - rds:DescribeDBInstances

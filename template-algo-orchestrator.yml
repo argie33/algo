@@ -10,14 +10,6 @@ Parameters:
     Type: String
     Description: S3 key for Lambda function zip file
 
-  DatabaseSecretArn:
-    Type: String
-    Description: ARN of AWS Secrets Manager secret containing database credentials
-
-  AlpacaApiKeySecretArn:
-    Type: String
-    Description: ARN of AWS Secrets Manager secret containing Alpaca API keys
-
   DryRunMode:
     Type: String
     Default: 'true'
@@ -75,8 +67,8 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource:
-                  - !Ref DatabaseSecretArn
-                  - !Ref AlpacaApiKeySecretArn
+                  - !ImportValue StocksApp-SecretArn
+                  - !ImportValue StocksApp-AlgoSecretsSecretArn
               # SNS publish for alerts
               - Effect: Allow
                 Action:
@@ -123,8 +115,8 @@ Resources:
           ALERT_SNS_TOPIC_ARN: !GetAtt AlgoAlertTopic.TopicArn
           ENVIRONMENT: !Ref Environment
           AWS_LAMBDA_FUNCTION_NAME: algo-orchestrator
-          DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
-          ALPACA_API_KEY_SECRET_ARN: !Ref AlpacaApiKeySecretArn
+          DATABASE_SECRET_ARN: !ImportValue StocksApp-SecretArn
+          ALPACA_API_KEY_SECRET_ARN: !ImportValue StocksApp-AlgoSecretsSecretArn
       Tags:
         - Key: Environment
           Value: !Ref Environment

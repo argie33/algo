@@ -170,32 +170,6 @@ jobs:
           aws s3 cp algo-function.zip "s3://${{ env.LAMBDA_ARTIFACTS_BUCKET }}/$FUNCTION_KEY"
           echo "FUNCTION_KEY=$FUNCTION_KEY" >> $GITHUB_ENV
 
-      - name: Get database secret ARN from CloudFormation export
-        id: db-secret
-        run: |
-          SECRET_ARN=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='StocksApp-SecretArn'].Value" \
-            --output text \
-            --region ${{ env.AWS_REGION }})
-
-          if [ -z "$SECRET_ARN" ]; then
-            echo "⚠️  Database secret export not found. Checking for existing secret..."
-            SECRET_ARN=$(aws secretsmanager list-secrets \
-              --query "SecretList[?Name=='stocks-db-secrets'].ARN" \
-              --output text \
-              --region ${{ env.AWS_REGION }})
-          fi
-
-          if [ -z "$SECRET_ARN" ]; then
-            echo "❌ ERROR: Database secret not found in CloudFormation exports or Secrets Manager"
-            echo "   Expected export: StocksApp-SecretArn"
-            echo "   This secret should be created by template-app-stocks.yml"
-            exit 1
-          fi
-
-          echo "✅ Found database secret: $SECRET_ARN"
-          echo "secret_arn=$SECRET_ARN" >> $GITHUB_OUTPUT
-
       - name: Deploy CloudFormation stack (Algo)
         run: |
           echo "Deploying algo CloudFormation stack..."
@@ -206,8 +180,6 @@ jobs:
             --parameter-overrides \
               LambdaFunctionCodeBucket="${{ env.LAMBDA_ARTIFACTS_BUCKET }}" \
               LambdaFunctionCodeKey="${{ env.FUNCTION_KEY }}" \
-              DatabaseSecretArn="${{ steps.db-secret.outputs.secret_arn }}" \
-              AlpacaApiKeySecretArn="arn:aws:secretsmanager:${{ env.AWS_REGION }}:${{ env.AWS_ACCOUNT_ID }}:secret:alpaca-api-*" \
               DryRunMode="${{ github.event.inputs.dry_run || 'true' }}" \
               Environment="${{ github.event.inputs.environment || 'dev' }}" \
             --capabilities CAPABILITY_NAMED_IAM \
