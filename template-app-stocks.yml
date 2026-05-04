@@ -16,6 +16,20 @@ Parameters:
     Type: String
     NoEcho: true
     Description: FRED API key for econ-data loader
+  AlpacaApiKeyId:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: "Alpaca paper-trading API key ID (passed from GitHub secret APCA_API_KEY_ID)"
+  AlpacaApiSecretKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: "Alpaca paper-trading API secret (passed from GitHub secret APCA_API_SECRET_KEY)"
+  AlpacaBaseUrl:
+    Type: String
+    Default: "https://paper-api.alpaca.markets"
+    Description: "Alpaca API base URL (paper or live)"
 
 Resources:
 
@@ -97,6 +111,20 @@ Resources:
           "contact_notification_email": "edgebrookecapital@gmail.com",
           "email_from": "noreply@bullseyefinancial.com"
         }
+
+  ### 4.2) Secrets Manager: Algo runtime secrets (Alpaca paper-trading) ###
+  AlgoSecretsSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub stocks-algo-secrets-${AWS::StackName}-${AWS::Region}
+      Description: "Alpaca API credentials + algo runtime secrets — read by algo orchestrator + alpaca portfolio sync ECS tasks"
+      SecretString: !Sub |
+        {
+          "APCA_API_KEY_ID": "${AlpacaApiKeyId}",
+          "APCA_API_SECRET_KEY": "${AlpacaApiSecretKey}",
+          "APCA_API_BASE_URL": "${AlpacaBaseUrl}",
+          "ALPACA_PAPER_TRADING": "true"
+        }
   ### 5) ECS Cluster ###
   StocksEcsCluster:
     Type: AWS::ECS::Cluster
@@ -138,6 +166,7 @@ Resources:
                 Resource:
                   - !Ref DBCredentialsSecret
                   - !Ref EmailConfigSecret
+                  - !Ref AlgoSecretsSecret
         - PolicyName: AllowSESEmail
           PolicyDocument:
             Version: '2012-10-17'
@@ -178,6 +207,12 @@ Outputs:
     Value: !Ref EmailConfigSecret
     Export:
       Name: StocksApp-EmailConfigSecretArn
+
+  AlgoSecretsSecretArn:
+    Description: ARN of algo runtime secrets (Alpaca creds + paper trading config)
+    Value: !Ref AlgoSecretsSecret
+    Export:
+      Name: StocksApp-AlgoSecretsSecretArn
 
   EmailNotificationEmail:
     Description: Email address for contact form notifications

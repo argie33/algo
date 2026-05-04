@@ -4888,14 +4888,16 @@ Resources:
               Value: !Ref RDSUsername
             - Name: DB_PASSWORD
               Value: !Ref RDSPassword
+          # Alpaca creds pulled from AWS Secrets Manager at task start (best practice)
+          Secrets:
             - Name: APCA_API_KEY_ID
-              Value: !Ref AlpacaApiKeyId
+              ValueFrom: !Join ["", [!ImportValue StocksApp-AlgoSecretsSecretArn, ":APCA_API_KEY_ID::"]]
             - Name: APCA_API_SECRET_KEY
-              Value: !Ref AlpacaApiSecretKey
+              ValueFrom: !Join ["", [!ImportValue StocksApp-AlgoSecretsSecretArn, ":APCA_API_SECRET_KEY::"]]
             - Name: APCA_API_BASE_URL
-              Value: !Ref AlpacaBaseUrl
+              ValueFrom: !Join ["", [!ImportValue StocksApp-AlgoSecretsSecretArn, ":APCA_API_BASE_URL::"]]
             - Name: ALPACA_PAPER_TRADING
-              Value: "true"
+              ValueFrom: !Join ["", [!ImportValue StocksApp-AlgoSecretsSecretArn, ":ALPACA_PAPER_TRADING::"]]
           LogConfiguration:
             LogDriver: awslogs
             Options:
