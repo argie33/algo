@@ -15,6 +15,10 @@
 export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
   darkMode: 'class',
+  // important: true makes every Tailwind utility !important so it wins over
+  // MUI's runtime-injected emotion styles. Required because we're running
+  // Tailwind alongside MUI during the migration.
+  important: true,
   theme: {
     extend: {
       colors: {
