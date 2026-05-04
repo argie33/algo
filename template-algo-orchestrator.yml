@@ -123,6 +123,8 @@ Resources:
           ALERT_SNS_TOPIC_ARN: !GetAtt AlgoAlertTopic.TopicArn
           ENVIRONMENT: !Ref Environment
           AWS_LAMBDA_FUNCTION_NAME: algo-orchestrator
+          DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
+          ALPACA_API_KEY_SECRET_ARN: !Ref AlpacaApiKeySecretArn
       Tags:
         - Key: Environment
           Value: !Ref Environment

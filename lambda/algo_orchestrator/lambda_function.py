@@ -26,10 +26,13 @@ CLOUDWATCH_LOG_GROUP = f'/aws/lambda/{LAMBDA_FUNCTION_NAME}'
 
 
 def get_database_credentials():
-    """Fetch database credentials from AWS Secrets Manager."""
+    """Fetch database credentials from AWS Secrets Manager using ARN."""
     try:
         secrets = boto3.client('secretsmanager')
-        response = secrets.get_secret_value(SecretId='stocks-db-credentials')
+        secret_arn = os.getenv('DATABASE_SECRET_ARN')
+        if not secret_arn:
+            raise ValueError('DATABASE_SECRET_ARN environment variable not set')
+        response = secrets.get_secret_value(SecretId=secret_arn)
         creds = json.loads(response['SecretString'])
         return {
             'DB_HOST': creds['host'],
