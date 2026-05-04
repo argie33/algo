@@ -1,6 +1,9 @@
 /**
  * Sector Analysis — sector + industry rankings, daily strength, ranking trend.
- * Pure JSX + theme.css classes.
+ * Plus deeper analytics: Mansfield RS rotation, momentum spider, sector breadth,
+ * stage-2 leaders, sector-vs-SPY relative line, defensive/cyclical signal.
+ *
+ * Pure JSX + theme.css classes. Recharts only.
  */
 
 import React, { useState, useMemo } from 'react';
@@ -12,6 +15,9 @@ import {
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
   ResponsiveContainer, Tooltip, Cell, Legend,
+  ScatterChart, Scatter, ZAxis, ReferenceLine,
+  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
+  AreaChart, Area,
 } from 'recharts';
 import { api } from '../services/api';
 import { formatPercentageChange } from '../utils/formatters';
@@ -123,6 +129,370 @@ const momentumBadge = (m) => {
   if (m === 'Weak') return 'badge-amber';
   return '';
 };
+
+// ─── Mansfield RS rotation chart (4-quadrant scatter) ──────────────────────
+function MansfieldRotation({ sectors }) {
+  const data = useMemo(() => {
+    if (!sectors || sectors.length === 0) return [];
+    // RS-rank percentile = 100 * (N - rank + 1) / N (higher = stronger)
+    // RS-momentum = change in rank over 1 week (rank_1w_ago - current_rank);
+    //               positive value = rank improved (got stronger)
+    const N = sectors.filter(s => s.current_rank != null).length || sectors.length;
+    return sectors
+      .filter(s => s.current_rank != null && (s.sector_name || s.sector))
+      .map((s, i) => {
+        const name = s.sector_name || s.sector;
+        const rank = Number(s.current_rank);
+        const rsPct = ((N - rank + 1) / N) * 100;
+        const w1 = s.rank_1w_ago != null ? (Number(s.rank_1w_ago) - rank) : 0;
+        const stockCount = Number(s.stock_count || 1);
+        return {
+          name,
+          rs: Math.round(rsPct * 10) / 10,
+          momentum: w1,
+          size: stockCount,
+          color: colorFor(name, i),
+        };
+      });
+  }, [sectors]);
+
+  if (data.length === 0) return <Empty title="No sector RS data" />;
+
+  return (
+    <div style={{ width: '100%', height: 380, position: 'relative' }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <ScatterChart margin={{ top: 16, right: 24, bottom: 32, left: 0 }}>
+          <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
+          <XAxis type="number" dataKey="rs" name="RS Rank %ile" domain={[0, 100]}
+                 stroke="var(--text-3)" fontSize={11}
+                 label={{ value: 'RS Rank Percentile (higher = stronger)',
+                          position: 'insideBottom', offset: -16,
+                          fill: 'var(--text-3)', fontSize: 11 }} />
+          <YAxis type="number" dataKey="momentum" name="1W Rank Δ"
+                 stroke="var(--text-3)" fontSize={11} width={48}
+                 label={{ value: '1W rank change (+ = improving)',
+                          angle: -90, position: 'insideLeft',
+                          fill: 'var(--text-3)', fontSize: 11 }} />
+          <ZAxis type="number" dataKey="size" range={[60, 360]} name="Stocks" />
+          <ReferenceLine x={50} stroke="var(--border)" strokeDasharray="3 3" />
+          <ReferenceLine y={0} stroke="var(--border)" strokeDasharray="3 3" />
+          <Tooltip contentStyle={TT_STYLE}
+            formatter={(v, n) => {
+              if (n === 'RS Rank %ile') return [`${v}%`, n];
+              if (n === '1W Rank Δ') return [v > 0 ? `+${v}` : v, n];
+              return [v, n];
+            }}
+            labelFormatter={() => ''}
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const p = payload[0].payload;
+              return (
+                <div style={TT_STYLE}>
+                  <div className="strong">{p.name}</div>
+                  <div className="t-xs muted mono tnum">RS: {p.rs}%</div>
+                  <div className="t-xs muted mono tnum">
+                    Momentum: {p.momentum > 0 ? `+${p.momentum}` : p.momentum}
+                  </div>
+                  <div className="t-xs muted mono tnum">Stocks: {p.size}</div>
+                </div>
+              );
+            }} />
+          <Scatter data={data}>
+            {data.map((d, i) => (
+              <Cell key={i} fill={d.color} />
+            ))}
+          </Scatter>
+        </ScatterChart>
+      </ResponsiveContainer>
+      {/* Quadrant labels */}
+      <QuadrantLabel pos={{ top: 8, right: 24 }} color="var(--success)" label="Leading" />
+      <QuadrantLabel pos={{ top: 8, left: 24 }} color="var(--cyan)" label="Improving" />
+      <QuadrantLabel pos={{ bottom: 56, right: 24 }} color="var(--amber)" label="Weakening" />
+      <QuadrantLabel pos={{ bottom: 56, left: 24 }} color="var(--danger)" label="Lagging" />
+    </div>
+  );
+}
+
+function QuadrantLabel({ pos, color, label }) {
+  return (
+    <div style={{
+      position: 'absolute', ...pos,
+      fontSize: 'var(--t-2xs)', fontWeight: 'var(--w-bold)',
+      color, letterSpacing: '0.08em', textTransform: 'uppercase',
+      pointerEvents: 'none',
+    }}>{label}</div>
+  );
+}
+
+// ─── Sector momentum spider chart ──────────────────────────────────────────
+function MomentumSpider({ sectors }) {
+  // Pick top-6 by current rank for legibility
+  const data = useMemo(() => {
+    if (!sectors || sectors.length === 0) return [];
+    const top = sectors.slice()
+      .filter(s => s.current_rank != null)
+      .sort((a, b) => (a.current_rank ?? 999) - (b.current_rank ?? 999))
+      .slice(0, 6);
+    if (top.length === 0) return [];
+    const axes = [
+      { key: 'performance_1d', label: '1D' },
+      { key: 'performance_5d', label: '5D' },
+      { key: 'performance_20d', label: '20D' },
+    ];
+    // For each axis, build one row with all sectors as series
+    return axes.map(a => {
+      const row = { axis: a.label };
+      for (const s of top) {
+        const name = s.sector_name || s.sector;
+        const v = s[a.key];
+        row[name] = v == null ? 0 : Number(v);
+      }
+      return row;
+    });
+  }, [sectors]);
+
+  const sectorNames = useMemo(() => {
+    if (data.length === 0) return [];
+    return Object.keys(data[0]).filter(k => k !== 'axis');
+  }, [data]);
+
+  if (data.length === 0 || sectorNames.length === 0) {
+    return <Empty title="No sector momentum data" />;
+  }
+
+  return (
+    <div style={{ width: '100%', height: 320 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <RadarChart data={data}>
+          <PolarGrid stroke="var(--border-soft)" />
+          <PolarAngleAxis dataKey="axis" stroke="var(--text-3)" fontSize={11} />
+          <PolarRadiusAxis stroke="var(--text-3)" fontSize={10}
+                           tickFormatter={(v) => `${v}%`} />
+          <Tooltip contentStyle={TT_STYLE}
+            formatter={(v) => [`${Number(v).toFixed(2)}%`, '']} />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          {sectorNames.map((name, i) => (
+            <Radar key={name} dataKey={name} stroke={colorFor(name, i)}
+                   fill={colorFor(name, i)} fillOpacity={0.15} strokeWidth={2}
+                   isAnimationActive={false} />
+          ))}
+        </RadarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ─── Sector vs SPY relative line chart ─────────────────────────────────────
+// Single batched fetch — fixed slot count so we never violate rules-of-hooks.
+function SectorRelativeChart({ sectors }) {
+  const top = useMemo(() => {
+    if (!sectors) return [];
+    return sectors
+      .filter(s => s.sector_name || s.sector)
+      .slice(0, 8)
+      .map(s => s.sector_name || s.sector);
+  }, [sectors]);
+
+  // One query that fans out internally — keeps hook count constant
+  const { data: merged, isLoading } = useQuery({
+    queryKey: ['sector-relative-90', top.join('|')],
+    queryFn: async () => {
+      if (top.length === 0) return [];
+      const results = await Promise.all(top.map(name =>
+        api.get(`/api/sectors/${encodeURIComponent(name)}/trend?days=90`)
+           .then(r => ({ name, trendData: (r.data?.data || r.data)?.trendData || [] }))
+           .catch(() => ({ name, trendData: [] }))
+      ));
+      const all = {};
+      for (const { name, trendData } of results) {
+        if (!trendData || trendData.length === 0) continue;
+        const first = Number(trendData[0].avgPrice) || 1;
+        for (const r of trendData) {
+          const dateKey = String(r.date).slice(0, 10);
+          if (!all[dateKey]) all[dateKey] = { date: dateKey };
+          const indexed = first > 0 ? (Number(r.avgPrice) / first) * 100 : 100;
+          all[dateKey][name] = Number(indexed.toFixed(2));
+        }
+      }
+      return Object.values(all).sort((a, b) => a.date.localeCompare(b.date));
+    },
+    enabled: top.length > 0,
+    staleTime: 1000 * 60 * 10,
+    refetchInterval: 60000,
+    retry: false,
+  });
+
+  if (isLoading) return <Empty title="Loading…" />;
+  if (!merged || merged.length < 2) {
+    return <Empty title="No relative-performance data" />;
+  }
+
+  return (
+    <div style={{ width: '100%', height: 320 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={merged} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+          <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
+          <XAxis dataKey="date" stroke="var(--text-3)" fontSize={11}
+                 interval={Math.max(1, Math.floor(merged.length / 8))}
+                 tickFormatter={formatXAxisDate} />
+          <YAxis stroke="var(--text-3)" fontSize={11} width={48}
+                 tickFormatter={(v) => v.toFixed(0)} />
+          <Tooltip contentStyle={TT_STYLE}
+            labelFormatter={(l) => formatXAxisDate(l)}
+            formatter={(v) => [v, '']} />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          <ReferenceLine y={100} stroke="var(--border)" strokeDasharray="3 3" />
+          {top.map((name, i) => (
+            <Line key={name} type="monotone" dataKey={name}
+                  stroke={colorFor(name, i)} strokeWidth={1.75}
+                  dot={false} connectNulls isAnimationActive={false} />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ─── Sector breadth (% above 50d / 200d MA) ────────────────────────────────
+function SectorBreadthChart() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['sector-breadth'],
+    queryFn: () => api.get('/api/algo/sector-breadth')
+                      .then(r => r.data?.items || []).catch(() => []),
+    refetchInterval: 60000,
+    retry: false,
+  });
+
+  if (isLoading) return <Empty title="Loading breadth…" />;
+  if (!data || data.length === 0) return <Empty title="No breadth data" />;
+
+  const sorted = [...data].sort((a, b) => b.pct_above_200d - a.pct_above_200d);
+
+  return (
+    <div style={{ width: '100%', height: Math.max(300, sorted.length * 28 + 40) }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={sorted} layout="vertical"
+                  margin={{ top: 4, right: 16, left: 4, bottom: 0 }}>
+          <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
+          <XAxis type="number" stroke="var(--text-3)" fontSize={11}
+                 domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+          <YAxis type="category" dataKey="sector" stroke="var(--text-3)"
+                 fontSize={11} width={130} />
+          <Tooltip contentStyle={TT_STYLE}
+            formatter={(v, n) => [`${v}%`, n === 'pct_above_50d' ? '> 50D MA' : '> 200D MA']} />
+          <Legend wrapperStyle={{ fontSize: 11 }}
+                  formatter={(v) => v === 'pct_above_50d' ? '% > 50D MA' : '% > 200D MA'} />
+          <Bar dataKey="pct_above_50d" fill="var(--cyan)" radius={[0, 2, 2, 0]} />
+          <Bar dataKey="pct_above_200d" fill="var(--brand)" radius={[0, 2, 2, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ─── Stage-2 leaders per sector ────────────────────────────────────────────
+function Stage2LeadersChart() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['sector-stage2'],
+    queryFn: () => api.get('/api/algo/sector-stage2')
+                      .then(r => r.data?.items || []).catch(() => []),
+    refetchInterval: 60000,
+    retry: false,
+  });
+
+  if (isLoading) return <Empty title="Loading…" />;
+  if (!data || data.length === 0) {
+    return <Empty title="No stage data" desc="Requires trend_template_data coverage." />;
+  }
+  const sorted = [...data].sort((a, b) => b.pct_stage_2 - a.pct_stage_2);
+
+  return (
+    <div style={{ width: '100%', height: Math.max(300, sorted.length * 28 + 40) }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={sorted} layout="vertical"
+                  margin={{ top: 4, right: 16, left: 4, bottom: 0 }}>
+          <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
+          <XAxis type="number" stroke="var(--text-3)" fontSize={11}
+                 domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+          <YAxis type="category" dataKey="sector" stroke="var(--text-3)"
+                 fontSize={11} width={130} />
+          <Tooltip contentStyle={TT_STYLE}
+            formatter={(v, n, p) => {
+              if (n === 'pct_stage_2') {
+                return [`${v}% (${p.payload.stage_2}/${p.payload.total} stocks)`, 'Stage-2'];
+              }
+              return [v, n];
+            }} />
+          <Bar dataKey="pct_stage_2" fill="var(--success)" radius={[0, 2, 2, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ─── Defensive vs Cyclical signal timeline ─────────────────────────────────
+function DefensiveCyclicalChart() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['sector-rotation'],
+    queryFn: () => api.get('/api/algo/sector-rotation?limit=180')
+                      .then(r => r.data?.items || []).catch(() => []),
+    refetchInterval: 60000,
+    retry: false,
+  });
+
+  if (isLoading) return <Empty title="Loading…" />;
+  if (!data || data.length === 0) {
+    return <Empty title="Sector rotation signal not yet computed"
+                  desc="Run algo_sector_rotation.py to populate." />;
+  }
+
+  const series = data.map(d => ({
+    date: String(d.date).slice(5, 10),
+    defensive: d.defensive_lead_score,
+    cyclical: d.cyclical_weak_score,
+    spread: d.spread,
+  }));
+
+  const last = data[data.length - 1] || {};
+
+  return (
+    <div>
+      <div className="grid grid-3" style={{ marginBottom: 'var(--space-3)' }}>
+        <div className="stile">
+          <div className="stile-label">Current Signal</div>
+          <div className="stile-value">{last.signal || '—'}</div>
+        </div>
+        <div className="stile">
+          <div className="stile-label">Defensive Lead</div>
+          <div className="stile-value">{num(last.defensive_lead_score)}</div>
+        </div>
+        <div className="stile">
+          <div className="stile-label">Persistent</div>
+          <div className="stile-value">
+            {last.weeks_persistent != null ? `${last.weeks_persistent}w` : '—'}
+          </div>
+        </div>
+      </div>
+      <div style={{ width: '100%', height: 260 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={series} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
+            <XAxis dataKey="date" stroke="var(--text-3)" fontSize={11}
+                   interval={Math.max(1, Math.floor(series.length / 8))} />
+            <YAxis stroke="var(--text-3)" fontSize={11} width={36} />
+            <Tooltip contentStyle={TT_STYLE} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <ReferenceLine y={0} stroke="var(--border)" />
+            <Area type="monotone" dataKey="defensive" stroke="var(--purple)"
+                  fill="var(--purple)" fillOpacity={0.2} name="Defensive lead" />
+            <Area type="monotone" dataKey="cyclical" stroke="var(--amber)"
+                  fill="var(--amber)" fillOpacity={0.15} name="Cyclical weak" />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
 
 // ─── Daily Strength Chart with MA10 + MA20 ─────────────────────────────────
 function DailyStrengthChart({ name, type, range }) {
@@ -395,6 +765,10 @@ function SectorDetail({ sector, industries }) {
     const indSector = (ind.sector || ind.sector_name || '').trim();
     return indSector === name.trim();
   });
+  // Top-10 industries within sector (sorted by rank)
+  const top10 = matched.slice()
+    .sort((a, b) => (a.current_rank ?? 9999) - (b.current_rank ?? 9999))
+    .slice(0, 10);
 
   return (
     <div className="card-body" style={{
@@ -445,33 +819,58 @@ function SectorDetail({ sector, industries }) {
       <div className="card" style={{ marginTop: 'var(--space-4)' }}>
         <div className="card-head">
           <div>
-            <div className="card-title">Industries ({matched.length})</div>
-            <div className="card-sub">Members of {name}</div>
+            <div className="card-title">Top 10 Industries within {name}</div>
+            <div className="card-sub">Sorted by RS rank · {matched.length} total</div>
           </div>
         </div>
         <div className="card-body">
-          {matched.length === 0 ? (
+          {top10.length === 0 ? (
             <div className="t-sm muted">No industries available</div>
           ) : (
-            <div className="grid grid-3">
-              {matched
-                .slice()
-                .sort((a, b) => (a.current_rank ?? 9999) - (b.current_rank ?? 9999))
-                .map(ind => (
-                  <div key={ind.industry} className="card" style={{ padding: 'var(--space-3)' }}>
-                    <div className="t-xs muted">#{ind.current_rank ?? '—'}</div>
-                    <div className="strong t-sm" style={{ fontWeight: 'var(--w-semibold)' }}>
-                      {ind.industry}
-                    </div>
-                    <div className="t-xs muted" style={{ marginTop: 'var(--space-1)' }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th className="num">Rank</th>
+                  <th>Industry</th>
+                  <th className="num">1D %</th>
+                  <th className="num">5D %</th>
+                  <th className="num">20D %</th>
+                  <th className="num">Stocks</th>
+                </tr>
+              </thead>
+              <tbody>
+                {top10.map(ind => (
+                  <tr key={ind.industry}>
+                    <td className="num">
+                      <span className="badge badge-brand mono tnum">
+                        #{ind.current_rank ?? '—'}
+                      </span>
+                    </td>
+                    <td>
+                      <span className="strong" style={{ fontWeight: 'var(--w-semibold)' }}>
+                        {ind.industry}
+                      </span>
+                    </td>
+                    <td className="num">
                       <span className={`mono tnum ${pctClass(ind.performance_1d)}`}>
                         {fmtPct(ind.performance_1d)}
                       </span>
-                      <span className="muted"> · {ind.stock_count || 0} stocks</span>
-                    </div>
-                  </div>
+                    </td>
+                    <td className="num">
+                      <span className={`mono tnum ${pctClass(ind.performance_5d)}`}>
+                        {fmtPct(ind.performance_5d)}
+                      </span>
+                    </td>
+                    <td className="num">
+                      <span className={`mono tnum ${pctClass(ind.performance_20d)}`}>
+                        {fmtPct(ind.performance_20d)}
+                      </span>
+                    </td>
+                    <td className="num mono tnum muted">{ind.stock_count || 0}</td>
+                  </tr>
                 ))}
-            </div>
+              </tbody>
+            </table>
           )}
         </div>
       </div>
@@ -585,6 +984,85 @@ function SectorsView({ sectors, industries, isLoading, error }) {
 
   return (
     <>
+      {/* Mansfield rotation + Momentum spider */}
+      <div className="grid grid-2" style={{ marginBottom: 'var(--space-4)' }}>
+        <div className="card">
+          <div className="card-head">
+            <div>
+              <div className="card-title">Mansfield RS Rotation</div>
+              <div className="card-sub">Quadrant scatter · x: RS-rank %ile · y: 1-week rank Δ · size: stocks</div>
+            </div>
+          </div>
+          <div className="card-body">
+            <MansfieldRotation sectors={sortedSectors} />
+          </div>
+        </div>
+        <div className="card">
+          <div className="card-head">
+            <div>
+              <div className="card-title">Top-6 Sector Momentum</div>
+              <div className="card-sub">Spider radar · 1D / 5D / 20D returns per top-ranked sector</div>
+            </div>
+          </div>
+          <div className="card-body">
+            <MomentumSpider sectors={sortedSectors} />
+          </div>
+        </div>
+      </div>
+
+      {/* Sector vs SPY-style relative line */}
+      <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
+        <div className="card-head">
+          <div>
+            <div className="card-title">Sector Relative Performance (90D)</div>
+            <div className="card-sub">All series indexed to 100 at start · top-8 ranked sectors</div>
+          </div>
+        </div>
+        <div className="card-body">
+          <SectorRelativeChart sectors={sortedSectors} />
+        </div>
+      </div>
+
+      {/* Breadth + Stage-2 */}
+      <div className="grid grid-2" style={{ marginBottom: 'var(--space-4)' }}>
+        <div className="card">
+          <div className="card-head">
+            <div>
+              <div className="card-title">Sector Breadth</div>
+              <div className="card-sub">% of constituent stocks above 50D / 200D MA</div>
+            </div>
+          </div>
+          <div className="card-body">
+            <SectorBreadthChart />
+          </div>
+        </div>
+        <div className="card">
+          <div className="card-head">
+            <div>
+              <div className="card-title">Stage-2 Leaders by Sector</div>
+              <div className="card-sub">% of stocks in Weinstein Stage-2 (markup) phase</div>
+            </div>
+          </div>
+          <div className="card-body">
+            <Stage2LeadersChart />
+          </div>
+        </div>
+      </div>
+
+      {/* Defensive vs cyclical */}
+      <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
+        <div className="card-head">
+          <div>
+            <div className="card-title">Defensive vs Cyclical Leadership</div>
+            <div className="card-sub">Sector rotation signal · risk-off when defensive lead persists</div>
+          </div>
+        </div>
+        <div className="card-body">
+          <DefensiveCyclicalChart />
+        </div>
+      </div>
+
+      {/* Performance bars */}
       <div className="card">
         <div className="card-head">
           <div>
@@ -642,7 +1120,7 @@ function SectorsView({ sectors, industries, isLoading, error }) {
         <div className="card-head">
           <div>
             <div className="card-title">Sector Rankings</div>
-            <div className="card-sub">Click a row to drill into trends, daily strength, industries</div>
+            <div className="card-sub">Click a row to drill into trends, daily strength, top industries</div>
           </div>
         </div>
         <div className="card-body" style={{ padding: 0 }}>
@@ -876,12 +1354,14 @@ export default function SectorAnalysis() {
     queryKey: ['sectors-list'],
     queryFn: () => api.get('/api/sectors?limit=500').then(r => r.data?.items || []),
     staleTime: 1000 * 60 * 5,
+    refetchInterval: 60000,
     retry: false,
   });
   const industriesQ = useQuery({
     queryKey: ['industries-list'],
     queryFn: () => api.get('/api/industries').then(r => r.data?.items || []),
     staleTime: 1000 * 60 * 5,
+    refetchInterval: 60000,
     retry: false,
   });
 
@@ -899,7 +1379,7 @@ export default function SectorAnalysis() {
         <div>
           <div className="page-head-title">Sector Analysis</div>
           <div className="page-head-sub">
-            Sector + industry rankings · Mansfield RS · daily strength · ranking trend
+            Sector + industry rankings · Mansfield RS rotation · breadth · stage-2 leaders
           </div>
         </div>
         <div className="page-head-actions">
