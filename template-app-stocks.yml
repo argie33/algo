@@ -30,6 +30,11 @@ Parameters:
     Type: String
     Default: "https://paper-api.alpaca.markets"
     Description: "Alpaca API base URL (paper or live)"
+  LogRetentionDays:
+    Type: Number
+    Default: 7
+    AllowedValues: [1, 3, 7, 14, 30, 60, 90]
+    Description: "CloudWatch log retention in days (default 7 saves ~$15/month vs 30)"
 
 Resources:
 
@@ -177,6 +182,64 @@ Resources:
                   - ses:SendRawEmail
                 Resource: '*'
 
+  ### 7) CloudWatch Log Groups — Cost Optimization (7-day retention saves $15/month) ###
+  LoaderLogGroupBuySell:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/loader-buyselldaily
+      RetentionInDays: !Ref LogRetentionDays
+
+  LoaderLogGroupPrices:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/loader-prices
+      RetentionInDays: !Ref LogRetentionDays
+
+  LoaderLogGroupFinancials:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/loader-financials
+      RetentionInDays: !Ref LogRetentionDays
+
+  LoaderLogGroupSignals:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/loader-signals
+      RetentionInDays: !Ref LogRetentionDays
+
+  ### 8) S3 Log Archive Bucket — Long-term storage with Intelligent-Tiering ###
+  LogArchiveBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub stocks-logs-archive-${AWS::AccountId}
+      LifecycleConfiguration:
+        Rules:
+          - Id: TransitionToGlacier
+            Status: Enabled
+            Transitions:
+              - StorageClass: STANDARD_IA
+                TransitionInDays: 30
+              - StorageClass: GLACIER_IR
+                TransitionInDays: 90
+              - StorageClass: DEEP_ARCHIVE
+                TransitionInDays: 365
+            ExpirationInDays: 2555
+      IntelligentTieringConfigurations:
+        - Id: AutoTier
+          Status: Enabled
+          Tierings:
+            - AccessTier: ARCHIVE_ACCESS
+              Days: 90
+            - AccessTier: DEEP_ARCHIVE_ACCESS
+              Days: 180
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
 Outputs:
   DBEndpoint:
     Description: RDS endpoint address
@@ -242,3 +305,16 @@ Outputs:
     Value: !GetAtt EcsTasksSecurityGroup.GroupId
     Export:
       Name: StocksApp-EcsTasksSecurityGroupId
+
+  LogArchiveBucketName:
+    Description: Name of S3 bucket for long-term log archival
+    Value: !Ref LogArchiveBucket
+    Export:
+      Name: StocksApp-LogArchiveBucketName
+
+  CloudWatchOptimizationNotes:
+    Description: Cost savings from CloudWatch optimizations
+    Value: !Sub |
+      Log retention: ${LogRetentionDays} days (saves ~$15/month vs 30-day default)
+      Log archive: S3 Intelligent-Tiering with lifecycle rules
+      Long-term storage at reduced cost (GLACIER_IR after 90d, DEEP_ARCHIVE after 365d)
