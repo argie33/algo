@@ -1,53 +1,24 @@
 /**
  * Trading Signals — STOCKS + ETFs unified page.
- *
- * Tabs at top: STOCKS | ETFs (both share buy_sell_daily / buy_sell_daily_etf
- * schemas — same columns, same filters, same row-expansion). Different
- * data source per tab.
- *
- * Per DESIGN_REDESIGN_PLAN.md §4 Page E: every column from buy_sell_daily is
- * available; default visible columns are the most algo-relevant ones, with
- * row-expansion revealing the full record.
- *
- * Tailwind + Primitives. No MUI imports.
+ * Pure JSX + theme.css classes.
  */
 
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Search, RefreshCw, Zap } from 'lucide-react';
+import { Search, RefreshCw, Inbox, ChevronDown, ChevronUp } from 'lucide-react';
 import { api } from '../services/api';
-import {
-  Card, PageHeader, Stat, Chip, Button, Input, Select, Tabs,
-  PnlCell, DataTable, cx,
-} from '../components/ui/Primitives';
-
-// =============================================================================
-// HELPERS
-// =============================================================================
 
 const fmtMoney = (v) => v == null ? '—' : `$${Number(v).toFixed(2)}`;
 const fmtPct = (v) => v == null ? '—' : `${Number(v).toFixed(2)}%`;
 const fmtInt = (v) => v == null ? '—' : Number(v).toLocaleString('en-US');
+const num = (v, dp = 2) => v == null || isNaN(Number(v)) ? '—' : Number(v).toFixed(dp);
 
 const STAGE_VARIANT = {
-  'Stage 1': 'muted',
-  'Stage 2': 'bull',
-  'Stage 2 - Markup': 'bull',
-  'Stage 3': 'warn',
-  'Stage 3 - Topping': 'warn',
-  'Stage 4': 'bear',
+  'Stage 1': 'badge', 'Stage 2': 'badge-success', 'Stage 2 - Markup': 'badge-success',
+  'Stage 3': 'badge-amber', 'Stage 3 - Topping': 'badge-amber', 'Stage 4': 'badge-danger',
 };
-
-const QUALITY_VARIANT = {
-  STRONG: 'bull',
-  MODERATE: 'warn',
-  WEAK: 'bear',
-};
-
-// =============================================================================
-// MAIN PAGE
-// =============================================================================
+const QUALITY_VARIANT = { STRONG: 'badge-success', MODERATE: 'badge-amber', WEAK: 'badge-danger' };
 
 export default function TradingSignals() {
   const [tab, setTab] = useState('stocks');
@@ -55,32 +26,30 @@ export default function TradingSignals() {
   const [timeframe, setTimeframe] = useState('daily');
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState('all');
+  const [expandedKey, setExpandedKey] = useState(null);
 
-  const endpoint = tab === 'etfs' ? '/signals/etf' : '/signals/stocks';
+  const endpoint = tab === 'etfs' ? '/api/signals/etf' : '/api/signals/stocks';
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['signals', tab, signal, timeframe],
     queryFn: () => {
       const params = new URLSearchParams();
       params.set('timeframe', timeframe);
       params.set('limit', '500');
       if (signal !== 'all') params.set('signal', signal);
-      return api.get(`/api${endpoint}?${params.toString()}`).then(r => r.data);
+      return api.get(`${endpoint}?${params.toString()}`).then(r => r.data);
     },
     refetchInterval: 60000,
   });
 
   const rows = data?.items || data?.data || [];
-
   const filtered = useMemo(() => {
     let r = rows;
     if (search) {
       const q = search.trim().toUpperCase();
       r = r.filter(x => x.symbol?.startsWith(q));
     }
-    if (stageFilter !== 'all') {
-      r = r.filter(x => (x.market_stage || '').includes(stageFilter));
-    }
+    if (stageFilter !== 'all') r = r.filter(x => (x.market_stage || '').includes(stageFilter));
     return r;
   }, [rows, search, stageFilter]);
 
@@ -88,284 +57,204 @@ export default function TradingSignals() {
   const sellCount = filtered.filter(r => (r.signal || '').toUpperCase() === 'SELL').length;
 
   return (
-    <div className="px-4 sm:px-6 py-6 max-w-page mx-auto">
-      <PageHeader
-        title="Trading Signals"
-        subtitle={
-          tab === 'stocks'
-            ? 'Pine-script signals for stocks · click a row for full detail'
-            : 'Pine-script signals for ETFs · click a row for full detail'
-        }
-        actions={
-          <Button variant="ghost" size="sm" icon={RefreshCw} onClick={() => refetch()}>
-            Refresh
-          </Button>
-        }
-      />
-
-      <Tabs
-        tabs={[
-          { value: 'stocks', label: 'Stocks', count: tab === 'stocks' ? rows.length : null },
-          { value: 'etfs',   label: 'ETFs',   count: tab === 'etfs'   ? rows.length : null },
-        ]}
-        value={tab}
-        onChange={setTab}
-        className="mb-4"
-      />
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-        <Card padded className="mb-0">
-          <Stat label="Total Signals" value={filtered.length} mono size="lg" />
-        </Card>
-        <Card padded className="mb-0">
-          <Stat label="BUY" value={buyCount} color="#1F9956" mono size="lg" />
-        </Card>
-        <Card padded className="mb-0">
-          <Stat label="SELL" value={sellCount} color="#E0392B" mono size="lg" />
-        </Card>
-        <Card padded className="mb-0">
-          <Stat
-            label="BUY/SELL Ratio"
-            value={sellCount === 0 ? '∞' : (buyCount / sellCount).toFixed(2)}
-            sub={buyCount > sellCount ? 'risk on' : buyCount < sellCount ? 'risk off' : 'even'}
-            mono size="lg"
-          />
-        </Card>
+    <div className="main-content">
+      <div className="page-head">
+        <div>
+          <div className="page-head-title">Trading Signals</div>
+          <div className="page-head-sub">
+            {tab === 'stocks' ? 'Pine-script signals for stocks' : 'Pine-script signals for ETFs'}
+            {' · click any row for full detail'}
+          </div>
+        </div>
+        <div className="page-head-actions">
+          <button className="btn btn-outline btn-sm" onClick={() => refetch()}>
+            <RefreshCw size={14} /> Refresh
+          </button>
+        </div>
       </div>
 
-      <Card padded className="mb-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex-1 min-w-[200px] relative">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint pointer-events-none" />
-            <Input
-              placeholder="Symbol (starts with)"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="pl-8"
-            />
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 'var(--space-4)' }}>
+        {[['stocks','Stocks'],['etfs','ETFs']].map(([v, lbl]) => (
+          <button key={v} type="button" onClick={() => setTab(v)} style={{
+            background: 'transparent', border: 'none',
+            borderBottom: `2px solid ${tab === v ? 'var(--brand)' : 'transparent'}`,
+            color: tab === v ? 'var(--brand-2)' : 'var(--text-muted)',
+            fontWeight: tab === v ? 'var(--w-semibold)' : 'var(--w-medium)',
+            fontSize: 'var(--t-sm)', padding: '12px 16px', cursor: 'pointer', marginBottom: -1,
+          }}>{lbl} {tab === v && <span className="badge mono tnum" style={{ marginLeft: 6 }}>{rows.length}</span>}</button>
+        ))}
+      </div>
+
+      <div className="grid grid-4" style={{ marginBottom: 'var(--space-4)' }}>
+        <div className="kpi"><div className="kpi-label">Total Signals</div><div className="kpi-value">{filtered.length}</div></div>
+        <div className="kpi"><div className="kpi-label">BUY</div><div className="kpi-value up">{buyCount}</div></div>
+        <div className="kpi"><div className="kpi-label">SELL</div><div className="kpi-value down">{sellCount}</div></div>
+        <div className="kpi">
+          <div className="kpi-label">BUY/SELL Ratio</div>
+          <div className="kpi-value">{sellCount === 0 ? '∞' : (buyCount / sellCount).toFixed(2)}</div>
+          <div className="kpi-sub">{buyCount > sellCount ? 'risk on' : buyCount < sellCount ? 'risk off' : 'even'}</div>
+        </div>
+      </div>
+
+      <div className="card card-pad-sm" style={{ marginBottom: 'var(--space-4)' }}>
+        <div className="flex gap-3" style={{ flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
+            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-faint)' }} />
+            <input className="input" placeholder="Symbol (starts with)" value={search}
+              onChange={e => setSearch(e.target.value)} style={{ paddingLeft: 32 }} />
           </div>
-          <Select value={signal} onChange={e => setSignal(e.target.value)} className="w-32">
+          <select className="select" value={signal} onChange={e => setSignal(e.target.value)} style={{ width: 140 }}>
             <option value="all">All signals</option>
             <option value="BUY">BUY only</option>
             <option value="SELL">SELL only</option>
-          </Select>
-          <Select value={timeframe} onChange={e => setTimeframe(e.target.value)} className="w-32">
+          </select>
+          <select className="select" value={timeframe} onChange={e => setTimeframe(e.target.value)} style={{ width: 130 }}>
             <option value="daily">Daily</option>
             <option value="weekly">Weekly</option>
             <option value="monthly">Monthly</option>
-          </Select>
-          <Select value={stageFilter} onChange={e => setStageFilter(e.target.value)} className="w-40">
+          </select>
+          <select className="select" value={stageFilter} onChange={e => setStageFilter(e.target.value)} style={{ width: 180 }}>
             <option value="all">All stages</option>
             <option value="Stage 1">Stage 1 (Basing)</option>
             <option value="Stage 2">Stage 2 (Markup)</option>
             <option value="Stage 3">Stage 3 (Topping)</option>
             <option value="Stage 4">Stage 4 (Decline)</option>
-          </Select>
+          </select>
         </div>
-      </Card>
+      </div>
 
-      <SignalsTable rows={filtered} loading={isLoading} error={error} retry={refetch} kind={tab} />
+      <SignalsTable rows={filtered} loading={isLoading} kind={tab}
+        expandedKey={expandedKey} setExpandedKey={setExpandedKey} />
     </div>
   );
 }
 
-// =============================================================================
-// TABLE
-// =============================================================================
-
-function SignalsTable({ rows, loading, error, retry, kind }) {
+function SignalsTable({ rows, loading, kind, expandedKey, setExpandedKey }) {
   const navigate = useNavigate();
-
-  const columns = useMemo(() => [
-    {
-      key: 'symbol',
-      header: 'Symbol',
-      width: '110px',
-      render: (r) => (
-        <div className="flex items-center gap-2">
-          <span className="font-bold text-ink-strong">{r.symbol}</span>
-          {r.signal && (
-            <Chip variant={r.signal.toUpperCase() === 'BUY' ? 'bull' : 'bear'}>
-              {r.signal.toUpperCase()}
-            </Chip>
-          )}
-        </div>
-      ),
-    },
-    {
-      key: 'sector',
-      header: 'Sector',
-      render: (r) => <span className="text-xs text-ink-muted truncate">{r.sector || '—'}</span>,
-    },
-    {
-      key: 'close',
-      header: 'Close',
-      align: 'right',
-      mono: true,
-      sortable: true,
-      render: (r) => fmtMoney(r.close),
-    },
-    {
-      key: 'buylevel',
-      header: 'Buy Level',
-      align: 'right',
-      mono: true,
-      sortable: true,
-      render: (r) => (
-        <span className={cx(r.close >= r.buylevel ? 'text-bull' : 'text-ink-muted')}>
-          {fmtMoney(r.buylevel)}
-        </span>
-      ),
-    },
-    {
-      key: 'stoplevel',
-      header: 'Stop',
-      align: 'right',
-      mono: true,
-      sortable: true,
-      render: (r) => fmtMoney(r.stoplevel),
-    },
-    {
-      key: 'risk_reward_ratio',
-      header: 'R/R',
-      align: 'right',
-      mono: true,
-      sortable: true,
-      render: (r) => r.risk_reward_ratio == null ? '—' : Number(r.risk_reward_ratio).toFixed(2),
-    },
-    {
-      key: 'rsi',
-      header: 'RSI',
-      align: 'right',
-      mono: true,
-      sortable: true,
-      render: (r) => {
-        if (r.rsi == null) return <span className="text-ink-faint">—</span>;
-        const rsi = Number(r.rsi);
-        const color = rsi > 70 ? 'text-bear' : rsi < 30 ? 'text-bull' : 'text-ink';
-        return <span className={color}>{rsi.toFixed(1)}</span>;
-      },
-    },
-    {
-      key: 'volume_surge_pct',
-      header: 'Vol Surge',
-      align: 'right',
-      mono: true,
-      sortable: true,
-      render: (r) => {
-        if (r.volume_surge_pct == null) return '—';
-        return <PnlCell value={Number(r.volume_surge_pct)} format="percent" inline />;
-      },
-    },
-    {
-      key: 'base_type',
-      header: 'Base',
-      render: (r) => (
-        <span className="text-xs text-ink-muted">
-          {r.base_type ? `${r.base_type} (${r.base_length_days || '?'}d)` : '—'}
-        </span>
-      ),
-    },
-    {
-      key: 'breakout_quality',
-      header: 'Quality',
-      render: (r) => r.breakout_quality
-        ? <Chip variant={QUALITY_VARIANT[r.breakout_quality] || 'muted'}>{r.breakout_quality}</Chip>
-        : <span className="text-ink-faint">—</span>,
-    },
-    {
-      key: 'market_stage',
-      header: 'Stage',
-      render: (r) => r.market_stage
-        ? <Chip variant={STAGE_VARIANT[r.market_stage] || 'muted'}>{r.market_stage.replace('Stage ', 'S')}</Chip>
-        : <span className="text-ink-faint">—</span>,
-    },
-    {
-      key: 'date',
-      header: 'Date',
-      mono: true,
-      sortable: true,
-      render: (r) => {
-        const d = r.signal_triggered_date || r.date;
-        return <span className="text-xs text-ink-muted">{d ? String(d).slice(0, 10) : '—'}</span>;
-      },
-    },
-  ], []);
+  if (loading) return <Empty title="Loading…" />;
+  if (rows.length === 0) return <Empty title="No active signals" desc={`No ${kind} signals match these filters.`} />;
 
   return (
-    <DataTable
-      columns={columns}
-      rows={rows}
-      keyField="symbol"
-      loading={loading}
-      error={error}
-      maxHeight="70vh"
-      empty={{
-        icon: Zap,
-        title: 'No active signals',
-        description: kind === 'etfs'
-          ? 'No ETF signals match the current filters.'
-          : 'No stock signals match the current filters. Try widening filters or check buy_sell_daily freshness.',
-      }}
-      onRowClick={(row) => {
-        if (kind === 'stocks' && row.symbol) {
-          navigate(`/app/stock/${row.symbol}`);
-        }
-      }}
-      expandRender={(row) => <SignalDetail row={row} />}
-    />
+    <div className="card" style={{ overflow: 'hidden' }}>
+      <div style={{ overflow: 'auto', maxHeight: '70vh' }}>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Sector</th>
+              <th className="num">Close</th>
+              <th className="num">Buy Lvl</th>
+              <th className="num">Stop</th>
+              <th className="num">R/R</th>
+              <th className="num">RSI</th>
+              <th className="num">Vol Surge</th>
+              <th>Base</th>
+              <th>Quality</th>
+              <th>Stage</th>
+              <th className="num">Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => {
+              const k = `${r.symbol}-${r.date}-${i}`;
+              const expanded = expandedKey === k;
+              const sig = (r.signal || '').toUpperCase();
+              const rsi = r.rsi != null ? Number(r.rsi) : null;
+              return (
+                <React.Fragment key={k}>
+                  <tr onClick={() => setExpandedKey(expanded ? null : k)}>
+                    <td>
+                      <div className="flex items-center gap-2">
+                        <span className="strong" style={{ fontWeight: 'var(--w-bold)' }}>{r.symbol}</span>
+                        <span className={`badge ${sig === 'BUY' ? 'badge-success' : 'badge-danger'}`}>{sig}</span>
+                      </div>
+                    </td>
+                    <td className="muted t-xs">{r.sector || '—'}</td>
+                    <td className="num">{fmtMoney(r.close)}</td>
+                    <td className="num">
+                      <span className={r.close >= r.buylevel ? 'up' : 'muted'}>{fmtMoney(r.buylevel)}</span>
+                    </td>
+                    <td className="num">{fmtMoney(r.stoplevel)}</td>
+                    <td className="num">{r.risk_reward_ratio == null ? '—' : Number(r.risk_reward_ratio).toFixed(2)}</td>
+                    <td className="num">
+                      {rsi == null ? <span className="muted">—</span> :
+                        <span className={rsi > 70 ? 'down' : rsi < 30 ? 'up' : ''}>{rsi.toFixed(1)}</span>}
+                    </td>
+                    <td className="num">
+                      {r.volume_surge_pct == null ? '—' : (
+                        <span className={Number(r.volume_surge_pct) >= 0 ? 'up' : 'down'}>
+                          {Number(r.volume_surge_pct) >= 0 ? '+' : ''}{Number(r.volume_surge_pct).toFixed(1)}%
+                        </span>
+                      )}
+                    </td>
+                    <td className="muted t-xs">{r.base_type ? `${r.base_type} (${r.base_length_days || '?'}d)` : '—'}</td>
+                    <td>
+                      {r.breakout_quality
+                        ? <span className={`badge ${QUALITY_VARIANT[r.breakout_quality] || 'badge'}`}>{r.breakout_quality}</span>
+                        : <span className="muted">—</span>}
+                    </td>
+                    <td>
+                      {r.market_stage
+                        ? <span className={`badge ${STAGE_VARIANT[r.market_stage] || 'badge'}`}>{r.market_stage.replace('Stage ', 'S')}</span>
+                        : <span className="muted">—</span>}
+                    </td>
+                    <td className="num muted t-xs">{r.signal_triggered_date || r.date ? String(r.signal_triggered_date || r.date).slice(0, 10) : '—'}</td>
+                  </tr>
+                  {expanded && (
+                    <tr>
+                      <td colSpan={12} style={{ background: 'var(--bg-2)', padding: 'var(--space-4)' }}>
+                        <SignalDetail row={r} kind={kind} onSymbolClick={() => kind === 'stocks' && navigate(`/app/stock/${r.symbol}`)} />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
-// =============================================================================
-// ROW EXPANSION
-// =============================================================================
-
-function SignalDetail({ row }) {
+function SignalDetail({ row, kind, onSymbolClick }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <DetailGroup
-        title="Entry Plan"
-        items={[
+    <div>
+      {kind === 'stocks' && (
+        <button className="btn btn-outline btn-sm" onClick={onSymbolClick} style={{ marginBottom: 'var(--space-3)' }}>
+          Open {row.symbol} detail →
+        </button>
+      )}
+      <div className="grid grid-3 gap-4">
+        <DetailGroup title="Entry plan" items={[
           ['Buy zone', `${fmtMoney(row.buy_zone_start)} – ${fmtMoney(row.buy_zone_end)}`],
           ['Pivot', fmtMoney(row.pivot_price)],
           ['Initial stop', fmtMoney(row.initial_stop)],
           ['Trailing stop', fmtMoney(row.trailing_stop)],
-          ['Position size rec', row.position_size_recommendation || '—'],
+          ['Position size', row.position_size_recommendation || '—'],
           ['Entry quality', row.entry_quality_score ? `${row.entry_quality_score}/100` : '—'],
-        ]}
-      />
-      <DetailGroup
-        title="Targets & Exits"
-        items={[
+        ]} />
+        <DetailGroup title="Targets & exits" items={[
           ['Target +8%', fmtMoney(row.profit_target_8pct)],
           ['Target +20%', fmtMoney(row.profit_target_20pct)],
           ['Target +25%', fmtMoney(row.profit_target_25pct)],
-          ['Exit T1', `${fmtMoney(row.exit_trigger_1_price)}${row.exit_trigger_1_condition ? ' (' + row.exit_trigger_1_condition + ')' : ''}`],
-          ['Exit T2', `${fmtMoney(row.exit_trigger_2_price)}${row.exit_trigger_2_condition ? ' (' + row.exit_trigger_2_condition + ')' : ''}`],
-          ['Exit T3', `${fmtMoney(row.exit_trigger_3_price)}${row.exit_trigger_3_condition ? ' (' + row.exit_trigger_3_condition + ')' : ''}`],
-          ['Exit T4', `${fmtMoney(row.exit_trigger_4_price)}${row.exit_trigger_4_condition ? ' (' + row.exit_trigger_4_condition + ')' : ''}`],
+          ['Exit T1', fmtMoney(row.exit_trigger_1_price)],
+          ['Exit T2', fmtMoney(row.exit_trigger_2_price)],
           ['Sell level', fmtMoney(row.sell_level)],
-        ]}
-      />
-      <DetailGroup
-        title="Technicals & Strength"
-        items={[
+        ]} />
+        <DetailGroup title="Technicals & strength" items={[
           ['RSI (14)', row.rsi != null ? Number(row.rsi).toFixed(1) : '—'],
           ['ADX', row.adx != null ? Number(row.adx).toFixed(1) : '—'],
           ['ATR', row.atr != null ? Number(row.atr).toFixed(2) : '—'],
-          ['SMA 50', fmtMoney(row.sma_50)],
-          ['SMA 200', fmtMoney(row.sma_200)],
+          ['SMA 50 / 200', `${fmtMoney(row.sma_50)} / ${fmtMoney(row.sma_200)}`],
           ['EMA 21', fmtMoney(row.ema_21)],
-          ['Pct from EMA21', row.pct_from_ema21 != null ? fmtPct(row.pct_from_ema21) : '—'],
-          ['Pct from SMA50', row.pct_from_sma50 != null ? fmtPct(row.pct_from_sma50) : '—'],
           ['RS Rating', row.rs_rating != null ? Number(row.rs_rating).toFixed(0) : '—'],
           ['Mansfield RS', row.mansfield_rs != null ? Number(row.mansfield_rs).toFixed(2) : '—'],
           ['Volume', fmtInt(row.volume)],
           ['Avg vol 50d', fmtInt(row.avg_volume_50d)],
-          ['Volume surge', row.volume_surge_pct != null ? fmtPct(row.volume_surge_pct) : '—'],
-        ]}
-      />
+          ['Vol surge', row.volume_surge_pct != null ? fmtPct(row.volume_surge_pct) : '—'],
+        ]} />
+      </div>
     </div>
   );
 }
@@ -373,16 +262,26 @@ function SignalDetail({ row }) {
 function DetailGroup({ title, items }) {
   return (
     <div>
-      <div className="text-2xs uppercase font-semibold text-ink-muted tracking-wider mb-2">
-        {title}
-      </div>
-      <div className="space-y-1">
+      <div className="eyebrow" style={{ marginBottom: 8 }}>{title}</div>
+      <div className="flex flex-col" style={{ gap: 4 }}>
         {items.map(([label, value], i) => (
-          <div key={i} className="flex items-baseline justify-between gap-2 text-xs">
-            <span className="text-ink-muted shrink-0">{label}</span>
-            <span className="text-ink font-mono tnum text-right truncate">{value || '—'}</span>
+          <div key={i} className="flex" style={{ fontSize: 'var(--t-xs)' }}>
+            <span className="muted" style={{ minWidth: 110 }}>{label}</span>
+            <span className="strong mono tnum" style={{ flex: 1, textAlign: 'right' }}>{value || '—'}</span>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function Empty({ title, desc }) {
+  return (
+    <div className="card">
+      <div className="empty">
+        <Inbox />
+        <div className="empty-title">{title}</div>
+        {desc && <div className="empty-desc">{desc}</div>}
       </div>
     </div>
   );
