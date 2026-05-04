@@ -9,9 +9,10 @@
 
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import {
   RefreshCw, Search, ChevronDown, ChevronUp, Inbox, AlertCircle,
-  Bolt, Minus, TrendingUp, TrendingDown, Info, CheckCircle, AlertTriangle, X,
+  Bolt, Minus, TrendingUp, TrendingDown, Info, CheckCircle, AlertTriangle,
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -101,6 +102,7 @@ function Tabs({ tabs, value, onChange }) {
 
 // ─── TRADES VIEW ───────────────────────────────────────────────────────────
 function TradesView() {
+  const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState('all');
   const [symbolFilter, setSymbolFilter] = useState('');
   const [expandedKey, setExpandedKey] = useState(null);
@@ -196,7 +198,15 @@ function TradesView() {
                   return (
                     <React.Fragment key={k}>
                       <tr onClick={() => setExpandedKey(expanded ? null : k)}>
-                        <td><span className="strong" style={{ fontWeight: 'var(--w-bold)' }}>{row.symbol}</span></td>
+                        <td>
+                          <span
+                            className="strong"
+                            style={{ fontWeight: 'var(--w-bold)', cursor: 'pointer' }}
+                            onClick={(e) => { e.stopPropagation(); navigate(`/app/stock/${row.symbol}`); }}
+                          >
+                            {row.symbol}
+                          </span>
+                        </td>
                         <td>
                           <span className={`badge ${isOpen ? 'badge-success' : ''}`}>{isOpen ? 'OPEN' : 'CLOSED'}</span>
                         </td>

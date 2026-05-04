@@ -3,8 +3,9 @@
  * Pure JSX + theme.css classes.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import {
   RefreshCw, ChevronLeft, ChevronRight, ArrowLeft, Inbox, AlertCircle,
 } from 'lucide-react';
@@ -207,6 +208,7 @@ export default function BacktestResults() {
 
 // ─── Run detail view ───────────────────────────────────────────────────────
 function RunDetail({ detail, onBack }) {
+  const navigate = useNavigate();
   const r = detail?.run || {};
   const trades = detail?.trades || [];
   const tp = detail?.trade_pagination || { total: trades.length };
@@ -315,7 +317,15 @@ function RunDetail({ detail, onBack }) {
                 <tbody>
                   {trades.map((t) => (
                     <tr key={t.trade_id}>
-                      <td><span className="strong">{t.symbol}</span></td>
+                      <td>
+                        <span
+                          className="strong"
+                          style={{ cursor: 'pointer' }}
+                          onClick={() => navigate(`/app/stock/${t.symbol}`)}
+                        >
+                          {t.symbol}
+                        </span>
+                      </td>
                       <td className="t-xs muted">{fmtDate(t.signal_date)}</td>
                       <td className="t-xs muted">{fmtDate(t.exit_date)}</td>
                       <td className="num mono tnum">${num(t.entry_price)}</td>

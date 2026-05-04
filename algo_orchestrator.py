@@ -479,6 +479,19 @@ class Orchestrator:
             qualified = getattr(self, '_qualified_trades', [])
             constraints = getattr(self, '_exposure_constraints', None)
 
+            # Market-hours gate: refuse entries unless market is open OR within
+            # 30 min of open (queued for opening cross). Skip the gate in
+            # paper/dry/review mode so testing works after hours, but enforce
+            # strictly on auto/live.
+            mode = (self.config.get('execution_mode', 'paper') if isinstance(self.config, dict) else 'paper').lower()
+            if mode == 'auto':
+                if not self._is_market_open_or_imminent():
+                    self.log_phase_result(
+                        6, 'entry_execution', 'success',
+                        'Market closed and not within 30min of open — skipping entries'
+                    )
+                    return True
+
             # Apply exposure tier entry constraints
             if constraints and constraints.get('halt_new_entries'):
                 self.log_phase_result(
@@ -687,6 +700,40 @@ class Orchestrator:
                         lock_path.unlink()
             except Exception:
                 pass
+
+    def _is_market_open_or_imminent(self, window_min: int = 30) -> bool:
+        """Return True if US equity market is open right now OR opens within
+        `window_min` minutes. Queries Alpaca's /v2/clock — authoritative for
+        holidays, half-days, etc. Falls back to permissive (True) on error so
+        a transient network blip doesn't permanently halt entries."""
+        try:
+            import requests
+            key = os.getenv('APCA_API_KEY_ID')
+            secret = os.getenv('APCA_API_SECRET_KEY')
+            base = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
+            if not key or not secret:
+                return True  # Can't check; let other guards (live-trading lock) handle it
+            r = requests.get(
+                f'{base}/v2/clock',
+                headers={'APCA-API-KEY-ID': key, 'APCA-API-SECRET-KEY': secret},
+                timeout=5,
+            )
+            r.raise_for_status()
+            clock = r.json()
+            if clock.get('is_open'):
+                return True
+            # Imminent open?
+            from datetime import datetime, timezone
+            next_open_str = clock.get('next_open')  # ISO 8601 with TZ
+            if not next_open_str:
+                return False
+            next_open = datetime.fromisoformat(next_open_str.replace('Z', '+00:00'))
+            now = datetime.now(timezone.utc)
+            mins_to_open = (next_open - now).total_seconds() / 60.0
+            return 0 <= mins_to_open <= window_min
+        except Exception as e:
+            print(f"  [warn] market-hours check failed: {e} — proceeding")
+            return True
 
     def _pid_alive(self, pid):
         """Check if a PID is still running (cross-platform)."""

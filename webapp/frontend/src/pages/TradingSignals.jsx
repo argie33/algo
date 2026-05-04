@@ -13,7 +13,7 @@
  * Pure JSX + theme.css. Recharts only for charts.
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Search, RefreshCw, Inbox, ChevronDown, ChevronUp } from 'lucide-react';

@@ -2,10 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   RefreshCw, Inbox, Search, TrendingUp, TrendingDown, Minus,
-  ArrowLeft, AlertCircle, MessageSquare, Newspaper, BarChart3, Activity,
+  ArrowLeft, AlertCircle, MessageSquare, Activity,
 } from 'lucide-react';
 import {
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip,
+  Cell, ResponsiveContainer, Tooltip as RechartsTooltip,
   LineChart, Line, XAxis, YAxis, CartesianGrid, ReferenceLine,
   BarChart, Bar, FunnelChart, Funnel, LabelList,
 } from 'recharts';
@@ -18,8 +18,6 @@ const TT_STYLE = {
   fontSize: 'var(--t-xs)',
   padding: 'var(--space-2) var(--space-3)',
 };
-
-const PIE_COLORS = ['var(--brand)', 'var(--cyan)', 'var(--amber)', 'var(--purple)'];
 
 const fmtDate = (d) => {
   if (!d) return '—';
@@ -529,8 +527,18 @@ function StockDetail({ stock, onClose }) {
   const bear = a.bearish_count || 0;
   const upside = parseFloat(a.upside_downside_percent);
 
-  const componentData = stock.compositeScore != null
-    ? [{ name: 'Analyst', value: 100 }] : [];
+  // Build a 30-day analyst sentiment time series
+  const trend = useMemo(() => {
+    const arr = (stock.allData || [])
+      .map((r) => ({
+        date: String(r.date).slice(0, 10),
+        score: r.sentiment_score != null ? Number(r.sentiment_score) : null,
+      }))
+      .filter((d) => d.score != null && !isNaN(d.score))
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .slice(-30);
+    return arr;
+  }, [stock]);
 
   const lab = sentimentLabel(stock.compositeScore);
 
@@ -541,7 +549,7 @@ function StockDetail({ stock, onClose }) {
           <div>
             <div className="card-title">{stock.symbol} · Sentiment Detail</div>
             <div className="card-sub">
-              Composite of analyst ratings · {stock.divergence?.isDiverged ? 'divergent sources' : 'aligned sources'}
+              Analyst-derived score · {stock.divergence?.isDiverged ? 'divergent sources' : 'aligned sources'}
             </div>
           </div>
           <button className="btn btn-ghost btn-sm" onClick={onClose}>
@@ -550,12 +558,12 @@ function StockDetail({ stock, onClose }) {
         </div>
       </div>
 
-      <div className="grid grid-3" style={{ marginTop: 'var(--space-4)' }}>
+      <div className="grid grid-2" style={{ marginTop: 'var(--space-4)' }}>
         <div className="card">
           <div className="card-head">
             <div>
               <div className="card-title">Composite Sentiment</div>
-              <div className="card-sub">Weighted average</div>
+              <div className="card-sub">Bull-bear analyst spread</div>
             </div>
           </div>
           <div className="card-body">
@@ -569,7 +577,7 @@ function StockDetail({ stock, onClose }) {
               </span>
             </div>
             <div className="t-xs muted">
-              News (40%) · Analyst (35%) · Social (25%). Currently shows analyst-only.
+              {a.analyst_count || 0} analysts · {bull} bullish · {neut} neutral · {bear} bearish
             </div>
           </div>
         </div>
@@ -577,50 +585,31 @@ function StockDetail({ stock, onClose }) {
         <div className="card">
           <div className="card-head">
             <div>
-              <div className="card-title">Component Breakdown</div>
-              <div className="card-sub">Active sentiment sources</div>
+              <div className="card-title">30-Day Sentiment Trend</div>
+              <div className="card-sub">Daily bull-bear analyst score</div>
             </div>
           </div>
           <div className="card-body" style={{ height: 200 }}>
-            {componentData.length > 0 ? (
+            {trend.length >= 2 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={componentData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={70}
-                    label={({ name, value }) => `${name} ${value}%`}
-                  >
-                    {componentData.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip contentStyle={TT_STYLE} />
-                </PieChart>
+                <LineChart data={trend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke="var(--border-soft)" strokeDasharray="2 4" />
+                  <XAxis dataKey="date" tick={{ fill: 'var(--text-3)', fontSize: 10 }}
+                         tickFormatter={(d) => String(d).slice(5)} />
+                  <YAxis tick={{ fill: 'var(--text-3)', fontSize: 10 }} domain={[-1, 1]} width={36} />
+                  <ReferenceLine y={0} stroke="var(--border)" />
+                  <RechartsTooltip contentStyle={TT_STYLE}
+                                   formatter={(v) => [Number(v).toFixed(2), 'Score']} />
+                  <Line type="monotone" dataKey="score" stroke="var(--brand)"
+                        strokeWidth={2} dot={false} />
+                </LineChart>
               </ResponsiveContainer>
             ) : (
               <div className="empty">
                 <Inbox size={28} />
-                <div className="empty-title">No components</div>
+                <div className="empty-title">Not enough history</div>
               </div>
             )}
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="card-head">
-            <div>
-              <div className="card-title">Source Scores</div>
-              <div className="card-sub">Per-channel sentiment</div>
-            </div>
-          </div>
-          <div className="card-body">
-            <SourceRow icon={<Newspaper size={14} />} label="News" score={null} />
-            <SourceRow icon={<BarChart3 size={14} />} label="Analyst" score={a.sentiment_score} />
-            <SourceRow icon={<MessageSquare size={14} />} label="Social" score={null} />
           </div>
         </div>
       </div>
@@ -1220,18 +1209,6 @@ function TrendStile({ label, cur, prd, dp }) {
       <div className="stile-sub">
         30d avg: <span className="mono tnum">{isNaN(p) ? '—' : p.toFixed(dp)}</span>
       </div>
-    </div>
-  );
-}
-
-function SourceRow({ icon, label, score }) {
-  return (
-    <div className="flex items-center justify-between"
-         style={{ padding: 'var(--space-2) 0', borderBottom: '1px solid var(--border-soft)' }}>
-      <div className="flex items-center gap-2">
-        {icon} <span className="t-sm">{label}</span>
-      </div>
-      <span className={scoreToBadge(score)}>{score == null ? 'N/A' : num(score)}</span>
     </div>
   );
 }

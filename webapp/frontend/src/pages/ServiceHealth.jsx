@@ -6,8 +6,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  RefreshCw, Inbox, CheckCircle, AlertTriangle, AlertCircle,
-  Database, Clock, Activity, Server,
+  RefreshCw, Inbox, CheckCircle, AlertTriangle, AlertCircle, Activity,
 } from 'lucide-react';
 import { api } from '../services/api';
 

@@ -1343,6 +1343,9 @@ const MOMENTUM_SCHEMA = [
   { key: 'momentum_6m',      label: '6-Month Return',   fmt: v => pct(v, 2) },
   { key: 'momentum_12_3',    label: '12-3 Momentum',    fmt: v => pct(v, 2) },
   { key: 'price_vs_52w_high',label: 'Price vs 52w High',fmt: v => pct(v, 2) },
+  { key: 'current_price',    label: 'Current Price',    fmt: v => `$${num(v, 2)}` },
+  { key: 'rsi',              label: 'RSI (14)',         fmt: v => num(v, 1) },
+  { key: 'macd',             label: 'MACD',             fmt: v => num(v, 3) },
 ];
 
 const VALUE_SCHEMA = [
@@ -1354,7 +1357,6 @@ const VALUE_SCHEMA = [
   { key: 'stock_ev_revenue',    label: 'EV / Revenue', fmt: v => num(v, 2) },
   { key: 'peg_ratio',           label: 'PEG',          fmt: v => num(v, 2) },
   { key: 'stock_dividend_yield',label: 'Dividend Yield', fmt: v => pct(v, 2) },
-  { key: 'stock_fcf_yield',     label: 'FCF Yield',    fmt: v => pct(v, 2) },
 ];
 
 const GROWTH_SCHEMA = [
@@ -1375,19 +1377,23 @@ const GROWTH_SCHEMA = [
 
 const POSITIONING_SCHEMA = [
   { key: 'institutional_ownership_pct', label: 'Institutional Own %', fmt: v => pct(v, 1) },
+  { key: 'top_10_institutions_pct',     label: 'Top 10 Institutions %', fmt: v => pct(v, 1) },
+  { key: 'institutional_holders_count', label: 'Institutional Holders', fmt: v => num(v, 0) },
   { key: 'insider_ownership_pct',       label: 'Insider Own %',       fmt: v => pct(v, 1) },
+  { key: 'short_interest_pct',          label: 'Short Interest %',    fmt: v => pct(v, 2) },
   { key: 'short_percent_of_float',      label: 'Short % of Float',    fmt: v => pct(v, 1) },
   { key: 'short_ratio',                 label: 'Days to Cover',       fmt: v => Number(v) < 99999 ? num(v, 2) : '—' },
   { key: 'ad_rating',                   label: 'A/D Rating',          fmt: v => num(v, 1) },
 ];
 
 const STABILITY_SCHEMA = [
-  { key: 'volatility_12m',         label: 'Volatility (12M)',     fmt: v => pct(v, 2) },
-  { key: 'downside_volatility',    label: 'Downside Volatility',  fmt: v => pct(v, 2) },
-  { key: 'max_drawdown_52w',       label: 'Max Drawdown (52W)',   fmt: v => pct(v, 2) },
-  { key: 'beta',                   label: 'Beta vs Market',       fmt: v => num(v, 2) },
-  { key: 'volume_consistency',     label: 'Volume Consistency',   fmt: v => num(v, 1) },
-  { key: 'turnover_velocity',      label: 'Turnover Velocity',    fmt: v => num(v, 1) },
-  { key: 'volatility_volume_ratio',label: 'Volatility/Volume',    fmt: v => num(v, 1) },
-  { key: 'daily_spread',           label: 'Daily Spread',         fmt: v => num(v, 1) },
+  { key: 'volatility_12m',           label: 'Volatility (12M)',     fmt: v => pct(v, 2) },
+  { key: 'downside_volatility',      label: 'Downside Volatility',  fmt: v => pct(v, 2) },
+  { key: 'max_drawdown_52w',         label: 'Max Drawdown (52W)',   fmt: v => pct(v, 2) },
+  { key: 'beta',                     label: 'Beta vs Market',       fmt: v => num(v, 2) },
+  { key: 'volatility_risk_component',label: 'Volatility Risk Score',fmt: v => num(v, 1) },
+  { key: 'volume_consistency',       label: 'Volume Consistency',   fmt: v => num(v, 1) },
+  { key: 'turnover_velocity',        label: 'Turnover Velocity',    fmt: v => num(v, 1) },
+  { key: 'volatility_volume_ratio',  label: 'Volatility / Volume',  fmt: v => num(v, 1) },
+  { key: 'daily_spread',             label: 'Daily Spread',         fmt: v => num(v, 1) },
 ];
