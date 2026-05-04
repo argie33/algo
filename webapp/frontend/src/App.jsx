@@ -32,6 +32,7 @@ import MarketsHealth from "./pages/MarketsHealth";
 import StockDetail from "./pages/StockDetail";
 import DeepValueStocks from "./pages/DeepValueStocks";
 import TradingSignals from "./pages/TradingSignals";
+import SwingCandidates from "./pages/SwingCandidates";
 import BacktestResults from "./pages/BacktestResults";
 import EconomicDashboard from "./pages/EconomicDashboard";
 import SectorAnalysis from "./pages/SectorAnalysis";
@@ -393,6 +394,7 @@ function App() {
           <Route path="/app/trading-signals" element={<TradingSignals />} />
           <Route path="/app/signals" element={<TradingSignals />} />
           <Route path="/app/etf-signals" element={<TradingSignals />} />
+          <Route path="/app/swing" element={<SwingCandidates />} />
           <Route path="/app/scores" element={<ScoresDashboard />} />
           <Route path="/app/metrics" element={<MetricsDashboard />} />
           <Route path="/app/stock/:symbol" element={<StockDetail />} />
