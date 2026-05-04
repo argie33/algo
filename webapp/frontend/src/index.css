@@ -1,11 +1,13 @@
+/* ──────────────────────────────────────────────────────────────────
+   Bullseye design system — index.css
+   Imports MUST be at the very top of the file (not inside a layer)
+   ────────────────────────────────────────────────────────────────── */
+@import url('https://rsms.me/inter/inter.css');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* ──────────────────────────────────────────────────────────────────
-   Bullseye design system base styles
-   See DESIGN_REDESIGN_PLAN.md for full spec.
-   ────────────────────────────────────────────────────────────────── */
 
 @layer base {
   :root {
@@ -18,10 +20,6 @@
     color-scheme: dark;
   }
 
-  /* Inter from Google Fonts (CDN, swap to self-host later for perf) */
-  @import url('https://rsms.me/inter/inter.css');
-  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
-
   html {
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
@@ -30,33 +28,35 @@
   }
 
   body {
-    @apply bg-bg text-ink antialiased;
-    font-feature-settings: "cv11", "ss01", "ss03";
+    background-color: #FAFAF7;
+    color: #2C2C28;
   }
 
   html.dark body {
-    @apply bg-[#0d1117] text-[#c9d1d9];
+    background-color: #0d1117;
+    color: #c9d1d9;
   }
 
-  /* Headings */
   h1, h2, h3, h4, h5, h6 {
-    @apply text-ink-strong font-semibold;
+    color: #1A1A1A;
+    font-weight: 600;
     letter-spacing: -0.01em;
   }
 
-  /* Numbers want tabular figures by default in our app */
+  /* Numbers want tabular figures by default */
   .num, [data-num] {
     font-variant-numeric: tabular-nums slashed-zero;
     font-feature-settings: "tnum", "ss01";
   }
 
-  /* Form controls — kill Chrome's default ring, use ours */
+  /* Visible focus ring */
   *:focus { outline: none; }
   *:focus-visible {
-    @apply outline-none ring-2 ring-brand ring-offset-1 ring-offset-bg-elev;
+    outline: none;
+    box-shadow: 0 0 0 2px #0E5C3A, 0 0 0 4px #FAFAF7;
   }
 
-  /* Make scrollbars subtle */
+  /* Subtle scrollbars */
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: #C9C8BE; border-radius: 5px; }
@@ -64,8 +64,6 @@
 }
 
 @layer components {
-  /* Reusable component patterns — declarative classes for use in JSX */
-
   /* Card — primary surface for any data section */
   .card {
     @apply bg-bg-elev border border-border rounded-md;
@@ -90,31 +88,19 @@
 
   /* Button base */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2
-           text-sm font-medium rounded-md
-           transition-colors duration-fast
-           disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors duration-fast disabled:opacity-50 disabled:cursor-not-allowed;
   }
-  .btn-primary {
-    @apply btn bg-brand text-white hover:bg-brand-hover;
-  }
-  .btn-secondary {
-    @apply btn bg-bg-alt text-ink border border-border hover:bg-bg-lift;
-  }
-  .btn-ghost {
-    @apply btn text-ink hover:bg-bg-alt;
-  }
-  .btn-danger {
-    @apply btn bg-bear text-white hover:bg-bear-deep;
-  }
+  .btn-primary { @apply btn bg-brand text-white hover:bg-brand-hover; }
+  .btn-secondary { @apply btn bg-bg-alt text-ink border border-border hover:bg-bg-lift; }
+  .btn-ghost { @apply btn text-ink hover:bg-bg-alt; }
+  .btn-danger { @apply btn bg-bear text-white hover:bg-bear-deep; }
 
   /* Input */
   .input {
-    @apply w-full px-3 py-2 text-sm
-           bg-bg-elev border border-border rounded-md
-           text-ink placeholder-ink-faint
-           focus:border-brand focus:ring-2 focus:ring-brand/20
-           disabled:bg-bg-alt disabled:cursor-not-allowed;
+    @apply w-full px-3 py-2 text-sm bg-bg-elev border border-border rounded-md text-ink placeholder-ink-faint focus:border-brand;
+  }
+  .input:focus {
+    box-shadow: 0 0 0 3px rgba(14,92,58,0.15);
   }
 
   /* Chip */
@@ -130,9 +116,7 @@
   .chip-muted  { @apply chip bg-bg-alt text-ink-muted; }
 
   /* Tabular numerics utility for prices etc */
-  .num-mono {
-    @apply font-mono tnum;
-  }
+  .num-mono { @apply font-mono tnum; }
 
   /* Page header strip */
   .page-header {
@@ -151,9 +135,7 @@
     @apply w-full text-sm;
   }
   .table thead th {
-    @apply text-2xs text-ink-muted font-bold uppercase
-           bg-bg border-b border-border
-           px-3 py-2 text-left whitespace-nowrap;
+    @apply text-2xs text-ink-muted font-bold uppercase bg-bg border-b border-border px-3 py-2 text-left whitespace-nowrap;
     letter-spacing: 0.05em;
     position: sticky;
     top: 0;

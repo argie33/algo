@@ -48,7 +48,7 @@ export default function StockDetail() {
 
   const { data: priceData, isLoading: priceLoading } = useQuery({
     queryKey: ['stock-price', symbol],
-    queryFn: () => api.get(`/api/price/history/${symbol}?timeframe=daily&limit=180`).then(r => r.data?.items || r.data?.data || []),
+    queryFn: () => api.get(`/api/prices/history/${symbol}?timeframe=daily&limit=180`).then(r => r.data?.data?.items || r.data?.items || []),
     enabled: !!symbol,
   });
 

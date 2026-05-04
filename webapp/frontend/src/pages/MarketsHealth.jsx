@@ -289,7 +289,7 @@ function IndicesStrip() {
 function IndexCell({ idx }) {
   const { data } = useQuery({
     queryKey: ['index-history', idx.symbol],
-    queryFn: () => api.get(`/api/price/history/${idx.symbol}?timeframe=daily&limit=30`).then(r => r.data?.items || r.data?.data || []),
+    queryFn: () => api.get(`/api/prices/history/${idx.symbol}?timeframe=daily&limit=30`).then(r => r.data?.data?.items || r.data?.items || []),
     staleTime: 60000,
   });
 
