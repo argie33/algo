@@ -1291,6 +1291,7 @@ CREATE TABLE IF NOT EXISTS algo_positions (
     unrealized_pnl DECIMAL(12, 2),
     unrealized_pnl_pct DECIMAL(8, 4),
     trade_ids VARCHAR(1000),
+    trade_ids_arr TEXT[],
     status VARCHAR(20),
     stage_in_exit_plan VARCHAR(50),
     distribution_day_count INTEGER,

@@ -329,7 +329,7 @@ class TradeExecutor:
                     INSERT INTO algo_positions (
                         position_id, symbol, quantity, avg_entry_price,
                         current_price, position_value, status,
-                        trade_ids, current_stop_price, target_levels_hit,
+                        trade_ids_arr, current_stop_price, target_levels_hit,
                         created_at
                     ) VALUES (
                         %s, %s, %s, %s, %s, %s, 'open',
@@ -339,7 +339,7 @@ class TradeExecutor:
                     (
                         position_id, symbol, shares, executed_price,
                         executed_price, position_value,
-                        trade_id, stop_loss_price,
+                        [trade_id], stop_loss_price,
                     ),
                 )
 
@@ -392,7 +392,7 @@ class TradeExecutor:
                        t.alpaca_order_id,
                        p.position_id, p.quantity, p.target_levels_hit
                 FROM algo_trades t
-                LEFT JOIN algo_positions p ON p.trade_ids LIKE '%%' || t.trade_id || '%%'
+                LEFT JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
                                          AND p.status = 'open'
                 WHERE t.trade_id = %s
                 """,

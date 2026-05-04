@@ -76,7 +76,7 @@ class ExitEngine:
                        p.position_id, p.quantity, p.target_levels_hit,
                        p.current_stop_price
                 FROM algo_trades t
-                JOIN algo_positions p ON p.trade_ids LIKE '%%' || t.trade_id || '%%'
+                JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
                 WHERE t.status IN ('filled','active') AND p.status = 'open' AND p.quantity > 0
                 ORDER BY t.trade_date ASC
                 """
@@ -130,9 +130,8 @@ class ExitEngine:
                     try:
                         self.cur.execute(
                             """UPDATE algo_positions SET current_stop_price = %s
-                               WHERE position_id = (SELECT position_id FROM algo_positions
-                                                     WHERE trade_ids LIKE %s AND status = 'open')""",
-                            (new_stop, f'%{trade_id}%'),
+                               WHERE %s = ANY(trade_ids_arr) AND status = 'open'""",
+                            (new_stop, trade_id),
                         )
                         self.conn.commit()
                         print(f"      -> Stop raised to ${new_stop:.2f}")

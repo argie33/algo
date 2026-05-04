@@ -308,14 +308,14 @@ class DailyReconciliation:
                     INSERT INTO algo_positions (
                         position_id, symbol, quantity, avg_entry_price,
                         current_price, position_value, unrealized_pnl,
-                        unrealized_pnl_pct, status, trade_ids,
+                        unrealized_pnl_pct, status, trade_ids_arr,
                         current_stop_price, target_levels_hit, created_at
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s,
                               'open', %s, %s, 0, CURRENT_TIMESTAMP)
                     ON CONFLICT (position_id) DO NOTHING
                 """, (
                     position_id, sym, int(qty), avg_entry, cur_price,
-                    pos_value, pnl, pnl_pct, trade_id,
+                    pos_value, pnl, pnl_pct, [trade_id],
                     avg_entry * 0.92,  # placeholder 8% stop
                 ))
                 imported += 1

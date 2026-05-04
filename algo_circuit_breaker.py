@@ -182,7 +182,7 @@ class CircuitBreaker:
             """
             SELECT COALESCE(SUM(GREATEST(0, (t.entry_price - COALESCE(p.current_stop_price, t.stop_loss_price)) * p.quantity)), 0)
             FROM algo_positions p
-            JOIN algo_trades t ON p.trade_ids LIKE '%%' || t.trade_id || '%%'
+            JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
             WHERE p.status = 'open'
             """
         )

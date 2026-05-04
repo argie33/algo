@@ -221,7 +221,7 @@ class ExposurePolicy:
                        p.current_stop_price, p.current_price,
                        p.unrealized_pnl_pct
                 FROM algo_trades t
-                JOIN algo_positions p ON p.trade_ids LIKE '%%' || t.trade_id || '%%'
+                JOIN algo_positions p ON t.trade_id = ANY(p.trade_ids_arr)
                 WHERE t.status IN ('filled','active') AND p.status = 'open' AND p.quantity > 0
                 """
             )
