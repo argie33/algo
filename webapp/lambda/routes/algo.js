@@ -1051,6 +1051,40 @@ router.get('/performance', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/algo/equity-curve
+ * Time-series of portfolio value from algo_portfolio_snapshots
+ * Used by Portfolio Dashboard equity-curve chart.
+ */
+router.get('/equity-curve', async (req, res) => {
+  try {
+    const pool = getPool();
+    const limit = parseInt(req.query.limit) || 180;
+    const result = await pool.query(`
+      SELECT snapshot_date, total_portfolio_value, daily_return_pct,
+             unrealized_pnl_pct, position_count
+      FROM algo_portfolio_snapshots
+      ORDER BY snapshot_date DESC
+      LIMIT $1
+    `, [limit]);
+
+    return res.json({
+      success: true,
+      items: result.rows.reverse().map(r => ({
+        snapshot_date: r.snapshot_date,
+        total_portfolio_value: parseFloat(r.total_portfolio_value || 0),
+        daily_return_pct: parseFloat(r.daily_return_pct || 0),
+        unrealized_pnl_pct: parseFloat(r.unrealized_pnl_pct || 0),
+        position_count: parseInt(r.position_count || 0),
+      })),
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    console.error('Error in /algo/equity-curve:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ============================================================
 // AUDIT LOG — every algo decision logged
 // ============================================================
