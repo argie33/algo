@@ -192,7 +192,7 @@ jobs:
               AlpacaApiKeySecretArn="arn:aws:secretsmanager:${{ env.AWS_REGION }}:${{ env.AWS_ACCOUNT_ID }}:secret:alpaca-api-*" \
               DryRunMode="${{ github.event.inputs.dry_run || 'true' }}" \
               Environment="${{ github.event.inputs.environment || 'dev' }}" \
-            --capabilities CAPABILITY_IAM \
+            --capabilities CAPABILITY_NAMED_IAM \
             --region ${{ env.AWS_REGION }} \
             --no-fail-on-empty-changeset
 
