@@ -174,8 +174,9 @@ try {
         }}
       >
         <QueryClientProvider client={queryClient}>
+          {/* MUI ThemeProvider stays for legacy MUI components on other pages.
+              CssBaseline removed — our theme.css owns the global reset/base. */}
           <ThemeProvider theme={modernTheme}>
-            <CssBaseline />
             <AuthProvider>
               <App />
             </AuthProvider>
