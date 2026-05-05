@@ -35,6 +35,11 @@ Parameters:
     Default: 7
     AllowedValues: [1, 3, 7, 14, 30, 60, 90]
     Description: "CloudWatch log retention in days (default 7 saves ~$15/month vs 30)"
+  PostgresFamily:
+    Type: String
+    Default: postgres16
+    AllowedValues: [postgres13, postgres14, postgres15, postgres16, postgres17]
+    Description: "RDS engine family — must match the running engine major version. Used by the TimescaleDB parameter group."
 
 Resources:
 
@@ -61,7 +66,19 @@ Resources:
           CidrIp: "0.0.0.0/0"
           Description: "Allow Postgres traffic from anywhere"
 
-  ### 3) RDS Instance ###
+  ### 3) RDS Parameter Group (enables TimescaleDB) ###
+  # shared_preload_libraries is a static parameter — applying this group to an
+  # existing instance triggers ONE reboot. Migration script (migrate_timescaledb.py)
+  # then runs CREATE EXTENSION + create_hypertable for price_daily/technical_data_daily.
+  StocksDBParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Family: !Ref PostgresFamily
+      Description: "Stocks DB parameter group with TimescaleDB preloaded"
+      Parameters:
+        shared_preload_libraries: "timescaledb"
+
+  ### 4) RDS Instance ###
   # NOTE: Current DB has 61GB allocated. Cannot reduce storage in RDS.
   # Keeping current values to prevent deployment failures.
   StocksDBInstance:
@@ -70,6 +87,7 @@ Resources:
     DependsOn:
       - StocksDBSubnetGroup
       - StocksDBSecurityGroup
+      - StocksDBParameterGroup
     Properties:
       DBInstanceIdentifier: stocks
       DBName: stocks
@@ -77,6 +95,7 @@ Resources:
       DBInstanceClass: db.t3.micro
       AllocatedStorage: 61
       MaxAllocatedStorage: 100
+      DBParameterGroupName: !Ref StocksDBParameterGroup
       MasterUsername: !Ref RDSUsername
       MasterUserPassword: !Ref RDSPassword
       VPCSecurityGroups:
@@ -88,7 +107,7 @@ Resources:
       Tags:
         - Key: StorageUpdate
           Value: "fixed-61gb-current-allocation"
-  ### 4) Secrets Manager: DB creds ###
+  ### 5) Secrets Manager: DB creds ###
   DBCredentialsSecret:
     Type: AWS::SecretsManager::Secret
     DeletionPolicy: Retain
@@ -105,7 +124,7 @@ Resources:
           "dbname": "stocks"
         }
 
-  ### 4.1) Secrets Manager: Email Configuration ###
+  ### 5.1) Secrets Manager: Email Configuration ###
   EmailConfigSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
@@ -117,7 +136,7 @@ Resources:
           "email_from": "noreply@bullseyefinancial.com"
         }
 
-  ### 4.2) Secrets Manager: Algo runtime secrets (Alpaca paper-trading) ###
+  ### 5.2) Secrets Manager: Algo runtime secrets (Alpaca paper-trading) ###
   AlgoSecretsSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
@@ -130,13 +149,13 @@ Resources:
           "APCA_API_BASE_URL": "${AlpacaBaseUrl}",
           "ALPACA_PAPER_TRADING": "true"
         }
-  ### 5) ECS Cluster ###
+  ### 6) ECS Cluster ###
   StocksEcsCluster:
     Type: AWS::ECS::Cluster
     Properties:
       ClusterName: stocks-cluster
 
-  ### 5.1) ECS Tasks Security Group ###
+  ### 6.1) ECS Tasks Security Group ###
   EcsTasksSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -147,7 +166,7 @@ Resources:
           CidrIp: 0.0.0.0/0
           Description: "Allow all outbound traffic"
 
-  ### 6) ECS Task Execution Role ###
+  ### 7) ECS Task Execution Role ###
   EcsTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -182,7 +201,7 @@ Resources:
                   - ses:SendRawEmail
                 Resource: '*'
 
-  ### 7) CloudWatch Log Groups — Cost Optimization (7-day retention saves $15/month) ###
+  ### 8) CloudWatch Log Groups — Cost Optimization (7-day retention saves $15/month) ###
   LoaderLogGroupBuySell:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -207,7 +226,7 @@ Resources:
       LogGroupName: /ecs/loader-signals
       RetentionInDays: !Ref LogRetentionDays
 
-  ### 8) S3 Log Archive Bucket — Long-term storage with Intelligent-Tiering ###
+  ### 9) S3 Log Archive Bucket — Long-term storage with Intelligent-Tiering ###
   LogArchiveBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
