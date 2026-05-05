@@ -1,6 +1,8 @@
 """
 Simplified Lambda handler - runs algo orchestrator directly without subprocesses.
 Avoids psycopg2 import issues by keeping database operations local.
+
+Deployed: 2026-05-05 15:35 UTC
 """
 
 import json
