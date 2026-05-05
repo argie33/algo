@@ -161,8 +161,8 @@ class AlgoConfig:
 
         Raises ValueError if validation fails.
         """
-        # Percentage values: 0-100
-        if 'pct' in key.lower():
+        # Percentage values: 0-100 (skip string types like pyramid_split_pct)
+        if 'pct' in key.lower() and dtype != 'string':
             f_val = float(value) if isinstance(value, (int, float, str)) else value
             if f_val < 0 or f_val > 100:
                 raise ValueError(f'{key}: {f_val}% out of range [0-100]')
