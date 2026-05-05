@@ -56,6 +56,19 @@ jobs:
           role-session-name: github-deploy-core
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Check for CloudFormation validation hooks
+        run: |
+          echo "Checking for validation hooks in AWS account..."
+          aws cloudformation list-hooks --region "${{ env.AWS_REGION }}" 2>&1 || echo "No hooks API available"
+
+          echo ""
+          echo "Checking template syntax validity..."
+          aws cloudformation validate-template \
+            --template-body file://template-core.yml \
+            --region "${{ env.AWS_REGION }}" \
+            --query 'Description' \
+            --output text
+
       - name: Check and cleanup failed CloudFormation stacks
         run: |
           STATUS=$(aws cloudformation describe-stacks \
