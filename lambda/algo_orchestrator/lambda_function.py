@@ -254,20 +254,14 @@ def lambda_handler(event, context):
             log_error(f"Pre-load patrol failed: {str(e)}")
             raise
 
-        # Step 3: Load EOD data
+        # Step 3 (skipped in Lambda): EOD loaders run as ECS scheduled tasks separately.
+        # The Lambda zip is intentionally minimal (no pandas/polars), so it can't run
+        # load*.py files. ECS tasks defined in template-app-ecs-tasks.yml own data
+        # loading; this Lambda assumes the data is already fresh by the time the
+        # 5:30pm ET schedule fires. The post-load patrol below verifies that.
         log_to_cloudwatch("\n" + "=" * 80)
-        log_to_cloudwatch("Step 4: Load EOD Data")
+        log_to_cloudwatch("Step 4: EOD data loading (delegated to ECS — skipped here)")
         log_to_cloudwatch("=" * 80)
-        try:
-            # Run the EOD loader pipeline
-            run_command(
-                'bash run_eod_loaders.sh',
-                "Run EOD loader pipeline"
-            )
-            log_to_cloudwatch("✅ EOD data loading complete")
-        except Exception as e:
-            log_to_cloudwatch(f"⚠️  EOD loading encountered issues: {str(e)}", 'WARN')
-            # Don't fail here — continue to patrol which will detect real problems
 
         # Step 4: Post-load patrol
         log_to_cloudwatch("\n" + "=" * 80)
