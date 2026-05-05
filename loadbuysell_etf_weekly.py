@@ -145,6 +145,8 @@ class BuySellETFWeeklyLoader(OptimalLoader):
             week_start = idx_date - timedelta(days=idx_date.weekday())
             return {
                 "symbol": symbol,
+                "date": week_start.isoformat(),
+
                 "week_start": week_start.isoformat(),
                 "signal_type": signal_type,
                 "rsi": float(rsi) if not pd.isna(rsi) else None,

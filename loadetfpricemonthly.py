@@ -71,6 +71,8 @@ class ETFPriceMonthlyLoader(OptimalLoader):
             if key not in months:
                 months[key] = {
                     "symbol": row["symbol"],
+                    "date": month_start.isoformat(),
+
                     "month_start": month_start.isoformat(),
                     "open": row.get("open"),
                     "high": row.get("high"),

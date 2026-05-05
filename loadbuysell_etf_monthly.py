@@ -145,6 +145,8 @@ class BuySellETFMonthlyLoader(OptimalLoader):
             month_start = idx_date.replace(day=1)
             return {
                 "symbol": symbol,
+                "date": month_start.isoformat(),
+
                 "month_start": month_start.isoformat(),
                 "signal_type": signal_type,
                 "rsi": float(rsi) if not pd.isna(rsi) else None,

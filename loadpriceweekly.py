@@ -72,6 +72,7 @@ class PriceWeeklyLoader(OptimalLoader):
             if key not in weeks:
                 weeks[key] = {
                     "symbol": row["symbol"],
+                    "date": week_start.isoformat(),
                     "week_start": week_start.isoformat(),
                     "open": row.get("open"),
                     "high": row.get("high"),
