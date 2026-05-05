@@ -354,23 +354,35 @@ Resources:
           }
 
   ### 8) S3 Code Bucket ###
+  # Account-scoped names: S3 bucket names are global; suffix with account ID to
+  # avoid BucketAlreadyExists collisions across AWS accounts.
   CodeBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: stocks-algo-app-code
+      BucketName: !Sub stocks-algo-app-code-${AWS::AccountId}
       VersioningConfiguration:
         Status: Enabled
-    DeletionPolicy: Delete
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+    DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
 
   ### 9) CloudFormation Templates Bucket ###
   CfTemplatesBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: stocks-cf-templates
+      BucketName: !Sub stocks-cf-templates-${AWS::AccountId}
       VersioningConfiguration:
         Status: Enabled
-    DeletionPolicy: Delete
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+    DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
 
   ### 10) VPC ENDPOINTS — Cost Optimization (eliminates NAT Gateway ~$20/month) ###
