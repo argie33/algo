@@ -19,11 +19,11 @@ jobs:
       - name: Checkout repo (for the CFN template)
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (OIDC + deployer_role)
+      - name: Configure AWS credentials (static keys for bootstrap)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/deployer_role
-          role-session-name: github-bootstrap
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Delete CloudFormation validation hooks (if any)
