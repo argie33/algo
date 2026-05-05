@@ -1005,29 +1005,34 @@ jobs:
 
           EXIT_CODE=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].containers[0].exitCode // 1')
           STOP_REASON=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].stoppedReason // "Unknown"')
-          TASK_ID=$(echo "${{ steps.task.outputs.task-arn }}" | rev | cut -d'/' -f1 | rev)
-          LOG_GROUP=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].containers[0].name // "loader"' | sed 's/^/\/ecs\//')
+          TASK_ARN="${{ steps.task.outputs.task-arn }}"
+          TASK_ID=$(echo "$TASK_ARN" | rev | cut -d'/' -f1 | rev)
+          TASK_DEF_ARN=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].taskDefinitionArn')
+          CONTAINER_NAME=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].containers[0].name')
 
           echo "Task stopped with exit code: $EXIT_CODE"
           echo "Stop reason: $STOP_REASON"
           echo "Task ID: $TASK_ID"
-          echo "Inferred log group: $LOG_GROUP"
+          echo "Container: $CONTAINER_NAME"
+          echo "Task def: $TASK_DEF_ARN"
 
           if [[ "$EXIT_CODE" != "0" ]]; then
+            # Pull the actual log group from the task definition's logConfiguration
+            LOG_GROUP=$(aws ecs describe-task-definition \
+              --task-definition "$TASK_DEF_ARN" \
+              --query "taskDefinition.containerDefinitions[?name=='$CONTAINER_NAME'].logConfiguration.options.\"awslogs-group\"" \
+              --output text 2>/dev/null || echo "")
+            LOG_PREFIX=$(aws ecs describe-task-definition \
+              --task-definition "$TASK_DEF_ARN" \
+              --query "taskDefinition.containerDefinitions[?name=='$CONTAINER_NAME'].logConfiguration.options.\"awslogs-stream-prefix\"" \
+              --output text 2>/dev/null || echo "ecs")
+
+            STREAM_NAME="${LOG_PREFIX}/${CONTAINER_NAME}/${TASK_ID}"
             echo ""
-            echo "=== Container logs (last 100 lines from CloudWatch) ==="
-            # Try a few likely log group names
-            for LG in "/ecs/loader-${{ matrix.loader }}" "/ecs/load${{ matrix.loader }}" "/ecs/loader-buyselldaily" "/ecs/loader-prices" "/ecs/loader-financials" "/ecs/loader-signals"; do
-              STREAMS=$(aws logs describe-log-streams --log-group-name "$LG" \
-                --log-stream-name-prefix "ecs/" --order-by LastEventTime --descending \
-                --limit 1 --query 'logStreams[0].logStreamName' --output text 2>/dev/null || echo "")
-              if [ -n "$STREAMS" ] && [ "$STREAMS" != "None" ]; then
-                echo "--- $LG / $STREAMS ---"
-                aws logs get-log-events --log-group-name "$LG" --log-stream-name "$STREAMS" \
-                  --limit 100 --query 'events[].message' --output text 2>/dev/null | tail -60
-                break
-              fi
-            done
+            echo "=== Container logs from $LOG_GROUP / $STREAM_NAME ==="
+            aws logs get-log-events --log-group-name "$LOG_GROUP" --log-stream-name "$STREAM_NAME" \
+              --limit 200 --query 'events[].message' --output text 2>/dev/null | tail -100 || \
+              echo "(could not retrieve logs from $LOG_GROUP / $STREAM_NAME)"
             echo ""
             echo "${{ matrix.loader }} loader failed (exit $EXIT_CODE): $STOP_REASON"
             exit 1
