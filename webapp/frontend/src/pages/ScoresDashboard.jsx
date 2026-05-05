@@ -574,18 +574,30 @@ function FactorInputs({ title, inputs, schema }) {
     return (
       <div className="card">
         <div className="card-head"><div className="card-title">{title}</div></div>
-        <div className="card-body"><div className="t-xs muted">No detailed metrics available</div></div>
+        <div className="card-body"><div className="t-xs muted">No detailed metrics available (API did not return inputs object)</div></div>
       </div>
     );
   }
+  const expectedKeys = schema.map(s => s.key);
+  const apiKeys = Object.keys(inputs);
   const rows = schema
     .map(s => ({ ...s, value: inputs[s.key] }))
     .filter(r => r.value != null);
   if (rows.length === 0) {
+    const missing = expectedKeys.filter(k => !(k in inputs));
+    const allNull = expectedKeys.filter(k => k in inputs && inputs[k] == null);
+    if (typeof console !== 'undefined') {
+      console.warn(`[FactorInputs] ${title}: 0 renderable rows. API returned keys=${JSON.stringify(apiKeys)}, missing=${JSON.stringify(missing)}, all-null=${JSON.stringify(allNull)}`);
+    }
     return (
       <div className="card">
         <div className="card-head"><div className="card-title">{title}</div></div>
-        <div className="card-body"><div className="t-xs muted">No detailed metrics available</div></div>
+        <div className="card-body">
+          <div className="t-xs muted">
+            No detailed metrics available — API returned {apiKeys.length} keys but all values are null.
+            See console for details.
+          </div>
+        </div>
       </div>
     );
   }
