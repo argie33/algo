@@ -67,7 +67,10 @@ class BuySellDailyLoader(OptimalLoader):
         if not rows:
             return None
 
-        signals = self._compute_signals(symbol, rows)
+        # Fetch trend template data for stage/trend info
+        trend_data = self._fetch_trend_data(symbol, start, end)
+
+        signals = self._compute_signals(symbol, rows, trend_data)
         if not signals:
             return None
 
@@ -108,7 +111,36 @@ class BuySellDailyLoader(OptimalLoader):
         finally:
             cur.close()
 
-    def _compute_signals(self, symbol: str, price_rows: List[dict]) -> Optional[List[dict]]:
+    def _fetch_trend_data(self, symbol: str, start: date, end: date) -> dict:
+        """Fetch trend template data (stage, trend direction) for date range."""
+        try:
+            conn = self._connect()
+            cur = conn.cursor()
+            try:
+                cur.execute(
+                    """
+                    SELECT date, weinstein_stage, trend_direction, minervini_trend_score
+                    FROM trend_template_data
+                    WHERE symbol = %s AND date >= %s AND date <= %s
+                    ORDER BY date ASC
+                    """,
+                    (symbol, start, end),
+                )
+                rows = cur.fetchall()
+                return {
+                    r[0].isoformat(): {
+                        "stage_number": int(r[1]) if r[1] else None,
+                        "trend_direction": r[2],
+                        "trend_score": float(r[3]) if r[3] else None,
+                    }
+                    for r in rows
+                }
+            finally:
+                cur.close()
+        except Exception:
+            return {}
+
+    def _compute_signals(self, symbol: str, price_rows: List[dict], trend_data: dict = None) -> Optional[List[dict]]:
         """Compute buy/sell signals from price data using technical indicators."""
         if len(price_rows) < 50:
             return None
@@ -119,6 +151,9 @@ class BuySellDailyLoader(OptimalLoader):
         except ImportError:
             log.error("pandas/numpy not available")
             return None
+
+        if trend_data is None:
+            trend_data = {}
 
         df = pd.DataFrame(price_rows)
         if not all(c in df.columns for c in ["close", "high", "low"]):
@@ -144,7 +179,7 @@ class BuySellDailyLoader(OptimalLoader):
 
         signals = []
         for _, row in df.iterrows():
-            sig = self._generate_signal_row(row, symbol, pd)
+            sig = self._generate_signal_row(row, symbol, pd, trend_data)
             if sig:
                 signals.append(sig)
 
@@ -199,8 +234,11 @@ class BuySellDailyLoader(OptimalLoader):
         adx = dx.rolling(period).mean()
         return adx
 
-    def _generate_signal_row(self, row, symbol: str, pd):
+    def _generate_signal_row(self, row, symbol: str, pd, trend_data: dict = None):
         """Generate buy/sell signal from indicators for one row."""
+        if trend_data is None:
+            trend_data = {}
+
         rsi = row.get("rsi")
         macd = row.get("macd")
         signal_line = row.get("signal_line")
@@ -242,10 +280,32 @@ class BuySellDailyLoader(OptimalLoader):
         # Buy level is the same as entry price (we're trading the close)
         buy_level = entry_price
 
+        # Fetch trend data for this date if available
+        date_str = date_val if isinstance(date_val, str) else str(date_val)
+        trend_info = trend_data.get(date_str, {})
+        stage_number = trend_info.get("stage_number")
+        trend_direction = trend_info.get("trend_direction")
+        trend_score = trend_info.get("trend_score")
+
+        # Derive market_stage from trend_direction
+        market_stage = trend_direction if trend_direction else None
+
+        # RS rating: convert RSI to 0-100 scale (RSI is already 0-100, so just use it as strength rating)
+        # This is a simplified RS rating; real RS rating would compare to market benchmark
+        rs_rating = _f(rsi) if _f(rsi) else None
+
+        # Base type detection (simplified)
+        base_type = "Unknown"
+        base_length_days = None
+        breakout_quality = "B"
+        pivot_price = close_price
+        buy_zone_start = entry_price
+        buy_zone_end = entry_price
+
         return {
             "symbol": symbol,
             "timeframe": self.timeframe_value,
-            "date": date_val if isinstance(date_val, str) else str(date_val),
+            "date": date_str,
             "open": _f(row.get("open")),
             "high": _f(row.get("high")),
             "low": _f(row.get("low")),
@@ -262,6 +322,17 @@ class BuySellDailyLoader(OptimalLoader):
             "sma_50": _f(row.get("sma_50")),
             "sma_200": _f(row.get("sma_200")),
             "ema_21": _f(row.get("ema_21")),
+            "stage_number": stage_number,
+            "market_stage": market_stage,
+            "rs_rating": rs_rating,
+            "base_type": base_type,
+            "base_length_days": base_length_days,
+            "breakout_quality": breakout_quality,
+            "pivot_price": pivot_price,
+            "buy_zone_start": buy_zone_start,
+            "buy_zone_end": buy_zone_end,
+            "trend_direction": trend_direction,
+            "trend_score": trend_score,
         }
 
     def transform(self, rows):
