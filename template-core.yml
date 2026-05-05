@@ -269,9 +269,12 @@ Resources:
       LaunchTemplate:
         LaunchTemplateId: !Ref BastionLaunchTemplate
         Version: !GetAtt BastionLaunchTemplate.LatestVersionNumber
-      MinSize: '1'
+      # Default to 0 so CloudFormation doesn't block waiting for Spot capacity.
+      # Scale up manually when a bastion is needed: aws autoscaling set-desired-capacity
+      # --auto-scaling-group-name stocks-bastion-asg --desired-capacity 1
+      MinSize: '0'
       MaxSize: '1'
-      DesiredCapacity: '1'
+      DesiredCapacity: '0'
       Tags:
         - Key: Name
           Value: stocks-bastion
