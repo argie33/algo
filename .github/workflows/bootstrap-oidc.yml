@@ -38,6 +38,32 @@ jobs:
             echo "No active hooks found"
           fi
 
+      - name: Delete stuck bootstrap stack if needed
+        run: |
+          echo "=== Checking for stuck stacks ==="
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-oidc \
+            --region us-east-1 \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+
+          echo "Stack status: $STATUS"
+
+          if [[ "$STATUS" == "ROLLBACK_COMPLETE" || "$STATUS" == "CREATE_FAILED" ]]; then
+            echo "Stack in bad state ($STATUS). Deleting to start fresh..."
+            aws cloudformation delete-stack \
+              --stack-name stocks-oidc \
+              --region us-east-1
+
+            echo "Waiting for stack deletion..."
+            aws cloudformation wait stack-delete-complete \
+              --stack-name stocks-oidc \
+              --region us-east-1 2>/dev/null || echo "Deletion in progress"
+            echo "Stack cleanup complete"
+          else
+            echo "Stack in healthy state: $STATUS"
+          fi
+
       - name: Deploy bootstrap CloudFormation
         run: |
           set -x  # Debug output
