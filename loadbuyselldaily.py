@@ -221,6 +221,27 @@ class BuySellDailyLoader(OptimalLoader):
         def _f(v):
             return float(v) if v is not None and not pd.isna(v) else None
 
+        # Compute entry price, stop level, and buy level
+        close_price = _f(row.get("close"))
+        high_price = _f(row.get("high"))
+        low_price = _f(row.get("low"))
+        atr = _f(row.get("atr"))
+
+        # Entry price is the close (for BUY signals, this is the signal trigger price)
+        entry_price = close_price
+
+        # Stop level: 2x ATR below the low of the signal day (for BUY signals)
+        # This provides a reasonable stop loss
+        if atr and low_price and signal_str == "BUY":
+            stop_level = low_price - (atr * 2.0)
+        elif atr and high_price and signal_str == "SELL":
+            stop_level = high_price + (atr * 2.0)
+        else:
+            stop_level = None
+
+        # Buy level is the same as entry price (we're trading the close)
+        buy_level = entry_price
+
         return {
             "symbol": symbol,
             "timeframe": self.timeframe_value,
@@ -232,6 +253,9 @@ class BuySellDailyLoader(OptimalLoader):
             "volume": int(row["volume"]) if row.get("volume") is not None and not pd.isna(row.get("volume")) else None,
             "signal": signal_str,
             "signal_type": signal_str.capitalize(),
+            "entry_price": entry_price,
+            "buylevel": buy_level,
+            "stoplevel": stop_level,
             "rsi": _f(rsi),
             "adx": _f(row.get("adx")),
             "atr": _f(row.get("atr")),
