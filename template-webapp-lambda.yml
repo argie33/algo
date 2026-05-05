@@ -174,8 +174,8 @@ Resources:
       ReservedConcurrentExecutions: 10
       MemorySize: 512
       Timeout: 300
-      SnapStart:
-        ApplyOn: PublishedVersions
+      # SnapStart is not supported for Node.js (only Java/Python/.NET).
+      # ARM64 already gives ~20% cost reduction; Node cold starts are short anyway.
       Environment:
         Variables:
           DB_SECRET_ARN: !ImportValue StocksApp-SecretArn
