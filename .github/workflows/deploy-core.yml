@@ -20,9 +20,30 @@ permissions:
   id-token: write
   contents: read
 
+env:
+  STACK_NAME: stocks-core
+  AWS_REGION: us-east-1
+
 jobs:
-  deploy-core:
+  pre-flight:
+    name: Pre-flight checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-pre-flight-core
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify AWS credentials
+        run: |
+          echo "✓ AWS credentials configured"
+          aws sts get-caller-identity
+
+  deploy:
     name: Deploy Core Infrastructure
+    needs: pre-flight
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -33,15 +54,13 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
           role-session-name: github-deploy-core
-          aws-region: us-east-1
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Check and cleanup failed CloudFormation stacks
         run: |
-          STACK_NAME="stocks-core"
-
           STATUS=$(aws cloudformation describe-stacks \
-            --stack-name "$STACK_NAME" \
-            --region us-east-1 \
+            --stack-name "${{ env.STACK_NAME }}" \
+            --region "${{ env.AWS_REGION }}" \
             --query 'Stacks[0].StackStatus' \
             --output text 2>/dev/null || echo "DOES_NOT_EXIST")
 
@@ -51,13 +70,13 @@ jobs:
           if [[ "$STATUS" != "DOES_NOT_EXIST" && "$STATUS" != "CREATE_COMPLETE" && "$STATUS" != "UPDATE_COMPLETE" ]]; then
             echo "Stack in bad state ($STATUS). Deleting to start fresh..."
             aws cloudformation delete-stack \
-              --stack-name "$STACK_NAME" \
-              --region us-east-1
+              --stack-name "${{ env.STACK_NAME }}" \
+              --region "${{ env.AWS_REGION }}"
 
             echo "Waiting for stack deletion..."
             aws cloudformation wait stack-delete-complete \
-              --stack-name "$STACK_NAME" \
-              --region us-east-1 2>/dev/null || true
+              --stack-name "${{ env.STACK_NAME }}" \
+              --region "${{ env.AWS_REGION }}" 2>/dev/null || true
             echo "Stack cleanup complete. Will create fresh."
           fi
 
@@ -67,14 +86,19 @@ jobs:
           # (changeset waiting for approval), delete and retry. Otherwise wait it out.
           for i in $(seq 1 60); do
             STATUS=$(aws cloudformation describe-stacks \
-              --stack-name stocks-core --region us-east-1 \
+              --stack-name "${{ env.STACK_NAME }}" \
+              --region "${{ env.AWS_REGION }}" \
               --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo NOT_FOUND)
 
             if [ "$STATUS" = "REVIEW_IN_PROGRESS" ]; then
               echo "Stack stuck in REVIEW_IN_PROGRESS (changeset waiting). Deleting to retry..."
-              aws cloudformation delete-stack --stack-name stocks-core --region us-east-1
+              aws cloudformation delete-stack \
+                --stack-name "${{ env.STACK_NAME }}" \
+                --region "${{ env.AWS_REGION }}"
               echo "Waiting for stack deletion..."
-              aws cloudformation wait stack-delete-complete --stack-name stocks-core --region us-east-1 2>/dev/null || true
+              aws cloudformation wait stack-delete-complete \
+                --stack-name "${{ env.STACK_NAME }}" \
+                --region "${{ env.AWS_REGION }}" 2>/dev/null || true
               echo "Stack deleted. Will proceed with fresh deployment."
               break
             fi
@@ -101,9 +125,9 @@ jobs:
 
           aws cloudformation deploy \
             --template-file template-core.yml \
-            --stack-name stocks-core \
+            --stack-name "${{ env.STACK_NAME }}" \
             --capabilities CAPABILITY_NAMED_IAM \
-            --region us-east-1 \
+            --region "${{ env.AWS_REGION }}" \
             --no-fail-on-empty-changeset
 
           echo "Core stack deployment complete"
@@ -113,8 +137,8 @@ jobs:
         run: |
           echo "=== ALL events with a status reason (root cause is the FIRST one chronologically) ==="
           aws cloudformation describe-stack-events \
-            --stack-name stocks-core \
-            --region us-east-1 \
+            --stack-name "${{ env.STACK_NAME }}" \
+            --region "${{ env.AWS_REGION }}" \
             --max-items 60 \
             --query 'reverse(StackEvents[?ResourceStatusReason != null && ResourceStatusReason != `Resource creation cancelled` && ResourceStatusReason != `Resource update cancelled`].[Timestamp,LogicalResourceId,ResourceType,ResourceStatus,ResourceStatusReason])' \
             --output table || echo "(no events available)"
@@ -122,15 +146,43 @@ jobs:
           echo ""
           echo "=== Current stack status ==="
           aws cloudformation describe-stacks \
-            --stack-name stocks-core \
-            --region us-east-1 \
+            --stack-name "${{ env.STACK_NAME }}" \
+            --region "${{ env.AWS_REGION }}" \
             --query 'Stacks[0].[StackStatus,StackStatusReason]' \
             --output table || echo "(stack does not exist)"
 
       - name: Verify core stack outputs
         run: |
           aws cloudformation describe-stacks \
-            --stack-name stocks-core \
-            --region us-east-1 \
+            --stack-name "${{ env.STACK_NAME }}" \
+            --region "${{ env.AWS_REGION }}" \
             --query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' \
             --output table
+
+  rollback-on-failure:
+    name: Rollback on failure
+    needs: [deploy]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-rollback-core
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Clean up failed stack
+        run: |
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "${{ env.STACK_NAME }}" \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo MISSING)
+          if [[ "$STATUS" =~ FAILED|ROLLBACK ]]; then
+            echo "Cleaning up ${{ env.STACK_NAME }} (status: $STATUS)..."
+            aws cloudformation delete-stack --stack-name "${{ env.STACK_NAME }}" --region "${{ env.AWS_REGION }}"
+            aws cloudformation wait stack-delete-complete --stack-name "${{ env.STACK_NAME }}" --region "${{ env.AWS_REGION }}" || true
+            echo "✅ Stack cleaned. Re-run deploy workflow to retry."
+          else
+            echo "Stack is in '$STATUS' state — no cleanup needed"
+          fi

@@ -1,7 +1,7 @@
 # ============================================================
 # Stock Analytics Platform — template-data-infrastructure.yml
 # Layer:   Data (RDS PostgreSQL, ECS cluster, Secrets)
-# Stack:   stocks-app (will be stocks-data after Phase 3)
+# Stack:   stocks-data
 # Exports: StocksApp-* (DBEndpoint, SecretArn, ClusterArn, etc)
 # Imports: From stocks-core (VPC, subnets)
 # Deploy:  .github/workflows/deploy-data-infrastructure.yml
@@ -122,11 +122,11 @@ Resources:
     Properties:
       Name: !Sub stocks-algo-secrets-${AWS::StackName}-${AWS::Region}
       Description: "Alpaca API credentials + algo runtime secrets — read by algo orchestrator + alpaca portfolio sync ECS tasks"
-      SecretString: !Sub |
+      SecretString: |
         {
-          "APCA_API_KEY_ID": "${AlpacaApiKeyId}",
-          "APCA_API_SECRET_KEY": "${AlpacaApiSecretKey}",
-          "APCA_API_BASE_URL": "${AlpacaBaseUrl}",
+          "APCA_API_KEY_ID": "",
+          "APCA_API_SECRET_KEY": "",
+          "APCA_API_BASE_URL": "",
           "ALPACA_PAPER_TRADING": "true"
         }
   ### 5) ECS Cluster ###

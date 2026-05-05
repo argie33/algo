@@ -24,8 +24,45 @@ env:
   RDS_ID: stocks
 
 jobs:
-  deploy-infrastructure:
+  pre-flight:
+    name: Pre-flight checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-pre-flight-data
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify dependency stacks exist
+        run: |
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-core \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "MISSING")
+          if [[ "$STATUS" != *"COMPLETE"* ]]; then
+            echo "ERROR: stocks-core must be deployed first (status: $STATUS)"
+            exit 1
+          fi
+          echo "✅ stocks-core: $STATUS"
+
+      - name: Verify core exports exist
+        run: |
+          for EXPORT in StocksCore-PublicSubnet1Id StocksCore-PublicSubnet2Id StocksCore-VpcId; do
+            VALUE=$(aws cloudformation list-exports \
+              --query "Exports[?Name=='$EXPORT'].Value" \
+              --output text 2>/dev/null || echo "")
+            if [ -z "$VALUE" ] || [ "$VALUE" = "None" ]; then
+              echo "ERROR: Export $EXPORT not found in stocks-core"
+              exit 1
+            fi
+            echo "✅ $EXPORT"
+          done
+
+  deploy:
     name: Deploy stocks-data
+    needs: pre-flight
     runs-on: ubuntu-latest
 
     steps:
@@ -208,3 +245,30 @@ jobs:
             --query "Exports[?starts_with(Name, 'StocksApp-')].[Name,Value]" \
             --output table
 
+  rollback-on-failure:
+    name: Rollback on failure
+    needs: [deploy]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-rollback-data
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Clean up failed stack
+        run: |
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "${{ env.STACK_NAME }}" \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo MISSING)
+          if [[ "$STATUS" =~ FAILED|ROLLBACK ]]; then
+            echo "Cleaning up ${{ env.STACK_NAME }} (status: $STATUS)..."
+            aws cloudformation delete-stack --stack-name "${{ env.STACK_NAME }}" --region "${{ env.AWS_REGION }}"
+            aws cloudformation wait stack-delete-complete --stack-name "${{ env.STACK_NAME }}" --region "${{ env.AWS_REGION }}" || true
+            echo "✅ Stack cleaned. Re-run deploy workflow to retry."
+          else
+            echo "Stack is in '$STATUS' state — no cleanup needed"
+          fi

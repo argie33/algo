@@ -169,7 +169,21 @@
       "Bash(bash VERIFY_QUICK_WINS.sh)",
       "Bash(gh workflow *)",
       "Bash(cd /home/user/code/algo)",
-      "Bash(python3 monitor_system.py)"
+      "Bash(python3 monitor_system.py)",
+      "PowerShell(aws lambda get-function *)",
+      "Bash(mkdir -p lambda-deploy)",
+      "Bash(cp ../lambda_function.py .)",
+      "Bash(cp ../algo_*.py .)",
+      "Bash(cp ../requirements.txt .)",
+      "Bash(pip install *)",
+      "Bash(curl -s -H \"Accept: application/vnd.github.v3+json\" https://api.github.com/repos/argie33/algo/actions/workflows/deploy-algo.yml/runs?head_sha=39d4478d8)",
+      "Bash(aws lambda *)",
+      "Bash(curl -s https://api.github.com/repos/argie33/algo/actions/runs?event=push)",
+      "Bash(docker-compose up *)",
+      "PowerShell(docker-compose *)",
+      "Bash(grep -E \"\\\\.\\(md|txt|log|sh\\)$\")",
+      "PowerShell(netstat *)",
+      "Bash(psql -h localhost -U stocks -d stocks -c \"SELECT 1;\")"
     ]
   }
 }
