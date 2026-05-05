@@ -317,63 +317,16 @@ jobs:
           echo "CF_BUCKET=$BUCKET" >> $GITHUB_OUTPUT
           echo "Using S3 bucket: $BUCKET"
 
-      - name: Deploy stocks-app-stack (RDS/Secrets/ECS Cluster)
+      - name: Verify stocks-app-stack exists (deployed by deploy-app-infrastructure workflow)
         run: |
-          echo "=========================================="
-          echo "🚀 Deploying stocks-app-stack (RDS, Secrets, ECS Cluster)"
-          echo "=========================================="
-
-          # Check current RDS status BEFORE deployment
-          echo "📊 BEFORE DEPLOYMENT - RDS Status:"
-          aws rds describe-db-instances \
-            --db-instance-identifier stocks \
-            --region us-east-1 \
-            --query 'DBInstances[0].[DBInstanceStatus,AllocatedStorage,MaxAllocatedStorage]' \
-            --output table || echo "RDS not found (first deployment)"
-          echo ""
-
-          # Deploy the stack
-          echo "Deploying stocks-app-stack with AllocatedStorage: 31GB..."
-          aws cloudformation deploy \
-            --stack-name stocks-app-stack \
-            --template-file template-app-stocks.yml \
-            --parameter-overrides \
-              RDSUsername=${{ secrets.RDS_USERNAME }} \
-              RDSPassword=${{ secrets.RDS_PASSWORD }} \
-              FREDApiKey=${{ secrets.FRED_API_KEY }} \
-            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
-            --s3-bucket ${{ steps.bucket.outputs.CF_BUCKET }}
-
-          echo ""
-          echo "✅ Stack deployment complete!"
-
-          # Check RDS status AFTER deployment
-          echo ""
-          echo "📊 AFTER DEPLOYMENT - RDS Status:"
-          aws rds describe-db-instances \
-            --db-instance-identifier stocks \
-            --region us-east-1 \
-            --query 'DBInstances[0].[DBInstanceStatus,AllocatedStorage,MaxAllocatedStorage]' \
-            --output table
-
-          # Validate storage increased
-          CURRENT_STORAGE=$(aws rds describe-db-instances \
-            --db-instance-identifier stocks \
-            --region us-east-1 \
-            --query 'DBInstances[0].AllocatedStorage' \
-            --output text)
-
-          if [ "$CURRENT_STORAGE" -ge "31" ]; then
-            echo ""
-            echo "✅ SUCCESS: RDS storage = ${CURRENT_STORAGE}GB!"
-          elif [ "$CURRENT_STORAGE" -eq "20" ]; then
-            echo ""
-            echo "⚠️ WARNING: RDS still at 20GB - storage was NOT updated"
-            echo "This may indicate CloudFormation detected no changes"
-          else
-            echo ""
-            echo "📊 INFO: RDS storage = ${CURRENT_STORAGE}GB"
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-app-stack --region us-east-1 \
+            --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo NOT_FOUND)
+          if [ "$STATUS" = "NOT_FOUND" ]; then
+            echo "stocks-app-stack does not exist. Run 'Deploy Infrastructure (RDS/ECS/Secrets)' first."
+            exit 1
           fi
+          echo "stocks-app-stack status: $STATUS"
 
       - name: Create missing log groups
         run: |
