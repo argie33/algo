@@ -395,7 +395,7 @@ jobs:
                   ParameterKey=EtfPriceWeeklyImageTag,ParameterValue=latest \
                   ParameterKey=EtfPriceMonthlyImageTag,ParameterValue=latest \
                   ParameterKey=TechnicalsDailyImageTag,ParameterValue=latest \
-                  ParameterKey=LoadDailyCompanyDataImageTag,ParameterValue=companyprofile-latest \
+                  ParameterKey=LoadDailyCompanyDataImageTag,ParameterValue=latest \
                   ParameterKey=EarningsEstimateImageTag,ParameterValue=latest \
                   ParameterKey=TechnicalsWeeklyImageTag,ParameterValue=latest \
                   ParameterKey=TechnicalsMonthlyImageTag,ParameterValue=latest \
@@ -419,9 +419,9 @@ jobs:
                   ParameterKey=LatestTechnicalsMonthlyImageTag,ParameterValue=latest \
                   ParameterKey=RevenueEstimateImageTag,ParameterValue=latest \
                   ParameterKey=EarningsHistoryImageTag,ParameterValue=latest \
-                  ParameterKey=AaiiImageTag,ParameterValue=aaiidata-latest \
-                  ParameterKey=FearGreedImageTag,ParameterValue=feargreed-latest \
-                  ParameterKey=NaaimImageTag,ParameterValue=naaim-latest \
+                  ParameterKey=AaiiImageTag,ParameterValue=latest \
+                  ParameterKey=FearGreedImageTag,ParameterValue=latest \
+                  ParameterKey=NaaimImageTag,ParameterValue=latest \
                   ParameterKey=EarningsMetricsImageTag,ParameterValue=latest \
                   ParameterKey=QuarterlyBalanceSheetImageTag,ParameterValue=latest \
                   ParameterKey=AnnualBalanceSheetImageTag,ParameterValue=latest \
@@ -435,16 +435,16 @@ jobs:
                   ParameterKey=GrowthMetricsImageTag,ParameterValue=latest \
                   ParameterKey=ValueMetricsImageTag,ParameterValue=latest \
                   ParameterKey=StockScoresImageTag,ParameterValue=latest \
-                  ParameterKey=BenchmarksImageTag,ParameterValue=benchmarks-latest \
-                  ParameterKey=AnalystUpgradeDowngradeImageTag,ParameterValue=analystupgradedowngrade-latest \
-                  ParameterKey=SectorDataImageTag,ParameterValue=sectordata-latest \
-                  ParameterKey=LoadFinancialsImageTag,ParameterValue=financials-latest \
-                  ParameterKey=LoadHistoricalImageTag,ParameterValue=historical-latest \
-                  ParameterKey=SectorsImageTag,ParameterValue=sectors-latest \
-                  ParameterKey=PositioningImageTag,ParameterValue=positioning-latest \
-                  ParameterKey=MomentumImageTag,ParameterValue=momentum-latest \
-                  ParameterKey=RiskMetricsImageTag,ParameterValue=riskmetrics-latest \
-                  ParameterKey=FundamentalMetricsImageTag,ParameterValue=fundamentalmetrics-latest \
+                  ParameterKey=BenchmarksImageTag,ParameterValue=latest \
+                  ParameterKey=AnalystUpgradeDowngradeImageTag,ParameterValue=latest \
+                  ParameterKey=SectorDataImageTag,ParameterValue=latest \
+                  ParameterKey=LoadFinancialsImageTag,ParameterValue=latest \
+                  ParameterKey=LoadHistoricalImageTag,ParameterValue=latest \
+                  ParameterKey=SectorsImageTag,ParameterValue=latest \
+                  ParameterKey=PositioningImageTag,ParameterValue=latest \
+                  ParameterKey=MomentumImageTag,ParameterValue=latest \
+                  ParameterKey=RiskMetricsImageTag,ParameterValue=latest \
+                  ParameterKey=FundamentalMetricsImageTag,ParameterValue=latest \
                   ParameterKey=TrendTemplateImageTag,ParameterValue=latest \
                   ParameterKey=MarketHealthImageTag,ParameterValue=latest \
                   ParameterKey=AlgoMetricsImageTag,ParameterValue=latest \
@@ -508,7 +508,7 @@ jobs:
                 ParameterKey=EtfPriceWeeklyImageTag,ParameterValue=latest \
                 ParameterKey=EtfPriceMonthlyImageTag,ParameterValue=latest \
                 ParameterKey=TechnicalsDailyImageTag,ParameterValue=latest \
-                ParameterKey=LoadDailyCompanyDataImageTag,ParameterValue=companyprofile-latest \
+                ParameterKey=LoadDailyCompanyDataImageTag,ParameterValue=latest \
                 ParameterKey=EarningsEstimateImageTag,ParameterValue=latest \
                 ParameterKey=TechnicalsWeeklyImageTag,ParameterValue=latest \
                 ParameterKey=TechnicalsMonthlyImageTag,ParameterValue=latest \
@@ -532,9 +532,9 @@ jobs:
                 ParameterKey=LatestTechnicalsMonthlyImageTag,ParameterValue=latest \
                 ParameterKey=RevenueEstimateImageTag,ParameterValue=latest \
                 ParameterKey=EarningsHistoryImageTag,ParameterValue=latest \
-                ParameterKey=AaiiImageTag,ParameterValue=aaiidata-latest \
-                ParameterKey=FearGreedImageTag,ParameterValue=feargreed-latest \
-                ParameterKey=NaaimImageTag,ParameterValue=naaim-latest \
+                ParameterKey=AaiiImageTag,ParameterValue=latest \
+                ParameterKey=FearGreedImageTag,ParameterValue=latest \
+                ParameterKey=NaaimImageTag,ParameterValue=latest \
                 ParameterKey=EarningsMetricsImageTag,ParameterValue=latest \
                 ParameterKey=QuarterlyBalanceSheetImageTag,ParameterValue=latest \
                 ParameterKey=AnnualBalanceSheetImageTag,ParameterValue=latest \
@@ -548,16 +548,16 @@ jobs:
                 ParameterKey=GrowthMetricsImageTag,ParameterValue=latest \
                 ParameterKey=ValueMetricsImageTag,ParameterValue=latest \
                 ParameterKey=StockScoresImageTag,ParameterValue=latest \
-                ParameterKey=BenchmarksImageTag,ParameterValue=benchmarks-latest \
-                ParameterKey=AnalystUpgradeDowngradeImageTag,ParameterValue=analystupgradedowngrade-latest \
-                ParameterKey=SectorDataImageTag,ParameterValue=sectordata-latest \
-                ParameterKey=LoadFinancialsImageTag,ParameterValue=financials-latest \
-                ParameterKey=LoadHistoricalImageTag,ParameterValue=historical-latest \
-                ParameterKey=SectorsImageTag,ParameterValue=sectors-latest \
-                ParameterKey=PositioningImageTag,ParameterValue=positioning-latest \
-                ParameterKey=MomentumImageTag,ParameterValue=momentum-latest \
-                ParameterKey=RiskMetricsImageTag,ParameterValue=riskmetrics-latest \
-                ParameterKey=FundamentalMetricsImageTag,ParameterValue=fundamentalmetrics-latest \
+                ParameterKey=BenchmarksImageTag,ParameterValue=latest \
+                ParameterKey=AnalystUpgradeDowngradeImageTag,ParameterValue=latest \
+                ParameterKey=SectorDataImageTag,ParameterValue=latest \
+                ParameterKey=LoadFinancialsImageTag,ParameterValue=latest \
+                ParameterKey=LoadHistoricalImageTag,ParameterValue=latest \
+                ParameterKey=SectorsImageTag,ParameterValue=latest \
+                ParameterKey=PositioningImageTag,ParameterValue=latest \
+                ParameterKey=MomentumImageTag,ParameterValue=latest \
+                ParameterKey=RiskMetricsImageTag,ParameterValue=latest \
+                ParameterKey=FundamentalMetricsImageTag,ParameterValue=latest \
                 ParameterKey=TrendTemplateImageTag,ParameterValue=latest \
                 ParameterKey=MarketHealthImageTag,ParameterValue=latest \
                 ParameterKey=AlgoMetricsImageTag,ParameterValue=latest \
