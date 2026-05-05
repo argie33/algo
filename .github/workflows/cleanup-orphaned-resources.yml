@@ -21,6 +21,7 @@ on:
           - orphaned-ecr
           - all-stacks
           - bastion-only
+          - create-ecr-repo
 
 permissions:
   id-token: write
@@ -54,6 +55,26 @@ jobs:
             --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE CREATE_FAILED ROLLBACK_COMPLETE \
             --query "StackSummaries[?contains(StackName, 'stocks')].[StackName,StackStatus,LastUpdatedTime]" \
             --output table
+
+      - name: Recreate ECR repo stocks-app-registry (matches StocksCore-ContainerRepositoryUri)
+        if: ${{ inputs.action == 'create-ecr-repo' }}
+        run: |
+          REPO=stocks-app-registry
+          if aws ecr describe-repositories --repository-names $REPO --region us-east-1 2>/dev/null; then
+            echo "Repo $REPO already exists - nothing to do"
+          else
+            echo "Creating $REPO..."
+            aws ecr create-repository \
+              --repository-name $REPO \
+              --image-scanning-configuration scanOnPush=true \
+              --image-tag-mutability MUTABLE \
+              --region us-east-1
+            echo "Adding lifecycle policy..."
+            aws ecr put-lifecycle-policy \
+              --repository-name $REPO --region us-east-1 \
+              --lifecycle-policy-text '{"rules":[{"rulePriority":1,"selection":{"tagStatus":"any","countType":"sinceImagePushed","countUnit":"days","countNumber":30},"action":{"type":"expire"}}]}'
+            echo "Done"
+          fi
 
       - name: Scale bastion ASG to 0 + terminate instances (free CFN from waiting)
         if: ${{ inputs.action == 'bastion-only' || inputs.action == 'all-stacks' }}
