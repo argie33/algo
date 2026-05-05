@@ -276,24 +276,18 @@ jobs:
             --query 'Stacks[0].[StackStatus,StackStatusReason]' \
             --output table || echo "(stack does not exist)"
 
-      - name: Verify EventBridge rule
+      - name: Verify EventBridge Scheduler schedule
         run: |
-          echo "✅ Verifying EventBridge scheduler..."
+          echo "Verifying EventBridge Scheduler..."
 
-          RULE_NAME="algo-eod-orchestrator"
+          SCHEDULE_NAME="algo-eod-orchestrator"
 
-          # Check if rule exists
-          aws events describe-rule \
-            --name "$RULE_NAME" \
-            --region ${{ env.AWS_REGION }} 2>/dev/null && \
-            echo "✅ EventBridge rule exists: $RULE_NAME" || \
-            echo "⚠️  EventBridge rule not found (will be created by CloudFormation)"
-
-          # List all targets
-          aws events list-targets-by-rule \
-            --rule "$RULE_NAME" \
-            --region ${{ env.AWS_REGION }} 2>/dev/null | jq '.Targets[] | {Arn, Id}' || \
-            echo "No targets configured yet"
+          # We migrated from AWS::Events::Rule to AWS::Scheduler::Schedule (timezone-aware)
+          aws scheduler get-schedule \
+            --name "$SCHEDULE_NAME" \
+            --region ${{ env.AWS_REGION }} \
+            --query '{Name: Name, State: State, Expression: ScheduleExpression, Timezone: ScheduleExpressionTimezone, Target: Target.Arn}' \
+            --output table || echo "Schedule not found"
 
   manual-test:
     name: Manual Test (Optional)
