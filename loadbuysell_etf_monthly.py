@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# fan-out trigger 2026-05-05 — verify ECS task def + LOADER_FILE wiring
 """
 ETF Monthly Buy/Sell Signals Loader - Optimal Pattern.
 
