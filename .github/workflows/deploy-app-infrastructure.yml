@@ -17,9 +17,14 @@ permissions:
   id-token: write
   contents: read
 
+env:
+  AWS_REGION: us-east-1
+  STACK_NAME: stocks-app-stack
+  RDS_ID: stocks
+
 jobs:
   deploy-infrastructure:
-    name: Deploy CloudFormation Stack
+    name: Deploy stocks-app-stack
     runs-on: ubuntu-latest
 
     steps:
@@ -30,137 +35,142 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
-          role-session-name: github-deploy-infrastructure
-          aws-region: us-east-1
+          role-session-name: github-deploy-app-infra
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Check RDS status BEFORE deployment
+      - name: Inspect current state (stack + orphan RDS)
+        id: state
         run: |
-          echo "=========================================="
-          echo "📊 BEFORE DEPLOYMENT - RDS Status"
-          echo "=========================================="
-          aws rds describe-db-instances \
-            --db-instance-identifier stocks \
-            --region us-east-1 \
-            --query 'DBInstances[0].[DBInstanceStatus,AllocatedStorage,MaxAllocatedStorage,StorageType]' \
-            --output table
-          echo ""
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" --region "$AWS_REGION" \
+            --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo NOT_FOUND)
+          echo "stack_status=$STACK_STATUS"
+          echo "stack_status=$STACK_STATUS" >> $GITHUB_OUTPUT
 
-      - name: Deploy stocks-app-stack
+          RDS_EXISTS=$(aws rds describe-db-instances \
+            --db-instance-identifier "$RDS_ID" --region "$AWS_REGION" \
+            --query 'DBInstances[0].DBInstanceStatus' --output text 2>/dev/null || echo NONE)
+          echo "rds_exists=$RDS_EXISTS"
+          echo "rds_exists=$RDS_EXISTS" >> $GITHUB_OUTPUT
+
+      - name: Get CloudFormation templates bucket from core stack
+        id: bucket
         run: |
-          echo "=========================================="
-          echo "🚀 Deploying stocks-app-stack"
-          echo "=========================================="
-          echo "Template change: AllocatedStorage = 31GB (was 20GB)"
-          echo ""
+          CF_BUCKET=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
+            --output text --region "$AWS_REGION")
+          if [ -z "$CF_BUCKET" ] || [ "$CF_BUCKET" = "None" ]; then
+            echo "Core stack export StocksCore-CfTemplatesBucketName not found - core deploy must run first"
+            exit 1
+          fi
+          echo "bucket=$CF_BUCKET" >> $GITHUB_OUTPUT
 
-          # Try to update stack, capture output and exit code
+      - name: Upload template to S3 (template > 51200 bytes for inline)
+        run: |
+          aws s3 cp template-app-stocks.yml "s3://${{ steps.bucket.outputs.bucket }}/template-app-stocks.yml"
+
+      - name: Path A — IMPORT existing RDS into new stack (preserves data)
+        if: steps.state.outputs.stack_status == 'NOT_FOUND' && steps.state.outputs.rds_exists != 'NONE'
+        run: |
+          echo "Stack does not exist but RDS '$RDS_ID' is orphaned. Importing it into a new stack to preserve data."
+
+          CHANGE_SET=import-rds-$(date +%s)
+          aws cloudformation create-change-set \
+            --stack-name "$STACK_NAME" \
+            --change-set-name "$CHANGE_SET" \
+            --change-set-type IMPORT \
+            --resources-to-import "[{\"ResourceType\":\"AWS::RDS::DBInstance\",\"LogicalResourceId\":\"StocksDBInstance\",\"ResourceIdentifier\":{\"DBInstanceIdentifier\":\"$RDS_ID\"}}]" \
+            --template-url "https://${{ steps.bucket.outputs.bucket }}.s3.amazonaws.com/template-app-stocks.yml" \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --parameters \
+              ParameterKey=RDSUsername,ParameterValue="${{ secrets.RDS_USERNAME }}" \
+              ParameterKey=RDSPassword,ParameterValue="${{ secrets.RDS_PASSWORD }}" \
+              ParameterKey=FREDApiKey,ParameterValue="${{ secrets.FRED_API_KEY }}" \
+              ParameterKey=AlpacaApiKeyId,ParameterValue="${{ secrets.APCA_API_KEY_ID }}" \
+              ParameterKey=AlpacaApiSecretKey,ParameterValue="${{ secrets.APCA_API_SECRET_KEY }}" \
+            --region "$AWS_REGION"
+
+          echo "Waiting for change set to be created..."
+          aws cloudformation wait change-set-create-complete \
+            --stack-name "$STACK_NAME" --change-set-name "$CHANGE_SET" \
+            --region "$AWS_REGION"
+
+          echo "Executing import change set..."
+          aws cloudformation execute-change-set \
+            --stack-name "$STACK_NAME" --change-set-name "$CHANGE_SET" \
+            --region "$AWS_REGION"
+
+          aws cloudformation wait stack-import-complete \
+            --stack-name "$STACK_NAME" --region "$AWS_REGION"
+          echo "Import complete. Other resources will be created on the next normal update."
+
+      - name: Path B — CREATE fresh stack (no existing RDS)
+        if: steps.state.outputs.stack_status == 'NOT_FOUND' && steps.state.outputs.rds_exists == 'NONE'
+        run: |
+          echo "No stack and no RDS — creating fresh."
+          aws cloudformation create-stack \
+            --stack-name "$STACK_NAME" \
+            --template-url "https://${{ steps.bucket.outputs.bucket }}.s3.amazonaws.com/template-app-stocks.yml" \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --parameters \
+              ParameterKey=RDSUsername,ParameterValue="${{ secrets.RDS_USERNAME }}" \
+              ParameterKey=RDSPassword,ParameterValue="${{ secrets.RDS_PASSWORD }}" \
+              ParameterKey=FREDApiKey,ParameterValue="${{ secrets.FRED_API_KEY }}" \
+              ParameterKey=AlpacaApiKeyId,ParameterValue="${{ secrets.APCA_API_KEY_ID }}" \
+              ParameterKey=AlpacaApiSecretKey,ParameterValue="${{ secrets.APCA_API_SECRET_KEY }}" \
+            --region "$AWS_REGION"
+
+          aws cloudformation wait stack-create-complete \
+            --stack-name "$STACK_NAME" --region "$AWS_REGION"
+
+      - name: Path C — UPDATE existing stack
+        if: steps.state.outputs.stack_status != 'NOT_FOUND' && steps.state.outputs.stack_status != 'CREATE_FAILED' && steps.state.outputs.stack_status != 'ROLLBACK_COMPLETE'
+        run: |
+          echo "Stack exists (status=${{ steps.state.outputs.stack_status }}). Running update."
           UPDATE_OUTPUT=$(aws cloudformation update-stack \
-            --stack-name stocks-app-stack \
-            --region us-east-1 \
-            --template-body file://template-app-stocks.yml \
-            --capabilities CAPABILITY_IAM \
+            --stack-name "$STACK_NAME" \
+            --template-url "https://${{ steps.bucket.outputs.bucket }}.s3.amazonaws.com/template-app-stocks.yml" \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --parameters \
               ParameterKey=RDSUsername,UsePreviousValue=true \
               ParameterKey=RDSPassword,UsePreviousValue=true \
-              ParameterKey=FREDApiKey,UsePreviousValue=true 2>&1) || true
+              ParameterKey=FREDApiKey,UsePreviousValue=true \
+              ParameterKey=AlpacaApiKeyId,UsePreviousValue=true \
+              ParameterKey=AlpacaApiSecretKey,UsePreviousValue=true \
+              ParameterKey=AlpacaBaseUrl,UsePreviousValue=true \
+              ParameterKey=LogRetentionDays,UsePreviousValue=true \
+            --region "$AWS_REGION" 2>&1) || true
 
-          echo "CloudFormation response:"
-          echo "$UPDATE_OUTPUT"
-          echo ""
-
-          # Check if update was successful or no changes needed
-          if echo "$UPDATE_OUTPUT" | grep -iq "No updates"; then
-            echo "⚠️ WARNING: CloudFormation says 'No updates needed'"
-            echo "This means template drift - will attempt direct RDS modification"
-            exit 1  # Force workflow to next step
+          if echo "$UPDATE_OUTPUT" | grep -iq "No updates are to be performed"; then
+            echo "No updates needed."
           elif echo "$UPDATE_OUTPUT" | grep -q "StackId"; then
-            echo "✅ Stack update initiated!"
-            echo "⏳ Waiting for stack update to complete (10-15 minutes)..."
-            echo ""
             aws cloudformation wait stack-update-complete \
-              --stack-name stocks-app-stack \
-              --region us-east-1
-            echo ""
-            echo "✅ Stack update complete!"
+              --stack-name "$STACK_NAME" --region "$AWS_REGION"
+            echo "Update complete."
           else
-            echo "⚠️ Unexpected CloudFormation response"
-            echo "Checking current stack status..."
-            aws cloudformation describe-stacks \
-              --stack-name stocks-app-stack \
-              --region us-east-1 \
-              --query 'Stacks[0].[StackStatus,StackStatusReason]' \
-              --output table
+            echo "Unexpected response:"
+            echo "$UPDATE_OUTPUT"
             exit 1
           fi
 
-      - name: Check CloudFormation stack events
-        if: success() || failure()
+      - name: Diagnose stack events on failure
+        if: failure()
         run: |
-          echo "=========================================="
-          echo "📋 CloudFormation Stack Events"
-          echo "=========================================="
+          echo "=== Root-cause events (cascade noise filtered) ==="
           aws cloudformation describe-stack-events \
-            --stack-name stocks-app-stack \
-            --region us-east-1 \
-            --max-items 15 \
-            --query 'StackEvents[].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]' \
-            --output table
+            --stack-name "$STACK_NAME" --region "$AWS_REGION" --max-items 60 \
+            --query 'reverse(StackEvents[?ResourceStatusReason != null && ResourceStatusReason != `Resource creation cancelled` && ResourceStatusReason != `Resource update cancelled`].[Timestamp,LogicalResourceId,ResourceType,ResourceStatus,ResourceStatusReason])' \
+            --output table || echo "(no events)"
           echo ""
+          echo "=== Stack status ==="
+          aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" --region "$AWS_REGION" \
+            --query 'Stacks[0].[StackStatus,StackStatusReason]' --output table || echo "(no stack)"
 
-      - name: Check RDS status AFTER deployment
-        if: success() || failure()
-        run: |
-          echo "=========================================="
-          echo "📊 AFTER DEPLOYMENT - RDS Status"
-          echo "=========================================="
-          RDS_STATUS=$(aws rds describe-db-instances \
-            --db-instance-identifier stocks \
-            --region us-east-1 \
-            --query 'DBInstances[0].[DBInstanceStatus,AllocatedStorage,MaxAllocatedStorage,StorageType,PendingModifiedValues]' \
-            --output json)
-
-          echo "$RDS_STATUS" | jq -r '
-            "Status: \(.[0])",
-            "Current Storage: \(.[1])GB",
-            "Max Autoscaling: \(.[2] // "None")GB",
-            "Storage Type: \(.[3])",
-            "Pending Changes: \(.[4] | if . == {} then "None" else . end)"
-          '
-          echo ""
-
-          # Check if storage actually increased
-          CURRENT_STORAGE=$(echo "$RDS_STATUS" | jq -r '.[1]')
-          if [ "$CURRENT_STORAGE" -ge "31" ]; then
-            echo "✅ SUCCESS: RDS storage increased to ${CURRENT_STORAGE}GB!"
-          elif [ "$CURRENT_STORAGE" -eq "20" ]; then
-            echo "❌ FAILED: RDS still at 20GB - storage was NOT updated"
-            echo "This indicates CloudFormation drift or permissions issue"
-            exit 1
-          else
-            echo "⚠️ WARNING: RDS storage is ${CURRENT_STORAGE}GB (expected 31GB)"
-          fi
-
-      - name: Summary
+      - name: Verify exports for downstream stacks
         if: success()
         run: |
-          FINAL_STORAGE=$(aws rds describe-db-instances \
-            --db-instance-identifier stocks \
-            --region us-east-1 \
-            --query 'DBInstances[0].AllocatedStorage' \
-            --output text)
-
-          MAX_STORAGE=$(aws rds describe-db-instances \
-            --db-instance-identifier stocks \
-            --region us-east-1 \
-            --query 'DBInstances[0].MaxAllocatedStorage' \
-            --output text)
-
-          echo "### ✅ Infrastructure Deployment Successful" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Stack:** stocks-app-stack" >> $GITHUB_STEP_SUMMARY
-          echo "**Region:** us-east-1" >> $GITHUB_STEP_SUMMARY
-          echo "**RDS Storage:** ${FINAL_STORAGE}GB (was 20GB)" >> $GITHUB_STEP_SUMMARY
-          echo "**Max Autoscaling:** ${MAX_STORAGE}GB" >> $GITHUB_STEP_SUMMARY
-          echo "**Status:** UPDATE_COMPLETE" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🎉 Database storage successfully expanded!" >> $GITHUB_STEP_SUMMARY
+          echo "=== StocksApp-* exports (downstream needs these) ==="
+          aws cloudformation list-exports --region "$AWS_REGION" \
+            --query "Exports[?starts_with(Name, 'StocksApp-')].[Name,Value]" \
+            --output table
