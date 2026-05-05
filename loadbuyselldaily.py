@@ -356,8 +356,6 @@ class BuySellDailyLoader(OptimalLoader):
             "pivot_price": pivot_price,
             "buy_zone_start": buy_zone_start,
             "buy_zone_end": buy_zone_end,
-            "trend_direction": trend_direction,
-            "trend_score": trend_score,
         }
 
     def transform(self, rows):
