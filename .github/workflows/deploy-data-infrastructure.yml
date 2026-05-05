@@ -8,6 +8,7 @@ on:
       - template-data-infrastructure.yml
       - .github/workflows/deploy-data-infrastructure.yml
   workflow_dispatch:
+  workflow_call:
 
 concurrency:
   group: deploy-app-infrastructure-stocks-data

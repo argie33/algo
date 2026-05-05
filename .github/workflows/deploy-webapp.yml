@@ -9,6 +9,7 @@ on:
       - 'template-webapp.yml'
       - '.github/workflows/deploy-webapp.yml'
   workflow_dispatch:
+  workflow_call:
 
 concurrency:
   group: deploy-webapp-stocks-webapp-dev
