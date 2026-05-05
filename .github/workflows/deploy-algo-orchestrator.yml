@@ -6,24 +6,11 @@ on:
       - 'algo_*.py'
       - 'lambda_function.py'
       - 'template-algo-orchestrator.yml'
-      - 'requirements-lambda.txt'
+      - 'requirements.txt'
       - '.github/workflows/deploy-algo-orchestrator.yml'
     branches:
       - main
   workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Deployment environment'
-        required: false
-        default: 'dev'
-        type: choice
-        options:
-          - dev
-          - prod
-
-concurrency:
-  group: deploy-algo-orchestrator
-  cancel-in-progress: false
 
 permissions:
   id-token: write
@@ -31,22 +18,18 @@ permissions:
 
 env:
   AWS_REGION: us-east-1
-  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-  AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
 
 jobs:
-  build-and-deploy:
-    name: Build and Deploy Algo Lambda
+  deploy:
+    name: Deploy Algo Lambda
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
-          role-session-name: github-algo-deploy
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Set up Python
@@ -54,64 +37,45 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Create Lambda deployment package
+      - name: Build Lambda package
         run: |
-          mkdir -p lambda-build
-          cd lambda-build
+          mkdir -p lambda-pkg
+          cd lambda-pkg
 
-          # Copy Lambda function and all algo code
+          # Copy all algo code
           cp ../lambda_function.py .
           cp ../algo_*.py .
-          cp ../.env.local . 2>/dev/null || true
+          cp ../run_eod_loaders.sh . 2>/dev/null || true
 
-          # Install dependencies with proper binary support
-          pip install -r ../requirements-lambda.txt -t . --upgrade
+          # Install dependencies with binary support for Amazon Linux
+          pip install -r ../requirements.txt -t . --only-binary=:all:
 
-          # Package as zip
-          zip -r ../algo-orchestrator.zip . -x "*.pyc" "__pycache__/*"
+          # Create deployment zip
+          zip -r ../algo-orchestrator.zip . -x "*.pyc" "__pycache__/*" ".git/*"
 
           cd ..
           ls -lh algo-orchestrator.zip
+          unzip -l algo-orchestrator.zip | grep -E "psycopg2|algo_|lambda"
 
-      - name: Upload Lambda code to S3
+      - name: Update Lambda function
         run: |
-          aws s3 cp algo-orchestrator.zip \
-            s3://${AWS_ACCOUNT_ID}-algo-lambda-code/algo-orchestrator.zip
+          aws lambda update-function-code \
+            --function-name algo-orchestrator \
+            --zip-file fileb://algo-orchestrator.zip \
+            --region ${{ env.AWS_REGION }}
 
-      - name: Deploy CloudFormation stack
-        run: |
-          aws cloudformation deploy \
-            --template-file template-algo-orchestrator.yml \
-            --stack-name algo-orchestrator-stack \
-            --parameter-overrides \
-              LambdaFunctionCodeBucket="${AWS_ACCOUNT_ID}-algo-lambda-code" \
-              LambdaFunctionCodeKey="algo-orchestrator.zip" \
-              DatabaseSecretArn="arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:stocks-db-credentials-*" \
-              DryRunMode="true" \
-              ExecutionMode="paper" \
-              Environment="dev" \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --no-fail-on-empty-changeset
+          # Wait for update
+          sleep 5
 
-      - name: Test Lambda function
-        run: |
-          FUNCTION_NAME=$(aws cloudformation describe-stacks \
-            --stack-name algo-orchestrator-stack \
-            --query 'Stacks[0].Outputs[?OutputKey==`LambdaFunctionName`].OutputValue' \
-            --output text)
-
-          echo "Testing Lambda: $FUNCTION_NAME"
+          # Test the function
           aws lambda invoke \
-            --function-name "$FUNCTION_NAME" \
+            --function-name algo-orchestrator \
+            --region ${{ env.AWS_REGION }} \
             --payload '{}' \
-            /tmp/lambda-test-output.json
+            /tmp/test-output.json
 
-          cat /tmp/lambda-test-output.json
+          cat /tmp/test-output.json
 
-      - name: Deployment Summary
-        run: |
-          echo "=== Deployment Complete ==="
-          echo "Lambda: algo-orchestrator"
-          echo "Stack: algo-orchestrator-stack"
-          echo "Region: ${{ env.AWS_REGION }}"
-          echo "Code: algo-orchestrator.zip"
+      - name: Success
+        if: success()
+        run: echo "Lambda deployed successfully"
