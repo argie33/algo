@@ -68,9 +68,9 @@ class BuySellDailyLoader(OptimalLoader):
             return None
 
         # Fetch trend template data for stage/trend info
-        trend_data, fallback_trend = self._fetch_trend_data(symbol, start, end)
+        trend_data = self._fetch_trend_data(symbol, start, end)
 
-        signals = self._compute_signals(symbol, rows, trend_data, fallback_trend)
+        signals = self._compute_signals(symbol, rows, trend_data)
         if not signals:
             return None
 
@@ -111,13 +111,12 @@ class BuySellDailyLoader(OptimalLoader):
         finally:
             cur.close()
 
-    def _fetch_trend_data(self, symbol: str, start: date, end: date) -> tuple:
-        """Fetch trend template data (stage, trend direction) for date range and most recent fallback."""
+    def _fetch_trend_data(self, symbol: str, start: date, end: date) -> dict:
+        """Fetch trend template data (stage, trend direction) for date range."""
         try:
             conn = self._connect()
             cur = conn.cursor()
             try:
-                # Fetch trend data for the requested range
                 cur.execute(
                     """
                     SELECT date, weinstein_stage, trend_direction, minervini_trend_score
@@ -128,7 +127,7 @@ class BuySellDailyLoader(OptimalLoader):
                     (symbol, start, end),
                 )
                 rows = cur.fetchall()
-                trend_by_date = {
+                return {
                     r[0].isoformat(): {
                         "stage_number": int(r[1]) if r[1] else None,
                         "trend_direction": r[2],
@@ -136,32 +135,12 @@ class BuySellDailyLoader(OptimalLoader):
                     }
                     for r in rows
                 }
-
-                # Also fetch the most recent trend data for fallback
-                cur.execute(
-                    """
-                    SELECT weinstein_stage, trend_direction, minervini_trend_score
-                    FROM trend_template_data
-                    WHERE symbol = %s AND date <= %s
-                    ORDER BY date DESC
-                    LIMIT 1
-                    """,
-                    (symbol, end),
-                )
-                fallback = cur.fetchone()
-                fallback_trend = {
-                    "stage_number": int(fallback[0]) if fallback and fallback[0] else None,
-                    "trend_direction": fallback[1] if fallback else None,
-                    "trend_score": float(fallback[2]) if fallback and fallback[2] else None,
-                } if fallback else {}
-
-                return trend_by_date, fallback_trend
             finally:
                 cur.close()
         except Exception:
-            return {}, {}
+            return {}
 
-    def _compute_signals(self, symbol: str, price_rows: List[dict], trend_data: dict = None, fallback_trend: dict = None) -> Optional[List[dict]]:
+    def _compute_signals(self, symbol: str, price_rows: List[dict], trend_data: dict = None) -> Optional[List[dict]]:
         """Compute buy/sell signals from price data using technical indicators."""
         if len(price_rows) < 50:
             return None
@@ -175,8 +154,6 @@ class BuySellDailyLoader(OptimalLoader):
 
         if trend_data is None:
             trend_data = {}
-        if fallback_trend is None:
-            fallback_trend = {}
 
         df = pd.DataFrame(price_rows)
         if not all(c in df.columns for c in ["close", "high", "low"]):
@@ -202,7 +179,7 @@ class BuySellDailyLoader(OptimalLoader):
 
         signals = []
         for _, row in df.iterrows():
-            sig = self._generate_signal_row(row, symbol, pd, trend_data, fallback_trend)
+            sig = self._generate_signal_row(row, symbol, pd, trend_data)
             if sig:
                 signals.append(sig)
 
@@ -257,12 +234,10 @@ class BuySellDailyLoader(OptimalLoader):
         adx = dx.rolling(period).mean()
         return adx
 
-    def _generate_signal_row(self, row, symbol: str, pd, trend_data: dict = None, fallback_trend: dict = None):
+    def _generate_signal_row(self, row, symbol: str, pd, trend_data: dict = None):
         """Generate buy/sell signal from indicators for one row."""
         if trend_data is None:
             trend_data = {}
-        if fallback_trend is None:
-            fallback_trend = {}
 
         rsi = row.get("rsi")
         macd = row.get("macd")
@@ -305,19 +280,19 @@ class BuySellDailyLoader(OptimalLoader):
         # Buy level is the same as entry price (we're trading the close)
         buy_level = entry_price
 
-        # Fetch trend data for this date if available, otherwise use fallback
+        # Fetch trend data for this date if available
         date_str = date_val if isinstance(date_val, str) else str(date_val)
-        trend_info = trend_data.get(date_str, fallback_trend)
+        trend_info = trend_data.get(date_str, {})
         stage_number = trend_info.get("stage_number")
         trend_direction = trend_info.get("trend_direction")
-        trend_score = trend_info.get("trend_score")
 
-        # Derive market_stage from trend_direction
+        # Derive market_stage from trend_direction (real data only)
         market_stage = trend_direction if trend_direction else None
 
-        # RS rating: convert RSI to 0-100 scale (RSI is already 0-100, so just use it as strength rating)
+        # RS rating: convert RSI to 0-100 scale as integer (RSI is already 0-100)
         # This is a simplified RS rating; real RS rating would compare to market benchmark
-        rs_rating = _f(rsi) if _f(rsi) else None
+        rsi_val = _f(rsi)
+        rs_rating = int(round(rsi_val)) if rsi_val is not None else None
 
         # Base type detection (simplified)
         base_type = "Unknown"
