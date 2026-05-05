@@ -14,7 +14,7 @@ on:
   workflow_call:
 
 concurrency:
-  group: deploy-algo-stocks-algo-dev
+  group: deploy-algo-stocks-algo-orchestrator
   cancel-in-progress: false
 
 permissions:
@@ -75,7 +75,7 @@ jobs:
 
       - name: Check and cleanup failed CloudFormation stacks
         run: |
-          STACK_NAME="stocks-algo-dev"
+          STACK_NAME="stocks-algo-orchestrator"
 
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name "$STACK_NAME" \
@@ -102,7 +102,7 @@ jobs:
         run: |
           for i in $(seq 1 60); do
             STATUS=$(aws cloudformation describe-stacks \
-              --stack-name stocks-algo-dev --region us-east-1 \
+              --stack-name stocks-algo-orchestrator --region us-east-1 \
               --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo NOT_FOUND)
             case "$STATUS" in
               *_IN_PROGRESS)
@@ -167,7 +167,7 @@ jobs:
 
           aws cloudformation deploy \
             --template-file template-algo.yml \
-            --stack-name stocks-algo-dev \
+            --stack-name stocks-algo-orchestrator \
             --parameter-overrides \
               LambdaFunctionCodeBucket="${{ steps.bucket.outputs.bucket }}" \
               LambdaFunctionCodeKey="algo_orchestrator.zip" \
@@ -187,7 +187,7 @@ jobs:
         run: |
           echo "=== ALL events with a status reason ==="
           aws cloudformation describe-stack-events \
-            --stack-name stocks-algo-dev \
+            --stack-name stocks-algo-orchestrator \
             --region us-east-1 \
             --max-items 60 \
             --query 'reverse(StackEvents[?ResourceStatusReason != null && ResourceStatusReason != `Resource creation cancelled` && ResourceStatusReason != `Resource update cancelled`].[Timestamp,LogicalResourceId,ResourceType,ResourceStatus,ResourceStatusReason])' \
@@ -196,7 +196,7 @@ jobs:
           echo ""
           echo "=== Current stack status ==="
           aws cloudformation describe-stacks \
-            --stack-name stocks-algo-dev \
+            --stack-name stocks-algo-orchestrator \
             --region us-east-1 \
             --query 'Stacks[0].[StackStatus,StackStatusReason]' \
             --output table || echo "(stack does not exist)"
@@ -204,7 +204,7 @@ jobs:
       - name: Verify algo stack outputs
         run: |
           aws cloudformation describe-stacks \
-            --stack-name stocks-algo-dev \
+            --stack-name stocks-algo-orchestrator \
             --region us-east-1 \
             --query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' \
             --output table
@@ -224,7 +224,7 @@ jobs:
 
       - name: Clean up failed stack
         run: |
-          STACK_NAME="stocks-algo-dev"
+          STACK_NAME="stocks-algo-orchestrator"
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name "$STACK_NAME" \
             --query 'Stacks[0].StackStatus' \
