@@ -216,3 +216,120 @@ jobs:
           aws cloudformation list-exports --region "$AWS_REGION" \
             --query "Exports[?starts_with(Name, 'StocksApp-')].[Name,Value]" \
             --output table
+
+      - name: Set up Python for TimescaleDB
+        if: success()
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Enable TimescaleDB on RDS
+        if: success()
+        run: |
+          pip install psycopg2-binary --quiet
+          python3 - <<'PYTHON_EOF'
+          import psycopg2
+          import sys
+
+          # Get RDS endpoint
+          import subprocess
+          result = subprocess.run([
+              'aws', 'cloudformation', 'list-exports',
+              '--region', 'us-east-1',
+              '--query', "Exports[?Name=='StocksApp-DBEndpoint'].Value",
+              '--output', 'text'
+          ], capture_output=True, text=True)
+          db_host = result.stdout.strip()
+          if not db_host or db_host == 'None':
+              print("ERROR: Could not get RDS endpoint")
+              sys.exit(1)
+
+          db_user = "${{ secrets.RDS_USERNAME }}"
+          db_password = "${{ secrets.RDS_PASSWORD }}"
+          db_name = "stocks"
+
+          print(f"Enabling TimescaleDB on {db_host}...")
+
+          try:
+              conn = psycopg2.connect(
+                  host=db_host,
+                  port=5432,
+                  user=db_user,
+                  password=db_password,
+                  database=db_name
+              )
+          except Exception as e:
+              print(f"Connection failed (RDS may still be initializing): {e}")
+              print("Will retry in 30 seconds...")
+              import time
+              time.sleep(30)
+              conn = psycopg2.connect(
+                  host=db_host,
+                  port=5432,
+                  user=db_user,
+                  password=db_password,
+                  database=db_name
+              )
+
+          with conn.cursor() as cur:
+              # Enable extension
+              print("  Creating TimescaleDB extension...")
+              cur.execute("CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;")
+
+              # Create hypertables
+              hypertables = [
+                  ("price_daily", "date", "1 month"),
+                  ("price_weekly", "week_start", "3 months"),
+                  ("price_monthly", "month_start", "6 months"),
+                  ("etf_price_daily", "date", "1 month"),
+                  ("buy_sell_daily", "signal_date", "1 month"),
+              ]
+
+              for table, time_col, chunk_interval in hypertables:
+                  try:
+                      cur.execute(
+                          f"SELECT create_hypertable('{table}', '{time_col}', if_not_exists => TRUE);"
+                      )
+                      cur.execute(
+                          f"SELECT set_chunk_time_interval('{table}', INTERVAL '{chunk_interval}');"
+                      )
+                      print(f"  ✓ {table} hypertable")
+                  except Exception as e:
+                      if "already a hypertable" in str(e):
+                          print(f"  ⓘ {table} already a hypertable")
+                      else:
+                          print(f"  ⚠ {table}: {e}")
+
+              # Enable compression
+              print("  Enabling compression...")
+              try:
+                  cur.execute("ALTER TABLE price_daily SET (timescaledb.compress, timescaledb.compress_segmentby = 'symbol');")
+                  cur.execute("SELECT add_compression_policy('price_daily', INTERVAL '7 days', if_not_exists => TRUE);")
+                  cur.execute("ALTER TABLE etf_price_daily SET (timescaledb.compress, timescaledb.compress_segmentby = 'symbol');")
+                  cur.execute("SELECT add_compression_policy('etf_price_daily', INTERVAL '7 days', if_not_exists => TRUE);")
+                  print("  ✓ Compression policies")
+              except Exception as e:
+                  print(f"  ⚠ Compression: {e}")
+
+              # Retention policies
+              print("  Setting retention policies...")
+              try:
+                  cur.execute("SELECT add_retention_policy('price_daily', INTERVAL '5 years', if_not_exists => TRUE);")
+                  cur.execute("SELECT add_retention_policy('etf_price_daily', INTERVAL '5 years', if_not_exists => TRUE);")
+                  print("  ✓ Retention policies")
+              except Exception as e:
+                  print(f"  ⚠ Retention: {e}")
+
+              # Indexes
+              print("  Creating indexes...")
+              cur.execute("CREATE INDEX IF NOT EXISTS idx_price_daily_symbol_date ON price_daily (symbol, date DESC);")
+              cur.execute("CREATE INDEX IF NOT EXISTS idx_etf_price_daily_symbol_date ON etf_price_daily (symbol, date DESC);")
+              cur.execute("CREATE INDEX IF NOT EXISTS idx_buy_sell_daily_symbol_date ON buy_sell_daily (symbol, signal_date DESC);")
+              print("  ✓ Indexes")
+
+              # Analyze
+              cur.execute("ANALYZE;")
+
+            conn.commit()
+          print("✓ TimescaleDB setup complete")
+          PYTHON_EOF

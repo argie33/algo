@@ -26,7 +26,7 @@ CRITICAL_TABLES = [
     'technical_data_daily',
     'buy_sell_daily',
     'earnings_estimates',
-    'balance_sheet_annual',
+    'annual_balance_sheet',
     'algo_trades',
     'algo_positions',
     'algo_audit_log'
