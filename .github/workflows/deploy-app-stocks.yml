@@ -29,6 +29,11 @@ on:
           - staging
           - prod
 
+# Serialize against the same stack
+concurrency:
+  group: deploy-app-stocks-stocks-ecs-tasks-stack
+  cancel-in-progress: false
+
 permissions:
   id-token: write
   contents: read

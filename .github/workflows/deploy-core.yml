@@ -9,6 +9,12 @@ on:
       - main
   workflow_dispatch:
 
+# Serialize runs against the same stack so parallel triggers don't fight over
+# CloudFormation operations on stocks-core-stack.
+concurrency:
+  group: deploy-core-stocks-core-stack
+  cancel-in-progress: false
+
 permissions:
   id-token: write
   contents: read

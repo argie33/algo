@@ -9,6 +9,10 @@ on:
       - .github/workflows/deploy-app-infrastructure.yml
   workflow_dispatch:
 
+concurrency:
+  group: deploy-app-infrastructure-stocks-app-stack
+  cancel-in-progress: false
+
 permissions:
   id-token: write
   contents: read
