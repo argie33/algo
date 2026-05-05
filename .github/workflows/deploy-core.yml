@@ -62,13 +62,22 @@ jobs:
 
       - name: Wait for stack to be in a stable state
         run: |
-          # CloudFormation can sit in *_IN_PROGRESS states for 30+ min when it's
-          # cleaning up replaced resources (e.g., draining ASG instances). We
-          # can't update during those, so wait it out.
+          # CloudFormation can sit in *_IN_PROGRESS states. If stuck in REVIEW_IN_PROGRESS
+          # (changeset waiting for approval), delete and retry. Otherwise wait it out.
           for i in $(seq 1 60); do
             STATUS=$(aws cloudformation describe-stacks \
               --stack-name stocks-core --region us-east-1 \
               --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo NOT_FOUND)
+
+            if [ "$STATUS" = "REVIEW_IN_PROGRESS" ]; then
+              echo "Stack stuck in REVIEW_IN_PROGRESS (changeset waiting). Deleting to retry..."
+              aws cloudformation delete-stack --stack-name stocks-core --region us-east-1
+              echo "Waiting for stack deletion..."
+              aws cloudformation wait stack-delete-complete --stack-name stocks-core --region us-east-1 2>/dev/null || true
+              echo "Stack deleted. Will proceed with fresh deployment."
+              break
+            fi
+
             case "$STATUS" in
               *_IN_PROGRESS)
                 echo "[$i/60] Stack busy ($STATUS); waiting 30s..."
