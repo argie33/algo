@@ -999,24 +999,40 @@ jobs:
 
       - name: Check task result
         run: |
-          # Get task details
           TASK_DETAILS=$(aws ecs describe-tasks \
             --cluster "${{ steps.infra.outputs.cluster }}" \
             --tasks "${{ steps.task.outputs.task-arn }}")
-          
-          # Extract exit code
+
           EXIT_CODE=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].containers[0].exitCode // 1')
           STOP_REASON=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].stoppedReason // "Unknown"')
-          
+          TASK_ID=$(echo "${{ steps.task.outputs.task-arn }}" | rev | cut -d'/' -f1 | rev)
+          LOG_GROUP=$(echo "$TASK_DETAILS" | jq -r '.tasks[0].containers[0].name // "loader"' | sed 's/^/\/ecs\//')
+
           echo "Task stopped with exit code: $EXIT_CODE"
           echo "Stop reason: $STOP_REASON"
-          
+          echo "Task ID: $TASK_ID"
+          echo "Inferred log group: $LOG_GROUP"
+
           if [[ "$EXIT_CODE" != "0" ]]; then
-            echo "❌ ${{ matrix.loader }} loader failed with exit code $EXIT_CODE"
-            echo "Stop reason: $STOP_REASON"
+            echo ""
+            echo "=== Container logs (last 100 lines from CloudWatch) ==="
+            # Try a few likely log group names
+            for LG in "/ecs/loader-${{ matrix.loader }}" "/ecs/load${{ matrix.loader }}" "/ecs/loader-buyselldaily" "/ecs/loader-prices" "/ecs/loader-financials" "/ecs/loader-signals"; do
+              STREAMS=$(aws logs describe-log-streams --log-group-name "$LG" \
+                --log-stream-name-prefix "ecs/" --order-by LastEventTime --descending \
+                --limit 1 --query 'logStreams[0].logStreamName' --output text 2>/dev/null || echo "")
+              if [ -n "$STREAMS" ] && [ "$STREAMS" != "None" ]; then
+                echo "--- $LG / $STREAMS ---"
+                aws logs get-log-events --log-group-name "$LG" --log-stream-name "$STREAMS" \
+                  --limit 100 --query 'events[].message' --output text 2>/dev/null | tail -60
+                break
+              fi
+            done
+            echo ""
+            echo "${{ matrix.loader }} loader failed (exit $EXIT_CODE): $STOP_REASON"
             exit 1
           else
-            echo "✅ ${{ matrix.loader }} loader completed successfully"
+            echo "${{ matrix.loader }} loader completed successfully"
           fi
 
 

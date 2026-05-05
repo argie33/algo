@@ -309,8 +309,11 @@ jobs:
         run: |
           echo "Testing Lambda invocation (dry-run mode)..."
 
+          # AWS CLI v2 expects base64-encoded payload by default; add the flag
+          # to accept raw JSON like CLI v1 did.
           RESPONSE=$(aws lambda invoke \
             --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
+            --cli-binary-format raw-in-base64-out \
             --payload '{"dry_run": true}' \
             --region ${{ env.AWS_REGION }} \
             /tmp/response.json)
