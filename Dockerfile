@@ -14,20 +14,13 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy database helper (critical)
-COPY db_helper.py .
+# Copy ALL Python sources at the repo root. Loaders share several utility
+# modules (optimal_loader.py, db_helper.py, signal_utils.py, data_source_router.py,
+# bloom_dedup.py, _patch_dotenv.py, etc.) that are not covered by a single glob.
+# A single COPY of *.py keeps the image consistent without per-module COPY drift.
+COPY *.py ./
 
-# Copy all refactored loaders
-COPY load*.py ./
-COPY loader*.py ./
-
-# Copy algo engine (the trading brain — used by algo orchestrator task)
-COPY algo_*.py ./
-
-# Copy utility modules (load_state.py removed; loader_safety.py covered by loader*.py glob)
-COPY signal_utils.py ./
-
-# Copy configuration files
+# Copy configuration files (optional .env.local for dev)
 COPY .env.local* ./
 
 # Set environment variables (can be overridden at runtime)
@@ -38,7 +31,10 @@ ENV AWS_REGION=us-east-1
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python3 -c "from db_helper import DatabaseHelper; print('OK')" || exit 1
 
-# Default entrypoint - runs a loader specified as first argument
-# Usage: docker run stocks-loaders:latest loadpricedaily.py
-ENTRYPOINT ["python3"]
-CMD ["loadpricedaily.py"]
+# Smart entrypoint:
+#   1. If LOADER_FILE env var is set, exec it (preferred path; ECS task defs set it).
+#   2. Else if a positional arg is supplied (docker run image foo.py), exec that.
+#   3. Else error helpfully — no silent default to loadpricedaily.py masking misconfig.
+COPY entrypoint.sh /usr/local/bin/loader-entrypoint
+RUN chmod +x /usr/local/bin/loader-entrypoint
+ENTRYPOINT ["/usr/local/bin/loader-entrypoint"]
