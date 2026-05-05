@@ -67,6 +67,32 @@ def get_database_credentials():
         raise
 
 
+def get_algo_runtime_secrets():
+    """Fetch Alpaca API keys + algo runtime config from Secrets Manager.
+
+    Returns env-var dict to inject. If ALGO_SECRETS_ARN is unset or fetch fails,
+    returns {} so the Lambda falls back to paper-trading-without-keys mode.
+    """
+    secret_arn = os.getenv('ALGO_SECRETS_ARN', '').strip()
+    if not secret_arn:
+        log_to_cloudwatch("ALGO_SECRETS_ARN not set — paper-only mode without Alpaca keys")
+        return {}
+    try:
+        secrets = get_boto3_client('secretsmanager')
+        response = secrets.get_secret_value(SecretId=secret_arn)
+        payload = json.loads(response['SecretString'])
+        # Map secret JSON keys to env var names the algo code expects
+        return {
+            'APCA_API_KEY_ID': payload.get('APCA_API_KEY_ID', ''),
+            'APCA_API_SECRET_KEY': payload.get('APCA_API_SECRET_KEY', ''),
+            'APCA_API_BASE_URL': payload.get('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets'),
+            'ALPACA_PAPER_TRADING': payload.get('ALPACA_PAPER_TRADING', 'true'),
+        }
+    except Exception as e:
+        log_to_cloudwatch(f"Could not read algo secret (continuing without Alpaca keys): {e}", 'WARN')
+        return {}
+
+
 def log_to_cloudwatch(message, level='INFO'):
     """Log message to CloudWatch."""
     timestamp = datetime.utcnow().isoformat()
@@ -183,11 +209,17 @@ def lambda_handler(event, context):
         # Get database credentials
         log_to_cloudwatch("Step 1: Fetching database credentials...")
         db_creds = get_database_credentials()
-        log_to_cloudwatch("✅ Database credentials retrieved")
+        log_to_cloudwatch("Database credentials retrieved")
+
+        # Get Alpaca algo runtime secret (best-effort; empty dict if absent)
+        algo_secrets = get_algo_runtime_secrets()
+        if algo_secrets.get('APCA_API_KEY_ID'):
+            log_to_cloudwatch("Alpaca credentials retrieved")
 
         # Set environment for subprocess calls
         env = os.environ.copy()
         env.update(db_creds)
+        env.update(algo_secrets)
         env['EXECUTION_MODE'] = EXECUTION_MODE
         env['DRY_RUN'] = 'true' if DRY_RUN else 'false'
 

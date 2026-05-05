@@ -220,23 +220,27 @@ jobs:
               echo "(no orphaned log group to delete)"
           fi
 
-      - name: Get database secret ARN from Secrets Manager
+      - name: Get database + Alpaca secret ARNs from Secrets Manager
         run: |
           echo "Retrieving database secret ARN..."
-
-          # Get database secret ARN (created by deploy-app-stocks.yml)
-          # Expects secret named: stocks-db-secrets-{StackName}-{Region}-001
           DB_SECRET=$(aws secretsmanager list-secrets \
             --region ${{ env.AWS_REGION }} \
-            --filters Key=name,Values="stocks-db-secrets-*" \
+            --filters Key=name,Values="stocks-db-secrets-" \
             --query 'SecretList[0].ARN' \
             --output text 2>/dev/null || echo "")
-
-          # If secret not found, use placeholder (assume it will exist by runtime)
           DB_SECRET="${DB_SECRET:-arn:aws:secretsmanager:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:secret:stocks-db-secrets}"
-
           echo "DB_SECRET=$DB_SECRET" >> $GITHUB_ENV
-          echo "Retrieved DB secret ARN: $DB_SECRET"
+          echo "DB secret: $DB_SECRET"
+
+          echo "Retrieving algo runtime secret ARN (Alpaca keys)..."
+          ALGO_SECRET=$(aws secretsmanager list-secrets \
+            --region ${{ env.AWS_REGION }} \
+            --filters Key=name,Values="stocks-algo-secrets-" \
+            --query 'SecretList[0].ARN' \
+            --output text 2>/dev/null || echo "")
+          # If not found yet (app-stocks not deployed), pass empty — Lambda runs in paper-only fallback
+          echo "ALGO_SECRET=$ALGO_SECRET" >> $GITHUB_ENV
+          echo "Algo secret: ${ALGO_SECRET:-<not found, using paper-only fallback>}"
 
       - name: Deploy CloudFormation stack (Algo Lambda only)
         id: cfn_deploy
@@ -251,6 +255,7 @@ jobs:
               LambdaFunctionCodeBucket="${{ env.LAMBDA_ARTIFACTS_BUCKET }}" \
               LambdaFunctionCodeKey="${{ env.FUNCTION_KEY }}" \
               DatabaseSecretArn="${{ env.DB_SECRET }}" \
+              AlgoSecretsArn="${{ env.ALGO_SECRET }}" \
               DryRunMode="${{ github.event.inputs.dry_run || 'true' }}" \
               Environment="${{ github.event.inputs.environment || 'dev' }}" \
             --capabilities CAPABILITY_NAMED_IAM \
