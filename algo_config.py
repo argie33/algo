@@ -7,7 +7,11 @@ Supports: risk parameters, filter thresholds, execution modes, feature flags.
 """
 
 import os
-import psycopg2
+try:
+    import psycopg2
+except ImportError:
+    # Lambda: psycopg2 binary not available, will fail at runtime if DB needed
+    psycopg2 = None
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime
