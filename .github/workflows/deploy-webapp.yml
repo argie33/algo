@@ -244,6 +244,27 @@ jobs:
           case "$FINAL_STATUS" in
             "STACK_NOT_FOUND"|"CREATE_COMPLETE"|"UPDATE_COMPLETE"|"UPDATE_ROLLBACK_COMPLETE")
               echo "✅ Stack is in deployable state: $FINAL_STATUS"
+
+              # If the previous stack was deleted, named resources may be
+              # orphaned (named Lambda + named S3 bucket). The new SAM deploy
+              # will fail with AWS::EarlyValidation::ResourceExistenceCheck if
+              # those still exist. Clean them up before SAM tries to create them.
+              if [[ "$FINAL_STATUS" == "STACK_NOT_FOUND" ]]; then
+                ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+                LAMBDA_NAME="stocks-webapp-api-${ENVIRONMENT_NAME}"
+                BUCKET_NAME="stocks-webapp-frontend-${ENVIRONMENT_NAME}-${ACCOUNT_ID}"
+                echo "🧹 Stack absent — cleaning orphaned named resources before SAM create..."
+                if aws lambda get-function --function-name "$LAMBDA_NAME" >/dev/null 2>&1; then
+                  echo "   Deleting orphaned Lambda: $LAMBDA_NAME"
+                  aws lambda delete-function --function-name "$LAMBDA_NAME" || true
+                fi
+                if aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
+                  echo "   Emptying + deleting orphaned bucket: $BUCKET_NAME"
+                  aws s3 rm "s3://$BUCKET_NAME" --recursive >/dev/null 2>&1 || true
+                  aws s3 rb "s3://$BUCKET_NAME" --force >/dev/null 2>&1 || \
+                    aws s3api delete-bucket --bucket "$BUCKET_NAME" || true
+                fi
+              fi
               ;;
             "REVIEW_IN_PROGRESS")
               echo "⚠️ Stack is in REVIEW_IN_PROGRESS state due to failed changeset"
