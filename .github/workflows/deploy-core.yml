@@ -1,6 +1,12 @@
 name: Deploy core infrastructure
 
 on:
+  push:
+    paths:
+      - 'template-core.yml'
+      - '.github/workflows/deploy-core.yml'
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -64,7 +70,7 @@ jobs:
           echo "Deploying core infrastructure stack..."
 
           aws cloudformation deploy \
-            --template-file template-core-minimal.yml \
+            --template-file template-core.yml \
             --stack-name stocks-core-stack \
             --s3-bucket ${{ env.TEMPLATE_BUCKET }} \
             --region us-east-1 \

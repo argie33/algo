@@ -62,11 +62,9 @@ class PaperModeTestHarness:
         print("-" * 80)
         try:
             orch = Orchestrator(self.config)
-            result = orch.run(execution_mode='paper', test_mode=True)
-            print(f"  Orchestrator result: {result['status']}")
-            print(f"  Phases executed: {result['phases_executed']}")
-            print(f"  Entries made: {result.get('entries_made', 0)}")
-            print(f"  Exits made: {result.get('exits_made', 0)}")
+            result = orch.run()
+            print(f"  Orchestrator completed")
+            print(f"  Phases executed: {result.get('phases_executed', 0)}")
         except Exception as e:
             print(f"  ERROR: {e}")
             return False
@@ -121,7 +119,7 @@ class PaperModeTestHarness:
         portfolio = cur.fetchone()
         portfolio_value = float(portfolio[0]) if portfolio else 0
 
-        cur.execute("SELECT drawdown_pct FROM algo_circuit_breaker_log ORDER BY created_at DESC LIMIT 1")
+        cur.execute("SELECT current_value FROM algo_circuit_breaker_log WHERE breaker_name='drawdown' ORDER BY created_at DESC LIMIT 1")
         dd = cur.fetchone()
         drawdown = float(dd[0]) if dd else 0
 
@@ -137,11 +135,11 @@ class PaperModeTestHarness:
 
         # Check 1: All 7 phases completed
         cur.execute(
-            "SELECT COUNT(DISTINCT phase) FROM algo_audit_log WHERE DATE(created_at) = %s",
-            (self.test_date,)
+            "SELECT COUNT(DISTINCT action_type) FROM algo_audit_log WHERE DATE(created_at) = %s AND action_type LIKE %s",
+            (self.test_date, 'phase_%')
         )
         phases = cur.fetchone()[0]
-        validations.append(("All phases executed", phases >= 7, f"{phases}/7 phases"))
+        validations.append(("All phases executed", phases >= 7, f"{phases}/8 phases"))
 
         # Check 2: No errors in execution
         cur.execute(

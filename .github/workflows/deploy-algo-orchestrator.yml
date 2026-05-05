@@ -10,7 +10,7 @@ on:
       - 'algo_*.py'
       - 'run_eod_loaders.sh'
       - 'lambda/algo_orchestrator/**'
-      - 'template-algo-lambda-minimal.yml'
+      - 'template-algo-orchestrator.yml'
       - '.github/workflows/deploy-algo-orchestrator.yml'
     branches:
       - main
@@ -220,7 +220,7 @@ jobs:
           echo "Database Secret ARN: ${{ env.DB_SECRET }}"
 
           aws cloudformation deploy \
-            --template-file template-algo-lambda-minimal.yml \
+            --template-file template-algo-orchestrator.yml \
             --stack-name stocks-algo-orchestrator \
             --parameter-overrides \
               LambdaFunctionCodeBucket="${{ env.LAMBDA_ARTIFACTS_BUCKET }}" \
