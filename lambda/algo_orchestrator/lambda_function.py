@@ -175,7 +175,9 @@ def lambda_handler(event, context):
     """
     global _cold_start
     start_time = datetime.utcnow()
-    execution_id = context.request_id if context else 'manual'
+    # Lambda context exposes aws_request_id (not request_id)
+    execution_id = getattr(context, 'aws_request_id', None) if context else None
+    execution_id = execution_id or 'manual'
 
     try:
         # Track cold-start performance
