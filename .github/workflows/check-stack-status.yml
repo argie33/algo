@@ -1,0 +1,38 @@
+name: Check stack status (read-only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-check
+          aws-region: us-east-1
+
+      - name: Stacks
+        run: |
+          aws cloudformation list-stacks --region us-east-1 \
+            --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE CREATE_FAILED ROLLBACK_COMPLETE DELETE_IN_PROGRESS DELETE_FAILED UPDATE_IN_PROGRESS UPDATE_COMPLETE_CLEANUP_IN_PROGRESS UPDATE_ROLLBACK_IN_PROGRESS \
+            --query "StackSummaries[?contains(StackName, 'stocks')].[StackName,StackStatus,LastUpdatedTime]" \
+            --output table
+
+      - name: Exports
+        run: |
+          aws cloudformation list-exports --region us-east-1 \
+            --query "Exports[?starts_with(Name, 'StocksCore-') || starts_with(Name, 'StocksApp-')].[Name,Value]" \
+            --output table
+
+      - name: RDS
+        run: |
+          aws rds describe-db-instances --region us-east-1 \
+            --db-instance-identifier stocks \
+            --query 'DBInstances[0].[DBInstanceStatus,Endpoint.Address]' \
+            --output table 2>/dev/null || echo "no stocks RDS"
