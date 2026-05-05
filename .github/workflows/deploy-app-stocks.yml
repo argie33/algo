@@ -13,12 +13,25 @@ on:
       - '.github/workflows/deploy-app-stocks.yml'
     branches:
       - main
+  schedule:
+    # 4:30pm ET weekdays — runs all SUPPORTED_LOADERS so RDS data is fresh
+    # before the algo Lambda fires at 5:30pm ET. Two cron lines cover EDT
+    # and EST so we don't drift seasonally; detect-changes deduplicates
+    # by checking it's actually 4:30pm ET regardless of which cron fired.
+    - cron: '30 20 * * 1-5'  # 4:30pm EDT (March-November)
+    - cron: '30 21 * * 1-5'  # 4:30pm EST (November-March)
   workflow_dispatch:
     inputs:
       loaders:
-        description: 'Comma-separated list of loaders to run (max 5 per batch - NEVER run all 45!)'
+        description: 'Comma-separated list of loaders to run (max 5 per batch). Leave blank + use "force_all=true" to run everything.'
         required: false
         default: ''
+      force_all:
+        description: 'Run every SUPPORTED_LOADER (ignores 5-batch cap). Same effect as the daily schedule trigger.'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
       environment:
         description: 'Deployment environment'
         required: false
@@ -110,15 +123,21 @@ jobs:
           ALL_LOADERS=$(echo $ALL_LOADERS | tr ' ' '\n' | sort | tr '\n' ' ')
           
           # Determine which loaders to run
-          # NOTE: BATCH EXECUTION ONLY - Never run more than 5 loaders per batch
-          if [[ "${{ github.event.inputs.loaders }}" != "" ]]; then
-            # Manual input - validate batch size
+          if [[ "${{ github.event_name }}" == "schedule" || "${{ github.event.inputs.force_all }}" == "true" ]]; then
+            # Schedule trigger or force_all — run everything in SUPPORTED_LOADERS.
+            # The 5-batch cap doesn't apply: we want a complete daily refresh,
+            # max-parallel: 10 in execute-loaders already serializes throughput.
+            echo "✅ Schedule/force_all trigger — running ALL ${ALL_LOADERS} loaders"
+            LOADERS_TO_RUN=$(echo "$ALL_LOADERS" | tr ' ' '\n' | grep -v '^$' | sort)
+            echo "$LOADERS_TO_RUN" | tr '\n' ' '
+          elif [[ "${{ github.event.inputs.loaders }}" != "" ]]; then
+            # Manual input with explicit list - validate batch size
             LOADERS_TO_RUN=$(echo "${{ github.event.inputs.loaders }}" | tr ',' '\n' | sort)
             BATCH_COUNT=$(echo "$LOADERS_TO_RUN" | wc -l)
             if [[ $BATCH_COUNT -gt 5 ]]; then
               echo "❌ ERROR: Batch size exceeds limit! Maximum 5 loaders per batch."
               echo "   You requested: $BATCH_COUNT loaders"
-              echo "   Please split into multiple batches."
+              echo "   Use force_all=true to bypass the cap and run everything."
               exit 1
             fi
             echo "✅ Manual loader selection (batch size: $BATCH_COUNT/5)"
