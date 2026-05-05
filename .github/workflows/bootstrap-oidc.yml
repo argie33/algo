@@ -25,26 +25,37 @@ jobs:
 
       - name: Deploy bootstrap CloudFormation
         run: |
-          set -e  # Exit on error
           set -x  # Debug output
 
-          echo "AWS CLI version:"
+          echo "=== AWS Setup ==="
           aws --version
+          echo "Region: us-east-1"
+          echo "Account:"
+          aws sts get-caller-identity
 
-          echo "Checking template file..."
-          ls -lh template-bootstrap.yml
-
-          echo "Validating CloudFormation template..."
-          aws cloudformation validate-template \
+          echo ""
+          echo "=== Template Validation ==="
+          if ! aws cloudformation validate-template \
             --template-body file://template-bootstrap.yml \
-            --region us-east-1
+            --region us-east-1; then
+            echo "ERROR: Template validation failed"
+            exit 1
+          fi
 
-          echo "Deploying bootstrap stack..."
-          aws cloudformation deploy \
+          echo ""
+          echo "=== CloudFormation Deploy ==="
+          if ! aws cloudformation deploy \
             --stack-name stocks-oidc \
             --template-file template-bootstrap.yml \
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset \
-            --region us-east-1
+            --region us-east-1; then
+            echo "ERROR: CloudFormation deploy failed"
+            echo "Checking stack status..."
+            aws cloudformation describe-stacks \
+              --stack-name stocks-oidc \
+              --region us-east-1 2>&1 || echo "Stack may not exist"
+            exit 1
+          fi
 
-          echo "Bootstrap deployment complete"
+          echo "✅ Bootstrap deployment complete"
