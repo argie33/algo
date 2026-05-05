@@ -87,8 +87,17 @@ jobs:
       - name: Generate loader matrix
         id: matrix
         run: |
-          # Define supported loaders (those with ECS task definitions)
-          SUPPORTED_LOADERS="aaiidata alpacaportfolio analystsentiment analystupgradedowngrade annualbalancesheet annualcashflow annualincomestatement benchmark buysell_etf_daily buysell_etf_monthly buysell_etf_weekly buyselldaily buysellmonthly buysellweekly calendar commodities coveredcallopportunities dailycompanydata earningshistory earningsrevisions earningssurprise econdata etfpricedaily etfpricemonthly etfpriceweekly etfsignals factormetrics feargreed guidance insidertransactions latestpricedaily latestpricemonthly latestpriceweekly market marketindices naaim news optionschains pricedaily pricemonthly priceweekly quarterlybalancesheet quarterlycashflow quarterlyincomestatement relativeperformance seasonality secfilings sectors sentiment _sp500_earnings stockscores stocksymbols ttmcashflow ttmincomestatement"
+          # Loaders we actually invoke in AWS. A name in this list MUST satisfy
+          # both: (a) load{name}.py exists in the repo (or LOADER_FILE env var
+          # in the task def maps the container to a real file), and (b) an ECS
+          # task def Output ({name}TaskDefArn or a mapped variant) is exported
+          # by template-app-ecs-tasks.yml.
+          # Loaders that exist locally but have no AWS task def (alpacaportfolio,
+          # commodities, coveredcallopportunities, earningsrevisions, etfsignals,
+          # forwardeps, marketindices, news, optionschains, relativeperformance,
+          # seasonality, secfilings) are intentionally excluded — adding a task
+          # def + Output is the right path to enable each of them.
+          SUPPORTED_LOADERS="aaiidata analystsentiment analystupgradedowngrade annualbalancesheet annualcashflow annualincomestatement benchmark buysell_etf_daily buysell_etf_monthly buysell_etf_weekly buyselldaily buysellmonthly buysellweekly calendar dailycompanydata earningsestimates earningshistory econdata etfpricedaily etfpricemonthly etfpriceweekly factormetrics feargreed naaim pricedaily pricemonthly priceweekly quarterlybalancesheet quarterlycashflow quarterlyincomestatement sectors sentiment stockscores stocksymbols swingscores technicalsdaily ttmcashflow ttmincomestatement"
 
           # Get all available loaders and filter by supported ones
           ALL_AVAILABLE_LOADERS=$(ls load*.py 2>/dev/null | sed 's/load//' | sed 's/\.py$//' | sort)
@@ -163,68 +172,43 @@ jobs:
             CHANGED_LOADERS=$(echo -e "$CHANGED_LOADERS_FROM_PY\n$CHANGED_LOADERS_FROM_REQ\n$CHANGED_LOADERS_FROM_DOCKERFILE" | grep -v '^$' | sort | uniq || true)
             echo "Debug: Combined changed loaders: $CHANGED_LOADERS"
 
-            # Filter to only loaders that have Dockerfiles
+            # We use a single unified Dockerfile for all loaders (image
+            # discriminates by container Name via entrypoint.sh). So we
+            # validate by checking the loader's Python file exists, NOT by
+            # looking for per-loader Dockerfiles (those are legacy).
             VALIDATED_LOADERS=""
             for loader in $CHANGED_LOADERS; do
-              # Check for Dockerfile with special naming conventions
-              DOCKERFILE_TO_CHECK=""
+              # Loaders with a name mismatch between matrix-name and on-disk file
+              # are mapped here to the actual file. Everything else falls through
+              # to load{loader}.py.
               case "$loader" in
-                "aaiidata")
-                  DOCKERFILE_TO_CHECK="Dockerfile.loadaaiidata"
-                  ;;
-                "annualcashflow")
-                  DOCKERFILE_TO_CHECK="Dockerfile.loadannualcashflow"
-                  ;;
-                "annualbalancesheet")
-                  DOCKERFILE_TO_CHECK="Dockerfile.loadannualbalancesheet"
-                  ;;
-                "annualincomestatement")
-                  DOCKERFILE_TO_CHECK="Dockerfile.loadannualincomestatement"
-                  ;;
-                "quarterlycashflow")
-                  DOCKERFILE_TO_CHECK="Dockerfile.loadquarterlycashflow"
-                  ;;
-                "quarterlybalancesheet")
-                  DOCKERFILE_TO_CHECK="Dockerfile.loadquarterlybalancesheet"
-                  ;;
-                "quarterlyincomestatement")
-                  DOCKERFILE_TO_CHECK="Dockerfile.loadquarterlyincomestatement"
-                  ;;
-                "factormetrics")
-                  DOCKERFILE_TO_CHECK="Dockerfile.loadfactormetrics"
-                  ;;
-                "feargreed")
-                  DOCKERFILE_TO_CHECK="Dockerfile.loadfeargreed"
-                  ;;
-                "naaim")
-                  DOCKERFILE_TO_CHECK="Dockerfile.loadnaaim"
-                  ;;
-                "revenueestimate")
-                  DOCKERFILE_TO_CHECK="Dockerfile.loadrevenueestimate"
-                  ;;
-                "sectordata")
-                  DOCKERFILE_TO_CHECK="Dockerfile.sectordata"
-                  ;;
-                "stockscores")
-                  DOCKERFILE_TO_CHECK="Dockerfile.loadstockscores"
-                  ;;
-                "stocksymbols")
-                  DOCKERFILE_TO_CHECK="Dockerfile.loadstocksymbols"
-                  ;;
+                "swingscores"|"swingtrader")
+                  LOADER_FILE_TO_CHECK="loadswingscores.py" ;;
+                "earningsestimates"|"earningsestimate")
+                  LOADER_FILE_TO_CHECK="loadearningsestimates.py" ;;
+                "feargreeddata")
+                  LOADER_FILE_TO_CHECK="loadfeargreed.py" ;;
+                "naaaimdata")
+                  LOADER_FILE_TO_CHECK="loadnaaim.py" ;;
+                "trend-template"|"trendtemplate")
+                  LOADER_FILE_TO_CHECK="load_trend_template_data.py" ;;
+                "market-health"|"markethealth")
+                  LOADER_FILE_TO_CHECK="load_market_health_daily.py" ;;
+                "algo-metrics"|"algometrics")
+                  LOADER_FILE_TO_CHECK="load_algo_metrics_daily.py" ;;
                 *)
-                  DOCKERFILE_TO_CHECK="Dockerfile.load$loader"
-                  ;;
+                  LOADER_FILE_TO_CHECK="load${loader}.py" ;;
               esac
 
-              if [[ -f "$DOCKERFILE_TO_CHECK" ]]; then
+              if [[ -f "$LOADER_FILE_TO_CHECK" ]]; then
                 VALIDATED_LOADERS="$VALIDATED_LOADERS $loader"
-                echo "✓ Validated loader: $loader ($DOCKERFILE_TO_CHECK exists)"
+                echo "✓ Validated loader: $loader ($LOADER_FILE_TO_CHECK exists)"
               else
-                echo "✗ Skipping loader: $loader (no $DOCKERFILE_TO_CHECK found)"
+                echo "✗ Skipping loader: $loader (no $LOADER_FILE_TO_CHECK found)"
               fi
             done
             CHANGED_LOADERS=$(echo $VALIDATED_LOADERS | tr ' ' '\n' | sort | uniq || true)
-            echo "Debug: Validated loaders with Dockerfiles: $CHANGED_LOADERS"
+            echo "Debug: Validated loaders: $CHANGED_LOADERS"
 
             if [[ -n "$CHANGED_LOADERS" ]]; then
               LOADERS_TO_RUN="$CHANGED_LOADERS"
@@ -883,8 +867,17 @@ jobs:
             "stock-scores"|"stockscores")
               TASK_DEF_NAME="StockscoresTaskDefArn"
               ;;
+            "swingscores")
+              TASK_DEF_NAME="SwingTraderTaskDefArn"
+              ;;
+            "earningsestimates"|"earningsestimate")
+              TASK_DEF_NAME="EarningsEstimateTaskDefArn"
+              ;;
+            "earningsrevisions")
+              # No dedicated task def in template — falls into earningshistory pipeline.
+              TASK_DEF_NAME="EarningsHistoryTaskDefArn"
+              ;;
             *)
-
               # Default case: convert to proper case (first letter uppercase, rest lowercase)
               TASK_DEF_NAME=$(echo "$LOADER_NAME" | sed 's/./\U&/' | sed 's/.*/\L&/' | sed 's/^./\U&/')TaskDefArn
               ;;

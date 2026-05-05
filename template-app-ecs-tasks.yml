@@ -1088,6 +1088,8 @@ Resources:
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref EarningsEstimateImageTag]]
           Essential: true
           Environment:
+            - Name: LOADER_FILE
+              Value: loadearningsestimates.py
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
             - Name: AWS_REGION
@@ -1570,6 +1572,27 @@ Resources:
         - Name: swingtrader-loader
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref SwingTraderImageTag]]
           Essential: true
+          Environment:
+            - Name: LOADER_FILE
+              Value: loadswingscores.py
+            - Name: DB_SECRET_ARN
+              Value: !ImportValue StocksApp-SecretArn
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: S3_STAGING_BUCKET
+              Value: stocks-app-data
+            - Name: DB_HOST
+              Value: !ImportValue StocksApp-DBEndpoint
+            - Name: DB_PORT
+              Value: !ImportValue StocksApp-DBPort
+            - Name: DB_NAME
+              Value: !ImportValue StocksApp-DBName
+            - Name: DB_USER
+              Value: !Ref RDSUsername
+            - Name: DB_PASSWORD
+              Value: !Ref RDSPassword
+            - Name: USE_S3_STAGING
+              Value: "true"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -2178,6 +2201,8 @@ Resources:
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref FearGreedImageTag]]
           Essential: true
           Environment:
+            - Name: LOADER_FILE
+              Value: loadfeargreed.py
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
             - Name: AWS_REGION
@@ -2247,6 +2272,8 @@ Resources:
           Image: !Join [":", [!ImportValue StocksCore-ContainerRepositoryUri, !Ref NaaimImageTag]]
           Essential: true
           Environment:
+            - Name: LOADER_FILE
+              Value: loadnaaim.py
             - Name: DB_SECRET_ARN
               Value: !ImportValue StocksApp-SecretArn
             - Name: AWS_REGION
