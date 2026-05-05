@@ -1,5 +1,17 @@
 import ReactDOM from "react-dom/client";
 import "./index.css"; // Tailwind base + design system tokens
+
+// Apply theme class before first paint (avoid flash of wrong theme).
+// Light is default per FRONTEND_DESIGN_SYSTEM.md (finance UX research).
+(function applyInitialTheme() {
+  try {
+    const saved = localStorage.getItem("theme");
+    const wantLight = saved !== "dark"; // default → light
+    document.documentElement.classList.toggle("light", wantLight);
+  } catch (_) {
+    document.documentElement.classList.add("light");
+  }
+})();
 import { BrowserRouter } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";

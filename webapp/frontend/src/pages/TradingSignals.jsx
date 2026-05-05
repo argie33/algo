@@ -43,6 +43,19 @@ const STAGE_VARIANT = {
 };
 const QUALITY_VARIANT = { STRONG: 'badge-success', MODERATE: 'badge-amber', WEAK: 'badge-danger' };
 
+// Color-code chart base patterns by historical breakout reliability.
+// Cup w/ Handle and Cup are highest-probability; Flat Base is the workhorse;
+// Double Bottom is reliable but lower hit-rate; everything else is neutral.
+const BASE_TYPE_VARIANT = {
+  'Cup w/ Handle':  'badge-success',
+  'Cup with Handle':'badge-success',
+  'Cup':            'badge-success',
+  'Flat Base':      'badge-cyan',
+  'Base on Base':   'badge-cyan',
+  'Double Bottom':  'badge-amber',
+  'Ascending Base': 'badge-cyan',
+};
+
 const daysSince = (d) => {
   if (!d) return null;
   const ts = new Date(d).getTime();
@@ -67,6 +80,7 @@ export default function TradingSignals() {
   const [scoreRange, setScoreRange] = useState([0, 100]);
   const [maxAge, setMaxAge] = useState(30);
   const [gatesOnly, setGatesOnly] = useState(false);
+  const [baseTypeFilter, setBaseTypeFilter] = useState('all');
   const [expandedKey, setExpandedKey] = useState(null);
 
   const endpoint = tab === 'etfs' ? '/api/signals/etf' : '/api/signals/stocks';
@@ -117,6 +131,10 @@ export default function TradingSignals() {
     Array.from(new Set(enriched.map(r => r.sector).filter(Boolean))).sort(),
     [enriched]);
 
+  const allBaseTypes = useMemo(() =>
+    Array.from(new Set(enriched.map(r => r.base_type).filter(Boolean))).sort(),
+    [enriched]);
+
   const filtered = useMemo(() => {
     let r = enriched;
     if (search) {
@@ -134,8 +152,9 @@ export default function TradingSignals() {
     }
     if (maxAge < 90) r = r.filter(x => x._age == null || x._age <= maxAge);
     if (gatesOnly) r = r.filter(x => x._pass_gates === true);
+    if (baseTypeFilter !== 'all') r = r.filter(x => (x.base_type || '') === baseTypeFilter);
     return r;
-  }, [enriched, search, stageFilter, sectorFilter, scoreRange, maxAge, gatesOnly]);
+  }, [enriched, search, stageFilter, sectorFilter, scoreRange, maxAge, gatesOnly, baseTypeFilter]);
 
   // KPI calculations
   const kpi = useMemo(() => {
@@ -261,6 +280,15 @@ export default function TradingSignals() {
             <option value="Stage 3">Stage 3 (Topping)</option>
             <option value="Stage 4">Stage 4 (Decline)</option>
           </select>
+          {allBaseTypes.length > 0 && (
+            <select className="select" value={baseTypeFilter} onChange={e => setBaseTypeFilter(e.target.value)} style={{ width: 170 }}
+              title="Filter by chart base pattern">
+              <option value="all">All base types</option>
+              {allBaseTypes.map(bt => (
+                <option key={bt} value={bt}>{bt}</option>
+              ))}
+            </select>
+          )}
           {tab === 'stocks' && (
             <label className="flex items-center gap-2" style={{ fontSize: 'var(--t-xs)', color: 'var(--text-muted)', cursor: 'pointer' }}>
               <input type="checkbox" checked={gatesOnly} onChange={e => setGatesOnly(e.target.checked)} />
@@ -685,7 +713,14 @@ function SignalsTable({ rows, loading, kind, expandedKey, setExpandedKey }) {
                         </span>
                       )}
                     </td>
-                    <td className="muted t-xs">{r.base_type ? `${r.base_type}` : '—'}</td>
+                    <td className="t-xs">
+                      {r.base_type ? (
+                        <span className={`badge ${BASE_TYPE_VARIANT[r.base_type] || 'badge'}`}
+                          title={r.base_length_days ? `${r.base_length_days}d base` : 'chart pattern'}>
+                          {r.base_type}{r.base_length_days ? ` · ${r.base_length_days}d` : ''}
+                        </span>
+                      ) : <span className="muted">—</span>}
+                    </td>
                     <td>
                       {r.market_stage
                         ? <span className={`badge ${STAGE_VARIANT[r.market_stage] || 'badge'}`}>{r.market_stage.replace('Stage ', 'S')}</span>

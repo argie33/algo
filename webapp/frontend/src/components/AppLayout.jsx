@@ -1,7 +1,9 @@
 /**
  * AppLayout — Bullseye Trading platform shell
  *
- * Pure JSX + theme.css classes. No MUI. No Tailwind. Dark theme by default.
+ * Pure JSX + theme.css classes. No MUI. No Tailwind.
+ * Light theme is default per FRONTEND_DESIGN_SYSTEM.md (finance UX research);
+ * dark is opt-in via the user-menu toggle (persisted to localStorage).
  * All visual tokens live in src/styles/tokens.css.
  *
  * Layout: 260px left sidebar (brand · nav · user) + main content + footer.
@@ -11,7 +13,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  Menu, Settings, LogOut, LogIn, X,
+  Menu, Settings, LogOut, LogIn, X, Sun, Moon,
   TrendingUp, Briefcase, Globe, Activity, Target,
   Award, Layers, Wallet, History, Sliders, GitBranch,
   HeartPulse, Zap, Boxes, ShieldCheck, Crosshair,
@@ -77,6 +79,18 @@ export default function AppLayout({ children }) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [exposure, setExposure] = useState(null);
   const [notifications, setNotifications] = useState([]);
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem('theme') === 'dark' ? 'dark' : 'light'; }
+    catch { return 'light'; }
+  });
+
+  // Apply class on <html> + persist whenever the user toggles
+  useEffect(() => {
+    document.documentElement.classList.toggle('light', theme === 'light');
+    try { localStorage.setItem('theme', theme); } catch { /* localStorage blocked */ }
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(t => (t === 'light' ? 'dark' : 'light'));
 
   // Poll status every 30s
   useEffect(() => {
@@ -204,6 +218,13 @@ export default function AppLayout({ children }) {
             <button className="btn btn-ghost w-full" style={{ justifyContent: 'flex-start', borderRadius: 0, padding: '10px 14px' }}
               onClick={() => { setUserMenuOpen(false); go('/app/settings'); }}>
               <Settings size={14} /> Settings
+            </button>
+            <div style={{ borderTop: '1px solid var(--border-soft)' }} />
+            <button className="btn btn-ghost w-full" style={{ justifyContent: 'flex-start', borderRadius: 0, padding: '10px 14px' }}
+              onClick={() => { toggleTheme(); }}
+              title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}>
+              {theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
+              {theme === 'light' ? 'Dark theme' : 'Light theme'}
             </button>
             <div style={{ borderTop: '1px solid var(--border-soft)' }} />
             <button className="btn btn-ghost w-full" style={{ justifyContent: 'flex-start', borderRadius: 0, padding: '10px 14px', color: 'var(--danger)' }}
