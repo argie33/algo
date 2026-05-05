@@ -23,6 +23,7 @@ lambda-deployment.tar.gz
 *.db
 *.sqlite
 *.sql
+!init_db.sql  # Docker Compose initialization script (intentionally tracked)
 
 # Logs
 *.log
