@@ -10,7 +10,7 @@ on:
       - 'algo_*.py'
       - 'run_eod_loaders.sh'
       - 'lambda/algo_orchestrator/**'
-      - 'template-algo-orchestrator.yml'
+      - 'template-algo-lambda-minimal.yml'
       - '.github/workflows/deploy-algo-orchestrator.yml'
     branches:
       - main

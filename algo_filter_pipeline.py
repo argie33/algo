@@ -103,6 +103,8 @@ class FilterPipeline:
             passed_all_tiers = []
 
             for symbol, signal_date, _signal, entry_price in signals:
+                if entry_price is None or not entry_price:
+                    continue
                 result = self.evaluate_signal(symbol, signal_date, float(entry_price))
                 for t in (1, 2, 3, 4, 5):
                     if result['tiers'][t]['pass']:

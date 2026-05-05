@@ -76,9 +76,9 @@ DB_CONFIG = {
 class Orchestrator:
     """Daily workflow runner with explicit phases."""
 
-    def __init__(self, run_date=None, dry_run=False, verbose=True):
+    def __init__(self, config=None, run_date=None, dry_run=False, verbose=True):
         from algo_config import get_config
-        self.config = get_config()
+        self.config = config or get_config()
         self.run_date = run_date or _date.today()
         self.dry_run = dry_run
         self.verbose = verbose

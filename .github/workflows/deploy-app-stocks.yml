@@ -8,6 +8,7 @@ on:
     paths:
       - 'load*.py'
       - 'Dockerfile.*'
+      - 'template-app-stocks.yml'
       - 'template-app-ecs-tasks.yml'
       - '.github/workflows/deploy-app-stocks.yml'
     branches:
