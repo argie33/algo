@@ -69,17 +69,69 @@ jobs:
         run: |
           aws s3 cp template-app-stocks.yml "s3://${{ steps.bucket.outputs.bucket }}/template-app-stocks.yml"
 
-      - name: Path A — IMPORT existing RDS into new stack (preserves data)
+      - name: Path A — IMPORT existing RDS into new stack, then UPDATE to add the rest
         if: steps.state.outputs.stack_status == 'NOT_FOUND' && steps.state.outputs.rds_exists != 'NONE'
         run: |
           echo "Stack does not exist but RDS '$RDS_ID' is orphaned. Importing it into a new stack to preserve data."
 
           CHANGE_SET=import-rds-$(date +%s)
+          # IMPORT change-sets must use a template that contains ONLY the resource being
+          # imported (or the imported resource plus exactly the resources already in the
+          # stack). For a brand-new stack, that means a stub template with just the RDS.
+          # We then UPDATE with the full template to materialize everything else.
+          cat > /tmp/import-stub.yml <<STUB
+          AWSTemplateFormatVersion: '2010-09-09'
+          Description: Import-only stub for stocks-app-stack (RDS only)
+          Parameters:
+            RDSUsername: { Type: String }
+            RDSPassword: { Type: String, NoEcho: true }
+          Resources:
+            StocksDBInstance:
+              Type: AWS::RDS::DBInstance
+              DeletionPolicy: Retain
+              UpdateReplacePolicy: Retain
+              Properties:
+                DBInstanceIdentifier: $RDS_ID
+                DBName: stocks
+                Engine: postgres
+                DBInstanceClass: db.t3.micro
+                AllocatedStorage: 61
+                MasterUsername: !Ref RDSUsername
+                MasterUserPassword: !Ref RDSPassword
+                PubliclyAccessible: true
+          STUB
+
+          aws s3 cp /tmp/import-stub.yml \
+            "s3://${{ steps.bucket.outputs.bucket }}/template-app-stocks-import-stub.yml"
+
           aws cloudformation create-change-set \
             --stack-name "$STACK_NAME" \
             --change-set-name "$CHANGE_SET" \
             --change-set-type IMPORT \
             --resources-to-import "[{\"ResourceType\":\"AWS::RDS::DBInstance\",\"LogicalResourceId\":\"StocksDBInstance\",\"ResourceIdentifier\":{\"DBInstanceIdentifier\":\"$RDS_ID\"}}]" \
+            --template-url "https://${{ steps.bucket.outputs.bucket }}.s3.amazonaws.com/template-app-stocks-import-stub.yml" \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+            --parameters \
+              ParameterKey=RDSUsername,ParameterValue="${{ secrets.RDS_USERNAME }}" \
+              ParameterKey=RDSPassword,ParameterValue="${{ secrets.RDS_PASSWORD }}" \
+            --region "$AWS_REGION"
+
+          echo "Waiting for change set..."
+          aws cloudformation wait change-set-create-complete \
+            --stack-name "$STACK_NAME" --change-set-name "$CHANGE_SET" \
+            --region "$AWS_REGION"
+
+          echo "Executing import..."
+          aws cloudformation execute-change-set \
+            --stack-name "$STACK_NAME" --change-set-name "$CHANGE_SET" \
+            --region "$AWS_REGION"
+
+          aws cloudformation wait stack-import-complete \
+            --stack-name "$STACK_NAME" --region "$AWS_REGION"
+          echo "Import complete. Now updating to materialize the full template..."
+
+          aws cloudformation update-stack \
+            --stack-name "$STACK_NAME" \
             --template-url "https://${{ steps.bucket.outputs.bucket }}.s3.amazonaws.com/template-app-stocks.yml" \
             --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
             --parameters \
@@ -90,19 +142,9 @@ jobs:
               ParameterKey=AlpacaApiSecretKey,ParameterValue="${{ secrets.APCA_API_SECRET_KEY }}" \
             --region "$AWS_REGION"
 
-          echo "Waiting for change set to be created..."
-          aws cloudformation wait change-set-create-complete \
-            --stack-name "$STACK_NAME" --change-set-name "$CHANGE_SET" \
-            --region "$AWS_REGION"
-
-          echo "Executing import change set..."
-          aws cloudformation execute-change-set \
-            --stack-name "$STACK_NAME" --change-set-name "$CHANGE_SET" \
-            --region "$AWS_REGION"
-
-          aws cloudformation wait stack-import-complete \
+          aws cloudformation wait stack-update-complete \
             --stack-name "$STACK_NAME" --region "$AWS_REGION"
-          echo "Import complete. Other resources will be created on the next normal update."
+          echo "Stack fully populated."
 
       - name: Path B — CREATE fresh stack (no existing RDS)
         if: steps.state.outputs.stack_status == 'NOT_FOUND' && steps.state.outputs.rds_exists == 'NONE'
