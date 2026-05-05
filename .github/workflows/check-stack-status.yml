@@ -36,3 +36,25 @@ jobs:
             --db-instance-identifier stocks \
             --query 'DBInstances[0].[DBInstanceStatus,Endpoint.Address]' \
             --output table 2>/dev/null || echo "no stocks RDS"
+
+      - name: Core stack - in-progress resources (find what's blocking CLEANUP)
+        run: |
+          aws cloudformation describe-stack-resources \
+            --stack-name stocks-core-stack --region us-east-1 \
+            --query "StackResources[?contains(ResourceStatus, 'IN_PROGRESS')].[LogicalResourceId,ResourceType,ResourceStatus,ResourceStatusReason]" \
+            --output table 2>/dev/null || echo "(no in-progress resources)"
+
+      - name: Bastion ASG instances (suspect culprit)
+        run: |
+          INSTANCES=$(aws autoscaling describe-auto-scaling-groups \
+            --auto-scaling-group-names stocks-bastion-asg \
+            --region us-east-1 \
+            --query 'AutoScalingGroups[0].Instances[].[InstanceId,LifecycleState,HealthStatus]' \
+            --output table 2>/dev/null || echo "")
+          echo "$INSTANCES"
+          echo ""
+          echo "=== Pending bastion EC2 instances ==="
+          aws ec2 describe-instances --region us-east-1 \
+            --filters "Name=tag:Name,Values=stocks-bastion" "Name=instance-state-name,Values=pending,running,shutting-down,stopping" \
+            --query 'Reservations[].Instances[].[InstanceId,State.Name,LaunchTime]' \
+            --output table 2>/dev/null || echo "(none)"
