@@ -25,7 +25,7 @@ RUN pip install --upgrade pip && \
 ENV PYTHONUNBUFFERED=1
 ENV AWS_DEFAULT_REGION=us-east-1
 
-COPY loadstockscores.py .
+COPY loadstockscores.py optimal_loader.py data_source_router.py watermark_loader.py bloom_dedup.py .
 
 # Trigger rebuild: Fix deduplication in stock-scores loader
 ENTRYPOINT ["python", "loadstockscores.py"]

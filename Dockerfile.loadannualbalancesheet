@@ -26,5 +26,5 @@ RUN pip install --upgrade pip && \
 ENV PYTHONUNBUFFERED=1
 ENV AWS_DEFAULT_REGION=us-east-1
 
-COPY loadannualbalancesheet.py .
+COPY loadannualbalancesheet.py optimal_loader.py data_source_router.py watermark_loader.py bloom_dedup.py .
 ENTRYPOINT ["python", "loadannualbalancesheet.py"]

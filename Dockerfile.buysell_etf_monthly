@@ -26,5 +26,5 @@ ENV PYTHONUNBUFFERED=1
 ENV AWS_DEFAULT_REGION=us-east-1
 
 COPY lib lib
-COPY loadbuysell_etf_monthly.py .
+COPY loadbuysell_etf_monthly.py optimal_loader.py data_source_router.py watermark_loader.py bloom_dedup.py .
 ENTRYPOINT ["python", "loadbuysell_etf_monthly.py"]
