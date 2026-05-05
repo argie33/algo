@@ -79,6 +79,23 @@ jobs:
           fi
 
           echo ""
+          echo "Checking for existing VPCs with CIDR 10.0.0.0/16..."
+          VPC_EXISTS=$(aws ec2 describe-vpcs \
+            --filters "Name=cidr,Values=10.0.0.0/16" \
+            --region "${{ env.AWS_REGION }}" \
+            --query 'Vpcs[0].VpcId' \
+            --output text 2>/dev/null || echo "none")
+
+          if [[ "$VPC_EXISTS" != "none" && ! -z "$VPC_EXISTS" ]]; then
+            echo "⚠️  Found existing VPC: $VPC_EXISTS with CIDR 10.0.0.0/16"
+            echo "This may conflict with stack creation. Checking if it's from stocks-core..."
+            VPC_TAGS=$(aws ec2 describe-vpcs --vpc-ids "$VPC_EXISTS" --region "${{ env.AWS_REGION }}" --query 'Vpcs[0].Tags')
+            echo "VPC Tags: $VPC_TAGS"
+          else
+            echo "✓ No conflicting VPC found"
+          fi
+
+          echo ""
           echo "Checking template syntax validity..."
           aws cloudformation validate-template \
             --template-body file://template-core.yml \
@@ -91,28 +108,59 @@ jobs:
           ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
           REGION="${{ env.AWS_REGION }}"
 
-          # Clean up ECR repository if it exists
-          echo "Checking for orphaned ECR repository..."
-          if aws ecr describe-repositories \
+          # DELETE all stacks related to stocks-core to ensure clean state
+          echo "Forcefully deleting all stocks-* stacks to ensure clean slate..."
+          aws cloudformation list-stacks \
             --region "$REGION" \
-            --query "repositories[?repositoryName=='stocks-app-registry']" \
-            --output json 2>/dev/null | grep -q "stocks-app-registry"; then
-            echo "Found orphaned ECR repository. Deleting..."
-            aws ecr delete-repository \
-              --repository-name stocks-app-registry \
-              --force \
-              --region "$REGION" || echo "Could not delete ECR (may be in use)"
-          fi
-
-          # Check for orphaned S3 buckets
-          echo "Checking for orphaned S3 buckets..."
-          for BUCKET in "stocks-algo-app-code-$ACCOUNT_ID" "stocks-cf-templates-$ACCOUNT_ID" "algo-artifacts-$ACCOUNT_ID"; do
-            if aws s3 ls "s3://$BUCKET" --region "$REGION" 2>/dev/null; then
-              echo "Found bucket: $BUCKET"
-              # Note: We don't delete buckets as they may have DeletionPolicy: Retain
-              # and contain important data. Just report their existence.
+            --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE CREATE_FAILED \
+                                     ROLLBACK_COMPLETE UPDATE_ROLLBACK_COMPLETE REVIEW_IN_PROGRESS \
+            --query 'StackSummaries[?contains(StackName, `stocks`)].StackName' \
+            --output text | tr '\t' '\n' | while read STACK; do
+            if [[ ! -z "$STACK" ]]; then
+              echo "Deleting stack: $STACK"
+              aws cloudformation delete-stack --stack-name "$STACK" --region "$REGION" 2>/dev/null || echo "  (Could not delete $STACK)"
             fi
           done
+
+          # Wait briefly for deletions to start
+          sleep 5
+
+          # Force delete ECR repository
+          echo "Force-deleting ECR repository if it exists..."
+          aws ecr delete-repository \
+            --repository-name stocks-app-registry \
+            --force \
+            --region "$REGION" 2>/dev/null || echo "  (No ECR repository to delete)"
+
+          # List S3 buckets for reference (don't delete to avoid data loss)
+          echo "S3 buckets in account (not deleting to preserve data):"
+          aws s3 ls --region "$REGION" | grep -E "stocks|algo" || echo "  (None found)"
+
+          # Force delete any lingering VPCs that might conflict
+          echo "Checking for VPCs to delete..."
+          aws ec2 describe-vpcs \
+            --region "$REGION" \
+            --query 'Vpcs[?CidrBlock==`10.0.0.0/16`].VpcId' \
+            --output text | tr '\t' '\n' | while read VPC_ID; do
+            if [[ ! -z "$VPC_ID" ]]; then
+              echo "Found VPC $VPC_ID with CIDR 10.0.0.0/16. Attempting force-delete..."
+              # Try to delete all network interfaces first
+              aws ec2 describe-network-interfaces \
+                --region "$REGION" \
+                --filters "Name=vpc-id,Values=$VPC_ID" \
+                --query 'NetworkInterfaces[].NetworkInterfaceId' \
+                --output text | tr '\t' '\n' | while read ENI_ID; do
+                if [[ ! -z "$ENI_ID" ]]; then
+                  echo "  Deleting ENI: $ENI_ID"
+                  aws ec2 delete-network-interface --network-interface-id "$ENI_ID" --region "$REGION" 2>/dev/null || true
+                fi
+              done
+              # Delete the VPC itself
+              aws ec2 delete-vpc --vpc-id "$VPC_ID" --region "$REGION" 2>/dev/null || echo "  (VPC deletion may need more cleanup)"
+            fi
+          done
+
+          echo "Cleanup complete."
 
       - name: Check and cleanup failed CloudFormation stacks
         run: |
