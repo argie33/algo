@@ -64,3 +64,8 @@ __pycache__/
 *_orchestrator.lock
 paper_mode_reports/
 .loader-progress.json
+
+# SAM build outputs
+.aws-sam/
+**/lambda-build/
+.sam-tests/
