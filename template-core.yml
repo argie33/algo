@@ -1,7 +1,16 @@
+# ============================================================
+# Stock Analytics Platform — template-core.yml
+# Layer:   Foundation (VPC, IAM, ECR, S3, endpoints)
+# Stack:   stocks-core
+# Exports: StocksCore-* (VPC, subnets, ECR, S3, endpoints, SGs)
+# Imports: None
+# Deploy:  .github/workflows/deploy-core.yml
+# ============================================================
+
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
   Core infrastructure stack - VPC, Subnets, Internet Gateway, Bastion host (Spot ASG),
-  auto-shutdown Lambda, ECR registry, and S3 code bucket.
+  auto-shutdown Lambda, ECR registry, S3 code bucket, and algo artifacts bucket.
   **NAT Gateway removed to save cost**.
 
 Parameters:
@@ -20,12 +29,6 @@ Parameters:
   PrivateSubnetCidr2:
     Type: String
     Default: "10.0.102.0/24"
-  DBStackName:
-    Type: String
-    Default: "stocks-db-lambda-stack"
-  DBSecretName:
-    Type: String
-    Default: "stocks-db-secrets"
   BastionInstanceType:
     Type: String
     Default: "t3.micro"
@@ -42,22 +45,7 @@ Parameters:
 
 Resources:
 
-  ### 1) Lambda execution role ### 
-  LambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: lambda-execution-admin-role
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: [lambda.amazonaws.com]
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AdministratorAccess
-
-  ### 2) VPC & Networking ###
+  ### 1) VPC & Networking ###
   StocksVPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -171,10 +159,10 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: cloudformation:DescribeStacks
-                Resource: !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${DBStackName}/*
+                Resource: !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/stocks-*
               - Effect: Allow
                 Action: secretsmanager:GetSecretValue
-                Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${DBSecretName}*
+                Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:stocks-*
 
   BastionInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -223,19 +211,25 @@ Resources:
             # configure AWS region
             aws configure set region ${AWS::Region}
 
-            # fetch DB creds & .pgpass
+            # fetch DB creds from data infrastructure stack
+            # Note: stack name is "stocks-app" (will be "stocks-data" after Phase 3 rename)
+            STACK_NAME="stocks-app"
+            SECRET_ARN=$(aws cloudformation describe-stacks \
+              --stack-name "$STACK_NAME" \
+              --query "Stacks[0].Outputs[?OutputKey=='SecretArn'].OutputValue" \
+              --output text)
             CREDS=$(aws secretsmanager get-secret-value \
-              --secret-id "${DBSecretName}" \
+              --secret-id "$SECRET_ARN" \
               --query SecretString --output text)
             DB_USER=$(echo "$CREDS" | jq -r .username)
             DB_PASSWORD=$(echo "$CREDS" | jq -r .password)
             DB_NAME=$(echo "$CREDS" | jq -r .dbname)
             DB_HOST=$(aws cloudformation describe-stacks \
-              --stack-name "${DBStackName}" \
+              --stack-name "$STACK_NAME" \
               --query "Stacks[0].Outputs[?OutputKey=='DBEndpoint'].OutputValue" \
               --output text)
             DB_PORT=$(aws cloudformation describe-stacks \
-              --stack-name "${DBStackName}" \
+              --stack-name "$STACK_NAME" \
               --query "Stacks[0].Outputs[?OutputKey=='DBPort'].OutputValue" \
               --output text)
             cat <<EOF > /home/ec2-user/.pgpass
@@ -388,6 +382,26 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
 
+  ### 9b) Algo Artifacts Bucket ###
+  AlgoArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub algo-artifacts-${AWS::AccountId}
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldArtifacts
+            Status: Enabled
+            ExpirationInDays: 90
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+
   ### 10) VPC ENDPOINTS — Cost Optimization (eliminates NAT Gateway ~$20/month) ###
   VpcEndpointSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -502,10 +516,6 @@ Outputs:
     Value: !Ref PrivateSubnet2
     Export:
       Name: StocksCore-PrivateSubnet2Id
-  LambdaExecutionRoleArn:
-    Value: !GetAtt LambdaExecutionRole.Arn
-    Export:
-      Name: StocksCore-LambdaExecutionRoleArn
   ContainerRepositoryUri:
     Value: !GetAtt ContainerRepository.RepositoryUri
     Export:
@@ -518,6 +528,10 @@ Outputs:
     Value: !Ref CfTemplatesBucket
     Export:
       Name: StocksCore-CfTemplatesBucketName
+  AlgoArtifactsBucketName:
+    Value: !Ref AlgoArtifactsBucket
+    Export:
+      Name: StocksCore-AlgoArtifactsBucketName
   BastionSecurityGroupId:
     Value: !Ref BastionSecurityGroup
     Export:
