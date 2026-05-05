@@ -66,6 +66,7 @@ jobs:
           echo "TEMPLATE_BUCKET=$BUCKET_NAME" >> $GITHUB_ENV
 
       - name: Deploy core CloudFormation stack
+        id: cfn_deploy
         run: |
           echo "Deploying core infrastructure stack..."
 
@@ -77,7 +78,26 @@ jobs:
             --region us-east-1 \
             --no-fail-on-empty-changeset
 
-          echo "✅ Core stack deployment complete"
+          echo "Core stack deployment complete"
+
+      - name: Diagnose stack events on failure
+        if: failure() && steps.cfn_deploy.outcome == 'failure'
+        run: |
+          echo "=== Last 25 stack events for stocks-core-stack ==="
+          aws cloudformation describe-stack-events \
+            --stack-name stocks-core-stack \
+            --region us-east-1 \
+            --max-items 25 \
+            --query 'StackEvents[?contains(ResourceStatus, `FAIL`) || contains(ResourceStatus, `ROLLBACK`)].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]' \
+            --output table || echo "(no events available)"
+
+          echo ""
+          echo "=== Current stack status ==="
+          aws cloudformation describe-stacks \
+            --stack-name stocks-core-stack \
+            --region us-east-1 \
+            --query 'Stacks[0].[StackStatus,StackStatusReason]' \
+            --output table || echo "(stack does not exist)"
 
       - name: Verify core stack outputs
         run: |

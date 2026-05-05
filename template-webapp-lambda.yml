@@ -178,8 +178,8 @@ Resources:
         ApplyOn: PublishedVersions
       Environment:
         Variables:
-          DB_SECRET_ARN: !Ref DatabaseSecretArn
-          DB_ENDPOINT: !Ref DatabaseEndpoint
+          DB_SECRET_ARN: !ImportValue StocksApp-SecretArn
+          DB_ENDPOINT: !ImportValue StocksApp-DBEndpoint
           ENVIRONMENT: !Ref EnvironmentName
           COGNITO_USER_POOL_ID: !Ref UserPool
           COGNITO_CLIENT_ID: !Ref UserPoolClient
@@ -190,7 +190,9 @@ Resources:
             - Effect: Allow
               Action:
                 - secretsmanager:GetSecretValue
-              Resource: !Ref DatabaseSecretArn
+              Resource: !Sub
+                - '${SecretArn}*'
+                - SecretArn: !ImportValue StocksApp-SecretArn
             - Effect: Allow
               Action:
                 - rds:DescribeDBInstances
