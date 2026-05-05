@@ -128,6 +128,9 @@ class AlgoConfig:
 
     def _load_from_database(self):
         """Load configuration from database, overriding defaults."""
+        if psycopg2 is None:
+            print("Warning: psycopg2 not available, using defaults")
+            return
         try:
             conn = psycopg2.connect(**DB_CONFIG)
             cur = conn.cursor()
