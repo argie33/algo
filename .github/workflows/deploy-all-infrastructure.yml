@@ -63,7 +63,7 @@ jobs:
           echo "2. ✅ stocks-core (VPC, ECR, S3, bastion)"
           echo "3. ✅ stocks-data (RDS, ECS cluster, secrets)"
           echo "4. ✅ stocks-webapp-dev (Lambda API, frontend)"
-          echo "5. ✅ stocks-loaders (63 ECS data loaders)"
+          echo "5. ✅ stocks-loaders (62 ECS data loaders)"
           echo "6. ✅ stocks-algo-dev (algo orchestrator Lambda)"
           echo ""
           echo "Next steps:"
