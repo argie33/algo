@@ -365,17 +365,18 @@ jobs:
           role-to-assume:    ${{ env.AWS_ROLE_ARN }}
           role-session-name: ${{ env.AWS_ROLE_SESSION }}
 
-      - name: Verify frontend build (pre-built)
+      - name: Install frontend dependencies
         working-directory: webapp/frontend
         run: |
-          echo "Frontend pre-built locally - skipping npm install in GitHub Actions"
-          echo "Frontend will be synced to S3 after infrastructure is deployed"
-          if [ -d "dist" ]; then
-            echo "✅ Frontend dist folder exists"
-            du -sh dist
+          # npm install is required for the Build Frontend step below to succeed
+          # (postcss.config.js requires tailwindcss; the prior 'skip install' assumption
+          # only held for pre-built dist/ folders, which we don't ship from the repo).
+          if [ -f package-lock.json ]; then
+            npm ci
           else
-            echo "⚠️ Frontend dist folder not found - will need to build manually"
+            npm install
           fi
+          echo "Frontend dependencies installed"
       - name: Get Cognito configuration
         id: cognito_config
         run: |

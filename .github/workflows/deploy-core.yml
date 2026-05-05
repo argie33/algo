@@ -53,27 +53,20 @@ jobs:
             echo "Stack cleanup complete"
           fi
 
-      - name: Create S3 bucket for CloudFormation templates if needed
-        run: |
-          BUCKET_NAME="stocks-cf-templates-${{ secrets.AWS_ACCOUNT_ID }}"
-          if aws s3api head-bucket --bucket "$BUCKET_NAME" --region us-east-1 2>/dev/null; then
-            echo "✅ Bucket exists: $BUCKET_NAME"
-          else
-            echo "Creating S3 bucket: $BUCKET_NAME"
-            aws s3 mb "s3://$BUCKET_NAME" --region us-east-1
-            echo "✅ Bucket created"
-          fi
-          echo "TEMPLATE_BUCKET=$BUCKET_NAME" >> $GITHUB_ENV
-
       - name: Deploy core CloudFormation stack
         id: cfn_deploy
         run: |
+          # template-core.yml is ~16 KB — well under CloudFormation's 51,200-byte
+          # inline limit, so no --s3-bucket is needed. The CfTemplatesBucket resource
+          # *inside* template-core.yml is what other stacks use for their uploads
+          # (via !ImportValue StocksCore-CfTemplatesBucketName). Pre-creating a
+          # bucket from this workflow caused a name collision when CloudFormation
+          # tried to take ownership of an externally-created bucket.
           echo "Deploying core infrastructure stack..."
 
           aws cloudformation deploy \
             --template-file template-core.yml \
             --stack-name stocks-core-stack \
-            --s3-bucket ${{ env.TEMPLATE_BUCKET }} \
             --capabilities CAPABILITY_NAMED_IAM \
             --region us-east-1 \
             --no-fail-on-empty-changeset
