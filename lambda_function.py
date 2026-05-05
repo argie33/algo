@@ -18,6 +18,29 @@ logger = logging.getLogger(__name__)
 EXECUTION_MODE = os.getenv('EXECUTION_MODE', 'paper')
 DRY_RUN = os.getenv('DRY_RUN_MODE', 'true').lower() == 'true'
 
+def get_database_credentials():
+    """Fetch database credentials from AWS Secrets Manager."""
+    try:
+        import boto3
+        secrets = boto3.client('secretsmanager')
+        secret_arn = os.getenv('DATABASE_SECRET_ARN')
+        if not secret_arn:
+            raise ValueError('DATABASE_SECRET_ARN environment variable not set')
+
+        response = secrets.get_secret_value(SecretId=secret_arn)
+        creds = json.loads(response['SecretString'])
+
+        os.environ['DB_HOST'] = creds.get('host', 'localhost')
+        os.environ['DB_PORT'] = str(creds.get('port', 5432))
+        os.environ['DB_USER'] = creds.get('username', 'stocks')
+        os.environ['DB_PASSWORD'] = creds.get('password', '')
+        os.environ['DB_NAME'] = creds.get('dbname', 'stocks')
+
+        logger.info("Database credentials loaded from Secrets Manager")
+    except Exception as e:
+        logger.error(f"Failed to get database credentials: {str(e)}")
+        raise
+
 def lambda_handler(event, context):
     """
     Simplified handler - runs algo_orchestrator directly.
@@ -31,6 +54,9 @@ def lambda_handler(event, context):
         logger.info(f"Execution Mode: {EXECUTION_MODE}")
         logger.info(f"Dry Run: {DRY_RUN}")
         logger.info("=" * 80)
+
+        # Fetch database credentials from Secrets Manager
+        get_database_credentials()
 
         # Import and run orchestrator directly (no subprocess)
         from algo_orchestrator import Orchestrator
