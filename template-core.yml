@@ -354,12 +354,15 @@ Resources:
           }
 
   ### 8) S3 Code Bucket ###
-  # Account-scoped names: S3 bucket names are global; suffix with account ID to
-  # avoid BucketAlreadyExists collisions across AWS accounts.
+  # Bucket names are global S3 namespace; the existing stack created
+  # 'stocks-algo-app-code' and 'stocks-cf-templates' without account suffix
+  # because they were claimed before any other account took them. Renaming
+  # requires REPLACEMENT (delete old + create new) which fails on non-empty
+  # versioned buckets, so leave names as-is and only tighten security.
   CodeBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub stocks-algo-app-code-${AWS::AccountId}
+      BucketName: stocks-algo-app-code
       VersioningConfiguration:
         Status: Enabled
       PublicAccessBlockConfiguration:
@@ -374,7 +377,7 @@ Resources:
   CfTemplatesBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub stocks-cf-templates-${AWS::AccountId}
+      BucketName: stocks-cf-templates
       VersioningConfiguration:
         Status: Enabled
       PublicAccessBlockConfiguration:

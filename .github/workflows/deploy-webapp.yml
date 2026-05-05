@@ -368,14 +368,10 @@ jobs:
       - name: Install frontend dependencies
         working-directory: webapp/frontend
         run: |
-          # npm install is required for the Build Frontend step below to succeed
-          # (postcss.config.js requires tailwindcss; the prior 'skip install' assumption
-          # only held for pre-built dist/ folders, which we don't ship from the repo).
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
+          # Use 'npm install' (not 'npm ci') because package.json and package-lock.json
+          # are not always in lockstep — devs sometimes update package.json without
+          # regenerating the lock file. install reconciles; ci would fail.
+          npm install
           echo "Frontend dependencies installed"
       - name: Get Cognito configuration
         id: cognito_config
