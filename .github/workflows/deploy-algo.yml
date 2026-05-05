@@ -4,7 +4,9 @@ on:
   push:
     paths:
       - 'template-algo.yml'
-      - 'lambda/algo_orchestrator/**'
+      - 'lambda_function.py'
+      - 'algo_*.py'
+      - 'requirements.txt'
       - '.github/workflows/deploy-algo.yml'
     branches:
       - main
@@ -139,9 +141,22 @@ jobs:
 
       - name: Package algo Lambda function
         run: |
-          cd lambda/algo_orchestrator
-          zip -r ../../algo_orchestrator.zip . -x "*.git*" "*.pyc" "__pycache__/*"
-          cd ../..
+          mkdir -p lambda-pkg
+          cd lambda-pkg
+
+          # Copy handler and all algo modules
+          cp ../lambda_function.py .
+          cp ../algo_*.py .
+
+          # Copy requirements and install dependencies
+          cp ../requirements.txt .
+          pip install -r requirements.txt -t . --only-binary=:all: --quiet
+
+          # Create deployment zip
+          zip -r ../algo_orchestrator.zip . -x "*.git*" "*.pyc" "__pycache__/*"
+          cd ..
+
+          # Upload to S3
           aws s3 cp algo_orchestrator.zip "s3://${{ steps.bucket.outputs.bucket }}/algo_orchestrator.zip"
 
       - name: Deploy algo CloudFormation stack
