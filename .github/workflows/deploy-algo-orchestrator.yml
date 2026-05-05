@@ -196,6 +196,26 @@ jobs:
               --region ${{ env.AWS_REGION }} 2>/dev/null || echo "Stack deleted or already gone"
           fi
 
+      - name: Clean up orphaned resources from previous failed deploys
+        run: |
+          # Lambda auto-creates /aws/lambda/algo-orchestrator log group on first invoke;
+          # if CloudFormation tries to create it again, the stack fails. Delete it if not
+          # currently owned by an active stack.
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-algo-orchestrator \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+
+          if [[ "$STACK_STATUS" == "DOES_NOT_EXIST" ]]; then
+            echo "Stack does not exist — clearing any orphaned log group"
+            aws logs delete-log-group \
+              --log-group-name /aws/lambda/algo-orchestrator \
+              --region ${{ env.AWS_REGION }} 2>/dev/null && \
+              echo "Deleted orphaned log group" || \
+              echo "(no orphaned log group to delete)"
+          fi
+
       - name: Get database secret ARN from Secrets Manager
         run: |
           echo "Retrieving database secret ARN..."
@@ -215,6 +235,7 @@ jobs:
           echo "Retrieved DB secret ARN: $DB_SECRET"
 
       - name: Deploy CloudFormation stack (Algo Lambda only)
+        id: cfn_deploy
         run: |
           echo "Deploying algo Lambda + EventBridge (minimal stack)..."
           echo "Database Secret ARN: ${{ env.DB_SECRET }}"
@@ -231,6 +252,25 @@ jobs:
             --capabilities CAPABILITY_NAMED_IAM \
             --region ${{ env.AWS_REGION }} \
             --no-fail-on-empty-changeset
+
+      - name: Diagnose stack events on failure
+        if: failure() && steps.cfn_deploy.outcome == 'failure'
+        run: |
+          echo "=== Last 25 stack events for stocks-algo-orchestrator ==="
+          aws cloudformation describe-stack-events \
+            --stack-name stocks-algo-orchestrator \
+            --region ${{ env.AWS_REGION }} \
+            --max-items 25 \
+            --query 'StackEvents[?contains(ResourceStatus, `FAIL`) || contains(ResourceStatus, `ROLLBACK`)].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]' \
+            --output table || echo "(no events available)"
+
+          echo ""
+          echo "=== Current stack status ==="
+          aws cloudformation describe-stacks \
+            --stack-name stocks-algo-orchestrator \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Stacks[0].[StackStatus,StackStatusReason]' \
+            --output table || echo "(stack does not exist)"
 
       - name: Verify EventBridge rule
         run: |

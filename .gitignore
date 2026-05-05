@@ -57,3 +57,9 @@ Thumbs.db
 *.temp
 __pycache__/
 *.py[cod]
+
+# Runtime artifacts (local-only)
+.algo_orchestrator.lock
+*_orchestrator.lock
+paper_mode_reports/
+.loader-progress.json

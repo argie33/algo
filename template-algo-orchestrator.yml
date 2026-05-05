@@ -102,8 +102,10 @@ Resources:
   AlgoOrchestratorFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub 'algo-orchestrator'
+      FunctionName: algo-orchestrator
       Runtime: python3.11
+      Architectures:
+        - arm64
       Role: !GetAtt LambdaExecutionRole.Arn
       Handler: lambda_function.lambda_handler
       Timeout: 900  # 15 minutes
@@ -124,51 +126,64 @@ Resources:
         - Key: Component
           Value: AlgoOrchestrator
 
-  # EventBridge rule - Daily at 5:30pm ET (9:30pm UTC)
-  AlgoScheduleRule:
-    Type: AWS::Events::Rule
+  # SQS queue for EventBridge dead-letter (must be SQS, not SNS)
+  AlgoEventDLQ:
+    Type: AWS::SQS::Queue
     Properties:
-      Name: algo-eod-orchestrator
-      Description: Daily algo execution at 5:30pm ET (market close)
-      ScheduleExpression: 'cron(0 21 * * ? *)'  # 9:30pm UTC = 5:30pm ET
-      State: ENABLED
-      Targets:
-        - Arn: !GetAtt AlgoOrchestratorFunction.Arn
-          Id: AlgoOrchestratorTarget
-          RoleArn: !GetAtt EventBridgeRole.Arn
-          DeadLetterConfig:
-            Arn: !GetAtt AlgoAlertTopic.TopicArn
+      QueueName: !Sub 'algo-orchestrator-event-dlq-${Environment}'
+      MessageRetentionPeriod: 1209600  # 14 days
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
 
-  # EventBridge role
-  EventBridgeRole:
+  # Schedule role (assumed by EventBridge Scheduler service)
+  ScheduleInvokeRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub 'algo-eventbridge-role-${Environment}'
+      RoleName: !Sub 'algo-scheduler-invoke-role-${Environment}'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
             Principal:
-              Service: events.amazonaws.com
+              Service: scheduler.amazonaws.com
             Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
       Policies:
-        - PolicyName: InvokeLambda
+        - PolicyName: InvokeAlgoLambda
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action:
-                  - lambda:InvokeFunction
-                Resource: !GetAtt AlgoOrchestratorFunction.Arn
+                Action: lambda:InvokeFunction
+                Resource:
+                  - !GetAtt AlgoOrchestratorFunction.Arn
+                  - !Sub '${AlgoOrchestratorFunction.Arn}:*'
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt AlgoEventDLQ.Arn
 
-  # Lambda permission for EventBridge
-  LambdaInvokePermission:
-    Type: AWS::Lambda::Permission
+  # EventBridge Scheduler — weekdays at 5:30pm America/New_York (handles EDT/EST automatically)
+  AlgoSchedule:
+    Type: AWS::Scheduler::Schedule
     Properties:
-      FunctionName: !Ref AlgoOrchestratorFunction
-      Action: lambda:InvokeFunction
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt AlgoScheduleRule.Arn
+      Name: algo-eod-orchestrator
+      Description: Daily algo execution at 5:30pm ET (after market close), weekdays only
+      ScheduleExpression: 'cron(30 17 ? * MON-FRI *)'
+      ScheduleExpressionTimezone: America/New_York
+      State: ENABLED
+      FlexibleTimeWindow:
+        Mode: 'OFF'
+      Target:
+        Arn: !GetAtt AlgoOrchestratorFunction.Arn
+        RoleArn: !GetAtt ScheduleInvokeRole.Arn
+        DeadLetterConfig:
+          Arn: !GetAtt AlgoEventDLQ.Arn
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 2
 
   # CloudWatch alarm - Lambda errors
   LambdaErrorAlarm:
@@ -230,11 +245,11 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-LambdaName'
 
-  EventBridgeRuleArn:
-    Description: ARN of the EventBridge rule
-    Value: !GetAtt AlgoScheduleRule.Arn
+  ScheduleArn:
+    Description: ARN of the EventBridge Scheduler schedule
+    Value: !GetAtt AlgoSchedule.Arn
     Export:
-      Name: !Sub '${AWS::StackName}-EventBridgeRuleArn'
+      Name: !Sub '${AWS::StackName}-ScheduleArn'
 
   AlertTopicArn:
     Description: SNS topic ARN for algo alerts
@@ -244,11 +259,11 @@ Outputs:
 
   Schedule:
     Description: EventBridge schedule (cron expression)
-    Value: 'cron(0 21 * * ? *)'
+    Value: 'cron(30 17 ? * MON-FRI *) America/New_York'
 
   ScheduleDescription:
     Description: When the schedule runs
-    Value: 'Daily at 5:30pm ET (9:30pm UTC, after market close)'
+    Value: 'Weekdays at 5:30pm America/New_York (timezone-aware, no seasonal drift)'
 
   ExecutionMode:
     Description: Current execution mode
