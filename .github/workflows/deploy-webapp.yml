@@ -187,9 +187,32 @@ jobs:
               echo "ℹ️ Stack is still functional but last update failed. Proceeding with new deployment."
               ;;
             "DELETE_FAILED")
-              echo "❌ Stack is in DELETE_FAILED state. Manual intervention required."
-              echo "   Please manually delete the stack or resolve the deletion issues."
-              exit 1
+              echo "⚠️ Stack is in DELETE_FAILED state. Attempting self-heal."
+              # Find resources stuck in DELETE_FAILED — typically a Lambda whose
+              # CloudWatch log group already vanished or a role with active
+              # invocations. Retain those and try to delete the rest. If retain
+              # delete still fails, escalate.
+              STUCK=$(aws cloudformation describe-stack-resources \
+                --stack-name ${{ env.STACK_NAME }} \
+                --query "StackResources[?ResourceStatus=='DELETE_FAILED'].LogicalResourceId" \
+                --output text 2>/dev/null || echo "")
+              if [[ -n "$STUCK" ]]; then
+                echo "   Stuck resources: $STUCK"
+                echo "   Retrying delete with --retain-resources $STUCK"
+                aws cloudformation delete-stack \
+                  --stack-name ${{ env.STACK_NAME }} \
+                  --retain-resources $STUCK
+              else
+                echo "   No DELETE_FAILED resources found, retrying plain delete"
+                aws cloudformation delete-stack --stack-name ${{ env.STACK_NAME }}
+              fi
+              echo "⏳ Waiting for stack deletion to complete..."
+              if aws cloudformation wait stack-delete-complete --stack-name ${{ env.STACK_NAME }} 2>&1; then
+                echo "✅ Stack deletion completed (some resources retained outside CFN)"
+              else
+                echo "❌ Self-heal failed. Manual cleanup needed for: $STUCK"
+                exit 1
+              fi
               ;;
             "REVIEW_IN_PROGRESS")
               echo "⚠️ Stack is in REVIEW_IN_PROGRESS state due to failed changeset"
