@@ -19,32 +19,38 @@ jobs:
     name: 1. Bootstrap OIDC Provider
     if: ${{ github.event.inputs.skip_bootstrap != 'true' }}
     uses: ./.github/workflows/bootstrap-oidc.yml
+    secrets: inherit
 
   core:
     name: 2. Deploy Core Infrastructure
     needs: bootstrap
     if: always()  # Run even if bootstrap skipped
     uses: ./.github/workflows/deploy-core.yml
+    secrets: inherit
 
   data-infrastructure:
     name: 3. Deploy Data Infrastructure
     needs: core
     uses: ./.github/workflows/deploy-data-infrastructure.yml
+    secrets: inherit
 
   webapp:
     name: 4. Deploy Webapp
     needs: data-infrastructure
     uses: ./.github/workflows/deploy-webapp.yml
+    secrets: inherit
 
   loaders:
     name: 5. Deploy Loaders
     needs: data-infrastructure
     uses: ./.github/workflows/deploy-loaders.yml
+    secrets: inherit
 
   algo:
     name: 6. Deploy Algo Orchestrator
     needs: data-infrastructure
     uses: ./.github/workflows/deploy-algo.yml
+    secrets: inherit
 
   summary:
     name: Deployment Summary
