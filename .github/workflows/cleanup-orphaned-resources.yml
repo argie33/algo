@@ -1,0 +1,153 @@
+name: Cleanup orphaned resources
+
+# One-shot recovery workflow. Use this when CloudFormation gets stuck in
+# UPDATE_ROLLBACK_COMPLETE because resources exist outside the stack.
+#
+# What it does:
+# 1. Force-delete the ECR repo `stocks-app-registry` (orphaned, blocks core stack)
+# 2. Optionally delete the entire core stack and dependents for a clean redeploy
+#
+# Trigger manually via the Actions tab.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'What to clean up'
+        required: true
+        default: 'orphaned-ecr'
+        type: choice
+        options:
+          - orphaned-ecr
+          - all-stacks
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          role-session-name: github-cleanup
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Show pre-cleanup state
+        run: |
+          echo "=== ECR repos with 'stocks' in name ==="
+          aws ecr describe-repositories \
+            --query "repositories[?contains(repositoryName, 'stocks')].[repositoryName,createdAt,repositoryUri]" \
+            --output table 2>/dev/null || echo "(none / no permission)"
+
+          echo ""
+          echo "=== CloudFormation stacks ==="
+          aws cloudformation list-stacks \
+            --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE CREATE_FAILED ROLLBACK_COMPLETE \
+            --query "StackSummaries[?contains(StackName, 'stocks')].[StackName,StackStatus,LastUpdatedTime]" \
+            --output table
+
+      - name: Delete orphaned ECR repo (force, including images)
+        if: ${{ inputs.action == 'orphaned-ecr' || inputs.action == 'all-stacks' }}
+        run: |
+          REPO=stocks-app-registry
+          if aws ecr describe-repositories --repository-names $REPO 2>/dev/null; then
+            echo "Repo $REPO exists. Listing image count..."
+            COUNT=$(aws ecr list-images --repository-name $REPO --query 'length(imageIds)' --output text)
+            echo "Image count: $COUNT"
+
+            echo "Force-deleting (deletes all images too)..."
+            aws ecr delete-repository --repository-name $REPO --force
+            echo "Deleted"
+          else
+            echo "Repo $REPO does not exist - nothing to clean"
+          fi
+
+      - name: Delete IAM role lambda-execution-admin-role if orphaned
+        if: ${{ inputs.action == 'orphaned-ecr' || inputs.action == 'all-stacks' }}
+        run: |
+          ROLE=lambda-execution-admin-role
+          if aws iam get-role --role-name $ROLE 2>/dev/null; then
+            echo "Role $ROLE exists. Detaching policies..."
+
+            # Detach all managed policies
+            for arn in $(aws iam list-attached-role-policies --role-name $ROLE --query 'AttachedPolicies[].PolicyArn' --output text); do
+              echo "  Detaching: $arn"
+              aws iam detach-role-policy --role-name $ROLE --policy-arn "$arn"
+            done
+
+            # Delete inline policies
+            for name in $(aws iam list-role-policies --role-name $ROLE --query 'PolicyNames[]' --output text); do
+              echo "  Deleting inline: $name"
+              aws iam delete-role-policy --role-name $ROLE --policy-name "$name"
+            done
+
+            aws iam delete-role --role-name $ROLE
+            echo "Deleted role $ROLE"
+          else
+            echo "Role $ROLE does not exist - nothing to clean"
+          fi
+
+      - name: Full nuke - delete all stacks in dependency order
+        if: ${{ inputs.action == 'all-stacks' }}
+        run: |
+          # RDS instance has DeletionPolicy: Retain in template-app-stocks.yml,
+          # so the database is preserved even when the stack is deleted.
+          # Bucket data and Cognito users are also retained where appropriate.
+
+          delete_stack() {
+            local name=$1
+            local status
+            status=$(aws cloudformation describe-stacks --stack-name "$name" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo NOT_FOUND)
+            if [[ "$status" == "NOT_FOUND" ]]; then
+              echo "  $name: already gone"
+              return 0
+            fi
+            echo "  $name: status=$status, deleting..."
+            aws cloudformation delete-stack --stack-name "$name"
+            aws cloudformation wait stack-delete-complete --stack-name "$name" 2>/dev/null || \
+              echo "  $name: wait failed (may need manual review)"
+          }
+
+          # Delete in reverse dependency order
+          echo "1. Deleting webapp stack..."
+          delete_stack stocks-webapp-dev
+
+          echo "2. Deleting algo orchestrator stack..."
+          delete_stack stocks-algo-orchestrator
+
+          echo "3. Deleting ECS tasks stack..."
+          delete_stack stocks-ecs-tasks-stack
+
+          echo "4. Deleting app stack (RDS Retained)..."
+          delete_stack stocks-app-stack
+
+          echo "5. Deleting core stack..."
+          delete_stack stocks-core-stack
+
+          echo ""
+          echo "All stacks deleted. RDS instance is retained (DeletionPolicy: Retain)."
+          echo "Run deploy-core, deploy-app-infrastructure, deploy-app-stocks, deploy-webapp,"
+          echo "and deploy-algo-orchestrator workflows in that order to rebuild."
+
+      - name: Show post-cleanup state
+        if: always()
+        run: |
+          echo "=== ECR repos remaining ==="
+          aws ecr describe-repositories \
+            --query "repositories[?contains(repositoryName, 'stocks')].[repositoryName,createdAt]" \
+            --output table 2>/dev/null || echo "(none)"
+
+          echo ""
+          echo "=== CloudFormation stacks remaining ==="
+          aws cloudformation list-stacks \
+            --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE CREATE_FAILED ROLLBACK_COMPLETE DELETE_IN_PROGRESS \
+            --query "StackSummaries[?contains(StackName, 'stocks')].[StackName,StackStatus]" \
+            --output table
