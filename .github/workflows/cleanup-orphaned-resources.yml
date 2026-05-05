@@ -20,6 +20,7 @@ on:
         options:
           - orphaned-ecr
           - all-stacks
+          - bastion-only
 
 permissions:
   id-token: write
@@ -53,6 +54,30 @@ jobs:
             --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE UPDATE_ROLLBACK_COMPLETE CREATE_FAILED ROLLBACK_COMPLETE \
             --query "StackSummaries[?contains(StackName, 'stocks')].[StackName,StackStatus,LastUpdatedTime]" \
             --output table
+
+      - name: Scale bastion ASG to 0 + terminate instances (free CFN from waiting)
+        if: ${{ inputs.action == 'bastion-only' || inputs.action == 'all-stacks' }}
+        run: |
+          ASG=stocks-bastion-asg
+          if aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names $ASG --region us-east-1 --query 'AutoScalingGroups[0].AutoScalingGroupName' --output text 2>/dev/null | grep -q $ASG; then
+            echo "Setting $ASG MinSize=0, DesiredCapacity=0..."
+            aws autoscaling update-auto-scaling-group \
+              --auto-scaling-group-name $ASG \
+              --min-size 0 --desired-capacity 0 --region us-east-1
+
+            INSTANCES=$(aws autoscaling describe-auto-scaling-groups \
+              --auto-scaling-group-names $ASG --region us-east-1 \
+              --query 'AutoScalingGroups[0].Instances[].InstanceId' --output text)
+            for id in $INSTANCES; do
+              echo "Terminating bastion instance $id (decrement-capacity)..."
+              aws autoscaling terminate-instance-in-auto-scaling-group \
+                --instance-id $id --should-decrement-desired-capacity \
+                --region us-east-1 || true
+            done
+            echo "Bastion scaled down."
+          else
+            echo "ASG $ASG does not exist - nothing to do"
+          fi
 
       - name: Delete orphaned ECR repo (force, including images)
         if: ${{ inputs.action == 'orphaned-ecr' || inputs.action == 'all-stacks' }}
