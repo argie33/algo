@@ -1,0 +1,188 @@
+name: Deploy Loaders (ECS Tasks)
+
+on:
+  push:
+    paths:
+      - 'template-loader-tasks.yml'
+      - '.github/workflows/deploy-loaders.yml'
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-loaders-stocks-loaders
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  pre-flight:
+    name: Pre-flight checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-pre-flight-loaders
+          aws-region: us-east-1
+
+      - name: Verify dependency stacks exist
+        run: |
+          for STACK in stocks-core stocks-data; do
+            STATUS=$(aws cloudformation describe-stacks \
+              --stack-name "$STACK" \
+              --query 'Stacks[0].StackStatus' \
+              --output text 2>/dev/null || echo "MISSING")
+            if [[ "$STATUS" != *"COMPLETE"* ]]; then
+              echo "ERROR: $STACK must be deployed first (status: $STATUS)"
+              exit 1
+            fi
+            echo "✅ $STACK: $STATUS"
+          done
+
+  deploy:
+    name: Deploy Loaders Stack
+    needs: pre-flight
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy-loaders
+          aws-region: us-east-1
+
+      - name: Check and cleanup failed CloudFormation stacks
+        run: |
+          STACK_NAME="stocks-loaders"
+
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --region us-east-1 \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+
+          echo "Stack status: $STATUS"
+
+          if [[ "$STATUS" == *"ROLLBACK"* ]]; then
+            echo "Deleting failed stack: $STACK_NAME"
+            aws cloudformation delete-stack \
+              --stack-name "$STACK_NAME" \
+              --region us-east-1
+
+            echo "Waiting for stack deletion..."
+            aws cloudformation wait stack-delete-complete \
+              --stack-name "$STACK_NAME" \
+              --region us-east-1 2>/dev/null || true
+            echo "Stack cleanup complete"
+          fi
+
+      - name: Wait for stack to be in a stable state
+        run: |
+          for i in $(seq 1 60); do
+            STATUS=$(aws cloudformation describe-stacks \
+              --stack-name stocks-loaders --region us-east-1 \
+              --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo NOT_FOUND)
+            case "$STATUS" in
+              *_IN_PROGRESS)
+                echo "[$i/60] Stack busy ($STATUS); waiting 30s..."
+                sleep 30
+                ;;
+              *)
+                echo "Stack in stable state: $STATUS"
+                break
+                ;;
+            esac
+          done
+
+      - name: Get CloudFormation templates bucket from core stack
+        id: bucket
+        run: |
+          CF_BUCKET=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-CfTemplatesBucketName'].Value" \
+            --output text --region us-east-1)
+          if [ -z "$CF_BUCKET" ] || [ "$CF_BUCKET" = "None" ]; then
+            echo "Core stack export StocksCore-CfTemplatesBucketName not found"
+            exit 1
+          fi
+          echo "bucket=$CF_BUCKET" >> $GITHUB_OUTPUT
+
+      - name: Upload template to S3 (large template > 51200 bytes)
+        run: |
+          aws s3 cp template-loader-tasks.yml "s3://${{ steps.bucket.outputs.bucket }}/template-loader-tasks.yml"
+
+      - name: Deploy loaders CloudFormation stack
+        id: cfn_deploy
+        run: |
+          echo "Deploying loaders infrastructure stack..."
+
+          aws cloudformation deploy \
+            --template-url "https://${{ steps.bucket.outputs.bucket }}.s3.amazonaws.com/template-loader-tasks.yml" \
+            --stack-name stocks-loaders \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --region us-east-1 \
+            --no-fail-on-empty-changeset
+
+          echo "Loaders stack deployment complete"
+
+      - name: Diagnose stack events on failure
+        if: failure() && steps.cfn_deploy.outcome == 'failure'
+        run: |
+          echo "=== ALL events with a status reason ==="
+          aws cloudformation describe-stack-events \
+            --stack-name stocks-loaders \
+            --region us-east-1 \
+            --max-items 60 \
+            --query 'reverse(StackEvents[?ResourceStatusReason != null && ResourceStatusReason != `Resource creation cancelled` && ResourceStatusReason != `Resource update cancelled`].[Timestamp,LogicalResourceId,ResourceType,ResourceStatus,ResourceStatusReason])' \
+            --output table || echo "(no events available)"
+
+          echo ""
+          echo "=== Current stack status ==="
+          aws cloudformation describe-stacks \
+            --stack-name stocks-loaders \
+            --region us-east-1 \
+            --query 'Stacks[0].[StackStatus,StackStatusReason]' \
+            --output table || echo "(stack does not exist)"
+
+      - name: Verify loaders stack outputs
+        run: |
+          aws cloudformation describe-stacks \
+            --stack-name stocks-loaders \
+            --region us-east-1 \
+            --query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' \
+            --output table
+
+  rollback-on-failure:
+    name: Rollback on failure
+    needs: deploy
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-rollback-loaders
+          aws-region: us-east-1
+
+      - name: Clean up failed stack
+        run: |
+          STACK_NAME="stocks-loaders"
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo MISSING)
+          if [[ "$STATUS" =~ FAILED|ROLLBACK ]]; then
+            echo "Cleaning up $STACK_NAME (status: $STATUS)..."
+            aws cloudformation delete-stack --stack-name "$STACK_NAME"
+            aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME" || true
+            echo "✅ Stack cleaned. Re-run deploy workflow to retry."
+          else
+            echo "Stack is in '$STATUS' state — no cleanup needed"
+          fi

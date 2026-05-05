@@ -31,18 +31,24 @@ jobs:
     needs: core
     uses: ./.github/workflows/deploy-data-infrastructure.yml
 
-  deploy-services:
-    name: 4. Deploy Services (Parallel)
+  webapp:
+    name: 4. Deploy Webapp
     needs: data-infrastructure
-    strategy:
-      matrix:
-        service: [webapp]
-      max-parallel: 1
-    uses: ./.github/workflows/deploy-${{ matrix.service }}.yml
+    uses: ./.github/workflows/deploy-webapp.yml
+
+  loaders:
+    name: 5. Deploy Loaders
+    needs: data-infrastructure
+    uses: ./.github/workflows/deploy-loaders.yml
+
+  algo:
+    name: 6. Deploy Algo Orchestrator
+    needs: data-infrastructure
+    uses: ./.github/workflows/deploy-algo.yml
 
   summary:
     name: Deployment Summary
-    needs: [deploy-services]
+    needs: [webapp, loaders, algo]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -52,10 +58,16 @@ jobs:
           echo "All infrastructure deployed successfully!"
           echo "=========================================="
           echo ""
-          echo "Next steps:"
-          echo "1. Deploy data loaders: deploy-loaders.yml"
-          echo "2. Deploy algo orchestrator: deploy-algo.yml"
+          echo "Stack deployment order (completed):"
+          echo "1. ✅ stocks-oidc (OIDC provider)"
+          echo "2. ✅ stocks-core (VPC, ECR, S3, bastion)"
+          echo "3. ✅ stocks-data (RDS, ECS cluster, secrets)"
+          echo "4. ✅ stocks-webapp-dev (Lambda API, frontend)"
+          echo "5. ✅ stocks-loaders (63 ECS data loaders)"
+          echo "6. ✅ stocks-algo-dev (algo orchestrator Lambda)"
           echo ""
-          echo "To deploy everything at once, create"
-          echo "deploy-all-infrastructure.yml or run"
-          echo "individual workflows in order."
+          echo "Next steps:"
+          echo "- Verify data loaders are running in CloudWatch"
+          echo "- Check algo Lambda is scheduled in EventBridge"
+          echo "- Test webapp frontend at CloudFront URL"
+          echo "- Review stack outputs for API endpoints and URLs"

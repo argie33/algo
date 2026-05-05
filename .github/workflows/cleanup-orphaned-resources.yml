@@ -116,31 +116,6 @@ jobs:
             echo "Repo $REPO does not exist - nothing to clean"
           fi
 
-      - name: Delete IAM role lambda-execution-admin-role if orphaned
-        if: ${{ inputs.action == 'orphaned-ecr' || inputs.action == 'all-stacks' }}
-        run: |
-          ROLE=lambda-execution-admin-role
-          if aws iam get-role --role-name $ROLE 2>/dev/null; then
-            echo "Role $ROLE exists. Detaching policies..."
-
-            # Detach all managed policies
-            for arn in $(aws iam list-attached-role-policies --role-name $ROLE --query 'AttachedPolicies[].PolicyArn' --output text); do
-              echo "  Detaching: $arn"
-              aws iam detach-role-policy --role-name $ROLE --policy-arn "$arn"
-            done
-
-            # Delete inline policies
-            for name in $(aws iam list-role-policies --role-name $ROLE --query 'PolicyNames[]' --output text); do
-              echo "  Deleting inline: $name"
-              aws iam delete-role-policy --role-name $ROLE --policy-name "$name"
-            done
-
-            aws iam delete-role --role-name $ROLE
-            echo "Deleted role $ROLE"
-          else
-            echo "Role $ROLE does not exist - nothing to clean"
-          fi
-
       - name: Full nuke - delete all stacks in dependency order
         if: ${{ inputs.action == 'all-stacks' }}
         run: |
@@ -167,21 +142,21 @@ jobs:
           delete_stack stocks-webapp-dev
 
           echo "2. Deleting algo orchestrator stack..."
-          delete_stack stocks-algo-orchestrator
+          delete_stack stocks-algo-dev
 
-          echo "3. Deleting ECS tasks stack..."
-          delete_stack stocks-ecs-tasks-stack
+          echo "3. Deleting loaders stack..."
+          delete_stack stocks-loaders
 
-          echo "4. Deleting app stack (RDS Retained)..."
-          delete_stack stocks-app-stack
+          echo "4. Deleting data infrastructure stack (RDS Retained)..."
+          delete_stack stocks-data
 
           echo "5. Deleting core stack..."
-          delete_stack stocks-core-stack
+          delete_stack stocks-core
 
           echo ""
           echo "All stacks deleted. RDS instance is retained (DeletionPolicy: Retain)."
-          echo "Run deploy-core, deploy-app-infrastructure, deploy-app-stocks, deploy-webapp,"
-          echo "and deploy-algo-orchestrator workflows in that order to rebuild."
+          echo "Run deploy-core.yml, deploy-data-infrastructure.yml, deploy-loaders.yml, deploy-webapp.yml,"
+          echo "and deploy-algo.yml workflows in that order to rebuild."
 
       - name: Show post-cleanup state
         if: always()

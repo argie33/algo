@@ -1,0 +1,223 @@
+name: Deploy Algo Orchestrator
+
+on:
+  push:
+    paths:
+      - 'template-algo.yml'
+      - 'lambda/algo_orchestrator/**'
+      - '.github/workflows/deploy-algo.yml'
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-algo-stocks-algo-dev
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  pre-flight:
+    name: Pre-flight checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-pre-flight-algo
+          aws-region: us-east-1
+
+      - name: Verify dependency stacks exist
+        run: |
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name stocks-data \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "MISSING")
+          if [[ "$STATUS" != *"COMPLETE"* ]]; then
+            echo "ERROR: stocks-data must be deployed first (status: $STATUS)"
+            exit 1
+          fi
+          echo "✅ stocks-data: $STATUS"
+
+      - name: Verify core exports exist
+        run: |
+          for EXPORT in StocksCore-AlgoArtifactsBucketName StocksApp-SecretArn; do
+            VALUE=$(aws cloudformation list-exports \
+              --query "Exports[?Name=='$EXPORT'].Value" \
+              --output text 2>/dev/null || echo "")
+            if [ -z "$VALUE" ] || [ "$VALUE" = "None" ]; then
+              echo "ERROR: Export $EXPORT not found"
+              exit 1
+            fi
+            echo "✅ $EXPORT: $VALUE"
+          done
+
+  deploy:
+    name: Deploy Algo Orchestrator
+    needs: pre-flight
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-deploy-algo
+          aws-region: us-east-1
+
+      - name: Check and cleanup failed CloudFormation stacks
+        run: |
+          STACK_NAME="stocks-algo-dev"
+
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --region us-east-1 \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+
+          echo "Stack status: $STATUS"
+
+          if [[ "$STATUS" == *"ROLLBACK"* ]]; then
+            echo "Deleting failed stack: $STACK_NAME"
+            aws cloudformation delete-stack \
+              --stack-name "$STACK_NAME" \
+              --region us-east-1
+
+            echo "Waiting for stack deletion..."
+            aws cloudformation wait stack-delete-complete \
+              --stack-name "$STACK_NAME" \
+              --region us-east-1 2>/dev/null || true
+            echo "Stack cleanup complete"
+          fi
+
+      - name: Wait for stack to be in a stable state
+        run: |
+          for i in $(seq 1 60); do
+            STATUS=$(aws cloudformation describe-stacks \
+              --stack-name stocks-algo-dev --region us-east-1 \
+              --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo NOT_FOUND)
+            case "$STATUS" in
+              *_IN_PROGRESS)
+                echo "[$i/60] Stack busy ($STATUS); waiting 30s..."
+                sleep 30
+                ;;
+              *)
+                echo "Stack in stable state: $STATUS"
+                break
+                ;;
+            esac
+          done
+
+      - name: Get artifacts bucket from core stack
+        id: bucket
+        run: |
+          BUCKET=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksCore-AlgoArtifactsBucketName'].Value" \
+            --output text --region us-east-1)
+          if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ]; then
+            echo "ERROR: AlgoArtifactsBucketName not found in core stack"
+            exit 1
+          fi
+          echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
+
+      - name: Get database secret ARN from data stack
+        id: secrets
+        run: |
+          SECRET=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='StocksApp-SecretArn'].Value" \
+            --output text --region us-east-1)
+          if [ -z "$SECRET" ] || [ "$SECRET" = "None" ]; then
+            echo "ERROR: StocksApp-SecretArn not found in data stack"
+            exit 1
+          fi
+          echo "secret_arn=$SECRET" >> $GITHUB_OUTPUT
+
+      - name: Package algo Lambda function
+        run: |
+          cd lambda/algo_orchestrator
+          zip -r ../../algo_orchestrator.zip . -x "*.git*" "*.pyc" "__pycache__/*"
+          cd ../..
+          aws s3 cp algo_orchestrator.zip "s3://${{ steps.bucket.outputs.bucket }}/algo_orchestrator.zip"
+
+      - name: Deploy algo CloudFormation stack
+        id: cfn_deploy
+        run: |
+          echo "Deploying algo orchestrator stack..."
+
+          aws cloudformation deploy \
+            --template-file template-algo.yml \
+            --stack-name stocks-algo-dev \
+            --parameter-overrides \
+              LambdaFunctionCodeBucket="${{ steps.bucket.outputs.bucket }}" \
+              LambdaFunctionCodeKey="algo_orchestrator.zip" \
+              DatabaseSecretArn="${{ steps.secrets.outputs.secret_arn }}" \
+              AlgoSecretsArn="" \
+              DryRunMode="true" \
+              ExecutionMode="paper" \
+              Environment="dev" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --region us-east-1 \
+            --no-fail-on-empty-changeset
+
+          echo "Algo stack deployment complete"
+
+      - name: Diagnose stack events on failure
+        if: failure() && steps.cfn_deploy.outcome == 'failure'
+        run: |
+          echo "=== ALL events with a status reason ==="
+          aws cloudformation describe-stack-events \
+            --stack-name stocks-algo-dev \
+            --region us-east-1 \
+            --max-items 60 \
+            --query 'reverse(StackEvents[?ResourceStatusReason != null && ResourceStatusReason != `Resource creation cancelled` && ResourceStatusReason != `Resource update cancelled`].[Timestamp,LogicalResourceId,ResourceType,ResourceStatus,ResourceStatusReason])' \
+            --output table || echo "(no events available)"
+
+          echo ""
+          echo "=== Current stack status ==="
+          aws cloudformation describe-stacks \
+            --stack-name stocks-algo-dev \
+            --region us-east-1 \
+            --query 'Stacks[0].[StackStatus,StackStatusReason]' \
+            --output table || echo "(stack does not exist)"
+
+      - name: Verify algo stack outputs
+        run: |
+          aws cloudformation describe-stacks \
+            --stack-name stocks-algo-dev \
+            --region us-east-1 \
+            --query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' \
+            --output table
+
+  rollback-on-failure:
+    name: Rollback on failure
+    needs: deploy
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          role-session-name: github-rollback-algo
+          aws-region: us-east-1
+
+      - name: Clean up failed stack
+        run: |
+          STACK_NAME="stocks-algo-dev"
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo MISSING)
+          if [[ "$STATUS" =~ FAILED|ROLLBACK ]]; then
+            echo "Cleaning up $STACK_NAME (status: $STATUS)..."
+            aws cloudformation delete-stack --stack-name "$STACK_NAME"
+            aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME" || true
+            echo "✅ Stack cleaned. Re-run deploy workflow to retry."
+          else
+            echo "Stack is in '$STATUS' state — no cleanup needed"
+          fi

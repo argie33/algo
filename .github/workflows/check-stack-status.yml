@@ -40,7 +40,7 @@ jobs:
       - name: Core stack - in-progress resources (find what's blocking CLEANUP)
         run: |
           aws cloudformation describe-stack-resources \
-            --stack-name stocks-core-stack --region us-east-1 \
+            --stack-name stocks-core --region us-east-1 \
             --query "StackResources[?contains(ResourceStatus, 'IN_PROGRESS')].[LogicalResourceId,ResourceType,ResourceStatus,ResourceStatusReason]" \
             --output table 2>/dev/null || echo "(no in-progress resources)"
 

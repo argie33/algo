@@ -6,7 +6,7 @@ on:
       - main
     paths:
       - 'webapp/**'
-      - 'template-webapp-lambda.yml'
+      - 'template-webapp.yml'
       - '.github/workflows/deploy-webapp.yml'
   workflow_dispatch:
 
@@ -74,7 +74,7 @@ jobs:
             frontend:
               - 'webapp/frontend/**'
             template:
-              - 'template-webapp-lambda.yml'
+              - 'template-webapp.yml'
               - '.github/workflows/deploy-webapp.yml'
       - id: any
         name: Any relevant changes?
