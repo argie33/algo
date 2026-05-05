@@ -2,14 +2,14 @@ import ReactDOM from "react-dom/client";
 import "./index.css"; // Tailwind base + design system tokens
 
 // Apply theme class before first paint (avoid flash of wrong theme).
-// Light is default per FRONTEND_DESIGN_SYSTEM.md (finance UX research).
+// Dark is default — sleek is the look we want. User can opt into light via
+// the toggle in the user menu (persisted to localStorage as theme=light).
 (function applyInitialTheme() {
   try {
     const saved = localStorage.getItem("theme");
-    const wantLight = saved !== "dark"; // default → light
-    document.documentElement.classList.toggle("light", wantLight);
+    document.documentElement.classList.toggle("light", saved === "light");
   } catch (_) {
-    document.documentElement.classList.add("light");
+    /* default: no .light class → dark */
   }
 })();
 import { BrowserRouter } from "react-router-dom";

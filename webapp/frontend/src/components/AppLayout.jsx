@@ -2,8 +2,8 @@
  * AppLayout — Bullseye Trading platform shell
  *
  * Pure JSX + theme.css classes. No MUI. No Tailwind.
- * Light theme is default per FRONTEND_DESIGN_SYSTEM.md (finance UX research);
- * dark is opt-in via the user-menu toggle (persisted to localStorage).
+ * Dark theme is default (sleek look). Light is opt-in via the user-menu
+ * toggle (persisted to localStorage as theme=light).
  * All visual tokens live in src/styles/tokens.css.
  *
  * Layout: 260px left sidebar (brand · nav · user) + main content + footer.
@@ -80,8 +80,8 @@ export default function AppLayout({ children }) {
   const [exposure, setExposure] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [theme, setTheme] = useState(() => {
-    try { return localStorage.getItem('theme') === 'dark' ? 'dark' : 'light'; }
-    catch { return 'light'; }
+    try { return localStorage.getItem('theme') === 'light' ? 'light' : 'dark'; }
+    catch { return 'dark'; }
   });
 
   // Apply class on <html> + persist whenever the user toggles
