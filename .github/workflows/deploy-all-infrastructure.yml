@@ -1,0 +1,61 @@
+name: Deploy All Infrastructure (Master Orchestrator)
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_bootstrap:
+        description: 'Skip OIDC bootstrap (only needed once)'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['true', 'false']
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  bootstrap:
+    name: 1. Bootstrap OIDC Provider
+    if: ${{ github.event.inputs.skip_bootstrap != 'true' }}
+    uses: ./.github/workflows/bootstrap-oidc.yml
+
+  core:
+    name: 2. Deploy Core Infrastructure
+    needs: bootstrap
+    if: always()  # Run even if bootstrap skipped
+    uses: ./.github/workflows/deploy-core.yml
+
+  data-infrastructure:
+    name: 3. Deploy Data Infrastructure
+    needs: core
+    uses: ./.github/workflows/deploy-data-infrastructure.yml
+
+  deploy-services:
+    name: 4. Deploy Services (Parallel)
+    needs: data-infrastructure
+    strategy:
+      matrix:
+        service: [webapp]
+      max-parallel: 1
+    uses: ./.github/workflows/deploy-${{ matrix.service }}.yml
+
+  summary:
+    name: Deployment Summary
+    needs: [deploy-services]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deployment Complete
+        run: |
+          echo "=========================================="
+          echo "All infrastructure deployed successfully!"
+          echo "=========================================="
+          echo ""
+          echo "Next steps:"
+          echo "1. Deploy data loaders: deploy-loaders.yml"
+          echo "2. Deploy algo orchestrator: deploy-algo.yml"
+          echo ""
+          echo "To deploy everything at once, create"
+          echo "deploy-all-infrastructure.yml or run"
+          echo "individual workflows in order."
