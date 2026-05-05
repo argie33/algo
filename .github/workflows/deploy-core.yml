@@ -47,8 +47,9 @@ jobs:
 
           echo "Stack status: $STATUS"
 
-          if [[ "$STATUS" == *"ROLLBACK"* ]]; then
-            echo "Deleting failed stack: $STACK_NAME"
+          # Delete stack if in ANY problematic state (ROLLBACK, REVIEW, UPDATE_ROLLBACK, etc.)
+          if [[ "$STATUS" != "DOES_NOT_EXIST" && "$STATUS" != "CREATE_COMPLETE" && "$STATUS" != "UPDATE_COMPLETE" ]]; then
+            echo "Stack in bad state ($STATUS). Deleting to start fresh..."
             aws cloudformation delete-stack \
               --stack-name "$STACK_NAME" \
               --region us-east-1
@@ -57,7 +58,7 @@ jobs:
             aws cloudformation wait stack-delete-complete \
               --stack-name "$STACK_NAME" \
               --region us-east-1 2>/dev/null || true
-            echo "Stack cleanup complete"
+            echo "Stack cleanup complete. Will create fresh."
           fi
 
       - name: Wait for stack to be in a stable state
@@ -104,25 +105,6 @@ jobs:
             --capabilities CAPABILITY_NAMED_IAM \
             --region us-east-1 \
             --no-fail-on-empty-changeset
-
-          # If stack entered REVIEW_IN_PROGRESS, delete it and retry
-          STATUS=$(aws cloudformation describe-stacks \
-            --stack-name stocks-core --region us-east-1 \
-            --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo NONE)
-
-          if [ "$STATUS" = "REVIEW_IN_PROGRESS" ]; then
-            echo "Stack stuck in REVIEW_IN_PROGRESS. Deleting and retrying..."
-            aws cloudformation delete-stack --stack-name stocks-core --region us-east-1
-            aws cloudformation wait stack-delete-complete --stack-name stocks-core --region us-east-1 2>/dev/null || true
-
-            echo "Retrying deployment..."
-            aws cloudformation deploy \
-              --template-file template-core.yml \
-              --stack-name stocks-core \
-              --capabilities CAPABILITY_NAMED_IAM \
-              --region us-east-1 \
-              --no-fail-on-empty-changeset
-          fi
 
           echo "Core stack deployment complete"
 
