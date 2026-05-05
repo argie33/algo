@@ -1,53 +1,158 @@
-# Documentation Index
+# Stock Analytics Platform - Complete Documentation
 
-## Quick Start
-- **`CLAUDE.md`** (5 min read)
-  - One true server
-  - Quick local startup
-  - Links to detailed docs
+## AWS Infrastructure & Deployment
 
-## Development
+### Stack Dependency Order (CRITICAL)
 
-- **`LOCAL_SETUP.md`** (15 min)
-  - Prerequisites and installation
-  - Database configuration (local or RDS)
-  - Starting the dev stack
-  - Common local issues
-  
-- **`API_REFERENCE.md`** (20 min)
-  - All API endpoints
-  - Response formats
-  - Database table schema
-  - Authentication
-  - Example curl commands
+```
+[1] stocks-oidc (bootstrap)
+    ├─ GitHub OIDC provider, GitHubActionsDeployRole
+    ├─ One-time: .github/workflows/bootstrap-oidc.yml
+    └─ Exports: StocksOidc-WebIdentityProviderArn, GitHubActionsDeployRoleArn
 
-- **`TROUBLESHOOTING.md`** (as needed)
-  - Local development issues
-  - AWS deployment issues
-  - Data loading issues
-  - Performance debugging
+[2] stocks-core (foundation)
+    ├─ VPC, subnets, bastion, ECR, S3, VPC endpoints, algo artifacts bucket
+    ├─ Deploy: .github/workflows/deploy-core.yml
+    └─ Exports: StocksCore-VpcId, -PublicSubnet1/2Id, -ContainerRepositoryUri, -CfTemplatesBucketName, -AlgoArtifactsBucketName
 
-## Data & Loaders
+[3] stocks-data (data layer)
+    ├─ RDS PostgreSQL, ECS cluster, Secrets Manager, log groups
+    ├─ Deploy: .github/workflows/deploy-data-infrastructure.yml
+    └─ Exports: StocksApp-DBEndpoint, -DBPort, -DBName, -SecretArn, -ClusterArn, -EcsTasksSecurityGroupId
 
-- **`DATA_LOADING.md`** (reference)
-  - 39 official data loaders
-  - Loader phases and dependencies
-  - Loading schedule (intraday, daily, weekly, etc.)
-  - Optimization techniques
+[4a] stocks-loaders (data loaders - 62 ECS tasks)
+    ├─ ECS task definitions, EventBridge schedules
+    ├─ Deploy: .github/workflows/deploy-loaders.yml
+    └─ Exports: StocksLoaders-* (task definition ARNs)
 
-## Algo System
+[4b] stocks-webapp-dev (frontend & API)
+    ├─ Lambda API, API Gateway, CloudFront, Cognito, S3 frontend bucket
+    ├─ Deploy: .github/workflows/deploy-webapp.yml
+    └─ Exports: ${AWS::StackName}-ApiUrl, -WebsiteURL, -CloudFrontDistributionId
 
-- **`ALGO_DEPLOYMENT.md`** (20 min)
-  - Algo orchestrator deployment
-  - Lambda + EventBridge architecture
-  - Daily 5:30pm ET execution
-  - Monitoring and alerts
-  - CloudFormation template details
+[4c] stocks-algo-dev (algo orchestrator)
+    ├─ Algo Lambda, EventBridge scheduler, SNS alerts
+    ├─ Deploy: .github/workflows/deploy-algo.yml
+    └─ Exports: ${AWS::StackName}-LambdaFunctionArn, -ScheduleArn
+```
 
-- **`ALGO_ARCHITECTURE.md`** (deep dive)
-  - Swing trading system design
-  - Research citations and methodology
-  - Trade decision flow
+### Fresh AWS Account Setup
+
+**Prerequisites:**
+- AWS account with admin permissions
+- GitHub secrets: AWS_ACCOUNT_ID, RDS_USERNAME, RDS_PASSWORD, FRED_API_KEY, APCA_API_KEY_ID, APCA_API_SECRET_KEY
+
+**Deployment (60 minutes total):**
+```
+Run: .github/workflows/deploy-all-infrastructure.yml
+This runs all stacks in correct order automatically
+```
+
+**Or manual steps:**
+1. `bootstrap-oidc.yml` (2-3 min)
+2. `deploy-core.yml` (10-15 min)
+3. `deploy-data-infrastructure.yml` (15-20 min)
+4. `deploy-webapp.yml` (3-5 min)
+5. `deploy-loaders.yml` (5-10 min)
+6. `deploy-algo.yml` (2-3 min)
+
+### Architecture Overview
+
+**6 CloudFormation Templates:**
+- `template-bootstrap.yml` (42 lines) - OIDC setup
+- `template-core.yml` (528 lines) - Foundation: VPC, networking, ECR, S3, bastion
+- `template-data-infrastructure.yml` (294 lines) - RDS, ECS cluster, secrets
+- `template-loader-tasks.yml` (4092 lines) - 63 ECS task definitions
+- `template-webapp.yml` (440 lines) - Lambda API, CloudFront, Cognito
+- `template-algo.yml` (268 lines) - Algo orchestrator, EventBridge
+
+**Design Principles:**
+- Infrastructure-as-Code (all CloudFormation, version-controlled)
+- Explicit dependencies (CloudFormation !ImportValue only, no hardcoded values)
+- Secrets in Secrets Manager (never in environment variables)
+- Immutable docker images (`:latest` tag, rebuilt on every change)
+- Single responsibility (each template does one thing well)
+
+### Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| "Stack does not exist" | Run the dependency stack first |
+| "ResourceExistenceCheck failed" | Verify source stack exports exist, stack is COMPLETE |
+| Stack stuck in ROLLBACK_COMPLETE | Delete manually in CloudFormation console, retry |
+| API endpoint unreachable | Verify CloudFront distribution is DEPLOYED |
+
+### Costs
+
+Monthly breakdown:
+- RDS (t3.micro): $15
+- ECS (Fargate): $20
+- Lambda: $5
+- Storage + networking: $5
+- **Total: ~$45/month**
+
+Already optimized:
+- No NAT gateway (VPC endpoints instead) = saves $32/month
+- Bastion DesiredCount: 0 (manual scale-up only)
+- Lambda SnapStart (10x faster cold starts)
+- ARM Graviton (20% cost reduction)
+
+### Security
+
+**Implemented:**
+✅ OIDC scoped to `repo:argeropolos/algo:*`
+✅ Secrets in Secrets Manager
+✅ All templates version-controlled
+✅ No hardcoded credentials
+
+**Before production:**
+- Move Lambdas to private subnets with NAT
+- Move RDS to private subnets
+- Add least-privilege security groups
+- Enable RDS encryption at rest
+- Enable CloudTrail audit logging
+
+### Operations
+
+**Redeploy a component:**
+```bash
+.github/workflows/deploy-core.yml              # VPC, ECR, S3, bastion
+.github/workflows/deploy-data-infrastructure.yml  # RDS, ECS cluster
+.github/workflows/deploy-loaders.yml            # Loader tasks
+.github/workflows/deploy-webapp.yml             # Frontend & API
+.github/workflows/deploy-algo.yml               # Algo orchestrator
+.github/workflows/deploy-all-infrastructure.yml # All in order
+```
+
+**Manually run a loader:**
+```bash
+aws ecs run-task \
+  --cluster stocks-app-stack \
+  --task-definition stocksymbols-loader:1 \
+  --launch-type FARGATE \
+  --network-configuration "awsvpcConfiguration={subnets=[subnet-xxx],securityGroups=[sg-xxx],assignPublicIp=ENABLED}" \
+  --region us-east-1
+```
+
+**Scale bastion up:**
+```bash
+aws autoscaling set-desired-capacity \
+  --auto-scaling-group-name stocks-bastion-asg \
+  --desired-capacity 1
+```
+
+**Connect to RDS:**
+```bash
+# SSH to bastion, then:
+psql -h <RDS_ENDPOINT> -U postgres -d stocks
+```
+
+### Monitoring
+
+- **CloudWatch Logs:** `/aws/lambda/stocks-*`, `/ecs/*` for task logs
+- **CloudWatch Alarms:** Lambda and API Gateway performance
+- **EventBridge:** Verify loader schedules and algo runs are active
+- **RDS:** Monitor database performance in AWS console
   - Risk management rules
   - Position sizing logic
 
