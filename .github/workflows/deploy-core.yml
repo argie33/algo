@@ -108,13 +108,13 @@ jobs:
           ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
           REGION="${{ env.AWS_REGION }}"
 
-          # DELETE all stacks related to stocks-core to ensure clean state
-          echo "Forcefully deleting all stocks-* stacks to ensure clean slate..."
+          # DELETE stacks EXCEPT bootstrap (which contains OIDC provider)
+          echo "Forcefully deleting stocks-* stacks (except bootstrap) to ensure clean slate..."
           aws cloudformation list-stacks \
             --region "$REGION" \
             --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE CREATE_FAILED \
                                      ROLLBACK_COMPLETE UPDATE_ROLLBACK_COMPLETE REVIEW_IN_PROGRESS \
-            --query 'StackSummaries[?contains(StackName, `stocks`)].StackName' \
+            --query 'StackSummaries[?contains(StackName, `stocks`) && !contains(StackName, `oidc`)].StackName' \
             --output text | tr '\t' '\n' | while read STACK; do
             if [[ ! -z "$STACK" ]]; then
               echo "Deleting stack: $STACK"
