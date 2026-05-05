@@ -178,8 +178,14 @@ export default function ScoresDashboard() {
       try {
         const r = await api.get(`/api/scores/stockscores?symbol=${symbol}&limit=1`);
         const item = r.data?.items?.[0];
-        if (item) setDetails(d => ({ ...d, [symbol]: item }));
-      } catch { /* ignore */ }
+        if (item) {
+          setDetails(d => ({ ...d, [symbol]: item }));
+        } else {
+          console.warn(`[ScoresDashboard] No detail item returned for ${symbol}`, r.data);
+        }
+      } catch (err) {
+        console.error(`[ScoresDashboard] Failed to load detail for ${symbol}:`, err?.message || err);
+      }
     }
   };
 

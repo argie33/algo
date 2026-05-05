@@ -73,6 +73,7 @@ jobs:
             --template-file template-core.yml \
             --stack-name stocks-core-stack \
             --s3-bucket ${{ env.TEMPLATE_BUCKET }} \
+            --capabilities CAPABILITY_NAMED_IAM \
             --region us-east-1 \
             --no-fail-on-empty-changeset
 

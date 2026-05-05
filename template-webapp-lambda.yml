@@ -174,7 +174,7 @@ Resources:
       ReservedConcurrentExecutions: 10
       MemorySize: 512
       Timeout: 300
-      SnapStartConfig:
+      SnapStart:
         ApplyOn: PublishedVersions
       Environment:
         Variables:

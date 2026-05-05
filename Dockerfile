@@ -31,8 +31,6 @@ COPY signal_utils.py ./
 
 # Copy configuration files
 COPY .env.local* ./
-COPY LOADER_BEST_PRACTICES.md ./
-COPY AWS_BEST_PRACTICES.md ./
 
 # Set environment variables (can be overridden at runtime)
 ENV PYTHONUNBUFFERED=1
