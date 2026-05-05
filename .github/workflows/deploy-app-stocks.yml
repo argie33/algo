@@ -619,40 +619,31 @@ jobs:
           fi
           echo "✅ ECR repository verified"
 
-          # Build unified Docker image (includes all 54 refactored loaders + db_helper.py)
-          echo "🔨 Building unified Docker image with all refactored loaders..."
+          # Build unified Docker image (all loaders + db_helper.py).
+          # ECS task definitions request linux/arm64 (RuntimePlatform.CpuArchitecture: ARM64),
+          # so we MUST cross-build the image for arm64 — without this the GitHub runner's
+          # default x86_64 image fails inside ECS with: "exec /usr/local/bin/python3: exec format error".
+          echo "Building unified Docker image (linux/arm64) with all refactored loaders..."
 
           IMAGE_URI="${REPOSITORY_URI}:latest"
-          CACHE_FROM="type=gha,scope=unified"
-          CACHE_TO="type=gha,mode=max,scope=unified"
+          docker run --privileged --rm tonistiigi/binfmt --install arm64 || true
+          docker buildx create --name stocks-builder --use 2>/dev/null || docker buildx use stocks-builder
 
-          # Build the unified image (single Dockerfile includes all loaders)
-          timeout 30m docker build \
+          timeout 30m docker buildx build \
+            --platform linux/arm64 \
             --build-arg AWS_REGION="${{ env.AWS_REGION }}" \
             -t "$IMAGE_URI" \
-            -f Dockerfile . 2>&1 | tee /tmp/docker_build.log
+            -f Dockerfile \
+            --push . 2>&1 | tee /tmp/docker_build.log
 
           BUILD_EXIT=$?
           if [ $BUILD_EXIT -ne 0 ]; then
-            echo "❌ ERROR: Docker build failed!"
+            echo "ERROR: Docker buildx build/push failed"
             echo "Build log:"
             tail -50 /tmp/docker_build.log
             exit 1
-          else
-            echo "✅ Unified Docker image built successfully"
-            echo "   Image includes: all 54 refactored loaders + db_helper.py abstraction"
           fi
-
-          # Tag and push the unified image
-          echo "🏷️ Tagging unified image..."
-          docker tag "$IMAGE_URI" "${REPOSITORY_URI}:latest"
-
-          echo "⬆️ Pushing unified image to ECR..."
-          if ! docker push "${REPOSITORY_URI}:latest"; then
-            echo "❌ ERROR: Docker push failed!"
-            exit 1
-          fi
-          echo "✅ Unified image pushed successfully to: ${REPOSITORY_URI}:latest"
+          echo "Unified arm64 image built and pushed: ${IMAGE_URI}"
           echo ""
           echo "🎯 All loaders packaged in single optimized image with DatabaseHelper abstraction"
 
