@@ -25,19 +25,32 @@ jobs:
 
       - name: Deploy bootstrap CloudFormation
         run: |
+          set -x  # Enable debug output
+          aws --version
+
           # Check if stack already exists
+          echo "Checking if stocks-oidc stack exists..."
           STACK_STATUS=$(aws cloudformation describe-stacks \
             --stack-name stocks-oidc \
             --query 'Stacks[0].StackStatus' \
-            --output text 2>/dev/null || echo "STACK_NOT_FOUND")
+            --output text 2>&1) || STACK_STATUS="STACK_NOT_FOUND"
 
-          if [ "$STACK_STATUS" == "STACK_NOT_FOUND" ]; then
+          echo "Stack status: $STACK_STATUS"
+
+          if [[ "$STACK_STATUS" == *"STACK_NOT_FOUND"* ]] || [[ "$STACK_STATUS" != "CREATE_COMPLETE" && "$STACK_STATUS" != "UPDATE_COMPLETE" && "$STACK_STATUS" != *"_IN_PROGRESS"* ]]; then
             echo "Creating bootstrap stack..."
+            echo "Template file exists:"
+            ls -la template-bootstrap.yml
+
+            echo "Template validation:"
+            aws cloudformation validate-template --template-body file://template-bootstrap.yml 2>&1 | head -20
+
+            echo "Deploying stack..."
             aws cloudformation deploy \
               --stack-name stocks-oidc \
               --template-file template-bootstrap.yml \
               --capabilities CAPABILITY_NAMED_IAM \
-              --no-fail-on-empty-changeset
+              --no-fail-on-empty-changeset 2>&1
           else
             echo "Bootstrap stack already exists with status: $STACK_STATUS"
             if [ "$STACK_STATUS" == "CREATE_COMPLETE" ] || [ "$STACK_STATUS" == "UPDATE_COMPLETE" ]; then
