@@ -101,7 +101,9 @@ class PaperModeTestHarness:
         # 6. Generate report
         print("PHASE 6: DAILY REPORT")
         print("-" * 80)
+        self.connect()
         self.generate_daily_report()
+        self.disconnect()
 
         return True
 
@@ -240,7 +242,7 @@ class PaperModeTestHarness:
 
         # Breaker status
         cur.execute(
-            "SELECT halted FROM algo_circuit_breaker_log ORDER BY created_at DESC LIMIT 1"
+            "SELECT triggered FROM algo_circuit_breaker_log ORDER BY created_at DESC LIMIT 1"
         )
         halted = cur.fetchone()
         halted_status = halted[0] if halted else False
