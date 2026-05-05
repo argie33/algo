@@ -59,15 +59,33 @@ jobs:
             echo "Stack cleanup complete"
           fi
 
+      - name: Wait for stack to be in a stable state
+        run: |
+          # CloudFormation can sit in *_IN_PROGRESS states for 30+ min when it's
+          # cleaning up replaced resources (e.g., draining ASG instances). We
+          # can't update during those, so wait it out.
+          for i in $(seq 1 60); do
+            STATUS=$(aws cloudformation describe-stacks \
+              --stack-name stocks-core-stack --region us-east-1 \
+              --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo NOT_FOUND)
+            case "$STATUS" in
+              *_IN_PROGRESS)
+                echo "[$i/60] Stack busy ($STATUS); waiting 30s..."
+                sleep 30
+                ;;
+              *)
+                echo "Stack in stable state: $STATUS"
+                break
+                ;;
+            esac
+          done
+
       - name: Deploy core CloudFormation stack
         id: cfn_deploy
         run: |
-          # template-core.yml is ~16 KB — well under CloudFormation's 51,200-byte
-          # inline limit, so no --s3-bucket is needed. The CfTemplatesBucket resource
-          # *inside* template-core.yml is what other stacks use for their uploads
-          # (via !ImportValue StocksCore-CfTemplatesBucketName). Pre-creating a
-          # bucket from this workflow caused a name collision when CloudFormation
-          # tried to take ownership of an externally-created bucket.
+          # template-core.yml is ~16 KB — under CloudFormation's 51,200-byte inline
+          # limit, so no --s3-bucket needed. CfTemplatesBucket resource inside the
+          # template is what downstream stacks use (via StocksCore-CfTemplatesBucketName).
           echo "Deploying core infrastructure stack..."
 
           aws cloudformation deploy \
