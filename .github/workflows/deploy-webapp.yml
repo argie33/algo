@@ -137,7 +137,7 @@ jobs:
 
       - name: Build SAM application
         run: |
-          sam build --template template-webapp-lambda.yml
+          sam build --template template-webapp.yml
       - name: Check and handle failed stack state
         run: |
           # Check if stack exists and its status
