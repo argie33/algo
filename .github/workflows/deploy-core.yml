@@ -130,7 +130,40 @@ jobs:
             --region "${{ env.AWS_REGION }}" \
             --no-fail-on-empty-changeset
 
-          echo "Core stack deployment complete"
+          echo "Core stack deployment command complete"
+
+          # CRITICAL: Verify final stack status - deploy doesn't always execute changesets
+          echo ""
+          echo "Verifying final stack status..."
+          FINAL_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "${{ env.STACK_NAME }}" \
+            --region "${{ env.AWS_REGION }}" \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "ERROR")
+
+          echo "Final stack status: $FINAL_STATUS"
+
+          if [[ "$FINAL_STATUS" == "REVIEW_IN_PROGRESS" ]]; then
+            echo ""
+            echo "ERROR: Stack stuck in REVIEW_IN_PROGRESS - changeset not executed"
+            echo "This must be fixed before proceeding"
+            exit 1
+          fi
+
+          if [[ "$FINAL_STATUS" == "CREATE_FAILED" || "$FINAL_STATUS" == "ROLLBACK_COMPLETE" || "$FINAL_STATUS" == "UPDATE_ROLLBACK_COMPLETE" ]]; then
+            echo ""
+            echo "ERROR: Stack in failed state: $FINAL_STATUS"
+            exit 1
+          fi
+
+          if [[ "$FINAL_STATUS" != "CREATE_COMPLETE" && "$FINAL_STATUS" != "UPDATE_COMPLETE" ]]; then
+            echo ""
+            echo "ERROR: Unexpected final status: $FINAL_STATUS"
+            exit 1
+          fi
+
+          echo ""
+          echo "Success: Core stack deployment verified - $FINAL_STATUS"
 
       - name: Diagnose stack events on failure
         if: failure() && steps.cfn_deploy.outcome == 'failure'
