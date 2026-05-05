@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: deploy-app-infrastructure-stocks-app-stack
+  group: deploy-app-infrastructure-stocks-data
   cancel-in-progress: false
 
 permissions:
@@ -19,12 +19,12 @@ permissions:
 
 env:
   AWS_REGION: us-east-1
-  STACK_NAME: stocks-app-stack
+  STACK_NAME: stocks-data
   RDS_ID: stocks
 
 jobs:
   deploy-infrastructure:
-    name: Deploy stocks-app-stack
+    name: Deploy stocks-data
     runs-on: ubuntu-latest
 
     steps:
@@ -81,7 +81,7 @@ jobs:
           # We then UPDATE with the full template to materialize everything else.
           cat > /tmp/import-stub.yml <<STUB
           AWSTemplateFormatVersion: '2010-09-09'
-          Description: Import-only stub for stocks-app-stack (RDS only)
+          Description: Import-only stub for stocks-data (RDS only)
           Parameters:
             RDSUsername: { Type: String }
             RDSPassword: { Type: String, NoEcho: true }
