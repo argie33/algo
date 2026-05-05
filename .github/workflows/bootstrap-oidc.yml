@@ -91,11 +91,22 @@ jobs:
             --capabilities CAPABILITY_NAMED_IAM \
             --no-fail-on-empty-changeset \
             --region us-east-1; then
+            echo ""
             echo "ERROR: CloudFormation deploy failed"
-            echo "Checking stack status..."
+            echo "Getting detailed stack events..."
+            echo ""
+            aws cloudformation describe-stack-events \
+              --stack-name stocks-oidc \
+              --region us-east-1 \
+              --query 'StackEvents[*].[Timestamp,LogicalResourceId,ResourceType,ResourceStatus,ResourceStatusReason]' \
+              --output table 2>&1 || echo "Could not retrieve events"
+            echo ""
+            echo "Stack status:"
             aws cloudformation describe-stacks \
               --stack-name stocks-oidc \
-              --region us-east-1 2>&1 || echo "Stack may not exist"
+              --region us-east-1 \
+              --query 'Stacks[0].[StackStatus,StackStatusReason]' \
+              --output table 2>&1 || echo "Stack may not exist"
             exit 1
           fi
 
