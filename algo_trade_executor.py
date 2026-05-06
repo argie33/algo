@@ -19,6 +19,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime
 import requests
+import time
 from decimal import Decimal, ROUND_HALF_UP
 
 env_file = Path(__file__).parent / '.env.local'
@@ -44,6 +45,10 @@ class TradeExecutor:
         self.alpaca_base_url = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
         self.conn = None
         self.cur = None
+
+        # Wire TCA engine for execution quality tracking
+        from algo_tca import TCAEngine
+        self.tca = TCAEngine(config)
 
         # Hard live-trading safety guard. Prevents accidental real-money trading
         # from a single env-var typo. Live mode requires THREE explicit confirmations:
@@ -239,6 +244,7 @@ class TradeExecutor:
                 executed_price = entry_price
             else:  # 'auto' — actually send to Alpaca as BRACKET ORDER
                 logger.info(f"[ENTRY] {symbol}: AUTO mode - sending to Alpaca")
+                self._order_send_time = time.time()  # Track for execution latency (TCA)
                 order_result = self._send_alpaca_order(
                     symbol, shares, entry_price,
                     stop_loss_price=stop_loss_price,
@@ -422,6 +428,36 @@ class TradeExecutor:
                 )
 
             self.conn.commit()
+
+            # Phase 3.2: Record execution quality (TCA) for every fill
+            if order_status == 'filled' or (order_status == 'partially_filled' and execution_mode == 'auto'):
+                try:
+                    execution_latency_ms = int((time.time() - getattr(self, '_order_send_time', time.time())) * 1000)
+                    tca_result = self.tca.record_fill(
+                        trade_id=trade_id,
+                        symbol=symbol,
+                        signal_price=entry_price,
+                        fill_price=executed_price,
+                        shares_requested=shares,
+                        shares_filled=actual_shares,
+                        side='BUY',
+                        execution_latency_ms=execution_latency_ms
+                    )
+                    # Alert if slippage excessive
+                    if 'alert' in tca_result:
+                        try:
+                            from algo_notifications import notify
+                            alert_data = tca_result['alert']
+                            notify(
+                                alert_data['severity'].lower(),
+                                title=f"TCA Alert: {alert_data['severity']}",
+                                message=alert_data['message']
+                            )
+                        except Exception as alert_e:
+                            print(f"  Warning: Failed to send TCA alert: {alert_e}")
+                except Exception as tca_e:
+                    print(f"  Warning: TCA recording failed: {tca_e}")
+
             return {
                 'success': True,
                 'trade_id': trade_id,

@@ -1423,6 +1423,23 @@ CREATE TABLE IF NOT EXISTS algo_notifications (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Transaction Cost Analysis (TCA) - Execution quality tracking
+CREATE TABLE IF NOT EXISTS algo_tca (
+    tca_id SERIAL PRIMARY KEY,
+    trade_id INTEGER REFERENCES algo_trades(id) ON DELETE CASCADE,
+    symbol VARCHAR(10) NOT NULL,
+    signal_date DATE NOT NULL,
+    signal_price DECIMAL(12, 4) NOT NULL,
+    fill_price DECIMAL(12, 4) NOT NULL,
+    shares_requested INTEGER NOT NULL,
+    shares_filled INTEGER NOT NULL,
+    fill_rate_pct DECIMAL(6, 2),
+    slippage_bps DECIMAL(10, 2),
+    side VARCHAR(4) NOT NULL,
+    execution_latency_ms INTEGER,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Sector rotation signals
 CREATE TABLE IF NOT EXISTS sector_rotation_signal (
     id SERIAL PRIMARY KEY,
@@ -1478,6 +1495,11 @@ CREATE INDEX IF NOT EXISTS idx_algo_positions_status ON algo_positions(status);
 CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_date ON algo_portfolio_snapshots(snapshot_date);
 CREATE INDEX IF NOT EXISTS idx_audit_log_action_type ON algo_audit_log(action_type);
 CREATE INDEX IF NOT EXISTS idx_audit_log_date ON algo_audit_log(action_date);
+
+-- Indexes for TCA
+CREATE INDEX IF NOT EXISTS idx_algo_tca_trade_id ON algo_tca(trade_id);
+CREATE INDEX IF NOT EXISTS idx_algo_tca_symbol ON algo_tca(symbol);
+CREATE INDEX IF NOT EXISTS idx_algo_tca_signal_date ON algo_tca(signal_date);
 
 -- Indexes for new tables
 CREATE INDEX IF NOT EXISTS idx_trade_adds_trade_id ON algo_trade_adds(trade_id);
