@@ -1,0 +1,104 @@
+version: '3.9'
+
+# ============================================================
+# LOCAL DEVELOPMENT ENVIRONMENT
+# Mirrors AWS RDS configuration for consistent development
+# ============================================================
+# This docker-compose setup matches the CloudFormation:
+#   - PostgreSQL 15 (same as AWS RDS)
+#   - Database: stocks (matches RDS DBName)
+#   - User: stocks (matches RDSUsername)
+#   - Port: 5432 (matches RDS port)
+#   - Password: loaded from .env.local (see .env.local.example)
+#
+# Usage:
+#   docker-compose -f docker-compose.local.yml up -d
+#   docker-compose -f docker-compose.local.yml down
+# ============================================================
+
+services:
+  # PostgreSQL Database - mirrors AWS RDS configuration
+  postgres:
+    image: postgres:15
+    container_name: stocks_postgres_local
+    hostname: postgres.local
+
+    environment:
+      # Match CloudFormation RDS configuration
+      POSTGRES_USER: ${DB_USER:-stocks}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-stocks}
+
+      # PostgreSQL configuration
+      POSTGRES_INITDB_ARGS: >
+        -c max_connections=100
+        -c shared_buffers=256MB
+        -c effective_cache_size=1GB
+        -c maintenance_work_mem=64MB
+        -c checkpoint_completion_target=0.9
+        -c wal_buffers=16MB
+        -c default_statistics_target=100
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      # Persistent data volume
+      - stocks_postgres_data:/var/lib/postgresql/data
+
+      # Initialization script to set up schema
+      - ./init_database.py:/docker-entrypoint-initdb.d/01-init-schema.py
+      - ./scripts/init_db_local.sh:/docker-entrypoint-initdb.d/00-init.sh
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-stocks} -d ${DB_NAME:-stocks}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+    networks:
+      - stocks_local
+
+    labels:
+      - "com.stocks.service=database"
+      - "com.stocks.environment=local"
+
+  # pgAdmin for database inspection (optional)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: stocks_pgadmin_local
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@stocks.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+
+    ports:
+      - "5050:80"
+
+    volumes:
+      - stocks_pgadmin_data:/var/lib/pgadmin
+
+    networks:
+      - stocks_local
+
+    labels:
+      - "com.stocks.service=pgadmin"
+      - "com.stocks.environment=local"
+
+networks:
+  stocks_local:
+    driver: bridge
+    name: stocks_local
+
+volumes:
+  stocks_postgres_data:
+    name: stocks_postgres_data
+    driver: local
+  stocks_pgadmin_data:
+    name: stocks_pgadmin_data
+    driver: local
