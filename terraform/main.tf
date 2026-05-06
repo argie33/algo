@@ -36,7 +36,8 @@ module "bootstrap" {
 module "core" {
   source = "./modules/core"
 
-  count = var.deploy_core ? 1 : 0
+  # Only deploy core if: (1) deploy_core enabled AND (2) either creating VPC or it's not provided
+  count = (var.deploy_core && var.create_vpc) ? 1 : 0
 
   project_name           = var.project_name
   environment            = var.environment
@@ -61,19 +62,20 @@ module "core" {
 module "data_infrastructure" {
   source = "./modules/data_infrastructure"
 
-  count = var.deploy_data_infrastructure ? 1 : 0
+  # Only deploy if: (1) deploy_data_infrastructure enabled AND (2) VPC is available (either created or provided)
+  count = (var.deploy_data_infrastructure && var.create_vpc) ? 1 : 0
 
   project_name       = var.project_name
   environment        = var.environment
   aws_account_id     = var.aws_account_id
   notification_email = var.notification_email
 
-  # Import from core
-  vpc_id                = module.core[0].vpc_id
-  private_subnet_ids    = module.core[0].private_subnet_ids
-  ecs_cluster_subnet_ids = module.core[0].private_subnet_ids
-  rds_sg_id             = module.core[0].rds_sg_id
-  ecs_tasks_sg_id       = module.core[0].ecs_tasks_sg_id
+  # Import from core OR use existing VPC
+  vpc_id                = var.create_vpc ? module.core[0].vpc_id : var.vpc_id
+  private_subnet_ids    = var.create_vpc ? module.core[0].private_subnet_ids : var.existing_private_subnet_ids
+  ecs_cluster_subnet_ids = var.create_vpc ? module.core[0].private_subnet_ids : var.existing_private_subnet_ids
+  rds_sg_id             = var.create_vpc ? module.core[0].rds_sg_id : null  # TODO: pass existing SG ID
+  ecs_tasks_sg_id       = var.create_vpc ? module.core[0].ecs_tasks_sg_id : null  # TODO: pass existing SG ID
 
   # Database config
   db_name       = var.db_name
@@ -89,7 +91,7 @@ module "data_infrastructure" {
 
   common_tags = local.common_tags
 
-  depends_on = [module.core[0]]
+  depends_on = var.create_vpc ? [module.core[0]] : []
 }
 
 # ============================================================
@@ -105,10 +107,10 @@ module "loaders" {
   aws_account_id      = var.aws_account_id
   aws_region          = var.aws_region
 
-  # Imports from core
-  ecr_repository_uri = module.core[0].ecr_repository_uri
-  vpc_id             = module.core[0].vpc_id
-  private_subnet_ids = module.core[0].private_subnet_ids
+  # Imports from core OR use existing VPC
+  ecr_repository_uri = var.create_vpc ? module.core[0].ecr_repository_uri : null
+  vpc_id             = var.create_vpc ? module.core[0].vpc_id : var.vpc_id
+  private_subnet_ids = var.create_vpc ? module.core[0].private_subnet_ids : var.existing_private_subnet_ids
 
   # Imports from data infrastructure
   ecs_cluster_name    = module.data_infrastructure[0].ecs_cluster_name
@@ -135,8 +137,8 @@ module "webapp" {
   aws_account_id = var.aws_account_id
   aws_region     = var.aws_region
 
-  # Imports from core
-  code_bucket_name = module.core[0].code_bucket_name
+  # Imports from core OR use existing values
+  code_bucket_name = var.create_vpc ? module.core[0].code_bucket_name : "stocks-app-code-${var.aws_account_id}"
 
   # Imports from data infrastructure
   db_secret_arn = module.data_infrastructure[0].db_secret_arn
@@ -165,9 +167,9 @@ module "algo" {
   lambda_memory            = var.lambda_memory
   lambda_timeout           = var.lambda_timeout
 
-  # Imports from core
-  algo_artifacts_bucket_name = module.core[0].algo_artifacts_bucket_name
-  code_bucket_name          = module.core[0].code_bucket_name
+  # Imports from core OR use existing values
+  algo_artifacts_bucket_name = var.create_vpc ? module.core[0].algo_artifacts_bucket_name : "stocks-algo-app-code-${var.aws_account_id}"
+  code_bucket_name          = var.create_vpc ? module.core[0].code_bucket_name : "stocks-app-code-${var.aws_account_id}"
 
   # Imports from data infrastructure
   db_secret_arn = module.data_infrastructure[0].db_secret_arn

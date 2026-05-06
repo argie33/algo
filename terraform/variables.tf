@@ -38,20 +38,44 @@ variable "github_repo" {
 }
 
 # Network Configuration
+variable "create_vpc" {
+  description = "Whether to create a new VPC (set to false to use existing VPC)"
+  type        = bool
+  default     = true
+}
+
+variable "vpc_id" {
+  description = "Existing VPC ID to use (if create_vpc is false)"
+  type        = string
+  default     = null
+}
+
+variable "existing_public_subnet_ids" {
+  description = "Existing public subnet IDs to use (if create_vpc is false)"
+  type        = list(string)
+  default     = []
+}
+
+variable "existing_private_subnet_ids" {
+  description = "Existing private subnet IDs to use (if create_vpc is false)"
+  type        = list(string)
+  default     = []
+}
+
 variable "vpc_cidr" {
-  description = "CIDR block for VPC"
+  description = "CIDR block for VPC (if creating new VPC)"
   type        = string
   default     = "10.1.0.0/16"
 }
 
 variable "public_subnet_cidrs" {
-  description = "CIDR blocks for public subnets"
+  description = "CIDR blocks for public subnets (if creating new VPC)"
   type        = list(string)
   default     = ["10.1.1.0/24", "10.1.2.0/24"]
 }
 
 variable "private_subnet_cidrs" {
-  description = "CIDR blocks for private subnets"
+  description = "CIDR blocks for private subnets (if creating new VPC)"
   type        = list(string)
   default     = ["10.1.10.0/24", "10.1.11.0/24"]
 }
