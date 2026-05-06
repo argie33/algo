@@ -9,7 +9,7 @@
  * 5. Webapp: Lambda API, CloudFront, Cognito
  * 6. Algo: Algorithm orchestrator Lambda
  *
- * Deployment Status: Clean resources - ready for full deployment (2026-05-06)
+ * Deployment Status: Terraform infrastructure deployment in progress (2026-05-06)
  */
 
 # ============================================================
