@@ -22,6 +22,7 @@ TradeExecutor.exit_trade(new_stop_price=...) in the orchestrator.
 import os
 import psycopg2
 import json
+import requests
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, date as _date
@@ -522,6 +523,112 @@ class PositionMonitor:
             f"days={rec['days_held']:<3d} "
             f"hits={rec['target_hits']}"
         )
+
+    def check_corporate_actions(self):
+        """Phase 6.1: Detect stock splits and corporate actions.
+
+        Compares Alpaca current quantity to DB quantity. If different and > 20% change,
+        likely a stock split. Adjusts position quantity and recalculates stop loss.
+
+        Returns:
+            list of adjustments made
+        """
+        adjustments = []
+        self.connect()
+        try:
+            # Get all open positions
+            self.cur.execute("""
+                SELECT ap.position_id, ap.symbol, ap.quantity, ap.current_stop_price,
+                       at.entry_price
+                FROM algo_positions ap
+                JOIN algo_trades at ON ap.position_id LIKE CONCAT('%', at.trade_id, '%')
+                WHERE ap.status = 'open'
+            """)
+            positions = self.cur.fetchall()
+
+            import requests
+            alpaca_base_url = os.getenv('APCA_API_BASE_URL', 'https://paper-api.alpaca.markets')
+            alpaca_key = os.getenv('APCA_API_KEY_ID')
+            alpaca_secret = os.getenv('APCA_API_SECRET_KEY')
+
+            for pos_id, symbol, db_qty, db_stop, entry_price in positions:
+                try:
+                    # Get current position from Alpaca
+                    url = f"{alpaca_base_url}/v2/positions/{symbol}"
+                    headers = {
+                        'APCA-API-KEY-ID': alpaca_key,
+                        'APCA-API-SECRET-KEY': alpaca_secret,
+                    }
+                    resp = requests.get(url, headers=headers, timeout=5)
+                    if resp.status_code != 200:
+                        continue
+
+                    alpaca_pos = resp.json()
+                    alpaca_qty = int(alpaca_pos.get('qty', 0))
+
+                    if alpaca_qty == 0:
+                        # Position closed at Alpaca but open in DB — likely filled by stop
+                        self.cur.execute("""
+                            UPDATE algo_positions SET status = 'closed'
+                            WHERE position_id = %s
+                        """, (pos_id,))
+                        adjustments.append({
+                            'symbol': symbol,
+                            'action': 'POSITION_CLOSED_AT_ALPACA',
+                            'db_qty': db_qty,
+                            'alpaca_qty': alpaca_qty,
+                        })
+                        continue
+
+                    if alpaca_qty != db_qty:
+                        qty_change_pct = abs(alpaca_qty - db_qty) / db_qty * 100 if db_qty > 0 else 0
+
+                        if qty_change_pct > 20:  # Likely a split
+                            split_ratio = alpaca_qty / db_qty if db_qty > 0 else 1.0
+                            new_stop = db_stop / split_ratio if db_stop else entry_price * 0.95
+
+                            self.cur.execute("""
+                                UPDATE algo_positions
+                                SET quantity = %s, current_stop_price = %s
+                                WHERE position_id = %s
+                            """, (alpaca_qty, new_stop, pos_id))
+
+                            # Log the corporate action
+                            self.cur.execute("""
+                                INSERT INTO algo_audit_log (
+                                    action_type, action_date, details, severity
+                                ) VALUES (%s, %s, %s, %s)
+                            """, (
+                                'CORPORATE_ACTION_SPLIT',
+                                datetime.now(),
+                                f'Stock split detected: {symbol} {db_qty} → {alpaca_qty} shares (ratio {split_ratio:.2f}). Stop adjusted from ${db_stop:.2f} to ${new_stop:.2f}',
+                                'WARN'
+                            ))
+
+                            adjustments.append({
+                                'symbol': symbol,
+                                'action': 'STOCK_SPLIT',
+                                'old_qty': db_qty,
+                                'new_qty': alpaca_qty,
+                                'split_ratio': round(split_ratio, 2),
+                                'old_stop': db_stop,
+                                'new_stop': new_stop,
+                            })
+
+                except Exception as e:
+                    print(f"  Warning: Could not check Alpaca position for {symbol}: {e}")
+                    continue
+
+            self.conn.commit()
+            return adjustments
+
+        except Exception as e:
+            if self.conn:
+                self.conn.rollback()
+            print(f"ERROR: check_corporate_actions failed: {e}")
+            return []
+        finally:
+            self.disconnect()
         print(
             f"          stop ${rec['active_stop']:.2f} -> ${rec['proposed_stop']:.2f} | "
             f"RS={rec['rs_label']} | sector={rec['sector_state']} | flags={flags_str}"
