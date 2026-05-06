@@ -1454,6 +1454,19 @@ CREATE TABLE IF NOT EXISTS algo_performance_daily (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Portfolio Risk Metrics - Daily VaR, CVaR, concentration, beta
+CREATE TABLE IF NOT EXISTS algo_risk_daily (
+    report_date DATE PRIMARY KEY,
+    var_pct_95 NUMERIC(8, 3),
+    cvar_pct_95 NUMERIC(8, 3),
+    stressed_var_pct NUMERIC(8, 3),
+    portfolio_beta NUMERIC(6, 2),
+    top_5_concentration NUMERIC(6, 2),
+    status VARCHAR(20) DEFAULT 'ok',
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Sector rotation signals
 CREATE TABLE IF NOT EXISTS sector_rotation_signal (
     id SERIAL PRIMARY KEY,
@@ -1517,6 +1530,9 @@ CREATE INDEX IF NOT EXISTS idx_algo_tca_signal_date ON algo_tca(signal_date);
 
 -- Indexes for Performance metrics
 CREATE INDEX IF NOT EXISTS idx_algo_performance_daily_date ON algo_performance_daily(report_date);
+
+-- Indexes for Risk metrics
+CREATE INDEX IF NOT EXISTS idx_algo_risk_daily_date ON algo_risk_daily(report_date);
 
 -- Indexes for new tables
 CREATE INDEX IF NOT EXISTS idx_trade_adds_trade_id ON algo_trade_adds(trade_id);
