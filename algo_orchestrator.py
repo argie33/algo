@@ -426,7 +426,10 @@ class Orchestrator:
             reconciler = PositionReconciler()
             result = reconciler.reconcile()
 
-            if result.get('critical_count', 0) > 0:
+            if result.get('status') in ('skipped', 'error'):
+                self.log_phase_result('3a', 'reconciliation', 'alert',
+                                      result.get('reason', 'unknown issue'))
+            elif result.get('critical_count', 0) > 0:
                 self.alerts.send_position_alert(
                     'RECONCILIATION',
                     'CRITICAL',
@@ -446,7 +449,7 @@ class Orchestrator:
                                       f'{result["error_count"]} position errors')
             else:
                 self.log_phase_result('3a', 'reconciliation', 'success',
-                                      f'{result["db_positions"]} positions reconciled OK')
+                                      f'{result.get("db_positions", 0)} positions reconciled OK')
             return True  # fail-open
         except Exception as e:
             traceback.print_exc()

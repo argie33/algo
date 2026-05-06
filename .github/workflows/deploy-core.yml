@@ -229,6 +229,20 @@ jobs:
           # template is what downstream stacks use (via StocksCore-CfTemplatesBucketName).
           echo "Deploying core infrastructure stack..."
 
+          # First, check if stack is stuck in REVIEW_IN_PROGRESS and clean it up
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "${{ env.STACK_NAME }}" \
+            --region "${{ env.AWS_REGION }}" \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+
+          if [[ "$STATUS" == "REVIEW_IN_PROGRESS" ]]; then
+            echo "Stack stuck in REVIEW_IN_PROGRESS - deleting to start fresh..."
+            aws cloudformation delete-stack --stack-name "${{ env.STACK_NAME }}" --region "${{ env.AWS_REGION }}"
+            aws cloudformation wait stack-delete-complete --stack-name "${{ env.STACK_NAME }}" --region "${{ env.AWS_REGION }}" 2>/dev/null || true
+            echo "Stack deleted - will create fresh"
+          fi
+
           aws cloudformation deploy \
             --template-file template-core.yml \
             --stack-name "${{ env.STACK_NAME }}" \
@@ -252,7 +266,9 @@ jobs:
           if [[ "$FINAL_STATUS" == "REVIEW_IN_PROGRESS" ]]; then
             echo ""
             echo "ERROR: Stack stuck in REVIEW_IN_PROGRESS - changeset not executed"
-            echo "This must be fixed before proceeding"
+            echo "Deleting stack to retry..."
+            aws cloudformation delete-stack --stack-name "${{ env.STACK_NAME }}" --region "${{ env.AWS_REGION }}"
+            aws cloudformation wait stack-delete-complete --stack-name "${{ env.STACK_NAME }}" --region "${{ env.AWS_REGION }}" 2>/dev/null || true
             exit 1
           fi
 
@@ -317,7 +333,7 @@ jobs:
             --stack-name "${{ env.STACK_NAME }}" \
             --query 'Stacks[0].StackStatus' \
             --output text 2>/dev/null || echo MISSING)
-          if [[ "$STATUS" =~ FAILED|ROLLBACK ]]; then
+          if [[ "$STATUS" =~ FAILED|ROLLBACK|REVIEW_IN_PROGRESS ]]; then
             echo "Cleaning up ${{ env.STACK_NAME }} (status: $STATUS)..."
             aws cloudformation delete-stack --stack-name "${{ env.STACK_NAME }}" --region "${{ env.AWS_REGION }}"
             aws cloudformation wait stack-delete-complete --stack-name "${{ env.STACK_NAME }}" --region "${{ env.AWS_REGION }}" || true
