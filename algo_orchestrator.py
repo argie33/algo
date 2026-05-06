@@ -958,15 +958,17 @@ class Orchestrator:
                 from algo_performance import LivePerformance
                 perf = LivePerformance(self.config)
                 perf_report = perf.generate_daily_report(self.run_date)
-                if perf_report.get('status') == 'success':
+                if perf_report and perf_report.get('status') == 'ok':
                     perf_status = 'success'
                     perf_summary = (
-                        f"Sharpe {perf_report.get('rolling_sharpe', 'N/A')}, "
-                        f"Win rate {perf_report.get('win_rate_pct', 'N/A')}%, "
+                        f"Sharpe {perf_report.get('rolling_sharpe_252d', 'N/A')}, "
+                        f"Win rate {perf_report.get('win_rate_50t', 'N/A')}%, "
                         f"Expectancy {perf_report.get('expectancy', 'N/A')}"
                     )
-                else:
+                elif perf_report:
                     perf_summary = perf_report.get('message', 'insufficient data')
+                else:
+                    perf_summary = 'failed to generate report'
             except Exception as e:
                 perf_summary = f'error: {str(e)[:60]}'
             finally:
@@ -981,17 +983,19 @@ class Orchestrator:
                 from algo_var import PortfolioRisk
                 risk = PortfolioRisk(self.config)
                 risk_report = risk.generate_daily_risk_report(self.run_date)
-                if risk_report.get('status') == 'ok':
+                if risk_report and risk_report.get('status') == 'ok':
                     risk_status = 'success'
-                    var_pct = risk_report.get('var_metrics', {}).get('var_pct', 'N/A')
-                    conc_pct = risk_report.get('concentration', {}).get('top_5_concentration_pct', 'N/A')
+                    var_pct = risk_report.get('var_metrics', {}).get('var_pct', 'N/A') if risk_report.get('var_metrics') else 'N/A'
+                    conc_pct = risk_report.get('concentration', {}).get('top_5_concentration_pct', 'N/A') if risk_report.get('concentration') else 'N/A'
                     alerts_count = len(risk_report.get('alerts', []))
                     risk_summary = (
                         f"VaR {var_pct}%, Concentration {conc_pct}%"
                         + (f", {alerts_count} alerts" if alerts_count else "")
                     )
-                else:
+                elif risk_report:
                     risk_summary = risk_report.get('message', 'insufficient data')
+                else:
+                    risk_summary = 'failed to generate report'
             except Exception as e:
                 risk_summary = f'error: {str(e)[:60]}'
             finally:
@@ -1043,11 +1047,13 @@ class Orchestrator:
 
         try:
             # Run data patrol first (before DB check, but will silently fail if DB down)
-            print("\nRunning data patrol...")
+            # Note: Use quick=True for the 5 critical checks only (staleness, universe, zeros, corp actions, DB constraints)
+            # Full patrol (16 checks) is run separately on a slower schedule
+            print("\nRunning critical data patrol checks...")
             try:
                 from algo_data_patrol import DataPatrol
                 patrol = DataPatrol()
-                patrol.run(quick=False)
+                patrol.run(quick=True)  # Only run the 5 critical checks, not the full 16-check suite
             except Exception as e:
                 print(f"  [WARN] Data patrol failed: {e}")
 

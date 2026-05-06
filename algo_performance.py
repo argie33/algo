@@ -355,7 +355,7 @@ class LivePerformance:
                     result['status'] = 'warning'
                     result['warning'] = f"Live Sharpe ({sharpe:.2f}) below 70% of backtest ({comparison['backtest_sharpe']:.2f})"
 
-            # Insert into database with fresh connection
+            # Upsert into database with fresh connection (insert or replace if already exists for this date)
             conn = psycopg2.connect(
                 host=self.db_host,
                 port=self.db_port,
@@ -371,6 +371,13 @@ class LivePerformance:
                     avg_win_r, avg_loss_r, expectancy,
                     max_drawdown_pct, created_at
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (report_date) DO UPDATE SET
+                    rolling_sharpe_252d = EXCLUDED.rolling_sharpe_252d,
+                    win_rate_50t = EXCLUDED.win_rate_50t,
+                    avg_win_r = EXCLUDED.avg_win_r,
+                    avg_loss_r = EXCLUDED.avg_loss_r,
+                    expectancy = EXCLUDED.expectancy,
+                    max_drawdown_pct = EXCLUDED.max_drawdown_pct
                 """,
                 (
                     report_date,

@@ -423,7 +423,7 @@ class PortfolioRisk:
             if beta and beta['portfolio_beta'] > 2.0:
                 result['alerts'].append(f"Beta Risk: Portfolio beta {beta['portfolio_beta']:.1f} (>2.0× market risk)")
 
-            # Insert into database with fresh connection
+            # Upsert into database with fresh connection (insert or replace if already exists for this date)
             conn = psycopg2.connect(**DB_CONFIG)
             cur = conn.cursor()
             cur.execute(
@@ -431,6 +431,10 @@ class PortfolioRisk:
                 INSERT INTO algo_risk_daily (
                     report_date, var_95_pct, cvar_95_pct, stressed_var_99_pct, created_at
                 ) VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (report_date) DO UPDATE SET
+                    var_95_pct = EXCLUDED.var_95_pct,
+                    cvar_95_pct = EXCLUDED.cvar_95_pct,
+                    stressed_var_99_pct = EXCLUDED.stressed_var_99_pct
                 """,
                 (
                     report_date,
