@@ -371,6 +371,22 @@ class Orchestrator:
                     flag = '[HALT]' if state.get('halted') else '[OK]  '
                     print(f"  {flag} {name:22s}: {state.get('reason', '')}")
 
+            # Check market circuit breakers (market-wide halts, L1/L2/L3)
+            try:
+                from algo_market_events import MarketEventHandler
+                meh = MarketEventHandler(self.config)
+                cb_result = meh.check_market_circuit_breaker()
+                if cb_result and cb_result.get('triggered'):
+                    halt_level = cb_result.get('level', '?')
+                    halt_reason = cb_result.get('reason', 'circuit breaker triggered')
+                    if self.verbose:
+                        print(f"  [HALT] circuit_breaker_L{halt_level:>1s}: {halt_reason}")
+                    self.log_phase_result(2, 'market_circuit_breaker', 'halt',
+                                        f'L{halt_level} breaker active: {halt_reason}')
+                    return False
+            except Exception as e:
+                self.log_phase_result(2, 'market_circuit_breaker', 'warn', f'check failed: {e}')
+
             if result['halted']:
                 self.log_phase_result(2, 'circuit_breakers', 'halt',
                                       f'Halted: {"; ".join(result["halt_reasons"])}')
@@ -387,6 +403,29 @@ class Orchestrator:
         try:
             from algo_position_monitor import PositionMonitor
             monitor = PositionMonitor(self.config)
+
+            # Check for single-stock halts on open positions
+            try:
+                from algo_market_events import MarketEventHandler
+                from algo_position_monitor import PositionMonitor
+                pm = PositionMonitor(self.config)
+                meh = MarketEventHandler(self.config)
+                # Get open positions from position monitor
+                open_positions = pm.get_open_positions() or []
+                halts_found = []
+                for pos in open_positions:
+                    halt_check = meh.check_single_stock_halt(pos.get('symbol') or pos.get('name', ''))
+                    if halt_check and halt_check.get('halted'):
+                        symbol = pos.get('symbol') or pos.get('name', '')
+                        halts_found.append(symbol)
+                        if self.verbose:
+                            print(f"  [WARN] {symbol} halted — pending orders cancelled")
+                if halts_found:
+                    self.log_phase_result(3, 'single_stock_halts', 'warn',
+                                        f'{len(halts_found)} symbols halted: {", ".join(halts_found)}')
+            except Exception as e:
+                # Halt check is non-critical; fail gracefully
+                pass
 
             # Check for stale orders first
             stale_result = monitor.check_stale_orders(self.run_date)
@@ -911,6 +950,31 @@ class Orchestrator:
                 f'unrealized P&L ${result.get("unrealized_pnl", 0):+,.2f}'
             ) if result.get('success') else result.get('error', 'unknown')
             self.log_phase_result(7, 'reconciliation', status, summary)
+
+            # Compute and log live performance metrics (Phase 4)
+            try:
+                from algo_performance import LivePerformance
+                perf = LivePerformance(self.config)
+                perf_report = perf.generate_daily_report(self.run_date)
+                self.log_phase_result(7, 'performance', 'success',
+                    f'Sharpe {perf_report.get("rolling_sharpe", "N/A")}, '
+                    f'Win rate {perf_report.get("win_rate_pct", "N/A")}%')
+            except Exception as e:
+                self.log_phase_result(7, 'performance', 'warn', f'metrics unavailable: {e}')
+
+            # Compute and log portfolio risk metrics (Phase 8)
+            try:
+                from algo_var import PortfolioRisk
+                risk = PortfolioRisk(self.config)
+                risk_report = risk.generate_daily_risk_report(self.run_date)
+                alerts = risk_report.get('alerts', [])
+                self.log_phase_result(7, 'risk_metrics', 'success',
+                    f'VaR {risk_report.get("var_metrics", {}).get("var_pct", "N/A")}%, '
+                    f'Concentration {risk_report.get("concentration", {}).get("top_5_concentration_pct", "N/A")}%' +
+                    (f' — {len(alerts)} alerts' if alerts else ''))
+            except Exception as e:
+                self.log_phase_result(7, 'risk_metrics', 'warn', f'metrics unavailable: {e}')
+
             return True
         except Exception as e:
             traceback.print_exc()
