@@ -1,0 +1,80 @@
+# Stock Analytics Platform - Terraform Configuration
+#
+# NOTE: This file is for LOCAL development only
+# GitHub Actions workflow uses GitHub Secrets instead:
+#   - AWS_ACCOUNT_ID
+#   - DB_PASSWORD
+#   - NOTIFICATION_EMAIL
+#
+# For local development, uncomment and fill in below.
+# For CI/CD, leave commented and configure GitHub secrets instead.
+
+# AWS Configuration
+aws_region = "us-east-1"
+# aws_account_id = "YOUR_ACCOUNT_ID"  # Use GitHub secret: AWS_ACCOUNT_ID
+
+# Project Configuration
+project_name = "stocks"
+environment  = "dev"
+
+# GitHub Configuration
+github_org  = "argeropolos"
+github_repo = "algo"
+
+# Network Configuration
+vpc_cidr              = "10.0.0.0/16"
+public_subnet_cidrs   = ["10.0.1.0/24", "10.0.2.0/24"]
+private_subnet_cidrs  = ["10.0.10.0/24", "10.0.11.0/24"]
+
+# Database Configuration
+db_name               = "stocks"
+db_user               = "stocks"
+# db_password           = "CHANGE_ME"  # Use GitHub secret: DB_PASSWORD
+db_instance_class     = "db.t3.micro"
+db_allocated_storage  = 100
+
+# ECS Configuration
+ecs_instance_type = "t3.small"
+ecs_min_capacity  = 1
+ecs_max_capacity  = 3
+
+# Lambda Configuration
+lambda_memory = 512
+lambda_timeout = 300
+
+# Cognito Configuration (update after CloudFront deployment)
+cognito_callback_urls = ["http://localhost:5173"]
+cognito_logout_urls   = ["http://localhost:5173"]
+
+# Email Configuration
+# notification_email = "your-email@example.com"  # Use GitHub secret: NOTIFICATION_EMAIL
+
+# Stack Deployment Control
+deploy_bootstrap             = true
+deploy_core                  = true
+deploy_data_infrastructure   = true
+deploy_loaders               = true
+deploy_webapp                = true
+deploy_algo                  = true
+
+# Additional Tags
+additional_tags = {
+  Team        = "engineering"
+  CostCenter  = "research"
+  Terraform   = "true"
+}
+
+# ==============================================================
+# FOR LOCAL DEVELOPMENT:
+# ==============================================================
+# 1. Uncomment and fill in aws_account_id, db_password, notification_email
+# 2. Run: terraform init
+# 3. Run: terraform plan
+# 4. Run: terraform apply
+#
+# FOR CI/CD (GitHub Actions):
+# ==============================================================
+# 1. Configure GitHub Secrets: AWS_ACCOUNT_ID, DB_PASSWORD, NOTIFICATION_EMAIL
+# 2. Push to main branch
+# 3. Workflow automatically runs
+# 4. See: GITHUB_SECRETS_SETUP.md
