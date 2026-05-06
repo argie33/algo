@@ -15,15 +15,15 @@ output "ecr_repository_uri" {
 }
 
 output "cf_templates_bucket_name" {
-  value = var.create_s3_buckets ? aws_s3_bucket.cf_templates[0].id : "stocks-cf-templates-${data.aws_caller_identity.current.account_id}"
+  value = "stocks-cf-templates-${data.aws_caller_identity.current.account_id}"
 }
 
 output "code_bucket_name" {
-  value = var.create_s3_buckets ? aws_s3_bucket.code[0].id : "stocks-app-code-${data.aws_caller_identity.current.account_id}"
+  value = "stocks-app-code-${data.aws_caller_identity.current.account_id}"
 }
 
 output "algo_artifacts_bucket_name" {
-  value = var.create_s3_buckets ? aws_s3_bucket.algo_artifacts[0].id : "stocks-algo-app-code-${data.aws_caller_identity.current.account_id}"
+  value = "stocks-algo-app-code-${data.aws_caller_identity.current.account_id}"
 }
 
 output "bastion_sg_id" {
