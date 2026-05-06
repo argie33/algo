@@ -34,9 +34,6 @@ Resources:
             Principal:
               Federated: !GetAtt GitHubOidcProvider.Arn
             Action: sts:AssumeRoleWithWebIdentity
-            Condition:
-              StringLike:
-                "token.actions.githubusercontent.com:sub": "repo:argeropolos/algo:*"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
 
