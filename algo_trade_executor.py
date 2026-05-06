@@ -50,6 +50,10 @@ class TradeExecutor:
         from algo_tca import TCAEngine
         self.tca = TCAEngine(config)
 
+        # Wire pre-trade hard stops (Phase 5: independent risk layer)
+        from algo_pretrade_checks import PreTradeChecks
+        self.pretrade = PreTradeChecks(config, self.alpaca_base_url, self.alpaca_key, self.alpaca_secret)
+
         # Hard live-trading safety guard. Prevents accidental real-money trading
         # from a single env-var typo. Live mode requires THREE explicit confirmations:
         #   1) ALGO_LIVE_TRADING=I_UNDERSTAND_REAL_MONEY (env, manual ack)
@@ -128,6 +132,22 @@ class TradeExecutor:
             return {
                 'success': False, 'trade_id': '', 'status': 'invalid',
                 'message': f'Invalid share count: {shares} (must be > 0)'
+            }
+
+        # Phase 5: Run independent pre-trade hard stops BEFORE anything else
+        portfolio_value = self._get_portfolio_value() or 100000.0
+        position_value = shares * entry_price
+        pretrade_passed, pretrade_reason = self.pretrade.run_all(
+            symbol=symbol,
+            entry_price=entry_price,
+            position_value=position_value,
+            portfolio_value=portfolio_value,
+            side='BUY'
+        )
+        if not pretrade_passed:
+            return {
+                'success': False, 'trade_id': '', 'status': 'pretrade_check_failed',
+                'message': f'Pre-trade check failed: {pretrade_reason}'
             }
 
         # Compute targets if missing — based on R-multiples from actual stop
