@@ -333,14 +333,15 @@ resource "aws_s3_bucket" "cf_templates" {
 }
 
 resource "aws_s3_bucket_versioning" "cf_templates" {
-  bucket = aws_s3_bucket.cf_templates.id
+  count  = var.create_s3_buckets ? 1 : 0
+  bucket = aws_s3_bucket.cf_templates[0].id
   versioning_configuration {
     status = "Enabled"
   }
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "cf_templates" {
-  bucket = aws_s3_bucket.cf_templates.id
+  bucket = aws_s3_bucket.cf_templates[0].id
 
   rule {
     apply_server_side_encryption_by_default {
@@ -363,14 +364,15 @@ resource "aws_s3_bucket" "code" {
 }
 
 resource "aws_s3_bucket_versioning" "code" {
-  bucket = aws_s3_bucket.code.id
+  count  = var.create_s3_buckets ? 1 : 0
+  bucket = aws_s3_bucket.code[0].id
   versioning_configuration {
     status = "Enabled"
   }
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "code" {
-  bucket = aws_s3_bucket.code.id
+  bucket = aws_s3_bucket.code[0].id
 
   rule {
     apply_server_side_encryption_by_default {
@@ -393,6 +395,7 @@ resource "aws_s3_bucket" "algo_artifacts" {
 }
 
 resource "aws_s3_bucket_versioning" "algo_artifacts" {
+  count  = var.create_s3_buckets ? 1 : 0
   bucket = aws_s3_bucket.algo_artifacts.id
   versioning_configuration {
     status = "Enabled"
@@ -478,4 +481,5 @@ resource "aws_ecr_lifecycle_policy" "main" {
     ]
   })
 }
+
 
