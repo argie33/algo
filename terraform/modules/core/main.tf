@@ -10,8 +10,10 @@
  * - S3 buckets (CloudFormation templates, code, algo artifacts)
  */
 
-# Get current AWS region
+# Get current AWS region and account ID
 data "aws_region" "current" {}
+
+data "aws_caller_identity" "current" {}
 
 # ============================================================
 # VPC and Networking
@@ -319,6 +321,7 @@ resource "aws_vpc_endpoint" "dynamodb" {
 
 # CloudFormation Templates Bucket
 resource "aws_s3_bucket" "cf_templates" {
+  count  = var.create_s3_buckets ? 1 : 0
   bucket = "${var.project_name}-cf-templates-${var.aws_account_id}"
 
   tags = merge(
@@ -348,6 +351,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "cf_templates" {
 
 # Code Bucket (for Lambda functions, etc.)
 resource "aws_s3_bucket" "code" {
+  count  = var.create_s3_buckets ? 1 : 0
   bucket = "${var.project_name}-app-code-${var.aws_account_id}"
 
   tags = merge(
@@ -377,6 +381,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "code" {
 
 # Algorithm Artifacts Bucket (with lifecycle policy)
 resource "aws_s3_bucket" "algo_artifacts" {
+  count  = var.create_s3_buckets ? 1 : 0
   bucket = "${var.project_name}-algo-app-code-${var.aws_account_id}"
 
   tags = merge(
@@ -473,3 +478,4 @@ resource "aws_ecr_lifecycle_policy" "main" {
     ]
   })
 }
+

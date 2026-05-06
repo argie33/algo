@@ -48,6 +48,7 @@ module "core" {
   aws_account_id         = var.aws_account_id
   notification_email     = var.notification_email
   create_ecr_repository  = var.create_ecr_repository
+  create_s3_buckets      = var.create_s3_buckets
 
   common_tags = local.common_tags
 

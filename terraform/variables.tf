@@ -183,6 +183,12 @@ variable "create_ecr_repository" {
   default     = false
 }
 
+variable "create_s3_buckets" {
+  description = "Whether to create S3 buckets (set to false if they already exist)"
+  type        = bool
+  default     = false
+}
+
 # Tags
 variable "additional_tags" {
   description = "Additional tags to apply to all resources"

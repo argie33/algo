@@ -43,3 +43,8 @@ variable "create_ecr_repository" {
   type    = bool
   default = false
 }
+
+variable "create_s3_buckets" {
+  type    = bool
+  default = false
+}
