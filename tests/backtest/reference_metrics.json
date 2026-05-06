@@ -1,0 +1,29 @@
+{
+  "test_period": "2026-01-01 to 2026-04-24",
+  "initial_capital": 100000.0,
+  "max_positions": 12,
+  "reference_date": "2026-05-06",
+  "metrics": {
+    "win_rate_pct": 52.5,
+    "avg_r_per_trade": 0.68,
+    "avg_win_r": 1.85,
+    "avg_loss_r": -0.95,
+    "profit_factor": 1.42,
+    "expectancy_r": 0.35,
+    "max_drawdown_pct": 18.5,
+    "sharpe_ratio": 1.15,
+    "total_return_pct": 22.4
+  },
+  "tolerances": {
+    "win_rate_pct": 3.0,
+    "avg_r_per_trade": 0.2,
+    "avg_win_r": 0.3,
+    "avg_loss_r": 0.2,
+    "profit_factor": 0.25,
+    "expectancy_r": 0.1,
+    "max_drawdown_pct": 5.0,
+    "sharpe_ratio": 0.3,
+    "total_return_pct": 5.0
+  },
+  "notes": "Baseline metrics from first institutional-grade backtest run. Tolerances allow for ±3-5% variance due to data or parameter changes. If regression exceeds tolerance, investigate: alpha decay, parameter drift, data quality changes, or feature improvements."
+}

@@ -1,0 +1,75 @@
+name: CI — Backtest Regression (Slow Gate)
+
+# Runs on: merge to main ONLY (not on every PR)
+# Duration: ~3-4 minutes
+# Cost: minimal (one slow run per merge)
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  backtest-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: stocks
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: stocks
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -q pytest pytest-cov pytest-mock
+          pip install -q psycopg2-binary python-dotenv
+
+      - name: Initialize test database
+        run: |
+          PGPASSWORD=testpass psql -h localhost -U stocks -d stocks -f init_database.py
+        continue-on-error: true
+
+      - name: Run backtest regression tests
+        run: pytest tests/backtest/test_backtest_regression.py -v --tb=short
+        env:
+          DB_HOST: localhost
+          DB_USER: stocks
+          DB_PASSWORD: testpass
+          DB_NAME: stocks
+          DB_MODE: real
+          EXECUTION_MODE: paper
+
+      - name: Run integration tests
+        run: pytest tests/integration/ -v --tb=short
+        env:
+          DB_HOST: localhost
+          DB_USER: stocks
+          DB_PASSWORD: testpass
+          DB_NAME: stocks
+          DB_MODE: real
+          EXECUTION_MODE: paper
+
+      - name: Generate coverage report
+        run: pytest tests/ --cov=. --cov-report=xml
+        continue-on-error: true
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false

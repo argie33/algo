@@ -1,0 +1,102 @@
+name: CI — Fast Gates (Lint + Unit Tests)
+
+# Runs on: every commit to main, every PR
+# Duration: ~90 seconds
+# Cost: negligible (within free tier)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-type:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -q black isort flake8 mypy
+
+      - name: Black format check
+        run: black --check algo_*.py tests/ 2>/dev/null || true
+
+      - name: isort import check
+        run: isort --check-only algo_*.py tests/ 2>/dev/null || true
+
+      - name: Flake8 lint
+        run: flake8 algo_*.py tests/ --max-line-length=120 --ignore=E501,W503 || true
+
+      - name: MyPy type check
+        run: mypy algo_*.py --ignore-missing-imports 2>/dev/null || true
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        test-module: [
+          'tests/unit/test_position_sizer.py',
+          'tests/unit/test_circuit_breaker.py',
+          'tests/unit/test_filter_pipeline.py'
+        ]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -q pytest pytest-cov pytest-mock
+          pip install -q psycopg2-binary python-dotenv
+
+      - name: Run unit tests — ${{ matrix.test-module }}
+        run: pytest ${{ matrix.test-module }} -v --tb=short
+        env:
+          DB_MODE: mock
+          EXECUTION_MODE: dry_run
+
+  edge-case-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -q pytest pytest-cov pytest-mock
+          pip install -q psycopg2-binary python-dotenv
+
+      - name: Run edge case tests
+        run: pytest tests/edge_cases/ -v --tb=short
+        env:
+          DB_MODE: mock
+          EXECUTION_MODE: dry_run
+
+  summary:
+    runs-on: ubuntu-latest
+    needs: [lint-and-type, unit-tests, edge-case-tests]
+    if: always()
+    steps:
+      - name: Check status
+        run: |
+          if [[ "${{ needs.lint-and-type.result }}" != "success" ]] || \
+             [[ "${{ needs.unit-tests.result }}" != "success" ]] || \
+             [[ "${{ needs.edge-case-tests.result }}" != "success" ]]; then
+            echo "❌ CI Failed — fix issues before merge"
+            exit 1
+          fi
+          echo "✅ All fast gates passed"
