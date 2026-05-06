@@ -137,31 +137,6 @@ jobs:
         working-directory: terraform
         run: terraform init
 
-      - name: Clean up conflicting CloudFormation resources
-        run: |
-          echo "Cleaning up old CloudFormation stacks..."
-
-          # List all non-deleted stacks
-          STACKS=$(aws cloudformation list-stacks --region ${{ env.AWS_REGION }} \
-            --query "StackSummaries[?StackStatus!='DELETE_COMPLETE'].StackName" \
-            --output text)
-
-          if [ -z "$STACKS" ]; then
-            echo "✓ No CloudFormation stacks found (clean start)"
-          else
-            echo "Found stacks: $STACKS"
-            for STACK in $STACKS; do
-              echo "Deleting stack: $STACK"
-              aws cloudformation delete-stack --stack-name "$STACK" --region ${{ env.AWS_REGION }}
-            done
-
-            echo "Waiting for deletions to complete (up to 10 minutes)..."
-            for STACK in $STACKS; do
-              aws cloudformation wait stack-delete-complete --stack-name "$STACK" --region ${{ env.AWS_REGION }} || echo "Stack $STACK deletion timeout (may still be in progress)"
-            done
-            echo "✓ CloudFormation cleanup complete"
-          fi
-
       - name: Download plan artifact
         uses: actions/download-artifact@v4
         with:
