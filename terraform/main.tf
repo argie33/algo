@@ -8,6 +8,8 @@
  * 4. Loaders: ECS task definitions, EventBridge rules
  * 5. Webapp: Lambda API, CloudFront, Cognito
  * 6. Algo: Algorithm orchestrator Lambda
+ *
+ * Deployment Status: Ready for apply (2026-05-06)
  */
 
 # ============================================================
