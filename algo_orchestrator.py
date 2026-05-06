@@ -992,6 +992,8 @@ class Orchestrator:
 
             if getattr(self, 'skip_freshness', False):
                 print("\nNOTE: Phase 1 freshness gate skipped (--skip-freshness flag set).")
+                self.log_phase_result(1, 'freshness_bypassed', 'override',
+                                     '--skip-freshness flag used — data freshness check skipped')
             elif not self.phase_1_data_freshness():
                 print("\nFAIL-CLOSED: Data freshness check failed. Halting pipeline.")
                 return self._final_report()
