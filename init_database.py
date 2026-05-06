@@ -1440,6 +1440,20 @@ CREATE TABLE IF NOT EXISTS algo_tca (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Live Performance Metrics - Daily aggregation for institutional comparison
+CREATE TABLE IF NOT EXISTS algo_performance_daily (
+    report_date DATE PRIMARY KEY,
+    rolling_sharpe_252d NUMERIC(8, 4),
+    win_rate_50t NUMERIC(6, 2),
+    avg_win_r_50t NUMERIC(6, 3),
+    avg_loss_r_50t NUMERIC(6, 3),
+    expectancy NUMERIC(6, 4),
+    max_drawdown_pct NUMERIC(8, 2),
+    live_vs_backtest_ratio NUMERIC(6, 4),
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- Sector rotation signals
 CREATE TABLE IF NOT EXISTS sector_rotation_signal (
     id SERIAL PRIMARY KEY,
@@ -1500,6 +1514,9 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_date ON algo_audit_log(action_date);
 CREATE INDEX IF NOT EXISTS idx_algo_tca_trade_id ON algo_tca(trade_id);
 CREATE INDEX IF NOT EXISTS idx_algo_tca_symbol ON algo_tca(symbol);
 CREATE INDEX IF NOT EXISTS idx_algo_tca_signal_date ON algo_tca(signal_date);
+
+-- Indexes for Performance metrics
+CREATE INDEX IF NOT EXISTS idx_algo_performance_daily_date ON algo_performance_daily(report_date);
 
 -- Indexes for new tables
 CREATE INDEX IF NOT EXISTS idx_trade_adds_trade_id ON algo_trade_adds(trade_id);
