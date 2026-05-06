@@ -103,6 +103,61 @@ jobs:
 
           echo "✓ Cleanup complete"
 
+      - name: Clean up stuck VPCs
+        run: |
+          echo "Cleaning up stuck VPCs with 10.1.0.0/16 CIDR..."
+
+          # Get all VPCs with the stuck CIDR and delete them if possible
+          VPC_IDS=$(aws ec2 describe-vpcs --region us-east-1 --filters "Name=cidr,Values=10.1.0.0/16" --query "Vpcs[].VpcId" --output text)
+
+          if [ ! -z "$VPC_IDS" ]; then
+            for VPC_ID in $VPC_IDS; do
+              echo "Attempting to clean up VPC: $VPC_ID"
+
+              # Delete all ENIs (except primary)
+              ENIS=$(aws ec2 describe-network-interfaces --region us-east-1 --filters "Name=vpc-id,Values=$VPC_ID" --query "NetworkInterfaces[?Attachment.DeviceIndex!=null || Attachment.DeviceIndex==0].NetworkInterfaceId" --output text)
+              for ENI in $ENIS; do
+                echo "  Deleting ENI: $ENI"
+                aws ec2 delete-network-interface --region us-east-1 --network-interface-id $ENI 2>/dev/null || true
+              done
+
+              # Delete all security groups (except default)
+              SGROUPS=$(aws ec2 describe-security-groups --region us-east-1 --filters "Name=vpc-id,Values=$VPC_ID" --query "SecurityGroups[?GroupName!='default'].GroupId" --output text)
+              for SG in $SGROUPS; do
+                echo "  Deleting security group: $SG"
+                aws ec2 delete-security-group --region us-east-1 --group-id $SG 2>/dev/null || true
+              done
+
+              # Delete all subnets
+              SUBNETS=$(aws ec2 describe-subnets --region us-east-1 --filters "Name=vpc-id,Values=$VPC_ID" --query "Subnets[].SubnetId" --output text)
+              for SUBNET in $SUBNETS; do
+                echo "  Deleting subnet: $SUBNET"
+                aws ec2 delete-subnet --region us-east-1 --subnet-id $SUBNET 2>/dev/null || true
+              done
+
+              # Delete IGW
+              IGWS=$(aws ec2 describe-internet-gateways --region us-east-1 --filters "Name=attachment.vpc-id,Values=$VPC_ID" --query "InternetGateways[].InternetGatewayId" --output text)
+              for IGW in $IGWS; do
+                echo "  Detaching and deleting IGW: $IGW"
+                aws ec2 detach-internet-gateway --region us-east-1 --internet-gateway-id $IGW --vpc-id $VPC_ID 2>/dev/null || true
+                aws ec2 delete-internet-gateway --region us-east-1 --internet-gateway-id $IGW 2>/dev/null || true
+              done
+
+              # Delete VPC Endpoints
+              VPCE=$(aws ec2 describe-vpc-endpoints --region us-east-1 --filters "Name=vpc-id,Values=$VPC_ID" --query "VpcEndpoints[].VpcEndpointId" --output text)
+              for VPE in $VPCE; do
+                echo "  Deleting VPC endpoint: $VPE"
+                aws ec2 delete-vpc-endpoints --region us-east-1 --vpc-endpoint-ids $VPE 2>/dev/null || true
+              done
+
+              # Finally, try to delete the VPC
+              echo "  Attempting to delete VPC: $VPC_ID"
+              aws ec2 delete-vpc --region us-east-1 --vpc-id $VPC_ID 2>/dev/null && echo "✓ VPC $VPC_ID deleted" || echo "✗ VPC $VPC_ID still has dependencies"
+            done
+          else
+            echo "No VPCs with 10.1.0.0/16 CIDR found - good!"
+          fi
+
       - name: Terraform init
         working-directory: terraform
         run: terraform init
