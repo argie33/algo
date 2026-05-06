@@ -433,6 +433,151 @@ class Backtester:
             )
         print(f"{'='*70}\n")
 
+    def walk_forward_backtest(self, in_sample_years=3, oos_years=1):
+        """
+        Walk-Forward Optimization: Validate backtest robustness.
+
+        Process:
+        1. Split data into rolling windows (3-year train, 1-year test)
+        2. Run backtest on each in-sample window
+        3. Apply optimal params to out-of-sample window
+        4. Compute Walk-Forward Efficiency (WFE)
+
+        WFE = OOS_Sharpe / IS_Sharpe
+        - WFE > 0.8: Excellent (minimal overfitting)
+        - WFE > 0.5: Acceptable (some overfitting expected)
+        - WFE < 0.3: Likely curve-fit (parameters overfit to in-sample)
+        - WFE < 0.0: Failure (OOS worse than random)
+        """
+        from datetime import timedelta
+
+        print(f"\n{'='*80}")
+        print(f"WALK-FORWARD OPTIMIZATION")
+        print(f"In-Sample: {in_sample_years} years | Out-of-Sample: {oos_years} years")
+        print(f"{'='*80}\n")
+
+        # Get all trading days in the period
+        self.connect()
+        try:
+            self.cur.execute("""
+                SELECT DISTINCT snapshot_date FROM algo_portfolio_snapshots
+                WHERE snapshot_date >= %s AND snapshot_date <= %s
+                ORDER BY snapshot_date
+            """, (self.start, self.end))
+            all_dates = [row[0] for row in self.cur.fetchall()]
+        finally:
+            self.disconnect()
+
+        if len(all_dates) < 252 * (in_sample_years + oos_years):
+            print(f"[WARN] Insufficient data: need {252 * (in_sample_years + oos_years)} days, "
+                  f"have {len(all_dates)}")
+            return None
+
+        window_results = []
+        in_sample_days = 252 * in_sample_years
+        oos_days = 252 * oos_years
+        window_size = in_sample_days + oos_days
+
+        # Rolling window walk-forward
+        window_idx = 0
+        for start_idx in range(0, len(all_dates) - window_size, oos_days):
+            window_idx += 1
+            is_start = all_dates[start_idx]
+            is_end = all_dates[start_idx + in_sample_days - 1]
+            oos_start = all_dates[start_idx + in_sample_days]
+            oos_end = all_dates[min(start_idx + window_size - 1, len(all_dates) - 1)]
+
+            # Run backtest on in-sample period
+            print(f"\nWindow {window_idx}: In-sample {is_start} to {is_end}")
+            is_bt = Backtester(
+                start_date=is_start,
+                end_date=is_end,
+                initial_capital=self.initial_capital,
+                max_positions=self.max_positions,
+                base_risk_pct=self.base_risk_pct,
+                max_hold_days=self.max_hold_days,
+                t1_r=self.t1_r,
+                t2_r=self.t2_r,
+                t3_r=self.t3_r,
+                use_advanced_filters=self.use_advanced_filters,
+            )
+            is_report = is_bt.run()
+
+            # Run backtest on out-of-sample period with same parameters
+            print(f"         Out-of-sample {oos_start} to {oos_end}")
+            oos_bt = Backtester(
+                start_date=oos_start,
+                end_date=oos_end,
+                initial_capital=self.initial_capital,
+                max_positions=self.max_positions,
+                base_risk_pct=self.base_risk_pct,
+                max_hold_days=self.max_hold_days,
+                t1_r=self.t1_r,
+                t2_r=self.t2_r,
+                t3_r=self.t3_r,
+                use_advanced_filters=self.use_advanced_filters,
+            )
+            oos_report = oos_bt.run()
+
+            # Compute Walk-Forward Efficiency
+            is_sharpe = is_report.get('sharpe_ratio', 0)
+            oos_sharpe = oos_report.get('sharpe_ratio', 0)
+            wfe = oos_sharpe / is_sharpe if is_sharpe != 0 else 0
+
+            window_result = {
+                'window': window_idx,
+                'is_period': f"{is_start} to {is_end}",
+                'oos_period': f"{oos_start} to {oos_end}",
+                'is_sharpe': round(is_sharpe, 3),
+                'oos_sharpe': round(oos_sharpe, 3),
+                'wfe': round(wfe, 3),
+                'is_return': is_report.get('total_return_pct', 0),
+                'oos_return': oos_report.get('total_return_pct', 0),
+                'is_trades': is_report.get('closed_trades', 0),
+                'oos_trades': oos_report.get('closed_trades', 0),
+            }
+            window_results.append(window_result)
+
+            print(f"  IS Sharpe:  {window_result['is_sharpe']}")
+            print(f"  OOS Sharpe: {window_result['oos_sharpe']}")
+            print(f"  WFE: {window_result['wfe']} {'[GOOD]' if wfe > 0.5 else '[CAUTION]' if wfe > 0 else '[POOR]'}")
+
+        # Summary statistics
+        if window_results:
+            wfe_values = [w['wfe'] for w in window_results]
+            avg_wfe = sum(wfe_values) / len(wfe_values)
+            avg_is_sharpe = sum(w['is_sharpe'] for w in window_results) / len(window_results)
+            avg_oos_sharpe = sum(w['oos_sharpe'] for w in window_results) / len(window_results)
+
+            print(f"\n{'='*80}")
+            print(f"WALK-FORWARD SUMMARY")
+            print(f"{'='*80}")
+            print(f"  Windows tested: {len(window_results)}")
+            print(f"  Average In-Sample Sharpe: {round(avg_is_sharpe, 3)}")
+            print(f"  Average Out-of-Sample Sharpe: {round(avg_oos_sharpe, 3)}")
+            print(f"  Average WFE: {round(avg_wfe, 3)}")
+
+            if avg_wfe > 0.8:
+                print(f"\n  [EXCELLENT] Minimal overfitting detected")
+            elif avg_wfe > 0.5:
+                print(f"\n  [ACCEPTABLE] Some overfitting, but parameters generalizable")
+            elif avg_wfe > 0.0:
+                print(f"\n  [CAUTION] Significant overfitting detected")
+            else:
+                print(f"\n  [FAIL] Strategy fails out-of-sample")
+
+            print(f"{'='*80}\n")
+
+            return {
+                'windows': window_results,
+                'avg_wfe': round(avg_wfe, 3),
+                'avg_is_sharpe': round(avg_is_sharpe, 3),
+                'avg_oos_sharpe': round(avg_oos_sharpe, 3),
+                'robustness': 'excellent' if avg_wfe > 0.8 else 'acceptable' if avg_wfe > 0.5 else 'poor',
+            }
+
+        return None
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Backtest selection strategy')
@@ -441,6 +586,9 @@ if __name__ == "__main__":
     parser.add_argument('--capital', type=float, default=100_000.0, help='Initial capital')
     parser.add_argument('--max-positions', type=int, default=12, help='Max concurrent positions')
     parser.add_argument('--no-advanced', action='store_true', help='Skip advanced filters')
+    parser.add_argument('--walk-forward', action='store_true', help='Run walk-forward optimization (WFE validation)')
+    parser.add_argument('--is-years', type=int, default=3, help='In-sample years for WFO')
+    parser.add_argument('--oos-years', type=int, default=1, help='Out-of-sample years for WFO')
     args = parser.parse_args()
 
     bt = Backtester(
@@ -450,5 +598,16 @@ if __name__ == "__main__":
         max_positions=args.max_positions,
         use_advanced_filters=not args.no_advanced,
     )
-    report = bt.run()
-    print(f"\n[Done] Report: {json.dumps(report, indent=2, default=str)}\n")
+
+    if args.walk_forward:
+        report = bt.walk_forward_backtest(
+            in_sample_years=args.is_years,
+            oos_years=args.oos_years,
+        )
+    else:
+        report = bt.run()
+
+    if report:
+        print(f"\n[Done] Report: {json.dumps(report, indent=2, default=str)}\n")
+    else:
+        print(f"\n[Error] Backtest failed or insufficient data\n")
