@@ -1,0 +1,41 @@
+name: Debug OIDC Trust Policy
+
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get GitHubActionsDeployRole trust policy
+        run: |
+          echo "=== GitHubActionsDeployRole Trust Policy ==="
+          aws iam get-role --role-name GitHubActionsDeployRole --query 'Role.AssumeRolePolicyDocument' --output json | jq .
+
+      - name: List OIDC providers
+        run: |
+          echo ""
+          echo "=== OIDC Providers in Account ==="
+          aws iam list-open-id-connect-providers --output json | jq .
+
+      - name: Get OIDC provider details
+        run: |
+          echo ""
+          echo "=== GitHub OIDC Provider Details ==="
+          PROVIDER_ARN=$(aws iam list-open-id-connect-providers --query "OpenIDConnectProviderList[?contains(Arn, 'token.actions.githubusercontent.com')].Arn" --output text)
+          if [ ! -z "$PROVIDER_ARN" ]; then
+            echo "Provider ARN: $PROVIDER_ARN"
+            aws iam get-open-id-connect-provider --open-id-connect-provider-arn "$PROVIDER_ARN" --output json | jq .
+          else
+            echo "No GitHub OIDC provider found"
+          fi
