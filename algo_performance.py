@@ -73,18 +73,27 @@ class LivePerformance:
             Annualized Sharpe ratio or None if insufficient data
         """
         try:
-            if not self.cur:
-                self.connect()
+            # Create fresh connection for this metric
+            conn = psycopg2.connect(
+                host=self.db_host,
+                port=self.db_port,
+                user=self.db_user,
+                password=self.db_password,
+                database=self.db_name,
+            )
+            cur = conn.cursor()
 
             # Fetch daily returns from portfolio snapshots
-            self.cur.execute(
+            cur.execute(
                 """
-                SELECT snapshot_date, portfolio_value FROM algo_portfolio_snapshots
+                SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
                 WHERE snapshot_date >= CURRENT_DATE - INTERVAL '%d days'
                 ORDER BY snapshot_date ASC
                 """ % lookback_days,
             )
-            rows = self.cur.fetchall()
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
 
             if len(rows) < 30:  # Need at least 30 days to estimate Sharpe
                 return None
@@ -124,10 +133,17 @@ class LivePerformance:
             dict with win_rate_pct, avg_win_r, avg_loss_r, win_count, loss_count
         """
         try:
-            if not self.cur:
-                self.connect()
+            # Create fresh connection for this metric
+            conn = psycopg2.connect(
+                host=self.db_host,
+                port=self.db_port,
+                user=self.db_user,
+                password=self.db_password,
+                database=self.db_name,
+            )
+            cur = conn.cursor()
 
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT
                     COUNT(*) as total,
@@ -144,7 +160,9 @@ class LivePerformance:
                 """,
                 (lookback_trades,)
             )
-            row = self.cur.fetchone()
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
 
             if not row or row[0] == 0:
                 return None
@@ -207,18 +225,27 @@ class LivePerformance:
             Max drawdown as percentage (e.g., -15.5 = 15.5% down from peak)
         """
         try:
-            if not self.cur:
-                self.connect()
+            # Create fresh connection for this metric
+            conn = psycopg2.connect(
+                host=self.db_host,
+                port=self.db_port,
+                user=self.db_user,
+                password=self.db_password,
+                database=self.db_name,
+            )
+            cur = conn.cursor()
 
             # Get portfolio values over the last 252 days
-            self.cur.execute(
+            cur.execute(
                 """
-                SELECT snapshot_date, portfolio_value FROM algo_portfolio_snapshots
+                SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
                 WHERE snapshot_date >= CURRENT_DATE - INTERVAL '365 days'
                 ORDER BY snapshot_date ASC
                 """
             )
-            rows = self.cur.fetchall()
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
 
             if len(rows) < 2:
                 return None
@@ -295,10 +322,7 @@ class LivePerformance:
             if not report_date:
                 report_date = date.today()
 
-            if not self.cur:
-                self.connect()
-
-            # Compute all metrics
+            # Compute all metrics (each handles its own connection)
             sharpe = self.rolling_sharpe(252)
             wr = self.win_rate(50)
             expectancy = self.expectancy(50)
@@ -331,14 +355,22 @@ class LivePerformance:
                     result['status'] = 'warning'
                     result['warning'] = f"Live Sharpe ({sharpe:.2f}) below 70% of backtest ({comparison['backtest_sharpe']:.2f})"
 
-            # Insert into database
-            self.cur.execute(
+            # Insert into database with fresh connection
+            conn = psycopg2.connect(
+                host=self.db_host,
+                port=self.db_port,
+                user=self.db_user,
+                password=self.db_password,
+                database=self.db_name,
+            )
+            cur = conn.cursor()
+            cur.execute(
                 """
                 INSERT INTO algo_performance_daily (
                     report_date, rolling_sharpe_252d, win_rate_50t,
-                    avg_win_r_50t, avg_loss_r_50t, expectancy,
-                    max_drawdown_pct, live_vs_backtest_ratio, created_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                    avg_win_r, avg_loss_r, expectancy,
+                    max_drawdown_pct, created_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                 """,
                 (
                     report_date,
@@ -348,15 +380,14 @@ class LivePerformance:
                     wr['avg_loss_r'] if wr else None,
                     expectancy,
                     max_dd,
-                    comparison.get('sharpe_ratio') if comparison else None,
                 )
             )
-            self.conn.commit()
+            conn.commit()
+            cur.close()
+            conn.close()
 
             return result
 
         except Exception as e:
-            if self.conn:
-                self.conn.rollback()
             print(f"Performance: generate_daily_report failed: {e}")
             return {'status': 'error', 'message': str(e)}

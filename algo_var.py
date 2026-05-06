@@ -74,18 +74,21 @@ class PortfolioRisk:
             dict with VaR dollar and %, or None if insufficient data
         """
         try:
-            if not self.cur:
-                self.connect()
+            # Create fresh connection for this metric
+            conn = psycopg2.connect(**DB_CONFIG)
+            cur = conn.cursor()
 
             # Get daily portfolio returns
-            self.cur.execute(
+            cur.execute(
                 """
-                SELECT snapshot_date, portfolio_value FROM algo_portfolio_snapshots
+                SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
                 WHERE snapshot_date >= CURRENT_DATE - INTERVAL '%d days'
                 ORDER BY snapshot_date ASC
                 """ % lookback_days,
             )
-            rows = self.cur.fetchall()
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
 
             if len(rows) < 30:
                 return None
@@ -126,18 +129,21 @@ class PortfolioRisk:
             dict with CVaR dollar and %, or None if insufficient data
         """
         try:
-            if not self.cur:
-                self.connect()
+            # Create fresh connection for this metric
+            conn = psycopg2.connect(**DB_CONFIG)
+            cur = conn.cursor()
 
             # Get daily portfolio returns
-            self.cur.execute(
+            cur.execute(
                 """
-                SELECT snapshot_date, portfolio_value FROM algo_portfolio_snapshots
+                SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
                 WHERE snapshot_date >= CURRENT_DATE - INTERVAL '%d days'
                 ORDER BY snapshot_date ASC
                 """ % lookback_days,
             )
-            rows = self.cur.fetchall()
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
 
             if len(rows) < 30:
                 return None
@@ -183,18 +189,21 @@ class PortfolioRisk:
             dict with stressed VaR, or None if insufficient data
         """
         try:
-            if not self.cur:
-                self.connect()
+            # Create fresh connection for this metric
+            conn = psycopg2.connect(**DB_CONFIG)
+            cur = conn.cursor()
 
             # Get daily portfolio returns for past 5 years
-            self.cur.execute(
+            cur.execute(
                 """
-                SELECT snapshot_date, portfolio_value FROM algo_portfolio_snapshots
+                SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
                 WHERE snapshot_date >= CURRENT_DATE - INTERVAL '5 years'
                 ORDER BY snapshot_date ASC
                 """
             )
-            rows = self.cur.fetchall()
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
 
             if len(rows) < 365:
                 return None
@@ -236,11 +245,12 @@ class PortfolioRisk:
             dict with portfolio beta and per-position beta
         """
         try:
-            if not self.cur:
-                self.connect()
+            # Create fresh connection for this metric
+            conn = psycopg2.connect(**DB_CONFIG)
+            cur = conn.cursor()
 
             # Get open positions
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT ap.symbol, ap.quantity, ap.current_price, at.entry_price
                 FROM algo_positions ap
@@ -248,14 +258,18 @@ class PortfolioRisk:
                 WHERE ap.status = 'open'
                 """
             )
-            positions = self.cur.fetchall()
+            positions = cur.fetchall()
 
             if not positions:
+                cur.close()
+                conn.close()
                 return None
 
             # Get portfolio value
-            self.cur.execute("SELECT portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1")
-            portfolio_row = self.cur.fetchone()
+            cur.execute("SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1")
+            portfolio_row = cur.fetchone()
+            cur.close()
+            conn.close()
             portfolio_value = float(portfolio_row[0]) if portfolio_row else 100000.0
 
             # Compute beta for each position (simplified: use RSI as proxy for beta)
@@ -299,11 +313,12 @@ class PortfolioRisk:
             dict with concentration metrics
         """
         try:
-            if not self.cur:
-                self.connect()
+            # Create fresh connection for this metric
+            conn = psycopg2.connect(**DB_CONFIG)
+            cur = conn.cursor()
 
             # Get open positions with sector/industry
-            self.cur.execute(
+            cur.execute(
                 """
                 SELECT ap.symbol, ap.quantity, ap.current_price, at.entry_price,
                        at.sector, at.industry
@@ -313,14 +328,18 @@ class PortfolioRisk:
                 ORDER BY ap.position_value DESC
                 """
             )
-            positions = self.cur.fetchall()
+            positions = cur.fetchall()
 
             if not positions:
+                cur.close()
+                conn.close()
                 return None
 
             # Calculate total portfolio value
-            self.cur.execute("SELECT portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1")
-            portfolio_row = self.cur.fetchone()
+            cur.execute("SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1")
+            portfolio_row = cur.fetchone()
+            cur.close()
+            conn.close()
             portfolio_value = float(portfolio_row[0]) if portfolio_row else 100000.0
 
             # Top holdings by %
@@ -373,9 +392,7 @@ class PortfolioRisk:
             if not report_date:
                 report_date = date.today()
 
-            if not self.cur:
-                self.connect()
-
+            # Compute all risk metrics (each handles its own connection)
             var_metrics = self.historical_var()
             cvar_metrics = self.cvar()
             stressed_var = self.stressed_var()
@@ -406,32 +423,28 @@ class PortfolioRisk:
             if beta and beta['portfolio_beta'] > 2.0:
                 result['alerts'].append(f"Beta Risk: Portfolio beta {beta['portfolio_beta']:.1f} (>2.0× market risk)")
 
-            # Insert into database
-            self.cur.execute(
+            # Insert into database with fresh connection
+            conn = psycopg2.connect(**DB_CONFIG)
+            cur = conn.cursor()
+            cur.execute(
                 """
                 INSERT INTO algo_risk_daily (
-                    report_date, var_pct_95, cvar_pct_95, stressed_var_pct,
-                    portfolio_beta, top_5_concentration, status, created_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                    report_date, var_95_pct, cvar_95_pct, stressed_var_99_pct, created_at
+                ) VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
                 """,
                 (
                     report_date,
                     var_metrics['var_pct'] if var_metrics else None,
                     cvar_metrics['cvar_pct'] if cvar_metrics else None,
                     stressed_var['stressed_var_pct'] if stressed_var else None,
-                    beta['portfolio_beta'] if beta else None,
-                    concentration['top_5_concentration_pct'] if concentration else None,
-                    'ok' if not result['alerts'] else 'warning',
                 )
             )
-            self.conn.commit()
+            conn.commit()
+            cur.close()
+            conn.close()
 
             return result
 
         except Exception as e:
-            if self.conn:
-                self.conn.rollback()
             print(f"PortfolioRisk: generate_daily_risk_report error: {e}")
             return {'status': 'error', 'message': str(e)}
-        finally:
-            self.disconnect()
