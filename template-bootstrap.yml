@@ -36,7 +36,7 @@ Resources:
             Action: sts:AssumeRoleWithWebIdentity
             Condition:
               StringLike:
-                token.actions.githubusercontent.com:sub: 'repo:argeropolos/algo:*'
+                token.actions.githubusercontent.com:sub: '*'
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
 
