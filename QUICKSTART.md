@@ -4,7 +4,24 @@ Complete data patrol + monitoring system. Ready to deploy.
 
 ---
 
-## 📋 Checklist (Do in Order)
+## 🚀 Fastest Path: Automated Setup (Recommended)
+
+```bash
+# Run interactive setup (will prompt for credentials)
+python3 setup.py
+
+# Test alerts
+python3 test_patrol_system.py --send-test-alert
+
+# Deploy
+bash deploy_cron.sh
+```
+
+**That's it. You're live.**
+
+---
+
+## 📋 Manual Setup (Alternative)
 
 ### ✅ Step 1: Get Credentials (5 minutes)
 
