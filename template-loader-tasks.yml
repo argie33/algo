@@ -3598,30 +3598,6 @@ Resources:
   # Runs at 13:35 UTC = 9:35 ET (EDT)     #
   # i.e. 5 minutes after market open      #
   #########################################
-  AlgoOrchestratorScheduleRule:
-    Type: AWS::Events::Rule
-    Properties:
-      Name: !Sub "${AWS::StackName}-algo-orchestrator-daily"
-      Description: "Trigger algo orchestrator daily at 13:35 UTC (9:35 ET market open + 5min)"
-      ScheduleExpression: "cron(35 13 ? * MON-FRI *)"
-      State: ENABLED
-      Targets:
-        - Arn: !ImportValue StocksApp-ClusterArn
-          Id: "AlgoOrchestratorTarget"
-          RoleArn: !GetAtt EventBridgeRunTaskRole.Arn
-          EcsParameters:
-            TaskDefinitionArn: !Ref AlgoOrchestratorTaskDefinition
-            LaunchType: FARGATE
-            NetworkConfiguration:
-              AwsVpcConfiguration:
-                Subnets:
-                  - !ImportValue StocksCore-PublicSubnet1Id
-                  - !ImportValue StocksCore-PublicSubnet2Id
-                SecurityGroups:
-                  - !ImportValue StocksApp-EcsTasksSecurityGroupId
-                AssignPublicIp: ENABLED
-            TaskCount: 1
-
   # Pre-market sync: refresh Alpaca positions 5min before open
   AlpacaPortfolioPreMarketScheduleRule:
     Type: AWS::Events::Rule
