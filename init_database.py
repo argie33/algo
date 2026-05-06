@@ -1491,6 +1491,64 @@ CREATE TABLE IF NOT EXISTS swing_trader_scores (
     UNIQUE(symbol, date)
 );
 
+-- Model Registry - Track deployed strategies and parameters
+CREATE TABLE IF NOT EXISTS algo_model_registry (
+    registry_id SERIAL PRIMARY KEY,
+    strategy_name VARCHAR(100) NOT NULL,
+    git_commit_hash VARCHAR(40) NOT NULL,
+    param_snapshot JSONB NOT NULL,
+    backtest_sharpe NUMERIC(8, 4),
+    backtest_max_dd NUMERIC(8, 4),
+    backtest_win_rate NUMERIC(6, 4),
+    walk_forward_efficiency NUMERIC(6, 4),
+    paper_sharpe NUMERIC(8, 4),
+    paper_period_start DATE,
+    paper_period_end DATE,
+    deployed_at TIMESTAMPTZ,
+    deployed_by VARCHAR(100),
+    status VARCHAR(20) DEFAULT 'active',
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Configuration Audit Log - Track all parameter changes
+CREATE TABLE IF NOT EXISTS algo_config_audit (
+    audit_id SERIAL PRIMARY KEY,
+    config_key VARCHAR(100) NOT NULL,
+    old_value TEXT,
+    new_value TEXT,
+    changed_by VARCHAR(100),
+    change_reason TEXT,
+    changed_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Champion/Challenger Results - A/B test results
+CREATE TABLE IF NOT EXISTS algo_champion_challenger (
+    trial_id SERIAL PRIMARY KEY,
+    trial_date DATE NOT NULL,
+    champion_registry_id INTEGER REFERENCES algo_model_registry(registry_id),
+    challenger_registry_id INTEGER REFERENCES algo_model_registry(registry_id),
+    champion_trades INTEGER,
+    challenger_trades INTEGER,
+    champion_pnl_pct NUMERIC(8, 2),
+    challenger_pnl_pct NUMERIC(8, 2),
+    t_statistic NUMERIC(8, 4),
+    p_value NUMERIC(8, 6),
+    winner VARCHAR(20),
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Information Coefficient - Signal quality metric
+CREATE TABLE IF NOT EXISTS algo_information_coefficient (
+    ic_date DATE PRIMARY KEY,
+    signal_name VARCHAR(100),
+    lookback_days INTEGER,
+    ic_pearson NUMERIC(8, 4),
+    ic_spearman NUMERIC(8, 4),
+    ic_interpretation VARCHAR(50),
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- ════════════════════════════════════════════════════════════════════════════
 -- INDEXES for Performance
 -- ════════════════════════════════════════════════════════════════════════════
@@ -1533,6 +1591,15 @@ CREATE INDEX IF NOT EXISTS idx_algo_performance_daily_date ON algo_performance_d
 
 -- Indexes for Risk metrics
 CREATE INDEX IF NOT EXISTS idx_algo_risk_daily_date ON algo_risk_daily(report_date);
+
+-- Indexes for Model Governance
+CREATE INDEX IF NOT EXISTS idx_algo_model_registry_commit ON algo_model_registry(git_commit_hash);
+CREATE INDEX IF NOT EXISTS idx_algo_model_registry_status ON algo_model_registry(status);
+CREATE INDEX IF NOT EXISTS idx_algo_model_registry_deployed_at ON algo_model_registry(deployed_at);
+CREATE INDEX IF NOT EXISTS idx_algo_config_audit_key ON algo_config_audit(config_key);
+CREATE INDEX IF NOT EXISTS idx_algo_config_audit_date ON algo_config_audit(changed_at);
+CREATE INDEX IF NOT EXISTS idx_algo_champion_challenger_date ON algo_champion_challenger(trial_date);
+CREATE INDEX IF NOT EXISTS idx_algo_information_coefficient_date ON algo_information_coefficient(ic_date);
 
 -- Indexes for new tables
 CREATE INDEX IF NOT EXISTS idx_trade_adds_trade_id ON algo_trade_adds(trade_id);
