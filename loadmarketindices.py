@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
-Market Indices Loader - Optimal Pattern.
+Market Indices Loader - Load major market indices into price_daily.
 
-Inherits watermarks, dedup, multi-source routing, parallelism, and bulk COPY.
+Fetches OHLCV data for market indices (^GSPC, ^IXIC, ^NYA, ^RUT) and stores
+in the price_daily table. Required for distribution days calculation in
+load_market_health_daily.py.
 
 Run:
-    python3 loadmarketindices.py [--symbols AAPL,MSFT] [--parallelism 8]
+    python3 loadmarketindices.py [--parallelism 4]
 """
 
 from __future__ import annotations
@@ -14,86 +16,89 @@ import argparse
 import logging
 import os
 import sys
-from datetime import date, timedelta
+from datetime import date
+from pathlib import Path
 from typing import List, Optional
 
-from optimal_loader import OptimalLoader
+from dotenv import load_dotenv
 
-# >>> dotenv-autoload >>>
-from pathlib import Path as _DotenvPath
-try:
-    from dotenv import load_dotenv as _load_dotenv
-    _env_file = _DotenvPath(__file__).resolve().parent / '.env.local'
-    if _env_file.exists():
-        _load_dotenv(_env_file)
-except ImportError:
-    pass
-# <<< dotenv-autoload <<<
+env_file = Path(__file__).parent / '.env.local'
+if env_file.exists():
+    load_dotenv(env_file)
+
+from optimal_loader import OptimalLoader
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 
+log = logging.getLogger(__name__)
+
 
 class MarketIndicesLoader(OptimalLoader):
-    table_name = "market_indices"
-    primary_key = ("index_name", "date")
+    table_name = "price_daily"
+    primary_key = ("symbol", "date")
     watermark_field = "date"
 
     def fetch_incremental(self, symbol: str, since: Optional[date]):
-        """Fetch incremental data."""
+        """Fetch market index OHLCV data from data source router."""
+        end = date.today()
+        if since is None:
+            start = date(2020, 1, 1)
+        else:
+            # For incremental, just fetch from watermark onward
+            start = since
+
         try:
-            rows = self.router.fetch_ohlcv(symbol, since or date(2020, 1, 1), date.today())
-            return rows if rows else None
+            rows = self.router.fetch_ohlcv(symbol, start=start, end=end)
+            if not rows:
+                return None
+
+            # Normalize to price_daily schema
+            return [
+                {
+                    "symbol": symbol,
+                    "date": r["date"],
+                    "open": float(r["open"]) if r.get("open") else None,
+                    "high": float(r["high"]) if r.get("high") else None,
+                    "low": float(r["low"]) if r.get("low") else None,
+                    "close": float(r["close"]) if r.get("close") else None,
+                    "volume": int(r["volume"]) if r.get("volume") else None,
+                }
+                for r in rows
+            ]
         except Exception as e:
-            logging.debug(f"Fetch error for {symbol}: {e}")
+            log.error("Failed to fetch %s: %s", symbol, e)
             return None
 
     def transform(self, rows):
-        """Transform rows."""
+        """Market indices are already clean from fetch."""
         return rows
 
     def _validate_row(self, row: dict) -> bool:
-        """Validate row."""
-        return super()._validate_row(row)
-
-
-def get_active_symbols() -> List[str]:
-    """Pull active symbols from the stocks table."""
-    import psycopg2
-    conn = psycopg2.connect(
-        host=os.getenv("DB_HOST", "localhost"),
-        port=int(os.getenv("DB_PORT", "5432")),
-        user=os.getenv("DB_USER", "stocks"),
-        password=os.getenv("DB_PASSWORD", ""),
-        database=os.getenv("DB_NAME", "stocks"),
-    )
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT DISTINCT symbol FROM stock_symbols ORDER BY symbol")
-            return [r[0] for r in cur.fetchall()]
-    finally:
-        conn.close()
+        """Validate market index row."""
+        if not super()._validate_row(row):
+            return False
+        # Require at least close price and date
+        return row.get("close") is not None and row.get("date") is not None
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Optimal market_indices loader")
-    parser.add_argument("--symbols", help="Comma-separated symbols. Default: all from stocks table.")
-    parser.add_argument("--parallelism", type=int, default=8, help="Concurrent workers")
+    parser = argparse.ArgumentParser(description="Market indices loader")
+    parser.add_argument("--parallelism", type=int, default=4, help="Concurrent workers")
     args = parser.parse_args()
 
-    if args.symbols:
-        symbols = [s.strip().upper() for s in args.symbols.split(",")]
-    else:
-        symbols = get_active_symbols()
+    # Load major market indices
+    symbols = ['^GSPC', '^IXIC', '^NYA', '^RUT']
 
-    loader = MarketIndicesLoader()
+    loader = MarketIndicesLoader(backfill_days=365)
     try:
         stats = loader.run(symbols, parallelism=args.parallelism)
     finally:
         loader.close()
 
+    log.info("Market indices load complete: %s", stats)
     return 0 if stats["symbols_failed"] == 0 else 1
 
 
