@@ -18,7 +18,7 @@
 module "bootstrap" {
   source = "./modules/bootstrap"
 
-  count = false ? 1 : 0
+  count = var.deploy_bootstrap ? 1 : 0
 
   project_name  = var.project_name
   github_org    = "argie33"

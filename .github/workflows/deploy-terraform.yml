@@ -89,6 +89,7 @@ jobs:
           TF_VAR_notification_email: ${{ secrets.NOTIFICATION_EMAIL }}
           TF_VAR_github_org: argeropolos
           TF_VAR_github_repo: algo
+          TF_VAR_deploy_bootstrap: false
         run: terraform plan -out=tfplan -no-color
 
       - name: Upload plan artifact
@@ -151,6 +152,7 @@ jobs:
           TF_VAR_notification_email: ${{ secrets.NOTIFICATION_EMAIL }}
           TF_VAR_github_org: argeropolos
           TF_VAR_github_repo: algo
+          TF_VAR_deploy_bootstrap: false
         run: |
           echo "Applying Terraform changes..."
           terraform apply -no-color tfplan
