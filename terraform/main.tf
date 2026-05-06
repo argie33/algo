@@ -68,6 +68,8 @@ module "data_infrastructure" {
   vpc_id                = module.core[0].vpc_id
   private_subnet_ids    = module.core[0].private_subnet_ids
   ecs_cluster_subnet_ids = module.core[0].private_subnet_ids
+  rds_sg_id             = module.core[0].rds_sg_id
+  ecs_tasks_sg_id       = module.core[0].ecs_tasks_sg_id
 
   # Database config
   db_name       = var.db_name

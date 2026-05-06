@@ -29,7 +29,7 @@ output "task_execution_role_arn" {
 }
 
 output "ecs_tasks_sg_id" {
-  value = "var.ecs_tasks_sg_id"
+  value = var.ecs_tasks_sg_id
 }
 
 output "sns_topic_arn" {
