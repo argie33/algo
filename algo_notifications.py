@@ -71,6 +71,13 @@ def notify(kind, severity, title, message=None, symbol=None, details=None):
             except Exception:
                 pass
 
+        # Wire SNS for critical/error trading events
+        if severity in ('critical', 'error'):
+            try:
+                _publish_sns(severity, title, message, symbol)
+            except Exception:
+                pass
+
         return notif_id
     except Exception as e:
         print(f"  (notify failed: {e})")
@@ -93,6 +100,33 @@ def _send_email(recipient, severity, title, message, symbol):
     with smtplib.SMTP_SSL(smtp_host, 465) as smtp:
         smtp.login(smtp_user, smtp_pass)
         smtp.send_message(msg)
+
+
+def _publish_sns(severity, title, message, symbol):
+    """Publish critical/error alerts to SNS for SMS/Slack routing.
+
+    SNS topic ARN must be in ALERT_SNS_TOPIC_ARN environment variable.
+    Intended for PagerDuty, SMS, or Slack integrations.
+    """
+    import boto3
+    sns_arn = os.getenv('ALERT_SNS_TOPIC_ARN')
+    if not sns_arn:
+        return
+    try:
+        sns = boto3.client('sns')
+        subject = f"[ALGO {severity.upper()}] {title}"
+        body = f"{message or ''}\n\nSymbol: {symbol or 'N/A'}"
+        sns.publish(
+            TopicArn=sns_arn,
+            Subject=subject,
+            Message=body,
+            MessageAttributes={
+                'severity': {'DataType': 'String', 'StringValue': severity},
+                'symbol': {'DataType': 'String', 'StringValue': symbol or 'N/A'},
+            }
+        )
+    except Exception as e:
+        print(f"  (SNS publish failed: {e})")
 
 
 def get_unseen(limit=50):
