@@ -41,46 +41,31 @@ jobs:
             echo "No active hooks found"
           fi
 
-      - name: Delete stuck bootstrap stack if needed
+      - name: Delete old bootstrap stacks if they exist
         run: |
-          echo "=== Checking for stuck stacks ==="
-          STATUS=$(aws cloudformation describe-stacks \
-            --stack-name stocks-oidc \
-            --region us-east-1 \
-            --query 'Stacks[0].StackStatus' \
-            --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+          echo "=== Cleaning up old/stuck stacks ==="
+          for STACK_NAME in stocks-oidc-bootstrap stocks-oidc; do
+            STATUS=$(aws cloudformation describe-stacks \
+              --stack-name "$STACK_NAME" \
+              --region us-east-1 \
+              --query 'Stacks[0].StackStatus' \
+              --output text 2>/dev/null || echo "DOES_NOT_EXIST")
 
-          echo "Stack status: $STATUS"
+            echo "Stack $STACK_NAME status: $STATUS"
 
-          if [[ "$STATUS" == "ROLLBACK_COMPLETE" || "$STATUS" == "CREATE_FAILED" ]]; then
-            echo "Stack in bad state ($STATUS). Deleting to start fresh..."
-            aws cloudformation delete-stack \
-              --stack-name stocks-oidc \
-              --region us-east-1
+            if [[ "$STATUS" != "DOES_NOT_EXIST" ]]; then
+              echo "Deleting stack: $STACK_NAME"
+              aws cloudformation delete-stack \
+                --stack-name "$STACK_NAME" \
+                --region us-east-1 2>/dev/null || echo "Could not initiate deletion"
 
-            echo "Waiting for stack deletion..."
-            aws cloudformation wait stack-delete-complete \
-              --stack-name stocks-oidc \
-              --region us-east-1 2>/dev/null || echo "Deletion in progress"
-            echo "Stack cleanup complete"
-          else
-            echo "Stack in healthy state: $STATUS"
-          fi
-
-      - name: Delete orphaned OIDC provider if it exists
-        run: |
-          echo "=== Checking for orphaned OIDC provider ==="
-          PROVIDER_ARN=$(aws iam list-open-id-connect-providers \
-            --query 'OpenIDConnectProviderList[?contains(Arn, `token.actions.githubusercontent.com`)].Arn' \
-            --output text 2>/dev/null || echo "")
-
-          if [[ ! -z "$PROVIDER_ARN" ]]; then
-            echo "Found existing OIDC provider: $PROVIDER_ARN"
-            echo "Deleting to avoid 409 conflict..."
-            aws iam delete-open-id-connect-provider --open-id-connect-provider-arn "$PROVIDER_ARN" 2>/dev/null && echo "✅ Deleted" || echo "Could not delete (may have been deleted already)"
-          else
-            echo "No existing OIDC provider found"
-          fi
+              echo "Waiting for deletion..."
+              aws cloudformation wait stack-delete-complete \
+                --stack-name "$STACK_NAME" \
+                --region us-east-1 2>/dev/null || echo "Deletion in progress or timed out"
+            fi
+          done
+          echo "Cleanup complete"
 
       - name: Deploy bootstrap CloudFormation
         run: |
