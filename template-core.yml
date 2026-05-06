@@ -174,15 +174,11 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       VpcId: !Ref StocksVPC
-      GroupDescription: Bastion host SG
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 22
-          ToPort: 22
-          CidrIp: "0.0.0.0/0"
+      GroupDescription: Bastion host SG (access via Systems Manager Session Manager)
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: "0.0.0.0/0"
+          Description: "Allow all outbound traffic for package updates and RDS access"
 
   BastionLaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
