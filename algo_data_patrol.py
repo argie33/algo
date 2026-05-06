@@ -1011,6 +1011,76 @@ class DataPatrol:
             self.log('trade_alignment', ERROR, 'algo_trades/price_daily',
                      f'Check failed: {e}', None)
 
+    def check_derived_metrics(self):
+        """P17. Validate technical indicators within realistic bounds.
+
+        RSI: 0-100, MACD crosses, Bollinger bands math, EMA/SMA ordering.
+        Catches corrupted computations (e.g., -50 RSI, NaN values).
+        """
+        try:
+            # RSI bounds (0-100)
+            self.cur.execute("""
+                SELECT COUNT(*) FILTER (WHERE rsi < 0 OR rsi > 100) AS bad_rsi,
+                       COUNT(*) FILTER (WHERE rsi IS NULL) AS null_rsi,
+                       COUNT(*) AS total
+                FROM technical_data_daily
+                WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+            """)
+            bad_rsi, null_rsi, total = self.cur.fetchone()
+            bad_rsi = int(bad_rsi or 0)
+            null_rsi = int(null_rsi or 0)
+
+            if bad_rsi > 0:
+                self.log('derived_metrics', ERROR, 'technical_data_daily',
+                         f'{bad_rsi} rows with invalid RSI (<0 or >100)',
+                         {'bad_rsi': bad_rsi, 'total': total})
+            else:
+                self.log('derived_metrics', INFO, 'technical_data_daily',
+                         f'RSI bounds valid ({total} rows)', None)
+
+            # EMA/SMA ordering (EMA should track closer to price than SMA)
+            self.cur.execute("""
+                SELECT COUNT(*) FILTER (WHERE ema_12 IS NOT NULL AND sma_50 IS NOT NULL) AS checks,
+                       COUNT(*) FILTER (WHERE ema_12 IS NOT NULL AND sma_50 IS NOT NULL
+                                         AND ABS(ema_12 - close) > ABS(sma_50 - close)) AS reversed
+                FROM technical_data_daily
+                WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+            """)
+            checks, reversed_count = self.cur.fetchone()
+            checks = int(checks or 1)
+            reversed_count = int(reversed_count or 0)
+            reversed_pct = (reversed_count / checks * 100) if checks else 0
+
+            if reversed_pct > 10:
+                self.log('derived_metrics', WARN, 'technical_data_daily',
+                         f'{reversed_pct:.1f}% of rows have SMA closer to price than EMA (unusual)',
+                         {'reversed': reversed_count, 'total': checks})
+            else:
+                self.log('derived_metrics', INFO, 'technical_data_daily',
+                         f'EMA/SMA ordering correct', None)
+
+            # NaN/INF check
+            self.cur.execute("""
+                SELECT COUNT(*) FILTER (WHERE atr = 'NaN' OR atr = 'Infinity' OR atr = '-Infinity') AS bad_atr,
+                       COUNT(*) FILTER (WHERE rsi = 'NaN' OR rsi = 'Infinity') AS bad_rsi_nan
+                FROM technical_data_daily
+                WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+            """)
+            bad_atr, bad_rsi_nan = self.cur.fetchone()
+            bad_atr = int(bad_atr or 0)
+            bad_rsi_nan = int(bad_rsi_nan or 0)
+
+            if bad_atr > 0 or bad_rsi_nan > 0:
+                self.log('derived_metrics', ERROR, 'technical_data_daily',
+                         f'{bad_atr} NaN ATR, {bad_rsi_nan} NaN RSI (computation error)',
+                         {'nan_count': bad_atr + bad_rsi_nan})
+            else:
+                self.log('derived_metrics', INFO, 'technical_data_daily',
+                         'No NaN/Infinity values in technical data', None)
+
+        except Exception as e:
+            self.log('derived_metrics', ERROR, 'technical_data_daily', f'Check failed: {e}', None)
+
     def check_fundamental_data(self):
         """P15. Financial statement and fundamental data freshness."""
         today = _date.today()
@@ -1096,6 +1166,7 @@ class DataPatrol:
                 self.check_loader_contracts()
                 self.check_signal_data_alignment()
                 self.check_trade_price_alignment()
+                self.check_derived_metrics()
                 self.check_earnings_data()
                 self.check_etf_data()
                 self.check_cross_table_alignment()

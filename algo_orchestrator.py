@@ -60,6 +60,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date as _date
 from algo_alerts import AlertManager
+from algo_market_calendar import MarketCalendar
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -917,6 +918,13 @@ class Orchestrator:
         print(f"#   ALGO ORCHESTRATOR — {self.run_date}  ({'DRY RUN' if self.dry_run else 'LIVE'})")
         print(f"#   run_id: {self.run_id}")
         print(f"{'#'*70}")
+
+        # Check market calendar
+        if not MarketCalendar.is_trading_day(self.run_date):
+            status = MarketCalendar.market_status(datetime.combine(self.run_date, datetime.min.time()))
+            print(f"\n⏸️  Market closed: {status['reason']}")
+            print("Skipping all trading phases.\n")
+            return {'success': False, 'error': f"Market closed: {status['reason']}"}
 
         # Concurrency lock — prevent two orchestrators running at once
         # which would risk duplicate trades or double-counting circuit breakers
