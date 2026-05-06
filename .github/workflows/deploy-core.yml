@@ -233,7 +233,7 @@ jobs:
           REGION="${{ env.AWS_REGION }}"
 
           # Pre-deployment cleanup: delete stacks and orphaned resources
-          echo "=== Pre-deployment cleanup ==="
+          echo "=== PRE-DEPLOYMENT CLEANUP ==="
 
           # 1. Delete existing stocks-core stack if it exists
           STATUS=$(aws cloudformation describe-stacks \
@@ -245,22 +245,45 @@ jobs:
           if [[ "$STATUS" != "DOES_NOT_EXIST" ]]; then
             echo "Deleting existing stocks-core stack (status: $STATUS)..."
             aws cloudformation delete-stack --stack-name "${{ env.STACK_NAME }}" --region "$REGION" 2>/dev/null || true
-            sleep 5  # Brief wait before checking
+            sleep 5
           fi
 
-          # 2. Empty and delete orphaned S3 buckets that would conflict
-          echo "Checking for conflicting S3 buckets..."
-          for BUCKET_NAME in "stocks-algo-app-code-$ACCOUNT_ID" "stocks-cf-templates-$ACCOUNT_ID" "algo-artifacts-$ACCOUNT_ID"; do
-            if aws s3 ls "s3://$BUCKET_NAME" 2>/dev/null; then
-              echo "  Emptying bucket: $BUCKET_NAME"
-              aws s3 rm "s3://$BUCKET_NAME" --recursive 2>/dev/null || echo "    (bucket already empty or access denied)"
-              echo "  Deleting bucket: $BUCKET_NAME"
-              aws s3 rb "s3://$BUCKET_NAME" 2>/dev/null || echo "    (could not delete)"
-            fi
+          # 2. Delete ECR repository FIRST (it blocks other cleanup)
+          echo "Deleting orphaned ECR repositories..."
+          aws ecr delete-repository \
+            --repository-name stocks-app-registry \
+            --force \
+            --region "$REGION" 2>/dev/null || echo "  (No stocks-app-registry to delete)"
+
+          sleep 2
+
+          # 3. Delete ALL S3 buckets with stocks/algo in name (regardless of content)
+          echo "Force-deleting all S3 buckets with 'stocks' or 'algo' in name..."
+          aws s3 ls 2>/dev/null | grep -E "stocks|algo" | awk '{print $3}' | while read BUCKET_NAME; do
+            echo "  Processing bucket: $BUCKET_NAME"
+
+            # Delete all object versions (handles versioning)
+            echo "    Listing and deleting all object versions..."
+            aws s3api list-object-versions --bucket "$BUCKET_NAME" --region "$REGION" \
+              --query 'Versions[].{Key:Key,VersionId:VersionId}' --output json 2>/dev/null | \
+              jq -r '.[] | "--key \(.Key) --version-id \(.VersionId)"' | \
+              xargs -I {} aws s3api delete-object --bucket "$BUCKET_NAME" --region "$REGION" {} 2>/dev/null || true
+
+            # Delete all delete markers
+            aws s3api list-object-versions --bucket "$BUCKET_NAME" --region "$REGION" \
+              --query 'DeleteMarkers[].{Key:Key,VersionId:VersionId}' --output json 2>/dev/null | \
+              jq -r '.[] | "--key \(.Key) --version-id \(.VersionId)"' | \
+              xargs -I {} aws s3api delete-object --bucket "$BUCKET_NAME" --region "$REGION" {} 2>/dev/null || true
+
+            # Finally delete the bucket
+            echo "    Deleting bucket..."
+            aws s3 rb "s3://$BUCKET_NAME" --force --region "$REGION" 2>/dev/null || \
+              aws s3api delete-bucket --bucket "$BUCKET_NAME" --region "$REGION" 2>/dev/null || \
+              echo "    ⚠️  Could not delete $BUCKET_NAME (may be in grace period)"
           done
 
-          # 3. Force delete any orphaned VPCs with 10.0.0.0/16 CIDR
-          echo "Checking for conflicting VPCs..."
+          # 4. Delete VPCs with 10.0.0.0/16
+          echo "Deleting orphaned VPCs with 10.0.0.0/16..."
           VPC_IDS=$(aws ec2 describe-vpcs \
             --filters "Name=cidr,Values=10.0.0.0/16" \
             --region "$REGION" \
@@ -269,7 +292,8 @@ jobs:
 
           if [[ ! -z "$VPC_IDS" ]]; then
             for VPC_ID in $VPC_IDS; do
-              echo "  Force-deleting VPC: $VPC_ID"
+              echo "  Processing VPC: $VPC_ID"
+
               # Delete all ENIs
               for ENI_ID in $(aws ec2 describe-network-interfaces \
                 --filters "Name=vpc-id,Values=$VPC_ID" \
@@ -278,6 +302,7 @@ jobs:
                 --output text 2>/dev/null); do
                 aws ec2 delete-network-interface --network-interface-id "$ENI_ID" --region "$REGION" 2>/dev/null || true
               done
+
               # Delete subnets
               for SUBNET_ID in $(aws ec2 describe-subnets \
                 --filters "Name=vpc-id,Values=$VPC_ID" \
@@ -286,20 +311,15 @@ jobs:
                 --output text 2>/dev/null); do
                 aws ec2 delete-subnet --subnet-id "$SUBNET_ID" --region "$REGION" 2>/dev/null || true
               done
+
               # Delete VPC
-              aws ec2 delete-vpc --vpc-id "$VPC_ID" --region "$REGION" 2>/dev/null || echo "    (VPC may have dependencies)"
+              aws ec2 delete-vpc --vpc-id "$VPC_ID" --region "$REGION" 2>/dev/null || echo "    ⚠️  VPC deletion failed (may have dependencies)"
             done
           fi
 
-          # 4. Delete orphaned ECR repo if it exists
-          echo "Checking for orphaned ECR repositories..."
-          aws ecr delete-repository \
-            --repository-name stocks-app-registry \
-            --force \
-            --region "$REGION" 2>/dev/null || echo "  (No stocks-app-registry to delete)"
-
-          echo "Cleanup complete. Proceeding with deployment..."
+          echo "Cleanup phase complete"
           echo ""
+          echo "=== DEPLOYING CloudFormation ==="
 
           aws cloudformation deploy \
             --template-file template-core.yml \
