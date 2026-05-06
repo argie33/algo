@@ -163,6 +163,27 @@ class PositionSizer:
             return 0.5
         return 1.0  # neutral if not computed yet
 
+    def get_vix_caution_multiplier(self):
+        """Reduce risk if VIX is in caution zone (caution_threshold < VIX < max_threshold).
+
+        Returns risk multiplier: 1.0 if VIX is normal, reduced multiplier if in caution zone.
+        """
+        try:
+            self.cur.execute(
+                "SELECT vix_level FROM market_health_daily ORDER BY date DESC LIMIT 1"
+            )
+            row = self.cur.fetchone()
+            if not row or row[0] is None:
+                return 1.0
+            vix = float(row[0])
+            caution_threshold = float(self.config.get('vix_caution_threshold', 25.0))
+            max_threshold = float(self.config.get('vix_max_threshold', 35.0))
+            if vix > caution_threshold and vix <= max_threshold:
+                return float(self.config.get('vix_caution_risk_reduction', 0.75))
+            return 1.0
+        except Exception:
+            return 1.0
+
     def get_phase_size_multiplier(self, symbol):
         """Stage-2 phase mult: Early=1.0, Mid=1.0, Late=0.5, Climax=0.0."""
         try:
@@ -249,11 +270,12 @@ class PositionSizer:
                     'reason': f'Drawdown >= 20%, trading halted'
                 }
 
-            # Dynamic risk = base × drawdown × market_exposure × stage_phase
+            # Dynamic risk = base × drawdown × market_exposure × stage_phase × vix_caution
             base_risk_pct = float(self.config.get('base_risk_pct', 0.75)) / 100
             exposure_mult = self.get_market_exposure_multiplier()
             phase_mult = self.get_phase_size_multiplier(symbol)
-            adjusted_risk_pct = base_risk_pct * risk_adjustment * exposure_mult * phase_mult
+            vix_mult = self.get_vix_caution_multiplier()
+            adjusted_risk_pct = base_risk_pct * risk_adjustment * exposure_mult * phase_mult * vix_mult
             risk_dollars = portfolio_value * adjusted_risk_pct
 
             # If stage phase says zero, halt this entry

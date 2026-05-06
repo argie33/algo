@@ -37,8 +37,9 @@ DB_CONFIG = {
 class FilterPipeline:
     """5-tier filtering and signal evaluation."""
 
-    def __init__(self):
+    def __init__(self, exposure_risk_multiplier=1.0):
         self.config = get_config()
+        self.exposure_risk_multiplier = exposure_risk_multiplier  # From exposure policy tier
         self.conn = None
         self.cur = None
         self._market_health_cache = None
@@ -561,12 +562,10 @@ class FilterPipeline:
             return {'pass': False, 'reason': f'Error: {e}', 'sqs': 0}
 
     def _tier5_portfolio_health(self, symbol, entry_price, stop_loss_price):
-        """Portfolio health check + actual share calculation using stop loss for risk."""
+        """Portfolio health check + actual share calculation using PositionSizer."""
         try:
             state = self._load_portfolio_state()
-            pos_count = state['position_count']
             existing_symbols = state['symbols']
-            portfolio_value = state['portfolio_value']
 
             # No duplicate position in same symbol
             if symbol in existing_symbols:
@@ -576,15 +575,7 @@ class FilterPipeline:
                     'shares': 0,
                 }
 
-            max_positions = int(self.config.get('max_positions', 12))
-            if pos_count >= max_positions:
-                return {
-                    'pass': False,
-                    'reason': f'{pos_count} open positions >= {max_positions} max',
-                    'shares': 0,
-                }
-
-            # Sector / industry concentration limits
+            # Sector / industry concentration limits (PositionSizer doesn't check these)
             new_sector_info = self._get_sector_info(symbol)
             if new_sector_info and (existing_symbols or self._candidate_holdings):
                 sector_count, industry_count = self._count_sector_industry_overlap(
@@ -605,45 +596,35 @@ class FilterPipeline:
                         'shares': 0,
                     }
 
-            # Risk-based sizing: shares = risk_dollars / (entry - stop)
-            base_risk_pct = float(self.config.get('base_risk_pct', 0.75)) / 100.0
-            adjusted_risk_pct = base_risk_pct * state['risk_adjustment']
-            risk_dollars = portfolio_value * adjusted_risk_pct
-
+            # Use PositionSizer for all risk calculations (includes drawdown cascade, exposure mult, phase mult)
             if not stop_loss_price or stop_loss_price >= entry_price:
-                # Fall back to 8% stop if we couldn't compute one
                 stop_loss_price = entry_price * 0.92
 
-            risk_per_share = entry_price - stop_loss_price
-            if risk_per_share <= 0:
-                return {'pass': False, 'reason': 'Invalid risk per share', 'shares': 0}
+            from algo_position_sizer import PositionSizer
+            sizer = PositionSizer(self.config)
+            result = sizer.calculate_position_size(symbol, entry_price, stop_loss_price)
 
-            shares = int(risk_dollars / risk_per_share)
-            if shares <= 0:
-                return {'pass': False, 'reason': 'Risk too small for any shares', 'shares': 0}
-
-            position_value = shares * entry_price
-
-            # Cap at max position % of portfolio
-            max_position_pct = float(self.config.get('max_position_size_pct', 8.0)) / 100.0
-            max_position_value = portfolio_value * max_position_pct
-            if position_value > max_position_value:
-                shares = int(max_position_value / entry_price)
-                position_value = shares * entry_price
-                risk_dollars = risk_per_share * shares
-
-            if shares <= 0:
-                return {'pass': False, 'reason': 'Position cap forces 0 shares', 'shares': 0}
-
-            # Concentration: this position's % of total portfolio (NOT of position book)
-            position_size_pct = (position_value / portfolio_value * 100.0) if portfolio_value > 0 else 0.0
-            max_concentration = float(self.config.get('max_concentration_pct', 50.0))
-            if position_size_pct > max_concentration:
+            # Check sizing result status
+            if result['status'] != 'ok':
                 return {
                     'pass': False,
-                    'reason': f'Position would be {position_size_pct:.1f}% > {max_concentration:.0f}% portfolio',
+                    'reason': result.get('reason', f'Sizing failed: {result["status"]}'),
                     'shares': 0,
                 }
+
+            # Apply exposure tier risk multiplier (e.g., PRESSURE tier = 0.5)
+            if self.exposure_risk_multiplier != 1.0:
+                adjusted_shares = int(result['shares'] * self.exposure_risk_multiplier)
+                if adjusted_shares <= 0 and result['shares'] > 0:
+                    return {
+                        'pass': False,
+                        'reason': f'Exposure tier multiplier {self.exposure_risk_multiplier} reduces position to 0 shares',
+                        'shares': 0,
+                    }
+                result['shares'] = adjusted_shares
+                result['risk_dollars'] *= self.exposure_risk_multiplier
+                result['position_size_pct'] *= self.exposure_risk_multiplier
+                result['reason'] = f'{adjusted_shares} sh @ ${entry_price:.2f} (risk ${result["risk_dollars"]:.0f}, {result["position_size_pct"]:.1f}% after tier mult={self.exposure_risk_multiplier})'
 
             # Mark candidate as "claimed" for sector/industry counting in this run
             if new_sector_info:
@@ -651,10 +632,10 @@ class FilterPipeline:
 
             return {
                 'pass': True,
-                'reason': f'{shares} sh @ ${entry_price:.2f} (risk ${risk_dollars:.0f}, {position_size_pct:.1f}%)',
-                'shares': shares,
-                'risk_dollars': risk_dollars,
-                'position_size_pct': position_size_pct,
+                'reason': result['reason'],
+                'shares': result['shares'],
+                'risk_dollars': result['risk_dollars'],
+                'position_size_pct': result['position_size_pct'],
             }
         except Exception as e:
             return {'pass': False, 'reason': f'Error: {e}', 'shares': 0}

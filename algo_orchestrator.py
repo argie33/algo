@@ -734,7 +734,10 @@ class Orchestrator:
         self.log_phase_start(5, 'SIGNAL GENERATION & RANKING')
         try:
             from algo_filter_pipeline import FilterPipeline
-            pipeline = FilterPipeline()
+            exposure_mult = 1.0
+            if hasattr(self, '_exposure_constraints') and self._exposure_constraints:
+                exposure_mult = self._exposure_constraints.get('risk_multiplier', 1.0)
+            pipeline = FilterPipeline(exposure_risk_multiplier=exposure_mult)
             qualified = pipeline.evaluate_signals(self.run_date)
 
             self._qualified_trades = qualified
