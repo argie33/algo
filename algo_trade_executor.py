@@ -283,6 +283,20 @@ class TradeExecutor:
                     # For pending orders, still create the trade record but mark as pending
                     # Position will be created when/if order fills (via reconciliation)
 
+            # If fill price differs from signal price (slippage), recalculate targets based on actual fill
+            if executed_price and executed_price != entry_price:
+                slippage_pct = ((executed_price - entry_price) / entry_price * 100)
+                print(f"  Slippage detected: {slippage_pct:+.2f}% (signal ${entry_price:.2f} → fill ${executed_price:.2f})")
+                # Recalculate targets from actual fill price
+                actual_risk_per_share = executed_price - stop_loss_price
+                if actual_risk_per_share > 0:
+                    t1_r = float(self.config.get('t1_target_r_multiple', 1.5))
+                    t2_r = float(self.config.get('t2_target_r_multiple', 3.0))
+                    t3_r = float(self.config.get('t3_target_r_multiple', 4.0))
+                    target_1_price = round(executed_price + (actual_risk_per_share * t1_r), 2)
+                    target_2_price = round(executed_price + (actual_risk_per_share * t2_r), 2)
+                    target_3_price = round(executed_price + (actual_risk_per_share * t3_r), 2)
+
             # Compute initial position size pct using live or snapshot portfolio value
             portfolio_value = self._get_portfolio_value() or 100000.0
             position_size_pct = (shares * executed_price / portfolio_value * 100) if portfolio_value > 0 else 0
@@ -417,6 +431,27 @@ class TradeExecutor:
             }
 
         except Exception as e:
+            # B6: Orphaned order prevention — if Alpaca filled but DB write failed,
+            # cancel the order before rollback to prevent naked position
+            if 'alpaca_order_id' in locals() and alpaca_order_id:
+                if not alpaca_order_id.startswith(('LOCAL-', 'PENDING-')):
+                    try:
+                        cancel_result = self._cancel_bracket_orders(alpaca_order_id)
+                        if cancel_result['success']:
+                            print(f"CRITICAL: DB write failed after Alpaca fill — order {alpaca_order_id} cancelled to prevent orphan")
+                        else:
+                            print(f"CRITICAL: DB write failed AND order cancellation failed — MANUAL INTERVENTION REQUIRED: {alpaca_order_id}")
+                        try:
+                            from algo_notifications import notify
+                            notify(
+                                'critical',
+                                title='ORPHANED ORDER PREVENTION TRIGGERED',
+                                message=f'DB write failed after Alpaca fill for {symbol}. Order {alpaca_order_id} {"cancelled" if cancel_result["success"] else "FAILED TO CANCEL"}. Manual review required.'
+                            )
+                        except Exception:
+                            pass
+                    except Exception as cancel_e:
+                        print(f"CRITICAL: Exception during orphaned order cancellation: {cancel_e}")
             if self.conn:
                 self.conn.rollback()
             return {
