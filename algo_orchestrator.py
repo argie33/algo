@@ -952,28 +952,50 @@ class Orchestrator:
             self.log_phase_result(7, 'reconciliation', status, summary)
 
             # Compute and log live performance metrics (Phase 4)
+            perf_status = 'warn'
+            perf_summary = 'N/A'
             try:
                 from algo_performance import LivePerformance
                 perf = LivePerformance(self.config)
                 perf_report = perf.generate_daily_report(self.run_date)
-                self.log_phase_result(7, 'performance', 'success',
-                    f'Sharpe {perf_report.get("rolling_sharpe", "N/A")}, '
-                    f'Win rate {perf_report.get("win_rate_pct", "N/A")}%')
+                if perf_report.get('status') == 'success':
+                    perf_status = 'success'
+                    perf_summary = (
+                        f"Sharpe {perf_report.get('rolling_sharpe', 'N/A')}, "
+                        f"Win rate {perf_report.get('win_rate_pct', 'N/A')}%, "
+                        f"Expectancy {perf_report.get('expectancy', 'N/A')}"
+                    )
+                else:
+                    perf_summary = perf_report.get('message', 'insufficient data')
             except Exception as e:
-                self.log_phase_result(7, 'performance', 'warn', f'metrics unavailable: {e}')
+                perf_summary = f'error: {str(e)[:60]}'
+            finally:
+                self.log_phase_result(7, 'performance', perf_status, perf_summary)
 
             # Compute and log portfolio risk metrics (Phase 8)
+            # IMPORTANT: Each module handles its own DB connection/transaction
+            # Do NOT assume previous module's transaction is clean
+            risk_status = 'warn'
+            risk_summary = 'N/A'
             try:
                 from algo_var import PortfolioRisk
                 risk = PortfolioRisk(self.config)
                 risk_report = risk.generate_daily_risk_report(self.run_date)
-                alerts = risk_report.get('alerts', [])
-                self.log_phase_result(7, 'risk_metrics', 'success',
-                    f'VaR {risk_report.get("var_metrics", {}).get("var_pct", "N/A")}%, '
-                    f'Concentration {risk_report.get("concentration", {}).get("top_5_concentration_pct", "N/A")}%' +
-                    (f' — {len(alerts)} alerts' if alerts else ''))
+                if risk_report.get('status') == 'ok':
+                    risk_status = 'success'
+                    var_pct = risk_report.get('var_metrics', {}).get('var_pct', 'N/A')
+                    conc_pct = risk_report.get('concentration', {}).get('top_5_concentration_pct', 'N/A')
+                    alerts_count = len(risk_report.get('alerts', []))
+                    risk_summary = (
+                        f"VaR {var_pct}%, Concentration {conc_pct}%"
+                        + (f", {alerts_count} alerts" if alerts_count else "")
+                    )
+                else:
+                    risk_summary = risk_report.get('message', 'insufficient data')
             except Exception as e:
-                self.log_phase_result(7, 'risk_metrics', 'warn', f'metrics unavailable: {e}')
+                risk_summary = f'error: {str(e)[:60]}'
+            finally:
+                self.log_phase_result(7, 'risk_metrics', risk_status, risk_summary)
 
             return True
         except Exception as e:

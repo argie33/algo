@@ -15,7 +15,7 @@ This is what institutional traders use to validate their edge isn't eroded by fe
 """
 
 import psycopg2
-from datetime import datetime, date
+from datetime import date
 from typing import Optional
 import os
 from dotenv import load_dotenv
