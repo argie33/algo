@@ -11,7 +11,7 @@ output "private_subnet_ids" {
 }
 
 output "ecr_repository_uri" {
-  value = var.create_ecr_repository ? aws_ecr_repository.main[0].repository_url : "stocks-app-registry-${var.aws_account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/stocks-app-registry-${var.aws_account_id}"
+  value = var.create_ecr_repository ? aws_ecr_repository.main[0].repository_url : null
 }
 
 output "cf_templates_bucket_name" {
