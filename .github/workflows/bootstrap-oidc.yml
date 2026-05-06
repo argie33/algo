@@ -67,6 +67,21 @@ jobs:
             echo "Stack in healthy state: $STATUS"
           fi
 
+      - name: Delete orphaned OIDC provider if it exists
+        run: |
+          echo "=== Checking for orphaned OIDC provider ==="
+          PROVIDER_ARN=$(aws iam list-open-id-connect-providers \
+            --query 'OpenIDConnectProviderList[?contains(Arn, `token.actions.githubusercontent.com`)].Arn' \
+            --output text 2>/dev/null || echo "")
+
+          if [[ ! -z "$PROVIDER_ARN" ]]; then
+            echo "Found existing OIDC provider: $PROVIDER_ARN"
+            echo "Deleting to avoid 409 conflict..."
+            aws iam delete-open-id-connect-provider --open-id-connect-provider-arn "$PROVIDER_ARN" 2>/dev/null && echo "✅ Deleted" || echo "Could not delete (may have been deleted already)"
+          else
+            echo "No existing OIDC provider found"
+          fi
+
       - name: Deploy bootstrap CloudFormation
         run: |
           set -x  # Debug output
