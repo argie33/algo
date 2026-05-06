@@ -129,8 +129,14 @@ class TradeExecutor:
         risk_per_share = entry_price - stop_loss_price
         if risk_per_share <= 0:
             return {
-                'success': False, 'trade_id': '', 'status': 'invalid',
-                'message': f'Invalid stop: ${stop_loss_price:.2f} >= entry ${entry_price:.2f}'
+                'success': False, 'trade_id': '', 'status': 'invalid_stop',
+                'message': f'Invalid stop: ${stop_loss_price:.2f} >= entry ${entry_price:.2f} (stop must be below entry)'
+            }
+        # Additional guard: stop must be at least 1% below entry (meaningful risk)
+        if stop_loss_price >= entry_price * 0.99:
+            return {
+                'success': False, 'trade_id': '', 'status': 'bad_stop',
+                'message': f'Stop too tight: ${stop_loss_price:.2f} within 1% of entry ${entry_price:.2f} (meaningful R required)'
             }
         if target_1_price is None:
             t1_r = float(self.config.get('t1_target_r_multiple', 1.5))

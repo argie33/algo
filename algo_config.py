@@ -81,12 +81,19 @@ class AlgoConfig:
         'min_stock_price': ('5.0', 'float', 'Minimum stock price $'),
         'min_signal_quality_score': ('60', 'int', 'Minimum SQS 0-100'),
         'min_volume_ma_50d': ('500000', 'int', 'Minimum 50-day avg volume'),
+        'require_stock_stage_2': ('true', 'bool', 'Require Stage 2 trend template'),
+        'max_stop_distance_pct': ('8.0', 'float', 'Max stop distance % from entry'),
+        'max_positions_per_sector': ('3', 'int', 'Max concurrent positions in one sector'),
+        'max_positions_per_industry': ('2', 'int', 'Max concurrent positions in one industry'),
+        'min_swing_score': ('60.0', 'float', 'Min swing trader score to enter'),
+        'max_total_invested_pct': ('95.0', 'float', 'Max % of portfolio in open positions'),
 
         # Market Conditions
         'max_distribution_days': ('4', 'int', 'Max market distribution days'),
         'require_stage_2_market': ('true', 'bool', 'Require uptrend market stage'),
         'vix_max_threshold': ('35.0', 'float', 'VIX level to halt trading'),
         'vix_caution_threshold': ('25.0', 'float', 'VIX level to reduce positions'),
+        'vix_caution_risk_reduction': ('0.75', 'float', 'Risk multiplier when VIX > caution threshold'),
 
         # Entry Rules (Minervini)
         'require_sma50_above_sma200': ('true', 'bool', 'Price and MA alignment'),
@@ -100,6 +107,14 @@ class AlgoConfig:
         't3_target_r_multiple': ('4.0', 'float', 'Tier 3 profit target R-mult'),
         'max_hold_days': ('20', 'int', 'Max days to hold position'),
         'exit_on_distribution_day': ('true', 'bool', 'Exit on market distribution'),
+        'exit_on_rs_line_break_50dma': ('true', 'bool', 'Exit when RS line breaks 50-DMA'),
+        'exit_on_td_sequential': ('true', 'bool', 'Exit on TD Sequential 9/13 exhaustion'),
+        'use_chandelier_trail': ('true', 'bool', 'Use chandelier ATR trailing stop'),
+        'switch_to_21ema_after_days': ('10', 'int', 'Days before switching chandelier to 21-EMA'),
+        'eight_week_rule_threshold_pct': ('20.0', 'float', 'ONeill 8-week hold threshold %'),
+        'eight_week_rule_window_days': ('21', 'int', 'Days to check for 20%+ gain'),
+        'chandelier_atr_mult': ('3.0', 'float', 'ATR multiplier for chandelier stop'),
+        'move_be_at_r': ('1.0', 'float', 'R-multiple to trigger breakeven stop raise'),
 
         # Pyramid Entry
         'pyramid_enabled': ('true', 'bool', 'Enable multi-entry pyramiding'),
