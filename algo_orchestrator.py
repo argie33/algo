@@ -59,6 +59,7 @@ import traceback
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date as _date
+from algo_alerts import AlertManager
 
 env_file = Path(__file__).parent / '.env.local'
 if env_file.exists():
@@ -88,6 +89,7 @@ class Orchestrator:
         self._lock_acquired = False
         self.db_failure_counter_file = Path('/tmp/algo_db_failures.txt')
         self.degraded_mode = False  # B4: Circuit breaker for DB failures
+        self.alerts = AlertManager()
 
     # ---------- Database health monitoring (B4) ----------
 
@@ -149,7 +151,9 @@ class Orchestrator:
                 SELECT MAX(severity) as worst_severity,
                        COUNT(*) as total_findings,
                        COUNT(CASE WHEN severity = 'critical' THEN 1 END) as critical_count,
-                       COUNT(CASE WHEN severity = 'error' THEN 1 END) as error_count
+                       COUNT(CASE WHEN severity = 'error' THEN 1 END) as error_count,
+                       COUNT(CASE WHEN severity = 'warn' THEN 1 END) as warn_count,
+                       COUNT(CASE WHEN severity = 'info' THEN 1 END) as info_count
                 FROM data_patrol_log
                 WHERE patrol_run_id = %s
             """, (latest_run_id,))
@@ -161,11 +165,29 @@ class Orchestrator:
                     print("  [PATROL] No findings in latest patrol")
                 return True
 
-            worst_severity, total_findings, critical_count, error_count = row
+            worst_severity, total_findings, critical_count, error_count, warn_count, info_count = row
 
             if self.verbose:
                 print(f"  [PATROL] {latest_run_id}: {total_findings} findings "
-                      f"(critical={critical_count}, error={error_count})")
+                      f"(critical={critical_count}, error={error_count}, warn={warn_count})")
+
+            # Fetch flagged findings for alerting
+            cur.execute("""
+                SELECT check_name, severity, target_table, message
+                FROM data_patrol_log
+                WHERE patrol_run_id = %s AND severity IN ('critical', 'error')
+                ORDER BY severity DESC
+            """, (latest_run_id,))
+            flagged = [{'check': r[0], 'severity': r[1], 'target': r[2], 'message': r[3]}
+                       for r in cur.fetchall()]
+
+            # Send alerts on CRITICAL or ERROR
+            if critical_count > 0 or error_count > 0:
+                self.alerts.send_patrol_alert(
+                    latest_run_id,
+                    {'critical': critical_count, 'error': error_count, 'warn': warn_count, 'info': info_count},
+                    flagged
+                )
 
             # FAIL-CLOSED: critical findings always block
             if critical_count and critical_count > 0:
@@ -364,6 +386,17 @@ class Orchestrator:
         try:
             from algo_position_monitor import PositionMonitor
             monitor = PositionMonitor(self.config)
+
+            # Check for stale orders first
+            stale_result = monitor.check_stale_orders(self.run_date)
+            if stale_result['status'] == 'STALE_ORDERS_FOUND':
+                self.alerts.send_position_alert(
+                    'STALE_ORDERS',
+                    'STALE_ORDER_ALERT',
+                    f'{stale_result["count"]} orders pending >1 hour',
+                    {'orders': stale_result['count']}
+                )
+
             recommendations = monitor.review_positions(self.run_date)
 
             n_raise_stop = sum(1 for r in recommendations if r['action'] == 'RAISE_STOP')
@@ -380,6 +413,44 @@ class Orchestrator:
             self.log_phase_result(3, 'position_monitor', 'error', str(e))
             self._position_recs = []
             return True   # fail-open
+
+    def phase_3a_reconciliation(self):
+        """Check that DB positions match Alpaca account holdings.
+
+        FAIL-OPEN: alerts on divergence but doesn't block trading.
+        """
+        self.log_phase_start('3a', 'POSITION RECONCILIATION')
+        try:
+            from algo_reconciliation import PositionReconciler
+            reconciler = PositionReconciler()
+            result = reconciler.reconcile()
+
+            if result.get('critical_count', 0) > 0:
+                self.alerts.send_position_alert(
+                    'RECONCILIATION',
+                    'CRITICAL',
+                    f'{result["critical_count"]} untracked Alpaca positions',
+                    result.get('issues', [])[:5]
+                )
+                self.log_phase_result('3a', 'reconciliation', 'alert',
+                                      f'Critical divergence: {result["critical_count"]} issues')
+            elif result.get('error_count', 0) > 0:
+                self.alerts.send_position_alert(
+                    'RECONCILIATION',
+                    'ERROR',
+                    f'{result["error_count"]} missing/closed positions in Alpaca',
+                    result.get('issues', [])[:5]
+                )
+                self.log_phase_result('3a', 'reconciliation', 'alert',
+                                      f'{result["error_count"]} position errors')
+            else:
+                self.log_phase_result('3a', 'reconciliation', 'success',
+                                      f'{result["db_positions"]} positions reconciled OK')
+            return True  # fail-open
+        except Exception as e:
+            traceback.print_exc()
+            self.log_phase_result('3a', 'reconciliation', 'error', str(e))
+            return True  # fail-open
 
     def phase_3b_exposure_policy(self):
         """Apply market exposure tier policy to existing positions.
@@ -871,6 +942,15 @@ class Orchestrator:
             print(f"  (warning: couldn't write lock file: {e})")
 
         try:
+            # Run data patrol first (before DB check, but will silently fail if DB down)
+            print("\nRunning data patrol...")
+            try:
+                from algo_data_patrol import DataPatrol
+                patrol = DataPatrol()
+                patrol.run(quick=False)
+            except Exception as e:
+                print(f"  [WARN] Data patrol failed: {e}")
+
             # B4: Check database connectivity — fail-closed on multiple consecutive failures
             if not self._check_db_connectivity():
                 failures = self._increment_db_failure_counter()
@@ -904,12 +984,14 @@ class Orchestrator:
 
             if not self.phase_2_circuit_breakers():
                 print("\nHALT: Circuit breaker fired. Will still review positions but skip new entries.")
+                self.phase_3a_reconciliation()
                 self.phase_3_position_monitor()
                 self.phase_3b_exposure_policy()
                 self.phase_4_exit_execution()
                 self.phase_7_reconcile()
                 return self._final_report()
 
+            self.phase_3a_reconciliation()
             self.phase_3_position_monitor()
             self.phase_3b_exposure_policy()
             self.phase_4_exit_execution()

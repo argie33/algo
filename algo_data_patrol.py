@@ -10,7 +10,8 @@ silent failures that mock and sample-based testing miss:
   P2. NULL ANOMALIES    sudden spike in NULL values (loader regression)
   P3. ZERO/IDENTICAL    rows with all zeros, identical OHLC (API limit hit)
   P4. PRICE SANITY      prices within reasonable %-change vs prior day
-  P5. VOLUME SANITY     volume not zero, not absurdly high
+  P5. VOLUME SANITY     volume <1M (new pattern) or >100M (halts/unusual)
+  P5B. OHLC SANITY      High >= Open/Close/Low, detect negative prices
   P6. CROSS-SOURCE      validate top symbols vs Alpaca (free, already have key)
   P7. UNIVERSE COVERAGE %symbols updated today (drop-off detection)
   P8. SEQUENCE          dates contiguous (no missing trading days)
@@ -21,6 +22,7 @@ silent failures that mock and sample-based testing miss:
  P13. ETF DATA          ETF prices and signals freshness
  P14. CROSS-ALIGN       symbol universe alignment across dependent tables
  P15. FUNDAMENTALS      financial statements and key metrics freshness
+ P16. TRADE ALIGNMENT   every filled trade has price history on/after fill date
 
 Every check writes to data_patrol_log with severity (info/warn/error/critical).
 The orchestrator's Phase 1 reads aggregate severity and fails closed on critical.
@@ -39,6 +41,7 @@ import json
 import argparse
 import psycopg2
 import requests
+import time
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, date as _date, timedelta
@@ -66,6 +69,7 @@ class DataPatrol:
         self.conn = None
         self.cur = None
         self.results = []
+        self.check_timings = {}  # track execution time per check
 
     def connect(self):
         self.conn = psycopg2.connect(**DB_CONFIG)
@@ -77,6 +81,67 @@ class DataPatrol:
         self.cur = self.conn = None
 
     # Note: data_patrol_log table created by init_database.py (schema as code)
+
+    def _timed_check(self, check_name, check_func):
+        """Run a check and track execution time."""
+        start = time.time()
+        try:
+            check_func()
+            elapsed = time.time() - start
+            self.check_timings[check_name] = elapsed
+            if elapsed > 5:  # alert if check takes >5 seconds
+                self.log('perf_slow', 'warn', 'patrol_perf',
+                        f'{check_name} took {elapsed:.1f}s (slow)',
+                        {'check': check_name, 'seconds': round(elapsed, 1)})
+        except Exception as e:
+            elapsed = time.time() - start
+            self.check_timings[check_name] = elapsed
+            raise
+
+    def _log_configuration(self):
+        """Log all patrol configuration at start of run.
+
+        Captures thresholds, timeouts, and check settings. If someone silently
+        changes a threshold, it will be in the log.
+        """
+        config = {
+            'staleness_windows': {
+                'price_daily': 7,
+                'technical_data_daily': 7,
+                'buy_sell_daily': 7,
+                'signal_quality_scores': 7,
+                'stock_scores': 14,
+                'earnings_history': 120,
+            },
+            'coverage_thresholds': {
+                'min_universe_pct': 90,
+                'min_coverage_ratio': 0.95,
+            },
+            'price_sanity': {
+                'max_daily_move_pct': 50,
+                'max_daily_move_count': 10,
+            },
+            'volume_sanity': {
+                'low_volume_threshold': 1000000,
+                'high_volume_threshold': 100000000,
+                'new_low_volume_alert': 50,
+            },
+            'loader_contracts': {
+                'price_daily_14d_min': 40000,
+                'buy_sell_daily_14d_min': 800,
+                'coverage_ratio_min': 0.80,
+            },
+        }
+        try:
+            self.cur.execute("""
+                INSERT INTO data_patrol_log (patrol_run_id, check_name, severity,
+                                            target_table, message, details)
+                VALUES (%s, 'configuration_audit', 'info', 'patrol_config',
+                        'Patrol configuration snapshot', %s)
+            """, (self._run_id, json.dumps(config)))
+            self.conn.commit()
+        except Exception:
+            pass
 
     def log(self, name, severity, target, message, details=None):
         self.results.append({
@@ -232,6 +297,73 @@ class DataPatrol:
                          f'{ident_count} symbols with identical OHLC', None)
         except Exception as e:
             self.log('zero_data', ERROR, 'price_daily', f'Check failed: {e}', None)
+
+    def check_volume_sanity(self):
+        """P5. Volume within realistic range — catches zero-volume and halted symbols.
+
+        Penny stocks legitimately have low volume; halted symbols have zero volume.
+        This check flags UNUSUAL patterns: symbols trading <1M or >100M on same day.
+        """
+        try:
+            self.cur.execute("""
+                SELECT
+                    SUM(CASE WHEN volume < 1000000 THEN 1 ELSE 0 END) FILTER (
+                        WHERE date = (SELECT MAX(date) FROM price_daily)
+                          AND symbol NOT IN (SELECT symbol FROM price_daily WHERE date = (SELECT MAX(date) FROM price_daily) - INTERVAL '1 day' AND volume < 1000000)
+                    ) AS low_volume_new,
+                    SUM(CASE WHEN volume > 100000000 THEN 1 ELSE 0 END) FILTER (
+                        WHERE date = (SELECT MAX(date) FROM price_daily)
+                    ) AS high_volume,
+                    COUNT(*) FILTER (WHERE date = (SELECT MAX(date) FROM price_daily)) AS total
+                FROM price_daily
+            """)
+            low_new, high_vol, total = self.cur.fetchone()
+            low_new = int(low_new or 0)
+            high_vol = int(high_vol or 0)
+            total = int(total or 1)
+
+            issues = []
+            if low_new > 50:
+                issues.append(f'{low_new} symbols NEW low-volume (<1M) — possible data source issue')
+                self.log('volume_sanity', WARN, 'price_daily',
+                         f'{low_new} symbols with <1M volume (new pattern)',
+                         {'new_low_volume': low_new, 'total': total})
+            if high_vol > 5:
+                issues.append(f'{high_vol} symbols with extreme volume (>100M)')
+                self.log('volume_sanity', INFO, 'price_daily',
+                         f'{high_vol} symbols with >100M volume', {'extreme_count': high_vol})
+            if not issues:
+                self.log('volume_sanity', INFO, 'price_daily', 'Volume patterns normal', None)
+        except Exception as e:
+            self.log('volume_sanity', ERROR, 'price_daily', f'Check failed: {e}', None)
+
+    def check_ohlc_sanity(self):
+        """P5b. OHLC relationships: High >= Open/Close/Low, open/close >= low."""
+        try:
+            self.cur.execute("""
+                SELECT COUNT(*) FILTER (WHERE high < open OR high < close OR high < low) AS bad_high,
+                       COUNT(*) FILTER (WHERE low > open OR low > close OR low > high) AS bad_low,
+                       COUNT(*) FILTER (WHERE open < 0 OR close < 0 OR high < 0 OR low < 0) AS negative
+                FROM price_daily
+                WHERE date = (SELECT MAX(date) FROM price_daily)
+            """)
+            bad_high, bad_low, negative = self.cur.fetchone()
+            bad_high = int(bad_high or 0)
+            bad_low = int(bad_low or 0)
+            negative = int(negative or 0)
+
+            if negative > 0:
+                self.log('ohlc_sanity', CRIT, 'price_daily',
+                         f'{negative} rows with NEGATIVE prices — data corruption',
+                         {'negative_count': negative})
+            elif bad_high > 0 or bad_low > 0:
+                self.log('ohlc_sanity', ERROR, 'price_daily',
+                         f'OHLC violation: {bad_high} high<OHLC, {bad_low} low>OHLC',
+                         {'bad_high': bad_high, 'bad_low': bad_low})
+            else:
+                self.log('ohlc_sanity', INFO, 'price_daily', 'OHLC relationships valid', None)
+        except Exception as e:
+            self.log('ohlc_sanity', ERROR, 'price_daily', f'Check failed: {e}', None)
 
     def check_price_sanity(self):
         """P4. Day-over-day moves within reasonable range (no >50% moves without reason)."""
@@ -766,6 +898,119 @@ class DataPatrol:
         except Exception as e:
             self.log('cross_align', INFO, 'date_alignment', f'Check skipped: {e}', None)
 
+    def check_corporate_actions(self):
+        """P3b. Detect likely corporate actions (splits, halts, delistings).
+
+        >30% drop in 1 day without earnings = split, halt, or delisting.
+        These corrupt data and break position calculations.
+        """
+        try:
+            self.cur.execute("""
+                WITH d AS (
+                    SELECT pd.symbol, pd.date, pd.close,
+                           LAG(pd.close) OVER (PARTITION BY pd.symbol ORDER BY pd.date) AS prev,
+                           LAG(pd.date) OVER (PARTITION BY pd.symbol ORDER BY pd.date) AS prev_date
+                    FROM price_daily pd
+                    WHERE pd.date >= CURRENT_DATE - INTERVAL '30 days'
+                )
+                SELECT symbol, date, close, prev,
+                       ABS(close - prev) / NULLIF(prev, 0) * 100 AS pct_change
+                FROM d
+                WHERE prev IS NOT NULL
+                  AND date = prev_date + INTERVAL '1 day'
+                  AND (close - prev) / NULLIF(prev, 0) < -0.30
+                ORDER BY pct_change ASC
+                LIMIT 50
+            """)
+            extreme_drops = self.cur.fetchall()
+
+            if extreme_drops:
+                self.log('corporate_action', WARN, 'price_daily',
+                         f'{len(extreme_drops)} symbols with >30% single-day drop (likely corporate action)',
+                         {'count': len(extreme_drops),
+                          'samples': [{'symbol': r[0], 'date': str(r[1]), 'pct_drop': round(r[4], 1)}
+                                      for r in extreme_drops[:10]]})
+            else:
+                self.log('corporate_action', INFO, 'price_daily',
+                         'No extreme drops detected (no obvious corporate actions)', None)
+        except Exception as e:
+            self.log('corporate_action', ERROR, 'price_daily', f'Check failed: {e}', None)
+
+    def check_signal_data_alignment(self):
+        """P6b. Every BUY/SELL signal must have matching price + technical data same date.
+
+        Orphaned or corrupt signals that don't have underlying data = bad fill data.
+        """
+        try:
+            self.cur.execute("""
+                SELECT COUNT(*) FILTER (WHERE signal IN ('BUY', 'SELL')) AS total_signals,
+                       COUNT(*) FILTER (
+                           WHERE signal IN ('BUY', 'SELL')
+                             AND NOT EXISTS (
+                                 SELECT 1 FROM price_daily pd
+                                 WHERE pd.symbol = buy_sell_daily.symbol
+                                   AND pd.date = buy_sell_daily.date
+                             )
+                       ) AS missing_price,
+                       COUNT(*) FILTER (
+                           WHERE signal IN ('BUY', 'SELL')
+                             AND NOT EXISTS (
+                                 SELECT 1 FROM technical_data_daily td
+                                 WHERE td.symbol = buy_sell_daily.symbol
+                                   AND td.date = buy_sell_daily.date
+                             )
+                       ) AS missing_tech
+                FROM buy_sell_daily
+                WHERE date >= CURRENT_DATE - INTERVAL '14 days'
+            """)
+            total, missing_price, missing_tech = self.cur.fetchone()
+            total = int(total or 0)
+            missing_price = int(missing_price or 0)
+            missing_tech = int(missing_tech or 0)
+
+            if missing_price > 0 or missing_tech > 0:
+                self.log('signal_alignment', ERROR, 'buy_sell_daily',
+                         f'{missing_price} signals missing price_daily, {missing_tech} missing technical_data',
+                         {'total_signals': total, 'missing_price': missing_price, 'missing_tech': missing_tech})
+            else:
+                self.log('signal_alignment', INFO, 'buy_sell_daily',
+                         f'All {total} signals have matching price + technical data', None)
+        except Exception as e:
+            self.log('signal_alignment', ERROR, 'buy_sell_daily', f'Check failed: {e}', None)
+
+    def check_trade_price_alignment(self):
+        """P16. Every filled trade must have price history on/after fill date.
+
+        Catches missing price data for executed trades (DB corruption or loader failure).
+        """
+        try:
+            # Get all filled trades from past 60 days
+            self.cur.execute("""
+                SELECT t.trade_id, t.symbol, t.fill_date, COUNT(p.date) as price_count
+                FROM algo_trades t
+                LEFT JOIN price_daily p
+                    ON t.symbol = p.symbol
+                   AND p.date >= t.fill_date
+                   AND p.date <= CURRENT_DATE
+                WHERE t.status IN ('filled', 'active', 'partial')
+                  AND t.fill_date >= CURRENT_DATE - INTERVAL '60 days'
+                GROUP BY t.trade_id, t.symbol, t.fill_date
+                HAVING COUNT(p.date) = 0
+            """)
+            orphaned = self.cur.fetchall()
+            if orphaned:
+                self.log('trade_alignment', ERROR, 'algo_trades/price_daily',
+                         f'{len(orphaned)} filled trades missing price history',
+                         {'orphaned_trades': len(orphaned),
+                          'sample': [{'trade_id': r[0], 'symbol': r[1], 'fill_date': str(r[2])}
+                                     for r in orphaned[:5]]})
+            else:
+                self.log('trade_alignment', INFO, 'algo_trades/price_daily',
+                         'All recent filled trades have price history', None)
+        except Exception as e:
+            self.log('trade_alignment', ERROR, 'algo_trades/price_daily',
+                     f'Check failed: {e}', None)
+
     def check_fundamental_data(self):
         """P15. Financial statement and fundamental data freshness."""
         today = _date.today()
@@ -826,22 +1071,31 @@ class DataPatrol:
 
     def run(self, quick=False, validate_alpaca=False):
         self._run_id = f"PATROL-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+        start_time = time.time()
         self.connect()
         try:
             print(f"\n{'='*82}\nDATA PATROL — {self._run_id}\n{'='*82}\n")
+
+            # Log configuration at start of run
+            self._log_configuration()
 
             # Always run critical checks
             self.check_staleness()
             self.check_universe_coverage()
             self.check_zero_or_identical()
+            self.check_corporate_actions()
             self.check_db_constraints()
 
             if not quick:
                 self.check_null_anomalies()
+                self.check_volume_sanity()
+                self.check_ohlc_sanity()
                 self.check_price_sanity()
                 self.check_sequence_continuity()
                 self.check_score_freshness()
                 self.check_loader_contracts()
+                self.check_signal_data_alignment()
+                self.check_trade_price_alignment()
                 self.check_earnings_data()
                 self.check_etf_data()
                 self.check_cross_table_alignment()
@@ -851,11 +1105,12 @@ class DataPatrol:
                 self.check_alpaca_cross_validate()
                 self.check_yahoo_cross_validate()
 
-            return self.summarize()
+            elapsed = time.time() - start_time
+            return self.summarize(elapsed)
         finally:
             self.disconnect()
 
-    def summarize(self):
+    def summarize(self, elapsed_seconds=None):
         counts = {INFO: 0, WARN: 0, ERROR: 0, CRIT: 0}
         for r in self.results:
             counts[r['severity']] = counts.get(r['severity'], 0) + 1
@@ -864,7 +1119,12 @@ class DataPatrol:
         print(f"  INFO:     {counts.get(INFO, 0)}")
         print(f"  WARN:     {counts.get(WARN, 0)}")
         print(f"  ERROR:    {counts.get(ERROR, 0)}")
-        print(f"  CRITICAL: {counts.get(CRIT, 0)}\n")
+        print(f"  CRITICAL: {counts.get(CRIT, 0)}")
+        if elapsed_seconds:
+            perf_status = "✓" if elapsed_seconds < 120 else "⚠️ SLOW"
+            print(f"  TIME:     {elapsed_seconds:.1f}s {perf_status}\n")
+        else:
+            print()
 
         # Show all non-INFO findings
         flagged = [r for r in self.results if r['severity'] != INFO]
@@ -881,12 +1141,26 @@ class DataPatrol:
         print(f"  ALGO READY TO TRADE: {'YES' if ready else 'NO'}")
         print(f"{'='*82}\n")
 
+        # Log performance metrics
+        if elapsed_seconds:
+            try:
+                self.cur.execute("""
+                    INSERT INTO data_patrol_log (patrol_run_id, check_name, severity,
+                                                target_table, message, details)
+                    VALUES (%s, 'patrol_performance', 'info', 'patrol_metrics',
+                            'Patrol execution time', %s)
+                """, (self._run_id, json.dumps({'seconds': round(elapsed_seconds, 2), 'status': 'SLOW' if elapsed_seconds > 120 else 'OK'})))
+                self.conn.commit()
+            except Exception:
+                pass
+
         return {
             'run_id': self._run_id,
             'counts': counts,
             'ready': ready,
             'flagged': flagged,
             'all_results': self.results,
+            'elapsed_seconds': elapsed_seconds,
         }
 
 

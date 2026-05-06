@@ -58,6 +58,64 @@ class PositionMonitor:
             self.conn.close()
         self.cur = self.conn = None
 
+    def check_stale_orders(self, current_date=None):
+        """Check for orders stuck in pending state >1 hour. Alert if found.
+
+        Stuck orders = likely API issue or rejection. Should be resolved manually.
+        """
+        if not current_date:
+            current_date = _date.today()
+
+        self.connect()
+        try:
+            self.cur.execute("""
+                SELECT trade_id, symbol, entry_price, quantity, created_at
+                FROM algo_trades
+                WHERE status = 'pending'
+                  AND created_at < CURRENT_TIMESTAMP - INTERVAL '1 hour'
+                ORDER BY created_at ASC
+            """)
+            stale_orders = self.cur.fetchall()
+            if stale_orders:
+                print(f"\n  [ALERT] Found {len(stale_orders)} orders pending >1 hour:")
+                for row in stale_orders:
+                    trade_id, symbol, price, qty, created_at = row
+                    age_minutes = int((datetime.now() - created_at).total_seconds() / 60)
+                    print(f"    {trade_id} {symbol} {qty}@{price} (pending {age_minutes}m)")
+                return {'status': 'STALE_ORDERS_FOUND', 'count': len(stale_orders), 'orders': stale_orders}
+            else:
+                return {'status': 'OK', 'count': 0}
+        finally:
+            self.disconnect()
+
+    def check_sector_concentration(self, current_date=None):
+        """Check if portfolio is overly concentrated in one sector.
+
+        Alert if >3 positions in same sector (concentration risk).
+        """
+        if not current_date:
+            current_date = _date.today()
+
+        try:
+            self.cur.execute("""
+                SELECT cp.sector, COUNT(DISTINCT ap.symbol) as position_count
+                FROM algo_positions ap
+                JOIN company_profile cp ON ap.symbol = cp.ticker
+                WHERE ap.status = 'open' AND ap.quantity > 0
+                GROUP BY cp.sector
+                HAVING COUNT(DISTINCT ap.symbol) > 3
+                ORDER BY position_count DESC
+            """)
+            concentrated = self.cur.fetchall()
+            if concentrated:
+                print(f"\n  [CONCENTRATION ALERT]")
+                for sector, count in concentrated:
+                    print(f"    {sector}: {count} positions (>3 is risky)")
+                return {'status': 'HIGH_CONCENTRATION', 'sectors': concentrated}
+            return {'status': 'OK', 'sectors': []}
+        except Exception as e:
+            return {'status': 'ERROR', 'error': str(e)}
+
     def review_positions(self, current_date=None):
         """Review every open position. Returns list of recommendations."""
         if not current_date:
@@ -66,6 +124,11 @@ class PositionMonitor:
         self.connect()
         recs = []
         try:
+            # Check sector concentration first
+            conc = self.check_sector_concentration(current_date)
+            if conc['status'] == 'HIGH_CONCENTRATION':
+                print(f"  ⚠️  Portfolio concentration risk detected")
+
             self.cur.execute(
                 """
                 SELECT t.trade_id, t.symbol, t.entry_price, t.stop_loss_price,
@@ -143,6 +206,12 @@ class PositionMonitor:
             symbol, current_date, entry_price, active_stop,
             cur_price, atr, sma_50, target_hits, t1_price, t2_price,
         )
+
+        # B16: Validate stop price is below current price (can't sell above market)
+        if proposed_stop > cur_price:
+            print(f"ERROR: Proposed stop ${proposed_stop:.2f} > current price ${cur_price:.2f} for {symbol}")
+            proposed_stop = cur_price - 0.01  # Clamp to 1c below market
+            print(f"  Clamped stop to ${proposed_stop:.2f}")
 
         # 3. Health flags
         flags = []
@@ -339,17 +408,30 @@ class PositionMonitor:
         return ((float(row[0]) - entry_price) / entry_price) * 100.0
 
     def _days_to_earnings(self, symbol, current_date):
-        self.cur.execute(
-            "SELECT MAX(quarter) FROM earnings_history WHERE symbol = %s",
-            (symbol,),
-        )
-        row = self.cur.fetchone()
-        if not row or not row[0]:
+        """Get days until next earnings. Returns None if earnings data missing.
+
+        B17: Fail-safe if earnings_history is empty (don't crash on NULL).
+        """
+        try:
+            self.cur.execute(
+                "SELECT MAX(quarter) FROM earnings_history WHERE symbol = %s",
+                (symbol,),
+            )
+            row = self.cur.fetchone()
+            if not row or not row[0]:
+                # No earnings history for this symbol
+                return None
+            est = row[0] + timedelta(days=45)
+            while est < current_date:
+                est += timedelta(days=90)
+            days = (est - current_date).days
+            # Sanity check: earnings should be 0-120 days away
+            if days < 0 or days > 200:
+                return None
+            return days
+        except Exception as e:
+            print(f"  [WARN] Could not compute days_to_earnings for {symbol}: {e}")
             return None
-        est = row[0] + timedelta(days=45)
-        while est < current_date:
-            est += timedelta(days=90)
-        return (est - current_date).days
 
     def _fetch_market_dist_days(self, current_date):
         self.cur.execute(

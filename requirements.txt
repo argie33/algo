@@ -6,3 +6,4 @@ pandas==2.1.4
 polars==0.20.4
 alpaca-trade-api==3.2.0
 pyarrow==15.0.0
+twilio==9.0.0

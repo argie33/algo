@@ -183,7 +183,9 @@
       "PowerShell(docker-compose *)",
       "Bash(grep -E \"\\\\.\\(md|txt|log|sh\\)$\")",
       "PowerShell(netstat *)",
-      "Bash(psql -h localhost -U stocks -d stocks -c \"SELECT 1;\")"
+      "Bash(psql -h localhost -U stocks -d stocks -c \"SELECT 1;\")",
+      "Bash(find C:\\\\\\\\Users\\\\\\\\arger\\\\\\\\code\\\\\\\\algo -name \"*schema*\" -o -name \"*init*\" -o -name \"*.sql\")",
+      "Bash(psql -h localhost -U stocks -d stocks -c \"\\\\d buy_sell_daily\")"
     ]
   }
 }
