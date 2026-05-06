@@ -1,13 +1,13 @@
 # AWS Infrastructure Deployment — Current Status
 
-**Date:** 2026-05-06 01:42 UTC  
-**Stage:** Final testing of core infrastructure deployment  
-**Workflow Status:** https://github.com/argeropolos/algo/actions/runs/25411928179 (in progress)
+**Date:** 2026-05-06 02:08 UTC  
+**Stage:** Deploying core infrastructure with security hardening  
+**Current Workflow:** https://github.com/argie33/algo/actions/runs/25412670650 (pending/in_progress)
 
-**Previous Failures & Fixes:**
-- ❌ Workflow 25411687355: REVIEW_IN_PROGRESS + ResourceExistenceCheck error
-- ❌ Workflow 25411798173: ResourceExistenceCheck error (orphaned S3 buckets)
-- ✅ Workflow 25411928179: Running with comprehensive cleanup (S3, VPC, ECR)
+**Root Cause & Resolution:**
+- ❌ Previous failures: S3 bucket naming conflicts (AWS grace period prevents bucket reuse)
+- ✅ **Fix applied:** Removed hardcoded bucket names, let CloudFormation auto-generate unique names
+- ✅ **Security hardening:** Added 6 critical improvements (see below)
 
 ---
 
@@ -41,7 +41,27 @@
   - Deploys all 6 stacks in correct dependency order
   - Enforces pre-flight checks and rollback cleanup
 
-### Commits
+### Security Hardening (NEW - 2026-05-06)
+- ✅ **Removed hardcoded S3 bucket names** → Use CloudFormation auto-generated unique names
+  - Eliminates AWS grace period naming conflicts blocking deployments
+  - `1de4c9eec` Fix: remove hardcoded S3 bucket names
+- ✅ **Replaced AdministratorAccess with least-privilege policy** → CloudFormation-only actions
+  - `30d4b10ae` Security: replace AdministratorAccess with least-privilege CloudFormation policy
+  - Restricts GitHub Actions role to: CloudFormation, IAM PassRole, EC2, S3, RDS, Lambda, ECS, ECR, Secrets Manager, EventBridge, Cognito, CloudFront, CloudWatch
+- ✅ **Moved RDS to private subnets** → No longer publicly accessible
+  - `bb2b81b97` Security: move RDS to private subnets and restrict database access
+  - Restricted access to ECS tasks + Bastion only (was 0.0.0.0/0)
+- ✅ **Removed SSH access to Bastion** → Use AWS Systems Manager Session Manager
+  - `3f2197dac` Security: remove SSH access to Bastion
+  - Removed port 22 ingress rule, enabled secure IAM-based access
+- ✅ **Enabled S3 bucket encryption at rest** → AES256 encryption
+  - `77f594ae2` Security: enable S3 bucket encryption at rest
+  - Encryption on: CodeBucket, CfTemplatesBucket, AlgoArtifactsBucket
+- ✅ **Added CloudWatch alarms for RDS monitoring** → CPU, storage, connections
+  - `c27a1a1b5` Observability: add CloudWatch alarms for RDS monitoring
+  - Alerts on: CPU > 80%, Free storage < 10GB, Connections > 50
+
+### Previous Commits
 ```
 d8dbf2c47 Fix: handle CloudFormation REVIEW_IN_PROGRESS state in deploy-core
 2ef43a66a Fix: finish converting all workflows to static AWS credentials
@@ -50,26 +70,25 @@ db1ba3cf4 Fix: use static credentials instead of OIDC in deploy-core
 
 ---
 
-## 🔄 Current Task: Testing deploy-core
+## 🔄 Current Task: Testing deploy-core with Security Hardening
 
-**Workflow Run:** 25411687355  
-**Status:** IN PROGRESS  
-**What it's testing:**
-1. AWS credentials validation
-2. CloudFormation hook cleanup
-3. Core infrastructure deployment (VPC, subnets, ECR, S3, Bastion)
-4. Stack status verification
-5. Stack output export verification
+**Workflow Run:** 25412670650  
+**Status:** Pending/In Progress  
+**Key Changes:**
+1. S3 buckets now use auto-generated names (no more grace period conflicts)
+2. Least-privilege IAM policy (no more AdministratorAccess)
+3. RDS in private subnets (no more public access)
+4. Bastion uses SSM Session Manager (no more SSH port 22)
+5. S3 buckets encrypted at rest
+6. CloudWatch alarms for RDS monitoring
 
 **Expected result:** `stocks-core` stack in `CREATE_COMPLETE` state with 9 exports:
-- StocksCore-VpcId
+- StocksCore-VpcId, StocksCore-PrivateSubnet1Id, StocksCore-PrivateSubnet2Id
 - StocksCore-PublicSubnet1Id, StocksCore-PublicSubnet2Id
 - StocksCore-ContainerRepositoryUri
-- StocksCore-CfTemplatesBucketName
-- StocksCore-CodeBucketName
-- StocksCore-AlgoArtifactsBucketName (NEW)
-- StocksCore-BastionSecurityGroupId
-- StocksCore-VpcEndpointSecurityGroupId
+- StocksCore-CodeBucketName, StocksCore-CfTemplatesBucketName
+- StocksCore-AlgoArtifactsBucketName
+- StocksCore-BastionSecurityGroupId, StocksCore-VpcEndpointSecurityGroupId
 
 ---
 
