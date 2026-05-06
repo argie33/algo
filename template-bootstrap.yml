@@ -124,6 +124,7 @@ Resources:
                   - ec2:DescribeInternetGateways
                   - ec2:DescribeRouteTables
                   - ec2:DescribeInstances
+                  - ec2:DescribeImages
                   - ec2:RunInstances
                   - ec2:TerminateInstances
                   - ec2:CreateNetworkInterface
@@ -135,6 +136,11 @@ Resources:
                   - ec2:AuthorizeSecurityGroupEgress
                   - ec2:RevokeSecurityGroupIngress
                   - ec2:RevokeSecurityGroupEgress
+                  - ec2:CreateVpcEndpoint
+                  - ec2:DeleteVpcEndpoint
+                  - ec2:DescribeVpcEndpoints
+                  - ec2:DescribeVpcEndpointServiceConfigurations
+                  - ec2:ModifyVpcEndpoint
                 Resource: '*'
               - Sid: RDSAccess
                 Effect: Allow
@@ -162,6 +168,16 @@ Resources:
                   - lambda:AddPermission
                   - lambda:RemovePermission
                 Resource: !Sub 'arn:aws:lambda:*:${AWS::AccountId}:function:stocks-*'
+              - Sid: SSMAccess
+                Effect: Allow
+                Action:
+                  - ssm:CreateAssociation
+                  - ssm:DeleteAssociation
+                  - ssm:DescribeAssociation
+                  - ssm:ListAssociations
+                  - ssm:GetParameter
+                  - ssm:DescribeParameters
+                Resource: '*'
               - Sid: ECSAccess
                 Effect: Allow
                 Action:
@@ -182,6 +198,16 @@ Resources:
                   - secretsmanager:GetSecretValue
                   - secretsmanager:UpdateSecret
                 Resource: !Sub 'arn:aws:secretsmanager:*:${AWS::AccountId}:secret:stocks-*'
+              - Sid: AutoScalingAccess
+                Effect: Allow
+                Action:
+                  - autoscaling:CreateAutoScalingGroup
+                  - autoscaling:DeleteAutoScalingGroup
+                  - autoscaling:DescribeAutoScalingGroups
+                  - autoscaling:UpdateAutoScalingGroup
+                  - autoscaling:DescribeLaunchConfigurations
+                  - autoscaling:DescribeLifecycleHooks
+                Resource: '*'
               - Sid: EventBridgeAccess
                 Effect: Allow
                 Action:
