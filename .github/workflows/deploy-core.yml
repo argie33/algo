@@ -243,6 +243,34 @@ jobs:
             echo "Stack deleted - will create fresh"
           fi
 
+          # Force delete any orphaned VPCs with 10.0.0.0/16 CIDR
+          echo "Checking for orphaned VPCs with 10.0.0.0/16..."
+          VPC_IDS=$(aws ec2 describe-vpcs \
+            --filters "Name=cidr,Values=10.0.0.0/16" \
+            --region "${{ env.AWS_REGION }}" \
+            --query 'Vpcs[].VpcId' \
+            --output text 2>/dev/null || echo "")
+
+          if [[ ! -z "$VPC_IDS" ]]; then
+            for VPC_ID in $VPC_IDS; do
+              echo "Force-deleting orphaned VPC: $VPC_ID"
+              # Delete all ENIs first
+              aws ec2 describe-network-interfaces \
+                --filters "Name=vpc-id,Values=$VPC_ID" \
+                --region "${{ env.AWS_REGION }}" \
+                --query 'NetworkInterfaces[].NetworkInterfaceId' \
+                --output text | xargs -I {} aws ec2 delete-network-interface --network-interface-id {} --region "${{ env.AWS_REGION }}" 2>/dev/null || true
+              # Delete subnets
+              aws ec2 describe-subnets \
+                --filters "Name=vpc-id,Values=$VPC_ID" \
+                --region "${{ env.AWS_REGION }}" \
+                --query 'Subnets[].SubnetId' \
+                --output text | xargs -I {} aws ec2 delete-subnet --subnet-id {} --region "${{ env.AWS_REGION }}" 2>/dev/null || true
+              # Delete VPC
+              aws ec2 delete-vpc --vpc-id "$VPC_ID" --region "${{ env.AWS_REGION }}" 2>/dev/null || echo "VPC may have dependencies"
+            done
+          fi
+
           aws cloudformation deploy \
             --template-file template-core.yml \
             --stack-name "${{ env.STACK_NAME }}" \
