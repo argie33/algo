@@ -356,7 +356,7 @@ Resources:
   CodeBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub stocks-algo-app-code-${AWS::AccountId}
+      BucketName: !Sub stocks-app-code-${AWS::AccountId}-${AWS::StackName}
       VersioningConfiguration:
         Status: Enabled
       PublicAccessBlockConfiguration:
@@ -371,7 +371,7 @@ Resources:
   CfTemplatesBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub stocks-cf-templates-${AWS::AccountId}
+      BucketName: !Sub stocks-templates-${AWS::AccountId}-${AWS::StackName}
       VersioningConfiguration:
         Status: Enabled
       PublicAccessBlockConfiguration:
@@ -386,7 +386,7 @@ Resources:
   AlgoArtifactsBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub algo-artifacts-${AWS::AccountId}
+      BucketName: !Sub algo-artifacts-${AWS::AccountId}-${AWS::StackName}
       VersioningConfiguration:
         Status: Enabled
       PublicAccessBlockConfiguration:
