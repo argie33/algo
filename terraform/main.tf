@@ -21,8 +21,8 @@ module "bootstrap" {
   count = var.deploy_bootstrap ? 1 : 0
 
   project_name  = var.project_name
-  github_org    = var.github_org
-  github_repo   = var.github_repo
+  github_org    = "argie33"
+  github_repo   = "algo"
   aws_account_id = var.aws_account_id
 
   common_tags = local.common_tags
