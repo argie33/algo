@@ -217,18 +217,18 @@ def main():
     print(f"SUMMARY")
     print(f"{'='*70}")
     for name, passed in results.items():
-        status = '✓ PASS' if passed else '✗ FAIL'
+        status = '[PASS]' if passed else '[FAIL]'
         print(f"  {name:20s} {status}")
 
     print(f"\n{'='*70}\n")
 
     all_passed = all(results.values())
     if all_passed:
-        print("ALL TESTS PASSED ✓\n")
+        print("ALL TESTS PASSED\n")
         print("Ready to run orchestrator in production mode.")
         return 0
     else:
-        print("SOME TESTS FAILED ✗\n")
+        print("SOME TESTS FAILED\n")
         print("Fix issues above before running orchestrator.")
         return 1
 
