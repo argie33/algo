@@ -329,7 +329,7 @@ class TradeExecutor:
                 )
                 """,
                 (
-                    trade_id, symbol, signal_date, datetime.now().date(),
+                    trade_id, symbol, signal_date, datetime.now().date(),  # Use today's date (order fill date from Alpaca API)
                     executed_price, shares, entry_reason,
                     stop_loss_price, stop_method or 'minervini_break_or_swing_low',
                     target_1_price, float(self.config.get('t1_target_r_multiple', 1.5)),
