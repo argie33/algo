@@ -252,6 +252,43 @@ Resources:
       LogGroupName: !Sub '/aws/lambda/algo-orchestrator'
       RetentionInDays: 30
 
+  # DLQ monitoring — alerts if EventBridge fails to invoke Lambda
+  DLQDepthAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'algo-orchestrator-dlq-depth-${Environment}'
+      AlarmDescription: 'Alert when algo scheduler dead-letter queue has messages (EventBridge invoke failure)'
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt AlgoEventDLQ.QueueName
+      AlarmActions:
+        - !Ref AlgoAlertTopic
+      TreatMissingData: notBreaching
+
+  # Missed execution detection — alerts if algo doesn't run that day
+  AlgoNotRunningAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'algo-orchestrator-not-running-${Environment}'
+      AlarmDescription: 'Alert if algo orchestrator did not complete its run (missing daily metric)'
+      MetricName: AlgoRunCompleted
+      Namespace: AlgoTrading
+      Statistic: Sum
+      Period: 86400  # 24 hours
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      AlarmActions:
+        - !Ref AlgoAlertTopic
+      TreatMissingData: breaching  # If no metric data, algo didn't run
+
 Outputs:
   LambdaFunctionArn:
     Description: ARN of the algo-orchestrator Lambda function
