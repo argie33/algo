@@ -257,65 +257,11 @@ jobs:
 
           sleep 2
 
-          # 3. Delete ALL S3 buckets with stocks/algo in name (regardless of content)
-          echo "Force-deleting all S3 buckets with 'stocks' or 'algo' in name..."
-          aws s3 ls 2>/dev/null | grep -E "stocks|algo" | awk '{print $3}' | while read BUCKET_NAME; do
-            echo "  Processing bucket: $BUCKET_NAME"
+          # 3. Skip S3 bucket cleanup (using auto-generated names now, no collisions)
+          echo "Skipping S3 cleanup (auto-generated bucket names prevent collisions)"
 
-            # Delete all object versions (handles versioning)
-            echo "    Listing and deleting all object versions..."
-            aws s3api list-object-versions --bucket "$BUCKET_NAME" --region "$REGION" \
-              --query 'Versions[].{Key:Key,VersionId:VersionId}' --output json 2>/dev/null | \
-              jq -r '.[] | "--key \(.Key) --version-id \(.VersionId)"' | \
-              xargs -I {} aws s3api delete-object --bucket "$BUCKET_NAME" --region "$REGION" {} 2>/dev/null || true
-
-            # Delete all delete markers
-            aws s3api list-object-versions --bucket "$BUCKET_NAME" --region "$REGION" \
-              --query 'DeleteMarkers[].{Key:Key,VersionId:VersionId}' --output json 2>/dev/null | \
-              jq -r '.[] | "--key \(.Key) --version-id \(.VersionId)"' | \
-              xargs -I {} aws s3api delete-object --bucket "$BUCKET_NAME" --region "$REGION" {} 2>/dev/null || true
-
-            # Finally delete the bucket
-            echo "    Deleting bucket..."
-            aws s3 rb "s3://$BUCKET_NAME" --force --region "$REGION" 2>/dev/null || \
-              aws s3api delete-bucket --bucket "$BUCKET_NAME" --region "$REGION" 2>/dev/null || \
-              echo "    ⚠️  Could not delete $BUCKET_NAME (may be in grace period)"
-          done
-
-          # 4. Delete VPCs with 10.0.0.0/16
-          echo "Deleting orphaned VPCs with 10.0.0.0/16..."
-          VPC_IDS=$(aws ec2 describe-vpcs \
-            --filters "Name=cidr,Values=10.0.0.0/16" \
-            --region "$REGION" \
-            --query 'Vpcs[].VpcId' \
-            --output text 2>/dev/null || echo "")
-
-          if [[ ! -z "$VPC_IDS" ]]; then
-            for VPC_ID in $VPC_IDS; do
-              echo "  Processing VPC: $VPC_ID"
-
-              # Delete all ENIs
-              for ENI_ID in $(aws ec2 describe-network-interfaces \
-                --filters "Name=vpc-id,Values=$VPC_ID" \
-                --region "$REGION" \
-                --query 'NetworkInterfaces[].NetworkInterfaceId' \
-                --output text 2>/dev/null); do
-                aws ec2 delete-network-interface --network-interface-id "$ENI_ID" --region "$REGION" 2>/dev/null || true
-              done
-
-              # Delete subnets
-              for SUBNET_ID in $(aws ec2 describe-subnets \
-                --filters "Name=vpc-id,Values=$VPC_ID" \
-                --region "$REGION" \
-                --query 'Subnets[].SubnetId' \
-                --output text 2>/dev/null); do
-                aws ec2 delete-subnet --subnet-id "$SUBNET_ID" --region "$REGION" 2>/dev/null || true
-              done
-
-              # Delete VPC
-              aws ec2 delete-vpc --vpc-id "$VPC_ID" --region "$REGION" 2>/dev/null || echo "    ⚠️  VPC deletion failed (may have dependencies)"
-            done
-          fi
+          # 4. Skip VPC cleanup (CloudFormation stack deletion handles VPC cleanup)
+          echo "Skipping VPC cleanup (handled by CloudFormation stack deletion)"
 
           echo "Cleanup phase complete"
           echo ""
